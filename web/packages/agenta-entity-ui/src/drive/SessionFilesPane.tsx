@@ -8,7 +8,7 @@
  * the agent overview) sets the same per-session atoms; `useSessionFilesPane` folds them into the
  * split's open flag.
  */
-import {useCallback, useEffect, useMemo, useRef} from "react"
+import {createContext, useCallback, useContext, useEffect, useMemo, useRef} from "react"
 
 import {type DriveId} from "@agenta/entities/drive"
 import {useSessionDriveSummary} from "@agenta/entities/drive"
@@ -28,10 +28,26 @@ import {useDriveGeneration} from "./index"
 import {driveQuickLookAtomFamily} from "./index"
 import {filesDrawerStagedAtomFamily, resolveQuickLookPath} from "./index"
 
+// The host's chrome, so the skeleton shown while the body loads draws the same rows.
+const FallbackChromeContext = createContext({phone: false, actions: 4})
+
+const ExplorerFallback = () => {
+    const {phone, actions} = useContext(FallbackChromeContext)
+    return (
+        <DriveExplorerSkeleton
+            withChrome
+            mirrored
+            showTree={false}
+            phone={phone}
+            actions={actions}
+        />
+    )
+}
+
 // Heavy body — loaded lazily on first open (the split unmounts the pane while collapsed).
 const DriveExplorer = dynamic(() => import("./DriveExplorer").then((m) => m.DriveExplorer), {
     ssr: false,
-    loading: () => <DriveExplorerSkeleton withChrome mirrored showTree={false} />,
+    loading: () => <ExplorerFallback />,
 })
 
 // The pane's open flag belongs to the chat PANEL (keyed by the app scope), not to one session:
@@ -102,7 +118,7 @@ export function SessionFilesPane({
     onToggleExpand?: () => void
     /** Open and download only (a phone): the explorer offers no write. */
     readOnly?: boolean
-    /** A touch screen (a phone): 44 px hit areas on the header and toolbar buttons. */
+    /** A touch screen (a phone): the header and the toolbar share one row. */
     touch?: boolean
 }) {
     const {open, close} = useSessionFilesPane(scope, sessionId)
@@ -167,33 +183,44 @@ export function SessionFilesPane({
 
     const driveGeneration = useDriveGeneration(drive.mount?.id)
 
+    // Row 1's trailing buttons as the loaded header draws them: Widen, View options, the tree, Close.
+    const canExpand = Boolean(onToggleExpand)
+    const fallbackChrome = useMemo(
+        () => ({
+            phone: touch && closeControl === "none",
+            actions: (canExpand ? 1 : 0) + 2 + (closeControl === "none" ? 0 : 1),
+        }),
+        [touch, closeControl, canExpand],
+    )
     return (
         <div className="flex h-full min-h-0 w-full flex-col">
-            <DriveExplorer
-                key={driveGeneration}
-                drive={drive}
-                scope="session"
-                initialPath={initialPath}
-                initialPathSeq={initialPathSeq}
-                folderHint={quickLook?.folder ? initialPath : null}
-                onSelectionChange={onSelectionChange}
-                chrome
-                onClose={closeControl === "none" && !expanded ? undefined : close}
-                expanded={expanded}
-                onToggleExpand={onToggleExpand}
-                expandPlacement="before-options"
-                closeVariant={closeControl === "panel" ? "panel" : "collapse"}
-                mirrored
-                // The rail starts closed: the grid + breadcrumb browse on their own, and the row-1
-                // toggle (or a search, which needs the rows) brings it in; the choice then sticks.
-                initialShowTree={false}
-                treePersistKey="session"
-                driveIds={driveIds}
-                stagedFiles={staged}
-                onStagedChange={setStaged}
-                readOnly={readOnly}
-                touch={touch}
-            />
+            <FallbackChromeContext.Provider value={fallbackChrome}>
+                <DriveExplorer
+                    key={driveGeneration}
+                    drive={drive}
+                    scope="session"
+                    initialPath={initialPath}
+                    initialPathSeq={initialPathSeq}
+                    folderHint={quickLook?.folder ? initialPath : null}
+                    onSelectionChange={onSelectionChange}
+                    chrome
+                    onClose={closeControl === "none" && !expanded ? undefined : close}
+                    expanded={expanded}
+                    onToggleExpand={onToggleExpand}
+                    expandPlacement="before-options"
+                    closeVariant={closeControl === "panel" ? "panel" : "collapse"}
+                    mirrored
+                    // The rail starts closed: the grid + breadcrumb browse on their own, and the row-1
+                    // toggle (or a search, which needs the rows) brings it in; the choice then sticks.
+                    initialShowTree={false}
+                    treePersistKey="session"
+                    driveIds={driveIds}
+                    stagedFiles={staged}
+                    onStagedChange={setStaged}
+                    readOnly={readOnly}
+                    touch={touch}
+                />
+            </FallbackChromeContext.Provider>
         </div>
     )
 }

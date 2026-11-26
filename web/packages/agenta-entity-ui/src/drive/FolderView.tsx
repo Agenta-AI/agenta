@@ -12,7 +12,6 @@ import {useT} from "@agenta/i18n"
 import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
 import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {CopyButton} from "@agenta/ui/components/presentational"
-import {useMediaQuery} from "@agenta/ui/hooks"
 import {
     Button,
     Empty,
@@ -26,7 +25,7 @@ import {Folder, FolderSimple, GitBranch} from "@phosphor-icons/react"
 import {AnimatePresence, motion} from "motion/react"
 
 import {DriveBreadcrumb} from "./DriveBreadcrumb"
-import {TileGridSkeleton} from "./DriveExplorerSkeleton"
+import {FolderListSkeleton, TileGridSkeleton, useTileGridLayout} from "./DriveExplorerSkeleton"
 import {DriveFolderContextMenu, type DriveFolderMenuProps} from "./DriveFolderMenu"
 import {
     DriveItemContextMenu,
@@ -112,8 +111,7 @@ export const FolderView = ({
     const resolvedFolder = drive.resolveMount(folderPath)
     // Git facts, probed only where the header band that shows them renders.
     const repo = useRepoInfo(resolvedFolder?.mount ?? null, resolvedFolder?.path ?? "", !hideHeader)
-    // Tailwind's `md`, the width under which the host gives this pane the whole screen.
-    const phone = useMediaQuery("(max-width: 767.98px)")
+    const gridLayout = useTileGridLayout()
     const [repoExpanded, setRepoExpanded] = useState(false)
     // One combined list, folders first, so the grid windows uniformly.
     const sorted = useMemo(() => sortDriveEntries(nodes, sort), [nodes, sort])
@@ -239,7 +237,6 @@ export const FolderView = ({
                                 <FolderList
                                     nodes={sorted}
                                     editing={editing}
-                                    selectedPath={selectedPath}
                                     onOpen={onSelect}
                                     onCopyPath={copyPath}
                                     onDownload={download}
@@ -252,12 +249,12 @@ export const FolderView = ({
                                     autoFocusKey={folderPath}
                                     anticipateShift={anticipateShift}
                                     // Responsive tiles, windowed so a folder with thousands of children
-                                    // stays smooth. A phone gets three across, not two.
-                                    minColumnWidth={phone ? 100 : 132}
-                                    estimateRowHeight={phone ? 108 : 124}
+                                    // stays smooth.
+                                    minColumnWidth={gridLayout.minColumnWidth}
+                                    estimateRowHeight={gridLayout.estimateRowHeight}
                                     thumbAspect={0}
                                     gap={4}
-                                    className={phone ? "px-3 pb-6 pt-3" : "px-5 pb-6 pt-4"}
+                                    className={gridLayout.className}
                                     // Arrow keys rove the tiles (handled in VirtualTileGrid); Cmd/Ctrl+↓
                                     // opens the focused item (folder → drill in, file → preview), Cmd/Ctrl+↑
                                     // steps OUT to the current folder's parent (Finder-style).
@@ -370,7 +367,7 @@ export const FolderView = ({
                             className="absolute inset-0 flex min-h-0 flex-col"
                             {...PANE_FADE}
                         >
-                            <TileGridSkeleton className="p-4" />
+                            {view === "list" ? <FolderListSkeleton /> : <TileGridSkeleton />}
                         </motion.div>
                     ) : loading ? null : (
                         <motion.div

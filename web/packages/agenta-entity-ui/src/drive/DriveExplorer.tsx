@@ -655,11 +655,15 @@ export function DriveExplorer({
         // Nothing is loaded yet, so the name is all we have to go on.
         const target = initialPath ?? persistedSelection
         const isFilePreview = target ? looksLikeFilePath(target) : false
+        // A phone's loaded view draws one row for rows 1 and 2; its skeleton draws that row too.
+        headerInToolbar = Boolean(touch && chrome && !onClose)
         body = (
             <DriveExplorerSkeleton
-                mode={isFilePreview ? "preview" : "grid"}
+                mode={isFilePreview ? "preview" : view}
                 showTree={treeVisible}
                 mirrored={mirrored}
+                withChrome={headerInToolbar}
+                phone={headerInToolbar}
             />
         )
     } else if (drive.fileCount === 0 && !drive.otherDrives?.length) {
