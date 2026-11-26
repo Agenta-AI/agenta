@@ -4,6 +4,8 @@
     "projectLimitCloud": "The Hobby plan includes 1 project. Upgrade to Starter for unlimited projects.",
     "projectLimitRegister": "Register this instance for free to create more projects.",
     "projectsUsage": "This organization uses {{count}} of {{limit}} projects. Register this instance for free to create more.",
+    "projectsUsageOverLimit_one": "This organization uses {{count}} project, limit {{limit}}. Register this instance for free to create more.",
+    "projectsUsageOverLimit_other": "This organization uses {{count}} projects, limit {{limit}}. Register this instance for free to create more.",
     "register": "Register",
     "registerInstance": "Register this instance",
     "registerTitle": "Register to create more projects",

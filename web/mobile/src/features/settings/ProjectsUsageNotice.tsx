@@ -25,10 +25,12 @@ export const ProjectsUsageNotice = ({projectId}: {projectId: string}) => {
     return (
         <div className="bg-colorInfoBg ring-colorInfoBorder mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 ring-1 ring-inset">
             <p className="text-foreground m-0 text-[13px]">
-                {t("shell.limitRefusal.projectsUsage", {
-                    count: projects.count,
-                    limit: projects.limit,
-                })}
+                {t(
+                    projects.count > projects.limit
+                        ? "shell.limitRefusal.projectsUsageOverLimit"
+                        : "shell.limitRefusal.projectsUsage",
+                    {count: projects.count, limit: projects.limit},
+                )}
             </p>
             <Button type="button" size="sm" variant="outline" onClick={() => setRegistering(true)}>
                 {t("shell.limitRefusal.register")}

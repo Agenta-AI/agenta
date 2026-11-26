@@ -185,6 +185,15 @@ describe("limit screens", () => {
         expect(text()).toContain("Register to create more projects")
     })
 
+    it("names the count and the limit on Settings, Projects when over the limit", () => {
+        fixture.usage = {projects: {count: 2, limit: 1}, organizations: FULL}
+        mount(<ProjectsUsageNotice projectId="proj-1" />)
+
+        expect(text()).toContain(
+            "This organization uses 2 projects, limit 1. Register this instance for free to create more.",
+        )
+    })
+
     it("hides the project usage without a limit, or from a member", () => {
         fixture.usage = {projects: {count: 3, limit: null}, organizations: FULL}
         mount(<ProjectsUsageNotice projectId="proj-1" />)
