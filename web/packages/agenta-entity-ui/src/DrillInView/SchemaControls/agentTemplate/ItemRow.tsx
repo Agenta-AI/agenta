@@ -199,9 +199,6 @@ export function ItemRow({
                           "gap-2 rounded-md border border-solid border-transparent px-2",
                           twoLine ? "min-h-row-double py-1.5" : "min-h-row-single py-1",
                       ),
-                // The row hangs its hover fill 8 px out by its own 8 px padding, so its Mark sits on
-                // the section icon's line (ALIGN-01).
-                !page && !phone && "-mx-2",
                 page && !locked && "bg-background",
                 interactive && !status && "cursor-pointer hover:bg-accent",
                 interactive && status && "cursor-pointer",
@@ -430,8 +427,7 @@ export function InstructionsFileRow({
                 // A plain row-double row with the hover fill, not a card (SURF-01/02): 12 px to
                 // its 32 px Mark (SPACE-04). The clear border only shows a status tint.
                 "group box-border flex min-h-row-double cursor-pointer items-center gap-3 rounded-md border border-solid border-transparent px-2 py-1.5 transition-colors hover:bg-accent",
-                !phone && "-mx-2",
-            )}
+)}
         >
             {/* The "md" monogram, not the file glyph (canvas F01). */}
             <ItemAvatar descriptor={{...descriptor, icon: undefined}} size={32} />
