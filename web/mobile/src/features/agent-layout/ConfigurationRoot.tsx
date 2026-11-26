@@ -5,15 +5,12 @@ import {useT} from "@agenta/i18n"
 import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
 import agentLayoutPanelCatalog from "@agenta/i18n/catalogs/agentLayout.panel"
 import agentPagesPhoneCatalog from "@agenta/i18n/catalogs/agentPages.phone"
-import {AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
 import {BuilderIcon} from "@agenta/ui/agent-icon"
 import {PhoneScreenHeader} from "@agenta/ui/phone"
 import {cn} from "@agenta/ui/styles"
 import {BackLink, Button, Tabs, TabsList, TabsTrigger} from "@agenta/ui/ui"
-import {useSetAtom} from "jotai"
 
 import {ConfigPane} from "../chat/ConfigPane"
-import {selectedRevisionAtomFamily} from "../chat/selectedRevision"
 
 import {AccessTab} from "./AccessTab"
 import {useAgentPanel} from "./agentPanelContext"
@@ -57,7 +54,6 @@ export const ConfigurationRoot = ({
 }) => {
     const t = useT(agentLayoutPanelCatalog, agentLayoutHeaderCatalog, agentPagesPhoneCatalog)
     const panel = useAgentPanel()
-    const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
     const tabs = panel.phone ? PHONE_TABS : TABS
     const configTab = shownConfigTab(panel)
     // The pane's own entry animates its first tab; only a tab switch animates the tab body.
@@ -113,6 +109,7 @@ export const ConfigurationRoot = ({
                     <>
                         <PhoneScreenHeader
                             title={t("agentLayout.header.configuration")}
+                            hideTitle
                             backTitle={t("agentPages.phone.session")}
                             onBack={() => void panel.close()}
                             trailing={
@@ -128,21 +125,10 @@ export const ConfigurationRoot = ({
                                 ) : null
                             }
                         />
-                        {/* The tabs, and on the Agent tab the version status at the end of the
-                            row (M07; version control is only on the Agent tab, M10). */}
+                        {/* The tabs; History lives in the More sheet on a phone. */}
                         {tabRow(
                             "box-border h-10 shrink-0 flex-row items-center justify-between gap-1 border-0 border-b border-solid border-border-muted pl-1.5 pr-4",
-                            configTab === "agent" ? (
-                                <AgentRevisionStatus
-                                    revisionId={revisionId}
-                                    historyWorkflowId={agentId}
-                                    onUpdate={pinRevision}
-                                    checkKey={sessionId}
-                                    phone
-                                    backTitle={t("agentLayout.header.configuration")}
-                                    className="shrink-0"
-                                />
-                            ) : null,
+                            null,
                         )}
                     </>
                 )

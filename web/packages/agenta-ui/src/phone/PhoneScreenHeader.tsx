@@ -23,6 +23,8 @@ export interface PhoneScreenHeaderProps {
     backLabel?: string
     /** Controls at the right end of the row (icon buttons of 44 px). */
     trailing?: ReactNode
+    /** The title stays for screen readers only: the back arrow and the content say where you are. */
+    hideTitle?: boolean
     className?: string
 }
 
@@ -36,6 +38,7 @@ export const PhoneScreenHeader = ({
     backTitle,
     backLabel,
     trailing,
+    hideTitle = false,
     className,
 }: PhoneScreenHeaderProps) => {
     const t = useT(phoneCatalog)
@@ -65,6 +68,7 @@ export const PhoneScreenHeader = ({
                 className={cn(
                     "m-0 min-w-0 truncate text-title text-foreground",
                     onBack ? "pr-1.5" : "px-3",
+                    hideTitle && "sr-only",
                 )}
             >
                 {title}
