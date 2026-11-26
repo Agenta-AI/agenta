@@ -9,7 +9,7 @@ import {AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
 import {BuilderIcon} from "@agenta/ui/agent-icon"
 import {PhoneScreenHeader} from "@agenta/ui/phone"
 import {cn} from "@agenta/ui/styles"
-import {Button, Tabs, TabsList, TabsTrigger} from "@agenta/ui/ui"
+import {BackLink, Button, Tabs, TabsList, TabsTrigger} from "@agenta/ui/ui"
 import {useSetAtom} from "jotai"
 
 import {ConfigPane} from "../chat/ConfigPane"
@@ -21,6 +21,7 @@ import type {ConfigTab} from "./agentPanelState"
 import {AutomationsTab} from "./AutomationsTab"
 import {ChannelsTab} from "./ChannelsTab"
 import type {ConfigurationContentProps} from "./ConfigurationContent"
+import {PaneBackContext, type PaneBack} from "./paneBack"
 import {PanelCloseButton} from "./PanelCloseButton"
 import {shownConfigTab} from "./shownConfigTab"
 
@@ -61,6 +62,8 @@ export const ConfigurationRoot = ({
     const configTab = shownConfigTab(panel)
     // The pane's own entry animates its first tab; only a tab switch animates the tab body.
     const [tabSwitched, setTabSwitched] = useState(false)
+    // A view open inside a tab (a channel's manage view) puts its back link in the header.
+    const [paneBack, setPaneBack] = useState<PaneBack | null>(null)
     const selectTab = (tab: ConfigTab) => {
         onCloseSection()
         panel.setConfigTab(tab)
@@ -143,6 +146,21 @@ export const ConfigurationRoot = ({
                         )}
                     </>
                 )
+            ) : paneBack ? (
+                // The same header as a Configuration view: the way back, then Close.
+                <div className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-border-muted pl-2 pr-3">
+                    <div className="flex min-w-0 flex-1 items-center pl-1.5">
+                        <BackLink
+                            size="bar"
+                            title={paneBack.title}
+                            onClick={paneBack.onBack}
+                            className="max-w-full"
+                        >
+                            <span className="truncate">{paneBack.title}</span>
+                        </BackLink>
+                    </div>
+                    <PanelCloseButton />
+                </div>
             ) : (
                 // The pane header: the session bar's 48 px, the tab text on the pane's 24 px line.
                 tabRow(
@@ -150,42 +168,44 @@ export const ConfigurationRoot = ({
                     <PanelCloseButton />,
                 )
             )}
-            <div
-                id="agent-config-tabpanel"
-                role="tabpanel"
-                aria-labelledby={`agent-config-tab-${configTab}`}
-                className={cn("min-h-0 flex-1", tabSwitched && "ag-view-enter-children")}
-            >
-                {configTab === "agent" ? (
-                    // Save status and History live in the session header's version pill.
-                    <div className="flex h-full min-h-0 flex-col">
-                        <ConfigPane entityId={revisionId} inset={!panel.phone} />
-                    </div>
-                ) : configTab === "automations" ? (
-                    <AutomationsTab
-                        revisionId={revisionId}
-                        workspaceId={workspaceId}
-                        sessionId={sessionId}
-                        filesScope={filesScope}
-                        projectId={projectId}
-                    />
-                ) : configTab === "channels" ? (
-                    <ChannelsTab
-                        agentId={agentId}
-                        workspaceId={workspaceId}
-                        projectId={projectId}
-                        // The pane's own 24 px margins (`panel-side`).
-                        className={panel.phone ? undefined : "px-6"}
-                    />
-                ) : (
-                    <AccessTab
-                        agentId={agentId}
-                        workspaceId={workspaceId}
-                        projectId={projectId}
-                        className={panel.phone ? undefined : "px-6"}
-                    />
-                )}
-            </div>
+            <PaneBackContext.Provider value={setPaneBack}>
+                <div
+                    id="agent-config-tabpanel"
+                    role="tabpanel"
+                    aria-labelledby={`agent-config-tab-${configTab}`}
+                    className={cn("min-h-0 flex-1", tabSwitched && "ag-view-enter-children")}
+                >
+                    {configTab === "agent" ? (
+                        // Save status and History live in the session header's version pill.
+                        <div className="flex h-full min-h-0 flex-col">
+                            <ConfigPane entityId={revisionId} inset={!panel.phone} />
+                        </div>
+                    ) : configTab === "automations" ? (
+                        <AutomationsTab
+                            revisionId={revisionId}
+                            workspaceId={workspaceId}
+                            sessionId={sessionId}
+                            filesScope={filesScope}
+                            projectId={projectId}
+                        />
+                    ) : configTab === "channels" ? (
+                        <ChannelsTab
+                            agentId={agentId}
+                            workspaceId={workspaceId}
+                            projectId={projectId}
+                            // The pane's own 24 px margins (`panel-side`).
+                            className={panel.phone ? undefined : "px-6"}
+                        />
+                    ) : (
+                        <AccessTab
+                            agentId={agentId}
+                            workspaceId={workspaceId}
+                            projectId={projectId}
+                            className={panel.phone ? undefined : "px-6"}
+                        />
+                    )}
+                </div>
+            </PaneBackContext.Provider>
         </div>
     )
 }

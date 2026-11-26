@@ -1,4 +1,6 @@
-import {AgentChannelsView} from "@agenta/settings-ui"
+import type {ReactNode} from "react"
+
+import {AgentChannelsView, type ChannelsPanelRenderProps} from "@agenta/settings-ui"
 
 import {useAgentRow} from "../agent-layout/useAgentRow"
 import {useAgentChannels} from "../agents/useAgentChannels"
@@ -12,10 +14,13 @@ export const AgentChannels = ({
     agentId,
     workspaceId,
     projectId,
+    renderOpenView,
 }: {
     agentId: string
     workspaceId: string
     projectId: string
+    /** The right pane draws an open channel view under its own back link. */
+    renderOpenView?: (view: ChannelsPanelRenderProps) => ReactNode
 }) => {
     const {row, resolveAgentName} = useAgentRow(agentId)
     // Undefined until the agent list loads: the views then say "your agent", not a blank.
@@ -36,6 +41,7 @@ export const AgentChannels = ({
             actions={actions}
             api={api}
             embed={embed}
+            renderOpenView={renderOpenView}
         />
     )
 }

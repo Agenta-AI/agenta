@@ -1,4 +1,4 @@
-import {useState} from "react"
+import {useState, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import agentChannelsCatalog from "@agenta/i18n/catalogs/agentPages.channels"
@@ -45,6 +45,8 @@ export interface AgentChannelsViewProps extends Pick<
     | "api"
     | "embed"
 > {
+    /** Draws an open view in the host's chrome, not under the "Channels › title" breadcrumb. */
+    renderOpenView?: (view: ChannelsPanelRenderProps) => ReactNode
     agentId: string
 }
 
@@ -71,7 +73,14 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
     const phone = useIsPhone()
     const {open, openRoute, panel} = useChannelPanel({
         ...props,
-        renderPanel: (view) => (view.open ? <InlineChannelView {...view} /> : null),
+        renderPanel: (view) =>
+            view.open ? (
+                props.renderOpenView ? (
+                    props.renderOpenView(view)
+                ) : (
+                    <InlineChannelView {...view} />
+                )
+            ) : null,
     })
     // A manage view or connect steps are open: they take the place of the list.
     if (panel) return <>{panel}</>
