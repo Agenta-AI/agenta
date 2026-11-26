@@ -197,7 +197,8 @@ export const SessionMenu = ({
             </PopoverTrigger>
             <PopoverContent align="end" className="flex w-80 flex-col gap-1 p-1">
                 {loadError}
-                <div className="ag-scroll-quiet bg-popover max-h-80 min-h-0 overflow-y-auto">
+                {/* No reserved gutter: the session rows span the same width as the menu rows. */}
+                <div className="bg-popover max-h-80 min-h-0 overflow-y-auto">
                     {list("compact")}
                 </div>
                 {menuRows}

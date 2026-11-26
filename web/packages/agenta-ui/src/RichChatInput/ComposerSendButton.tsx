@@ -23,7 +23,7 @@ export interface ComposerSendButtonProps {
     sending?: boolean
     /** The composer cannot send at all (not just empty): drawn inert on every surface. */
     blocked?: boolean
-    /** `canvas`: a dark 28 px kit icon button, dark even with nothing to send. */
+    /** `canvas`: a dark 28 px kit icon button; inert grey with nothing to send. */
     surface?: ComposerSurface
 }
 
@@ -60,10 +60,11 @@ export function ComposerSendButton({
             // do" and "working" at once.
             className={cn(
                 // The kit's control radius, never a circle (SHAPE-01).
-                surface === "canvas" && !(blocked && !sending)
-                    ? "!border-[var(--ag-composer-send-bg,var(--foreground))] !bg-[var(--ag-composer-send-bg,var(--foreground))] !text-[var(--ag-composer-send-fg,var(--background))] disabled:!opacity-100 hover:!opacity-90"
-                    : (disabled || blocked) && !sending
-                      ? "!border-secondary !bg-secondary !text-muted-foreground"
+                // Inert grey until there is something to send, on every surface.
+                (disabled || blocked) && !sending
+                    ? "!border-secondary !bg-secondary !text-muted-foreground disabled:!opacity-100"
+                    : surface === "canvas"
+                      ? "!border-[var(--ag-composer-send-bg,var(--foreground))] !bg-[var(--ag-composer-send-bg,var(--foreground))] !text-[var(--ag-composer-send-fg,var(--background))] disabled:!opacity-100 hover:!opacity-90"
                       : // Re-toned by its CONTAINER, not by a prop: the button sits five levels below
                         // any host that might want a different fill, and threading a colour down
                         // that chain is how one control becomes two. Defaults to `primary`.
