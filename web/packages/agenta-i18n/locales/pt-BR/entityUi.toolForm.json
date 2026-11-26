@@ -22,8 +22,6 @@
     "description": "Descrição",
     "subagentDescription": "Descrição do subagente",
     "subagentDescriptionHint": "O agente lê esta descrição para decidir quando chamar este subagente. Edite-a para mudar quando ele é usado.",
-    "configuration": "Configuração",
-    "managedOnAgent": "Gerenciado no próprio agente",
     "model": "Modelo",
     "noModel": "Nenhum modelo",
     "instructions": "Instruções",

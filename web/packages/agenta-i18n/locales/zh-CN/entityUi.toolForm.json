@@ -20,8 +20,6 @@
     "description": "描述",
     "subagentDescription": "子 Agent 描述",
     "subagentDescriptionHint": "Agent 会读取此描述来决定何时调用此子 Agent。编辑它即可更改其使用时机。",
-    "configuration": "配置",
-    "managedOnAgent": "在该 Agent 本身上管理",
     "model": "模型",
     "noModel": "无模型",
     "instructions": "指令",

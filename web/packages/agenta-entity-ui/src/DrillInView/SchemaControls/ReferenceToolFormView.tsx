@@ -12,7 +12,7 @@ import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
 import {Alert, AutosizeTextarea, Button, IconTile, SkeletonBlock} from "@agenta/ui/ui"
-import {CaretDown, Compass, Cpu, FileText, Robot} from "@phosphor-icons/react"
+import {CaretDown, Compass, Cpu, Robot} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {FieldHeading} from "./agentTemplate/accounts/FieldHeading"
@@ -56,37 +56,47 @@ const readableModelName = (
     return null
 }
 
-/** One row of the configuration card: a muted label column, then the value. */
-function DetailRow({label, children}: {label: string; children: React.ReactNode}) {
+/** One part of the agent's setup: its heading, a quiet count or file on the right, then the body. */
+function Part({label, meta, children}: {label: string; meta?: ReactNode; children: ReactNode}) {
     return (
-        <div className="flex items-start gap-4 border-0 border-t border-solid border-border-muted px-3 py-2 first:border-t-0">
-            {/* Canvas F03 f2: 12/16 in the secondary color. */}
-            <span className="w-[84px] shrink-0 pt-0.5 text-meta text-muted-foreground">
-                {label}
-            </span>
-            <div className="min-w-0 flex-1">{children}</div>
-        </div>
+        <section className="flex flex-col gap-2">
+            <div className="flex h-5 items-center gap-2">
+                <span className="text-label font-semibold leading-5 text-foreground">{label}</span>
+                {meta ? (
+                    <span className="ml-auto truncate text-meta tabular-nums text-muted-foreground">
+                        {meta}
+                    </span>
+                ) : null}
+            </div>
+            {children}
+        </section>
     )
 }
 
-/** Muted text for a row with nothing in it, worded like the picker's own empty line. */
-const Empty = ({children}: {children: React.ReactNode}) => (
+/** Muted text for a part with nothing in it. */
+const Empty = ({children}: {children: ReactNode}) => (
     <span className="text-body-sm text-muted-foreground">{children}</span>
 )
 
-/** One value line of the card: a 20px Mark (or logo), 8px to its name. */
-const MarkLine = ({mark, children}: {mark: ReactNode; children: ReactNode}) => (
-    <span className="flex items-center gap-2 text-body-sm">
+/** One item line: a 24px Mark, 8px to its name, an optional value at the end. */
+const MarkLine = ({mark, children, end}: {mark: ReactNode; children: ReactNode; end?: ReactNode}) => (
+    <div className="flex h-8 items-center gap-2 text-body-sm">
         {mark}
-        {children}
-    </span>
+        <span className="min-w-0 flex-1 truncate">{children}</span>
+        {end ? <span className="shrink-0 text-muted-foreground">{end}</span> : null}
+    </div>
 )
 
-/** A loading line in the shape of a {@link MarkLine}. */
-const SkeletonMarkLine = ({width}: {width: string}) => (
-    <div className="flex h-5 items-center gap-2">
-        <SkeletonBlock shape="mark" className="size-5" />
-        <SkeletonBlock className={cn("h-3", width)} />
+/** A loading part in the shape of a {@link Part} with one {@link MarkLine}. */
+const SkeletonPart = ({width}: {width: string}) => (
+    <div className="flex flex-col gap-2">
+        <div className="flex h-5 items-center">
+            <SkeletonBlock className="h-3 w-20" />
+        </div>
+        <div className="flex h-8 items-center gap-2">
+            <SkeletonBlock shape="mark" className="size-6" />
+            <SkeletonBlock className={cn("h-3", width)} />
+        </div>
     </div>
 )
 
@@ -107,17 +117,7 @@ function Instructions({file}: {file: NonNullable<SubagentDetail["instructions"]>
         return () => observer.disconnect()
     }, [file.text, open])
     return (
-        <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-1.5">
-                <FileText size={14} className="shrink-0 text-muted-foreground" />
-                <span className="text-body-sm">{file.fileName}</span>
-                <span className="text-meta text-muted-foreground">
-                    {t("entityUi.toolForm.wordCount", {
-                        count: file.wordCount,
-                        formatted: formatNumber(file.wordCount),
-                    })}
-                </span>
-            </div>
+        <div className="flex flex-col gap-1">
             <div
                 ref={textRef}
                 className={cn(
@@ -221,147 +221,133 @@ function SubagentDetailPanel({
                 />
             </div>
 
-            <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2">
-                    <FieldHeading
-                        label={t("entityUi.toolForm.configuration")}
-                        note={t("entityUi.toolForm.managedOnAgent")}
-                    />
-                    {!name && configurationAction ? (
-                        <span className="ml-auto">{configurationAction}</span>
-                    ) : null}
-                </div>
-                {failed && !detail ? (
-                    <Alert
-                        type="error"
-                        showIcon
-                        message={t("entityUi.subagentViews.configLoadError")}
-                        action={
-                            retry ? (
-                                <Button variant="outline" size="compact" onClick={retry}>
-                                    {t("entityUi.integrationViews.tryAgain")}
-                                </Button>
-                            ) : undefined
-                        }
-                    />
-                ) : (
-                    <div className="overflow-hidden rounded-lg border border-solid border-border-muted">
-                        {loading && !detail ? (
-                            // The loaded card's rows, with bars for their values (STATE-02).
-                            <>
-                                <DetailRow label={t("entityUi.toolForm.model")}>
-                                    <SkeletonMarkLine width="w-28" />
-                                </DetailRow>
-                                <DetailRow label={t("entityUi.toolForm.instructions")}>
-                                    <div className="flex flex-col gap-2">
-                                        <div className="flex h-5 items-center">
-                                            <SkeletonBlock className="h-3 w-36" />
-                                        </div>
-                                        <SkeletonBlock className="h-26 rounded-md" />
-                                    </div>
-                                </DetailRow>
-                                <DetailRow label={t("entityUi.toolForm.integrations")}>
-                                    <SkeletonMarkLine width="w-32" />
-                                </DetailRow>
-                                <DetailRow label={t("entityUi.toolForm.skills")}>
-                                    <SkeletonMarkLine width="w-24" />
-                                </DetailRow>
-                            </>
-                        ) : (
-                            <>
-                                <DetailRow label={t("entityUi.toolForm.model")}>
-                                    {detail?.model ? (
-                                        <span className="flex items-start gap-2">
-                                            <IconTile size={20} aria-hidden>
-                                                {ProviderIcon ? <ProviderIcon /> : <Cpu />}
-                                            </IconTile>
-                                            {modelName &&
-                                            modelName.toLowerCase() !== detail.model.toLowerCase() ? (
-                                                // The readable name, the id under it (canvas F03 f2).
-                                                <span className="flex min-w-0 flex-col">
-                                                    <span className="truncate text-body-sm">
-                                                        {modelName}
-                                                    </span>
-                                                    <span className="truncate text-code-sm text-muted-foreground">
-                                                        {detail.model}
-                                                    </span>
-                                                </span>
-                                            ) : (
-                                                <span className="truncate text-body-sm">
-                                                    {modelName ?? detail.model}
-                                                </span>
-                                            )}
-                                        </span>
-                                    ) : (
-                                        <Empty>{t("entityUi.toolForm.noModel")}</Empty>
-                                    )}
-                                </DetailRow>
-                                <DetailRow label={t("entityUi.toolForm.instructions")}>
-                                    {detail?.instructions ? (
-                                        <Instructions file={detail.instructions} />
-                                    ) : (
-                                        <Empty>{t("entityUi.toolForm.noInstructions")}</Empty>
-                                    )}
-                                </DetailRow>
-                                <DetailRow label={t("entityUi.toolForm.integrations")}>
-                                    {detail?.integrations.length ? (
-                                        <div className="flex flex-col gap-1">
-                                            {detail.integrations.map((app) => {
-                                                const catalog = appByKey.get(app.key)
-                                                return (
-                                                    <MarkLine
-                                                        key={app.key}
-                                                        mark={
-                                                            <ProviderLogo
-                                                                logo={catalog?.logo ?? null}
-                                                                size={20}
-                                                            />
-                                                        }
-                                                    >
-                                                        <span className="min-w-0 flex-1 truncate">
-                                                            {catalog?.name ?? app.key}
-                                                        </span>
-                                                        {app.permission ? (
-                                                            <span className="shrink-0 text-muted-foreground">
-                                                                {app.permission}
-                                                            </span>
-                                                        ) : null}
-                                                    </MarkLine>
-                                                )
-                                            })}
-                                        </div>
-                                    ) : (
-                                        <Empty>{t("entityUi.toolForm.noConnectedApps")}</Empty>
-                                    )}
-                                </DetailRow>
-                                <DetailRow label={t("entityUi.toolForm.skills")}>
-                                    {detail?.skills.length ? (
-                                        // Drawn as the apps above: a Mark and the name (CONS-02).
-                                        <div className="flex flex-col gap-1">
-                                            {detail.skills.map((skill) => (
-                                                <MarkLine
-                                                    key={skill}
-                                                    mark={
-                                                        <IconTile size={20} aria-hidden>
-                                                            <Compass />
-                                                        </IconTile>
-                                                    }
-                                                >
-                                                    <span className="min-w-0 flex-1 truncate">
-                                                        {skill}
-                                                    </span>
-                                                </MarkLine>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <Empty>{t("entityUi.toolForm.noSkills")}</Empty>
-                                    )}
-                                </DetailRow>
-                            </>
-                        )}
+            {!name && configurationAction ? (
+                <div className="flex justify-end">{configurationAction}</div>
+            ) : null}
+            {failed && !detail ? (
+                <Alert
+                    type="error"
+                    showIcon
+                    message={t("entityUi.subagentViews.configLoadError")}
+                    action={
+                        retry ? (
+                            <Button variant="outline" size="compact" onClick={retry}>
+                                {t("entityUi.integrationViews.tryAgain")}
+                            </Button>
+                        ) : undefined
+                    }
+                />
+            ) : loading && !detail ? (
+                // The loaded parts, with bars for their values (STATE-02).
+                <>
+                    <SkeletonPart width="w-28" />
+                    <div className="flex flex-col gap-2">
+                        <div className="flex h-5 items-center">
+                            <SkeletonBlock className="h-3 w-24" />
+                        </div>
+                        <SkeletonBlock className="h-26 rounded-md" />
                     </div>
-                )}
-            </div>
+                    <SkeletonPart width="w-32" />
+                    <SkeletonPart width="w-24" />
+                </>
+            ) : (
+                <>
+                    <Part label={t("entityUi.toolForm.model")}>
+                        {detail?.model ? (
+                            <MarkLine
+                                mark={
+                                    <IconTile size={24} aria-hidden>
+                                        {ProviderIcon ? <ProviderIcon /> : <Cpu />}
+                                    </IconTile>
+                                }
+                                end={
+                                    modelName &&
+                                    modelName.toLowerCase() !== detail.model.toLowerCase() ? (
+                                        <span className="text-code-sm">{detail.model}</span>
+                                    ) : undefined
+                                }
+                            >
+                                {modelName ?? detail.model}
+                            </MarkLine>
+                        ) : (
+                            <Empty>{t("entityUi.toolForm.noModel")}</Empty>
+                        )}
+                    </Part>
+                    <Part
+                        label={t("entityUi.toolForm.instructions")}
+                        meta={
+                            detail?.instructions
+                                ? `${detail.instructions.fileName} · ${t(
+                                      "entityUi.toolForm.wordCount",
+                                      {
+                                          count: detail.instructions.wordCount,
+                                          formatted: formatNumber(detail.instructions.wordCount),
+                                      },
+                                  )}`
+                                : undefined
+                        }
+                    >
+                        {detail?.instructions ? (
+                            <Instructions file={detail.instructions} />
+                        ) : (
+                            <Empty>{t("entityUi.toolForm.noInstructions")}</Empty>
+                        )}
+                    </Part>
+                    <Part
+                        label={t("entityUi.toolForm.integrations")}
+                        meta={detail?.integrations.length || undefined}
+                    >
+                        {detail?.integrations.length ? (
+                            <div className="flex flex-col">
+                                {detail.integrations.map((app) => {
+                                    const catalog = appByKey.get(app.key)
+                                    return (
+                                        <MarkLine
+                                            key={app.key}
+                                            mark={
+                                                <IconTile size={24} aria-hidden>
+                                                    <ProviderLogo
+                                                        logo={catalog?.logo ?? null}
+                                                        size={14}
+                                                    />
+                                                </IconTile>
+                                            }
+                                            end={app.permission}
+                                        >
+                                            {catalog?.name ?? app.key}
+                                        </MarkLine>
+                                    )
+                                })}
+                            </div>
+                        ) : (
+                            <Empty>{t("entityUi.toolForm.noConnectedApps")}</Empty>
+                        )}
+                    </Part>
+                    <Part
+                        label={t("entityUi.toolForm.skills")}
+                        meta={detail?.skills.length || undefined}
+                    >
+                        {detail?.skills.length ? (
+                            <div className="flex flex-col">
+                                {detail.skills.map((skill) => (
+                                    <MarkLine
+                                        key={skill}
+                                        mark={
+                                            <IconTile size={24} aria-hidden>
+                                                <Compass />
+                                            </IconTile>
+                                        }
+                                    >
+                                        {skill}
+                                    </MarkLine>
+                                ))}
+                            </div>
+                        ) : (
+                            <Empty>{t("entityUi.toolForm.noSkills")}</Empty>
+                        )}
+                    </Part>
+                </>
+            )}
         </div>
     )
 }
