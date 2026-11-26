@@ -429,8 +429,7 @@ export function InstructionsFileRow({
                 "group box-border flex min-h-row-double cursor-pointer items-center gap-3 rounded-md border border-solid border-transparent px-2 py-1.5 transition-colors hover:bg-accent",
 )}
         >
-            {/* The "md" monogram, not the file glyph (canvas F01). */}
-            <ItemAvatar descriptor={{...descriptor, icon: undefined}} size={32} />
+            <ItemAvatar descriptor={descriptor} size={32} />
             <div className="flex min-w-0 flex-1 flex-col">
                 <div className="flex items-center gap-2">
                     <span className="truncate font-mono text-label leading-5">{filename}</span>
