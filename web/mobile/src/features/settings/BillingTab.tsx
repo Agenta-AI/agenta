@@ -92,9 +92,13 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
     const daily = enforced ? dailyCredit(enforced) : null
     const limits = planLimits(usage.data, {quotas: developerMode})
     const viewMembers = () =>
-        void router.replace({query: {...router.query, tab: "workspace"}}, undefined, {
-            shallow: true,
-        })
+        void router.replace(
+            {pathname: router.pathname, query: {...router.query, tab: "workspace"}},
+            undefined,
+            {
+                shallow: true,
+            },
+        )
 
     return (
         <div className="flex flex-col gap-10">

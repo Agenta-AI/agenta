@@ -50,6 +50,28 @@ Harness choice (`pi`, `claude`, or experimental `agenta`) and sandbox (`local` o
 `daytona`, where supported) are per-run config from the Python service, carried on the
 request's `harness` / `sandbox` fields.
 
+## The server answer at the approval gate
+
+When the run's permissions say `ask` for `start_session`, `send_session_message`,
+`cancel_session`, `create_agent` or `edit_agent_config`, the runner first asks the API
+(`tools.agenta.resolve_gate`, in `tools/gate-answer.ts`). The API knows facts the runner does
+not: which agent a session id names, whether a person sent the turn, and whether the person
+chose to always approve a builder tool. `allow` runs the call with no card, `deny` refuses
+it with no card, and `ask` shows the card. A fault, an unknown op or no answer within 5 seconds
+reads as `ask`, so the card shows as before. The runner logs each answer as
+`[HITL] resolve_gate toolName=... permission=... basis=... ms=...`. Other tools never ask the
+API. On Claude and Codex the harness gate asks the API, and an `allow` leaves an execution
+grant that the runner's tool seam spends, so the API is asked once per call. A `deny` at the
+harness gate replies `reject` to the harness, as a configured `deny` does today, so the model
+reads the harness's own refusal; the `agent_not_allowed` text reaches the model only when the
+runner's tool seam gets the `deny`.
+
+An `allow` takes the step that a card takes before the call runs: the runner resolves the
+call's `@ag.file` markers and mints their records, so the commit check holds. An `allow` with
+`basis: approval_choice` (the person's "always approve" for a builder tool) also emits a `data`
+event named `auto-approved`, `{toolCallId, toolName}`, and the chat shows the call's card as
+approved automatically.
+
 ## Output and ingest limits
 
 The runner limits provider output per step and per turn. A step is one model reply (all

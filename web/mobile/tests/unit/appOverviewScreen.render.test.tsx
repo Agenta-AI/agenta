@@ -247,10 +247,9 @@ afterEach(() => {
 })
 
 describe("app overview screen", () => {
-    it("The overview route shows not found while the view is hidden", async () => {
+    it("The overview route shows not found without beta developer mode", async () => {
         vi.unstubAllEnvs()
         const view = DEVELOPER_VIEWS.find((entry) => entry.id === "app-overview")
-        expect(view?.stage).toBe("hidden")
         expect(view?.routes).toEqual(["/apps/[app_id]/overview"])
         await mount("app-1")
         expect(host.querySelector("[data-testid=not-found]")).not.toBeNull()

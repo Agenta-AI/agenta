@@ -113,3 +113,17 @@ describe("sessionRowVm automation attribution", () => {
         expect(row.subtitle).toBe("Digest sent.")
     })
 })
+
+describe("sessionRowVm child session mark", () => {
+    it("marks a session that another session created, from its origin", () => {
+        const row = vm(stream({origin: "calling_session"}))
+        expect(row.isChildSession).toBe(true)
+        expect(row.isAutomation).toBe(false)
+    })
+
+    it("does not mark a person's, a channel's or an API key's session", () => {
+        for (const origin of ["manual", "channel", "api", undefined] as const) {
+            expect(vm(stream({origin})).isChildSession).toBe(false)
+        }
+    })
+})

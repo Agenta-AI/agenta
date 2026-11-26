@@ -2737,7 +2737,7 @@ async function fetchLatestRevisionWithRows(params: {
         testsetId: params.testsetId,
     })
     if (!latest?.id) {
-        throw new Error("The latest revision for the selected testset could not be resolved.")
+        throw new Error("The latest revision for the selected test set could not be resolved.")
     }
 
     // Re-fetch with a 1-row sample purely for column detection.
@@ -2747,7 +2747,7 @@ async function fetchLatestRevisionWithRows(params: {
         testcaseLimit: 1,
     })
     if (!latestRevision?.id) {
-        throw new Error("The latest revision for the selected testset could not be resolved.")
+        throw new Error("The latest revision for the selected test set could not be resolved.")
     }
 
     return latestRevision as LatestRevisionWithRows
@@ -3036,7 +3036,7 @@ const addScenariosToTestsetAtom = atom(
     null,
     async (get, set, payload: AddScenariosToTestsetPayload): Promise<{jobId: string}> => {
         if (get(isAddToTestsetExportingAtom)) {
-            throw new Error("A testset export is already running")
+            throw new Error("A test set export is already running")
         }
 
         const projectId = getStore().get(projectIdAtom)
@@ -3051,19 +3051,19 @@ const addScenariosToTestsetAtom = atom(
         const targetTestsetId =
             payload.targetMode === "existing" ? get(pendingTestsetSelectionAtom) : null
         if (payload.targetMode === "existing" && !targetTestsetId) {
-            throw new Error("Select a testset before exporting")
+            throw new Error("Select a test set before exporting")
         }
 
         if (payload.targetMode === "new" && !payload.newTestsetName?.trim()) {
-            throw new Error("Enter a testset name before exporting")
+            throw new Error("Enter a test set name before exporting")
         }
 
         const targetTestsetName =
             payload.targetMode === "existing"
                 ? get(pendingTestsetSelectionNameAtom) ||
                   get(defaultTargetTestsetNameAtom) ||
-                  "selected testset"
-                : payload.newTestsetName?.trim() || "new testset"
+                  "selected test set"
+                : payload.newTestsetName?.trim() || "new test set"
         const jobId = createExportJobId()
 
         set(addToTestsetExportJobAtom, {
@@ -3144,7 +3144,7 @@ const addScenariosToTestsetAtom = atom(
                     committedTestsetName = result?.testset?.name ?? committedTestsetName
                 } else {
                     if (!targetTestsetId || !latestRevision) {
-                        throw new Error("The selected testset could not be prepared")
+                        throw new Error("The selected test set could not be prepared")
                     }
 
                     const rowsForCommit = remapRowsToExistingLeafColumns(rows, existingColumns)
@@ -3287,7 +3287,7 @@ async function buildTestsetSyncPreviewForSession(get: Getter) {
     if (!queueId) throw new Error("No active queue")
 
     if (get(queueKindAtom) !== "testcases") {
-        throw new Error("Testset sync is only available for testcase queues")
+        throw new Error("Test set sync is only available for test case queues")
     }
 
     const scenarioIds = get(scenarioIdsAtom)
@@ -3303,7 +3303,7 @@ async function buildTestsetSyncPreviewForSession(get: Getter) {
         .filter((entry) => entry.testcaseId)
 
     if (completedScenarios.length === 0) {
-        throw new Error("No completed testcase scenarios")
+        throw new Error("No completed test case scenarios")
     }
 
     const testcaseIds = Array.from(new Set(completedScenarios.map((entry) => entry.testcaseId)))
@@ -3360,7 +3360,7 @@ const syncToTestsetsAtom = atom(null, async (get, set) => {
     const preview = await buildTestsetSyncPreviewForSession(get)
 
     if (preview.hasBlockingConflicts) {
-        throw new Error("No exportable testcase annotations available for sync")
+        throw new Error("No exportable test case annotations available for sync")
     }
 
     const preparedTargets = await Promise.all(
@@ -3412,7 +3412,7 @@ const syncToTestsetsAtom = atom(null, async (get, set) => {
     )
 
     if (successfulTargets.length === 0) {
-        throw new Error("Failed to sync annotations to testsets")
+        throw new Error("Failed to sync annotations to test sets")
     }
 
     return {

@@ -69,10 +69,14 @@ const RunAnnotateTab = dynamic<TabBodyProps>(
 )
 
 // The scenario drawer loads only once a scenario is focused.
-const ScenarioFocusSheet = dynamic<{runId: string; header: RunHeader; poll: boolean}>(
-    () => import("./focus/ScenarioFocusSheet").then((module) => module.ScenarioFocusSheet),
-    {ssr: false},
-)
+const ScenarioFocusSheet = dynamic<{
+    runId: string
+    header: RunHeader
+    poll: boolean
+    compareSlot?: number | null
+}>(() => import("./focus/ScenarioFocusSheet").then((module) => module.ScenarioFocusSheet), {
+    ssr: false,
+})
 
 // The configuration tab, with its sections and the JSON editor, loads when the tab opens.
 const ConfigurationTab = dynamic<TabBodyProps>(
@@ -151,6 +155,13 @@ export const RunDetailsBody = ({projectId, runId}: {projectId: string; runId: st
                     runId={focusRunId}
                     header={focusHeader}
                     poll={focusRunId === runId && shown !== "scenarios" && shown !== "focus"}
+                    compareSlot={
+                        compareIds.length > 0
+                            ? focusRunId === runId
+                                ? 0
+                                : compareIds.indexOf(focusRunId) + 1
+                            : null
+                    }
                 />
             ) : null}
             {openRevisionId ? (

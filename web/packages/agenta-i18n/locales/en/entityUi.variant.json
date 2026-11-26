@@ -3,5 +3,6 @@
     "discardFailed": "Failed to discard draft changes",
     "noDeployment": "No deployment",
     "discardDraft": "Discard draft changes",
-    "lastModified": "Last modified"
+    "lastModified": "Last modified",
+    "deployedTo": "Deployed to {{name}}"
 }

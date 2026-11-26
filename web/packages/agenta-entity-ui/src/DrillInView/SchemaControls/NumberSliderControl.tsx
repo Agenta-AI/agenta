@@ -99,6 +99,7 @@ export const NumberSliderControl = memo(function NumberSliderControl({
     disabled = false,
     disabledReason,
     allowClear = true,
+    // An unset value runs with the model's default: say so instead of an empty box.
     placeholder,
     className,
     min: overrideMin,
@@ -152,7 +153,7 @@ export const NumberSliderControl = memo(function NumberSliderControl({
                         disabled={disabled}
                         aria-labelledby={labelId}
                         className="w-[70px]"
-                        placeholder={placeholder}
+                        placeholder={placeholder ?? t("entityUi.schemaControls.defaultValue")}
                     />
                     {allowClear && localValue !== null && (
                         <Button
@@ -176,7 +177,8 @@ export const NumberSliderControl = memo(function NumberSliderControl({
                 onValueChange={(next) => handleValueChange(next[0])}
                 disabled={disabled}
                 aria-labelledby={labelId}
-                className="my-0"
+                // Unset: the thumb rests at the start, dimmed, so it does not read as a set 0.
+                className={cn("my-0", localValue === null && "opacity-40")}
             />
         </div>
     )

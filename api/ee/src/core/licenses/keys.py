@@ -84,10 +84,13 @@ def _public_key(signing_key: SigningKey) -> Ed25519PublicKey:
     return key
 
 
-def parse_license_key(text: str) -> LicenseKey:
+def verify_license_key(text: str) -> LicenseKey:
     """The payload of a key whose signature checks against the key pair it names, whose
-    plan that key pair may sign, whose `key_id` is not refused, and whose plan is
-    `cloud` or in the plan table. Expiry is not checked here."""
+    plan that key pair may sign, and whose `key_id` is not refused. The plan is not
+    checked against the plan table, and expiry is not checked here.
+
+    `is_cloud()` uses this one: it runs while the plan table is built, so it cannot read
+    the table."""
     text = (text or "").strip()
     if len(text) > _MAX_KEY_LENGTH:
         raise InvalidLicenseKey("format")
@@ -101,7 +104,8 @@ def parse_license_key(text: str) -> LicenseKey:
     signature = _b64url_decode(signature_part)
     try:
         payload = json.loads(payload_bytes.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as e:
+    # ValueError covers bad UTF-8, bad JSON and an integer over the digit limit.
+    except ValueError as e:
         raise InvalidLicenseKey("payload") from e
     if not isinstance(payload, dict):
         raise InvalidLicenseKey("payload")
@@ -129,10 +133,17 @@ def parse_license_key(text: str) -> LicenseKey:
     if str(license_key.key_id) in REVOKED_KEY_IDS:
         raise InvalidLicenseKey("refused")
 
+    return license_key
+
+
+def parse_license_key(text: str) -> LicenseKey:
+    """A key that `verify_license_key` accepts and whose plan is `cloud` or in the plan
+    table. Expiry is not checked here."""
+    license_key = verify_license_key(text)
     if license_key.plan == CLOUD_PLAN:
         return license_key
 
-    # Imported here: building the plan table calls `is_cloud()`, which parses a key.
+    # Imported here: building the plan table calls `is_cloud()`.
     from ee.src.core.access.controls import get_plans  # noqa: PLC0415
 
     if license_key.plan not in get_plans():

@@ -1,5 +1,5 @@
 ---
-title: "Less repeated work when agent runs start and finish"
+title: "Agent chats start faster"
 slug: agent-run-startup-and-reliability
 date: 2026-10-29
 tags: [v0.127.1]
@@ -10,9 +10,10 @@ description: "Reduce repeated runner setup work and fix connection testing, conv
 
 <img src="https://pub-69f3eb49ae974b8090d6ab0da30f8ea2.r2.dev/changelog/v0.127.1/release-poster-concept-v1.png" alt="Release concept: Less repeated setup work when agent runs start and finish." style={{ width: '100%', maxWidth: 680, height: 'auto', display: 'block', margin: '0 auto' }} />
 
-The runner now avoids several repeated steps when starting an agent session. It reuses local tool binaries and Pi skill copies where applicable, mounts drives in parallel, and reuses a harness capability probe.
+Agent chats start faster, because Agenta no longer repeats setup work at the start of each chat. Pi agents also finish their turn sooner.
 
-When its trace is ready, a completed Pi turn no longer waits for the full trace-drain polling window. Organization owners and admins can test their connections from a project that does not use them. Conversation replay no longer cuts through a character and leaves a chat unable to continue.
+- Organization owners and admins can test a connection from any project.
+- A long chat no longer stops working because of a broken character in an old message.
 
 </Summary>
 

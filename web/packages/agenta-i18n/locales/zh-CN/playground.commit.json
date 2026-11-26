@@ -13,5 +13,7 @@
     "failedToCreateWorkflow": "创建工作流失败",
     "variantNameRequired": "必须填写变体名称",
     "failedToCreateVariant": "创建新变体失败",
-    "failedToCommit": "提交修订版本失败"
+    "failedToCommit": "提交修订版本失败",
+    "agentName": "智能体名称",
+    "promptName": "提示词名称"
 }

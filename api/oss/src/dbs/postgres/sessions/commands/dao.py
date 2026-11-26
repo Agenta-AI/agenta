@@ -260,22 +260,26 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
         project_id: UUID,
         session_id: str,
         target_turn_id: str,
+        transaction: Optional[Any] = None,
     ) -> Optional[SessionCommand]:
-        async with self.engine.session() as session:
-            stmt = (
-                select(SessionCommandDBE)
-                .where(
-                    SessionCommandDBE.project_id == project_id,
-                    SessionCommandDBE.session_id == session_id,
-                    SessionCommandDBE.kind == SessionCommandKind.cancel.value,
-                    SessionCommandDBE.target_turn_id == target_turn_id,
-                    SessionCommandDBE.deleted_at.is_(None),
-                )
-                .order_by(SessionCommandDBE.created_at.desc())
-                .limit(1)
+        stmt = (
+            select(SessionCommandDBE)
+            .where(
+                SessionCommandDBE.project_id == project_id,
+                SessionCommandDBE.session_id == session_id,
+                SessionCommandDBE.kind == SessionCommandKind.cancel.value,
+                SessionCommandDBE.target_turn_id == target_turn_id,
+                SessionCommandDBE.deleted_at.is_(None),
             )
-            dbe = (await session.execute(stmt)).scalar_one_or_none()
-            return map_command_dbe_to_dto(dbe) if dbe is not None else None
+            .order_by(SessionCommandDBE.created_at.desc())
+            .limit(1)
+        )
+        if transaction is not None:
+            dbe = (await transaction.execute(stmt)).scalar_one_or_none()
+        else:
+            async with self.engine.session() as session:
+                dbe = (await session.execute(stmt)).scalar_one_or_none()
+        return map_command_dbe_to_dto(dbe) if dbe is not None else None
 
     async def bind_steer_input(
         self,

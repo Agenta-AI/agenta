@@ -3,5 +3,6 @@
     "discardFailed": "Impossible d’abandonner les modifications du brouillon",
     "noDeployment": "Aucun déploiement",
     "discardDraft": "Abandonner les modifications du brouillon",
-    "lastModified": "Dernière modification"
+    "lastModified": "Dernière modification",
+    "deployedTo": "Déployé sur {{name}}"
 }

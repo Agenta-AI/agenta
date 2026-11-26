@@ -62,6 +62,17 @@ export const CLAUDE_SESSION_ENV = {
   ENABLE_CLAUDEAI_MCP_SERVERS: "false",
 } as const;
 
+/**
+ * The initial ACP config options of a Claude session, sent as `configOptions` on
+ * `session/new` and `session/load`. Since claude-agent-acp 0.101.0 a session with no
+ * `permissions.defaultMode` setting starts in Claude Code's `auto` mode, where Claude Code decides
+ * tool permissions itself and does not ask the client. The runner's permission plan answers every
+ * permission request, so the session starts in `default`, which asks.
+ */
+export const CLAUDE_INITIAL_CONFIG_OPTIONS: ReadonlyArray<{ configId: string; value: string }> = [
+  { configId: "mode", value: "default" },
+];
+
 export interface ClaudeSessionOptionsMeta {
   claudeCode: {
     options: ClaudeThinkingMeta["claudeCode"]["options"] & {
