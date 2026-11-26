@@ -179,9 +179,9 @@ export const AgentTemplateSectionList = ({
 }
 
 /** The body of an open panel section (canvas F01, with the list's gap). */
-const PANEL_BODY = "flex flex-col gap-1 pb-3 pt-1"
+const PANEL_BODY = "flex flex-col gap-1 pb-3 pt-2.5"
 /** A body that is one row under the title (see `insetBody`); its Mark stays on the line (ALIGN-01). */
-const PANEL_INSET_BODY = "flex flex-col pb-3 pt-1"
+const PANEL_INSET_BODY = "flex flex-col pb-3 pt-2.5"
 
 /** The phone row's summary line. */
 const summaryOf = (s: AgentTemplateSectionDescriptor) => s.phoneSummary ?? s.summary

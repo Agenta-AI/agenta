@@ -9,7 +9,7 @@ import {cn} from "@agenta/ui/styles"
 export const SectionEmpty = ({children, className}: {children: ReactNode; className?: string}) => (
     <div
         className={cn(
-            "mt-1 box-border flex min-h-row-single items-center justify-center rounded-md px-3 py-1.5",
+            "box-border flex min-h-row-single items-center justify-center rounded-md px-3 py-1.5",
             "border border-dashed border-border-muted text-center text-meta text-muted-foreground",
             className,
         )}
