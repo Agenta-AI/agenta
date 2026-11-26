@@ -341,7 +341,15 @@ Those rows are the stored OAuth registrations and tokens for MCP connections. De
 
 For most upgrades, follow these steps to update your Agenta instance:
 
-### 1. Pull the Latest Images
+### 1. Update the Files in Your Clone
+
+A release can change the compose files, for example 0.121.0 added the mobile app service. In the folder where you cloned Agenta, get the newest files:
+
+```bash
+git pull
+```
+
+### 2. Pull the Latest Images
 
 Download the newest version of all Agenta Docker images:
 
@@ -349,7 +357,7 @@ Download the newest version of all Agenta Docker images:
 docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml pull
 ```
 
-### 2. Restart Services
+### 3. Restart Services
 
 Restart all services with the updated images:
 
@@ -414,9 +422,10 @@ Each command will:
 v0.100.3 relocated the Helm chart (from `hosting/helm/agenta-oss/` to `hosting/kubernetes/helm/`), reshaped the `values.yaml` keys, and renamed many env vars. If you are upgrading **across** that boundary, follow [Migrate to v0.100.3 (Helm chart relocation + config reshape)](/self-host/upgrades/v0.100.3-migration) once, then resume using this section for subsequent upgrades.
 :::
 
-If you deployed Agenta on Kubernetes using the Helm chart, upgrade with:
+If you deployed Agenta on Kubernetes using the Helm chart, the chart is a folder in your clone. Get the newest chart first, then upgrade:
 
 ```bash
+git pull
 helm upgrade agenta hosting/kubernetes/helm \
   --namespace agenta \
   -f hosting/kubernetes/oss/.values.oss.yaml
