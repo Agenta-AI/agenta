@@ -5,6 +5,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Optional
+from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
 import httpx
@@ -58,7 +59,11 @@ def flag(monkeypatch):
         monkeypatch.setattr(
             fraud_config,
             "_load_posthog",
-            lambda: SimpleNamespace(get_feature_flag_payload=_get_feature_flag_payload),
+            AsyncMock(
+                side_effect=lambda: SimpleNamespace(
+                    get_feature_flag_payload=_get_feature_flag_payload
+                )
+            ),
         )
 
     _serve(None)
@@ -406,7 +411,9 @@ async def test_flag_read_returning_none_keeps_the_last_known_payload(flag, monke
 
 @pytest.mark.asyncio
 async def test_posthog_unavailable_gives_defaults(monkeypatch):
-    monkeypatch.setattr(fraud_config, "_load_posthog", lambda: None)
+    monkeypatch.setattr(
+        fraud_config, "_load_posthog", AsyncMock(side_effect=lambda: None)
+    )
     assert (await fraud_config.read_fraud_check_config()) == FraudCheckConfig()
 
 

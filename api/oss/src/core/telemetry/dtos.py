@@ -1,0 +1,16 @@
+from typing import Dict, Literal, Optional
+
+from pydantic import BaseModel
+
+
+class TelemetryStatus(BaseModel):
+    enabled: bool
+    reason: Literal["cloud", "default", "license", "switch"]
+
+
+class InstanceTelemetry(BaseModel):
+    enabled: bool
+    distinct_id: Optional[str] = None
+    groups: Optional[Dict[str, str]] = None
+    # Properties the browser adds to every event. Self-hosted: the instance kind.
+    properties: Optional[Dict[str, str]] = None

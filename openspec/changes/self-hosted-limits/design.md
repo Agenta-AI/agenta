@@ -179,7 +179,7 @@ The worker writes the instance id into the free key payload. The API accepts a `
 - The API forwards the updates choice, the setup answers and the signed-in user id with the registration.
 - The website worker sends the key email (Loops transactional `LOOPS_TRANSACTIONAL_ID`) and stores the contact with `source` "self-hosted registration", `userGroup` "self-hosted", and the fields `agentaVersion`, `agentaRegisteredAt`, `agentaPlan`, `agentaInstanceId`, `agentaRole`, `agentaTeamSize`, `agentaHeardFrom` and `agentaProductUpdates` (set to true when ticked; an unticked box leaves the stored value unchanged, and a contact leaves product updates through the Loops unsubscribe link). No Loops list; campaigns target `userGroup` self-hosted with `agentaProductUpdates` true.
 - The worker then sends to the self-hosted PostHog project, whatever the instance's telemetry switch: `instance_registered` with distinct id the instance id, the email, version, plan and setup answers, in group `instance`; a `$groupidentify` with `registered_email`; and `$set: {email}` on the person `<instance_id>:<user_id>` of the registering admin.
-- The docs say: "Registering links your instance to your email in our analytics. Instances that do not register stay anonymous."
+- The docs do not add a sentence about this join in analytics (decided 2026-11-26).
 - The self-hosted survey event does not carry the email (this avoids a merge trap with #8237).
 
 ### Decision 13: Usage in the license API (decided 2026-11-25)
