@@ -1,0 +1,95 @@
+---
+title: License keys
+sidebar_label: License keys
+description: What an Agenta license key is, how to add one to a self-hosted Enterprise instance, and what happens without one
+slug: /self-host/license-keys
+sidebar_position: 4
+---
+
+A license key sets the plan of a self-hosted Agenta instance. The plan decides which enterprise features every organization on the instance can use. This page applies to the Enterprise (EE) image. The open-source (OSS) image does not read license keys.
+
+## What a license key is
+
+A license key is a line of text that starts with `agenta_license_v1.`. It holds the plan, the customer name, an optional number of seats and an optional expiry date. Agenta signs it with a private key, and the instance checks the signature with the public keys that are built into the image.
+
+The check runs offline. The instance does not call Agenta to check a key, and a key works on an instance that has no internet access.
+
+## Add a license key
+
+Use one of these two ways. A key in `AGENTA_LICENSE_KEY` takes priority over a key added in the app.
+
+### In the app
+
+1. Sign in as the instance admin.
+2. Open **Settings > License**.
+3. Paste the key in **License key** and select **Add key**.
+
+The new plan applies to every organization on the instance. The **License** tab is visible only to the instance admin. The instance admin is a user whose email is in `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS`. When that list is unset, it is the owner of the oldest organization.
+
+### With an environment variable
+
+Set `AGENTA_LICENSE_KEY` on the `api`, `worker-queues` and `worker-streams` containers, then restart them.
+
+- Docker Compose: add the key to your `.env` file.
+
+  ```bash
+  AGENTA_LICENSE_KEY=agenta_license_v1.eyJrZXlfaWQiOi...
+  ```
+
+  Then run your `docker compose ... up -d` command again. It recreates the containers with the new value. `docker compose restart` keeps the old value.
+
+- Helm: the chart has no value for the key. Add it with `extraEnv`, for example from a Kubernetes secret:
+
+  ```yaml
+  api:
+    extraEnv:
+      - name: AGENTA_LICENSE_KEY
+        valueFrom:
+          secretKeyRef:
+            name: agenta-license
+            key: key
+  ```
+
+  Add the same entry under `workerQueues.extraEnv` and `workerStreams.extraEnv`.
+
+When the key comes from the environment, the **License** tab shows it with the message "This key is set in the server settings and cannot be changed here."
+
+Do not confuse `AGENTA_LICENSE_KEY` with `AGENTA_LICENSE`, which selects the edition (`oss` or `ee`).
+
+## When a key expires
+
+Starting 30 days before the expiry date, the **License** tab shows "This license expires on" with the date. After the expiry date, the instance runs on the Community plan, and the tab shows "This license expired on" with the date. Enterprise features stop working, but no data is deleted. Add a new key to turn them on again.
+
+A key with seats shows the number of users against the seats on the **License** tab, and a notice when the instance has more users than the key allows. The instance does not block users above the seat count.
+
+## An Enterprise instance without a key
+
+An EE instance with no key, or with a key that is not valid, runs every organization on the Community plan (`self_hosted_community`). The Community plan has no enterprise features:
+
+- SSO providers per organization, set up in the app
+- Sign-in method enforcement per organization
+- Domain verification
+- Roles beyond owner, admin and member in invitations and role changes
+- The audit log
+
+Everything else works as on OSS, with no limit on users. SSO login that you configure with environment variables works without a key. See [Configure SSO](/self-host/guides/configure-sso).
+
+`AGENTA_ACCESS_DEFAULT_PLAN`, `AGENTA_ACCESS_PLANS` and `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` cannot turn on enterprise features without a key. See [Dynamic access controls](/self-host/dynamic-access-controls).
+
+## Upgrade an existing Enterprise instance
+
+Before this release, an EE instance without a key gave every organization the enterprise plan. After the upgrade, an instance without a key runs on the Community plan. If you upgrade an EE instance and do not add a key:
+
+- Every organization moves to the Community plan. Adding a key later turns the enterprise features back on.
+- The **Access & Security** and **Audit Log** settings show the enterprise features as locked.
+- Invitations and role changes offer only admin and member. Members who already have another role keep it.
+- SSO providers, verified domains and sign-in settings that organizations saved before the upgrade stay in the database. Owners cannot change them until you add a key.
+- `AGENTA_ACCESS_DEFAULT_PLAN` no longer sets the plan. The API logs a warning at startup when it is set.
+
+If your instance sets `STRIPE_API_KEY`, remove it before you upgrade. Stripe is for Agenta Cloud billing. The API and the workers do not start when `STRIPE_API_KEY` is set and `AGENTA_LICENSE_KEY` is not a cloud license key.
+
+To keep the enterprise features without a gap, set `AGENTA_LICENSE_KEY` when you deploy the upgrade. To get a key, [talk to us](https://agenta.ai/contact).
+
+## Reference
+
+All license settings are in [Configuration](/self-host/configuration#license).

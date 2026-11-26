@@ -6,6 +6,7 @@ import type {SidebarConfig, SidebarSection, SidebarSlotContext} from "@agenta/na
 import {
     Broadcast,
     Buildings,
+    Certificate,
     ChartLineUp,
     Coins,
     ClockCounterClockwise,
@@ -54,6 +55,8 @@ export const getSettingsSidebarIcon = (key: SettingsTabKey): ReactNode => {
             return <ShieldCheck size={14} />
         case "auditLog":
             return <ClockCounterClockwise size={14} />
+        case "license":
+            return <Certificate size={14} />
         case "billing":
             return <Receipt size={14} />
         case "credits":

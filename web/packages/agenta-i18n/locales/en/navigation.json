@@ -69,6 +69,7 @@
     "settings.channels": "Channels",
     "settings.credits": "Credits",
     "settings.integrationsLabel": "Integrations",
+    "settings.license": "License",
     "settings.llms": "AI providers",
     "settings.mcpEndpoints": "MCPs",
     "settings.organization": "Access & security",

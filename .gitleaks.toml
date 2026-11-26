@@ -77,6 +77,7 @@ regexes = [
   '''phc_CwyyDlHGNnRFptVWhTe0HOeKnq1jeOZNk9hduYiOClp''',  # POSTHOG
   '''phc_qH8GezjMAeToR9ygdsnTH0C9c2njhO7CFqf66pTUX7H''',  # POSTHOG
   '''phc_cFT4a4081mXuKxYIrhIt6cmDwSjAO8zQlw9CFE05oSI''',  # POSTHOG
+  '''phc_rCKHKJj7ea3r5t7frogShC8MUsuFzSD6FFTJe7YniDV9''',  # POSTHOG (Agenta Test Traffic, CI and previews)
   '''18ab633e81d706cbda7c78d25d0fe763''',                 # ALGOLIA
   # ------------------------------------------------- LOCAL-DEV STORE SIGNING KEY
   # Dummy SeaweedFS STS signing key shown (commented) as a format hint in the dev

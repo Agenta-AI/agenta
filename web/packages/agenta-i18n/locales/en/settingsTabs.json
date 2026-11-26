@@ -10,6 +10,7 @@
     "creditsDescription": "What your organization has left, where it went, and how to add more.",
     "integrationsDescription": "Connect the integrations your agents can use.",
     "integrationsDocs": "Learn more about integrations",
+    "licenseDescription": "The license and plan of this instance, for every organization on it.",
     "llmsDescription": "Connect the AI providers your agents, prompts, and evaluations run on.",
     "llmsDocs": "Learn more about AI providers",
     "mcpEndpointsDescription": "MCP servers connected to this project. Each agent chooses which of these to use and what it may run.",

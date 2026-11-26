@@ -10,6 +10,7 @@
     "creditsDescription": "組織の残りのクレジット、その使い道、追加方法を確認できます。",
     "integrationsDescription": "エージェントが使用できるインテグレーションを接続します。",
     "integrationsDocs": "インテグレーションの詳細",
+    "licenseDescription": "このインスタンスのライセンスとプランです。インスタンス上のすべての組織に適用されます。",
     "llmsDescription": "エージェント、プロンプト、評価の実行に使う AI プロバイダーを接続します。",
     "llmsDocs": "AI プロバイダーの詳細",
     "mcpEndpointsDescription": "このプロジェクトに接続された MCP サーバーです。各エージェントは、使用するサーバーと実行できる内容を選択します。",

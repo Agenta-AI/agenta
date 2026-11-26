@@ -1621,6 +1621,19 @@ class IdentityConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# license — the self-hosted license key. `AGENTA_LICENSE` names the edition, not this.
+# ---------------------------------------------------------------------------
+
+
+class LicenseConfig(BaseModel):
+    """License key set by the operator. It takes priority over a key added in the app."""
+
+    key: str | None = (os.getenv("AGENTA_LICENSE_KEY") or "").strip() or None
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
 # llm — provider API keys (top-level by vendor).
 # ---------------------------------------------------------------------------
 
@@ -2439,13 +2452,15 @@ def _parse_instance_kind() -> Optional[InstanceKind]:
 
 
 class TelemetryConfig(BaseModel):
-    """What a self-hosted instance sends to Agenta's PostHog project. #8237 adds the
-    other telemetry settings; this change needs only the deployment method and the
-    instance kind override."""
+    """What a self-hosted instance sends to Agenta's PostHog project."""
 
+    enabled: bool = _parse_bool_env("AGENTA_TELEMETRY_ENABLED", default=True)
+    # Whether the operator set the switch, so the startup log can name the reason.
+    enabled_set: bool = bool((os.getenv("AGENTA_TELEMETRY_ENABLED") or "").strip())
     deployment_method: Optional[DeploymentMethod] = _parse_deployment_method()
     # Overrides the detected instance kind when set.
     instance_kind: Optional[InstanceKind] = _parse_instance_kind()
+    ci: bool = bool(os.getenv("CI"))
 
     model_config = ConfigDict(extra="ignore")
 
@@ -2581,6 +2596,7 @@ class EnvironSettings(BaseModel):
     gateway_credentials: GatewayCredentialsConfig = GatewayCredentialsConfig()
     gateway_egress: GatewayEgressConfig = GatewayEgressConfig()
     identity: IdentityConfig = IdentityConfig()
+    license: LicenseConfig = LicenseConfig()
     llm: LLMConfig = LLMConfig()
     llm_gateway: LLMGatewayConfig = LLMGatewayConfig()
     loops: LoopsConfig = LoopsConfig()

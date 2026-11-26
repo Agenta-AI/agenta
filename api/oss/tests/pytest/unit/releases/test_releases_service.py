@@ -81,7 +81,10 @@ def requests(monkeypatch):
     monkeypatch.setattr(releases_service.httpx, "AsyncClient", client)
     monkeypatch.setattr(releases_service, "get_agenta_version", lambda: "v0.128.11")
     monkeypatch.setattr(env.releases, "update_check_enabled", True)
+    # No override, not CI and a public web URL: the detected kind is "production".
     monkeypatch.setattr(env.telemetry, "instance_kind", None)
+    monkeypatch.setattr(env.telemetry, "ci", False)
+    monkeypatch.setattr(env.agenta, "web_url", "https://agenta.example.com")
     return recorder
 
 

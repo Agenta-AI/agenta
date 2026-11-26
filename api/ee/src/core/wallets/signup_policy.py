@@ -269,7 +269,7 @@ async def resolve_mint_policy() -> Optional[MintPolicy]:
 
     payload: Optional[dict] = None
     live_malformed = False
-    posthog = _load_posthog()
+    posthog = await _load_posthog()
     if posthog is not None:
         try:
             raw = await asyncio.to_thread(
