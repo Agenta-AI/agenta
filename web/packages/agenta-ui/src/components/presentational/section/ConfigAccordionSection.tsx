@@ -317,7 +317,11 @@ export function ConfigAccordionSection({
         >
             {iconTile ? (
                 // A 28 px tile with a 16 px glyph: one step up from the item rows' Mark.
-                <IconTile size={24} className="size-7 [&_svg]:size-4" style={{color: iconColor}}>
+                <IconTile
+                    size={24}
+                    className="size-7 [&_svg]:size-4"
+                    style={{color: iconColor}}
+                >
                     {icon}
                 </IconTile>
             ) : (
@@ -390,7 +394,7 @@ export function ConfigAccordionSection({
                         : canvas
                           ? iconTile
                               ? // The tiled panel row: 40 px tall, a 10 px inset each side.
-                                "-mx-2.5 h-10 rounded-md px-2.5"
+                                "-mx-2.5 h-10 rounded-lg px-2.5"
                               : "-mx-2 h-row-single rounded-md px-2"
                           : "py-3",
                     canvas === "panel" &&
@@ -398,8 +402,6 @@ export function ConfigAccordionSection({
                         !locked &&
                         "transition-colors duration-[var(--duration-fast)] ease-[var(--ease-out)] hover:bg-accent",
                     highlight && "bg-info/10",
-                    // An open section keeps the row hover fill (the pane's Agent tab).
-                    iconTile && isOpen && "bg-accent",
                     locked && "cursor-not-allowed opacity-60",
                     headerActs && "cursor-pointer",
                     // Header fill: bled to the section edges and layered over the section's body fill so
