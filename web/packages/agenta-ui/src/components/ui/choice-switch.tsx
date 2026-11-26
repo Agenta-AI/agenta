@@ -32,6 +32,8 @@ export function ChoiceSwitch<Value extends string>({
     disabled,
     className,
 }: ChoiceSwitchProps<Value>) {
+    // Label-only choices read as a segmented control: centered, as Segmented draws them.
+    const centered = !choices.some((choice) => choice.note)
     const refs = useRef<(HTMLButtonElement | null)[]>([])
     const trackRef = useRef<HTMLDivElement>(null)
     const selectedIndex = Math.max(
@@ -132,7 +134,8 @@ export function ChoiceSwitch<Value extends string>({
                             if (!selected) onChange(choice.value)
                         }}
                         className={cn(
-                            "flex min-w-0 flex-1 cursor-pointer flex-col items-start gap-0.5 rounded-md border-0 px-2.5 py-2 text-left font-[inherit] outline-none transition-colors duration-[var(--duration-fast)]",
+                            "flex min-w-0 flex-1 cursor-pointer flex-col gap-0.5 rounded-md border-0 px-2.5 py-2 font-[inherit] outline-none transition-colors duration-[var(--duration-fast)]",
+                            centered ? "items-center text-center" : "items-start text-left",
                             "focus-ring",
                             "disabled:cursor-not-allowed disabled:opacity-60",
                             // The thumb draws the selected box by tone, as in Segmented; the choice stays clear above it.
