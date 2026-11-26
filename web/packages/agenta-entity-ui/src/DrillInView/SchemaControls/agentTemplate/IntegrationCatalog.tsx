@@ -394,7 +394,7 @@ function ConnectedRow({
                                 variant="ghost"
                                 size="icon-sm"
                                 aria-label={t("entityUi.integrationDrawer.use")}
-                                className="text-muted-foreground hover:text-foreground"
+                                className="text-muted-foreground hover:bg-secondary hover:text-foreground"
                                 onClick={() => onAdd?.(slug)}
                             >
                                 <ArrowsLeftRight />
@@ -458,7 +458,7 @@ function CatalogRow({
                         variant="ghost"
                         size={canvas ? "icon-compact" : "icon-sm"}
                         // Shown on row hover, always on touch.
-                        className="focus-visible:opacity-100 group-hover/row:opacity-100 group-focus-within/row:opacity-100 [@media(hover:hover)]:opacity-0"
+                        className="hover:bg-secondary focus-visible:opacity-100 group-hover/row:opacity-100 group-focus-within/row:opacity-100 [@media(hover:hover)]:opacity-0"
                         aria-label={t("entityUi.integrationDrawer.connectName", {
                             name: integration.name,
                         })}

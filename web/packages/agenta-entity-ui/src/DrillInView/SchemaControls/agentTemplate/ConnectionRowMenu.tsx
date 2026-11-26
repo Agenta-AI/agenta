@@ -44,8 +44,9 @@ export function ConnectionRowMenu({
                         size="icon-sm"
                         variant="ghost"
                         aria-label={t("entityUi.integrationDrawer.connectionActions")}
-                        // Always shown and quiet, so nothing changes or shifts on hover.
-                        className="text-muted-foreground hover:bg-accent hover:text-foreground"
+                        // Always shown and quiet, so nothing changes or shifts on hover. `secondary` stacks on
+                        // the row's hover fill, where `accent` would vanish into it (SURF-06).
+                        className="text-muted-foreground hover:bg-secondary hover:text-foreground aria-expanded:bg-secondary"
                     >
                         <DotsThreeVertical aria-hidden />
                     </Button>
