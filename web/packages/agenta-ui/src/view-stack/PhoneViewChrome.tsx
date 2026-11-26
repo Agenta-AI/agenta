@@ -28,7 +28,7 @@ export const PhoneViewHeader = ({
 
 /**
  * The phone chrome of a view stack: the view covers the screen, with `PhoneViewHeader` at the
- * top, the view edge to edge, and the action row at the bottom with 44 px buttons. A view shown
+ * top, the view edge to edge, and the action row at the bottom, clear of the home indicator. A view shown
  * to read only gets no action row. No widen button and no Close: the back arrow is the way out.
  * A container that also has a desktop layout keeps one tree for both and builds its phone branch
  * from `PhoneViewHeader` and `ViewFormActions phone`, so a resize does not remount the view.
@@ -51,7 +51,7 @@ export const PhoneViewChrome = ({
         {hideActionRow ? null : (
             <div
                 className={cn(
-                    "shrink-0 border-0 border-t border-solid border-border-muted px-4 pb-6 pt-3",
+                    "shrink-0 border-0 border-t border-solid border-border-muted px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-3",
                     // An instant view with nothing in its start shows no footer at all.
                     apply === "immediate" && "[&:has([data-footer-start]:empty)]:hidden",
                 )}
