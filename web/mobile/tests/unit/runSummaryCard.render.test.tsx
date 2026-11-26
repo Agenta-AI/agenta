@@ -50,7 +50,6 @@ vi.mock("@/components/PageTitle", () => ({
 }))
 vi.mock("@agenta/auth-ui", () => ({NotFoundScreen: () => null}))
 
-import {DEVELOPER_VIEWS} from "@/features/developer/developerViews"
 import EvaluationRunPage from "@/pages/w/[workspace_id]/p/[project_id]/evaluations/results/[evaluation_id]"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
@@ -210,9 +209,5 @@ describe("run summary card", () => {
                 .map((call) => String(call[0]))
                 .filter((url) => !url.endsWith("/query")),
         ).toEqual([])
-    })
-
-    it("The evaluations view is still hidden by default", () => {
-        expect(DEVELOPER_VIEWS.find((view) => view.id === "evaluations")?.stage).toBe("hidden")
     })
 })

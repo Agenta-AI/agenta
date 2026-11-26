@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import {CaretUpDown} from "@phosphor-icons/react"
 import * as SelectPrimitive from "@radix-ui/react-select"
 import {cva, type VariantProps} from "class-variance-authority"
 import {Check, ChevronDown, ChevronUp} from "lucide-react"
@@ -65,6 +66,9 @@ const selectTriggerVariants = cva(
                 sm: "h-control px-input-sm text-field-md rounded-control-sm",
                 default: "h-control px-input text-field-md rounded-control",
                 lg: "h-control-lg px-input-lg text-field-lg rounded-control-lg",
+                // The canvas select: 34px, radius 6, 13px, an up-down icon. A button does not
+                // make iOS zoom, so 14px below md, as the phone design draws it.
+                compact: "h-[34px] px-2.5 text-[13px] rounded-[6px] max-md:text-sm",
             },
         },
         defaultVariants: {variant: "default", size: "default"},
@@ -86,9 +90,19 @@ function SelectValue(props: React.ComponentProps<typeof SelectPrimitive.Value>) 
 export interface SelectTriggerProps
     extends
         Omit<React.ComponentProps<typeof SelectPrimitive.Trigger>, "size">,
-        VariantProps<typeof selectTriggerVariants> {}
+        VariantProps<typeof selectTriggerVariants> {
+    /** The trailing icon in place of the chevron (the canvas up-down icon, for one). One element:
+     *  Radix renders it through `asChild`. */
+    icon?: React.ReactElement | null
+}
 
-function SelectTrigger({className, variant, size, children, ...props}: SelectTriggerProps) {
+function SelectTrigger({className, variant, size, icon, children, ...props}: SelectTriggerProps) {
+    const defaultIcon =
+        size === "compact" ? (
+            <CaretUpDown aria-hidden size={14} className="text-colorTextTertiary" />
+        ) : (
+            <ChevronDown className="size-3 text-placeholder" />
+        )
     return (
         <SelectPrimitive.Trigger
             data-slot="select-trigger"
@@ -96,9 +110,7 @@ function SelectTrigger({className, variant, size, children, ...props}: SelectTri
             {...props}
         >
             {children}
-            <SelectPrimitive.Icon asChild>
-                <ChevronDown className="size-3 text-placeholder" />
-            </SelectPrimitive.Icon>
+            <SelectPrimitive.Icon asChild>{icon ?? defaultIcon}</SelectPrimitive.Icon>
         </SelectPrimitive.Trigger>
     )
 }
@@ -163,8 +175,14 @@ function SelectLabel({className, ...props}: React.ComponentProps<typeof SelectPr
 function SelectItem({
     className,
     children,
+    size = "default",
     ...props
-}: React.ComponentProps<typeof SelectPrimitive.Item>) {
+}: React.ComponentProps<typeof SelectPrimitive.Item> & {
+    /** `compact` is the canvas menu row: 32px, 13px, the selected row has no fill (only hover
+     *  fills a row), a medium weight and a 14px check. Pair it with a compact trigger. */
+    size?: "default" | "compact"
+}) {
+    const compact = size === "compact"
     return (
         <SelectPrimitive.Item
             data-slot="select-item"
@@ -173,13 +191,20 @@ function SelectItem({
                 // Radix's ItemText span doesn't take a className, so shrink it from here —
                 // without this a long option overflows the panel instead of truncating.
                 "[&>span]:min-w-0 [&>span]:flex-1",
-                // antd option geometry: min-h 28px, 4px×12px padding, 6px radius, selected weight 600.
-                "box-border min-h-control-sm rounded-control-sm px-3 py-1 text-field-md",
-                // antd colours: highlighted-but-not-selected = controlItemBgHover; selected =
-                // controlItemBgActive (a cool bluish tint, not the neutral accent gray). The
-                // `:not()` keeps the selected row's active bg from being overridden by hover.
-                "[&[data-highlighted]:not([data-state=checked])]:bg-controlItemBgHover",
-                "data-[state=checked]:bg-controlItemBgActive data-[state=checked]:font-semibold",
+                compact
+                    ? [
+                          "box-border min-h-8 rounded-[6px] px-2 py-1 text-[13px]",
+                          "data-[highlighted]:bg-controlItemBgHover data-[state=checked]:font-medium",
+                      ]
+                    : [
+                          // antd option geometry: min-h 28px, 4px×12px padding, 6px radius, selected weight 600.
+                          "box-border min-h-control-sm rounded-control-sm px-3 py-1 text-field-md",
+                          // antd colours: highlighted-but-not-selected = controlItemBgHover; selected =
+                          // controlItemBgActive (a cool bluish tint, not the neutral accent gray). The
+                          // `:not()` keeps the selected row's active bg from being overridden by hover.
+                          "[&[data-highlighted]:not([data-state=checked])]:bg-controlItemBgHover",
+                          "data-[state=checked]:bg-controlItemBgActive data-[state=checked]:font-semibold",
+                      ],
                 "data-[disabled]:pointer-events-none data-[disabled]:text-disabled",
                 className,
             )}
@@ -191,7 +216,12 @@ function SelectItem({
                 had. We keep the check as an explicit affordance — sits where antd reserves the
                 state slot (right side), colorPrimary. See Select.md §Deliberate deviations. */}
             <SelectPrimitive.ItemIndicator asChild>
-                <Check className="size-3 shrink-0 text-primary" />
+                <Check
+                    className={cn(
+                        "shrink-0",
+                        compact ? "size-3.5 text-colorText" : "size-3 text-primary",
+                    )}
+                />
             </SelectPrimitive.ItemIndicator>
         </SelectPrimitive.Item>
     )

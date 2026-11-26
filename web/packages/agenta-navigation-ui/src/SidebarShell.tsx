@@ -1,4 +1,12 @@
-import React, {type CSSProperties, memo, useCallback, useEffect, useMemo, useRef} from "react"
+import React, {
+    type CSSProperties,
+    memo,
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useRef,
+} from "react"
 
 import {useT} from "@agenta/i18n"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
@@ -18,6 +26,7 @@ import clsx from "clsx"
 import {useAtom, useSetAtom} from "jotai"
 
 import {NavMenu} from "./NavMenu"
+import {SidebarLayoutContext} from "./sidebarLayout"
 
 class SidebarErrorBoundary extends React.Component<React.PropsWithChildren, {hasError: boolean}> {
     state = {hasError: false}
@@ -164,14 +173,32 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     className,
     onNavigate,
     onDismiss,
+    enterFrom,
 }) => {
     const t = useT(navigationCatalog)
     // Only a drawer can dismiss the rail, so this is also how the shell knows it is in a sheet.
     const isOverlay = Boolean(onDismiss)
+    // The phone sheet sets its own width; the rail fills it.
+    const phone = useContext(SidebarLayoutContext) === "phone"
     const [collapsed, setCollapsed] = useAtom(collapsedAtom)
     const railRef = useRef<HTMLDivElement>(null)
     const contentRef = useRef<HTMLDivElement>(null)
     const {width, handleProps} = useSidebarResize({railRef, contentRef, collapsed, setCollapsed})
+    // A scope change the person asked for (focus on one agent, or back) slides the new rail's
+    // content in from that side, 0.2 s. Only on mount: the host remounts the shell per scope.
+    useEffect(() => {
+        const content = contentRef.current
+        if (!enterFrom || !content?.animate) return
+        if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return
+        content.animate(
+            [
+                {transform: `translateX(${enterFrom === "end" ? 16 : -16}px)`, opacity: 0},
+                {transform: "none", opacity: 1},
+            ],
+            {duration: 200, easing: "cubic-bezier(.2,.8,.2,1)"},
+        )
+        // Mount only: the host remounts the shell per scope.
+    }, [])
     const openGroupsAtom = useMemo(
         () => openGroupsAtomFamily(scope.id),
         [openGroupsAtomFamily, scope.id],
@@ -314,7 +341,9 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                 .trim()}
             style={
                 {
-                    "--ag-sidebar-w": `${collapsed ? SIDEBAR_COLLAPSED_WIDTH : width}px`,
+                    "--ag-sidebar-w": phone
+                        ? "100%"
+                        : `${collapsed ? SIDEBAR_COLLAPSED_WIDTH : width}px`,
                 } as CSSProperties
             }
             onClick={handleFrameClick}
@@ -349,11 +378,9 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                             <div
                                 className={clsx(
                                     "w-full min-h-0 flex-1",
-                                    // A group that scrolls its own rows owns the scrolling: the
-                                    // rail must NOT scroll too, or the entries after that group
-                                    // still leave the screen. Every other scope is unchanged.
+                                    // The scrolling group owns the spare height; the rail scrolls only on a short window.
                                     scrollsWithinAGroup
-                                        ? "flex flex-col overflow-hidden"
+                                        ? "flex flex-col overflow-y-auto"
                                         : "overflow-y-auto",
                                 )}
                             >

@@ -30,7 +30,6 @@ vi.mock("@agenta/skills-ui", async (original) => ({
     NewSkillMenuButton: () => null,
     SkillCreateDrawer: () => null,
     SkillDetailDrawer: () => null,
-    SkillImportDrawer: () => null,
 }))
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true

@@ -31,5 +31,7 @@
     "resetToDefault": "Auf Standard zurücksetzen",
     "tabModel": "Modell",
     "tabFallback": "Ersatz",
-    "tabRetry": "Wiederholung"
+    "tabRetry": "Wiederholung",
+    "noConfiguration": "Keine Konfiguration",
+    "revisionNoConfig": "Diese Revision hat noch keinen Prompt und keine Einstellungen."
 }

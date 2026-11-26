@@ -46,7 +46,12 @@ class SessionInputsDAOInterface(ABC):
 
     @abstractmethod
     async def fetch_by_execution_id(
-        self, *, project_id: UUID, session_id: str, execution_id: str
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_id: str,
+        transaction: Optional[Any] = None,
     ) -> Optional[PendingInput]:
         pass
 
@@ -109,7 +114,18 @@ class SessionInputsDAOInterface(ABC):
         input_id: Optional[UUID] = None,
         only_policy: Optional[str] = None,
         transaction: Optional[Any] = None,
+        messages_only: bool = False,
     ) -> Optional[PendingInput]:
+        """`messages_only` skips server inputs (a `kind` other than `message`)."""
+        pass
+
+    @abstractmethod
+    async def has_pending_server_input(
+        self, *, project_id: UUID, session_id: str, transaction: Optional[Any] = None
+    ) -> bool:
+        """True when a row with a `kind` other than `message` waits as `pending`. It
+        takes the session's input lock, so in a transaction no row is written between
+        this answer and a `promote_next` in the same transaction."""
         pass
 
     @abstractmethod

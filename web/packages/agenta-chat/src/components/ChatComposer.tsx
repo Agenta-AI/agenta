@@ -19,8 +19,12 @@ import {
     revealQuote,
     useStagedQuotes,
 } from "@agenta/ui/quote-selection"
-import type {RichChatInputHandle, SlashCommandSection} from "@agenta/ui/rich-chat-input"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import type {
+    ComposerSurface,
+    RichChatInputHandle,
+    SlashCommandSection,
+} from "@agenta/ui/rich-chat-input"
+import {Button, PHONE_TOUCH_TARGET_CLASS, SimpleTooltip} from "@agenta/ui/ui"
 import {Paperclip} from "@phosphor-icons/react"
 
 import {acceptAttrFor} from "../assets/attachmentRules"
@@ -56,6 +60,10 @@ export interface ChatComposerProps {
     className?: string
     /** How far the editor may grow before it scrolls itself; see RichChatInput. */
     maxHeightClassName?: string
+    /** The editor's resting height; see RichChatInput. */
+    minHeightClassName?: string
+    /** A 14 px secondary paperclip in a 24 px box: the builder page's new chat (B01). */
+    smallAttach?: boolean
     disabled?: boolean
     /** Send and Enter are off while typing stays on (an agent whose model needs setup). */
     sendDisabled?: boolean
@@ -65,6 +73,10 @@ export interface ChatComposerProps {
      * there is a keyboard to press them with, hidden on a touch-only screen.
      */
     hideShortcutHints?: boolean
+    /** The box's look: `canvas` is the builder layout design (see RichChatInput). */
+    surface?: ComposerSurface
+    /** The agent this composer talks to: the resting placeholder reads "Message <agent>". */
+    agentName?: string | null
     /** Full placeholder override; when absent, `waitingOnUser` picks the queue message. */
     placeholder?: string
     /** The run is parked on the user (HITL) — new sends will queue. */
@@ -94,6 +106,8 @@ export interface ChatComposerProps {
     extraPrefix?: ReactNode
     /** The input's trailing slot (onboarding actions). */
     trailing?: ReactNode
+    /** Just before Send (the model button). */
+    beforeSend?: ReactNode
     /**
      * Docked INSIDE the input frame, above the editor and the attachments tray — for host
      * content that belongs to the message being composed (the create surface's connect step).
@@ -119,11 +133,15 @@ export const ChatComposer = ({
     dictationAnalyserRef,
     className,
     maxHeightClassName,
+    minHeightClassName,
+    smallAttach = false,
     disabled,
     sendDisabled,
     hideSendButton,
     hideShortcutHints,
     placeholder,
+    agentName,
+    surface,
     waitingOnUser,
     hasTurns = false,
     initialMarkdown,
@@ -139,6 +157,7 @@ export const ChatComposer = ({
     onViewAttachment,
     extraPrefix,
     trailing,
+    beforeSend,
     headerExtra,
     slashCommands,
     fileMentions,
@@ -246,10 +265,13 @@ export const ChatComposer = ({
                 }
                 className={className}
                 maxHeightClassName={maxHeightClassName}
+                minHeightClassName={minHeightClassName}
+                surface={surface}
                 onSubmit={withQuotes(onSubmit)}
                 disabled={disabled}
                 hideSendButton={hideSendButton}
-                hideShortcutHints={hideShortcutHints ?? (!hasKeyboard || hasTurns)}
+                // With "Message <agent>" in the field, the key hints stay on as chips (shown on focus).
+                hideShortcutHints={hideShortcutHints ?? (!hasKeyboard || (hasTurns && !agentName))}
                 // A touch keyboard has no modifier to make a newline with, so its Enter IS the
                 // newline and the send button sends. Enter sends only where Shift/⌘ can be held.
                 submitOnEnter={hasKeyboard}
@@ -261,12 +283,15 @@ export const ChatComposer = ({
                           ? // The parked interaction is docked directly above, so point at it rather
                             // than describing the wait in the abstract.
                             t("chat.chatComposer.placeholderWaiting")
-                          : !hasTurns
-                            ? t("chat.chatComposer.placeholderFirst")
-                            : // An ongoing session carries the key hints here instead of as chips.
-                              hasKeyboard
-                              ? t("chat.chatComposer.placeholderKeyboard")
-                              : t("chat.chatComposer.placeholderTouch"))
+                          : agentName
+                            ? // The canvas names the agent (M01, S03); the key hints stay as chips.
+                              t("chat.chatComposer.placeholderAgent", {agent: agentName})
+                            : !hasTurns
+                              ? t("chat.chatComposer.placeholderFirst")
+                              : // An ongoing session carries the key hints here instead of as chips.
+                                hasKeyboard
+                                ? t("chat.chatComposer.placeholderKeyboard")
+                                : t("chat.chatComposer.placeholderTouch"))
                 }
                 initialMarkdown={initialMarkdown}
                 slashCommands={slashCommands}
@@ -288,8 +313,9 @@ export const ChatComposer = ({
                     onSubmit: withQuotes(action.onSubmit),
                 }))}
                 prefix={
-                    // Tight: these are one cluster of composer tools, not separate controls.
-                    <div className="flex items-center gap-0.5">
+                    // Tight: these are one cluster of composer tools, not separate controls. On a
+                    // phone 8 px apart, so the 44 px areas do not reach a neighbour.
+                    <div className="flex items-center gap-0.5 max-md:gap-2">
                         {extraPrefix}
                         {/* Gone while dictating: the row belongs to the wave, and attaching a file
                             mid-utterance is not a thing anyone is doing. */}
@@ -308,6 +334,16 @@ export const ChatComposer = ({
                                 <Button
                                     variant="ghost"
                                     size="icon"
+                                    // A phone: 36 px drawn and a 44 px area (4 px reach), as the
+                                    // design canvas.
+                                    className={`max-md:size-9 ${
+                                        // The canvas draws a bare glyph in a 24 px box.
+                                        surface === "canvas"
+                                            ? smallAttach
+                                                ? "size-6 text-colorTextSecondary"
+                                                : "size-6 text-colorTextTertiary"
+                                            : ""
+                                    } ${PHONE_TOUCH_TARGET_CLASS}`}
                                     disabled={!uploadsEnabled || composerDisabled}
                                     onClick={() => fileInputRef.current?.click()}
                                     // The closing picker's focus has no relatedTarget; no tooltip.
@@ -316,7 +352,18 @@ export const ChatComposer = ({
                                     }}
                                     aria-label={t("chat.chatComposer.attachFiles")}
                                 >
-                                    <Paperclip size={16} />
+                                    {/* 16 px (S07), 14 px on the builder page (B01), 20 px on
+                                        a phone (M01). */}
+                                    <Paperclip
+                                        size={16}
+                                        className={
+                                            surface !== "canvas"
+                                                ? undefined
+                                                : smallAttach
+                                                  ? "size-3.5 max-md:size-5"
+                                                  : "size-4 max-md:size-5"
+                                        }
+                                    />
                                 </Button>
                             </SimpleTooltip>
                         )}
@@ -330,7 +377,15 @@ export const ChatComposer = ({
                 }
                 header={
                     <>
-                        {headerExtra}
+                        {headerExtra && surface === "canvas" ? (
+                            // Inside the box padding, as the editor (S07, M04): 14 px in, 12 px
+                            // down, and the editor's own 12 px top under it (6 px on a phone).
+                            <div className="flex flex-col pl-3.5 pr-3 pt-3 max-md:-mb-1.5 max-md:pr-2">
+                                {headerExtra}
+                            </div>
+                        ) : (
+                            headerExtra
+                        )}
                         <HeightCollapse open={quotes.length > 0 || files.length > 0}>
                             <ComposerAttachments
                                 files={files}
@@ -354,6 +409,7 @@ export const ChatComposer = ({
                     </>
                 }
                 trailing={trailing}
+                beforeSend={beforeSend}
             />
         </Suspense>
     )

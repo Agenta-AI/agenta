@@ -17,6 +17,7 @@ import {ArrowDown} from "@phosphor-icons/react"
 // element and CSS source order decides, so an override to a smaller scale silently loses.
 import {Button} from "../../ui/button"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
+import {PHONE_TOUCH_TARGET_CLASS} from "../../ui/touch-target"
 import {cn} from "../../ui/utils"
 
 /** The antd-x loading dots: three 4px primary dots on a gentle bounce. */
@@ -188,6 +189,10 @@ export const ChatActionIconButton = ({
                 "flex size-[18px] shrink-0 cursor-pointer items-center justify-center rounded border-0 p-0",
                 "bg-transparent text-colorTextSecondary transition-colors",
                 "hover:bg-colorFillTertiary hover:text-colorText",
+                // A phone: a 44 px area, and 11 px more room each side. With the row's 4 px gap
+                // the centres sit 44 px apart, so no two areas overlap.
+                PHONE_TOUCH_TARGET_CLASS,
+                "max-md:mx-[11px]",
             )}
         >
             {icon}

@@ -4,6 +4,7 @@ import {traceSpanMolecule} from "@agenta/entities/trace"
 import {useT} from "@agenta/i18n"
 import spanCatalog from "@agenta/i18n/catalogs/observabilityUi.traceSpan"
 import {
+    getSpanDisplayOutputs,
     spanDataInputsAtomFamily,
     spanDataInternalsAtomFamily,
     spanDataOutputsAtomFamily,
@@ -48,9 +49,14 @@ const OverviewTabItem = ({
             inputs:
                 entityWithDrillIn.drillIn.getValueAtPath(drillInSpan, ["ag", "data", "inputs"]) ??
                 inputsFromSelectors,
-            outputs:
-                entityWithDrillIn.drillIn.getValueAtPath(drillInSpan, ["ag", "data", "outputs"]) ??
-                outputsFromSelectors,
+            // A root agent span often has no outputs; show the reply the traces table shows.
+            outputs: activeTrace?.parent_id
+                ? (entityWithDrillIn.drillIn.getValueAtPath(drillInSpan, [
+                      "ag",
+                      "data",
+                      "outputs",
+                  ]) ?? outputsFromSelectors)
+                : getSpanDisplayOutputs(activeTrace),
             internals:
                 entityWithDrillIn.drillIn.getValueAtPath(drillInSpan, [
                     "ag",

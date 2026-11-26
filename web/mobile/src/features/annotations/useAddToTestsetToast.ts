@@ -7,7 +7,7 @@ import {useRouter} from "next/router"
 
 import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
 
-const EXPORT_FAILURE_TEXT = "Couldn't add the items to the testset"
+const EXPORT_FAILURE_TEXT = "Couldn't add the items to the test set"
 
 /**
  * Says once per export job how many rows reached which testset, or that the export failed. The
@@ -25,7 +25,7 @@ export const useAddToTestsetToast = (base: string) => {
         if (job.status === "error") {
             // The modal closed when the export started, so this toast is the only report.
             notifiedJobId.current = job.id
-            console.error("The testset export failed", job.error)
+            console.error("The test set export failed", job.error)
             message.error(EXPORT_FAILURE_TEXT)
             return
         }

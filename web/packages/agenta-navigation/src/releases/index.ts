@@ -14,7 +14,12 @@ export interface ReleaseFeature {
     link: string
     /** Cloudflare Stream demo clip (same account as the docs embeds). */
     streamVideoId?: string
+    /** A picture drawn above the title, from the entry's `cover` frontmatter. Never set with a clip. */
+    cover?: ReleaseCover
 }
+
+/** The covers the What's new dialog can draw (see scripts/parse-entry.mjs). */
+export type ReleaseCover = "builder" | "models" | "channels"
 
 /** Every docs changelog entry that shares one version tag. */
 export interface Release {

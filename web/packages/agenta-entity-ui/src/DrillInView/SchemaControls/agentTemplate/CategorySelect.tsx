@@ -5,6 +5,7 @@ import {useToolCatalogCategories} from "@agenta/entities/gatewayTool"
 import {createT, useT} from "@agenta/i18n"
 import integrationDrawerCatalog from "@agenta/i18n/catalogs/entityUi.integrationDrawer"
 import {Combobox, type ComboboxOption} from "@agenta/ui/ui"
+import {CaretUpDown} from "@phosphor-icons/react"
 
 import {categoryLabel, type CategorySelection} from "./integrationCatalogFilters"
 
@@ -44,18 +45,22 @@ export function CategorySelect({
     // A failed read leaves All apps and search working; the filter just has nothing to offer.
     if (error && !categories.length) return null
 
+    const loading = isLoading && !categories.length
     return (
         <Combobox
             aria-label={t("entityUi.integrationDrawer.category")}
-            // Narrower on a phone so the search keeps room for its placeholder.
-            className="w-36 shrink-0 sm:w-48"
+            // Narrower on a phone so the search keeps room for its placeholder. The canvas size
+            // on the desktop (F02 f4): 120 px, 28 px high, radius 6, 12 px, an up-down icon.
+            // "All categories" clears instead of a clear button.
+            className="w-36 shrink-0 sm:w-48 md:h-7 md:w-[120px] md:rounded-[6px] md:pl-2 md:text-[12px]"
+            icon={<CaretUpDown aria-hidden size={14} className="text-colorTextTertiary" />}
             // The list may be wider than its field, so names stay on one line on a phone.
             contentClassName="w-56"
             options={options}
             value={value?.id ?? ALL}
             placeholder={t("entityUi.integrationDrawer.allCategories")}
             emptyText={t("entityUi.integrationDrawer.noMatchingCategory")}
-            loading={isLoading && !categories.length}
+            loading={loading}
             container={container}
             onChange={(id) => {
                 if (!id || id === ALL) return onChange(null)

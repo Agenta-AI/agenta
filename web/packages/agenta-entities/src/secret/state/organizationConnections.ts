@@ -116,9 +116,18 @@ export const setOrganizationConnectionProjectsAtom = atom(
     async (
         get,
         set,
-        {connectionId, projects}: {connectionId: string; projects: OrganizationSecretProjects},
+        {
+            connectionId,
+            projects,
+            projectId: scopeProjectId,
+        }: {
+            connectionId: string
+            projects: OrganizationSecretProjects
+            /** The project the request is scoped to; the current one when absent. */
+            projectId?: string
+        },
     ) => {
-        const projectId = get(projectIdAtom)
+        const projectId = scopeProjectId ?? get(projectIdAtom)
         if (!projectId) throw new Error("[vault] Missing projectId for organization connection")
         await setOrganizationSecretProjects({projectId, secretId: connectionId, projects})
         await set(refreshVaultSecretsAtom)

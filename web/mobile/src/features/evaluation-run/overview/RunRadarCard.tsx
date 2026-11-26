@@ -13,7 +13,6 @@ import type {RadarAxis} from "@agenta/ui/components/presentational/charts"
 import {useIsNarrowScreen} from "@agenta/ui/hooks"
 
 import {ChartSkeleton} from "../states/ChartSkeleton"
-import {OverviewEmpty} from "../states/OverviewEmpty"
 
 import type {OverviewMetric} from "./useRunOverview"
 
@@ -54,14 +53,9 @@ const radarInputs = (metrics: readonly OverviewMetric[]): RadarMetricInput[] =>
         stats: metric.stats,
     }))
 
-/**
- * The radar of the evaluator scores of one run, or of a run and the runs compared with it (one
- * series each), with Duration and Cost added when there are few. A metric has the same id in
- * every run.
- */
-export const RunRadarCard = ({runs, pending}: {runs: readonly RadarRun[]; pending: boolean}) => {
-    const narrow = useIsNarrowScreen()
-    const {axes, formatAxisValue} = useMemo(() => {
+/** The radar axes of the runs, with Duration and Cost added when there are few. */
+export const useRunRadar = (runs: readonly RadarRun[]) =>
+    useMemo(() => {
         const inputsByRun = Object.fromEntries(
             runs.map((run) => [run.id, radarInputs(run.metrics)]),
         )
@@ -79,32 +73,29 @@ export const RunRadarCard = ({runs, pending}: {runs: readonly RadarRun[]; pendin
         }
     }, [runs])
 
-    if (pending && axes.length === 0) {
+/** A radar needs three axes; while the metrics load it holds its place with a skeleton. */
+export const showsRadar = (axisCount: number, pending: boolean): boolean =>
+    axisCount >= 3 || (pending && axisCount === 0)
+
+/** The evaluator-score radar of a run and its compared runs; shown only when `showsRadar` holds. */
+export const RunRadarCard = ({
+    runs,
+    radar,
+}: {
+    runs: readonly RadarRun[]
+    radar: ReturnType<typeof useRunRadar>
+}) => {
+    const narrow = useIsNarrowScreen()
+    if (radar.axes.length === 0) {
         return <ChartSkeleton label="Preparing run overview" height={narrow ? 220 : 300} />
-    }
-    if (axes.length === 0) {
-        return (
-            <OverviewEmpty
-                title="Metrics not available"
-                description="No evaluator or invocation metrics have been recorded for these runs yet."
-            />
-        )
-    }
-    if (axes.length < 3) {
-        return (
-            <OverviewEmpty
-                title="Insufficient metrics for spider chart"
-                description="At least 3 metrics are required to display the radar chart. Add more evaluators or wait for invocation metrics."
-            />
-        )
     }
     return (
         <RadarChart
             title={runs.length === 1 ? `Evaluator scores of ${runs[0].name}` : "Evaluator scores"}
             height={narrow ? 260 : 320}
             series={runs.map((run) => ({key: run.id, name: run.name}))}
-            axes={axes}
-            formatAxisValue={formatAxisValue}
+            axes={radar.axes}
+            formatAxisValue={radar.formatAxisValue}
         />
     )
 }

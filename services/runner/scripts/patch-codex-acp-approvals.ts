@@ -2,7 +2,7 @@
  * Apply the Codex ACP approval-decoupling patch to the adapter the pin step just installed.
  *
  * Runs in the runner image build immediately after `pin-codex-adapter.ts install-agent codex`
- * (decision D-005), so the baked adapter sends `on-request` approvals under the full-access
+ * (decision D-005), so the baked adapter sends `untrusted` approvals under the full-access
  * preset. See `src/engines/sandbox_agent/codex-acp-patch.ts` for why, and for how the patch
  * retires once upstream lands agentclientprotocol/codex-acp#310.
  *
@@ -17,8 +17,8 @@ import { join } from "node:path";
 
 import {
   applyCodexAcpApprovalPatch,
-  applyCodexAcpUsagePatch,
   CODEX_ACP_BUNDLE_PATH,
+  PATCHED_FULL_ACCESS_APPROVAL,
 } from "../src/engines/sandbox_agent/codex-acp-patch.ts";
 
 /**
@@ -59,31 +59,14 @@ for (const bundle of bundles) {
     );
     process.exit(1);
   }
-  let source = readFileSync(bundle, "utf8");
   if (outcome.kind === "already-patched") {
-    console.log(`patch-codex-acp-approvals: already on-request in ${bundle}`);
-  } else {
-    source = outcome.source;
     console.log(
-      `patch-codex-acp-approvals: agent-full-access now sends on-request approvals in ${bundle}`,
+      `patch-codex-acp-approvals: already ${PATCHED_FULL_ACCESS_APPROVAL} in ${bundle}`,
     );
+    continue;
   }
-  const usage = applyCodexAcpUsagePatch(source);
-  if (usage.kind === "anchor-missing") {
-    console.error(
-      `patch-codex-acp-approvals: the per-turn usage anchor is missing in ${bundle}: ` +
-        `${JSON.stringify(usage.find)}. codex-acp changed how it reports token usage: re-verify ` +
-        "and update the `usage` block of src/engines/sandbox_agent/codex-acp-patch.json.",
-    );
-    process.exit(1);
-  }
-  if (usage.kind === "already-patched") {
-    console.log(
-      `patch-codex-acp-approvals: usage already per-turn in ${bundle}`,
-    );
-  } else {
-    source = usage.source;
-    console.log(`patch-codex-acp-approvals: usage now per-turn in ${bundle}`);
-  }
-  writeFileSync(bundle, source);
+  writeFileSync(bundle, outcome.source);
+  console.log(
+    `patch-codex-acp-approvals: agent-full-access now sends ${PATCHED_FULL_ACCESS_APPROVAL} approvals in ${bundle}`,
+  );
 }

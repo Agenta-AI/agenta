@@ -84,6 +84,7 @@ export const AutomationDrawer = () => {
             playgroundEntityId={rendered.playgroundEntityId}
             defaultAgentName={rendered.defaultBoundLabel}
             defaultReferences={rendered.defaultReferences}
+            fixedKind={rendered.fixedKind}
         />
     )
 }
@@ -137,8 +138,9 @@ const AutomationDrawerShell = ({
         >
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-4">{children}</div>
             {/* The event picker's "Connect another app" opens the catalog by atom, so the
-                catalog has to be mounted wherever this drawer is — the screens mount their own,
-                and this shell renders nothing when closed, so the two never collide. */}
+                catalog has to be mounted wherever this drawer is. The screens mount their own and
+                this shell renders nothing when closed; the panel's Automations tab drops its copy
+                while a drawer atom is set. */}
             <AutomationTriggerDrawers />
         </EnhancedDrawer>
     )
@@ -226,6 +228,7 @@ const AutomationCreateDrawer = ({
     playgroundEntityId,
     defaultAgentName,
     defaultReferences,
+    fixedKind,
 }: {
     kind: AutomationKind
     open: boolean
@@ -234,6 +237,7 @@ const AutomationCreateDrawer = ({
     playgroundEntityId?: string
     defaultAgentName?: string
     defaultReferences?: Record<string, {id?: string; slug?: string}>
+    fixedKind?: boolean
 }) => {
     const t = useT(automationsEditorCatalog)
     const state = useAutomationCreate({
@@ -281,6 +285,7 @@ const AutomationCreateDrawer = ({
                 // The agent is the panel this drawer opened from — offering to change it here
                 // would let the reader move an automation off the agent they are looking at.
                 showAgentField={!playgroundEntityId}
+                fixedKind={fixedKind}
             />
         </AutomationDrawerShell>
     )

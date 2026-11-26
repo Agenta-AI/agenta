@@ -41,7 +41,7 @@ describe("prompts route", () => {
         localStorage.clear()
     })
 
-    it("Prompts route shows not found while the view is hidden", () => {
+    it("Prompts route shows not found without beta developer mode", () => {
         act(() =>
             root.render(
                 <Provider store={store}>

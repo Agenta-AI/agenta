@@ -8,6 +8,7 @@
  */
 import {act, type ReactNode} from "react"
 
+import {DeleteTraceModal} from "@agenta/observability-ui"
 import {axios} from "@agenta/shared/api"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {QueryClientProvider} from "@tanstack/react-query"
@@ -173,6 +174,8 @@ describe("ObservabilityScreen selection actions", () => {
                 <QueryClientProvider client={queryClient}>
                     <Provider store={store}>
                         <ObservabilityScreen workspaceId="ws" projectId="pr" />
+                        {/* The app mounts the one delete dialog with the global trace drawer. */}
+                        <DeleteTraceModal />
                     </Provider>
                 </QueryClientProvider>,
             ),
@@ -192,7 +195,7 @@ describe("ObservabilityScreen selection actions", () => {
         expect(deleteButton?.disabled).toBe(false)
         await act(async () => deleteButton?.click())
 
-        expect(document.body.textContent).toContain("Are you sure you want to delete 2 traces?")
+        expect(document.body.textContent).toContain("Delete 2 traces?")
         const confirm = [...document.querySelectorAll("[role='alertdialog'] button")].find(
             (b) => b.textContent?.trim() === "Delete",
         ) as HTMLButtonElement | undefined

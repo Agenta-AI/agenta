@@ -18,6 +18,8 @@ export interface ScheduleText {
     dayLong: (day: number) => string
     /** "a, b and c". */
     join: (items: string[]) => string
+    /** "a, b, c": a plain list, with the separator of the language ("a、b、c" in Japanese). */
+    enumerate: (items: string[]) => string
     /** "Weekdays at 09:00 UTC". */
     atTimesUtc: (cadence: string, times: string) => string
     /** "Every 3h at :00 UTC". */

@@ -159,3 +159,12 @@ describe("ProjectsPage writes in the page's workspace", () => {
         expect(api.deleteProject).toHaveBeenCalledWith("p-other", "ws-1")
     })
 })
+
+describe("ProjectsPage role column", () => {
+    // Organizations reads "Owner"; the same role must not read "owner" one tab over.
+    it("capitalizes the role like the Organizations page", () => {
+        show()
+        expect(screen.getAllByText("Owner").length).toBeGreaterThan(0)
+        expect(screen.queryByText("owner")).toBeNull()
+    })
+})

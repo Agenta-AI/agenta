@@ -48,7 +48,7 @@ describe("Testsets table", () => {
     const openMenu = async () => {
         await act(async () => {
             document
-                .querySelector('[aria-label="Testset actions"]')
+                .querySelector('[aria-label="Test set actions"]')
                 ?.dispatchEvent(
                     new MouseEvent("pointerdown", {bubbles: true, cancelable: true, button: 0}),
                 )
@@ -75,7 +75,7 @@ describe("Testsets table", () => {
     it("shows the columns, the creation date and the commit message", async () => {
         await mount(<TestsetsTable {...props()} />)
         const text = host.textContent ?? ""
-        for (const label of ["Name", "Commit Message", "Created by", "Date Created"]) {
+        for (const label of ["Name", "Commit message", "Created by", "Date created"]) {
             expect(text).toContain(label)
         }
         expect(text).toContain("Added refund cases")
@@ -111,7 +111,7 @@ describe("Testsets table", () => {
         await mount(<TestsetsEmpty onCreate={onCreate} />)
         expect(host.textContent).toContain("No test sets yet")
         const button = Array.from(host.querySelectorAll("button")).find(
-            (b) => b.textContent === "Create new testset",
+            (b) => b.textContent === "Create test set",
         )
         await act(async () => button?.click())
         expect(onCreate).toHaveBeenCalled()

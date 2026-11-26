@@ -140,6 +140,11 @@ export interface SendInput {
      * in the tray; without them a refused send with files can only keep its transcript row.
      */
     stagedFiles?: ComposerAttachment[]
+    /**
+     * The text the model reads, when it differs from `text` (the builder chat puts its context
+     * line first). `text` stays the person's words and goes out as `display_content`.
+     */
+    executionText?: string
 }
 
 /** The pure scan result of a rewind request; the skin renders any confirm UI and then calls
@@ -1248,7 +1253,7 @@ export const useAgentConversation = ({
     }, [sessionId])
 
     const send = useCallback(
-        async ({text, files, parts, stagedFiles}: SendInput) => {
+        async ({text, files, parts, stagedFiles, executionText}: SendInput) => {
             const trimmed = text.trim()
             const fileObjs = files ?? []
             const refParts = parts ?? []
@@ -1268,7 +1273,9 @@ export const useAgentConversation = ({
             // One path: `submit` sends now or queues behind held messages via the release gate.
             await submit({
                 text: trimmed,
-                executionText: editedExecutionText(editedSourceRef.current, trimmed),
+                // An edit keeps the original message's model text, context line included.
+                executionText:
+                    editedExecutionText(editedSourceRef.current, trimmed) ?? executionText,
                 fileParts,
                 stagedFiles,
             })
@@ -1282,7 +1289,7 @@ export const useAgentConversation = ({
 
     const steerInput = useCallback(
         async (
-            {text, files, parts, stagedFiles}: SendInput,
+            {text, files, parts, stagedFiles, executionText}: SendInput,
             options?: {after?: Promise<unknown>},
         ) => {
             const trimmed = text.trim()
@@ -1292,7 +1299,12 @@ export const useAgentConversation = ({
             const encoded = fileObjs.length ? await filesToParts(fileObjs) : undefined
             const merged = [...(encoded?.parts ?? []), ...refParts]
             await steer(
-                {text: trimmed, fileParts: merged.length ? merged : undefined, stagedFiles},
+                {
+                    text: trimmed,
+                    executionText,
+                    fileParts: merged.length ? merged : undefined,
+                    stagedFiles,
+                },
                 options,
             )
             composerDraftBySession.delete(sessionId)

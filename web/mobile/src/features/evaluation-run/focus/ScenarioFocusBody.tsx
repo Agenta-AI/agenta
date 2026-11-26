@@ -40,12 +40,15 @@ export const ScenarioFocusBody = ({
     labels,
     onRetry,
     view,
+    awaitingRun = false,
 }: {
     row: ScenarioRow
     groups: RunColumnGroup[]
     labels: Record<string, string>
     onRetry: () => void
     view?: ScenarioSectionsView
+    /** A human run's scenario whose app nobody ran yet: no output, and nothing is running. */
+    awaitingRun?: boolean
 }) => {
     const openTrace = useSetAtom(openTraceDrawerAtom)
     const cellsOf = (kind: string) =>
@@ -156,7 +159,14 @@ export const ScenarioFocusBody = ({
                       ) : (
                           <div className="flex flex-col gap-2">
                               {outputs.map((cell) =>
-                                  cell.value === undefined && open ? (
+                                  cell.value === undefined && awaitingRun ? (
+                                      <p
+                                          key={cell.path || cell.name}
+                                          className="m-0 text-sm text-muted-foreground"
+                                      >
+                                          No output yet
+                                      </p>
+                                  ) : cell.value === undefined && open ? (
                                       <SkeletonBlock
                                           key={cell.path || cell.name}
                                           active

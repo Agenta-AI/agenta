@@ -89,14 +89,15 @@ def test_authoring_extras_absent_from_every_published_default():
     builtin_default = _builtin_agent_default()
 
     assert _authoring_extra_tools(inspect_default["tools"]) == []
-    assert "skills" not in inspect_default
+    # An empty list is seeded so a first skill is an `add_item`; no skill is in it.
+    assert inspect_default["skills"] == []
     assert "permissions" not in inspect_default["sandbox"]
     assert "execute_code" not in inspect_default["sandbox"]
     assert "write_files" not in inspect_default["sandbox"]
 
     assert _authoring_extra_tools(builtin_default["tools"]) == []
     assert "permissions" not in builtin_default["sandbox"]
-    assert "skills" not in builtin_default
+    assert builtin_default["skills"] == []
 
 
 def test_published_default_carries_only_the_agenta_tools_entry():
