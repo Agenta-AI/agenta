@@ -2,7 +2,6 @@
     "skillReference": "Skill-Referenz",
     "skill": "Skill",
     "remove": "Entfernen",
-    "removeName": "{{name}} entfernen",
     "staticSkill": "Statischer Skill",
     "staticSkillHint": "Von Agenta bereitgestellt. Dieser Skill kann nicht bearbeitet oder entfernt werden.",
     "skillTemplate": "Skill-Vorlage",

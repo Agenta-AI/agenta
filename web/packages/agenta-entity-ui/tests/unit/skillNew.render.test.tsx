@@ -195,7 +195,6 @@ describe("Skills section remove", () => {
             sectionIndicator: () => undefined,
             skills: [TRIAGE, INLINE],
             handleAddSkill: () => undefined,
-            handleNewSkill: () => undefined,
             openSkillItem: () => undefined,
             removeItem: removeItem as never,
             closeEditor: () => undefined,
@@ -212,7 +211,6 @@ describe("Skills section remove", () => {
             sectionIndicator: () => undefined,
             skills: [],
             handleAddSkill: () => undefined,
-            handleNewSkill: () => undefined,
             openSkillItem: () => undefined,
             removeItem: () => undefined,
             closeEditor: () => undefined,
@@ -220,9 +218,8 @@ describe("Skills section remove", () => {
         })
         expect(section && section.summary).toBe("None")
     })
-    it("the header's Manage opens the registry list and + opens the create chooser", async () => {
+    it('the header has one "+", and it opens the add list', async () => {
         const handleAddSkill = vi.fn()
-        const handleNewSkill = vi.fn()
         const section = skillsSection({
             t: ((key: string) => key) as never,
             hasSkills: true,
@@ -230,7 +227,6 @@ describe("Skills section remove", () => {
             sectionIndicator: () => undefined,
             skills: [],
             handleAddSkill,
-            handleNewSkill,
             openSkillItem: () => undefined,
             removeItem: () => undefined,
             closeEditor: () => undefined,
@@ -238,10 +234,13 @@ describe("Skills section remove", () => {
         })
         if (!section) throw new Error("no section")
         await render(<>{section.extra}</>)
-        await click(byText("Manage", "button"))
+        expect(document.querySelectorAll("button")).toHaveLength(1)
+        await click(
+            document.querySelector<HTMLElement>(
+                'button[aria-label="entityUi.agentTemplate.addSkill"]',
+            )!,
+        )
         expect(handleAddSkill).toHaveBeenCalledTimes(1)
-        await click(document.querySelector<HTMLElement>('button[aria-label="New skill"]')!)
-        expect(handleNewSkill).toHaveBeenCalledTimes(1)
     })
     const bins = () => [...document.querySelectorAll<HTMLElement>('button[aria-label^="Remove "]')]
 

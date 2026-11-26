@@ -46,6 +46,7 @@ import {
     AlertDialogTitle,
     Button,
     DropdownMenuItem,
+    DropdownMenuSeparator,
 } from "@agenta/ui/ui"
 import {
     ArrowsClockwise,
@@ -258,17 +259,21 @@ export function TriggerManagementSection({
             </DropdownMenuItem>
         )
 
+    // Delete comes last, after a separator (ACT-03).
     const deleteItem = (name: string, remove: () => Promise<void>) => (
-        <DropdownMenuItem
-            variant="destructive"
-            onSelect={() => {
-                setPendingDelete({name, remove})
-                setDeleteOpen(true)
-            }}
-        >
-            <Trash size={16} />
-            {tNow("entityUi.triggers.delete")}
-        </DropdownMenuItem>
+        <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+                variant="destructive"
+                onSelect={() => {
+                    setPendingDelete({name, remove})
+                    setDeleteOpen(true)
+                }}
+            >
+                <Trash size={16} />
+                {tNow("entityUi.triggers.delete")}
+            </DropdownMenuItem>
+        </>
     )
 
     const subscriptionMenu = useCallback(

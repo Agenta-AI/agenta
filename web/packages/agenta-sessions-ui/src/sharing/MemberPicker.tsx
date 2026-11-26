@@ -43,6 +43,8 @@ export interface MemberPickerProps {
     onAddMembers?: () => void
     /** A control at the field's end (the invite role), inside its border. */
     end?: ReactNode
+    /** The empty field's text, in place of "Add people by name or email". */
+    placeholder?: string
     disabled?: boolean
     className?: string
 }
@@ -62,6 +64,7 @@ export const MemberPicker = ({
     error = false,
     onAddMembers,
     end,
+    placeholder = memberPickerCopy.placeholder,
     disabled = false,
     className,
 }: MemberPickerProps) => {
@@ -176,7 +179,7 @@ export const MemberPicker = ({
                             aria-autocomplete="list"
                             disabled={disabled}
                             value={search}
-                            placeholder={selected.length === 0 ? memberPickerCopy.placeholder : ""}
+                            placeholder={selected.length === 0 ? placeholder : ""}
                             onChange={(event) => {
                                 onSearch(event.target.value)
                                 setActive(0)

@@ -2,39 +2,24 @@ import {useState} from "react"
 
 import {createT, formatList, useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
 import skillNewCatalog from "@agenta/i18n/catalogs/entityUi.skillNew"
-import skillTemplateCatalog from "@agenta/i18n/catalogs/entityUi.skillTemplate"
-import skillsAgentCatalog from "@agenta/i18n/catalogs/skills.agent"
-import {
-    AlertDialog,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    Button,
-    SimpleTooltip,
-} from "@agenta/ui/ui"
-import {Book, Compass, Plus, Trash} from "@phosphor-icons/react"
+import {Compass, Plus} from "@phosphor-icons/react"
 
 import {countSummary} from "../agentTemplateUtils"
 import type {ConfigItemList} from "../ConfigItemList"
-import {CreateWithAIAddMenu} from "../CreateWithAIAddMenu"
 import {describeSkill, isEmbedRefSkill, skillCommandName} from "../itemDescriptors"
 import {ITEM_KINDS} from "../itemKinds"
 import {ItemRow} from "../ItemRow"
 import {SectionAddButton} from "../SectionAddButton"
 import {SectionEmpty} from "../SectionEmpty"
+import {SectionPageAction} from "../SectionPageAction"
+import {RemoveFromAgentDialog} from "../views/RemoveFromAgentDialog"
 
 import type {AgentTemplateT, SectionIndicatorFor, SectionResult} from "./types"
 
 type ConfigItemListProps = Parameters<typeof ConfigItemList>[0]
 
 const tNow = createT(commonCatalog)
-
-/** "Create with AI" in the "+" menu; off until the design brings it back. */
-const SKILLS_CREATE_WITH_AI = false
 
 export interface SkillsSectionParams {
     t: AgentTemplateT
@@ -43,10 +28,8 @@ export interface SkillsSectionParams {
     sectionIndicator: SectionIndicatorFor
     disabled?: boolean
     skills: unknown[]
-    /** "Manage": the registry list, to add or remove existing skills. */
+    /** "+": "Add skills", the list that adds, removes and creates ("New skill") skills. */
     handleAddSkill: () => void
-    /** "+": the create chooser; the new skill goes to the registry and this agent. */
-    handleNewSkill: () => void
     openSkillItem: ConfigItemListProps["openEdit"]
     removeItem: ConfigItemListProps["removeItem"]
     closeEditor: () => void
@@ -62,7 +45,6 @@ export const skillsSection = ({
     disabled,
     skills,
     handleAddSkill,
-    handleNewSkill,
     openSkillItem,
     removeItem,
     closeEditor,
@@ -81,14 +63,24 @@ export const skillsSection = ({
             ) || tNow("common.none"),
         indicator: sectionIndicator("skills"),
         extra: !disabled ? (
-            <SkillsHeaderActions t={t} onManage={handleAddSkill} onNew={handleNewSkill} />
+            <SectionAddButton
+                label={t("entityUi.agentTemplate.addSkill")}
+                onClick={handleAddSkill}
+            />
         ) : undefined,
         emptyAction: !disabled
-            ? {label: t("entityUi.agentTemplate.addSkill"), onClick: handleNewSkill}
+            ? {label: t("entityUi.agentTemplate.addSkill"), onClick: handleAddSkill}
             : undefined,
         pageAction: !disabled ? (
-            <SkillsHeaderActions page t={t} onManage={handleAddSkill} onNew={handleNewSkill} />
+            <SectionPageAction action="add" onClick={handleAddSkill} />
         ) : undefined,
+        phoneAction: !disabled
+            ? {
+                  label: t("entityUi.agentTemplate.addSkill"),
+                  icon: <Plus className="size-3.5" />,
+                  onClick: handleAddSkill,
+              }
+            : undefined,
         content: (
             <SkillsList
                 skills={skills}
@@ -100,53 +92,6 @@ export const skillsSection = ({
             />
         ),
     }
-
-/** The header's "Manage" (add or remove existing skills) and "+" (create one for this agent). */
-const SkillsHeaderActions = ({
-    t,
-    onManage,
-    onNew,
-    page = false,
-}: {
-    t: AgentTemplateT
-    onManage: () => void
-    onNew: () => void
-    /** The Configuration page: text buttons, the create one outlined. */
-    page?: boolean
-}) => {
-    const tAgent = useT(skillsAgentCatalog)
-    const tNew = useT(skillNewCatalog)
-    const newLabel = tAgent("skills.agent.newSkill")
-    return (
-        <span className="flex items-center gap-1">
-            <Button
-                variant="ghost"
-                size={page ? "compact" : "xs"}
-                className="text-muted-foreground hover:text-foreground"
-                onClick={onManage}
-            >
-                {tAgent("skills.agent.manage")}
-            </Button>
-            {page ? (
-                <Button variant="outline" size="compact" onClick={onNew}>
-                    <Plus size={14} aria-hidden />
-                    {newLabel}
-                </Button>
-            ) : SKILLS_CREATE_WITH_AI ? (
-                <CreateWithAIAddMenu
-                    label={newLabel}
-                    starterPrompt={t("entityUi.agentTemplate.skillStarter")}
-                    onManual={onNew}
-                    manualTitle={newLabel}
-                    manualHint={tNew("entityUi.skillNew.addManuallyHint")}
-                    manualIcon={<Book size={14} />}
-                />
-            ) : (
-                <SectionAddButton label={newLabel} onClick={onNew} />
-            )}
-        </span>
-    )
-}
 
 /** The skill rows; a row's bin asks first (F06 f2). */
 const SkillsList = ({
@@ -160,10 +105,9 @@ const SkillsList = ({
     SkillsSectionParams,
     "skills" | "openSkillItem" | "removeItem" | "closeEditor" | "disabled" | "skillStatusFor"
 >) => {
-    const t = useT(skillNewCatalog, skillTemplateCatalog, integrationViewsCatalog)
+    const t = useT(skillNewCatalog)
     const [removing, setRemoving] = useState<{index: number; entry: unknown} | null>(null)
     const entry = removing?.entry as Record<string, unknown> | undefined
-    const name = entry ? describeSkill(entry).name : ""
     const kind = ITEM_KINDS.skill
     if (skills.length === 0) {
         return disabled ? null : <SectionEmpty>{kind.emptyLabel}</SectionEmpty>
@@ -172,73 +116,37 @@ const SkillsList = ({
         <>
             <div className="flex flex-col gap-2">
                 {skills.map((skill, index) => {
-                    const descriptor = kind.describe(skill)
                     const locked = disabled || kind.isReadOnly(skill)
-                    const label = t("entityUi.skillTemplate.removeName", {name: descriptor.name})
                     return (
                         <ItemRow
                             key={`skill-${index}`}
-                            descriptor={descriptor}
+                            descriptor={kind.describe(skill)}
                             onEdit={() => openSkillItem("skill", index, skill)}
+                            onRemove={() => setRemoving({index, entry: skill})}
                             disabled={locked}
                             status={skillStatusFor?.(skill, index)}
-                            extra={
-                                locked ? null : (
-                                    <SimpleTooltip title={label}>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon-xs"
-                                            aria-label={label}
-                                            // Shown on hover or focus; always on touch, which has no hover.
-                                            className="text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100"
-                                            onClick={(event) => {
-                                                event.stopPropagation()
-                                                setRemoving({index, entry: skill})
-                                            }}
-                                        >
-                                            <Trash size={14} />
-                                        </Button>
-                                    </SimpleTooltip>
-                                )
-                            }
                         />
                     )
                 })}
             </div>
-            {removing ? (
-                <AlertDialog open onOpenChange={(next) => (next ? undefined : setRemoving(null))}>
-                    <AlertDialogContent data-testid="remove-from-agent-dialog">
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>
-                                {t("entityUi.integrationViews.removeTitle", {name})}
-                            </AlertDialogTitle>
-                            <AlertDialogDescription>
-                                {isEmbedRefSkill(entry)
-                                    ? t("entityUi.skillNew.removeRegistryBody")
-                                    : t("entityUi.skillNew.removeAgentOnlyBody")}
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <Button variant="outline" onClick={() => setRemoving(null)}>
-                                {t("entityUi.integrationViews.cancel")}
-                            </Button>
-                            <Button
-                                variant="destructive"
-                                onClick={() => {
-                                    // The list may have changed: remove the same entry only.
-                                    if (skills[removing.index] === removing.entry) {
-                                        removeItem("skill", removing.index)
-                                        closeEditor()
-                                    }
-                                    setRemoving(null)
-                                }}
-                            >
-                                {t("entityUi.integrationViews.remove")}
-                            </Button>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-            ) : null}
+            <RemoveFromAgentDialog
+                open={removing !== null}
+                name={entry ? describeSkill(entry).name : ""}
+                body={
+                    isEmbedRefSkill(entry)
+                        ? t("entityUi.skillNew.removeRegistryBody")
+                        : t("entityUi.skillNew.removeAgentOnlyBody")
+                }
+                onCancel={() => setRemoving(null)}
+                onConfirm={() => {
+                    // The list may have changed: remove the same entry only.
+                    if (removing && skills[removing.index] === removing.entry) {
+                        removeItem("skill", removing.index)
+                        closeEditor()
+                    }
+                    setRemoving(null)
+                }}
+            />
         </>
     )
 }

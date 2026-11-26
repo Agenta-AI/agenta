@@ -17,9 +17,11 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
+    IconTile,
 } from "@agenta/ui/ui"
 import {useSetAtom} from "jotai"
 
+import {CatalogListRow} from "./CatalogListRow"
 import {SectionAddButton} from "./SectionAddButton"
 
 /** One manual row of the menu: an icon, a name, a hint. */
@@ -154,5 +156,38 @@ export function CreateWithAIAddMenu({
                 {aiLast ? aiRow : null}
             </DropdownMenuContent>
         </DropdownMenu>
+    )
+}
+
+/** "Create with AI" as the first row of an add list (ROW-03): fills the composer, then leaves. */
+export function CreateWithAIRow({
+    starterPrompt,
+    onDone,
+}: {
+    starterPrompt: string
+    onDone: () => void
+}) {
+    const t = useT(configItemsCatalog)
+    const requestPrefill = useSetAtom(composerPrefillRequestAtom)
+    const title = t("entityUi.configItems.createWithAi")
+    return (
+        <CatalogListRow
+            variant="canvas"
+            actionLabel={title}
+            onClick={() => {
+                requestPrefill({id: Date.now(), text: starterPrompt})
+                onDone()
+            }}
+            leading={
+                <IconTile size={32} tone="neutral" aria-hidden>
+                    <BuilderIcon size={16} />
+                </IconTile>
+            }
+            title={title}
+        >
+            <span className="truncate text-meta text-muted-foreground">
+                {t("entityUi.configItems.createWithAiHint")}
+            </span>
+        </CatalogListRow>
     )
 }

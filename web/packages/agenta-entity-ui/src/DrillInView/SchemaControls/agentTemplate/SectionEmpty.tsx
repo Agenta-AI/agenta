@@ -1,7 +1,9 @@
 import {createContext, useContext, type ReactNode} from "react"
 
 import {cn} from "@agenta/ui/styles"
-import {Button} from "@agenta/ui/ui"
+import {Button, EmptyState} from "@agenta/ui/ui"
+
+import {usePhoneSections} from "./phoneSections"
 
 /** The first action of an empty section ("Add subagent"), set by the panel's section list. */
 export interface SectionEmptyAction {
@@ -20,13 +22,23 @@ export const SectionEmpty = ({
     children,
     className,
     actionDisabled,
+    note,
 }: {
     children: ReactNode
     className?: string
     /** The section's add rule forbids the action now (a secret on an unsaved agent). */
     actionDisabled?: boolean
+    /** Why it matters, under the line on a phone screen. */
+    note?: string
 }) => {
     const action = useContext(SectionEmptyActionContext)
+    const phone = usePhoneSections() !== null
+    // A phone screen: the empty state, its one action is the screen's bottom button (STATE-01).
+    if (phone) {
+        return (
+            <EmptyState image="simple" title={children} description={note} className={className} />
+        )
+    }
     return (
         <div
             className={cn(

@@ -30,6 +30,5 @@
     "or": "或",
     "expandEditor": "展开编辑器",
     "shrinkEditor": "缩小编辑器",
-    "removedState": "这个 Skill 已不在 Agent 中。",
-    "back": "返回"
+    "removedState": "这个 Skill 已不在 Agent 中。"
 }

@@ -49,5 +49,6 @@
     "toastPrivate": "{{agent}} is now private.",
     "toastShared": "{{agent}} is now shared with the project.",
     "toastTransferred": "{{name}} now owns {{agent}}.",
-    "toastTookOwnership": "You now own {{agent}}."
+    "toastTookOwnership": "You now own {{agent}}.",
+    "transferPickerPlaceholder": "Search for the new owner"
 }

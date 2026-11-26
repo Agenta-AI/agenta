@@ -38,7 +38,16 @@ export function CatalogGroupSkeleton({rows}: {rows: number}) {
  * A catalog view while it loads: the search row with its optional action (a width class), then
  * one group per entry of `groups`, each with that many rows.
  */
-export function CatalogListSkeleton({groups, action}: {groups: number[]; action?: string}) {
+export function CatalogListSkeleton({
+    groups,
+    action,
+    leadingRows = 0,
+}: {
+    groups: number[]
+    action?: string
+    /** Rows above the first group: an add list's create row. */
+    leadingRows?: number
+}) {
     const t = useT(commonCatalog)
     return (
         <div
@@ -58,6 +67,7 @@ export function CatalogListSkeleton({groups, action}: {groups: number[]; action?
                 ) : null}
             </div>
             <div className="flex min-h-0 flex-col gap-2 overflow-hidden px-4">
+                {leadingRows ? <CatalogRowSkeleton count={leadingRows} /> : null}
                 {groups.map((rows, i) => (
                     <CatalogGroupSkeleton key={i} rows={rows} />
                 ))}

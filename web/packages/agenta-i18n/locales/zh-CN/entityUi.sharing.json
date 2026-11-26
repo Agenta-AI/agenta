@@ -49,5 +49,6 @@
     "toastPrivate": "{{agent}} 现已设为私有。",
     "toastShared": "{{agent}} 现已与项目共享。",
     "toastTransferred": "{{name}} 现在是 {{agent}} 的所有者。",
-    "toastTookOwnership": "你现在是 {{agent}} 的所有者。"
+    "toastTookOwnership": "你现在是 {{agent}} 的所有者。",
+    "transferPickerPlaceholder": "搜索新的所有者"
 }

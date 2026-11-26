@@ -2,7 +2,6 @@
     "skillReference": "Referência de habilidade",
     "skill": "Habilidade",
     "remove": "Remover",
-    "removeName": "Remover {{name}}",
     "staticSkill": "Habilidade estática",
     "staticSkillHint": "Fornecida pelo Agenta. Esta habilidade não pode ser editada nem removida.",
     "skillTemplate": "Modelo de habilidade",

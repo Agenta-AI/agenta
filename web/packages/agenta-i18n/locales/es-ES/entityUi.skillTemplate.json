@@ -2,7 +2,6 @@
     "skillReference": "Referencia de skill",
     "skill": "Skill",
     "remove": "Quitar",
-    "removeName": "Quitar {{name}}",
     "staticSkill": "Skill estático",
     "staticSkillHint": "Proporcionado por Agenta. Este skill no se puede editar ni quitar.",
     "skillTemplate": "Plantilla de skill",

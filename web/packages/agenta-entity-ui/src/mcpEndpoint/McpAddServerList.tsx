@@ -62,6 +62,8 @@ export interface McpAddServerListProps {
     onRefresh?: () => void
     /** Deletes the connection from the project; the host confirms first. */
     onDelete?: (option: McpConnectionOption) => void
+    /** An added row's "Remove from agent"; the host asks first. */
+    onRemoveFromAgent?: (option: McpConnectionOption) => void
 }
 
 export function McpAddServerList({
@@ -74,6 +76,7 @@ export function McpAddServerList({
     onReconnect,
     onRefresh,
     onDelete,
+    onRemoveFromAgent,
 }: McpAddServerListProps) {
     const t = useT(mcpConnectCatalog, commonCatalog)
     const [search, setSearch] = useState("")
@@ -224,6 +227,11 @@ export function McpAddServerList({
                                         onReconnect={() => onReconnect(option)}
                                         onRefresh={onRefresh}
                                         onDelete={onDelete ? () => onDelete(option) : undefined}
+                                        onRemoveFromAgent={
+                                            onRemoveFromAgent
+                                                ? () => onRemoveFromAgent(option)
+                                                : undefined
+                                        }
                                     />
                                 ))}
                             </section>

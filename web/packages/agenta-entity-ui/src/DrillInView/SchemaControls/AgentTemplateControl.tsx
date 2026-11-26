@@ -46,15 +46,6 @@ import {useRecentFlag, type SectionIndicatorTone} from "@agenta/ui/components/pr
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
 import {
-    AlertDialog,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    Button,
-} from "@agenta/ui/ui"
-import {
     useViewOpener,
     type ConfigItemRef,
     type ViewDef,
@@ -112,8 +103,8 @@ import {integrationView} from "./agentTemplate/views/integrationView"
 import {mcpAddView} from "./agentTemplate/views/mcpAddView"
 import {mcpServerView} from "./agentTemplate/views/mcpServerView"
 import {modelView} from "./agentTemplate/views/modelView"
+import {RemoveFromAgentDialog} from "./agentTemplate/views/RemoveFromAgentDialog"
 import {skillAddView} from "./agentTemplate/views/skillAddView"
-import {skillNewView} from "./agentTemplate/views/skillNewView"
 import {skillItemRef, skillView} from "./agentTemplate/views/skillView"
 import {subagentAddView} from "./agentTemplate/views/subagentAddView"
 import {subagentView} from "./agentTemplate/views/subagentView"
@@ -463,14 +454,9 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         },
         [openEdit, openView, skillsBridge, viewTarget],
     )
-    // "Add manually" opens "Add skills"; a host with no skills bridge keeps the inline editor.
+    // "+" opens "Add skills"; a host with no skills bridge keeps the inline editor.
     const handleAddSkill = useCallback(() => {
         if (skillsBridge?.enabled && viewTarget) void openView(skillAddView, {}, viewTarget)
-        else openCreate("skill", ITEM_KINDS.skill.createSeed())
-    }, [openCreate, openView, skillsBridge, viewTarget])
-    // "+" goes straight to the create chooser; without a bridge it is the inline editor too.
-    const handleNewSkill = useCallback(() => {
-        if (skillsBridge?.enabled && viewTarget) void openView(skillNewView, {}, viewTarget)
         else openCreate("skill", ITEM_KINDS.skill.createSeed())
     }, [openCreate, openView, skillsBridge, viewTarget])
 
@@ -934,7 +920,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             disabled,
             skills,
             handleAddSkill,
-            handleNewSkill,
             openSkillItem,
             removeItem,
             closeEditor,
@@ -1054,51 +1039,29 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
 
             {/* A view in this drawer follows the revision on screen and the edit right. */}
             <AgentEditorContext.Provider value={editor}>{views.drawer}</AgentEditorContext.Provider>
-            {removingIntegration ? (
-                <AlertDialog
-                    open
-                    onOpenChange={(next) => (next ? undefined : setRemovingIntegration(null))}
-                >
-                    <AlertDialogContent data-testid="remove-from-agent-dialog">
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>
-                                {tViews("entityUi.integrationViews.removeTitle", {
-                                    name: removingDetail?.name || removingIntegration.integration,
-                                })}
-                            </AlertDialogTitle>
-                            {/* A per-person entry names no project connection. */}
-                            <AlertDialogDescription>
-                                {removingIntegration.entry?.accountSource === "user"
-                                    ? tViews("entityUi.integrationViews.accountsStay")
-                                    : tViews("entityUi.integrationViews.connectionStays")}
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <Button variant="outline" onClick={() => setRemovingIntegration(null)}>
-                                {tViews("entityUi.integrationViews.cancel")}
-                            </Button>
-                            <Button
-                                variant="destructive"
-                                onClick={() => {
-                                    const latest = configRef.current
-                                    onChange({
-                                        ...latest,
-                                        tools: removeIntegrationByRef(
-                                            Array.isArray(latest.tools)
-                                                ? (latest.tools as unknown[])
-                                                : [],
-                                            integrationItemRef(removingIntegration),
-                                        ),
-                                    })
-                                    setRemovingIntegration(null)
-                                }}
-                            >
-                                {tViews("entityUi.integrationViews.remove")}
-                            </Button>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-            ) : null}
+            <RemoveFromAgentDialog
+                open={removingIntegration !== null}
+                name={removingDetail?.name || removingIntegration?.integration || ""}
+                // A per-person entry names no project connection.
+                body={
+                    removingIntegration?.entry?.accountSource === "user"
+                        ? tViews("entityUi.integrationViews.accountsStay")
+                        : tViews("entityUi.integrationViews.connectionStays")
+                }
+                onConfirm={() => {
+                    if (!removingIntegration) return
+                    const latest = configRef.current
+                    onChange({
+                        ...latest,
+                        tools: removeIntegrationByRef(
+                            Array.isArray(latest.tools) ? (latest.tools as unknown[]) : [],
+                            integrationItemRef(removingIntegration),
+                        ),
+                    })
+                    setRemovingIntegration(null)
+                }}
+                onCancel={() => setRemovingIntegration(null)}
+            />
         </div>
     )
 })

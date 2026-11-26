@@ -4,12 +4,12 @@ import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
 import {createT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import {humanizeActionKey} from "@agenta/shared/utils"
-import {AppWindow, Plus, Wrench} from "@phosphor-icons/react"
+import {Plus, Wrench} from "@phosphor-icons/react"
 
 import type {IntegrationRow} from "../../toolUtils"
 import {countSummary} from "../agentTemplateUtils"
-import {CreateWithAIAddMenu} from "../CreateWithAIAddMenu"
 import {IntegrationLogoStack} from "../IntegrationLogoStack"
+import {SectionAddButton} from "../SectionAddButton"
 import {SectionPageAction} from "../SectionPageAction"
 import {ToolManagementList, type ToolManagementListProps} from "../ToolManagementList"
 
@@ -71,16 +71,12 @@ export const integrationsSection = ({
             tNow("common.none")
         ),
         indicator: sectionIndicator("tools"),
-        // "Create with AI" beside the view that adds one by hand.
+        // "+" opens "Add integration"; its first row is "Create with AI".
         extra:
             !disabled && openAddIntegration ? (
-                <CreateWithAIAddMenu
+                <SectionAddButton
                     label={t("entityUi.agentTemplate.addIntegration")}
-                    starterPrompt={t("entityUi.agentTemplate.integrationStarter")}
-                    onManual={openAddIntegration}
-                    manualTitle={t("entityUi.agentTemplate.browseIntegrations")}
-                    manualHint={t("entityUi.agentTemplate.browseIntegrationsHint")}
-                    manualIcon={<AppWindow size={14} />}
+                    onClick={openAddIntegration}
                 />
             ) : undefined,
         emptyAction:

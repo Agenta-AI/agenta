@@ -162,6 +162,8 @@ export interface IntegrationCatalogProps {
     /** Settings: whether this person may revoke or delete the project's connections. */
     canManageProject?: boolean
     controls?: IntegrationCatalogControls
+    /** Rows above the groups, outside a search: the add list's create row ("Create with AI"). */
+    leadingRows?: ReactNode
 }
 
 /** The catalog's filters, held by the host. */
@@ -557,6 +559,7 @@ export function IntegrationCatalog({
     confirmConnectionAction,
     controls,
     canManageProject = true,
+    leadingRows,
 }: IntegrationCatalogProps) {
     const connectionsHeading = useConnectionsHeading()
     const t = useT(integrationDrawerCatalog, commonCatalog)
@@ -875,6 +878,7 @@ export function IntegrationCatalog({
                             : "ag-scroll-fade flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4"
                     }
                 >
+                    {leadingRows && !filtering ? leadingRows : null}
                     {controls ? (
                         // Settings: one Connected grid, as All apps, narrow owners first, chips in All.
                         (showsOwner("user") && yoursEntries.length > 0) ||

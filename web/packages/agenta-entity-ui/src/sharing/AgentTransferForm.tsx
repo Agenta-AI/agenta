@@ -9,7 +9,17 @@ import {
     type SharingPerson,
     type SharingWriteResult,
 } from "@agenta/sessions-ui/sharing"
-import {Alert, LoadingButton} from "@agenta/ui/ui"
+import {
+    AlertDialog,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+    LoadingButton,
+} from "@agenta/ui/ui"
 
 import {agentSharingCopy as copy} from "./copy"
 
@@ -26,9 +36,11 @@ export interface AgentTransferFormProps {
     onTransferred?: (owner: SharingPerson) => void
     /** Called with a result that is neither ok nor `invalid_grantee`. */
     onFailed?: (result: SharingWriteResult) => void
+    /** Closes the step. */
+    onCancel: () => void
 }
 
-/** The transfer step in place under the owner row: the Share dialog's member picker, then confirm. */
+/** The transfer step under the owner row: pick the new owner, then confirm in a dialog (ACT-03). */
 export const AgentTransferForm = ({
     isPrivate,
     ownerUserId,
@@ -40,12 +52,14 @@ export const AgentTransferForm = ({
     onTransfer,
     onTransferred,
     onFailed,
+    onCancel,
 }: AgentTransferFormProps) => {
     // The texts come from `copy`; this draws the form again when the language's text loads.
     useT(sharingCatalog)
     const [target, setTarget] = useState<SharingPerson | null>(null)
     const [invalid, setInvalid] = useState(false)
     const [saving, setSaving] = useState(false)
+    const [confirming, setConfirming] = useState(false)
     const name = personName(target)
     const rootRef = useRef<HTMLDivElement>(null)
     useEffect(() => {
@@ -62,6 +76,7 @@ export const AgentTransferForm = ({
             result = "failed"
         }
         setSaving(false)
+        setConfirming(false)
         if (result === "ok") onTransferred?.(target)
         else if (result === "invalid_grantee") setInvalid(true)
         else onFailed?.(result)
@@ -69,51 +84,74 @@ export const AgentTransferForm = ({
 
     return (
         <div ref={rootRef} className="ag-view-enter flex flex-col gap-2">
-            {/* The Share dialog's invite row: the picker, then its one action. */}
-            <div className="flex items-start gap-2">
-                <MemberPicker
-                    mode="single"
-                    members={members}
-                    search={membersSearch}
-                    onSearch={onMembersSearch}
-                    selected={target ? [target] : []}
-                    onPick={(member) => {
-                        setTarget(member)
-                        setInvalid(false)
-                    }}
-                    onRemove={() => {
-                        setTarget(null)
-                        setInvalid(false)
-                    }}
-                    excludeUserIds={ownerUserId ? [ownerUserId] : []}
-                    invalidUserIds={invalid && target ? [target.user_id] : []}
-                    loading={membersLoading}
-                    error={membersError}
-                    disabled={saving}
-                />
-                <LoadingButton
-                    variant={isPrivate ? "destructive" : "default"}
-                    loading={saving}
-                    disabled={!target || invalid}
-                    onClick={() => void transfer()}
-                >
-                    {copy.transferShort}
-                </LoadingButton>
-            </div>
+            <MemberPicker
+                mode="single"
+                members={members}
+                search={membersSearch}
+                onSearch={onMembersSearch}
+                selected={target ? [target] : []}
+                onPick={(member) => {
+                    setTarget(member)
+                    setInvalid(false)
+                }}
+                onRemove={() => {
+                    setTarget(null)
+                    setInvalid(false)
+                }}
+                excludeUserIds={ownerUserId ? [ownerUserId] : []}
+                invalidUserIds={invalid && target ? [target.user_id] : []}
+                loading={membersLoading}
+                error={membersError}
+                disabled={saving}
+                placeholder={copy.transferPickerPlaceholder}
+            />
             {invalid && target ? (
                 <p className="m-0 text-meta text-destructive">{copy.transferInvalid(name)}</p>
             ) : null}
-            {target ? (
-                <Alert
-                    type="warning"
-                    showIcon
-                    role="note"
-                    message={
-                        isPrivate ? copy.transferPrivateWarning(name) : copy.transferShared(name)
-                    }
-                    description={isPrivate ? copy.transferPrivateChats : undefined}
-                />
-            ) : null}
+            {/* The step's own row: Cancel beside its action, so the owner row keeps its place. */}
+            <div className="flex justify-end gap-2">
+                <Button size="sm" variant="ghost" disabled={saving} onClick={onCancel}>
+                    {copy.cancel}
+                </Button>
+                <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!target || invalid || saving}
+                    onClick={() => setConfirming(true)}
+                >
+                    {copy.transferShort}
+                </Button>
+            </div>
+            <AlertDialog
+                open={confirming && Boolean(target)}
+                onOpenChange={(next) => !next && !saving && setConfirming(false)}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{copy.transferTo(name)}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {isPrivate
+                                ? copy.transferPrivateWarning(name)
+                                : copy.transferShared(name)}
+                        </AlertDialogDescription>
+                        {isPrivate ? (
+                            <AlertDialogDescription>
+                                {copy.transferPrivateChats}
+                            </AlertDialogDescription>
+                        ) : null}
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={saving}>{copy.cancel}</AlertDialogCancel>
+                        <LoadingButton
+                            variant={isPrivate ? "destructive" : "default"}
+                            loading={saving}
+                            onClick={() => void transfer()}
+                        >
+                            {copy.transferShort}
+                        </LoadingButton>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }

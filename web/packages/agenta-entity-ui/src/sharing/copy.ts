@@ -101,6 +101,9 @@ export const agentSharingCopy = {
     },
     transferShared: (name: string) => t("entityUi.sharing.transferShared", {name}),
     transferTo: (name: string) => t("entityUi.sharing.transferTo", {name}),
+    get transferPickerPlaceholder() {
+        return t("entityUi.sharing.transferPickerPlaceholder")
+    },
     transferInvalid: (name: string) => t("entityUi.sharing.transferInvalid", {name}),
     get back() {
         return t("entityUi.sharing.back")

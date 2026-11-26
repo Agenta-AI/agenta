@@ -7,7 +7,6 @@
     "noSkillsYet": "No skills yet. Add one to teach the agent a task.",
     "newSkill": "New skill",
     "locked": "Locked",
-    "remove": "Remove",
     "wordCount_one": "{{count}} word",
     "wordCount_other": "{{count}} words",
     "empty": "empty",
@@ -59,5 +58,6 @@
     "countTool_other": "{{count}} tools",
     "change": "Change",
     "policyHint": "What the agent may do without asking",
-    "modelVia": "via {{harness}}"
+    "modelVia": "via {{harness}}",
+    "removeName": "Remove {{name}}"
 }

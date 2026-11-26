@@ -5,7 +5,7 @@
  * function tool's JSON-Schema `parameters`. `+ Add` (header) appends a root property; object nodes
  * expand to their child properties with a `+ Add property` affordance; array-of-object nodes recurse
  * through an `items` group; scalar arrays show a muted `items: <type>` leaf. The active row is
- * primary-tinted and each row hover-reveals a remove affordance (shared `RowRemoveButton`).
+ * primary-tinted and each row hover-reveals a remove affordance (shared `RowRemoveAction`).
  *
  * Pure presentation over the schema — all mutation is delegated to the host via callbacks; expansion
  * is the only local state (auto-opened along the selected path). Dark-safe (`--ag-color*` tokens).
@@ -17,8 +17,8 @@ import parameterEditorCatalog from "@agenta/i18n/catalogs/entityUi.parameterEdit
 import {Button} from "@agenta/ui/ui"
 import {CaretDown, CaretRight, Plus, Wrench} from "@phosphor-icons/react"
 
-import {RowRemoveButton} from "../../../drawers/shared/RowRemoveButton"
 
+import {RowRemoveAction} from "./RowRemoveAction"
 import {
     defType,
     getProps,
@@ -172,7 +172,7 @@ function TreeRow({
                 </span>
             </button>
 
-            {!disabled ? <RowRemoveButton onRemove={onRemove} /> : null}
+            {!disabled ? <RowRemoveAction name={name} onRemove={onRemove} /> : null}
         </div>
     )
 }

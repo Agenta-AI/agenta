@@ -7,7 +7,6 @@
     "noSkillsYet": "Aucun skill pour l’instant",
     "newSkill": "Nouveau skill",
     "locked": "Verrouillé",
-    "remove": "Retirer",
     "wordCount_one": "{{count}} mot",
     "wordCount_many": "{{count}} mots",
     "wordCount_other": "{{count}} mots",
@@ -66,5 +65,6 @@
     "countTool_other": "{{count}} outils",
     "change": "Modifier",
     "policyHint": "Ce que l'agent peut faire sans demander",
-    "modelVia": "via {{harness}}"
+    "modelVia": "via {{harness}}",
+    "removeName": "Retirer {{name}}"
 }

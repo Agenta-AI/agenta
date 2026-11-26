@@ -5,7 +5,6 @@ import agentTemplateCatalog from "@agenta/i18n/catalogs/entityUi.agentTemplate"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import skillViewCatalog from "@agenta/i18n/catalogs/entityUi.skillView"
 import {useDrillInUI} from "@agenta/ui/drill-in"
-import {Button} from "@agenta/ui/ui"
 import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import {UploadSimple} from "@phosphor-icons/react"
 
@@ -17,6 +16,7 @@ import {SkillViewHeader, useSkillDownloadAction, type SkillAction} from "../../S
 import {isEmbedRefSkill, isStaticSkill, staticEmbedSlug} from "../itemDescriptors"
 import {useAgentConfigWriter, type AgentConfigWriter} from "../useAgentConfigWriter"
 
+import {RemovedItemState} from "./RemovedItemState"
 import {findSkillByKey, isAgentOnlySkillWithKey, type SkillViewParams} from "./skillView"
 
 type Skill = Record<string, unknown>
@@ -176,14 +176,7 @@ const SkillViewBody = ({params, target, nav, readOnly}: ViewProps<SkillViewParam
 const RemovedSkill = ({title, onBack}: {title: string; onBack: () => void}) => {
     const t = useT(skillViewCatalog)
     useViewTitle(title)
-    return (
-        <div className="flex flex-col items-start gap-3 px-4 py-6 text-label">
-            <span className="text-muted-foreground">{t("entityUi.skillView.removedState")}</span>
-            <Button variant="outline" size="sm" onClick={onBack}>
-                {t("entityUi.skillView.back")}
-            </Button>
-        </div>
-    )
+    return <RemovedItemState message={t("entityUi.skillView.removedState")} onBack={onBack} />
 }
 
 export default SkillViewBody

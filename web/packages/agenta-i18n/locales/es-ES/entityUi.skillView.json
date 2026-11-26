@@ -34,6 +34,5 @@
     "or": "o",
     "expandEditor": "Ampliar el editor",
     "shrinkEditor": "Reducir el editor",
-    "removedState": "Esta skill ya no está en el agente.",
-    "back": "Atrás"
+    "removedState": "Esta skill ya no está en el agente."
 }

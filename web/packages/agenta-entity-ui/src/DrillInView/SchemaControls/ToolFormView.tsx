@@ -9,7 +9,7 @@
  * escape hatch for shapes the form can't express (enums, unions, tuples).
  *
  * Built to match the sibling drawers (WorkflowReferenceSelector, trigger drawers): 240px rail with a
- * right border, independent scroll, shared `RowRemoveButton`, semantic `--ag-color*` tokens (dark-safe).
+ * right border, independent scroll, shared `RowRemoveAction`, semantic `--ag-color*` tokens (dark-safe).
  */
 import {useMemo, useState} from "react"
 

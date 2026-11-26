@@ -1,19 +1,8 @@
 import {useState} from "react"
 
 import {useT} from "@agenta/i18n"
-import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
-import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
 import subagentViewsCatalog from "@agenta/i18n/catalogs/entityUi.subagentViews"
 import {useDrillInUI} from "@agenta/ui/drill-in"
-import {
-    AlertDialog,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    Button,
-} from "@agenta/ui/ui"
 import {useViewForm, useViewTitle, type ConfigItemRef, type ViewProps} from "@agenta/ui/view-stack"
 
 import {ReferenceToolFormView} from "../../ReferenceToolFormView"
@@ -28,6 +17,8 @@ import {
 } from "../subagentReference"
 import {useAgentConfigWriter} from "../useAgentConfigWriter"
 
+import {RemovedItemState} from "./RemovedItemState"
+import {RemoveFromAgentDialog} from "./RemoveFromAgentDialog"
 import {RemoveFromAgentFooter} from "./RemoveFromAgentFooter"
 import type {SubagentViewParams} from "./subagentView"
 
@@ -42,7 +33,7 @@ const ViewTitle = ({title}: {title: string}) => {
  * list as it is now, so a builder save that changes the list never puts another one here.
  */
 const SubagentViewBody = ({params, target, nav}: ViewProps<SubagentViewParams>) => {
-    const t = useT(configItemsCatalog, integrationViewsCatalog, subagentViewsCatalog)
+    const t = useT(subagentViewsCatalog)
     const {workflowReference} = useDrillInUI()
     const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
     const tools = toolsOf(writer.agent)
@@ -73,15 +64,13 @@ const SubagentViewBody = ({params, target, nav}: ViewProps<SubagentViewParams>) 
 
     if (!entry) {
         return (
-            <div className="flex flex-col items-start gap-3 px-4 py-6 text-label">
+            <>
                 <ViewTitle title={params.item.key.replace(/^@slug:/, "")} />
-                <span className="text-muted-foreground">
-                    {t("entityUi.subagentViews.removedState")}
-                </span>
-                <Button variant="outline" size="sm" onClick={nav.cancel}>
-                    {t("entityUi.integrationViews.back")}
-                </Button>
-            </div>
+                <RemovedItemState
+                    message={t("entityUi.subagentViews.removedState")}
+                    onBack={nav.cancel}
+                />
+            </>
         )
     }
 
@@ -116,31 +105,13 @@ const SubagentViewBody = ({params, target, nav}: ViewProps<SubagentViewParams>) 
                 />
             </div>
             {writer.readOnly ? null : <RemoveFromAgentFooter onClick={() => setConfirming(true)} />}
-            {confirming ? (
-                <AlertDialog
-                    open
-                    onOpenChange={(next) => (next ? undefined : setConfirming(false))}
-                >
-                    <AlertDialogContent data-testid="remove-from-agent-dialog">
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>
-                                {t("entityUi.integrationViews.removeTitle", {name})}
-                            </AlertDialogTitle>
-                            <AlertDialogDescription>
-                                {t("entityUi.subagentViews.agentStays")}
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <Button variant="outline" onClick={() => setConfirming(false)}>
-                                {t("entityUi.integrationViews.cancel")}
-                            </Button>
-                            <Button variant="destructive" onClick={remove}>
-                                {t("entityUi.integrationViews.remove")}
-                            </Button>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-            ) : null}
+            <RemoveFromAgentDialog
+                open={confirming}
+                name={name}
+                body={t("entityUi.subagentViews.agentStays")}
+                onConfirm={remove}
+                onCancel={() => setConfirming(false)}
+            />
         </div>
     )
     return workflowReference ? (

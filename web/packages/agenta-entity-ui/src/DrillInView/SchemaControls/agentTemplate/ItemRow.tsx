@@ -10,19 +10,18 @@ import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {ConfigRowTriangle, Tag} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
 import {
-    Button,
     IconTile,
-    SimpleTooltip,
     SkeletonBlock,
     Tooltip,
     TooltipContent,
     TooltipProvider,
     TooltipTrigger,
 } from "@agenta/ui/ui"
-import {CaretRight, Trash} from "@phosphor-icons/react"
+import {CaretRight} from "@phosphor-icons/react"
 
 import {describeInstruction, type ItemDescriptor} from "./itemDescriptors"
 import {usePhoneSections} from "./phoneSections"
+import {RowRemoveAction} from "./RowRemoveAction"
 import {useSectionListLayout} from "./sectionListLayout"
 
 /**
@@ -288,7 +287,7 @@ export function ItemRow({
                 {locked ? <Tag className={TAG_CLS}>{t("entityUi.configItems.locked")}</Tag> : null}
                 {extra}
                 {onRemove && !disabled && !locked ? (
-                    <RemoveButton label={t("entityUi.configItems.remove")} onRemove={onRemove} />
+                    <RowRemoveAction name={descriptor.name} onRemove={onRemove} />
                 ) : null}
                 {interactive ? (
                     // Canvas F01: a panel card ends with an outline chevron; A04: a page row
@@ -305,26 +304,6 @@ export function ItemRow({
                 ) : null}
             </div>
         </div>
-    )
-}
-
-/** Hover-revealed row action: shown on focus and always on touch (TOUCH-02). */
-function RemoveButton({label, onRemove}: {label: string; onRemove: () => void}) {
-    return (
-        <SimpleTooltip title={label}>
-            <Button
-                variant="destructive-ghost"
-                size="icon-xs"
-                aria-label={label}
-                onClick={(e) => {
-                    e.stopPropagation()
-                    onRemove()
-                }}
-                className="opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
-            >
-                <Trash />
-            </Button>
-        </SimpleTooltip>
     )
 }
 
@@ -347,7 +326,6 @@ export function ItemChildRow({
     disabled?: boolean
     status?: ItemRowStatus
 }) {
-    const t = useT(configItemsCatalog)
     return (
         <div
             style={status ? {boxShadow: `inset 2px 0 0 ${STATUS_ACCENT[status.tone]}`} : undefined}
@@ -388,7 +366,7 @@ export function ItemChildRow({
             >
                 {status ? <StatusTag status={status} /> : null}
                 {onRemove && !disabled ? (
-                    <RemoveButton label={t("entityUi.configItems.remove")} onRemove={onRemove} />
+                    <RowRemoveAction name={descriptor.name} onRemove={onRemove} />
                 ) : null}
                 <CaretRight size={14} className="text-muted-foreground" />
             </div>

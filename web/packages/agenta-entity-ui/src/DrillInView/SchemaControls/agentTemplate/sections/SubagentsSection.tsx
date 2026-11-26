@@ -2,19 +2,9 @@ import {useState} from "react"
 
 import {createT, useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
 import subagentViewsCatalog from "@agenta/i18n/catalogs/entityUi.subagentViews"
-import {
-    AlertDialog,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    Button,
-} from "@agenta/ui/ui"
 import type {ConfigItemRef} from "@agenta/ui/view-stack"
-import {Robot} from "@phosphor-icons/react"
+import {Plus, Robot} from "@phosphor-icons/react"
 
 import {countSummary} from "../agentTemplateUtils"
 import {ConnectedSubagentList} from "../ConnectedSubagents"
@@ -24,6 +14,7 @@ import {SectionPageAction} from "../SectionPageAction"
 import {savedSubagentSlugs, SubagentCurrentName} from "../SubagentAgent"
 import {findSubagentIndex, subagentItemRef, uniqueSlugRef} from "../subagentReference"
 import {SubagentList, type SubagentListProps} from "../ToolManagementList"
+import {RemoveFromAgentDialog} from "../views/RemoveFromAgentDialog"
 
 import type {AgentTemplateT, SectionIndicatorFor, SectionResult} from "./types"
 
@@ -78,8 +69,6 @@ export const subagentsSection = ({
         // Compact "+" for the header's `extra` slot. The header keeps a uniform height regardless of
         // this button: ConfigAccordionSection collapses the extra slot's vertical footprint (see its
         // `-my-2`), so no per-button sizing is needed here.
-        // Add MCP server and Add subagent are read only on a phone: the list shows, no add.
-        hideExtraOnPhone: true,
         extra:
             !disabled && openAddSubagents ? (
                 <SectionAddButton
@@ -95,6 +84,14 @@ export const subagentsSection = ({
             !disabled && openAddSubagents ? (
                 <SectionPageAction action="add" onClick={openAddSubagents} />
             ) : undefined,
+        phoneAction:
+            !disabled && openAddSubagents
+                ? {
+                      label: t("entityUi.agentTemplate.addSubagent"),
+                      icon: <Plus className="size-3.5" />,
+                      onClick: openAddSubagents,
+                  }
+                : undefined,
         defaultOpen: subagentCount > 0,
         content: (
             <SubagentSectionBody
@@ -129,7 +126,7 @@ const SubagentSectionBody = ({
     removeSubagent: (item: ConfigItemRef) => void
     removeSubagentAt: (index: number) => void
 }) => {
-    const t = useT(subagentViewsCatalog, integrationViewsCatalog)
+    const t = useT(subagentViewsCatalog)
     const [removing, setRemoving] = useState<{
         /** By slug when no other entry has it, so a write that drops a copied name keeps it. */
         item: ConfigItemRef | null
@@ -168,6 +165,15 @@ const SubagentSectionBody = ({
         }
         setRemoving(null)
     }
+    const dialog = (name: string) => (
+        <RemoveFromAgentDialog
+            open={removing !== null}
+            name={name}
+            body={t("entityUi.subagentViews.agentStays")}
+            onConfirm={confirmRemove}
+            onCancel={() => setRemoving(null)}
+        />
+    )
     return (
         <>
             {/* Only the connected list can resolve a reference's type and mark a non-agent. */}
@@ -176,44 +182,19 @@ const SubagentSectionBody = ({
             ) : (
                 <SubagentList {...listProps} />
             )}
-            {removing ? (
-                <AlertDialog open onOpenChange={(next) => (next ? undefined : setRemoving(null))}>
-                    <AlertDialogContent data-testid="remove-from-agent-dialog">
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>
-                                {/* The agent's current name once it resolves. */}
-                                {workflowReference ? (
-                                    <SubagentCurrentName
-                                        bridge={workflowReference}
-                                        slug={removing.slug}
-                                        savedSlugs={savedSubagentSlugs(subagentItems)}
-                                        fallback={removing.name}
-                                    >
-                                        {(name) =>
-                                            t("entityUi.integrationViews.removeTitle", {name})
-                                        }
-                                    </SubagentCurrentName>
-                                ) : (
-                                    t("entityUi.integrationViews.removeTitle", {
-                                        name: removing.name,
-                                    })
-                                )}
-                            </AlertDialogTitle>
-                            <AlertDialogDescription>
-                                {t("entityUi.subagentViews.agentStays")}
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <Button variant="outline" onClick={() => setRemoving(null)}>
-                                {t("entityUi.integrationViews.cancel")}
-                            </Button>
-                            <Button variant="destructive" onClick={confirmRemove}>
-                                {t("entityUi.integrationViews.remove")}
-                            </Button>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-            ) : null}
+            {/* The agent's current name once it resolves. */}
+            {workflowReference && removing ? (
+                <SubagentCurrentName
+                    bridge={workflowReference}
+                    slug={removing.slug}
+                    savedSlugs={savedSubagentSlugs(subagentItems)}
+                    fallback={removing.name}
+                >
+                    {(name) => dialog(name)}
+                </SubagentCurrentName>
+            ) : (
+                dialog(removing?.name ?? "")
+            )}
         </>
     )
 }

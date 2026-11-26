@@ -16,6 +16,7 @@ import {
 import {personalAccountsAccessAtom} from "@agenta/entities/secret"
 import {useT} from "@agenta/i18n"
 import integrationDrawerCatalog from "@agenta/i18n/catalogs/entityUi.integrationDrawer"
+import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
 import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
 import {message} from "@agenta/ui/app-message"
 import {
@@ -43,9 +44,10 @@ import {useAgentConfigWriter} from "../useAgentConfigWriter"
 import type {McpAddViewParams} from "./mcpAddView"
 import {mcpConnectView} from "./mcpConnectView"
 import {mcpServerView} from "./mcpServerView"
+import {RemoveFromAgentDialog} from "./RemoveFromAgentDialog"
 
 const McpAddViewBody = ({target, nav}: ViewProps<McpAddViewParams>) => {
-    const t = useT(mcpConnectCatalog, integrationDrawerCatalog)
+    const t = useT(mcpConnectCatalog, integrationDrawerCatalog, integrationViewsCatalog)
     useViewTitle(t("entityUi.mcpConnect.addMcpServer"))
     const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
     const endpointsQuery = useAtomValue(mcpEndpointsQueryAtom)
@@ -142,6 +144,21 @@ const McpAddViewBody = ({target, nav}: ViewProps<McpAddViewParams>) => {
         [endpoints, push],
     )
 
+    // "Remove from agent" from an added row's menu, after the question: every item of that server.
+    const [removing, setRemoving] = useState<McpConnectionOption | null>(null)
+    const confirmRemove = () => {
+        const slug = removing?.slug
+        if (slug) {
+            writer.update((agent) => ({
+                ...agent,
+                mcps: mcpsOf(agent).filter(
+                    (item) => readMcpConnectionSlug(item as Record<string, unknown>) !== slug,
+                ),
+            }))
+        }
+        setRemoving(null)
+    }
+
     // Delete from a connected row's menu, after the question.
     const deleteEndpoint = useSetAtom(deleteMcpEndpointAtom)
     const [deleting, setDeleting] = useState<McpConnectionOption | null>(null)
@@ -183,6 +200,14 @@ const McpAddViewBody = ({target, nav}: ViewProps<McpAddViewParams>) => {
                 onReconnect={reconnect}
                 onRefresh={() => void endpointsQuery.refetch()}
                 onDelete={setDeleting}
+                onRemoveFromAgent={writer.readOnly ? undefined : setRemoving}
+            />
+            <RemoveFromAgentDialog
+                open={removing !== null}
+                name={removing?.name ?? ""}
+                body={t("entityUi.integrationViews.connectionStays")}
+                onConfirm={confirmRemove}
+                onCancel={() => setRemoving(null)}
             />
             {deleting ? (
                 <AlertDialog

@@ -20,12 +20,6 @@ import mcpPermissionsCatalog from "@agenta/i18n/catalogs/entityUi.mcpPermissions
 import mcpViewsCatalog from "@agenta/i18n/catalogs/entityUi.mcpViews"
 import {McpServerMark} from "@agenta/ui/agent-icon"
 import {
-    AlertDialog,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
     Badge,
     Button,
     ItemViewTitle,
@@ -50,6 +44,8 @@ import {useAgentConfigWriter} from "../useAgentConfigWriter"
 
 import {mcpConnectView} from "./mcpConnectView"
 import type {McpServerViewParams} from "./mcpServerView"
+import {RemovedItemState} from "./RemovedItemState"
+import {RemoveFromAgentDialog} from "./RemoveFromAgentDialog"
 import {RemoveFromAgentFooter} from "./RemoveFromAgentFooter"
 
 /** The project's `custom` servers, the namespace an agent's connection reference names. */
@@ -171,12 +167,10 @@ const AgentServer = ({
 
     if (!entry) {
         return (
-            <div className="flex flex-col items-start gap-3 px-4 py-6 text-label">
-                <span className="text-muted-foreground">{t("entityUi.mcpViews.removedState")}</span>
-                <Button variant="outline" size="sm" onClick={() => void nav.back()}>
-                    {t("entityUi.integrationViews.back")}
-                </Button>
-            </div>
+            <RemovedItemState
+                message={t("entityUi.mcpViews.removedState")}
+                onBack={() => void nav.back()}
+            />
         )
     }
 
@@ -214,31 +208,13 @@ const AgentServer = ({
                 />
             </div>
             {writer.readOnly ? null : <RemoveFromAgentFooter onClick={() => setConfirming(true)} />}
-            {confirming ? (
-                <AlertDialog
-                    open
-                    onOpenChange={(next) => (next ? undefined : setConfirming(false))}
-                >
-                    <AlertDialogContent data-testid="remove-from-agent-dialog">
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>
-                                {t("entityUi.integrationViews.removeTitle", {name})}
-                            </AlertDialogTitle>
-                            <AlertDialogDescription>
-                                {t("entityUi.integrationViews.connectionStays")}
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <Button variant="outline" onClick={() => setConfirming(false)}>
-                                {t("entityUi.integrationViews.cancel")}
-                            </Button>
-                            <Button variant="destructive" onClick={remove}>
-                                {t("entityUi.integrationViews.remove")}
-                            </Button>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-            ) : null}
+            <RemoveFromAgentDialog
+                open={confirming}
+                name={name}
+                body={t("entityUi.integrationViews.connectionStays")}
+                onConfirm={remove}
+                onCancel={() => setConfirming(false)}
+            />
         </div>
     )
 }

@@ -12,7 +12,7 @@ export const integrationAddView = defineView<IntegrationAddViewParams>({
     apply: "immediate",
     Component: lazyView(
         () => import("./IntegrationAddViewBody"),
-        // Connected, then All apps, beside the 144 px category select.
-        <CatalogListSkeleton action="w-36" groups={[3, 6]} />,
+        // "Create with AI", then Connected and All apps, beside the 144 px category select.
+        <CatalogListSkeleton action="w-36" leadingRows={1} groups={[3, 6]} />,
     ),
 })

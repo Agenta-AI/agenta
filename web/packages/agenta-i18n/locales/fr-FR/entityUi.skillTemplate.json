@@ -2,7 +2,6 @@
     "skillReference": "Référence de skill",
     "skill": "Skill",
     "remove": "Retirer",
-    "removeName": "Retirer {{name}}",
     "staticSkill": "Skill statique",
     "staticSkillHint": "Fourni par Agenta. Ce skill ne peut être ni modifié ni retiré.",
     "skillTemplate": "Modèle de skill",

@@ -349,14 +349,16 @@ export const AgentPrivacyPanel = ({
                             owner={owner}
                             you
                             action={
-                                // The same place opens and closes the transfer step.
-                                <Button
-                                    size="sm"
-                                    variant={transferOpen ? "ghost" : "outline"}
-                                    onClick={() => setTransferOpen((open) => !open)}
-                                >
-                                    {transferOpen ? copy.cancel : copy.transferButton}
-                                </Button>
+                                // The open step has its own Cancel under the picker.
+                                transferOpen ? undefined : (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setTransferOpen(true)}
+                                    >
+                                        {copy.transferButton}
+                                    </Button>
+                                )
                             }
                         />
                     ) : null}
@@ -375,6 +377,7 @@ export const AgentPrivacyPanel = ({
                                 writes.transferred(next)
                             }}
                             onFailed={(result) => writes.settle(result)}
+                            onCancel={() => setTransferOpen(false)}
                         />
                     ) : null}
                 </section>

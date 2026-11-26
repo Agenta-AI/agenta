@@ -10,7 +10,6 @@ export type SubagentAddViewParams = Record<string, never>
 export const subagentAddView = defineView<SubagentAddViewParams>({
     id: "agent.subagent.add",
     apply: "immediate",
-    readOnlyOnPhone: true,
     Component: lazyView(
         () => import("./SubagentAddViewBody"),
         // The search row, then Added and All agents.

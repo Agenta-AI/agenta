@@ -2,8 +2,7 @@
  * One of the project's MCP connections, as the Add MCP server drawer lists it.
  *
  * Three row treatments, and they differ in what the row lets you do rather than only in how
- * it looks. An added connection is already on this agent, so it carries no action at all:
- * the way to change that server is its rail row, not a second route from here. A working one
+ * it looks. An added connection is already on this agent: its menu can take it off. A working one
  * offers Add. One whose login has expired offers Reconnect and states that after the host.
  *
  * The status vocabulary is the data layer's `McpConnectionStatus`, not a set of words of this
@@ -44,6 +43,8 @@ export interface ConnectionListRowProps {
     onReconnect?: () => void
     /** The connected row's menu: re-read the servers, and delete (the host asks first). */
     onRefresh?: () => void
+    /** An added row's menu: take the server off the agent (the host asks first). */
+    onRemoveFromAgent?: () => void
     onDelete?: () => void
 }
 
@@ -57,6 +58,7 @@ export function ConnectionListRow({
     onAdd,
     onReconnect,
     onRefresh,
+    onRemoveFromAgent,
     onDelete,
 }: ConnectionListRowProps) {
     const t = useT(mcpConnectCatalog)
@@ -117,7 +119,11 @@ export function ConnectionListRow({
                         </Button>
                     )}
                     {working && onRefresh ? (
-                        <ConnectionRowMenu onRefresh={onRefresh} onDelete={onDelete} />
+                        <ConnectionRowMenu
+                            onRefresh={onRefresh}
+                            onRemoveFromAgent={added ? onRemoveFromAgent : undefined}
+                            onDelete={onDelete}
+                        />
                     ) : null}
                 </span>
             }

@@ -25,16 +25,7 @@ import modelHarnessCatalog from "@agenta/i18n/catalogs/entityUi.modelHarness"
 import secretAttachmentCatalog from "@agenta/i18n/catalogs/entityUi.secretAttachment"
 import secretViewsCatalog from "@agenta/i18n/catalogs/entityUi.secretViews"
 import {cn} from "@agenta/ui/styles"
-import {
-    AlertDialog,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    Button,
-} from "@agenta/ui/ui"
-import {LockSimple} from "@phosphor-icons/react"
+import {LockSimple, Plus} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {ACCOUNT_COPY} from "../../../../accounts/copy"
@@ -44,6 +35,7 @@ import {SectionAddButton} from "../SectionAddButton"
 import {SectionEmpty} from "../SectionEmpty"
 import {useSectionListLayout} from "../sectionListLayout"
 import {SectionPageAction} from "../SectionPageAction"
+import {RemoveFromAgentDialog} from "../views/RemoveFromAgentDialog"
 
 import type {SectionIndicatorFor, SectionResult} from "./types"
 
@@ -106,6 +98,13 @@ export const secretsSection = ({
                 onAdd={() => openAttach()}
             />
         ) : undefined,
+        phoneAction: !disabled
+            ? {
+                  label: tNow("entityUi.secretAttachment.attachTitle"),
+                  icon: <Plus className="size-3.5" />,
+                  onClick: () => openAttach(),
+              }
+            : undefined,
         // Closed by default (canvas S02 opens Instructions and Integrations only).
         defaultOpen: false,
         content: (
@@ -269,7 +268,10 @@ export const SecretsSectionBody = ({
                     <ItemRowSkeleton />
                 </div>
             ) : bindings.length === 0 ? (
-                <SectionEmpty actionDisabled={!canChange}>
+                <SectionEmpty
+                    actionDisabled={!canChange}
+                    note={t("entityUi.agentSecrets.noSecretsAttachedNote")}
+                >
                     {t("entityUi.agentSecrets.noSecretsAttached")}
                 </SectionEmpty>
             ) : (
@@ -319,42 +321,15 @@ export const SecretsSectionBody = ({
                     )
                 })
             )}
-            <AlertDialog
+            <RemoveFromAgentDialog
                 open={removing !== null}
-                onOpenChange={(next) => {
-                    if (!next && !removePending) closeRemove()
-                }}
-            >
-                <AlertDialogContent data-testid="secret-remove-dialog">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>
-                            {t("entityUi.agentSecrets.removeAttachmentTitle")}
-                        </AlertDialogTitle>
-                        <AlertDialogDescription>
-                            {t("entityUi.agentSecrets.removeAttachmentBody")}
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    {removeError ? (
-                        <div role="alert" className="text-label text-destructive">
-                            {removeError}
-                        </div>
-                    ) : null}
-                    <AlertDialogFooter>
-                        <Button variant="outline" disabled={removePending} onClick={closeRemove}>
-                            {t("entityUi.agentSecrets.cancel")}
-                        </Button>
-                        <Button
-                            variant="destructive"
-                            disabled={removePending}
-                            onClick={() => void remove()}
-                        >
-                            {removePending
-                                ? t("entityUi.agentSecrets.removing")
-                                : t("entityUi.agentSecrets.remove")}
-                        </Button>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+                name={removing ?? ""}
+                body={t("entityUi.agentSecrets.removeAttachmentBody")}
+                pending={removePending}
+                error={removeError}
+                onConfirm={() => void remove()}
+                onCancel={closeRemove}
+            />
         </div>
     )
 }
