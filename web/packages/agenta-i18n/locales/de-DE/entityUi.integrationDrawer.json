@@ -35,5 +35,20 @@
     "revokeFailed": "Diese Verbindung konnte nicht widerrufen werden.",
     "deleteFailed": "Diese Verbindung konnte nicht gelöscht werden.",
     "connectionActions": "Verbindungsaktionen",
-    "refresh": "Aktualisieren"
+    "refresh": "Aktualisieren",
+    "connectedByWhen": "Verbunden von {{name}}, {{when}}",
+    "connectedWhen": "Verbunden {{when}}",
+    "signsInWith": "Meldet sich an mit",
+    "kindOfApp": "Art der App",
+    "lastChanged": "Zuletzt geändert",
+    "authAccount": "Konto-Anmeldung",
+    "authKey": "API-Schlüssel",
+    "agentsCanDo_one": "{{count}} Aktion für Agenten",
+    "agentsCanDo_other": "{{count}} Aktionen für Agenten",
+    "show": "Anzeigen",
+    "hide": "Ausblenden",
+    "moreCount": "+{{count}} weitere",
+    "openApp": "{{name}} öffnen",
+    "testConnection": "Verbindung testen",
+    "needsSignInAgain": "Erneute Anmeldung nötig"
 }

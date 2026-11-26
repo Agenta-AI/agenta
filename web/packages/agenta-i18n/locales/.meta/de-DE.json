@@ -3403,7 +3403,22 @@
         "revokeFailed": "1d43f1bc4ed0",
         "deleteFailed": "a3e6f2fc38a0",
         "connectionActions": "9e1bbb65014b",
-        "refresh": "0e9161011702"
+        "refresh": "0e9161011702",
+        "connectedByWhen": "0f3d2962066f",
+        "connectedWhen": "a3f2c05ebd57",
+        "signsInWith": "de597b54707d",
+        "kindOfApp": "1d5e3b0710bf",
+        "lastChanged": "d8c5670ad98e",
+        "authAccount": "50dfc76409a6",
+        "authKey": "16f0ee47f993",
+        "agentsCanDo_one": "f9e6a95ba8ab",
+        "agentsCanDo_other": "474c79f3dbc5",
+        "show": "0df6f1cad36c",
+        "hide": "ac20a57bfde0",
+        "moreCount": "48380badf7a4",
+        "openApp": "e0f8c156c3df",
+        "testConnection": "5bcf311b19d8",
+        "needsSignInAgain": "3a7c211ddcf0"
     },
     "entityUi.itemDescriptors": {
         "subagent": "d6cb4188b8fa",

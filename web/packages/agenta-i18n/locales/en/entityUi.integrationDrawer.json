@@ -35,5 +35,20 @@
     "revokeFailed": "Couldn't revoke this connection.",
     "deleteFailed": "Couldn't delete this connection.",
     "connectionActions": "Connection actions",
-    "refresh": "Refresh"
+    "refresh": "Refresh",
+    "connectedByWhen": "Connected by {{name}}, {{when}}",
+    "connectedWhen": "Connected {{when}}",
+    "signsInWith": "Signs in with",
+    "kindOfApp": "Kind of app",
+    "lastChanged": "Last changed",
+    "authAccount": "Account login",
+    "authKey": "API key",
+    "agentsCanDo_one": "{{count}} thing agents can do",
+    "agentsCanDo_other": "{{count}} things agents can do",
+    "show": "Show",
+    "hide": "Hide",
+    "moreCount": "+{{count}} more",
+    "openApp": "Open {{name}}",
+    "testConnection": "Test connection",
+    "needsSignInAgain": "Needs to sign in again"
 }

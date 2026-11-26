@@ -60,6 +60,7 @@ import {OwnerChip} from "../../../accounts/OwnerChip"
 import {useConnectionsHeading} from "../../../accounts/OwnerField"
 import type {CreatedConnection} from "../../../gatewayTool/components/ConnectForm"
 import {FinishConnectionDialog} from "../../../gatewayTool/components/FinishConnectionDialog"
+import {IntegrationConnectionDetail} from "../../../gatewayTool/components/IntegrationConnectionDetail"
 import {useRefreshToolConnection} from "../../../gatewayTool/hooks/useRefreshToolConnection"
 import {ProviderLogo, SubSectionHeader} from "../sectionGroups"
 import type {GatewayConnectionTarget, IntegrationRow} from "../toolUtils"
@@ -236,6 +237,8 @@ export interface ConnectionRowHandlers {
     onFinish: (connection: ToolConnection, name: string, logo: string | null) => void
     onRefresh: (connection: ToolConnection) => void
     onConfirm: (action: ConnectionAction, connection: ToolConnection, label: string) => void
+    /** Settings: open a connection's detail. */
+    onOpen?: (connection: ToolConnection, name: string, logo: string | null) => void
 }
 
 /** The host's verbs on one connection: Run on a project row, Make default on the person's own. */
@@ -407,10 +410,12 @@ function ConnectedRow({
                         ? () => setChoosing((value) => !value)
                         : onAdd && !added && single.slug
                           ? () => onAdd(single.slug ?? "")
-                          : // Settings: a project connection opens to running its tools.
-                            !onAdd && verbs.run
-                            ? () => verbs.run?.onRun(single)
-                            : undefined
+                          : // Settings: a connection opens to its detail.
+                            !onAdd && handlers.onOpen
+                            ? () => handlers.onOpen?.(single, name, logo)
+                            : !onAdd && verbs.run
+                              ? () => verbs.run?.onRun(single)
+                              : undefined
             }
             variant={canvas ? "canvas" : "default"}
             leading={<LogoTile logo={logo} />}
@@ -716,6 +721,11 @@ export function IntegrationCatalog({
     const [pendingConnect, setPendingConnect] = useState<PendingConnect | null>(null)
     const {connections: personalConnections} = usePersonalToolConnections()
     // The rows' Settings verbs: finish a pending sign-in, or confirm a revoke or delete.
+    const [detail, setDetail] = useState<{
+        connection: ToolConnection
+        name: string
+        logo: string | null
+    } | null>(null)
     const [finishing, setFinishing] = useState<{
         connection: ToolConnection
         name: string
@@ -740,8 +750,11 @@ export function IntegrationCatalog({
             onFinish: (connection, name, logo) => setFinishing({connection, name, logo}),
             onRefresh: (connection) => void refreshConnection(connection),
             onConfirm: confirmAction,
+            onOpen: page
+                ? (connection, name, logo) => setDetail({connection, name, logo})
+                : undefined,
         }),
-        [refreshConnection, confirmAction],
+        [refreshConnection, confirmAction, page],
     )
     const projectVerbs = useMemo<RowVerbs>(
         () => ({run, manage: canManageProject}),
@@ -1166,6 +1179,20 @@ export function IntegrationCatalog({
                 </div>
             </div>
 
+            {detail ? (
+                <IntegrationConnectionDetail
+                    connection={detail.connection}
+                    name={detail.name}
+                    logo={detail.logo}
+                    onTest={
+                        run && !detail.connection.user_id
+                            ? () => run.onRun(detail.connection)
+                            : undefined
+                    }
+                    onReconnect={() => void refreshConnection(detail.connection)}
+                    onClosed={() => setDetail(null)}
+                />
+            ) : null}
             {finishing ? (
                 <FinishConnectionDialog
                     open

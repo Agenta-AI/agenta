@@ -34,5 +34,20 @@
     "revokeFailed": "无法撤销此连接。",
     "deleteFailed": "无法删除此连接。",
     "connectionActions": "连接操作",
-    "refresh": "刷新"
+    "refresh": "刷新",
+    "connectedByWhen": "由 {{name}} 连接，{{when}}",
+    "connectedWhen": "{{when}}连接",
+    "signsInWith": "登录方式",
+    "kindOfApp": "应用类型",
+    "lastChanged": "最近修改",
+    "authAccount": "账号登录",
+    "authKey": "API 密钥",
+    "agentsCanDo_one": "智能体可执行 {{count}} 项操作",
+    "agentsCanDo_other": "智能体可执行 {{count}} 项操作",
+    "show": "显示",
+    "hide": "隐藏",
+    "moreCount": "另外 {{count}} 项",
+    "openApp": "打开 {{name}}",
+    "testConnection": "测试连接",
+    "needsSignInAgain": "需要重新登录"
 }

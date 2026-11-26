@@ -36,5 +36,20 @@
     "revokeFailed": "Impossible de révoquer cette connexion.",
     "deleteFailed": "Impossible de supprimer cette connexion.",
     "connectionActions": "Actions de la connexion",
-    "refresh": "Actualiser"
+    "refresh": "Actualiser",
+    "connectedByWhen": "Connecté par {{name}}, {{when}}",
+    "connectedWhen": "Connecté {{when}}",
+    "signsInWith": "Se connecte avec",
+    "kindOfApp": "Type d'app",
+    "lastChanged": "Dernière modification",
+    "authAccount": "Connexion au compte",
+    "authKey": "Clé API",
+    "agentsCanDo_one": "{{count}} action possible pour les agents",
+    "agentsCanDo_other": "{{count}} actions possibles pour les agents",
+    "show": "Afficher",
+    "hide": "Masquer",
+    "moreCount": "+{{count}} de plus",
+    "openApp": "Ouvrir {{name}}",
+    "testConnection": "Tester la connexion",
+    "needsSignInAgain": "Reconnexion nécessaire"
 }
