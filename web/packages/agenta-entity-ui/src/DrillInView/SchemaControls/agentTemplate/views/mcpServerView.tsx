@@ -1,9 +1,8 @@
 import type {ConfigItemRef} from "@agenta/ui/view-stack"
 import {defineView} from "@agenta/ui/view-stack"
 
-import {ToolPermissionsSkeleton} from "../../DrawerSkeletons"
-
 import {lazyView} from "./lazyView"
+import {ToolPermissionsViewSkeleton} from "./ToolPermissionsViewSkeleton"
 
 /**
  * In an agent: the server by its key in the agent's `mcps`. In Settings (target project): the
@@ -18,5 +17,8 @@ export type McpServerViewParams = {item: ConfigItemRef} | {connectionSlug: strin
 export const mcpServerView = defineView<McpServerViewParams>({
     id: "mcp.server",
     apply: "immediate",
-    Component: lazyView(() => import("./McpServerViewBody"), <ToolPermissionsSkeleton />),
+    Component: lazyView(
+        () => import("./McpServerViewBody"),
+        <ToolPermissionsViewSkeleton title="nameAndHost" />,
+    ),
 })

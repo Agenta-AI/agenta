@@ -1,9 +1,8 @@
 import type {ConfigItemRef} from "@agenta/ui/view-stack"
 import {defineView} from "@agenta/ui/view-stack"
 
-import {ToolPermissionsSkeleton} from "../../DrawerSkeletons"
-
 import {lazyView} from "./lazyView"
+import {ToolPermissionsViewSkeleton} from "./ToolPermissionsViewSkeleton"
 
 export interface IntegrationViewParams {
     /** The integration, by its key in the agent's tools. */
@@ -17,5 +16,8 @@ export interface IntegrationViewParams {
 export const integrationView = defineView<IntegrationViewParams>({
     id: "agent.integration",
     apply: "immediate",
-    Component: lazyView(() => import("./IntegrationViewBody"), <ToolPermissionsSkeleton />),
+    Component: lazyView(
+        () => import("./IntegrationViewBody"),
+        <ToolPermissionsViewSkeleton title="name" />,
+    ),
 })

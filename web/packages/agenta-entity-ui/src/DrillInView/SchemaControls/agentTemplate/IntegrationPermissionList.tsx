@@ -33,6 +33,7 @@ import {atomWithStorage} from "jotai/utils"
 
 import ConnectionStatusBadge from "../../../gatewayTool/components/ConnectionStatusBadge"
 import {ScrollFadeArea} from "../../../shared/ScrollFadeArea"
+import {ToolGroupsSkeleton} from "../DrawerSkeletons"
 import {
     INTEGRATION_PRESETS,
     TOOL_PERMISSION_OPTIONS,
@@ -644,8 +645,8 @@ export function PermissionDrawerBody({
                 ) : null}
 
                 {catalog.status === "loading" ? (
-                    // Rows at a tool row's own height (row-double), so the list keeps its shape.
-                    <SkeletonRows />
+                    // A group heading over tool rows, as the loaded groups draw them (STATE-02).
+                    <ToolGroupsSkeleton />
                 ) : catalog.status === "error" ? (
                     // The saved policy is still editable through the preset above; only the
                     // per-tool list needs the catalog, so say what is missing rather than showing

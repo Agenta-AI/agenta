@@ -96,11 +96,13 @@ const ChoiceSkeleton = ({lines}: {lines: number}) => (
         <div className="flex h-5 items-center">
             <SkeletonBlock className="h-3.5 w-16" />
         </div>
-        {Array.from({length: lines}).map((_, i) => (
-            <div key={i} className="flex h-4 items-center">
-                <SkeletonBlock className={`h-3 ${i === lines - 1 ? "w-3/5" : "w-full"}`} />
-            </div>
-        ))}
+        <div className="flex flex-col">
+            {Array.from({length: lines}).map((_, i) => (
+                <div key={i} className="flex h-4 items-center">
+                    <SkeletonBlock className={`h-3 ${i === lines - 1 ? "w-3/5" : "w-full"}`} />
+                </div>
+            ))}
+        </div>
     </div>
 )
 
@@ -115,7 +117,7 @@ const ToolRowSkeleton = ({name}: {name: string}) => (
                 <SkeletonBlock className="h-3 w-4/5" />
             </div>
         </div>
-        <SkeletonBlock shape="soft" className="h-control w-32 shrink-0" />
+        <SkeletonBlock className="h-control w-32 shrink-0 rounded-control" />
     </div>
 )
 
@@ -139,44 +141,28 @@ export function ToolGroupsSkeleton({rows = ROW_NAMES.length}: {rows?: number}) {
     )
 }
 
-/**
- * The permission body (`PermissionDrawerBody`): account, default permission, search, tool groups.
- * `title` adds the item view's title line above it: the name, or the MCP server's name and host.
- */
-export function ToolPermissionsSkeleton({title}: {title?: "name" | "nameAndHost"}) {
+/** The permission body (`PermissionDrawerBody`): account, default permission, search, tool groups. */
+export function ToolPermissionsSkeleton() {
     return (
-        <div role="status" aria-busy aria-label="Loading" className="flex min-h-0 flex-1 flex-col">
-            {title ? (
-                <div className="flex shrink-0 items-center gap-2 px-4 pt-4">
-                    <SkeletonBlock shape="mark" className="size-6 shrink-0" />
-                    <div className="flex min-w-0 flex-1 flex-col">
-                        <div className="flex h-5 items-center">
-                            <SkeletonBlock className="h-3.5 w-28" />
-                        </div>
-                        {title === "nameAndHost" ? (
-                            <div className="flex h-4 items-center">
-                                <SkeletonBlock className="h-3 w-36" />
-                            </div>
-                        ) : null}
-                    </div>
+        <div
+            aria-busy
+            // The body's quiet scrollbar keeps its 6 px gutter, so the column has the same width.
+            className="ag-scroll-quiet flex min-h-0 flex-1 flex-col gap-4 overflow-hidden py-4 pl-4 pr-2.5 max-md:pr-4"
+        >
+            <div className="flex flex-col gap-2">
+                <FieldHeadingSkeleton width="w-14" />
+                <div className="flex gap-0.5 rounded-lg bg-secondary p-0.5">
+                    <ChoiceSkeleton lines={2} />
+                    <ChoiceSkeleton lines={1} />
                 </div>
-            ) : null}
-            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden py-4 pl-4 pr-2.5 max-md:pr-4">
-                <div className="flex flex-col gap-2">
-                    <FieldHeadingSkeleton width="w-14" />
-                    <div className="flex gap-0.5 rounded-lg bg-secondary p-0.5">
-                        <ChoiceSkeleton lines={2} />
-                        <ChoiceSkeleton lines={1} />
-                    </div>
-                </div>
-                <div className="flex flex-col gap-2">
-                    <FieldHeadingSkeleton width="w-28" />
-                    {/* The select's own pending bar, as the body draws it. */}
-                    <SkeletonRows count={1} rowClassName="h-control" />
-                </div>
-                <SkeletonBlock shape="soft" className="h-control shrink-0" />
-                <ToolGroupsSkeleton />
             </div>
+            <div className="flex flex-col gap-2">
+                <FieldHeadingSkeleton width="w-28" />
+                {/* The select's own pending bar, as the body draws it. */}
+                <SkeletonRows count={1} rowClassName="h-control rounded-control" />
+            </div>
+            <SkeletonBlock className="h-control shrink-0 rounded-control" />
+            <ToolGroupsSkeleton />
         </div>
     )
 }
