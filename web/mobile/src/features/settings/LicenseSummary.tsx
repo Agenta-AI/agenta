@@ -10,7 +10,7 @@ import {
     type InstanceLimitUsage,
     type LicenseUsage,
 } from "./licenseApi"
-import {LicenseUsageRow} from "./LicenseUsageRow"
+import {LicenseUsageRow, useLimitUsageText} from "./LicenseUsageRow"
 
 type LicenseKey = CatalogKey<typeof settingsLicenseCatalog>
 
@@ -57,14 +57,15 @@ export const LicenseSummary = ({
     const plan = PLANS[license.plan]
     const registered = license.plan === REGISTERED_PLAN
 
-    const usage = (label: LicenseKey, value: InstanceLimitUsage) => (
+    const usageText = useLimitUsageText()
+    const usage = (
+        label: LicenseKey,
+        kind: "projects" | "organizations",
+        value: InstanceLimitUsage,
+    ) => (
         <LicenseUsageRow
             label={t(label)}
-            value={
-                value.limit === null
-                    ? t("settings.license.usageOfUnlimited", {count: value.count})
-                    : t("settings.license.usageOf", {count: value.count, limit: value.limit})
-            }
+            value={usageText(kind, value)}
             count={value.count}
             limit={value.limit}
         />
@@ -98,8 +99,10 @@ export const LicenseSummary = ({
                         value={key.customer}
                     />
                 ) : null}
-                {projects ? usage("settings.license.usageProjects", projects) : null}
-                {organizations ? usage("settings.license.usageOrganizations", organizations) : null}
+                {projects ? usage("settings.license.usageProjects", "projects", projects) : null}
+                {organizations
+                    ? usage("settings.license.usageOrganizations", "organizations", organizations)
+                    : null}
                 {key && key.seats !== null ? (
                     <LicenseUsageRow
                         label={t("settings.license.seats")}

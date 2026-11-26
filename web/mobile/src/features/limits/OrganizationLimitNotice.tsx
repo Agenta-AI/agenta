@@ -5,7 +5,7 @@ import {Button} from "@agenta/ui/ui"
 import {useRouter} from "next/router"
 
 import type {InstanceLimitUsage} from "../settings/licenseApi"
-import {LicenseUsageRow} from "../settings/LicenseUsageRow"
+import {LicenseUsageRow, useLimitUsageText} from "../settings/LicenseUsageRow"
 import {CONTACT_URL} from "../settings/upgradePrompt"
 import {useInstanceLicense} from "../settings/useInstanceLicense"
 
@@ -26,6 +26,7 @@ export const OrganizationLimitNotice = ({
     onNavigate?: () => void
 }) => {
     const t = useT(limitRefusalCatalog, settingsLicenseCatalog)
+    const usageText = useLimitUsageText()
     const router = useRouter()
     const {isInstanceAdmin} = useInstanceLicense(projectId)
 
@@ -36,17 +37,7 @@ export const OrganizationLimitNotice = ({
         >
             <LicenseUsageRow
                 label={t("settings.license.usageOrganizations")}
-                value={
-                    usage.limit !== null && usage.count > usage.limit
-                        ? t("settings.license.usageOverLimitOrganizations", {
-                              count: usage.count,
-                              limit: usage.limit,
-                          })
-                        : t("settings.license.usageOf", {
-                              count: usage.count,
-                              limit: usage.limit ?? 0,
-                          })
-                }
+                value={usageText("organizations", usage)}
                 count={usage.count}
                 limit={usage.limit}
             />

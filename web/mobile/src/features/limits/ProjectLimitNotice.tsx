@@ -6,7 +6,7 @@ import limitRefusalCatalog from "@agenta/i18n/catalogs/shell.limitRefusal"
 import {Button} from "@agenta/ui/ui"
 
 import type {InstanceLimitUsage} from "../settings/licenseApi"
-import {LicenseUsageRow} from "../settings/LicenseUsageRow"
+import {LicenseUsageRow, useLimitUsageText} from "../settings/LicenseUsageRow"
 import {useInstanceLicense} from "../settings/useInstanceLicense"
 
 import {RegistrationDialog} from "./RegistrationDialog"
@@ -23,6 +23,7 @@ export const ProjectLimitNotice = ({
     projectId: string
 }) => {
     const t = useT(limitRefusalCatalog, settingsLicenseCatalog)
+    const usageText = useLimitUsageText()
     const {isInstanceAdmin} = useInstanceLicense(projectId)
     const [registering, setRegistering] = useState(false)
 
@@ -33,17 +34,7 @@ export const ProjectLimitNotice = ({
         >
             <LicenseUsageRow
                 label={t("settings.license.usageProjects")}
-                value={
-                    usage.limit !== null && usage.count > usage.limit
-                        ? t("settings.license.usageOverLimitProjects", {
-                              count: usage.count,
-                              limit: usage.limit,
-                          })
-                        : t("settings.license.usageOf", {
-                              count: usage.count,
-                              limit: usage.limit ?? 0,
-                          })
-                }
+                value={usageText("projects", usage)}
                 count={usage.count}
                 limit={usage.limit}
             />

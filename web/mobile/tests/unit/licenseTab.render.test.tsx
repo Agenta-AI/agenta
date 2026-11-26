@@ -124,6 +124,16 @@ describe("License tab", () => {
         expect(document.querySelectorAll("[role=progressbar]")).toHaveLength(2)
     })
 
+    it("names the count and the limit when an upgraded install is over the limit", async () => {
+        fixture.license = community()
+        fixture.usage = {projects: {count: 2, limit: 1}, organizations: {count: 3, limit: 1}}
+        await mount()
+
+        await vi.waitFor(() => expect(text()).toContain("2 projects, limit 1"))
+        expect(text()).toContain("3 organizations, limit 1")
+        expect(text()).not.toContain("2 of 1")
+    })
+
     it("after a free key: Community with a Registered badge and the Enterprise offer", async () => {
         fixture.license = {
             plan: "self_hosted_registered",
