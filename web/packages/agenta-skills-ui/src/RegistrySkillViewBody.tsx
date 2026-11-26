@@ -107,7 +107,7 @@ const useHoverOpen = () => {
     }, [])
     const scheduleHide = useCallback(() => {
         clear()
-        timer.current = setTimeout(() => setOpen(false), 140)
+        timer.current = setTimeout(() => setOpen(false), 120)
     }, [])
     return {open, setOpen, show, scheduleHide}
 }

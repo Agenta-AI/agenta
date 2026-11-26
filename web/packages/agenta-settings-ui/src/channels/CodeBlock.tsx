@@ -35,7 +35,7 @@ export const CodeBlock = ({
 
     useEffect(() => {
         if (!copied) return
-        const timer = setTimeout(() => setCopied(false), 1800)
+        const timer = setTimeout(() => setCopied(false), 1500)
         return () => clearTimeout(timer)
     }, [copied])
 

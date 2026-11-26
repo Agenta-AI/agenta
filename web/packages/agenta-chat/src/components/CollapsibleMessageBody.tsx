@@ -14,8 +14,6 @@ export const COLLAPSED_MESSAGE_MAX_PX = 200
 /** A message that only just spills renders whole; the toggle would cost more room than it saves. */
 const OVERFLOW_SLACK_PX = 32
 const FADE_PX = 40
-const DURATION_MS = 280
-const EASING = "cubic-bezier(0.4, 0, 0.2, 1)"
 
 const FADE_MASK = `linear-gradient(to bottom, #000 calc(100% - ${FADE_PX}px), transparent 100%)`
 /** Collapsed: the gradient spans the box, so the last FADE_PX fade out. Expanded: it is stretched
@@ -73,12 +71,12 @@ export const CollapsibleMessageBody = ({
         <div className={className}>
             <div
                 id={regionId}
-                className="overflow-hidden"
+                // The theme's duration-base and ease-in-out; still under reduced motion (MOTION-02).
+                className="overflow-hidden transition-[max-height,mask-size,-webkit-mask-size] duration-[var(--duration-base)] ease-[var(--ease-in-out)] motion-reduce:transition-none"
                 style={{
                     // Animated between measured pixels, so the open state stays right if the
                     // content reflows (resize, a late attachment) — no keyword interpolation.
                     maxHeight: clamped ? collapsedMaxPx : (height ?? undefined),
-                    transition: `max-height ${DURATION_MS}ms ${EASING}, -webkit-mask-size ${DURATION_MS}ms ${EASING}, mask-size ${DURATION_MS}ms ${EASING}`,
                     // A mask, not an overlay: the fade needs no knowledge of the bubble's fill.
                     // Mounted for the whole life of an overflowing body so its SIZE can animate.
                     maskImage: overflows ? FADE_MASK : undefined,
