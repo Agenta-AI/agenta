@@ -42,6 +42,10 @@
     "agentMeta": "Agente",
     "detailFallbackTitle": "Automatización",
     "noLongerExists": "Esta automatización ya no existe.",
+    "noLongerExistsBody": "Alguien la eliminó o este enlace es antiguo. Vuelve para ver las automatizaciones de este agente.",
+    "backToAutomations": "Volver a las automatizaciones",
+    "loadOneFailed": "No se pudo cargar esta automatización",
+    "loadOneFailedBody": "La lista de automatizaciones no se cargó, así que esta automatización no se puede mostrar. Revisa tu conexión y vuelve a intentarlo.",
     "cancel": "Cancelar",
     "createAutomation": "Crear automatización",
     "pageDescription": "Agentes que se ejecutan según una programación o cuando ocurre algo en una app conectada."

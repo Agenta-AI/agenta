@@ -8,6 +8,5 @@
     "settings": "Configuración",
     "history": "Historial",
     "seeAllRuns": "Ver todas las ejecuciones",
-    "lastRun": "Última ejecución",
-    "didNotFinish": "no terminó"
+    "lastRun": "Última ejecución"
 }

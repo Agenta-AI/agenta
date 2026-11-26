@@ -6,6 +6,7 @@ import {Switch} from "@agenta/ui/ui"
 
 import {AutomationAgentField} from "./AutomationAgentField"
 import {AutomationInstructionField} from "./AutomationInstructionField"
+import {AutomationKindTile} from "./AutomationKindTile"
 import {generatedAutomationLabel} from "./automationModel"
 import {AutomationRunsWhenField} from "./AutomationRunsWhenField"
 import {AutomationTitle} from "./AutomationTitle"
@@ -43,6 +44,7 @@ export const AutomationCreateBody = ({
             {/* The switch sits where the saved screen puts Run now — the title line's right
                 end — so the same corner always carries the automation's own control. */}
             <div className={`flex min-w-0 items-center ${fixedKind ? "gap-2" : "gap-3"}`}>
+                {fixedKind ? <AutomationKindTile kind={draft.kind} /> : null}
                 <div className="min-w-0 flex-1">
                     <AutomationTitle
                         name={draft.name}
@@ -94,7 +96,7 @@ export const AutomationCreateBody = ({
                 </span>
             </div>
 
-            <div className={`flex flex-col ${fixedKind ? "mt-3 gap-3" : "mt-6 gap-6"}`}>
+            <div className={`flex flex-col ${fixedKind ? "mt-4 gap-4" : "mt-6 gap-6"}`}>
                 {showAgentField ? (
                     <AutomationAgentField
                         agentId={draft.agentId}

@@ -9,7 +9,7 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {createT, useT} from "@agenta/i18n"
 import triggersCatalog from "@agenta/i18n/catalogs/entityUi.triggers"
-import {Clock} from "@phosphor-icons/react"
+import {CalendarBlank} from "@phosphor-icons/react"
 
 import {scheduleTextNow} from "../../../gatewayTrigger/scheduleText"
 
@@ -76,7 +76,7 @@ export function ScheduleTriggerRow({
         <TriggerRow
             tile={
                 <RowTile>
-                    <Clock />
+                    <CalendarBlank />
                 </RowTile>
             }
             name={named ? (record.name as string) : t("entityUi.triggers.untitledSchedule")}

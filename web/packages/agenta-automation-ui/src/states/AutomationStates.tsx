@@ -1,5 +1,6 @@
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Button, IconTile, SkeletonBlock} from "@agenta/ui/ui"
 import {Funnel, MagnifyingGlass} from "@phosphor-icons/react"
 
@@ -73,3 +74,81 @@ export const AutomationDetailSkeleton = () => (
         </div>
     </div>
 )
+
+/** One muted Runs card: the 28px white Mark and a bar for its label (STATE-02). */
+const RunsCardSkeleton = ({width}: {width: string}) => (
+    <div className="-mx-2.5 flex h-10 items-center gap-2 rounded-lg bg-muted px-2.5">
+        <SkeletonBlock shape="mark" className="size-7 shrink-0 bg-background" />
+        <SkeletonBlock className={`h-3.5 ${width}`} />
+    </div>
+)
+
+/** A field: its 18px label row, then the control at its loaded height. */
+const FieldSkeleton = ({label, control}: {label: string; control: string}) => (
+    <div className="flex flex-col gap-1">
+        <div className="flex h-4.5 items-center">
+            <SkeletonBlock className={`h-3 ${label}`} />
+        </div>
+        <SkeletonBlock className={`${control} rounded-control`} />
+    </div>
+)
+
+/** The pane's automation view while it loads, at the loaded view's measurements. */
+export const AutomationPaneSkeleton = ({phone = false}: {phone?: boolean}) => {
+    const t = useT(commonCatalog)
+    return (
+        <div
+            role="status"
+            aria-busy
+            aria-label={t("common.loading")}
+            className="flex h-full min-h-0 flex-col"
+        >
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-6 pt-4">
+                <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2">
+                        <SkeletonBlock shape="mark" className="size-6 shrink-0" />
+                        <div className="flex h-5 min-w-0 flex-1 items-center">
+                            <SkeletonBlock className="h-3.5 w-40" />
+                        </div>
+                        <SkeletonBlock className="h-3 w-4" />
+                        <SkeletonBlock shape="mark" className="h-4 w-7 rounded-round" />
+                    </div>
+                    <div className="flex h-4 items-center">
+                        <SkeletonBlock className="h-3 w-3/5" />
+                    </div>
+                </div>
+                <div className="mt-4 flex flex-col gap-4">
+                    <div className="flex flex-col gap-1">
+                        <div className="flex h-7 items-center justify-between">
+                            <SkeletonBlock className="h-3.5 w-10" />
+                            <SkeletonBlock className="h-7 w-24 rounded-control" />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <RunsCardSkeleton width="w-16" />
+                            <RunsCardSkeleton width="w-14" />
+                            <RunsCardSkeleton width="w-14" />
+                        </div>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                        <div className="flex h-5 items-center">
+                            <SkeletonBlock className="h-3.5 w-14" />
+                        </div>
+                        <div className="flex flex-col gap-4">
+                            <FieldSkeleton label="w-16" control="h-8" />
+                            <FieldSkeleton label="w-16" control="h-19.5" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div
+                className={`flex shrink-0 items-center justify-between px-4 ${phone ? "border-0 border-t border-solid border-border-muted pb-6 pt-3" : "bg-muted py-2.5"}`}
+            >
+                <SkeletonBlock className="-ml-2 h-7 w-20.5 rounded-control" />
+                <div className="flex gap-2">
+                    <SkeletonBlock className="h-7 w-17 rounded-control" />
+                    <SkeletonBlock className="h-7 w-13 rounded-control" />
+                </div>
+            </div>
+        </div>
+    )
+}

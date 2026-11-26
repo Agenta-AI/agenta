@@ -42,6 +42,10 @@
     "agentMeta": "Agent",
     "detailFallbackTitle": "Automation",
     "noLongerExists": "This automation no longer exists.",
+    "noLongerExistsBody": "Someone deleted it, or this link is old. Go back to see this agent's automations.",
+    "backToAutomations": "Back to automations",
+    "loadOneFailed": "Couldn't load this automation",
+    "loadOneFailedBody": "The automation list did not load, so this automation cannot show. Check your connection, then try again.",
     "cancel": "Cancel",
     "createAutomation": "Create automation",
     "pageDescription": "Agents that run on a schedule or when something happens in a connected app."

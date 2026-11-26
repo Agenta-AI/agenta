@@ -1,4 +1,4 @@
-import {useCallback, useMemo, useState, type ReactNode} from "react"
+import {useCallback, useEffect, useMemo, useState, type ReactNode} from "react"
 
 import {type TriggerDelivery} from "@agenta/entities/gatewayTrigger"
 import {useT} from "@agenta/i18n"
@@ -50,6 +50,7 @@ export const AutomationRunHistoryView = ({
     runNow,
     initialRunId,
     phone = false,
+    onRunBackChange,
 }: {
     automation: Automation | null
     /** The way back to the automation — rendered above the list, on its own grid. */
@@ -74,6 +75,8 @@ export const AutomationRunHistoryView = ({
      * the split width on a phone, so it already shows the list or one run, never both.
      */
     phone?: boolean
+    /** Given, the host's header owns Back while one run fills the view; null when none does. */
+    onRunBackChange?: (back: (() => void) | null) => void
 }) => {
     const t = useT(automationsEditorCatalog, automationsRunHistoryCatalog)
     // The count line reads the capped recent query (shared with the card); the list pages.
@@ -129,6 +132,11 @@ export const AutomationRunHistoryView = ({
     const panelEmpty = frame === "panel" && !isLoading && !error && allRuns.length === 0
     const showPane = Boolean(selected)
     const showList = !showPane || canSplit
+    const runBack = showPane && !canSplit ? onBack : null
+    useEffect(() => {
+        onRunBackChange?.(runBack)
+    }, [onRunBackChange, runBack])
+    useEffect(() => () => onRunBackChange?.(null), [onRunBackChange])
 
     return (
         <div
@@ -141,7 +149,7 @@ export const AutomationRunHistoryView = ({
                 // 30px as the heading below. The split layout stays full-bleed: its rule divides
                 // the window, not a column.
                 frame === "page" && !showPane && "mx-auto max-w-content-md",
-                frame !== "page" && "pt-3",
+                frame !== "page" && showList && "pt-3",
             )}
         >
             {header}
@@ -224,7 +232,7 @@ export const AutomationRunHistoryView = ({
                             delivery={selected}
                             renderConversation={renderConversation}
                             sessionHref={sessionHref}
-                            onBack={canSplit ? undefined : onBack}
+                            onBack={canSplit || onRunBackChange ? undefined : onBack}
                             phone={phone}
                         />
                     </div>

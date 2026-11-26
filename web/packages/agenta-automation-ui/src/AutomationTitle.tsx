@@ -34,10 +34,7 @@ export const AutomationTitle = ({
     placeholder?: string
     /** Shown as the heading while the name is empty — the name this would be saved under. */
     fallback?: string
-    /**
-     * The panel's title (F05 f3 to f5): 16 px, and while renaming a field with no border, so the
-     * name keeps the look of a heading.
-     */
+    /** The pane's item title (13/600, beside a 24px Mark); renaming keeps that look. */
     compact?: boolean
 }) => {
     const t = useT(automationsEditorCatalog)
@@ -85,7 +82,7 @@ export const AutomationTitle = ({
                     // hint reads as a name already typed.
                     className={
                         compact
-                            ? "h-auto border-transparent bg-transparent px-0 py-0.5 text-title shadow-none placeholder:font-semibold placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:ring-0"
+                            ? "h-auto border-transparent bg-transparent px-0 py-0 text-label font-semibold leading-5 shadow-none placeholder:font-medium placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:ring-0"
                             : "text-heading placeholder:font-medium placeholder:text-muted-foreground focus-visible:border-input focus-visible:ring-0"
                     }
                 />
@@ -96,12 +93,12 @@ export const AutomationTitle = ({
                     title={t("automations.editor.rename")}
                     // No focus ring: the shared FOCUS_RING draws a hard near-black outline and
                     // the softer ring still glowed around the title. Hover carries the affordance.
-                    className={`group flex min-w-0 cursor-pointer items-center rounded-lg border-0 bg-transparent text-left text-foreground outline-none hover:bg-accent focus-visible:bg-accent ${
-                        compact ? "-mx-1 px-1 py-0.5" : "-ml-2 px-2 py-1"
+                    className={`group flex min-w-0 cursor-pointer items-center border-0 bg-transparent text-left text-foreground outline-none hover:bg-accent focus-visible:bg-accent ${
+                        compact ? "-mx-1 rounded-sm px-1" : "-ml-2 rounded-lg px-2 py-1"
                     }`}
                 >
                     <h1
-                        className={`m-0 min-w-0 truncate ${compact ? "text-title" : "text-heading"} ${name ? "" : "text-muted-foreground"}`}
+                        className={`m-0 min-w-0 truncate ${compact ? "text-label font-semibold leading-5" : "text-heading"} ${name ? "" : "text-muted-foreground"}`}
                     >
                         {name || fallback || placeholder}
                     </h1>

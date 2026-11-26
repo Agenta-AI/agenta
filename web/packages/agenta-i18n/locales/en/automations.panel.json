@@ -8,6 +8,5 @@
     "settings": "Settings",
     "history": "History",
     "seeAllRuns": "See all runs",
-    "lastRun": "Last run",
-    "didNotFinish": "did not finish"
+    "lastRun": "Last run"
 }

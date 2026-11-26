@@ -2,7 +2,7 @@ import {useCallback, useEffect, useRef, useState} from "react"
 
 import {
     AutomationDetailBody,
-    AutomationDetailSkeleton,
+    AutomationPaneSkeleton,
     useAutomation,
     useAutomationEditor,
 } from "@agenta/automation-ui"
@@ -14,6 +14,7 @@ import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens
 import {message} from "@agenta/ui/app-message"
 import {useIsPhone} from "@agenta/ui/phone"
 import {
+    Alert,
     AlertDialog,
     AlertDialogCancel,
     AlertDialogContent,
@@ -22,9 +23,10 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
     Button,
+    EmptyState,
 } from "@agenta/ui/ui"
 import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
-import {Trash} from "@phosphor-icons/react"
+import {Lightning, Trash} from "@phosphor-icons/react"
 
 import {automationRunHistoryView} from "./automationRunHistoryView"
 import {AutomationRunNowButton} from "./AutomationRunNowButton"
@@ -86,12 +88,39 @@ const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParam
     }, [nav, params.automationId, remove])
     const deletion = useAutomationDelete({onDelete, onClose: () => setConfirmDelete(false)})
 
-    if (editor.loading) return <AutomationDetailSkeleton />
+    if (editor.loading) return <AutomationPaneSkeleton phone={phone} />
+    if (editor.loadFailed)
+        return (
+            <div className="p-4">
+                <Alert
+                    type="error"
+                    showIcon
+                    message={t("automations.screens.loadOneFailed")}
+                    description={t("automations.screens.loadOneFailedBody")}
+                    action={
+                        <Button
+                            variant="outline"
+                            size="compact"
+                            onClick={() => void editor.retry()}
+                        >
+                            {tEditor("automations.editor.tryAgain")}
+                        </Button>
+                    }
+                />
+            </div>
+        )
     if (!editor.automation || !editor.preview)
         return (
-            <p className="m-0 px-6 py-16 text-center text-label text-muted-foreground">
-                {t("automations.screens.noLongerExists")}
-            </p>
+            <EmptyState
+                className="px-4 py-14"
+                image={<Lightning aria-hidden />}
+                title={t("automations.screens.noLongerExists")}
+                description={t("automations.screens.noLongerExistsBody")}
+            >
+                <Button variant="outline" size="compact" onClick={() => nav.cancel()}>
+                    {t("automations.screens.backToAutomations")}
+                </Button>
+            </EmptyState>
         )
 
     return (
@@ -101,7 +130,7 @@ const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParam
                     automation={editor.automation}
                     preview={editor.preview}
                     agentName={editor.agentName}
-                    className="flex min-w-0 flex-col px-4 pb-6 pt-3.5"
+                    className="flex min-w-0 flex-col px-4 pb-6 pt-4"
                     panel
                     hideSaveBar
                     onOpenRunHistory={openRuns}
@@ -126,19 +155,18 @@ const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParam
                     }
                 />
             </div>
-            {/* The view's footer (F05 f5): Delete at the left; Discard and Save, which belong to
-                "Settings", at the right. */}
+            {/* The pane's action row, as the chrome draws it: Delete left, Discard and Save right. */}
             <div
-                className={`flex shrink-0 items-center justify-between gap-2 border-0 border-t border-solid border-border-muted ${phone ? "px-4 pb-6 pt-3" : "p-3"}`}
+                className={`flex shrink-0 items-center justify-between gap-2 px-4 ${phone ? "border-0 border-t border-solid border-border-muted pb-6 pt-3" : "bg-muted py-2.5"}`}
             >
                 <Button
                     type="button"
-                    variant="ghost"
+                    variant="destructive-ghost"
                     size="compact"
-                    className="text-destructive hover:text-destructive"
+                    className="-ml-2"
                     onClick={() => setConfirmDelete(true)}
                 >
-                    <Trash aria-hidden className="size-3.5" />
+                    <Trash data-icon="inline-start" />
                     {t("automations.screens.delete")}
                 </Button>
                 <span className="flex items-center gap-2">

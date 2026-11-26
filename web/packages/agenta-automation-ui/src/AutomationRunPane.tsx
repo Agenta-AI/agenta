@@ -5,19 +5,11 @@ import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
 import automationsRunHistoryCatalog from "@agenta/i18n/catalogs/automations.runHistory"
-import {ArrowSquareOut, CaretLeft} from "@phosphor-icons/react"
+import {Button, IconTile, SimpleTooltip} from "@agenta/ui/ui"
+import {ArrowSquareOut, CaretLeft, Play} from "@phosphor-icons/react"
 
-import {ICON_LINK} from "./lib/interactive"
-import {cn} from "./lib/utils"
-import {
-    runDotClass,
-    runDuration,
-    runError,
-    runLabel,
-    runOutcomeLabel,
-    runSessionId,
-    runWhenLabel,
-} from "./runModel"
+import {AutomationRunStatusBadge} from "./AutomationRunStatusBadge"
+import {runDuration, runError, runLabel, runSessionId, runWhenLabel} from "./runModel"
 import {AutomationRunNoConversation} from "./states/AutomationRunStates"
 
 /**
@@ -43,9 +35,9 @@ export const AutomationRunPane = ({
     renderConversation: (sessionId: string) => ReactNode
     /** The run's session page; given, an icon opens it in a new tab. */
     sessionHref?: (sessionId: string) => string
-    /** Narrow layout only — the list is off screen, so the pane owns the way back to it. */
+    /** Narrow layout with no host back (the page) — the pane owns the way back to the list. */
     onBack?: () => void
-    /** Unused: the icons get a touch hit area from ``. */
+    /** Unused: the kit sizes the icon buttons on a phone. */
     phone?: boolean
 }) => {
     const t = useT(automationsEditorCatalog, automationsModelCatalog, automationsRunHistoryCatalog)
@@ -62,54 +54,49 @@ export const AutomationRunPane = ({
 
     return (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            {/* The run line, with a hairline under it that sets the transcript apart. */}
-            <div className="flex shrink-0 items-center gap-2.5 border-0 border-b border-solid border-border-muted px-3.5 py-3">
+            {/* One line: the run's Mark and name, its status, when and how long, and open. */}
+            <div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-muted px-4 pb-3 pt-4">
                 {onBack ? (
-                    <button
-                        type="button"
-                        onClick={onBack}
-                        aria-label={t("automations.editor.backToRunList")}
-                        className={cn(
-                            "flex shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-1.5 text-muted-foreground",
-                            "",
-                            ICON_LINK,
-                        )}
-                    >
-                        <CaretLeft aria-hidden size={16} />
-                    </button>
+                    <SimpleTooltip title={t("automations.editor.backToRunList")}>
+                        <Button
+                            variant="ghost"
+                            size="icon-compact"
+                            className="-ml-1.5"
+                            onClick={onBack}
+                            aria-label={t("automations.editor.backToRunList")}
+                        >
+                            <CaretLeft aria-hidden />
+                        </Button>
+                    </SimpleTooltip>
                 ) : null}
-                <span
-                    aria-hidden
-                    className={cn("size-2 shrink-0 rounded-round", runDotClass(delivery))}
-                />
-                {/* One line: the run's name and when it ran are one fact, and stacking them
-                    made a two-line header for two short strings. */}
-                <span className="flex min-w-0 flex-1 items-baseline gap-2">
-                    <span className="shrink-0 text-body font-medium text-foreground">
-                        {label}
-                        <span className="sr-only"> — {runOutcomeLabel(delivery)}</span>
-                    </span>
-                    {meta ? (
-                        <span className="min-w-0 truncate text-meta text-muted-foreground">
-                            {meta}
-                        </span>
-                    ) : null}
+                <IconTile size={24} aria-hidden>
+                    <Play />
+                </IconTile>
+                <span className="shrink-0 truncate text-label font-semibold leading-5 text-foreground">
+                    {label}
                 </span>
+                <AutomationRunStatusBadge delivery={delivery} />
+                {meta ? (
+                    <span className="min-w-0 flex-1 truncate text-meta tabular-nums text-muted-foreground">
+                        {meta}
+                    </span>
+                ) : (
+                    <span className="flex-1" />
+                )}
                 {sessionId && sessionHref ? (
-                    <a
-                        href={sessionHref(sessionId)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={t("automations.runHistory.openRunInNewTab")}
-                        title={t("automations.runHistory.openRunInNewTab")}
-                        className={cn(
-                            "flex shrink-0 items-center justify-center rounded-md p-1.5 text-muted-foreground",
-                            "",
-                            ICON_LINK,
-                        )}
-                    >
-                        <ArrowSquareOut aria-hidden size={16} />
-                    </a>
+                    <SimpleTooltip title={t("automations.runHistory.openRunInNewTab")}>
+                        <Button
+                            asChild
+                            variant="ghost"
+                            size="icon-compact"
+                            className="-mr-1.5"
+                            aria-label={t("automations.runHistory.openRunInNewTab")}
+                        >
+                            <a href={sessionHref(sessionId)} target="_blank" rel="noopener noreferrer">
+                                <ArrowSquareOut aria-hidden />
+                            </a>
+                        </Button>
+                    </SimpleTooltip>
                 ) : null}
             </div>
             <div className="flex min-h-0 flex-1 flex-col">

@@ -8,6 +8,5 @@
     "settings": "设置",
     "history": "历史",
     "seeAllRuns": "查看所有运行",
-    "lastRun": "上次运行",
-    "didNotFinish": "未完成"
+    "lastRun": "上次运行"
 }

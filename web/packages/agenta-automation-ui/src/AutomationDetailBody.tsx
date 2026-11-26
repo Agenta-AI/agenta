@@ -8,6 +8,7 @@ import {AutomationActiveSwitch} from "./AutomationActiveSwitch"
 import {AutomationAgentField} from "./AutomationAgentField"
 import {AutomationFailureBanner} from "./AutomationFailureBanner"
 import {AutomationInstructionField} from "./AutomationInstructionField"
+import {AutomationKindTile} from "./AutomationKindTile"
 import {AutomationMetaRow} from "./AutomationMetaRow"
 import type {Automation} from "./automationModel"
 import {AutomationRunPersonNotice} from "./AutomationRunPersonNotice"
@@ -98,8 +99,8 @@ export const AutomationDetailBody = ({
     /** The Run now control: in the "Runs" title, or by the name where there is no "Runs" group. */
     runNow?: ReactNode
     /**
-     * The panel's shape (F05 f5): a 16 px name with "On" and the switch at its right, the facts
-     * under it, and no Agent field (the panel opens over the agent that runs it).
+     * The pane's shape: the item title (24px Mark, 13/600 name, "On" and the switch), the facts
+     * under it, and no Agent field (the pane opens over the agent that runs it).
      */
     panel?: boolean
     /** The page frame draws the name, the switch line and the menu; the body starts at its sections. */
@@ -111,7 +112,7 @@ export const AutomationDetailBody = ({
     const grouped = Boolean(onOpenRunHistory)
     const titleRun = grouped ? null : runNow
     const fields = (
-        <div className={`flex flex-col ${panel ? "gap-3" : "gap-6"}`}>
+        <div className={`flex flex-col ${panel ? "gap-4" : "gap-6"}`}>
             {panel ? null : (
                 <AutomationAgentField
                     agentId={preview.agentId}
@@ -138,8 +139,9 @@ export const AutomationDetailBody = ({
         </div>
     )
     const header = panel ? (
-        <div className="flex min-w-0 flex-col gap-0.5">
+        <div className="flex min-w-0 flex-col gap-1.5">
             <div className="flex min-w-0 items-center gap-2">
+                <AutomationKindTile kind={automation.kind} />
                 <div className="min-w-0 flex-1">
                     <AutomationTitle
                         name={automation.name}
