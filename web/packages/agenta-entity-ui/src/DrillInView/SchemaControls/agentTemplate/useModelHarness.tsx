@@ -43,6 +43,7 @@ import {
 
 import {useAdvancedParts} from "./advancedParts"
 import {effectiveHarnessValue, enumLabel} from "./agentTemplateUtils"
+import {PolicyGlyph} from "./PermissionGlyph"
 import {sandboxSummary} from "./sections/AdvancedPartRows"
 import {useAdvancedSectionBody} from "./sections/AdvancedSectionBody"
 import {modelSectionBody} from "./sections/ModelSectionBody"
@@ -328,6 +329,8 @@ export function useModelHarness({
                 value: option.value,
                 title: option.label,
                 help: option.help,
+                // The same glyph on a tile as the integration permission options (CONS-02).
+                icon: <PolicyGlyph value={option.value} size={14} />,
             })),
         [runnerPermissionSchema],
     )
