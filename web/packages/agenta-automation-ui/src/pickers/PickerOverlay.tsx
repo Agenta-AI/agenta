@@ -90,14 +90,12 @@ export const PickerOverlay = ({
             <SheetTrigger asChild>{trigger}</SheetTrigger>
             {/* The content panes below scroll on their own, so the sheet must not also scroll. */}
             <SheetContent
-                // From the right, like the drawer this field sits in: a sheet rising from the
-                // bottom under a side drawer read as a different surface.
-                side="right"
+                // From the bottom, the kit's phone sheet shape: full width, as tall as its
+                // content up to 85% of the screen.
+                side="bottom"
                 // No description on a picker; declaring none keeps Radix from warning about it.
                 aria-describedby={undefined}
-                // Full width on a phone, the automation drawer's 640px above it; full height
-                // so the schedule builder and an event's filter form keep Done on screen.
-                className="w-full gap-0 overflow-hidden p-0 sm:max-w-[640px]"
+                className="max-h-[85dvh] gap-0 overflow-hidden rounded-t-2xl p-0"
             >
                 {/* The sheet primitives' own header: the same height and type as the
                     automation drawer, which this opens beside. */}

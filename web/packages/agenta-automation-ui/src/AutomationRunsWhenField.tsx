@@ -116,9 +116,7 @@ export const AutomationRunsWhenField = ({
                 open={open}
                 onOpenChange={setOpen}
                 title={t("automations.editor.runsWhen")}
-                // A schedule is a picker, so popover-md; the event panes sit side by side and keep
-                // the field's width.
-                contentClassName={isSchedule ? "w-[var(--popover-md)]" : undefined}
+                // Both kinds keep the field's width, so the kind chips never cut their labels.
                 trigger={
                     // The same geometry `AutomationAgentField`'s SelectTrigger has, so the two
                     // controls read as one stack rather than two sizes of field.
