@@ -172,7 +172,7 @@ export function ConnectedSubagentList({
             const workflowId = bySlug[slug]?.workflowId
             const chrome = agentIconChrome(workflowId ? (iconById.get(workflowId) ?? null) : null, {
                 size: 15,
-                fallbackGlyph: <Robot size={15} weight="fill" />,
+                fallbackGlyph: <Robot size={15} />,
                 fallbackClassName: "bg-secondary text-muted-foreground",
             })
             map.set(slug, {glyph: chrome.glyph, className: chrome.className, style: chrome.style})

@@ -15,6 +15,8 @@ import {Alert, AutosizeTextarea, Button, IconTile, SkeletonBlock} from "@agenta/
 import {CaretDown, Compass, Cpu, Robot} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
+import {useAgentIconChrome} from "../../agent/agentIcon"
+
 import {FieldHeading} from "./agentTemplate/accounts/FieldHeading"
 import {normalizeSubagentReference} from "./agentTemplate/subagentReference"
 import {modelLabel} from "./connectionUtils"
@@ -190,15 +192,28 @@ function SubagentDetailPanel({
     const ProviderIcon = detail?.provider ? getProviderIcon(detail.provider) : null
     const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(HARNESS_CATALOG_KEY))
     const modelName = detail?.model ? readableModelName(capabilities, detail.model) : null
+    // The called agent's own icon and tile color, as the agents list draws it.
+    const agentChrome = useAgentIconChrome(detail?.workflowId, {
+        size: 14,
+        fallbackGlyph: <Robot />,
+        fallbackClassName: "bg-secondary text-muted-foreground",
+    })
 
     return (
         <div className="flex flex-col gap-4 p-4">
             {name ? (
                 // The sibling item views' title: a 24px Mark, 8px to the name (CONS-02).
                 <div className="flex items-center gap-2">
-                    <IconTile size={24} aria-hidden>
-                        <Robot />
-                    </IconTile>
+                    <span
+                        aria-hidden
+                        className={cn(
+                            "flex size-6 shrink-0 items-center justify-center rounded-md [&_svg]:size-3.5",
+                            agentChrome.className,
+                        )}
+                        style={agentChrome.style}
+                    >
+                        {agentChrome.glyph}
+                    </span>
                     <span className="min-w-0 flex-1 truncate text-label font-semibold leading-5">
                         {name}
                     </span>
