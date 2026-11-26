@@ -11,6 +11,7 @@ import {
     BreadcrumbPage,
     BreadcrumbSeparator,
     Button,
+    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {House} from "@phosphor-icons/react"
 
@@ -43,36 +44,37 @@ export const DriveBreadcrumb = ({
         if (el) el.scrollLeft = el.scrollWidth
     }, [shown])
     if (variant === "icons") {
-        // `inline-flex` restated: BreadcrumbLink's `inline-block` would stack glyph over label.
+        // `inline-flex` restated: BreadcrumbLink's `inline-block` would stack glyph over label. Every
+        // part keeps text-label's weight; the current one shows by its color (TYPE-05).
         const crumbLink =
-            "inline-flex h-control-xs items-center gap-1.5 px-1.5 py-0 text-label font-normal text-muted-foreground"
+            "inline-flex h-control-xs items-center gap-1.5 px-1.5 py-0 text-label text-muted-foreground"
         return (
             <Breadcrumb
                 className="min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                title={shown}
                 ref={scrollRef}
             >
                 {/* Parts never shrink: a long path scrolls instead of cutting the last part. */}
                 <BreadcrumbList className="flex-nowrap gap-0.5 whitespace-nowrap text-label sm:gap-0.5 [&>li]:shrink-0">
                     <BreadcrumbItem>
                         {segs.length === 0 ? (
-                            <BreadcrumbPage className="flex h-control-xs items-center gap-1.5 px-1.5 py-0 font-medium">
+                            <BreadcrumbPage className="flex h-control-xs items-center gap-1.5 px-1.5 py-0">
                                 <House size={14} />
                                 {t("entityUi.driveExplorer.allFiles")}
                             </BreadcrumbPage>
                         ) : (
-                            <BreadcrumbLink asChild>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => onNavigate("")}
-                                    aria-label={t("entityUi.driveExplorer.allFiles")}
-                                    title={rootLabel}
-                                    className={crumbLink}
-                                >
-                                    <House size={14} />
-                                </Button>
-                            </BreadcrumbLink>
+                            <SimpleTooltip title={t("entityUi.driveExplorer.allFiles")}>
+                                <BreadcrumbLink asChild>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => onNavigate("")}
+                                        aria-label={t("entityUi.driveExplorer.allFiles")}
+                                        className={crumbLink}
+                                    >
+                                        <House size={14} />
+                                    </Button>
+                                </BreadcrumbLink>
+                            </SimpleTooltip>
                         )}
                     </BreadcrumbItem>
                     {segs.map((seg, i) => {
@@ -83,9 +85,7 @@ export const DriveBreadcrumb = ({
                                 <BreadcrumbSeparator className="mx-0.5 h-auto text-muted-foreground" />
                                 <BreadcrumbItem>
                                     {isLast ? (
-                                        <BreadcrumbPage
-                                            className={`flex h-control-xs items-center gap-1.5 px-1.5 py-0 ${isFile ? "" : "font-medium"}`}
-                                        >
+                                        <BreadcrumbPage className="flex h-control-xs items-center gap-1.5 px-1.5 py-0">
                                             {isFile ? (
                                                 <DriveTypeMark path={path} size="mini" />
                                             ) : (

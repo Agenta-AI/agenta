@@ -81,7 +81,7 @@ export const TreeRow = ({
             }}
             className={`h-7 w-full cursor-pointer overflow-hidden rounded-md transition-colors ${
                 selected
-                    ? "bg-selected font-medium text-foreground"
+                    ? "bg-selected text-foreground"
                     : pending
                       ? // A quiet fill marks a pending upload row, matching the grid tile.
                         "bg-secondary"
