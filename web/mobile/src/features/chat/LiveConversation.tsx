@@ -57,7 +57,6 @@ import {
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
 import {modelSetupPlaceholder} from "@agenta/entity-ui/needs-setup"
-import {PersonalAccountsCard} from "@agenta/entity-ui/onboarding"
 import {createT, useT} from "@agenta/i18n"
 import chatMobileComposerCatalog from "@agenta/i18n/catalogs/chat.mobileComposer"
 import chatMobileLiveCatalog from "@agenta/i18n/catalogs/chat.mobileLive"
@@ -119,7 +118,6 @@ import {deriveMobileRemoteTurnPresentation, showTrailingWorkingPulse} from "./tu
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
 import {useChildApprovals} from "./useChildApprovals"
 import {useOpenModelSetup} from "./useOpenModelSetup"
-import {usePersonalSetupStep} from "./usePersonalSetupStep"
 import {UserMessageAccessoryContext} from "./userMessageAccessory"
 import {useSessionWatch} from "./useSessionWatch"
 import {useStartBlankSession} from "./useStartBlankSession"
@@ -576,7 +574,6 @@ export const LiveConversation = ({
         [locked, disabled, setupBlocked, hideComposer, send, beforeSend],
     )
     // The viewer's own missing "user" items. Optional: it never holds a message.
-    const personalSetup = usePersonalSetupStep(sessionId, entityId)
     useEffect(() => {
         if (!pendingTask || pendingTask.delivery || locked) return
         const decision = pendingTaskDecision({
@@ -1250,22 +1247,6 @@ export const LiveConversation = ({
                                 </ContentRail>
                             </div>
                         ) : null}
-                        {/* The viewer's own accounts for this agent's "user" items. Not `locked`: a
-                        reloaded chat with no turns has no session row, so sending stays off, and
-                        the card holds no message. */}
-                        {personalSetup.open && !readOnly && !accessPending ? (
-                            <div className="bg-background shrink-0 px-4 pt-3 pb-0">
-                                <ContentRail>
-                                    <PersonalAccountsCard
-                                        workflowId={personalSetup.workflowId}
-                                        items={personalSetup.items}
-                                        pendingKeys={personalSetup.pendingKeys}
-                                        onContinue={personalSetup.close}
-                                        onDismiss={personalSetup.close}
-                                    />
-                                </ContentRail>
-                            </div>
-                        ) : null}
                         {/* Docked with the other strips, directly above the composer it disables —
                         the same place the desktop banner sits. */}
                         {hideComposer ? null : (
@@ -1293,8 +1274,7 @@ export const LiveConversation = ({
                                             childApprovals.length > 0 ||
                                             Boolean(secrets.front) ||
                                             elicits.open ||
-                                            connects.open ||
-                                            (personalSetup.open && !readOnly && !accessPending)
+                                            connects.open
                                         }
                                         onSwitchModel={() => modelPickerRef.current?.()}
                                     />

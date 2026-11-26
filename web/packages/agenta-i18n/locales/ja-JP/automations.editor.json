@@ -62,7 +62,6 @@
     "runRowAriaTime": "{{label}} — {{outcome}}、{{time}}",
     "personTitle": "この自動化はあなたとして実行されます",
     "personBody": "保存すると、各自のアカウントを使う項目については、あなた自身のアカウントで実行されます。",
-    "personMissing": "まだ設定されていません:",
     "drawerTitle": "自動化",
     "newAutomation": "新しい自動化",
     "noLongerExists": "この自動化はもう存在しません。",

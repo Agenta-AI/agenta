@@ -64,7 +64,6 @@
     "runRowAriaTime": "{{label}} — {{outcome}}, {{time}}",
     "personTitle": "Cette automatisation s’exécutera en votre nom",
     "personBody": "Après l’enregistrement, elle s’exécute avec vos propres comptes pour les éléments qui utilisent le compte de chaque personne.",
-    "personMissing": "Pas encore configuré pour vous :",
     "drawerTitle": "Automatisation",
     "newAutomation": "Nouvelle automatisation",
     "noLongerExists": "Cette automatisation n’existe plus.",

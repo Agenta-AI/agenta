@@ -63,7 +63,6 @@
     "runRowAriaTime": "{{label}} — {{outcome}}, {{time}}",
     "personTitle": "This automation will run as you",
     "personBody": "When you save, it runs with your own accounts for the items that use each person's own account.",
-    "personMissing": "Not set up for you yet:",
     "drawerTitle": "Automation",
     "newAutomation": "New automation",
     "noLongerExists": "This automation no longer exists.",

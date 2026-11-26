@@ -64,7 +64,6 @@
     "runRowAriaTime": "{{label}} — {{outcome}}, {{time}}",
     "personTitle": "Esta automatización se ejecutará como tú",
     "personBody": "Al guardar, se ejecuta con tus propias cuentas en los elementos que usan la cuenta de cada persona.",
-    "personMissing": "Aún no configurado para ti:",
     "drawerTitle": "Automatización",
     "newAutomation": "Nueva automatización",
     "noLongerExists": "Esta automatización ya no existe.",

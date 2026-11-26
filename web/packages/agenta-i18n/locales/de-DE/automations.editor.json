@@ -63,7 +63,6 @@
     "runRowAriaTime": "{{label}} — {{outcome}}, {{time}}",
     "personTitle": "Diese Automatisierung läuft in Ihrem Namen",
     "personBody": "Nach dem Speichern läuft sie bei Elementen, die das eigene Konto der jeweiligen Person verwenden, mit Ihren eigenen Konten.",
-    "personMissing": "Für Sie noch nicht eingerichtet:",
     "drawerTitle": "Automatisierung",
     "newAutomation": "Neue Automatisierung",
     "noLongerExists": "Diese Automatisierung existiert nicht mehr.",

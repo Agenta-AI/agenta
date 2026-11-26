@@ -62,7 +62,6 @@
     "runRowAriaTime": "{{label}} — {{outcome}}，{{time}}",
     "personTitle": "这个自动化将以你的身份运行",
     "personBody": "保存后，对于使用个人账号的项目，它会使用你自己的账号运行。",
-    "personMissing": "你还没有设置：",
     "drawerTitle": "自动化",
     "newAutomation": "新建自动化",
     "noLongerExists": "这个自动化已不存在。",
