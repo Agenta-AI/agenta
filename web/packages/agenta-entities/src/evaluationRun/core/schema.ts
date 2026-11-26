@@ -35,8 +35,9 @@ export const evaluationRunStepInputSchema = z.object({
     key: z.string(),
 })
 
+// The API reference (`Reference`) may carry only a slug, so `id` is optional.
 export const evaluationRunStepReferenceSchema = z.object({
-    id: z.string(),
+    id: z.string().nullable().optional(),
     slug: z.string().nullable().optional(),
     version: z.coerce.number().nullable().optional(),
 })
@@ -101,7 +102,7 @@ export const evaluationRunSchema = z
         data: evaluationRunDataSchema.nullable().optional(),
 
         // Metadata
-        tags: z.array(z.string()).nullable().optional(),
+        tags: z.record(z.string(), z.unknown()).nullable().optional(),
         meta: z.record(z.string(), z.unknown()).nullable().optional(),
     })
     .merge(timestampFieldsSchema)
@@ -196,7 +197,7 @@ export const evaluationMetricSchema = z
         // The actual values keyed by step_key → mapping path
         data: z.record(z.string(), z.unknown()).nullable().optional(),
         flags: z.record(z.string(), z.unknown()).nullable().optional(),
-        tags: z.array(z.string()).nullable().optional(),
+        tags: z.record(z.string(), z.unknown()).nullable().optional(),
         meta: z.record(z.string(), z.unknown()).nullable().optional(),
     })
     .merge(timestampFieldsSchema)

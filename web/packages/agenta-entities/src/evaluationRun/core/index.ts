@@ -134,6 +134,7 @@ export {
 export {metricCellText, scenarioMetricStats, stepMetricStats} from "./scenarioMetrics"
 export {columnGroupCheck, setColumnsVisible, type ColumnGroupCheck} from "./columnVisibility"
 export {buildRunEditBody, type RunEditBody, type RunEditInput, type RunStepOrigin} from "./runEdit"
+export {runTagLabels} from "./runTags"
 export {
     buildRunReferencePayload,
     buildRunsQueryBody,
