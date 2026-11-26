@@ -34,6 +34,7 @@ import {
 } from "@agenta/playground-ui/state"
 
 import {usePlaygroundUIOptional} from "../../../../context/PlaygroundUIContext"
+import {usePlaygroundNodeLabels} from "../../../../hooks/usePlaygroundNodeLabels"
 import {useRepetitionResult} from "../../../../hooks/useRepetitionResult"
 import {getShortTestcaseId} from "../../../../utils/testcaseLabel"
 import ExecutionResultView from "../../../ExecutionResultView"
@@ -52,7 +53,7 @@ import {
     type NodeStatus,
 } from "../../../shared/NodeResultCard"
 
-import {ExecutionRowRunControl, usePlaygroundNodeLabels} from "./shared"
+import {ExecutionRowRunControl} from "./shared"
 
 // Dismissable callout that explains what the two evaluator playground
 // variables represent (the application being evaluated's inputs and output).

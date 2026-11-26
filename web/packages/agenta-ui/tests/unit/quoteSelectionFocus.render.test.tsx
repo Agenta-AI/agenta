@@ -52,7 +52,7 @@ function openReply() {
     rootRef.current!.focus()
     const focus = vi.spyOn(HTMLElement.prototype, "focus")
     fireEvent.click(screen.getByRole("button", {name: "Reply"}))
-    return {root: rootRef.current!, focus, input: screen.getByPlaceholderText("Reply to the agent")}
+    return {root: rootRef.current!, focus, input: screen.getByPlaceholderText("Ask about this…")}
 }
 
 describe("quote reply focus preserves the file pane's scroll position", () => {

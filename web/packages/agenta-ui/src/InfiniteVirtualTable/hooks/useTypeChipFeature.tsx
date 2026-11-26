@@ -1,5 +1,8 @@
 import {useCallback, useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiTableCatalog from "@agenta/i18n/catalogs/ui.table"
 import {Tag} from "@phosphor-icons/react"
 import {atom, useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
@@ -30,6 +33,7 @@ export interface UseTypeChipFeatureResult<RecordType> {
 export function useTypeChipFeature<RecordType>(
     config: TypeChipConfig<RecordType> | undefined,
 ): UseTypeChipFeatureResult<RecordType> {
+    const t = useT(uiTableCatalog, commonCatalog)
     const defaultEnabled = config?.defaultEnabled ?? config?.enabled ?? Boolean(config)
 
     const enabledAtom = useMemo(() => {
@@ -56,7 +60,7 @@ export function useTypeChipFeature<RecordType>(
         return [
             {
                 key: "type-chips-toggle",
-                label: enabled ? "Hide type chips" : "Show type chips",
+                label: enabled ? t("ui.table.hideTypeChips") : t("ui.table.showTypeChips"),
                 icon: <Tag size={16} />,
                 onClick: () => setEnabled(!enabled),
             },

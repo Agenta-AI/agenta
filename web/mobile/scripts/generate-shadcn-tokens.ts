@@ -119,6 +119,8 @@ const VARS: Record<string, [string, string]> = {
     colorTextLightSolid: [color(p.text.lightSolid.light), color(p.text.lightSolid.dark)],
     colorSplit: [color(p.border.split.light), color(p.border.split.dark)],
     colorInfo: [color(p.semantic.info.light), color(p.semantic.info.dark)],
+    colorSelection: [color(p.semantic.selection.light), color(p.semantic.selection.dark)],
+    colorSelectionBg: [color(p.semantic.selectionBg.light), color(p.semantic.selectionBg.dark)],
     colorBgLayout: [color(p.surface.layout.light), color(p.surface.layout.dark)],
     colorBgMask: [color(p.surface.mask.light), color(p.surface.mask.dark)],
     colorBgContainerDisabled: [

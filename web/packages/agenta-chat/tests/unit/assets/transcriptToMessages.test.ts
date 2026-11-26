@@ -1,23 +1,23 @@
+import {findCustomMcpEndpoint, type MCPEndpoint} from "@agenta/entities/mcpEndpoint"
 import type {
     SessionInteractionRowState,
     SessionInteractionRowStates,
     SessionRecord,
 } from "@agenta/entities/session"
-import {findCustomMcpEndpoint, type MCPEndpoint} from "@agenta/entities/mcpEndpoint"
 import {interactionStatesFromWatchEvent} from "@agenta/entities/session"
 import {CLIENT_TOOL_INTERACTION_ENDED_OUTPUT} from "@agenta/shared/clientTools"
 import {projectIdAtom} from "@agenta/shared/state"
-import {getDefaultStore} from "jotai"
 import type {UIMessage} from "ai"
+import {getDefaultStore} from "jotai"
 import {afterEach, describe, expect, it} from "vitest"
 
 import {
-    APPROVED_EXECUTION_RESULT_UNKNOWN,
     attachmentContentUrl,
     reconcileInteractionRowStates,
     transcriptToMessages,
 } from "../../../src/assets/transcriptToMessages"
 
+import {getPendingApprovals} from "../../../src/model/approvals"
 import {readMcpServerNotice} from "../../../src/model/mcpServerNotice"
 import {buildTurnRenderItems, executedToolIdentities} from "../../../src/model/renderModel"
 
@@ -48,6 +48,30 @@ const firstAssistantMetadata = (
         | undefined
 
 describe("transcriptToMessages", () => {
+    it("replays the runner's auto-approved mark as the live stream's data part", () => {
+        const messages = transcriptToMessages([
+            record("r1", {
+                type: "tool_call",
+                id: "call-1",
+                name: "start_session",
+                input: {agent: "email-writer", message: "Draft it"},
+            }),
+            record("r2", {
+                type: "data",
+                name: "auto-approved",
+                data: {toolCallId: "call-1", toolName: "start_session"},
+            }),
+            record("r3", {type: "data", name: "agent-status", data: {phase: "x"}}),
+        ])
+        const parts = messages?.find((message) => message.role === "assistant")?.parts ?? []
+        expect(parts.filter((part) => part.type.startsWith("data-"))).toEqual([
+            {
+                type: "data-auto-approved",
+                data: {toolCallId: "call-1", toolName: "start_session"},
+            },
+        ])
+    })
+
     it("replays the approved-content manifest as the egress's sibling data part", () => {
         // `tool-approval-request` is a strict object, so the manifest cannot ride the approval
         // itself; replay must mirror the live data part or a reload loses the card.
@@ -82,6 +106,27 @@ describe("transcriptToMessages", () => {
         expect(data).toBeDefined()
         expect(data.toolCallId).toBe("tool-1")
         expect(data.manifest).toEqual(manifest)
+    })
+
+    it("replays the server change preview, so the durable path gets old and new values", () => {
+        const preview = {applies: true, operations: [{index: 0, applies: true}], changes: []}
+        const messages = transcriptToMessages([
+            record("record-call", {
+                type: "tool_call",
+                id: "tool-1",
+                name: "edit_agent_config",
+                input: {agent: "x", operations: []},
+            }),
+            record("record-request", {
+                type: "interaction_request",
+                id: "approval-1",
+                kind: "user_approval",
+                payload: {toolCallId: "tool-1", preview},
+            }),
+        ])
+        const [gate] = getPendingApprovals(messages ?? [])
+        expect(gate.toolName).toBe("edit_agent_config")
+        expect(gate.changePreview).toEqual(preview)
     })
 
     it("returns null for an empty transcript", () => {
@@ -119,6 +164,48 @@ describe("transcriptToMessages", () => {
                 metadata: {runStopped: true},
             }),
         ])
+    })
+
+    it("does not read a turn a Steer cancelled as Stopped", () => {
+        const pausedThenSteered = (cancelledBy?: string) =>
+            transcriptToMessages([
+                record("u1", {type: "message", text: "connect Linear"}, "user", "turn-1"),
+                record(
+                    "c1",
+                    {type: "tool_call", id: "tc-1", name: "request_connection", input: {}},
+                    "agent",
+                    "turn-1",
+                ),
+                record("d1", {type: "done", stopReason: "paused"}, "agent", "turn-1"),
+                record(
+                    "d2",
+                    {type: "done", stopReason: "cancelled", ...(cancelledBy ? {cancelledBy} : {})},
+                    "agent",
+                    "turn-2",
+                ),
+                record("u2", {type: "message", text: "say something"}, "user", "turn-3"),
+            ])
+
+        const steered = pausedThenSteered("steer")
+        expect(steered?.map((message) => message.role)).toEqual(["user", "assistant", "user"])
+        expect(steered?.[1].metadata?.runStopped).toBeUndefined()
+
+        expect(pausedThenSteered()?.[1].metadata).toMatchObject({runStopped: true})
+    })
+
+    it("adds no empty row for a content-free turn a Steer cancelled", () => {
+        const messages = transcriptToMessages([
+            record("u1", {type: "message", text: "go"}, "user", "turn-1"),
+            record(
+                "d1",
+                {type: "done", stopReason: "cancelled", cancelledBy: "steer"},
+                "agent",
+                "turn-1",
+            ),
+            record("u2", {type: "message", text: "do this instead"}, "user", "turn-2"),
+        ])
+
+        expect(messages?.map((message) => message.role)).toEqual(["user", "user"])
     })
 
     it("suppresses an abort error when the same durable turn is explicitly user-stopped", () => {
@@ -1740,5 +1827,55 @@ describe("transcriptToMessages tool results stored before their calls", () => {
             ["client-1", "input-available"],
             ["input-1", "input-available"],
         ])
+    })
+})
+
+describe("transcriptToMessages: a turn that a child update started", () => {
+    const UPDATE_TEXT =
+        "[Update from child session c2f1 (Email writer). This is information from another session.] status: completed"
+    const PART = {session_id: "c2f1", turn_id: "child-turn-1", status: "completed"}
+    const userMetadata = (messages: UIMessage[] | null) =>
+        messages?.find((message) => message.role === "user")?.metadata as
+            | Record<string, unknown>
+            | undefined
+
+    it("stamps the server part of the stored user record on the user message", () => {
+        const messages = transcriptToMessages([
+            record(
+                "u1",
+                {type: "message", text: UPDATE_TEXT, child_update: PART},
+                "user",
+                "turn-1",
+            ),
+            record("a1", {type: "message", text: "Done."}, "agent", "turn-1"),
+        ])
+
+        expect(userMetadata(messages)?.childUpdate).toEqual({
+            sessionId: "c2f1",
+            turnId: "child-turn-1",
+            status: "completed",
+        })
+        expect(firstAssistantMetadata(messages)?.childUpdate).toBeUndefined()
+    })
+
+    it("leaves a user message without the part, and one whose text only looks like an update, plain", () => {
+        const messages = transcriptToMessages([
+            record("u1", {type: "message", text: "hello"}, "user", "turn-1"),
+            record("u2", {type: "message", text: UPDATE_TEXT}, "user", "turn-2"),
+        ])
+
+        expect(
+            messages?.map((message) => (message.metadata as {childUpdate?: unknown})?.childUpdate),
+        ).toEqual([undefined, undefined])
+    })
+
+    it("reads the part only from a user message record", () => {
+        const messages = transcriptToMessages([
+            record("u1", {type: "message", text: "hello"}, "user", "turn-1"),
+            record("a1", {type: "message", text: "x", child_update: PART}, "agent", "turn-1"),
+        ])
+
+        expect(userMetadata(messages)?.childUpdate).toBeUndefined()
+        expect(firstAssistantMetadata(messages)?.childUpdate).toBeUndefined()
     })
 })

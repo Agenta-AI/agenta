@@ -1,0 +1,17 @@
+{
+    "exportJson": "Exportar JSON",
+    "exportRecords": "Exportar os registros da sessão",
+    "inspectSession": "Inspecionar sessão",
+    "inspectorTitle": "Inspetor de sessão",
+    "linkCopied": "Link copiado",
+    "loadingRecords": "Carregando registros…",
+    "newSession": "Nova sessão",
+    "noRecords": "Esta sessão ainda não tem registros.",
+    "noSessions": "Ainda não há sessões com este agente.",
+    "recordsAndTurns": "{{records}} registros · {{turns}} turnos",
+    "recordsFailed": "Não foi possível carregar os registros da sessão.",
+    "refresh": "Atualizar",
+    "refreshInspector": "Atualizar o inspetor de sessão",
+    "sessionHistory": "Histórico de sessões",
+    "sessions": "Sessões"
+}

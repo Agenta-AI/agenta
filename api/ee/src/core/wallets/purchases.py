@@ -1,6 +1,5 @@
-"""Credit that arrives with a payment or a transfer, not with a catalog activity: one-time
-top-up packs bought through Stripe Checkout, and the one-off transfer of each
-organization's remaining starter-credits proxy budget into the wallet."""
+"""Credit that arrives with a payment, not with a catalog activity: one-time top-up packs
+bought through Stripe Checkout."""
 
 from dataclasses import dataclass
 from typing import Dict, Optional
@@ -14,13 +13,6 @@ PURCHASE_CREDIT_KIND = "purchase"
 # Spent last: it is paid for and lasts the longest.
 PURCHASE_PRIORITY = 70
 PURCHASE_LIFETIME_DAYS = TWELVE_MONTHS_DAYS
-
-# The remaining budget of an organization's starter-credits proxy key, moved into the
-# wallet by `entrypoints.migrate_starter_credits_to_wallet`. Same footing as the signup
-# grant it replaces.
-STARTER_CREDITS_KIND = "starter_credits"
-STARTER_CREDITS_PRIORITY = 20
-STARTER_CREDITS_LIFETIME_DAYS = TWELVE_MONTHS_DAYS
 
 
 @dataclass(frozen=True)

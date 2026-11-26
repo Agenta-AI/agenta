@@ -89,6 +89,45 @@ export async function queryEvaluationRuns({
 }
 
 // ============================================================================
+// FIND RUNS BY REFERENCE
+// ============================================================================
+
+/**
+ * Ids of the evaluation runs that use any of the given references.
+ *
+ * Endpoint: `POST /evaluations/runs/query`, once per reference. The backend matches the
+ * references of one query with JSONB containment (AND semantics), so a single query with many
+ * references would only find runs that use all of them at once.
+ */
+export async function findEvaluationRunsUsing({
+    projectId,
+    references,
+}: {
+    projectId: string
+    references: Record<string, {id: string}>[]
+}): Promise<string[]> {
+    if (!projectId || references.length === 0) return []
+
+    const responses = await Promise.all(
+        references.map((reference) =>
+            axios.post(
+                `${getAgentaApiUrl()}/evaluations/runs/query`,
+                {run: {references: [reference]}},
+                {params: {project_id: projectId}},
+            ),
+        ),
+    )
+
+    const runIds = new Set<string>()
+    for (const response of responses) {
+        for (const run of response.data?.runs ?? []) {
+            if (run?.id) runIds.add(run.id)
+        }
+    }
+    return [...runIds]
+}
+
+// ============================================================================
 // QUERY EVALUATION RESULTS (Scenario Steps)
 // ============================================================================
 

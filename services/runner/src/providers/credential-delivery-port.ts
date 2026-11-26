@@ -262,6 +262,7 @@ export class DisclosableSecret {
  */
 export type CredentialConsumer =
   | { readonly kind: "model" }
+  | { readonly kind: "gateway" }
   | { readonly kind: "mcp"; readonly server: string };
 
 /**
@@ -302,8 +303,14 @@ export type CredentialSlotKey = string & { readonly __slotKey: unique symbol };
  */
 export function slotKey(slot: CredentialSlot): CredentialSlotKey {
   const parts =
-    slot.consumer.kind === "model"
-      ? ["model", "", slot.binding.kind, slot.binding.name, slot.allowedHost]
+    slot.consumer.kind !== "mcp"
+      ? [
+          slot.consumer.kind,
+          "",
+          slot.binding.kind,
+          slot.binding.name,
+          slot.allowedHost,
+        ]
       : [
           "mcp",
           slot.consumer.server,

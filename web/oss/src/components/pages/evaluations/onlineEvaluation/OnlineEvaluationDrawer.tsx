@@ -8,7 +8,7 @@ import {
     evaluatorTemplatesQueryAtom,
     isOnlineCapableEvaluator,
 } from "@agenta/entities/workflow"
-import {getFilterColumns} from "@agenta/observability"
+import {findIncompleteIsAnnotationFilter, getFilterColumns} from "@agenta/observability"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Button, Collapse, DatePicker, Form, Input, Select, Switch, Tooltip, Typography} from "antd"
@@ -37,6 +37,7 @@ import {
     toFilteringPayload,
     toWindowingPayload,
 } from "./assets/helpers"
+import {CREATE_FAILED_MESSAGE, queryCreateErrorMessage} from "./assets/queryError"
 import {onlineEvalFiltersAtom, resetOnlineEvalFiltersAtom} from "./assets/state"
 import EvaluatorDetailsPreview from "./components/EvaluatorDetailsPreview"
 import EvaluatorTypeTag from "./components/EvaluatorTypeTag"
@@ -287,6 +288,12 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                 }
             }
 
+            const filterProblem = findIncompleteIsAnnotationFilter(filters)
+            if (filterProblem) {
+                message.error(filterProblem)
+                return
+            }
+
             const filteringPayload = toFilteringPayload(filters)
             const windowingPayload = toWindowingPayload({
                 samplingRate: samplingRateValue,
@@ -311,7 +318,14 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                 queryPayload.data = queryData
             }
 
-            const queryResponse = await createSimpleQuery({query: queryPayload})
+            // The API names a refused filter by its code name, so the user sees plain text
+            // and the console keeps the detail.
+            const queryResponse = await createSimpleQuery({query: queryPayload}).catch(
+                (error: unknown) => {
+                    console.error("Could not create the online evaluation query", error)
+                    throw new Error(queryCreateErrorMessage(error))
+                },
+            )
             const queryId = queryResponse.query?.id
             if (!queryId) {
                 throw new Error("Unable to create query for online evaluation.")
@@ -384,7 +398,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
             if (err && "errorFields" in err) {
                 return
             }
-            message.error(err?.message || "Failed to create online evaluation")
+            message.error(err?.message || CREATE_FAILED_MESSAGE)
         } finally {
             setIsSubmitting(false)
         }

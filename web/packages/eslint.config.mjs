@@ -13,6 +13,8 @@ import importPlugin from "eslint-plugin-import"
 import eslintPluginPrettier from "eslint-plugin-prettier/recommended"
 import tseslint from "typescript-eslint"
 
+import {i18nGuardConfigs} from "./eslint-i18n-guard.mjs"
+
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
@@ -162,6 +164,54 @@ const config = [
         },
     },
     ...(includePrettierRule ? [eslintPluginPrettier] : []),
+    // The playground panels are what /m renders, and /m ships no antd. This bans antd itself, the
+    // `@agenta/ui` root, and the `@agenta/playground-ui` paths known to reach antd. Lint cannot
+    // see transitive imports (`@agenta/ui/ui` reaches `@ant-design/icons`, which /m already
+    // ships), so `web/mobile/scripts/speed/antd-in-route.mjs` checks the built playground route.
+    {
+        // `pnpm --filter @agenta/playground-ui lint` passes this config with `--config`, so its
+        // globs resolve from the package folder; a run from `web/packages` sees the longer path.
+        files: ["agenta-playground-ui/src/panels/**", "src/panels/**"],
+        rules: {
+            "no-restricted-imports": [
+                "error",
+                {
+                    paths: [
+                        ...restrictedImportPaths,
+                        ...[
+                            "antd",
+                            "@agenta/ui",
+                            "@agenta/playground-ui",
+                            "@agenta/playground-ui/components",
+                            "@agenta/playground-ui/execution-items",
+                            "@agenta/playground-ui/adapters",
+                            "@agenta/playground-ui/playground-inputs-body",
+                            "@agenta/playground-ui/execution-item-comparison-view",
+                            "@agenta/playground-ui/workflow-revision-drawer",
+                        ].map((name) => ({
+                            name,
+                            message:
+                                "Playground panels ship in /m, which has no antd. This path reaches antd: import an antd-free subpath instead.",
+                        })),
+                    ],
+                    patterns: [
+                        {
+                            group: [
+                                "antd/*",
+                                "@ant-design/*",
+                                "../**/components",
+                                "../**/components/**",
+                            ],
+                            message:
+                                "Playground panels ship in /m, which has no antd. Move an antd-free helper out of components/ (to src/hooks or src/panels/shared) before importing it.",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // Lint runs from each package folder, which is where ESLint resolves `files` from.
+    ...i18nGuardConfigs(process.cwd()),
     {
         ignores: ["**/dist/**", "**/node_modules/**", "**/*.d.ts"],
     },

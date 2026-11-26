@@ -14,9 +14,16 @@ from starlette.requests import Request
 
 from oss.src.middlewares import auth
 from oss.src.utils.exceptions import UnauthorizedException
+from oss.tests.pytest.utils.principals import envelope_for_claims
 
 
 SECRET_KEY = "unit-test-secret-key-with-32-bytes"
+
+# Scope ids are UUIDs: a minted token carries a run envelope whose authority must
+# name the same organization and project.
+U = "00000000-0000-4000-8000-0000000000a1"
+P = "00000000-0000-4000-8000-0000000000b2"
+O = "00000000-0000-4000-8000-0000000000c3"  # noqa: E741
 
 
 class _RecordingLog:
@@ -36,6 +43,14 @@ def _log(monkeypatch):
     monkeypatch.setattr(auth, "log", recorder)
     monkeypatch.setattr(auth, "_SECRET_KEY", SECRET_KEY)
     return recorder
+
+
+def _envelope_claims() -> dict:
+    from oss.src.core.access.principals import envelope_to_claims
+
+    return envelope_to_claims(
+        envelope=envelope_for_claims(user_id=U, project_id=P, organization_id=O)
+    )
 
 
 def _request(path: str = "/vault/v1/secrets/") -> Request:
@@ -65,9 +80,11 @@ def _claims(token: str) -> dict:
 @pytest.mark.asyncio
 async def test_granted_token_carries_the_claim_and_stays_valid_on_any_path(log):
     token = await auth.sign_secret_token(
-        user_id="u",
-        project_id="p",
+        user_id=U,
+        project_id=P,
         grants=[auth.SECRET_RESOLVE_GRANT],
+        organization_id=O,
+        envelope=envelope_for_claims(user_id=U, project_id=P, organization_id=O),
     )
 
     assert _claims(token)["grants"] == [auth.SECRET_RESOLVE_GRANT]
@@ -87,7 +104,12 @@ async def test_granted_token_carries_the_claim_and_stays_valid_on_any_path(log):
 
 @pytest.mark.asyncio
 async def test_plain_token_carries_no_grants_claim_and_reads_grant_less(log):
-    token = await auth.sign_secret_token(user_id="u", project_id="p")
+    token = await auth.sign_secret_token(
+        user_id=U,
+        project_id=P,
+        organization_id=O,
+        envelope=envelope_for_claims(user_id=U, project_id=P, organization_id=O),
+    )
 
     assert "grants" not in _claims(token)
 
@@ -106,7 +128,13 @@ def test_request_without_verified_token_has_no_grants():
 @pytest.mark.asyncio
 async def test_unknown_grant_is_rejected_at_issuance(log):
     with pytest.raises(ValueError, match="unsupported grant"):
-        await auth.sign_secret_token(user_id="u", grants=["something-else"])
+        await auth.sign_secret_token(
+            user_id=U,
+            grants=["something-else"],
+            project_id=P,
+            organization_id=O,
+            envelope=envelope_for_claims(user_id=U, project_id=P, organization_id=O),
+        )
 
 
 @pytest.mark.asyncio
@@ -114,7 +142,7 @@ async def test_unknown_grant_is_rejected_at_consumption(log):
     expiry = datetime.now(timezone.utc) + timedelta(seconds=600)
     token = encode(
         payload={
-            "user_id": "u",
+            "user_id": U,
             "grants": ["something-else"],
             "exp": int(expiry.timestamp()),
         },
@@ -134,7 +162,13 @@ async def test_grants_ride_expiry_unchanged(log):
     # The grant changes what the token may READ, never how long it lives.
     now = datetime.now(timezone.utc).timestamp()
     claims = _claims(
-        await auth.sign_secret_token(user_id="u", grants=[auth.SECRET_RESOLVE_GRANT])
+        await auth.sign_secret_token(
+            user_id=U,
+            grants=[auth.SECRET_RESOLVE_GRANT],
+            project_id=P,
+            organization_id=O,
+            envelope=envelope_for_claims(user_id=U, project_id=P, organization_id=O),
+        )
     )
 
     assert now + 15 * 60 - 5 < claims["exp"] < now + 15 * 60 + 5
@@ -145,7 +179,7 @@ async def test_forged_grants_on_a_foreign_signed_token_are_rejected(log):
     expiry = datetime.now(timezone.utc) + timedelta(seconds=600)
     forged = encode(
         payload={
-            "user_id": "u",
+            "user_id": U,
             "grants": [auth.SECRET_RESOLVE_GRANT],
             "exp": int(expiry.timestamp()),
         },

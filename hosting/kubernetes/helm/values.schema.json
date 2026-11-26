@@ -90,12 +90,35 @@
               "pattern": "^[1-9][0-9]*$",
               "description": "AGENTA_ACCESS_MAX_OWNED_ORGANIZATIONS \u2014 most organizations one user can own; unset means no limit."
             },
+            "trustedProxyHops": {
+              "type": [
+                "integer",
+                "string"
+              ],
+              "minimum": 1,
+              "pattern": "^[1-9][0-9]*$",
+              "description": "AGENTA_ACCESS_TRUSTED_PROXY_HOPS. Number of proxies in front of the API that append to X-Forwarded-For; the client IP is that entry from the right. Unset uses the first entry."
+            },
+            "trustCloudflareIp": {
+              "type": [
+                "boolean",
+                "string"
+              ],
+              "description": "AGENTA_ACCESS_TRUST_CLOUDFLARE_IP. Read CF-Connecting-IP only when Cloudflare proxies the API."
+            },
             "emailDisabled": {
               "type": [
                 "boolean",
                 "string"
               ],
               "description": "AGENTA_ACCESS_EMAIL_DISABLED \u2014 disable email/password auth."
+            },
+            "personalAccountsEnabled": {
+              "type": [
+                "boolean",
+                "string"
+              ],
+              "description": "AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED \u2014 default true. People can store their own accounts (custom secrets, Composio connections, MCP sign-ins) and an agent's `user` items use them. Set false to turn it off; during an upgrade keep it false until every API, services and runner pod runs a release that supports personal accounts."
             },
             "defaultPlan": {
               "type": "string",
@@ -163,16 +186,6 @@
                   "description": "AGENTA_API_CACHING_ENABLED."
                 }
               }
-            }
-          }
-        },
-        "extras": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "demos": {
-              "type": "string",
-              "description": "AGENTA_DEMOS / AGENTA_EXTRAS_DEMOS \u2014 seeds demo workspaces (EE)."
             }
           }
         },

@@ -3,12 +3,27 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    field_validator,
+)
 
 from agenta.sdk.models.workflows import WorkflowServiceRequestData
 
+from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.shared.dtos import Header, Identifier, Lifecycle
+from oss.src.core.sharing.dtos import (
+    AccessPolicy,
+    SessionGrant,
+    SessionSharingState,
+    Visibility,
+)
 from oss.src.core.sessions.types import (
+    SessionCallingSession,
+    SessionCallingSessionQuery,
     SessionDelivery,
     SessionOrigin,
     SessionReference,
@@ -86,6 +101,29 @@ class SessionStream(Identifier, Header, Lifecycle):
     origin: Optional[SessionOrigin] = None
     trigger: Optional[SessionTrigger] = None
     delivery: Optional[SessionDelivery] = None
+    calling_session: Optional[SessionCallingSession] = None
+    # The sharing policy, read only. A row written by pre-sharing code (stored NULL) reads
+    # as project-visible.
+    visibility: Visibility = Visibility.PROJECT
+    owner_user_id: Optional[UUID] = None
+    # The caller's sharing state, on the one-session stream query only (the chat screen
+    # reads it there instead of `GET /sessions/{id}/sharing`). None elsewhere.
+    sharing: Optional[SessionSharingState] = None
+    # Set by the row insert only: whether a channel thread names this session id (read
+    # in the insert statement). Never serialized. None: not known.
+    _has_channel_thread: Optional[bool] = PrivateAttr(default=None)
+
+    # Set by the row insert only: the grants it gave the row in its transaction (a
+    # child's copy of its calling session's grants). Never serialized.
+    _created_grants: List[SessionGrant] = PrivateAttr(default_factory=list)
+
+    @property
+    def has_channel_thread(self) -> Optional[bool]:
+        return self._has_channel_thread
+
+    @property
+    def created_grants(self) -> List[SessionGrant]:
+        return self._created_grants
 
 
 class SessionStreamReadOptions(BaseModel):
@@ -99,6 +137,17 @@ class SessionStreamQueryResult(BaseModel):
 
 class SessionStreamCreate(Header):
     session_id: str
+    # The initial sharing policy. Required: every insert path decides it on the server.
+    access: AccessPolicy
+    # The channel binding (installation) whose own run creates the row: `access` is then
+    # the channel policy (`channel_session_policy`). Only that binding's run creates a
+    # row a channel thread names, and only for a thread of that binding.
+    channel_binding_id: Optional[UUID] = None
+    # The run whose request creates the row, and the calling session record of a start
+    # from another session. The mapper turns them into the session origin
+    # (`session_origin_tags`). Never serialized.
+    run_envelope: Optional[RunEnvelope] = Field(default=None, exclude=True)
+    calling_session: Optional[SessionCallingSession] = Field(default=None, exclude=True)
     # Who chose `name`. Typed here and encoded by the mapper, so the core never handles the
     # storage representation.
     name_source: Optional[SessionNameSource] = None
@@ -134,6 +183,8 @@ class SessionStreamHeaderEdit(Header):
     while the row still holds a value, a state no caller ever means. The LLM-facing
     ``rename_session`` schema already rejects both; this closes the direct-API hole.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     #: The exact name this edit replaces, sent by an automatic caller whose new name a
     #: person asked for. It is a precondition, not a permission: the write lands only while
@@ -174,6 +225,13 @@ class SessionStreamHeaderEdit(Header):
             )
         return trimmed
 
+    @property
+    def has_header_field(self) -> bool:
+        """Whether the edit names a header field. The header route refuses an edit
+        without one (a wrapped or empty body), unless the call only creates the session
+        with a requested visibility (the /w pre-create of a new chat)."""
+        return bool(self.model_fields_set.intersection({"name", "description"}))
+
 
 class SessionStreamQuery(BaseModel):
     session_id: Optional[str] = None
@@ -191,6 +249,9 @@ class SessionStreamQuery(BaseModel):
     search: Optional[str] = None
     origins: Optional[list[SessionOrigin]] = None
     exclude_origins: Optional[list[SessionOrigin]] = None
+    calling_session: Optional[SessionCallingSessionQuery] = None
+    created_after: Optional[datetime] = None
+    created_before: Optional[datetime] = None
 
 
 class CommandMode(str, Enum):

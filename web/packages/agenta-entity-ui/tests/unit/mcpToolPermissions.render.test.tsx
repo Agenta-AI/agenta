@@ -54,6 +54,13 @@ const render = async (
             }),
         )
     })
+    // The drawer mounts its body two frames after it opens.
+    await act(
+        () =>
+            new Promise<void>((resolve) =>
+                requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+            ),
+    )
     return onChange
 }
 
@@ -102,30 +109,30 @@ afterEach(async () => {
 })
 
 describe("a tool with no rule of its own", () => {
-    it("says what it inherits, rather than showing a bare value", async () => {
+    it("says it follows the agent policy, rather than showing a bare value", async () => {
         // Without this the row reads as unrestricted, which is the opposite of the truth.
         await render({tool_permissions: {echo: "allow"}})
 
-        expect(selectFor("Permission for wipe")?.textContent).toContain("Inherits ask")
+        expect(selectFor("Permission for wipe")?.textContent).toContain("Follow agent policy")
     })
 
-    it("says Ask for an unnamed tool even when the server permission is allow", async () => {
+    it("never reads Allow for an unnamed tool when the server permission is allow", async () => {
         // The discriminating shape: a per-tool table BESIDE a server permission. The runner's gate
         // never consults the whole-server permission once a table is declared — a human decides for
-        // anything the table does not name — so a server set to allow must still read Ask here, or
-        // the label promises a tool will run unapproved when the run will stop and ask (D88).
+        // anything the table does not name — so a server set to allow must not make the row read
+        // Allow, or the row promises a tool will run unapproved when the run will ask (D88).
         await render({tool_permissions: {echo: "allow"}, permission: "allow"})
 
-        expect(selectFor("Permission for wipe")?.textContent).toContain("Inherits ask")
-        expect(selectFor("Permission for wipe")?.textContent).not.toContain("Inherits allow")
+        expect(selectFor("Permission for wipe")?.textContent).toContain("Follow agent policy")
+        expect(selectFor("Permission for wipe")?.textContent).not.toContain("Allow")
     })
 
-    it("names the server permission while no table is declared", async () => {
-        // With nothing per-tool written, the whole-server permission really is what an unnamed
-        // tool gets, and the row has to say so rather than repeating the floor.
+    it("reads the same with a server permission and no table", async () => {
+        // With nothing per-tool written, the row names no value of its own, so it does not borrow
+        // the whole-server permission.
         await render({permission: "allow"})
 
-        expect(selectFor("Permission for echo")?.textContent).toContain("Inherits allow")
+        expect(selectFor("Permission for echo")?.textContent).toContain("Follow agent policy")
     })
 })
 
@@ -260,13 +267,52 @@ describe("when the server has not been authorized", () => {
 })
 
 describe("when the tool list cannot be read", () => {
-    it("says so in the gateway's own words, and offers to try again", async () => {
-        listMcpTools.mockRejectedValue(new McpProtocolError("The server did not answer."))
+    it("shows a plain sentence and offers to try again when nothing answered", async () => {
+        listMcpTools.mockRejectedValue(
+            new McpProtocolError("The server did not answer tools/list."),
+        )
         const onChange = await render({tool_permissions: {echo: "allow"}})
 
-        expect(text()).toContain("The server did not answer.")
+        expect(text()).toContain("The tool list could not be read.")
+        expect(text()).not.toContain("tools/list")
         expect(button("Retry tools")).toBeDefined()
         expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it("tells a person who has no access so, with no retry, and logs the real error", async () => {
+        const refusal = new McpProtocolError(
+            "Denied use_mcp_endpoints on custom/acme",
+            "policy_denied",
+            403,
+        )
+        const logged = vi.spyOn(console, "error").mockImplementation(() => undefined)
+        listMcpTools.mockRejectedValue(refusal)
+        await render({tool_permissions: {echo: "allow"}})
+
+        expect(text()).toContain("You do not have access to this server's tools.")
+        expect(text()).not.toContain("use_mcp_endpoints")
+        expect(text()).not.toContain("custom/acme")
+        expect(button("Retry tools")).toBeUndefined()
+        expect(logged).toHaveBeenCalledWith(expect.any(String), refusal)
+        logged.mockRestore()
+    })
+
+    it.each([
+        ["a server fault", new McpProtocolError("Bad gateway at 10.0.0.1", null, 502), true],
+        ["the chosen server failing", new McpProtocolError("boom", "upstream_error", 424), true],
+        ["a rate limit", new McpProtocolError("slow down", null, 429), true],
+        ["a connection turned off", new McpProtocolError("off", "endpoint_inactive", 403), false],
+        ["a missing secret", new McpProtocolError("no KEY", "secret_missing", 409), false],
+        ["a deleted connection", new McpProtocolError("gone", "endpoint_not_found", 404), false],
+    ])("reads plainly on %s, and offers Retry only where it can help", async (_, error, retry) => {
+        const logged = vi.spyOn(console, "error").mockImplementation(() => undefined)
+        listMcpTools.mockRejectedValue(error)
+        await render({tool_permissions: {echo: "allow"}})
+
+        expect(text()).toContain("The tool list could not be read.")
+        expect(text()).not.toContain(error.message)
+        expect(Boolean(button("Retry tools"))).toBe(retry)
+        logged.mockRestore()
     })
 
     it("says something readable when the failure carries no sentence at all", async () => {

@@ -37,10 +37,13 @@ from ..connections import (
     ConnectionResolutionError,
     EndpointResolutionError,
     Endpoint,
+    ConnectionAccessDeniedError,
     GatewayConnectionRefusedError,
+    is_access_refusal,
     InvalidConnectionConfigurationError,
     MissingCredentialError,
     MissingProviderError,
+    OrganizationConnectionUnavailableError,
     ModelRef,
     ProviderMismatchError,
     ResolvedConnection,
@@ -60,9 +63,8 @@ log = get_module_logger(__name__)
 # Canonical map lives in capabilities.py; this alias keeps the local name callers already use.
 _PROVIDER_ENV_VARS: Dict[str, str] = PROVIDER_ENV_VARS
 
-# The slug of the Agenta-funded starter-credits connection. It is the one connection whose
-# model list the user does not choose: Agenta seeds it, and Agenta re-points it when the
-# funded model is cut over. The same literal is `STARTER_CREDITS_SLUG` on the API side.
+# The slug of the retired Agenta-funded starter-credits connection. A record under it was
+# Agenta's, not the user's own custom provider, so its spans keep public-list pricing.
 STARTER_CREDITS_SLUG = "starter-credits"
 
 # The Claude harness selects a model by a bare alias (``haiku``/``sonnet``/``opus`` + ``[1m]``)
@@ -115,7 +117,9 @@ def infer_provider_from(model: ModelRef) -> Optional[str]:
     bare = (model.model or "").strip().lower()
     if not bare:
         return None
-    if bare in _CLAUDE_ALIASES or bare.startswith("claude-"):
+    # A saved ``opus[1m]`` (or ``sonnet[1m]``, ``fable[1m]``) names the tier with a context hint.
+    # The alias list no longer carries it, but it is still Anthropic.
+    if bare.removesuffix("[1m]") in _CLAUDE_ALIASES or bare.startswith("claude-"):
         return "anthropic"
     return _CATALOG_PROVIDER_INDEX.get(bare)
 
@@ -335,8 +339,7 @@ class _ConnectionCandidate:
     # True when value_status says a credential exists but this caller's
     # credential received the redacted, value-less shape.
     write_only_redacted: bool = False
-    # True when the vault says Agenta manages this row rather than the user. Only a managed
-    # row's model list is Agenta's to re-point, so only a managed row may be substituted.
+    # True when the vault says Agenta manages this row rather than the user.
     managed: bool = False
 
     def matches_provider(self, provider: Optional[str]) -> bool:
@@ -395,8 +398,8 @@ class _ConnectionCandidate:
             # otherwise reach the upstream stale, having matched nothing this connection has.
             if stripped in self.model_slugs:
                 return stripped
-            return self._funded_starter_credits_model(model) or stripped
-        return self._funded_starter_credits_model(model) or model.model
+            return stripped
+        return model.model
 
     def serves_custom_connection(self) -> bool:
         """Whether spans served by this record skip public-list pricing.
@@ -405,35 +408,6 @@ class _ConnectionCandidate:
         starter-credits connection) serves a public model at a public price, so it does not.
         """
         return self.kind == "custom_provider" and not self.managed
-
-    def _funded_starter_credits_model(self, model: ModelRef) -> Optional[str]:
-        """The funded model, when a saved id names one this connection no longer offers.
-
-        The Agenta-funded starter-credits connection routes to a proxy that serves exactly one
-        model, and that model gets cut over. A revision saved before a cutover still names the
-        old id, so every turn fails upstream with an invalid-model error even though the
-        connection is healthy. The connection itself states what is funded now, so run that and
-        say so in the log.
-
-        Deliberately narrow. It applies to this one connection, only while Agenta manages it,
-        only when it offers exactly one model, and only after every match above missed. A user
-        may save their own connection under this slug, and their model list is theirs. Every
-        other connection keeps failing upstream, which is correct: silently running a model the
-        user did not pick would misreport what ran.
-        """
-        if self.slug != STARTER_CREDITS_SLUG or not self.managed:
-            return None
-        if len(self.model_slugs) != 1:
-            return None
-
-        funded = next(iter(self.model_slugs))
-        log.warning(
-            "starter credits: the saved model is not funded any more; using the funded one",
-            saved_model=model.model,
-            funded_model=funded,
-            slug=self.slug,
-        )
-        return funded
 
     def resolved_provider(self, model: ModelRef) -> str:
         if model.provider:
@@ -658,6 +632,12 @@ _SUBSCRIPTION_RUNS: Dict[str, _SubscriptionRun] = {
 }
 
 
+def subscription_runs_on(provider: str, harness: str) -> bool:
+    """Whether a subscription login of ``provider`` can drive ``harness``."""
+    run = _SUBSCRIPTION_RUNS.get(provider)
+    return run is not None and run.harness == harness
+
+
 @dataclass
 class _SubscriptionCandidate:
     """One ``subscription_provider`` vault record, as the resolver reads it."""
@@ -710,8 +690,14 @@ def _resolve_subscription(
     model: ModelRef,
     slug: str,
     harness: Optional[str] = None,
+    organization: bool = False,
 ) -> ResolvedConnection:
     """Resolve a ``self_managed`` connection that names a hosted subscription secret.
+
+    With ``organization``, ``secrets`` holds the one organization login the API released
+    for this run (M5). It resolves exactly like a project login. The only difference is
+    the owner: a ChatGPT login travels as ``organizationSubscription``, so its refreshes
+    go to the organization row and a runner older than M5 refuses it.
 
     A ChatGPT login stays ``runtime_provided``: the harness authenticates itself with the
     login Agenta delivers as the ``subscription`` block, and refreshes it during the turn. A
@@ -735,7 +721,7 @@ def _resolve_subscription(
     # The pair is checked before the login state: signing in again would not help a run
     # that cannot consume the credential in the first place.
     run = _SUBSCRIPTION_RUNS.get(chosen.provider)
-    if run is None or harness != run.harness:
+    if not subscription_runs_on(chosen.provider, harness):
         raise SubscriptionNotSupportedError(
             harness=harness,
             provider=chosen.provider,
@@ -775,6 +761,7 @@ def _resolve_subscription(
             version=chosen.version,
             generation=chosen.generation,
             login=chosen.login,
+            owner="organization" if organization else "project",
         ),
     )
 
@@ -901,7 +888,17 @@ def _resolve_from_secrets(
     if inferred:
         model = model.model_copy(update={"provider": inferred})
     if connection.mode == "self_managed":
+        if connection.account_source == "user":
+            # The run person's own subscription login. No flow stores one yet, so it is
+            # a missing model (Needs setup), and it never falls back to the login of the
+            # runner operator.
+            raise SubscriptionConnectionMissingError(slug="")
         subscription_slug = _stripped(connection.slug)
+        if connection.is_organization:
+            # The rows here are the project's; an organization login is released by its own
+            # route (`VaultConnectionResolver`), and a project login with the same slug never
+            # stands in for it.
+            raise OrganizationConnectionUnavailableError(slug=subscription_slug or "")
         if subscription_slug:
             # A named self-managed connection is a hosted subscription: Agenta stores the
             # login and delivers it. An unnamed one is the operator mount on the runner.
@@ -924,6 +921,11 @@ def _resolve_from_secrets(
         )
     if connection.mode != "agenta":
         raise UnsupportedConnectionModeError(mode=str(connection.mode))
+    if connection.is_organization:
+        # The vault rows here are the project's, in plaintext. An organization connection
+        # is served only through the LLM gateway, and a project row with the same slug
+        # never stands in for it.
+        raise OrganizationConnectionUnavailableError(slug=connection.slug or "")
 
     candidates = _catalog(secrets)
     slug = _stripped(connection.slug)
@@ -1069,6 +1071,54 @@ class VaultConnectionResolver:
         except GatewayCredentialsError as exc:
             raise ConnectionResolutionError(str(exc)) from exc
 
+    async def _resolve_organization_subscription(
+        self,
+        *,
+        api_base: str,
+        authorization: Optional[str],
+        model: ModelRef,
+        slug: str,
+        context: RuntimeAuthContext,
+    ) -> ResolvedConnection:
+        """An organization subscription login the agent named (M5).
+
+        The API releases it to the run's own credential only, on the organization scope of
+        the secret read; the plaintext vault list never carries organization rows."""
+        try:
+            async with httpx.AsyncClient(timeout=self._connection.timeout) as client:
+                response = await client.get(
+                    f"{api_base}/secrets/{slug}?scope=organization",
+                    headers=self._connection.headers(authorization=authorization),
+                )
+        except Exception as exc:  # pylint: disable=broad-except
+            log.warning("agent: organization subscription fetch failed", exc_info=True)
+            raise ConnectionResolutionError(
+                "connection resolution request failed"
+            ) from exc
+
+        if response.status_code == 404:
+            raise SubscriptionConnectionMissingError(slug=slug)
+        if response.status_code >= 400:
+            try:
+                body = response.json()
+            except Exception:  # pylint: disable=broad-except
+                body = None
+            if is_access_refusal(status_code=response.status_code, body=body):
+                raise ConnectionAccessDeniedError.from_response(
+                    status_code=response.status_code, body=body
+                )
+            raise ConnectionResolutionError(
+                f"organization subscription fetch returned HTTP {response.status_code}"
+            )
+
+        return _resolve_subscription(
+            secrets=[response.json() or {}],
+            model=model,
+            slug=slug,
+            harness=context.harness,
+            organization=True,
+        )
+
     async def _resolve_from_vault(
         self,
         *,
@@ -1104,6 +1154,14 @@ class VaultConnectionResolver:
 
         if response.status_code >= 400:
             log.warning("agent: vault secrets fetch HTTP %s", response.status_code)
+            try:
+                body = response.json()
+            except Exception:  # pylint: disable=broad-except
+                body = None
+            if is_access_refusal(status_code=response.status_code, body=body):
+                raise ConnectionAccessDeniedError.from_response(
+                    status_code=response.status_code, body=body
+                )
             raise ConnectionResolutionError(
                 f"connection resolution failed (HTTP {response.status_code})"
             )
@@ -1143,6 +1201,14 @@ class VaultConnectionResolver:
                 raise ConnectionResolutionError(
                     "no Agenta backend configured for connection resolution"
                 )
+            if model.connection.is_organization:
+                return await self._resolve_organization_subscription(
+                    api_base=api_base,
+                    authorization=self._connection.authorization(),
+                    model=model,
+                    slug=slug,
+                    context=context,
+                )
             return await self._resolve_from_vault(
                 api_base=api_base,
                 authorization=self._connection.authorization(),
@@ -1160,18 +1226,23 @@ class VaultConnectionResolver:
         # field, so they cannot diverge across the two reads (the same precedent as the
         # gateway tool resolver's ToolCallback).
         authorization = self._connection.authorization()
+        body = {
+            "model": model.model,
+            "provider_key": model.provider,
+            "connection_slug": model.connection.slug,
+            "connection_namespace": model.connection.namespace,
+        }
+        # Sent only when the agent names a scope, so the request of an agent saved before M5
+        # is byte for byte what it was.
+        if model.connection.scope is not None:
+            body["connection_scope"] = model.connection.scope
 
         try:
             async with httpx.AsyncClient(timeout=self._connection.timeout) as client:
                 response = await client.post(
                     f"{api_base}/gateways/llms/resolve",
                     headers=self._connection.headers(authorization=authorization),
-                    json={
-                        "model": model.model,
-                        "provider_key": model.provider,
-                        "connection_slug": model.connection.slug,
-                        "connection_namespace": model.connection.namespace,
-                    },
+                    json=body,
                 )
         except Exception as exc:  # pylint: disable=broad-except
             log.warning(
@@ -1193,6 +1264,13 @@ class VaultConnectionResolver:
                 body = response.json()
             except Exception:  # pylint: disable=broad-except
                 body = None
+            if isinstance(body, dict) and isinstance(body.get("detail"), dict):
+                if body["detail"].get("code") == "access_denied":
+                    # The run's credential was refused (gateway credential mint):
+                    # one 403 with the reason, not a connection refusal.
+                    raise ConnectionAccessDeniedError.from_response(
+                        status_code=response.status_code, body=body
+                    )
             refusal = GatewayConnectionRefusedError.from_response(
                 status_code=response.status_code,
                 body=body,
@@ -1202,6 +1280,11 @@ class VaultConnectionResolver:
                 # connection of the same slug that the customer pays for instead.
                 if model.connection.namespace == "builtin":
                     raise refusal
+                # An organization connection has no plaintext path at all (M5).
+                if model.connection.is_organization:
+                    raise OrganizationConnectionUnavailableError(
+                        slug=model.connection.slug or ""
+                    )
                 return await self._resolve_from_vault(
                     api_base=api_base,
                     authorization=authorization,
@@ -1265,7 +1348,16 @@ class VaultConnectionResolver:
             # The gateway names the namespace from the record kind (`gateway_target`):
             # `custom` is a custom-provider record, `standard` a provider key. The response
             # carries no management flag, so the Agenta-funded record is known by its slug.
-            custom_connection=namespace == "custom" and name != STARTER_CREDITS_SLUG,
+            custom_connection=(
+                resolved.get("custom_provider") is True
+                if namespace == "organization"
+                else namespace == "custom" and name != STARTER_CREDITS_SLUG
+            ),
+            # An older API sends no `protocol`; any other value is passed on for the runner
+            # to judge, which ignores one it does not know.
+            protocol=resolved.get("protocol")
+            if isinstance(resolved.get("protocol"), str)
+            else None,
         )
 
 

@@ -1,5 +1,8 @@
 import {memo, useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiStatusCatalog from "@agenta/i18n/catalogs/ui.status"
+
 import {JSON_HIGHLIGHT_CLASS} from "./constants"
 import {getPrettyJsonEntries, safeJsonStringify, truncateContent} from "./utils"
 
@@ -33,6 +36,7 @@ const JsonCellContent = memo(
         truncate = true,
         pretty = false,
     }: JsonCellContentProps) => {
+        const t = useT(uiStatusCatalog)
         const prettyEntries = useMemo(
             () => (pretty ? getPrettyJsonEntries(value) : null),
             [pretty, value],
@@ -58,8 +62,9 @@ const JsonCellContent = memo(
                     ))}
                     {truncate && prettyEntries.length > visibleEntries.length && (
                         <span className="italic">
-                            +{prettyEntries.length - visibleEntries.length} more field
-                            {prettyEntries.length - visibleEntries.length > 1 ? "s" : ""}
+                            {t("ui.status.moreFields", {
+                                count: prettyEntries.length - visibleEntries.length,
+                            })}
                         </span>
                     )}
                 </div>

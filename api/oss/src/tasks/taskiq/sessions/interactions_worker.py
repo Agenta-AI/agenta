@@ -1,5 +1,4 @@
 from typing import Any
-from uuid import UUID
 
 from taskiq import AsyncBroker, Context, TaskiqDepends
 
@@ -59,11 +58,14 @@ class InteractionsWorker:
                 f"attempt={retry_count}/{INTERACTION_MAX_RETRIES}"
             )
 
-            await self.dispatcher.respond(
-                project_id=UUID(project_id),
-                user_id=UUID(user_id),
-                interaction_id=UUID(interaction_id),
-                answer=answer,
+            # The payload carries no trusted approver, and an approver is never
+            # rebuilt from a user id (M2). Nothing enqueues this task today; a message
+            # still in the queue at the deploy is dropped and the approval stays
+            # parked, so the user answers it again.
+            log.warning(
+                "[TASK] interactions.respond dropped: no trusted approver",
+                interaction_id=interaction_id,
+                project_id=project_id,
             )
 
         self.respond_interaction = respond_interaction

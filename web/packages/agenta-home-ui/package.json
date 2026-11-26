@@ -15,6 +15,7 @@
         ".": "./src/index.ts"
     },
     "dependencies": {
+        "@agenta/i18n": "workspace:../agenta-i18n",
         "@agenta/chat": "workspace:../agenta-chat",
         "@agenta/entities": "workspace:../agenta-entities",
         "@agenta/entity-ui": "workspace:../agenta-entity-ui",
@@ -38,7 +39,7 @@
         "@types/node": "^20.19.20",
         "@types/react": "^19.0.10",
         "jotai": "^2.15.0",
-        "next": "15.5.27",
+        "next": "15.5.29",
         "react": "^19.0.0",
         "typescript": "^5.9.3"
     }

@@ -28,6 +28,7 @@ from oss.src.core.tools.platform_handlers import (
 from oss.src.core.workflows.change_set import ChangeSetError, Reason
 from oss.src.core.workflows.service import RevisionConflictError
 from oss.src.core.access.permissions.types import Permission
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 VARIANT = uuid4()
@@ -51,6 +52,8 @@ def _service(**over):
     service = SimpleNamespace()
     service.read_workflow_revision_config = AsyncMock()
     service.commit_workflow_revision_checked = AsyncMock()
+    # The commit takes its agent from the bound variant.
+    service.fetch_workflow_variant = AsyncMock(return_value=None)
     for key, value in over.items():
         setattr(service, key, value)
     return service
@@ -155,6 +158,29 @@ class TestFailuresComeBackAsTheEnvelope:
         assert result.content.code == Reason.TARGET_NOT_FOUND
         assert result.content.retryable is False
         assert result.content.next_step
+
+    async def test_an_unrunnable_configuration_names_the_field(self):
+        from oss.src.core.workflows.types import InvalidAgentConfigurationError
+
+        service = _service()
+        service.commit_workflow_revision_checked.side_effect = (
+            InvalidAgentConfigurationError(
+                issues=["parameters.agent.skills[0].body is required"]
+            )
+        )
+
+        result = await handle_commit_revision(
+            arguments=_commit_args(),
+            project_id=uuid4(),
+            user_id=uuid4(),
+            workflows_service=service,
+        )
+
+        assert result.ok is False
+        assert result.content.code == "invalid_agent_configuration"
+        assert result.content.details["issues"] == [
+            "parameters.agent.skills[0].body is required"
+        ]
 
     async def test_a_moved_head_carries_the_current_revision_in_details(self):
         service = _service()
@@ -440,7 +466,7 @@ class TestTheBoundaryActuallyPerformsTheSideEffects:
     """
 
     @staticmethod
-    async def _call(committed_revision):
+    async def _call(committed_revision, committed_other_agent_revision=False):
         from types import SimpleNamespace
         from unittest.mock import patch
 
@@ -455,6 +481,7 @@ class TestTheBoundaryActuallyPerformsTheSideEffects:
 
         emitted, invalidated = [], []
         router = ToolsRouter(
+            run_admission=NoopRunAdmission(),
             tools_service=SimpleNamespace(),
             workflows_service=SimpleNamespace(),
             tracing_service=SimpleNamespace(),
@@ -468,7 +495,9 @@ class TestTheBoundaryActuallyPerformsTheSideEffects:
             headers={},
         )
         result = PlatformHandlerResult(
-            content={"status": "x"}, committed_revision=committed_revision
+            content={"status": "x"},
+            committed_revision=committed_revision,
+            committed_other_agent_revision=committed_other_agent_revision,
         )
         with (
             patch.object(
@@ -509,6 +538,15 @@ class TestTheBoundaryActuallyPerformsTheSideEffects:
 
         assert invalidated, "the warm session kept a stale configuration"
         assert emitted and emitted[0]["name"] == "committed-revision"
+
+    async def test_another_agents_write_clears_the_caches_and_announces_nothing(self):
+        # `edit_agent_config` and `create_agent`: the caller did not commit itself.
+        invalidated, emitted = await self._call(
+            None, committed_other_agent_revision=True
+        )
+
+        assert invalidated
+        assert not emitted
 
     async def test_no_change_does_neither(self):
         invalidated, emitted = await self._call(None)

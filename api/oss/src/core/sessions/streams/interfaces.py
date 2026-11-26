@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Any, List, Optional
 from uuid import UUID
 
+from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.sessions.streams.dtos import (
     SessionNameSource,
     SessionStream,
@@ -14,6 +15,7 @@ from oss.src.core.sessions.streams.dtos import (
 )
 from oss.src.core.sessions.types import SessionReference, SessionTriggerAttribution
 from oss.src.core.shared.dtos import Windowing
+from oss.src.core.sharing.dtos import AccessPolicy, SessionReadScope
 
 
 class SessionStreamsDAOInterface(ABC):
@@ -36,7 +38,11 @@ class SessionStreamsDAOInterface(ABC):
         project_id: UUID,
         user_id: UUID,
         stream: SessionStreamCreate,
-    ) -> SessionStream: ...
+        grants_from_session_id: Optional[str] = None,
+    ) -> SessionStream:
+        """Insert the row. With `grants_from_session_id`, the same transaction gives the
+        row that session's grants, and fails (`SharingConflict`) when that session's
+        policy is no longer `stream.access`."""
 
     @abstractmethod
     async def get_by_session_id(
@@ -52,6 +58,7 @@ class SessionStreamsDAOInterface(ABC):
         *,
         project_id: UUID,
         session_id: str,
+        transaction: Optional[Any] = None,
     ) -> Optional[SessionStream]: ...
 
     @abstractmethod
@@ -67,6 +74,7 @@ class SessionStreamsDAOInterface(ABC):
         self,
         *,
         project_id: UUID,
+        read_scope: SessionReadScope,
         filter: SessionStreamQuery,
         windowing: Optional[Windowing] = None,
         session_ids: Optional[List[str]] = None,
@@ -79,6 +87,7 @@ class SessionStreamsDAOInterface(ABC):
         self,
         *,
         project_id: UUID,
+        read_scope: SessionReadScope,
         filter: SessionStreamQuery,
         session_ids: Optional[List[str]] = None,
         exclude_session_ids: Optional[List[str]] = None,
@@ -190,8 +199,15 @@ class TriggerSessionClaimsDAOInterface(ABC):
         event_id: str,
         session_id: str,
         attribution: SessionTriggerAttribution,
+        access: AccessPolicy,
+        envelope: Optional[RunEnvelope],
     ) -> bool:
-        """Atomically claim one trigger delivery and attribute its session."""
+        """Atomically claim one trigger delivery and attribute its session.
+
+        The session origin comes from `session_origin_tags(envelope, attribution)`;
+        `envelope` is the fire's run, None for a fire refused before it was built. A
+        new session row carries `access`; an existing row keeps its policy (the
+        conflict arm merges only the attribution tags)."""
         ...
 
     @abstractmethod

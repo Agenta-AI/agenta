@@ -13,6 +13,8 @@ function log(msg: string): void {
   process.stderr.write(`[sessions/auth] ${msg}\n`);
 }
 
+export const DEFAULT_CREDENTIAL_REFRESH_TIMEOUT_MS = 30_000;
+
 /**
  * Exchange a still-valid credential for a fresh one via `/access/permissions/check`.
  * Returns the new `Authorization` value, or null on failure (caller keeps the old one).
@@ -20,10 +22,17 @@ function log(msg: string): void {
 export async function refreshCredential(
   apiBase: string,
   authorization: string,
+  timeoutMs: number = DEFAULT_CREDENTIAL_REFRESH_TIMEOUT_MS,
 ): Promise<string | null> {
+  // The fetch signal also aborts `res.json()`, so a stalled body cannot hold the lease.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const url = `${apiBase}/access/permissions/check?action=run_service&resource_type=service`;
-    const res = await fetch(url, { headers: { authorization } });
+    const res = await fetch(url, {
+      headers: { authorization },
+      signal: controller.signal,
+    });
     if (!res.ok) {
       log(`refresh HTTP ${res.status}`);
       return null;
@@ -35,6 +44,8 @@ export async function refreshCredential(
       `refresh failed: ${String(err instanceof Error ? err.message : err).slice(0, 120)}`,
     );
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -60,8 +71,16 @@ export const DEFAULT_PLATFORM_CREDENTIAL_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
 export interface PlatformCredentialLease {
   credential: () => string;
+  /** The credential the lease started from. */
+  seed: string;
   release: () => void;
 }
+
+/** The read side of a lease, as long-turn consumers receive it. */
+export type PlatformCredentialSource = Pick<
+  PlatformCredentialLease,
+  "credential" | "seed"
+>;
 
 /**
  * Keep one Agenta platform credential fresh for the lifetime of a runner-owned operation.
@@ -87,7 +106,7 @@ export function startPlatformCredentialLease(
     options.intervalMs ?? DEFAULT_PLATFORM_CREDENTIAL_REFRESH_INTERVAL_MS;
 
   if (!credential) {
-    return { credential: () => credential, release: () => {} };
+    return { credential: () => credential, seed: authorization, release: () => {} };
   }
 
   const interval = setInterval(() => {
@@ -110,6 +129,7 @@ export function startPlatformCredentialLease(
 
   return {
     credential: () => credential,
+    seed: authorization,
     release: () => {
       released = true;
       clearInterval(interval);

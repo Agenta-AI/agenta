@@ -58,6 +58,7 @@ import {
 import type { SessionEnvironment } from "../../src/engines/sandbox_agent.ts";
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import { turnLogUnmoved } from "../utils/turn-log.ts";
+import { driveSigns } from "../utils/drive-sign.ts";
 import {
   ABANDONED_ATTEMPT_REASON,
   SubscriptionLoginAttempts,
@@ -355,6 +356,7 @@ function engineStoppedByCancel(cancelSettled: boolean): {
       return { ok: true, output: "partial", stopReason: "cancelled", cancelSettled };
     },
     readLatestTurnIndex: turnLogUnmoved,
+    signDrive: driveSigns,
     async runCold() {
       throw new Error("a scoped session never takes the unpooled cold path");
     },
@@ -715,6 +717,34 @@ describe("teardown at the end of the shutdown", () => {
     }
     assert.deepEqual(inFlightSweeps, ["shutdown-in-flight"]);
     assert.equal(teardownDisposition("shutdown-in-flight"), "delete");
+  });
+});
+
+describe("pending Secret cleanups at shutdown", () => {
+  it("runs them after the pool and in-flight sweeps", async () => {
+    const order: string[] = [];
+    await tearDownHeldSandboxes(
+      [],
+      async () => {
+        order.push("in-flight");
+      },
+      async () => {},
+      async () => {
+        order.push("secret-cleanups");
+      },
+    );
+    assert.deepEqual(order, ["in-flight", "secret-cleanups"]);
+  });
+
+  it("does not let a failed flush fail the teardown", async () => {
+    await tearDownHeldSandboxes(
+      [],
+      async () => {},
+      async () => {},
+      async () => {
+        throw new Error("daytona unavailable");
+      },
+    );
   });
 });
 

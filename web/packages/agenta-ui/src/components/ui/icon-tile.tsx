@@ -8,9 +8,12 @@ import {cn} from "./utils"
  * IconTile — the rounded square that leads a server row, a sheet header or an empty state.
  *
  * `info` is the identity tile (a tinted fill with the glyph in the info foreground); `muted` is
- * the empty-state tile. The spec draws the fill with `--info`, the system's info FOREGROUND, and
- * a white glyph on top; this uses `--info-bg` with an `--info` glyph, which is the same reading
- * in both themes and keeps the system's own foreground/fill convention.
+ * the empty-state tile; `neutral` is the identity tile of a skill (`SkillMark`) and of an MCP server
+ * with no name; `solid` is a white glyph on a fill the caller sets (a named MCP server).
+ *
+ * The spec draws the `info` fill with `--info`, the system's info FOREGROUND, and a white glyph
+ * on top; this uses `--info-bg` with an `--info` glyph, which is the same reading in both themes
+ * and keeps the system's own foreground/fill convention.
  *
  * Radius is off the control scale on purpose: the spec's 5 / 6 / 10 px do not exist as tokens and
  * `rounded-md` is 6 px on /w and 8 px on /m, so a token here would render two different tiles.
@@ -29,6 +32,8 @@ const iconTileVariants = cva(
             tone: {
                 info: "bg-colorInfoBg text-colorInfo",
                 muted: "bg-colorFillTertiary text-colorTextTertiary",
+                neutral: "bg-colorFillSecondary text-colorTextSecondary",
+                solid: "text-white",
             },
         },
         defaultVariants: {size: 28, tone: "info"},
@@ -36,7 +41,7 @@ const iconTileVariants = cva(
 )
 
 export type IconTileSize = 24 | 28 | 32 | 44
-export type IconTileTone = "info" | "muted"
+export type IconTileTone = "info" | "muted" | "neutral" | "solid"
 
 export interface IconTileProps
     extends

@@ -36,6 +36,9 @@
 
 import {useState, useEffect, useCallback} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+
 import {Input} from "../../ui/input"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
 
@@ -72,14 +75,17 @@ export interface EditableTextProps {
 export function EditableText({
     value,
     onChange,
-    placeholder = "Enter value...",
+    placeholder: placeholderProp,
     className = "",
-    tooltip = "Click to edit",
+    tooltip: tooltipProp,
     onEditingChange,
     allowEmpty = false,
     inputWidth = "w-32",
     monospace = true,
 }: EditableTextProps) {
+    const t = useT(uiControlsCatalog)
+    const placeholder = placeholderProp ?? t("ui.controls.enterValue")
+    const tooltip = tooltipProp ?? t("ui.controls.clickToEdit")
     const [isEditing, setIsEditing] = useState(false)
     const [editValue, setEditValue] = useState(value)
 

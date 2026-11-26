@@ -33,6 +33,7 @@ process environment, or the working directory of another run.
 | An HTTP MCP server's credential or header | No, by default. The sandbox holds a placeholder. |
 | A model credential a provider SDK signs with locally | Yes. Today that means the AWS access keys behind Bedrock and the Google service account credentials behind Vertex AI. |
 | The run's own working directory | Yes, mounted from the durable store. |
+| The drives its configuration lists | Yes, mounted from the durable store, when the run's person or key may use each drive. The storage credentials for each drive reach only that drive, and only allow reads for a drive with `"read"` access. |
 | The runner's Daytona API key | No. It stays on the runner. |
 | The runner's other environment variables | No. |
 | A mounted personal subscription login | No. It never leaves the runner container. |
@@ -45,8 +46,11 @@ placeholder. This needs a Daytona API key that may manage Secrets, and it can be
 
 ### What Daytona runs share with each other
 
-Nothing. Each run gets its own sandbox, so one user's agent cannot see another user's agent, its
-files, or its model key. Sandboxes are reused across the turns of one session only.
+Nothing by default. Each run gets its own sandbox, so one user's agent cannot see another user's
+agent, its files, or its model key. Sandboxes are reused across the turns of one session only. A
+drive that two agents list is the exception: both sandboxes mount the same files, because the
+configuration asks for it. Sandbox isolation does not stop access to a drive the configuration
+lists.
 
 ### When to use it
 

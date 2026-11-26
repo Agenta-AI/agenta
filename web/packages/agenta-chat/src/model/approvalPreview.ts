@@ -41,10 +41,10 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
  * name. Nested objects are skipped rather than stringified — a row of JSON is exactly what this
  * card exists to remove, and no row at all is more honest than one saying `{…}`.
  */
-const genericItems = (input: unknown): ApprovalPreviewItem[] => {
+const genericItems = (input: unknown, homeSlug: string | null): ApprovalPreviewItem[] => {
     if (typeof input === "string" && input.trim()) return [{title: "Input", detail: oneLine(input)}]
     if (!isRecord(input)) return []
-    const items = readableFieldRows(input, {resolvePaths: true})
+    const items = readableFieldRows(input, {resolvePaths: true, homeSlug})
     if (items.length) return items
     // Nothing structured was readable — fall back to the payload's single primary field, if it
     // has one (a bash gate is its command, not a bag of arguments).
@@ -69,7 +69,11 @@ const GENERIC_FILE_ARTICLES = new Set(["a", "an", "the"])
 
 /** "Reading a file" + `notes/a.md` → "reading notes/a.md" (#6349).
  * Singular only: a many-file tool's path is the SCOPE it searches, so naming it would misstate it. */
-const namedFileActivity = (activity: string, input: unknown): string | undefined => {
+const namedFileActivity = (
+    activity: string,
+    input: unknown,
+    homeSlug: string | null,
+): string | undefined => {
     // Split on words rather than matching `/^(.*?)\s+(?:an?|the)\s+file$/`: a lazy prefix
     // followed by `\s+` can end anywhere inside a whitespace run, so an activity that is mostly
     // spaces backtracks quadratically (CodeQL js/polynomial-redos). Splitting is linear and the
@@ -82,45 +86,58 @@ const namedFileActivity = (activity: string, input: unknown): string | undefined
     const prefix = words.slice(0, -2).join(" ")
     if (!prefix) return undefined
     const path = pathArgument(input)
-    return path ? `${prefix} ${fileTarget(path)}` : undefined
+    return path ? `${prefix} ${fileTarget(path, homeSlug)}` : undefined
 }
 
 /**
  * The preview for any tool without a describer: the humanized activity as the sentence, and the
  * payload's readable arguments as rows.
  */
-const genericPreview = (approval: PendingApproval): ApprovalPreview => {
+const genericPreview = (approval: PendingApproval, homeSlug: string | null): ApprovalPreview => {
     const display = resolveToolDisplay(approval.toolName, approval.input)
     const source = display.source ? ` from ${display.source}` : ""
     const running =
         display.kind === "file"
-            ? (namedFileActivity(display.activity.running, approval.input) ??
+            ? (namedFileActivity(display.activity.running, approval.input, homeSlug) ??
               display.activity.running)
             : display.activity.running
     return {
         sentence: asSentence(
             `The agent wants your approval before ${inSentence(running)}${source}`,
         ),
-        items: genericItems(approval.input),
+        items: genericItems(approval.input, homeSlug),
     }
 }
 
 /** The plain-English copy for one gate. Never throws: a describer that fails falls back.
- * `appName` answers late, so the card resolves twice — same shape as `resolveToolDisplay`. */
-export const describeApproval = (approval: PendingApproval, appName?: string): ApprovalPreview => {
+ * `appName` answers late, so the card resolves twice — same shape as `resolveToolDisplay`.
+ * `homeSlug` names the home drive, whose files show under `agent-files/`. `agentName` is the
+ * name of the agent that the preview's `agentRef` names, once the card has looked it up. */
+export const describeApproval = (
+    approval: PendingApproval,
+    appName?: string,
+    homeSlug: string | null = null,
+    agentName?: string,
+): ApprovalPreview => {
     // Canonical for the lookup: the same platform tool must resolve under every harness, so a
     // `mcp__agenta-tools__commit_revision` gate gets the commit describer too.
     const name = canonicalToolName(approval.toolName)
     const describer = resolveApprovalDescriber(name) ?? BUILTIN_APPROVAL_DESCRIBERS[name]
     if (describer) {
         try {
-            const preview = describer(approval.input, approval.manifest, appName)
+            const preview = describer(
+                approval.input,
+                approval.manifest,
+                appName,
+                approval.changePreview,
+                agentName,
+            )
             if (preview) return preview
         } catch {
             // A describer that cannot read its own payload must not take the card down with it.
         }
     }
-    return genericPreview(approval)
+    return genericPreview(approval, homeSlug)
 }
 
 /**
@@ -128,11 +145,39 @@ export const describeApproval = (approval: PendingApproval, appName?: string): A
  * "Approve all" an informed click now that the batch peek is gone: the same toggle that shows a
  * single gate's changes shows the whole batch's actions.
  */
-export const describeBatchItems = (approvals: PendingApproval[]): ApprovalPreviewItem[] =>
+export const describeBatchItems = (
+    approvals: PendingApproval[],
+    homeSlug: string | null = null,
+    agentNames: Record<string, string | undefined> = {},
+): ApprovalPreviewItem[] =>
     approvals.map((approval) => {
+        const preview = describeApproval(approval, undefined, homeSlug)
+        // A call that names an agent (`start_session`): its own sentence names its own agent.
+        if (preview.agentRef) {
+            const named = describeApproval(
+                approval,
+                undefined,
+                homeSlug,
+                agentNames[preview.agentRef],
+            )
+            return {title: named.sentence, detail: named.items[0]?.detail}
+        }
         const display = resolveToolDisplay(approval.toolName, approval.input)
         return {
             title: display.activity.running || display.label,
-            detail: describeApproval(approval).items[0]?.detail,
+            detail: preview.items[0]?.detail,
         }
     })
+
+/** The agent refs of a batch's calls, for the card to look the agents up by name. */
+export const batchAgentRefs = (
+    approvals: PendingApproval[],
+    homeSlug: string | null = null,
+): string[] => [
+    ...new Set(
+        approvals.flatMap((approval) => {
+            const ref = describeApproval(approval, undefined, homeSlug).agentRef
+            return ref ? [ref] : []
+        }),
+    ),
+]

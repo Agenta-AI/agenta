@@ -46,6 +46,19 @@ const findCodeMarker = (value: string): {start: number; end: number; code: strin
     return {start: open, end: close + MARKER_CLOSE.length, code: value.slice(codeStart, close)}
 }
 
+interface RefusalBody {
+    detail?: unknown
+    error?: unknown
+}
+
+/** The response body of a refusal: axios keeps it on `response.data`, the generated client on `body`. */
+const refusalBody = (error: unknown): RefusalBody | undefined => {
+    const failure = error as {response?: {data?: RefusalBody}; body?: unknown} | null | undefined
+    if (failure?.response?.data) return failure.response.data
+    const body = failure?.body
+    return body && typeof body === "object" ? (body as RefusalBody) : undefined
+}
+
 /**
  * The refusal's code, wherever the plane that refused happens to state it.
  *
@@ -63,8 +76,7 @@ const findCodeMarker = (value: string): {start: number; end: number; code: strin
 export const gatewayRefusalCode = (error: unknown): string | null => {
     if (error instanceof McpProtocolError) return error.code
 
-    const data = (error as {response?: {data?: {detail?: unknown; error?: unknown}}})?.response
-        ?.data
+    const data = refusalBody(error)
     const detail = data?.detail
     if (detail && typeof detail === "object") {
         const code = (detail as {code?: unknown}).code
@@ -100,8 +112,7 @@ const asText = (value: unknown): string | null => {
 }
 
 export const gatewayRefusalMessage = (error: unknown): string | null => {
-    const data = (error as {response?: {data?: {detail?: unknown; error?: unknown}}})?.response
-        ?.data
+    const data = refusalBody(error)
     const detail = data?.detail
 
     const plain = asText(detail)
@@ -162,7 +173,12 @@ export function isNameTakenRefusal(error: unknown): boolean {
  */
 export const gatewayRefusalStatus = (error: unknown): number | null => {
     if (error instanceof McpProtocolError) return error.status
-    const status = (error as {response?: {status?: unknown}} | null | undefined)?.response?.status
+    // Axios keeps the status on `response.status`, the generated client on `statusCode`.
+    const failure = error as
+        | {response?: {status?: unknown}; statusCode?: unknown}
+        | null
+        | undefined
+    const status = failure?.response?.status ?? failure?.statusCode
     return typeof status === "number" && status > 0 ? status : null
 }
 
@@ -175,9 +191,6 @@ const CREDENTIAL_REFUSED = new Set([401, 403])
 /** The sentence our own middleware answers an unauthorised request with, verbatim. */
 const OUR_UNAUTHORISED = "Unauthorized"
 
-const bodyOf = (error: unknown): unknown =>
-    (error as {response?: {data?: unknown}} | null | undefined)?.response?.data
-
 /**
  * Whether an unauthorised answer is OUR middleware's rather than the chosen server's.
  *
@@ -189,7 +202,7 @@ const bodyOf = (error: unknown): unknown =>
  * with, and the wrapped form carrying a message beside an operation id.
  */
 const isOurUnauthorised = (error: unknown): boolean => {
-    const detail = (bodyOf(error) as {detail?: unknown} | null | undefined)?.detail
+    const detail = refusalBody(error)?.detail
     if (detail === OUR_UNAUTHORISED) return true
     if (detail && typeof detail === "object") {
         const {message, operation_id: operationId} = detail as {

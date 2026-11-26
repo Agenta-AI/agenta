@@ -111,6 +111,7 @@ async def test_a_rename_onto_a_taken_name_is_refused_and_changes_nothing(
 
     with pytest.raises(MCPConnectionNameTakenError):
         await service.edit_endpoint(
+            organization_id=uuid.uuid4(),
             project_id=project_id,
             user_id=user_id,
             endpoint=MCPEndpointEdit(

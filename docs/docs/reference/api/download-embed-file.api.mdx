@@ -1,0 +1,70 @@
+---
+id: download-embed-file
+title: "Download Embed File"
+description: "A session attachment of the caller's thread. The lookup is scoped by"
+sidebar_label: "Download Embed File"
+hide_title: true
+hide_table_of_contents: true
+api: eJzNVcGO20YM/ZUBL9sCA2u76EmnGsmmMdKii8TtxTUCekRbk0gzygy1jSvo3wOOJFuOm70UCeKLJZLzOCTfozpgPETIN/CsROeoirDVUFA0wTZsvYMclipSjNY7hcxoypocK79XXJIyWFUUbqLiMhAWC7UuSVXev28bZaOKxjdUqN3xbyfRQ9BNnAC1il6h81xSmGw3Ue1tRXLaeVZ737piARp8QwHlRqsCcij8P67yWLylekfFWzkBGhoMWBNTkIo6cFgT5DCE2AI0WKmnQS5BQ6APrQ1UQM6hJQ3RlFQj5B3wsZFzkYN1B9DAlisx3AuQWhXQ9/qEPtT0f+D3PtTIkEPbJpQp3Tohf55PSv0a2V5I01OurcDFxrtIURDubm/l75IUb1pjKMZ9W6nXYzD0Gn6+u7uO/QsrW6TZqfsQfAANxjsmxxKLTVNZk9zZuygHutn1myCDZztcpSBGW8mTZarjdUDlzYUX3fGPfSLDZR+koaPFOqYDBei3vZ5sGAIeZ835zQ8XlBLreHiKJL9TjHhIzRhCnuCTNEOtxdvLOJs2NWRyr5Kh12D44wzG796R4RnMM+nlRxaWXMWcebFJvRmuP8ZtzxjnEQ0T+nIrng8j+K9kU8jL9frhClB+Gmri0ouAD8RJsFxCDpkZl0+WtJp1k2T7zHj3SCEmpJh1J7X1mQghZt2ohx40RAqPk/bbUAkwNjbNengtmZuYZxm1C1P5tljggRzjAu0QuBUM0wbLxwSyfFi9ouNLwoIC5JvtPOCNUHQg3WXYaVDY2FckrRuVu2y59MH+OzBp1G85nOoTAfZ+Pv9lupxaPqzgaiXPXaIlNIk6U6bkBv1Z2edqQQPVSUnAhPUvJ48MXno4pLld/LS4FVPjI9foZimejwtYDUvxxbCAL27ZnVX+nXxDxsGIWrKmQpv0nHrUjVTcwETF1KIdyYrMZ1+QCz6Kb77/EyXFOC3prYbSRxbcrtthpD9D1fdi/tBSEJJtNTxisLiTkW86KGyU5wLyPVaRnmjpD69Hbf+ovlTaREQnLHzEqpU30PCejvPvogjkG+Y9d+wbJ56mkjZ9Oam6G71LY6jh2bmrD5PI/7TAfr1fQ99/AkHzJCk=
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Download Embed File"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/channels/embed/{embed_id}/conversations/{thread_id}/files/{file_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+A session attachment of the caller's thread. The lookup is scoped by
+the thread's session, so another session's file is not found.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./download-embed-file.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./download-embed-file.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./download-embed-file.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

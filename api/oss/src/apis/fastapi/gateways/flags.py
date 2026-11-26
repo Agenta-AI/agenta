@@ -17,10 +17,6 @@ class is defined, so the environment variable is read once at import. Setting it
 changes nothing. A test that needs a plane off patches `env.llm_gateway.enabled` or
 `env.mcp_gateway.enabled` directly, which is what every case in
 `test_gateways_plane_flags.py` does; an operator restarts the process (D16).
-
-The LLM plane is also switched per organization, by the `llm-gateway-rollout` PostHog flag
-(`core/rollout/switches.py`). An organization outside the rollout gets the same refusal as a
-plane that is off, so the SDK falls back to the vault for it with no config of its own.
 """
 
 from fastapi import Depends
@@ -30,22 +26,12 @@ from oss.src.core.gateways.types import (
     LLMGatewayDisabledError,
     MCPGatewayDisabledError,
 )
-from oss.src.core.rollout.switches import llm_gateway_enabled_for
-from oss.src.utils.context import get_auth_scope
 from oss.src.utils.env import env
 
 
-async def llm_gateway_serves_caller() -> bool:
-    # The master switch first, so a plane that is off never reads a scope or the rollout.
-    return env.llm_gateway.enabled and await llm_gateway_enabled_for(
-        get_auth_scope().organization_id
-    )
-
-
-async def require_llm_gateway_enabled() -> None:
-    """Router dependency: refuse every LLM gateway route while the plane is off for the
-    caller's organization."""
-    if not await llm_gateway_serves_caller():
+def require_llm_gateway_enabled() -> None:
+    """Router dependency: refuse every LLM gateway route while the plane is off."""
+    if not env.llm_gateway.enabled:
         raise plane_disabled_http_exception(LLMGatewayDisabledError())
 
 

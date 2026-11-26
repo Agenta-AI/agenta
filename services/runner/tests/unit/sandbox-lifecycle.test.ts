@@ -5,10 +5,11 @@
  *
  * Run: pnpm exec vitest run tests/unit/sandbox-lifecycle.test.ts
  */
-import { beforeEach, describe, it } from "vitest";
+import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 
 import { runSandboxAgent } from "../../src/engines/sandbox_agent.ts";
+import { teardown as teardownSandbox } from "../../src/environment/sandbox-lifecycle.ts";
 import type { SandboxAgentDeps } from "../../src/engines/sandbox_agent.ts";
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import { DaytonaReconnectTerminalError } from "../../src/engines/sandbox_agent/daytona-provider.ts";
@@ -16,8 +17,10 @@ import { SessionContinuityStore } from "../../src/engines/sandbox_agent/session-
 import { resetRunnerConfigCache } from "../../src/config/runner-config.ts";
 import {
   markSandboxCreated,
+  recordSandboxDrives,
   resetCreatedSandboxIds,
 } from "../../src/engines/sandbox_agent/created-sandboxes.ts";
+import { driveIdentity } from "../../src/engines/sandbox_agent/session-identity.ts";
 
 // This whole suite drives the remote (Daytona) lifecycle: enable it (with a provisioning
 // credential) on top of the hermetic scrub, then drop the memoized config.
@@ -49,7 +52,10 @@ interface FakeOpts {
 
 function fakeSandbox(sandboxId: string | undefined, opts: FakeOpts = {}) {
   // A stored id is this process's own parked sandbox unless the test says otherwise.
-  if (sandboxId && !opts.foreign) markSandboxCreated(sandboxId);
+  if (sandboxId && !opts.foreign) {
+    markSandboxCreated(sandboxId);
+    recordSandboxDrives(sandboxId, driveIdentity(daytonaRequest));
+  }
   const continuityStore = new SessionContinuityStore();
   const calls = {
     starts: [] as Array<{ sandboxId: string | undefined }>,
@@ -260,6 +266,54 @@ describe("remote sandbox reconnect ladder", () => {
     );
   });
 
+  it("creates fresh when the parked sandbox was set up with other drives, and reconnects for the same ones", async () => {
+    const withDrives = (drives: AgentRunRequest["drives"]) => ({ ...daytonaRequest, drives }) as AgentRunRequest;
+    const both = withDrives([{ slug: "home", access: "read-write" }, { slug: "notes", access: "read" }]);
+    const signed = (async () => ({
+      endpoint: "https://s3.example.com",
+      region: "us-east-1",
+      bucket: "b",
+      prefix: "p",
+      accessKey: "AK",
+      secretKey: "SK",
+    })) as never;
+    const dropped = fakeSandbox("sbx-99");
+    dropped.deps.signMountCredentialsBySlug = signed;
+    dropped.deps.mountStorageRemote = (async () => false) as never;
+    recordSandboxDrives("sbx-99", driveIdentity(both));
+    assert.equal((await runSandboxAgent(withDrives([{ slug: "home", access: "read-write" }]), undefined, undefined, dropped.deps)).ok, true);
+    assert.deepEqual(dropped.calls.starts, [{ sandboxId: undefined }], "a removed drive never reaches a reused sandbox");
+    assert.ok(dropped.calls.logs.some((m) => m.includes("stored sandbox=sbx-99 was set up with other drives")));
+
+    const same = fakeSandbox("sbx-99");
+    recordSandboxDrives("sbx-99", driveIdentity(both));
+    same.deps.signMountCredentialsBySlug = signed;
+    same.deps.mountStorageRemote = (async () => false) as never;
+    await runSandboxAgent(both, undefined, undefined, same.deps);
+    assert.equal(same.calls.starts[0]?.sandboxId, "sbx-99");
+  });
+
+  it("creates fresh when this process does not know the drives a parked sandbox was set up with", async () => {
+    const { calls, deps } = fakeSandbox(undefined);
+    markSandboxCreated("sbx-unknown-drives");
+    deps.readStoredSandboxPointer = (async () => ({ sandboxId: "sbx-unknown-drives" })) as never;
+    assert.equal((await runSandboxAgent(daytonaRequest, undefined, undefined, deps)).ok, true);
+    assert.deepEqual(calls.starts, [{ sandboxId: undefined }]);
+  });
+
+  it("creates fresh when a configured drive could not be signed this turn", async () => {
+    const both = {
+      ...daytonaRequest,
+      drives: [{ slug: "home", access: "read-write" }, { slug: "notes", access: "read" }],
+    } as AgentRunRequest;
+    const { calls, deps } = fakeSandbox("sbx-99");
+    recordSandboxDrives("sbx-99", driveIdentity(both));
+    deps.signMountCredentialsBySlug = (async () => null) as never;
+    assert.equal((await runSandboxAgent(both, undefined, undefined, deps)).ok, true);
+    assert.deepEqual(calls.starts, [{ sandboxId: undefined }], "the parked sandbox may still hold the old mount");
+    assert.ok(calls.logs.some((m) => m.includes("not reused: a drive could not be signed")));
+  });
+
   it("starts fresh (no id) when nothing is recorded", async () => {
     const { calls, deps } = fakeSandbox(undefined);
     await runSandboxAgent(daytonaRequest, undefined, undefined, deps);
@@ -435,5 +489,114 @@ describe("remote sandbox teardown", () => {
     await runSandboxAgent(localRequest, undefined, undefined, deps);
     assert.equal(calls.paused, 0, "local runs are never parked");
     assert.equal(calls.destroyed, 1);
+  });
+});
+
+/**
+ * A provider call that never settles used to hang teardown, and teardown is what a failed run
+ * waits on before it can answer its caller. A Codex adapter that accepted `session/new` and never
+ * replied left the local provider's dispose pending, so a run that had already failed on the init
+ * budget reached the client only when the API's watchdog gave up on it.
+ */
+describe("sandbox teardown is bounded, not just rejection-safe", () => {
+  const pending = (): Promise<never> => new Promise<never>(() => {});
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("gives up on a dispose that never settles and finishes teardown", async () => {
+    vi.useFakeTimers();
+    const logs: string[] = [];
+    const teardownPromise = teardownSandbox({
+      sandbox: { sandboxId: "sbx-1", dispose: pending },
+      plannedSandboxId: "sbx-1",
+      isDaytona: false,
+      harness: "codex",
+      reason: "failed-turn",
+      log: (line) => void logs.push(line),
+    });
+    await vi.advanceTimersByTimeAsync(30_000);
+    const { parked } = await teardownPromise;
+    assert.equal(parked, false);
+    assert.ok(
+      logs.some((line) => line.includes("dispose did not finish within 30000ms")),
+      `expected a dispose-timeout line, got: ${logs.join(" | ")}`,
+    );
+  });
+
+  it("gives up on a delete that never settles, then still disposes", async () => {
+    vi.useFakeTimers();
+    const logs: string[] = [];
+    let disposed = 0;
+    const teardownPromise = teardownSandbox({
+      sandbox: {
+        sandboxId: "sbx-2",
+        destroySandbox: pending,
+        dispose: async () => {
+          disposed += 1;
+        },
+      },
+      plannedSandboxId: "sbx-2",
+      isDaytona: true,
+      harness: "codex",
+      reason: "failed-turn",
+      log: (line) => void logs.push(line),
+    });
+    await vi.advanceTimersByTimeAsync(30_000);
+    await teardownPromise;
+    assert.equal(disposed, 1, "a stuck delete must not skip dispose");
+    assert.ok(logs.some((line) => line.includes("delete did not finish within 30000ms")));
+  });
+
+  it("never claims a park it could not confirm", async () => {
+    vi.useFakeTimers();
+    const logs: string[] = [];
+    const teardownPromise = teardownSandbox({
+      sandbox: { sandboxId: "sbx-3", pauseSandbox: pending, dispose: async () => {} },
+      plannedSandboxId: "sbx-3",
+      isDaytona: true,
+      harness: "codex",
+      reason: "clean-resumable",
+      log: (line) => void logs.push(line),
+    });
+    await vi.advanceTimersByTimeAsync(60_000);
+    const { parked } = await teardownPromise;
+    assert.equal(parked, false, "an unconfirmed pause must fall through to delete");
+    assert.ok(logs.some((line) => line.includes("pause did not finish within")));
+  });
+
+  it("still logs, and still completes, when a call rejects fast", async () => {
+    const logs: string[] = [];
+    const { parked } = await teardownSandbox({
+      sandbox: {
+        sandboxId: "sbx-4",
+        destroySandbox: async () => {
+          throw new Error("provider said no");
+        },
+        dispose: async () => {},
+      },
+      plannedSandboxId: "sbx-4",
+      isDaytona: true,
+      harness: "codex",
+      reason: "failed-turn",
+      log: (line) => void logs.push(line),
+    });
+    assert.equal(parked, false);
+    assert.ok(logs.some((line) => line.startsWith("sandbox delete failed sandbox=sbx-4")));
+  });
+
+  it("logs a park only when the pause settled", async () => {
+    const logs: string[] = [];
+    const { parked } = await teardownSandbox({
+      sandbox: { sandboxId: "sbx-5", pauseSandbox: async () => {}, dispose: async () => {} },
+      plannedSandboxId: "sbx-5",
+      isDaytona: true,
+      harness: "codex",
+      reason: "clean-resumable",
+      log: (line) => void logs.push(line),
+    });
+    assert.equal(parked, true);
+    assert.ok(logs.includes("parked sandbox=sbx-5"));
   });
 });

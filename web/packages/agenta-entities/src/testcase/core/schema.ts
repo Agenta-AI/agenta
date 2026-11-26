@@ -301,3 +301,12 @@ export const SYSTEM_FIELDS = new Set([
 export function isSystemField(field: string): boolean {
     return SYSTEM_FIELDS.has(field)
 }
+
+/**
+ * Whether a key inside `testcase.data` is internal and never a user column: a `__` key (such
+ * as `__dedup_id__`) or `testcase_dedup_id`. `SYSTEM_FIELDS` names the fields of the testcase
+ * itself, outside `data`; a user column may use one of those names (`meta`, `tags`, `id`).
+ */
+export function isInternalDataField(key: string): boolean {
+    return key.startsWith("__") || key === "testcase_dedup_id"
+}

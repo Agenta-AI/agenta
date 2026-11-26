@@ -19,4 +19,5 @@ export interface SimpleWorkflow {
     data?: (AgentaApi.SimpleWorkflowDataOutput | null) | undefined;
     variant_id?: (string | null) | undefined;
     revision_id?: (string | null) | undefined;
+    access?: (AgentaApi.AccessPolicy | null) | undefined;
 }

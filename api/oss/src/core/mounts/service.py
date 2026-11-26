@@ -4,7 +4,14 @@ from contextlib import asynccontextmanager
 from collections import deque
 from posixpath import basename
 from re import sub
-from typing import AsyncIterator, TYPE_CHECKING, List, Optional, Protocol, Tuple
+from typing import (
+    AsyncIterator,
+    TYPE_CHECKING,
+    List,
+    Optional,
+    Protocol,
+    Tuple,
+)
 from uuid import UUID, uuid4, uuid5, NAMESPACE_DNS
 
 import pathspec
@@ -28,17 +35,19 @@ from oss.src.core.mounts.dtos import (
     MountFolderCreated,
     MountQuery,
 )
+from oss.src.core.mounts.agent_drives import agent_drive_slug
 from oss.src.core.mounts.interfaces import MountsDAOInterface
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY, AccessPolicy
 from oss.src.core.store.dtos import StoreObject
 from oss.src.core.store.storage import ObjectStore
 from oss.src.core.store.types import StoreObjectTooLarge, StorePreconditionFailed
 from oss.src.core.mounts.types import (
     ATTACHMENTS_MOUNT_NAME,
     ATTACHMENTS_MOUNT_PURPOSE,
+    RESERVED_AGENT_SLUG_PREFIX,
     RESERVED_SLUG_PREFIX,
     SESSION_SLUG_PREFIX,
     MountArtifactIdInvalid,
-    MountArtifactNotFound,
     MountFileNotFound,
     MountFileTooLarge,
     MountImmutableField,
@@ -47,10 +56,12 @@ from oss.src.core.mounts.types import (
     MountPathInvalid,
     MountPreconditionFailed,
     MountProtected,
+    MountSlugConflict,
     MountSlugReserved,
     MountStorageUnavailable,
+    organization_storage_prefix,
 )
-from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.shared.dtos import Windowing
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -110,27 +121,25 @@ def is_protected_mount(mount: Mount) -> bool:
     )
 
 
-def mint_agent_id(*, artifact_id: str) -> str:
-    """Canonicalize an artifact id: UUID-parsed, rendered lowercase.
+def is_organization_keyed(*, mount: Mount, organization_id: UUID) -> bool:
+    """True exactly when the stored prefix is the organization layout of this mount.
 
-    Shared by `mint_agent_slug` (the slug's id segment) and the mount's queryable
-    `agent_id` column, so both derive byte-identically from the same artifact id.
+    A mount for which it is false keeps its files under another scope (the project layout of
+    mounts created by earlier versions); moving such a mount to another project must be refused.
     """
+    return mount.storage_prefix == organization_storage_prefix(
+        organization_id=organization_id,
+        mount_id=mount.id,
+    )
+
+
+def mint_agent_id(*, artifact_id: str) -> str:
+    """Canonicalize an artifact id: UUID-parsed, rendered lowercase, as the `agent_id`
+    column stores it."""
     try:
         return str(UUID(str(artifact_id)))
     except (ValueError, TypeError, AttributeError) as e:
         raise MountArtifactIdInvalid(str(artifact_id)) from e
-
-
-def mint_agent_slug(*, artifact_id: str, name: str) -> str:
-    """Mint the deterministic reserved slug for an artifact mount.
-
-    Artifact IDs are UUID-parsed and rendered lowercase. Sign and query must use
-    this same derivation byte-identically so they address the same mount.
-    """
-    canonical_artifact_id = mint_agent_id(artifact_id=artifact_id)
-    slug_name = slugify_mount_name(name)
-    return f"{RESERVED_SLUG_PREFIX}agent__{canonical_artifact_id}__{slug_name}"
 
 
 def reject_reserved_slug(slug: str) -> None:
@@ -444,19 +453,17 @@ class MountsService:
         self.workflows_service = workflows_service
         self.lock_engine = lock_engine
 
-    def _storage_key(self, *, project_id: UUID, mount: Mount, path: str = "") -> str:
-        """Object-key prefix for a mount: [<namespace>/]mounts/<project_id>/<mount_id>/<path>.
+    def _storage_key(self, *, mount: Mount, path: str = "") -> str:
+        """Object key for a mount: [<namespace>/]<mount.storage_prefix>/<path>.
 
-        The optional namespace is the per-deployment "database" prefix that lets ephemeral
-        environments share one bucket; it is omitted entirely when unset, so a dedicated-bucket
-        deploy keeps the byte-identical `mounts/...` layout (no empty leading segment).
+        The only place that builds a mount key, and only from the row's stored prefix, so a
+        row whose `project_id` changes later keeps its files. With no path, the key is the
+        prefix and one trailing slash. The optional namespace is the per-deployment "database"
+        prefix that lets ephemeral environments share one bucket; it is omitted entirely when
+        unset (no empty leading segment).
         """
         ns = (self.namespace or "").strip("/")
-        base = (
-            f"{ns}/mounts/{project_id}/{mount.id}"
-            if ns
-            else f"mounts/{project_id}/{mount.id}"
-        )
+        base = f"{ns}/{mount.storage_prefix}" if ns else mount.storage_prefix
         return f"{base}/{path.lstrip('/')}" if path else f"{base}/"
 
     async def create_mount(
@@ -497,6 +504,12 @@ class MountsService:
             user_id=user_id,
             #
             mount_create=mount_create,
+            #
+            visibility=(
+                None
+                if mount_create.session_id is not None
+                else OWNERLESS_PROJECT_POLICY
+            ),
         )
 
     async def get_or_create_session_mount(
@@ -526,60 +539,6 @@ class MountsService:
             name=slug_name,
             session_id=session_id,
             purpose=purpose,
-        )
-        return await self.mounts_dao.upsert_mount(
-            project_id=project_id,
-            user_id=user_id,
-            mount_create=mount_create,
-        )
-
-    async def _verify_agent_artifact(
-        self,
-        *,
-        project_id: UUID,
-        artifact_id: str,
-    ) -> None:
-        """The bound artifact must exist in the project; static-catalog ids resolve in code, not the DB."""
-        if self.workflows_service is None:
-            return
-
-        try:
-            artifact_uuid = UUID(str(artifact_id))
-        except (ValueError, TypeError, AttributeError) as e:
-            raise MountArtifactIdInvalid(str(artifact_id)) from e
-
-        static_catalog = self.workflows_service.static_catalog
-        if static_catalog is not None and static_catalog.is_static_id(artifact_uuid):
-            return
-
-        workflow = await self.workflows_service.fetch_workflow(
-            project_id=project_id,
-            workflow_ref=Reference(id=artifact_uuid),
-            include_archived=False,
-        )
-        if workflow is None:
-            raise MountArtifactNotFound(str(artifact_id))
-
-    async def get_or_create_agent_mount(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        artifact_id: str,
-        name: str = "default",
-    ) -> Mount:
-        """Bind idempotently one durable mount for an artifact, keyed by name."""
-        await self._verify_agent_artifact(
-            project_id=project_id,
-            artifact_id=artifact_id,
-        )
-
-        slug_name = slugify_mount_name(name)
-        canonical_artifact_id = mint_agent_id(artifact_id=artifact_id)
-        mount_create = MountCreate(
-            slug=mint_agent_slug(artifact_id=artifact_id, name=name),
-            name=slug_name,
-            agent_id=canonical_artifact_id,
         )
         return await self.mounts_dao.upsert_mount(
             project_id=project_id,
@@ -639,10 +598,11 @@ class MountsService:
         project_id: UUID,
         user_id: UUID,
         workflow_id: UUID,
+        mount: Mount,
         directories: List[str],
         files: List[MountFileSeed],
     ) -> MaterializeEntriesResult:
-        """Create declared agent files once without replacing any existing path.
+        """Create declared agent files once in `mount` without replacing any existing path.
 
         A retry re-lists the mount under the same distributed lock. Objects from
         a partial prior attempt and files edited by the user are preserved.
@@ -688,12 +648,7 @@ class MountsService:
             project_id=project_id,
             workflow_id=workflow_id,
         ):
-            mount = await self.get_or_create_agent_mount(
-                project_id=project_id,
-                user_id=user_id,
-                artifact_id=str(workflow_id),
-            )
-            base = self._storage_key(project_id=project_id, mount=mount)
+            base = self._storage_key(mount=mount)
             objects = await self.mounts_store.list_objects_v2(
                 bucket=self._bucket(),
                 prefix=base,
@@ -721,7 +676,6 @@ class MountsService:
                     continue
                 key = (
                     self._storage_key(
-                        project_id=project_id,
                         mount=mount,
                         path=path,
                     )
@@ -740,7 +694,6 @@ class MountsService:
                     preserved.append(item.path)
                     continue
                 key = self._storage_key(
-                    project_id=project_id,
                     mount=mount,
                     path=item.path,
                 )
@@ -808,7 +761,7 @@ class MountsService:
             mount_id=mount_id,
             allow_protected=True,
         )
-        key = self._storage_key(project_id=project_id, mount=mount, path=path)
+        key = self._storage_key(mount=mount, path=path)
         await self.mounts_store.put_object(
             bucket=self._bucket(),
             key=key,
@@ -831,7 +784,7 @@ class MountsService:
             mount_id=mount_id,
             allow_protected=True,
         )
-        key = self._storage_key(project_id=project_id, mount=mount, path=path)
+        key = self._storage_key(mount=mount, path=path)
         return await self.mounts_store.get_object(bucket=self._bucket(), key=key)
 
     async def delete_attachment_original(
@@ -850,7 +803,7 @@ class MountsService:
             mount_id=mount_id,
             allow_protected=True,
         )
-        key = self._storage_key(project_id=project_id, mount=mount, path=path)
+        key = self._storage_key(mount=mount, path=path)
         await self.mounts_store.delete_keys(bucket=self._bucket(), keys=[key])
 
     async def fetch_mount(
@@ -868,20 +821,95 @@ class MountsService:
             return None
         return mount
 
-    async def fetch_agent_mount(
+    async def fetch_mount_by_slug(
+        self,
+        *,
+        project_id: UUID,
+        slug: str,
+    ) -> Optional[Mount]:
+        """The active drive with this slug, or None. Never a session drive (by its
+        `session_id`, not its slug). A reserved agent slug
+        (`__ag__agent__<artifact id>__...`) resolves by the agent id it holds, so a
+        configuration that names it keeps its drive after release 2 renames the drive."""
+        if slug.startswith(RESERVED_AGENT_SLUG_PREFIX):
+            try:
+                agent_id = mint_agent_id(
+                    artifact_id=slug[len(RESERVED_AGENT_SLUG_PREFIX) :].split("__")[0]
+                )
+            except MountArtifactIdInvalid:
+                return None
+            mount = await self.mounts_dao.fetch_mount_by_agent_id(
+                project_id=project_id, agent_id=agent_id
+            )
+        else:
+            mount = await self.mounts_dao.fetch_mount_by_slug(
+                project_id=project_id,
+                slug=slug,
+            )
+        if mount is None or mount.session_id or is_protected_mount(mount):
+            return None
+        return mount
+
+    async def fetch_agent_drive(
         self,
         *,
         project_id: UUID,
         artifact_id: str,
-        name: str = "default",
     ) -> Optional[Mount]:
-        """Fetch the active artifact mount keyed by name without creating it."""
-        slug = mint_agent_slug(artifact_id=artifact_id, name=name)
-        mount = await self.mounts_dao.fetch_mount_by_slug(
+        """The active drive created with this agent (`agent_id`), or None."""
+        return await self.mounts_dao.fetch_mount_by_agent_id(
             project_id=project_id,
-            slug=slug,
+            agent_id=mint_agent_id(artifact_id=artifact_id),
         )
-        return mount
+
+    async def create_agent_drive(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        artifact_id: str,
+        agent_slug: Optional[str],
+        agent_name: Optional[str],
+        visibility: AccessPolicy,
+        slug: Optional[str] = None,
+    ) -> Mount:
+        """Create the agent's drive with its visibility row, or return the agent's row.
+        The one owner of creating an agent's drive. `slug` is a fixed slug in the
+        reserved namespace, for a static catalog agent; without it the slug comes from
+        the agent's slug, with a suffix on a collision."""
+        agent_id = mint_agent_id(artifact_id=artifact_id)
+        if slug is not None:
+            return await self.mounts_dao.create_agent_mount(
+                project_id=project_id,
+                user_id=user_id,
+                mount_create=MountCreate(
+                    slug=slug,
+                    name=agent_name or slug,
+                    agent_id=agent_id,
+                ),
+                visibility=visibility,
+            )
+        for attempt in range(2):
+            base = agent_drive_slug(agent_slug, ())
+            taken = await self.mounts_dao.list_slugs_with_prefix(
+                project_id=project_id, prefix=base
+            )
+            try:
+                return await self.mounts_dao.create_agent_mount(
+                    project_id=project_id,
+                    user_id=user_id,
+                    mount_create=MountCreate(
+                        slug=agent_drive_slug(agent_slug, set(taken)),
+                        name=agent_name or agent_slug or "Agent files",
+                        agent_id=agent_id,
+                    ),
+                    visibility=visibility,
+                )
+            except MountSlugConflict:
+                # Another drive took the slug between the read and the insert.
+                if attempt == 1:
+                    raise
+        raise MountSlugConflict()
 
     async def edit_mount(
         self,
@@ -971,7 +999,7 @@ class MountsService:
         )
         if self.mounts_store is not None and self.bucket:
             for mount in mounts:
-                prefix = self._storage_key(project_id=project_id, mount=mount)
+                prefix = self._storage_key(mount=mount)
                 await self.mounts_store.delete_prefix(
                     bucket=self.bucket,
                     prefix=prefix,
@@ -1056,26 +1084,29 @@ class MountsService:
         *,
         project_id: UUID,
         mount_id: UUID,
+        read_only: bool = False,
     ) -> MountCredentials:
-        """Mint short-lived, prefix-scoped credentials for one mount.
+        """Mint prefix-scoped credentials for one mount.
 
         The master key signs the STS request API-side and never leaves; the returned
-        key pair + session token are scoped to this mount's prefix and expire in minutes.
+        key pair + session token are scoped to this mount's prefix and expire after
+        `AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS` (12 hours by default, to cover a full run).
         geesefs holds the credentials without refresh, so a turn outliving the TTL hits
-        ExpiredToken.
+        ExpiredToken. `read_only` signs credentials that can read and list but not write.
         """
         if self.mounts_store is None:
             raise MountStorageUnavailable()
 
         mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
         bucket = self._bucket()
-        # `<project_id>/<mount_id>` — the durable prefix, slug-independent (no trailing slash).
-        prefix = self._storage_key(project_id=project_id, mount=mount).rstrip("/")
+        # `[<namespace>/]<storage_prefix>` — the durable prefix, slug-independent (no trailing slash).
+        prefix = self._storage_key(mount=mount).rstrip("/")
 
         creds = await self.mounts_store.sign_temp_credentials(
             bucket=bucket,
             prefix=prefix,
             duration_seconds=env.mounts.credentials_ttl_seconds,
+            read_only=read_only,
         )
         return MountCredentials(
             endpoint=self.mounts_store.endpoint_url,
@@ -1300,13 +1331,11 @@ class MountsService:
         """
         mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
 
-        base = self._storage_key(project_id=project_id, mount=mount).rstrip("/")
+        base = self._storage_key(mount=mount).rstrip("/")
         prefix = base
         if path:
             validate_file_path(path)
-            prefix = self._storage_key(
-                project_id=project_id, mount=mount, path=path
-            ).rstrip("/")
+            prefix = self._storage_key(mount=mount, path=path).rstrip("/")
 
         list_prefix = prefix + "/"
         mount_base = base + "/"
@@ -1587,7 +1616,7 @@ class MountsService:
         validate_file_path(path)
         mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
 
-        key = self._storage_key(project_id=project_id, mount=mount, path=path)
+        key = self._storage_key(mount=mount, path=path)
         return await self.mounts_store.get_object(bucket=self._bucket(), key=key)
 
     async def stat_file(
@@ -1601,7 +1630,7 @@ class MountsService:
         validate_file_path(path)
         mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
 
-        key = self._storage_key(project_id=project_id, mount=mount, path=path)
+        key = self._storage_key(mount=mount, path=path)
         return await self.mounts_store.stat_object(bucket=self._bucket(), key=key)
 
     async def build_archive_work_list(
@@ -1633,7 +1662,7 @@ class MountsService:
             mount = await self._resolve_mount(
                 project_id=project_id, mount_id=source.mount_id
             )
-            mount_base = self._storage_key(project_id=project_id, mount=mount)
+            mount_base = self._storage_key(mount=mount)
             is_session_cwd = _is_session_cwd_mount(mount)
             pfx_segments = _safe_zip_segments(source.archive_prefix)
             src = source.source_path.strip("/")
@@ -1716,18 +1745,18 @@ class MountsService:
         validate_file_path(path)
         mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
 
-        key = self._storage_key(project_id=project_id, mount=mount, path=path)
+        key = self._storage_key(mount=mount, path=path)
         try:
             body, etag = await self.mounts_store.get_object_with_etag(
                 bucket=self._bucket(), key=key, max_bytes=_TEXT_READ_MAX_BYTES
             )
         except StoreObjectTooLarge as e:
             raise MountFileTooLarge(max_bytes=e.max_bytes) from e
-        return MountFileContent(
-            path=path,
-            content=body.decode("utf-8", "replace"),
-            etag=etag,
-        )
+        try:
+            content, is_utf8 = body.decode("utf-8"), True
+        except UnicodeDecodeError:
+            content, is_utf8 = body.decode("utf-8", "replace"), False
+        return MountFileContent(path=path, content=content, etag=etag, is_utf8=is_utf8)
 
     async def write_file(
         self,
@@ -1745,7 +1774,7 @@ class MountsService:
         validate_file_path(path)
         mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
 
-        key = self._storage_key(project_id=project_id, mount=mount, path=path)
+        key = self._storage_key(mount=mount, path=path)
         try:
             result = await self.mounts_store.put_object(
                 bucket=self._bucket(),
@@ -1771,7 +1800,7 @@ class MountsService:
         # Object stores have no directories; a trailing-slash zero-byte marker
         # is the S3 console convention for an explicit empty folder.
         folder = path.strip("/")
-        key = self._storage_key(project_id=project_id, mount=mount, path=folder) + "/"
+        key = self._storage_key(mount=mount, path=folder) + "/"
         await self.mounts_store.put_object(
             bucket=self._bucket(),
             key=key,
@@ -1796,9 +1825,7 @@ class MountsService:
 
         # A file matches one exact key; a folder matches keys under "<path>/".
         # List the folder prefix to avoid `foo` falsely matching `foobar`.
-        exact_key = self._storage_key(
-            project_id=project_id, mount=mount, path=path.rstrip("/")
-        )
+        exact_key = self._storage_key(mount=mount, path=path.rstrip("/"))
         folder_prefix = exact_key + "/"
         bucket = self._bucket()
 

@@ -1,118 +1,77 @@
 import {
     type PointerEvent as ReactPointerEvent,
     type RefObject,
-    useCallback,
     useEffect,
     useLayoutEffect,
+    useMemo,
     useRef,
 } from "react"
 
 import {useAtom} from "jotai"
 
-import {clampSidebarWidth, sidebarWidthAtom} from "./state"
-
-interface DragState {
-    pointerId: number
-    startX: number
-    startWidth: number
-    width: number
-}
+import {createRailMotion} from "./railMotion"
+import {sidebarWidthAtom} from "./state"
 
 interface UseSidebarResizeParams {
     /** The rail element that owns `--ag-sidebar-w`; the drag repaints it directly. */
     railRef: RefObject<HTMLDivElement | null>
-    disabled: boolean
+    /** The rail's content column, faded while a drag collapses or opens the rail. */
+    contentRef: RefObject<HTMLDivElement | null>
+    collapsed: boolean
+    setCollapsed: (collapsed: boolean) => void
 }
 
+const prefersReducedMotion = () =>
+    typeof window !== "undefined" &&
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true
+
 /**
- * Drag-to-resize for the expanded rail. The live width is painted onto the rail's CSS
- * variable inside a rAF, so a drag costs zero React renders; the atom is written once on
- * release.
+ * Drag-to-resize for the expanded rail, drag-to-collapse past its minimum, and drag-to-open from
+ * the icon rail. A drag costs zero React renders until the rail collapses, opens, or settles.
  */
-export const useSidebarResize = ({railRef, disabled}: UseSidebarResizeParams) => {
+export const useSidebarResize = ({
+    railRef,
+    contentRef,
+    collapsed,
+    setCollapsed,
+}: UseSidebarResizeParams) => {
     const [width, setWidth] = useAtom(sidebarWidthAtom)
-    const dragRef = useRef<DragState | null>(null)
-    const frameRef = useRef<number | null>(null)
+    const live = useRef({width, collapsed, setCollapsed})
 
-    const cancelFrame = useCallback(() => {
-        if (frameRef.current === null) return
-        cancelAnimationFrame(frameRef.current)
-        frameRef.current = null
-    }, [])
+    const controller = useMemo(
+        () =>
+            createRailMotion({
+                rail: () => railRef.current,
+                content: () => contentRef.current,
+                readWidth: () => live.current.width,
+                isCollapsed: () => live.current.collapsed,
+                setCollapsed: (next) => live.current.setCollapsed(next),
+                setWidth,
+                prefersReducedMotion,
+            }),
+        [contentRef, railRef, setWidth],
+    )
 
-    useEffect(() => () => cancelFrame(), [cancelFrame])
-
-    // A render mid-drag would repaint the variable from the (stale) atom and snap the rail
-    // back; re-assert the dragged width after every render until release.
+    useEffect(() => controller.dispose, [controller])
     useLayoutEffect(() => {
-        const drag = dragRef.current
-        if (!drag) return
-        railRef.current?.style.setProperty("--ag-sidebar-w", `${drag.width}px`)
+        live.current = {width, collapsed, setCollapsed}
+        controller.sync(collapsed, width)
     })
 
-    const handlePointerDown = useCallback(
-        (event: ReactPointerEvent<HTMLDivElement>) => {
-            if (disabled || event.button !== 0) return
-
-            event.preventDefault()
-            event.currentTarget.setPointerCapture(event.pointerId)
-            dragRef.current = {
-                pointerId: event.pointerId,
-                startX: event.clientX,
-                startWidth: width,
-                width,
-            }
-            railRef.current?.setAttribute("data-resizing", "true")
-            document.body.style.userSelect = "none"
-            document.body.style.cursor = "col-resize"
-        },
-        [disabled, railRef, width],
+    const handleProps = useMemo(
+        () => ({
+            onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) =>
+                controller.pointerDown(event),
+            onPointerMove: (event: ReactPointerEvent<HTMLDivElement>) =>
+                controller.pointerMove(event),
+            onPointerUp: (event: ReactPointerEvent<HTMLDivElement>) => controller.pointerEnd(event),
+            onPointerCancel: (event: ReactPointerEvent<HTMLDivElement>) =>
+                controller.pointerEnd(event),
+            onLostPointerCapture: (event: ReactPointerEvent<HTMLDivElement>) =>
+                controller.pointerEnd(event),
+        }),
+        [controller],
     )
 
-    const handlePointerMove = useCallback(
-        (event: ReactPointerEvent<HTMLDivElement>) => {
-            const drag = dragRef.current
-            if (!drag || drag.pointerId !== event.pointerId) return
-
-            drag.width = clampSidebarWidth(drag.startWidth + (event.clientX - drag.startX))
-            if (frameRef.current !== null) return
-
-            frameRef.current = requestAnimationFrame(() => {
-                frameRef.current = null
-                const current = dragRef.current
-                if (!current) return
-                railRef.current?.style.setProperty("--ag-sidebar-w", `${current.width}px`)
-            })
-        },
-        [railRef],
-    )
-
-    const handlePointerEnd = useCallback(
-        (event: ReactPointerEvent<HTMLDivElement>) => {
-            const drag = dragRef.current
-            if (!drag || drag.pointerId !== event.pointerId) return
-
-            dragRef.current = null
-            cancelFrame()
-            railRef.current?.removeAttribute("data-resizing")
-            document.body.style.removeProperty("user-select")
-            document.body.style.removeProperty("cursor")
-            if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-                event.currentTarget.releasePointerCapture(event.pointerId)
-            }
-            railRef.current?.style.setProperty("--ag-sidebar-w", `${drag.width}px`)
-            setWidth(drag.width)
-        },
-        [cancelFrame, railRef, setWidth],
-    )
-
-    return {
-        width,
-        handleProps: {
-            onPointerDown: handlePointerDown,
-            onPointerMove: handlePointerMove,
-            onPointerUp: handlePointerEnd,
-            onPointerCancel: handlePointerEnd,
-        },
-    }
+    return {width, handleProps}
 }

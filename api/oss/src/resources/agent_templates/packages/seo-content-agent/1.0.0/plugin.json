@@ -1,0 +1,16 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "seo-content-agent",
+  "version": "1.0.0",
+  "description": "An SEO consultant that researches opportunities, develops approved content and learns from results.",
+  "keywords": [
+    "seo",
+    "content",
+    "research"
+  ],
+  "extensions": {
+    "ai.agenta": {
+      "manifest": "./ai.agenta/agents.json"
+    }
+  }
+}

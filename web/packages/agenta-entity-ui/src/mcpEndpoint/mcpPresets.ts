@@ -24,6 +24,8 @@ import {
     toGatewayPermissions,
     type McpServerPolicy,
 } from "@agenta/entities/mcpEndpoint"
+import {createT} from "@agenta/i18n"
+import mcpPermissionsCatalog from "@agenta/i18n/catalogs/entityUi.mcpPermissions"
 
 import type {PermissionPresetOption} from "../DrillInView/SchemaControls/agentTemplate/IntegrationPermissionDrawer"
 import {
@@ -49,17 +51,38 @@ const shared = (value: PermissionPresetValue): {label: string; help: string} => 
  * Its help line states the one fact the absence carries, in the words the group rollups already
  * use for it.
  */
+const tNow = createT(mcpPermissionsCatalog)
+
+/** A shared preset whose words are read when the menu renders, so they follow the language. */
+const sharedOption = (
+    value: PermissionPresetValue,
+    extra?: Pick<PermissionPresetOption, "disabled" | "separatorBefore">,
+): PermissionPresetOption => ({
+    value,
+    ...extra,
+    get label() {
+        return shared(value).label
+    },
+    get help() {
+        return shared(value).help
+    },
+})
+
 export const MCP_PRESETS: PermissionPresetOption[] = [
-    {value: "always_ask", ...shared("always_ask")},
-    {value: "ask_writes", ...shared("ask_writes")},
-    {value: "allow_all", ...shared("allow_all")},
-    {value: "deny_all", ...shared("deny_all")},
+    sharedOption("always_ask"),
+    sharedOption("ask_writes"),
+    sharedOption("allow_all"),
+    sharedOption("deny_all"),
     {
         value: FOLLOW_AGENT_PRESET,
-        label: "Follow agent policy",
-        help: "Follows agent policy for every tool",
+        get label() {
+            return tNow("entityUi.mcpPermissions.followAgentPolicy")
+        },
+        get help() {
+            return tNow("entityUi.mcpPermissions.followAgentPolicyHelp")
+        },
     },
-    {value: "custom", ...shared("custom"), disabled: true, separatorBefore: true},
+    sharedOption("custom", {disabled: true, separatorBefore: true}),
 ]
 
 /** Which preset each governing value reads back as, where no table and no special shape decides. */

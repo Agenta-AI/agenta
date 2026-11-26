@@ -2,6 +2,8 @@ import {useEffect, useLayoutEffect, useCallback, useRef} from "react"
 import * as React from "react"
 import type {JSX} from "react"
 
+import {createT} from "@agenta/i18n"
+import uiEditorCatalog from "@agenta/i18n/catalogs/ui.editor"
 import {$createCodeNode, $isCodeNode} from "@lexical/code"
 import {$convertFromMarkdownString} from "@lexical/markdown"
 import {AutoLinkPlugin, createLinkMatcherWithRegExp} from "@lexical/react/LexicalAutoLinkPlugin"
@@ -24,7 +26,6 @@ import {
     $isRangeSelection,
     $setSelection,
     COMMAND_PRIORITY_HIGH,
-    type ElementNode,
 } from "lexical"
 
 import {markdownViewAtom} from "../../state/assets/atoms"
@@ -39,6 +40,8 @@ import {$convertToMarkdownStringCustom, PLAYGROUND_TRANSFORMERS} from "./assets/
 import {SET_MARKDOWN_VIEW, TOGGLE_MARKDOWN_VIEW} from "./commands"
 import TableCellResizerPlugin from "./TableCellResizerPlugin"
 import {importMarkdownWithHtmlBatches} from "./utils/htmlImport"
+
+const tNow = createT(uiEditorCatalog)
 
 const URL_REGEX =
     /((https?:\/\/(www\.)?)|(www\.))[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&//=]*)(?<![-.+():%])/
@@ -159,10 +162,14 @@ const MarkdownPlugin = ({
                     ? cachedMarkdownSource.value
                     : $convertToMarkdownStringCustom(PLAYGROUND_TRANSFORMERS, undefined, true)
 
+            const focused = editor.getRootElement()?.contains(document.activeElement) ?? false
             const codeNode = $createCodeNode("markdown")
             codeNode.append($createTextNode(markdownSource))
             root.clear().append(codeNode)
-            codeNode.selectStart()
+            // A caret makes an unfocused editor grab focus and scroll into view, as every editor
+            // that mounts in markdown view would; only a focused editor keeps one.
+            if (focused) codeNode.selectStart()
+            else $setSelection(null)
 
             markdownSourceCacheRef.current = {
                 value: markdownSource,
@@ -212,7 +219,7 @@ const MarkdownPlugin = ({
 
             const removeOverlay = showEditorLoadingOverlay(
                 editor,
-                overlayMessage ?? "Switching markdown view…",
+                overlayMessage ?? tNow("ui.editor.switchingMarkdown"),
             )
 
             deferLargePasteUpdate(() => {
@@ -228,7 +235,7 @@ const MarkdownPlugin = ({
         (nextMarkdownView?: boolean) => {
             let shouldRunToggle = false
             let shouldDeferToggle = false
-            let overlayMessage = "Switching markdown view…"
+            let overlayMessage = tNow("ui.editor.switchingMarkdown")
 
             editor.getEditorState().read(() => {
                 const root = $getRoot()
@@ -245,12 +252,12 @@ const MarkdownPlugin = ({
 
                 if (isCurrentlyMarkdown) {
                     shouldDeferToggle = isLargeRichTextDocument(firstChild.getTextContent())
-                    overlayMessage = "Rendering markdown preview…"
+                    overlayMessage = tNow("ui.editor.renderingMarkdown")
                     return
                 }
 
                 shouldDeferToggle = largeDocumentMode || isEditorLargeDocument(editor)
-                overlayMessage = "Switching to markdown source…"
+                overlayMessage = tNow("ui.editor.switchingToSource")
             })
 
             if (!shouldRunToggle) {
@@ -496,24 +503,20 @@ const MarkdownPlugin = ({
     useEffect(() => {
         return editor.registerUpdateListener(({editorState}) => {
             editorState.read(() => {
-                const root = $getRoot()
-                const children = root.getChildren()
-                const markdownCodeNode = children.find(
-                    (node) => $isCodeNode(node) && node.getLanguage() === "markdown",
-                )
-
-                if (!markdownCodeNode) return
-
-                const index = children.indexOf(markdownCodeNode)
-                const trailingNodes = children.slice(index + 1)
+                const [markdownCodeNode, ...trailingNodes] = $getRoot().getChildren()
+                // Source view only: a ```markdown fence inside rich text is an ordinary block.
+                if (
+                    !$isCodeNode(markdownCodeNode) ||
+                    markdownCodeNode.getLanguage() !== "markdown"
+                ) {
+                    return
+                }
 
                 if (trailingNodes.length > 0) {
                     editor.update(() => {
                         for (const node of trailingNodes) {
                             const content = node.getTextContent()
-                            ;(markdownCodeNode as ElementNode).append(
-                                $createTextNode("\n" + content),
-                            )
+                            markdownCodeNode.append($createTextNode("\n" + content))
                             node.remove()
                         }
                     })

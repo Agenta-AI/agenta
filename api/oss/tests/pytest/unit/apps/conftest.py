@@ -71,8 +71,12 @@ class FakeMountsService:
         self.session_calls.append({"project_id": project_id, "session_id": session_id})
         return SimpleNamespace(id=self.session_mount_id)
 
-    async def get_or_create_agent_mount(self, *, project_id, user_id, artifact_id):
+    async def fetch_agent_drive(self, *, project_id, artifact_id):
         self.agent_calls.append({"project_id": project_id, "artifact_id": artifact_id})
+        return SimpleNamespace(id=self.agent_mount_id)
+
+    async def fetch_mount_by_slug(self, *, project_id, slug):
+        self.agent_calls.append({"project_id": project_id, "slug": slug})
         return SimpleNamespace(id=self.agent_mount_id)
 
 

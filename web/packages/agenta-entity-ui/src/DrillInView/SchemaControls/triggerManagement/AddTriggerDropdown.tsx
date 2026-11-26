@@ -1,118 +1,212 @@
-/** The Triggers section header's "+ Trigger" add dropdown. */
-import {type ReactNode, useMemo} from "react"
+/** The Automations region's "Add automation" menu (F05 f2), and its phone form (M10, M11). */
+import {useCallback, useMemo, useRef, useState} from "react"
 
 import {
     triggerScheduleDrawerAtom,
     triggerSubscriptionDrawerAtom,
 } from "@agenta/entities/gatewayTrigger"
-import {Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
-import {Clock, Lightning, Plus, Sparkle} from "@phosphor-icons/react"
-import {useSetAtom} from "jotai"
-
-import {AddItemMenu, type AddItemGroup} from "../../../drawers/shared/AddItemMenu"
+import {createT, textVersionAtom, useT} from "@agenta/i18n"
+import agentOperationsCatalog from "@agenta/i18n/catalogs/entityUi.agentOperations"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
+import triggersCatalog from "@agenta/i18n/catalogs/entityUi.triggers"
+import {composerPrefillRequestAtom} from "@agenta/shared/state"
+import {BuilderIcon} from "@agenta/ui/agent-icon"
+import {BottomSheetMenu, PhonePrimaryAction} from "@agenta/ui/phone"
+import {
+    Button,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@agenta/ui/ui"
+import {Clock, Lightning, Plus} from "@phosphor-icons/react"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAgentTriggers} from "./useAgentTriggers"
 
+const tNow = createT(triggersCatalog)
+
 /**
- * The "+ Trigger" add affordance, rendered in the section header's `extra` slot. A
- * dropdown with: "Create with AI" (disabled placeholder), "App trigger" (opens the
- * catalog), and "Scheduled trigger" (opens the schedule create drawer, default-bound to
- * the current agent). Kept separate from the section body because the accordion renders
- * `extra` outside the section content.
+ * Opens the form of the chosen kind in the host (the panel opens it as a view), with the
+ * references that bind the new automation to this agent. Absent, the form opens in the automation
+ * drawer.
  */
-export function AddTriggerDropdown({
-    entityId,
-    trigger,
-}: {
-    entityId: string | null
-    /** Custom trigger element (e.g. an inline text-link for an empty state). Defaults to a `+`. */
-    trigger?: ReactNode
-}) {
+type OnAddAutomation = (
+    kind: "schedule" | "subscription",
+    references: Record<string, {id?: string; slug?: string}>,
+) => void
+
+/** "App trigger" and "Scheduled trigger", each opening its form with the kind fixed. */
+function useManualAutomationItems(entityId: string | null, onAdd?: OnAddAutomation) {
+    const textVersion = useAtomValue(textVersionAtom)
     const {defaultReferences, defaultBoundLabel} = useAgentTriggers(entityId)
     const openSubscriptionDrawer = useSetAtom(triggerSubscriptionDrawerAtom)
     const openScheduleDrawer = useSetAtom(triggerScheduleDrawerAtom)
 
-    // Shares the tools add-menu's row treatment (AddItemMenu). A trigger is always a NEW trigger of
-    // some kind, so the tools' "add existing / create new" split doesn't apply — one "Add new"
-    // section (kept labelled for visual consistency with the tools popover) lists the trigger types.
-    const groups: AddItemGroup[] = useMemo(
-        () => [
-            {
-                label: "Add new",
-                items: [
-                    {
-                        key: "app",
-                        icon: <Lightning size={17} />,
-                        title: "App trigger",
-                        subtitle: "React to an event from a connected app",
-                        opensDrawer: true,
-                        onSelect: () =>
-                            openSubscriptionDrawer({
-                                defaultReferences,
-                                defaultBoundLabel,
-                                playgroundEntityId: entityId ?? undefined,
-                            }),
-                    },
-                    {
-                        key: "schedule",
-                        icon: <Clock size={17} />,
-                        title: "Scheduled trigger",
-                        subtitle: "Run on a recurring schedule",
-                        opensDrawer: true,
-                        onSelect: () =>
-                            openScheduleDrawer({
-                                defaultReferences,
-                                defaultBoundLabel,
-                                playgroundEntityId: entityId ?? undefined,
-                            }),
-                    },
-                    {
-                        key: "ai",
-                        icon: <Sparkle size={17} />,
-                        title: "Create with AI",
-                        subtitle: "Describe it and let AI set it up",
-                        disabled: true,
-                        disabledHint: "Coming soon",
-                    },
-                ],
-            },
-        ],
-        [
-            openSubscriptionDrawer,
-            openScheduleDrawer,
+    return useMemo(() => {
+        const draft = {
             defaultReferences,
             defaultBoundLabel,
-            entityId,
-        ],
-    )
+            playgroundEntityId: entityId ?? undefined,
+            fixedKind: true,
+        }
+        return [
+            {
+                key: "app",
+                icon: <Lightning size={16} />,
+                title: tNow("entityUi.triggers.appTrigger"),
+                hint: tNow("entityUi.triggers.appTriggerSubtitle"),
+                onSelect: () =>
+                    onAdd
+                        ? onAdd("subscription", defaultReferences)
+                        : openSubscriptionDrawer(draft),
+            },
+            {
+                key: "schedule",
+                icon: <Clock size={16} />,
+                title: tNow("entityUi.triggers.scheduledTrigger"),
+                hint: tNow("entityUi.triggers.scheduledTriggerSubtitle"),
+                onSelect: () =>
+                    onAdd ? onAdd("schedule", defaultReferences) : openScheduleDrawer(draft),
+            },
+        ]
+    }, [
+        defaultBoundLabel,
+        defaultReferences,
+        entityId,
+        onAdd,
+        openScheduleDrawer,
+        openSubscriptionDrawer,
+        textVersion,
+    ])
+}
 
-    // A caller-supplied trigger (the empty-state text link) brings its own affordance.
-    if (trigger) return <AddItemMenu groups={groups} ariaLabel="Add trigger" trigger={trigger} />
+/**
+ * "Add automation" (F05 f2): the bordered button at the top right of the list, and its menu with
+ * "App trigger", "Scheduled trigger" and "Create with AI". The kind is chosen here, so the form it
+ * opens has no switch between the two kinds. A new automation is bound to the open agent.
+ * "Create with AI" puts the starter "I want an automation that" in the composer and sends nothing.
+ */
+export function AddTriggerDropdown({
+    entityId,
+    onAdd,
+}: {
+    entityId: string | null
+    onAdd?: OnAddAutomation
+}) {
+    const t = useT(triggersCatalog, agentOperationsCatalog, configItemsCatalog)
+    const manualItems = useManualAutomationItems(entityId, onAdd)
+    const requestPrefill = useSetAtom(composerPrefillRequestAtom)
+    const starter = t("entityUi.agentOperations.automationStarter")
+    // The menu gives focus back to its button as it closes; after "Create with AI" the composer
+    // keeps it, or the caret the starter just placed is lost.
+    const choseAI = useRef(false)
+    const items = [
+        ...manualItems,
+        {
+            key: "ai",
+            icon: <BuilderIcon size={14} />,
+            title: t("entityUi.configItems.createWithAi"),
+            hint: t("entityUi.triggers.createWithAiSubtitle"),
+            onSelect: () => {
+                choseAI.current = true
+                requestPrefill({id: Date.now(), text: starter})
+            },
+        },
+    ]
 
-    // Tooltip + popover trigger compose by NESTING both `asChild` triggers on the same
-    // button — a Radix Tooltip wrapped AROUND the popover trigger would swallow it
-    // (PopoverTrigger's Slot would clone the Tooltip, not the button).
     return (
-        <TooltipProvider>
-            <Tooltip>
-                <AddItemMenu
-                    groups={groups}
-                    ariaLabel="Add trigger"
-                    trigger={
-                        <TooltipTrigger asChild>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                aria-label="Add trigger"
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                <Plus size={16} />
-                            </Button>
-                        </TooltipTrigger>
-                    }
-                />
-                <TooltipContent>Add trigger</TooltipContent>
-            </Tooltip>
-        </TooltipProvider>
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button type="button" variant="outline" size="compact" className="font-normal">
+                    <Plus size={14} />
+                    {t("entityUi.agentOperations.addAutomation")}
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+                align="end"
+                className="w-[270px]"
+                onCloseAutoFocus={(event) => {
+                    if (!choseAI.current) return
+                    choseAI.current = false
+                    event.preventDefault()
+                }}
+            >
+                {items.map((item) => (
+                    // A plain icon and a hint that wraps to a second line rather than being cut.
+                    <DropdownMenuItem
+                        key={item.key}
+                        onSelect={item.onSelect}
+                        className="items-start gap-2 p-2"
+                    >
+                        <span
+                            aria-hidden
+                            className="mt-0.5 flex shrink-0 text-colorTextSecondary [&_svg]:size-3.5"
+                        >
+                            {item.icon}
+                        </span>
+                        <span className="flex min-w-0 flex-col">
+                            <span className="text-[13px] text-colorText">{item.title}</span>
+                            <span className="text-[12px] leading-4 text-colorTextTertiary">
+                                {item.hint}
+                            </span>
+                        </span>
+                    </DropdownMenuItem>
+                ))}
+            </DropdownMenuContent>
+        </DropdownMenu>
+    )
+}
+
+/**
+ * "Add automation" on a phone (M10, M11): the full-width button at the bottom of the list, and
+ * the bottom sheet with the same three entries and "Cancel". Render it as the last child of the
+ * list's scrolling column.
+ */
+export function AddAutomationPhoneAction({
+    entityId,
+    onAdd,
+}: {
+    entityId: string | null
+    onAdd?: OnAddAutomation
+}) {
+    const t = useT(triggersCatalog, agentOperationsCatalog, configItemsCatalog)
+    const manualItems = useManualAutomationItems(entityId, onAdd)
+    const requestPrefill = useSetAtom(composerPrefillRequestAtom)
+    const [open, setOpen] = useState(false)
+    const starter = t("entityUi.agentOperations.automationStarter")
+    const createWithAI = useCallback(
+        () => requestPrefill({id: Date.now(), text: starter}),
+        [requestPrefill, starter],
+    )
+    const label = t("entityUi.agentOperations.addAutomation")
+
+    return (
+        <>
+            <PhonePrimaryAction icon={<Plus size={14} />} onClick={() => setOpen(true)}>
+                {label}
+            </PhonePrimaryAction>
+            <BottomSheetMenu
+                open={open}
+                onOpenChange={setOpen}
+                title={label}
+                items={[
+                    ...manualItems.map((item) => ({
+                        key: item.key,
+                        icon: item.icon,
+                        label: item.title,
+                        description: item.hint,
+                        onSelect: item.onSelect,
+                    })),
+                    {
+                        key: "ai",
+                        icon: <BuilderIcon size={18} />,
+                        label: t("entityUi.configItems.createWithAi"),
+                        description: t("entityUi.triggers.createWithAiSubtitle"),
+                        onSelect: createWithAI,
+                    },
+                ]}
+            />
+        </>
     )
 }

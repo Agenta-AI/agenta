@@ -1,0 +1,11 @@
+{
+    "copyError": "コピーできませんでした。上のキーを選択してコピーしてください",
+    "copyKey": "キーをコピー",
+    "createError": "キーを作成できませんでした",
+    "deleteBody": "このキーで署名されたリクエストはすぐに使用できなくなります。",
+    "deleteError": "キーを削除できませんでした",
+    "deleteTitle": "API キーを削除",
+    "revealDescription": "一度だけ表示されます。閉じた後は再取得できません。",
+    "revealTitle": "API キーを保存してください",
+    "workspacePending": "ワークスペースを読み込んでいます。しばらくしてからもう一度お試しください。"
+}

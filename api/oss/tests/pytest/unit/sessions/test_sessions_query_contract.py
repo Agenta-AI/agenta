@@ -10,6 +10,7 @@ from sqlalchemy.dialects import postgresql
 
 from oss.src.apis.fastapi.sessions.models import (
     SessionExcludeRequest,
+    SessionCallingSessionRequest,
     SessionPredicatesRequest,
     SessionQueryRequest,
 )
@@ -43,9 +44,10 @@ from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 from oss.src.dbs.postgres.sessions.streams.mappings import (
     SESSION_RESERVED_TAG_KEYS,
     decode_session_attribution,
-    trigger_attribution_tags,
+    session_origin_tags,
 )
 from oss.src.dbs.postgres.shared.utils import apply_windowing
+from oss.tests.pytest.utils.sharing import PROJECT_SESSION_SCOPE
 
 
 def test_nested_only_request_normalizes_by_semantic_role():
@@ -274,6 +276,7 @@ def _compile_stream_query(
     statement = SessionStreamsDAO._apply_filters(
         select(SessionStreamDBE),
         project_id=uuid4(),
+        read_scope=PROJECT_SESSION_SCOPE,
         filter=filter,
         session_ids=session_ids,
         exclude_session_ids=exclude_session_ids,
@@ -431,6 +434,7 @@ async def test_page_and_total_share_one_turn_reference_resolution():
     service, streams = _service([row], turns)
 
     page = await service.query_sessions_page(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=project_id,
         query=SessionQuery(
             turn_references=[SessionReference(id=uuid4())],
@@ -461,7 +465,9 @@ async def test_empty_request_is_origin_neutral():
     ]
     service, streams = _service(rows, _Turns())
 
-    result = await service.query_sessions(project_id=project_id)
+    result = await service.query_sessions(
+        read_scope=PROJECT_SESSION_SCOPE, project_id=project_id
+    )
 
     assert [row.session_id for row in result] == [
         "trigger-session",
@@ -647,7 +653,7 @@ def test_typed_attribution_and_legacy_raw_tags_coexist():
         "ag.trigger.delivery_id": str(delivery_id),
         "team": "support",
     }
-    origin, trigger, delivery = decode_session_attribution(tags)
+    origin, trigger, delivery, _ = decode_session_attribution(tags)
     item = SessionListItem(
         id=uuid4(),
         project_id=uuid4(),
@@ -668,7 +674,7 @@ def test_typed_attribution_and_legacy_raw_tags_coexist():
 
 def test_malformed_trigger_and_delivery_ids_degrade_independently():
     delivery_id = uuid4()
-    origin, trigger, delivery = decode_session_attribution(
+    origin, trigger, delivery, _ = decode_session_attribution(
         {
             "ag.origin": "trigger",
             "ag.trigger.id": "not-a-uuid",
@@ -682,7 +688,7 @@ def test_malformed_trigger_and_delivery_ids_degrade_independently():
     assert delivery.id == delivery_id
 
     trigger_id = uuid4()
-    _, trigger, delivery = decode_session_attribution(
+    _, trigger, delivery, _ = decode_session_attribution(
         {
             "ag.origin": "trigger",
             "ag.trigger.id": str(trigger_id),
@@ -715,14 +721,15 @@ def test_reserved_attribution_tag_sanitizer_strips_the_whole_ag_namespace():
 
     # P1-7: the reserved-key list had already drifted across three hand-copied
     # spots. Pin the writer's output as a subset of the single exported set, so a
-    # future fifth attribution key added to `trigger_attribution_tags` fails here
+    # future fifth attribution key added to `session_origin_tags` fails here
     # instead of silently leaking on every read path.
-    written = trigger_attribution_tags(
+    written = session_origin_tags(
+        None,
         SessionTriggerAttribution(
             configuration_id=uuid4(),
             kind=SessionTriggerKind.schedule,
             delivery_id=uuid4(),
-        )
+        ),
     )
     assert set(written) <= SESSION_RESERVED_TAG_KEYS
 
@@ -740,6 +747,54 @@ def _request(project_id, user_id):
     request.state.project_id = str(project_id)
     request.state.user_id = str(user_id)
     return request
+
+
+async def test_router_passes_the_calling_session_filter_apart_from_session_ids():
+    service = AsyncMock()
+    service.query_sessions_page.return_value = SessionQueryPage()
+    router = SessionsRootRouter(sessions_service=service)
+    agent_id = uuid4()
+    body = SessionQueryRequest(
+        session=SessionPredicatesRequest(
+            origins=[SessionOrigin.calling_session],
+            calling_session=SessionCallingSessionRequest(
+                ids=["builder-b", "builder-a", "builder-a"], agent_ids=[agent_id]
+            ),
+        ),
+        session_ids=["builder-a"],
+    )
+
+    with patch(
+        "oss.src.apis.fastapi.sessions.router.check_action_access",
+        new_callable=AsyncMock,
+        return_value=True,
+    ):
+        await router.query_sessions(request=_request(uuid4(), uuid4()), body=body)
+
+    query = service.query_sessions_page.await_args.kwargs["query"]
+    assert query.calling_session.ids == ["builder-a", "builder-b"]
+    assert query.calling_session.agent_ids == [agent_id]
+    assert query.origins == [SessionOrigin.calling_session]
+    # `session_ids` still selects sessions by their own id.
+    assert query.session_ids == ["builder-a"]
+
+
+def test_an_empty_calling_session_filter_is_no_filter():
+    normalized = normalize_session_query_request(
+        SessionQueryRequest(
+            session=SessionPredicatesRequest(
+                calling_session=SessionCallingSessionRequest()
+            )
+        )
+    )
+    assert normalized.predicates.calling_session is None
+
+
+def test_the_calling_session_filter_refuses_unknown_fields_and_bad_agent_ids():
+    with pytest.raises(ValidationError):
+        SessionCallingSessionRequest(session_ids=["a"])
+    with pytest.raises(ValidationError):
+        SessionCallingSessionRequest(agent_ids=["not-a-uuid"])
 
 
 async def test_router_consumes_nested_fields_and_projection_options():

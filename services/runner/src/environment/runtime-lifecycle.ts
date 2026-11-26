@@ -215,11 +215,12 @@ export function buildRuntimeEnvironment(
   );
   // Apply only the resolved provider keys.
   Object.assign(env, p.credentials.modelEnvironment);
-  // OUR gateway credential, not a provider secret: unlike `modelEnvironment` it never goes
-  // through Daytona Secret hiding (there is no third party to leak it to — it authenticates the
-  // harness to US), so it lands directly in the daemon env. Pi and Codex reference it by
-  // `$AGENTA_GATEWAY_CREDENTIALS_VALUE` indirection from their own config files rather than
-  // writing the raw value to disk; Claude reads it straight into ANTHROPIC_CUSTOM_HEADERS below.
+  // OUR gateway credential, not a provider secret, so it is not part of `modelEnvironment`. It
+  // still spends the run's model budget, so a Daytona run hides it behind a Daytona Secret: the
+  // provider swaps every copy built here for the Secret's placeholder before the sandbox exists
+  // (`swapGatewayCredentials`). Pi and Codex reference it by `$AGENTA_GATEWAY_CREDENTIALS_VALUE`
+  // indirection from their own config files rather than writing the raw value to disk; Claude
+  // reads it straight into ANTHROPIC_CUSTOM_HEADERS below.
   const gatewayCredentials = r.modelConnection?.gatewayCredentials;
   if (gatewayCredentials?.value) {
     env[GATEWAY_CREDENTIALS_VALUE_ENV] = gatewayCredentials.value;

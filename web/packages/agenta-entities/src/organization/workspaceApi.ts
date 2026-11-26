@@ -1,9 +1,20 @@
+import {getAccessClient, getOrganizationsClient} from "@agenta/sdk/resources"
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {getDefaultStore} from "jotai"
+import {z} from "zod"
+
+import {safeParseWithLogging} from "../shared/utils/zodSchema"
 
 import {toSafeIdSegment} from "./idSegments"
-import type {Workspace, WorkspaceMember, WorkspaceRole} from "./types"
+import type {
+    OrganizationDomain,
+    OrganizationProvider,
+    OrganizationProviderSettings,
+    Workspace,
+    WorkspaceMember,
+    WorkspaceRole,
+} from "./types"
 
 /** The scoping project id — the app layer's `getProjectValues()` is unreachable from a package. */
 const getProjectValues = () => ({projectId: getDefaultStore().get(projectIdAtom) ?? ""})
@@ -15,21 +26,45 @@ const getProjectValues = () => ({projectId: getDefaultStore().get(projectIdAtom)
 //  - update: PUT data to server
 //  - delete: DELETE data from server
 
-export const fetchAllWorkspaceRoles = async (ignoreAxiosError = false) => {
-    // Read workspace-scope roles from /access/roles and project to the legacy
-    // `{role_name, role_description}` shape callers expect.
-    const response = await axios.get(`${getAgentaApiUrl()}/access/roles`, {
-        _ignoreError: ignoreAxiosError,
+/** `/access/roles`: the catalog per scope, and the roles this organization may set now. */
+const roleCatalogEntrySchema = z.object({
+    role: z.string(),
+    description: z.string().nullish(),
+    permissions: z.array(z.string()).optional(),
+})
+
+const accessRolesResponseSchema = z.object({
+    project: z.array(roleCatalogEntrySchema),
+    offered: z.object({roles: z.array(z.string()), floor_role: z.string()}),
+})
+
+/**
+ * The roles an invite or a role change may set in this organization, in catalog order.
+ *
+ * The plan decides the list, and it never holds `owner`: ownership moves by transfer only, and
+ * both routes refuse anything the plan does not offer. Each entry keeps the catalog's
+ * description.
+ *
+ * The route answers for the caller's organization, which the request's auth scope names, so the
+ * project rides along: a session with no project is scoped to the default one, which can belong
+ * to another organization.
+ */
+export const fetchOfferedRoles = async (
+    projectId?: string,
+): Promise<Omit<WorkspaceRole, "permissions">[]> => {
+    const raw = await getAccessClient().fetchAccessRoles({
+        queryParams: projectId ? {project_id: projectId} : undefined,
     })
-    const data = response.data as Record<
-        "organization" | "workspace" | "project",
-        {role: string; description?: string | null; permissions: string[]}[]
-    >
-    const workspaceRoles = data?.workspace ?? []
-    return workspaceRoles.map((entry) => ({
-        role_name: entry.role,
-        role_description: entry.description ?? "",
-    })) as Omit<WorkspaceRole, "permissions">[]
+    const data = safeParseWithLogging(accessRolesResponseSchema, raw, "[fetchOfferedRoles]")
+    if (!data) throw new Error("The roles answer did not validate")
+    const offered = new Set(data.offered.roles)
+    // The API offers roles from the project catalog, which the access check reads.
+    return data.project
+        .filter((entry) => offered.has(entry.role))
+        .map((entry) => ({
+            role_name: entry.role,
+            role_description: entry.description ?? "",
+        }))
 }
 
 export const assignWorkspaceRole = async (
@@ -216,4 +251,119 @@ export const fetchWorkspaceMembers = async (
         },
     )
     return response.data as WorkspaceMember[]
+}
+
+// ============================================================================
+// Organization access: domains, SSO providers and the immutable slug.
+// ============================================================================
+// These are the Fern-backed equivalents of the legacy axios calls in `api.ts`.
+// The names stay in one object so they do not collide with the existing exports.
+
+const organizationsClient = () => getOrganizationsClient()
+
+export const organizationAccessApi = {
+    fetchOrganizationDomains: async (projectId: string): Promise<OrganizationDomain[]> =>
+        (await organizationsClient().listOrganizationDomains({
+            queryParams: {project_id: projectId},
+        })) as unknown as OrganizationDomain[],
+
+    createOrganizationDomain: async (
+        projectId: string,
+        payload: {domain: string; name?: string; description?: string},
+    ): Promise<OrganizationDomain> =>
+        (await organizationsClient().createOrganizationDomain(payload, {
+            queryParams: {project_id: projectId},
+        })) as unknown as OrganizationDomain,
+
+    verifyOrganizationDomain: async (
+        projectId: string,
+        domainId: string,
+    ): Promise<OrganizationDomain> =>
+        (await organizationsClient().verifyOrganizationDomain(
+            {domain_id: domainId},
+            {queryParams: {project_id: projectId}},
+        )) as unknown as OrganizationDomain,
+
+    refreshOrganizationDomainToken: async (
+        projectId: string,
+        domainId: string,
+    ): Promise<OrganizationDomain> =>
+        (await organizationsClient().refreshOrganizationDomainToken(
+            {domain_id: domainId},
+            {queryParams: {project_id: projectId}},
+        )) as unknown as OrganizationDomain,
+
+    deleteOrganizationDomain: async (projectId: string, domainId: string): Promise<void> => {
+        await organizationsClient().deleteOrganizationDomain(
+            {domain_id: domainId},
+            {queryParams: {project_id: projectId}},
+        )
+    },
+
+    fetchOrganizationProviders: async (projectId: string): Promise<OrganizationProvider[]> =>
+        (await organizationsClient().listOrganizationProviders({
+            queryParams: {project_id: projectId},
+        })) as unknown as OrganizationProvider[],
+
+    createOrganizationProvider: async (
+        projectId: string,
+        payload: {
+            slug: string
+            name?: string
+            description?: string
+            flags?: Record<string, boolean>
+            settings: OrganizationProviderSettings
+        },
+    ): Promise<OrganizationProvider> => {
+        const {settings, ...rest} = payload
+        return (await organizationsClient().createOrganizationProvider(
+            {...rest, settings: {...settings} as Record<string, unknown>},
+            {queryParams: {project_id: projectId}},
+        )) as unknown as OrganizationProvider
+    },
+
+    updateOrganizationProvider: async (
+        projectId: string,
+        providerId: string,
+        payload: {
+            slug?: string
+            name?: string
+            description?: string
+            settings?: OrganizationProviderSettings
+            flags?: Record<string, boolean>
+        },
+    ): Promise<OrganizationProvider> => {
+        const {settings, ...rest} = payload
+        return (await organizationsClient().updateOrganizationProvider(
+            {
+                provider_id: providerId,
+                ...rest,
+                ...(settings ? {settings: {...settings} as Record<string, unknown>} : {}),
+            },
+            {queryParams: {project_id: projectId}},
+        )) as unknown as OrganizationProvider
+    },
+
+    testOrganizationProvider: async (
+        projectId: string,
+        providerId: string,
+    ): Promise<OrganizationProvider> =>
+        (await organizationsClient().testOrganizationProvider(
+            {provider_id: providerId},
+            {queryParams: {project_id: projectId}},
+        )) as unknown as OrganizationProvider,
+
+    deleteOrganizationProvider: async (projectId: string, providerId: string): Promise<void> => {
+        await organizationsClient().deleteOrganizationProvider(
+            {provider_id: providerId},
+            {queryParams: {project_id: projectId}},
+        )
+    },
+
+    updateOrganizationSlug: async (organizationId: string, slug: string): Promise<void> => {
+        await organizationsClient().patchOrganization({
+            organization_id: organizationId,
+            body: {slug},
+        })
+    },
 }

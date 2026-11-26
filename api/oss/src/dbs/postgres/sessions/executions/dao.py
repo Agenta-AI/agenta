@@ -190,6 +190,7 @@ class SessionExecutionsDAO(SessionExecutionsDAOInterface):
         settled_by: str,
         settled_at: Optional[datetime] = None,
         transaction: Optional[Any] = None,
+        defer_to_stop: bool = False,
     ) -> SessionExecutionSettlementResult:
         settled_at = settled_at or datetime.now(timezone.utc)
 
@@ -200,7 +201,9 @@ class SessionExecutionsDAO(SessionExecutionsDAOInterface):
                 execution_id=execution_id,
                 transaction=session,
             )
-            if stored.terminal_outcome is not None:
+            if stored.terminal_outcome is not None or (
+                defer_to_stop and stored.state == SessionExecutionState.stopping
+            ):
                 return SessionExecutionSettlementResult(settlement=stored, won=False)
             row = (
                 await session.execute(
@@ -225,6 +228,25 @@ class SessionExecutionsDAO(SessionExecutionsDAOInterface):
             return await execute(transaction)
         async with self.engine.session() as session:
             return await execute(session)
+
+    async def query_session_executions(
+        self,
+        *,
+        project_id: UUID,
+        session_ids: Sequence[str],
+    ) -> List[SessionExecutionSettlement]:
+        if not session_ids:
+            return []
+        async with self.engine.session() as session:
+            rows = (
+                await session.execute(
+                    select(SessionExecutionDBE).where(
+                        SessionExecutionDBE.project_id == project_id,
+                        SessionExecutionDBE.session_id.in_(sorted(set(session_ids))),
+                    )
+                )
+            ).scalars()
+            return [_to_dto(row) for row in rows]
 
     async def query_settled(
         self,

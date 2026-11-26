@@ -19,8 +19,6 @@ taking `real_resolver_offload`.
 
 import pytest
 
-from oss.src.apis.fastapi.gateways import flags
-from oss.src.apis.fastapi.gateways.llms import proxy as llm_proxy
 from oss.src.core.gateways import egress
 from oss.src.core.gateways.mcps.oauth import registration
 from oss.src.utils.env import env
@@ -113,15 +111,33 @@ def _llm_gateway_plane_on(monkeypatch):
     per test and so is unaffected by this default.
 
     The MCP plane needs no equivalent: its switch ships on.
-
-    The per-organization rollout is replaced by the master switch alone: these suites patch
-    the auth scope per router module, and the rollout itself is covered in
-    `test_gateways_rollout_switches.py`.
     """
     monkeypatch.setattr(env.llm_gateway, "enabled", True)
 
-    async def _master_switch_only() -> bool:
-        return env.llm_gateway.enabled
 
-    monkeypatch.setattr(flags, "llm_gateway_serves_caller", _master_switch_only)
-    monkeypatch.setattr(llm_proxy, "llm_gateway_serves_caller", _master_switch_only)
+@pytest.fixture(autouse=True)
+def _eligible_gateway_principal(monkeypatch):
+    """`POST /gateways/credentials` checks the request principal's eligibility. These
+    suites mount the router without the auth middleware that sets the request access,
+    so every exchange here runs as an eligible principal. The eligibility refusal
+    itself is asserted in `test_gateway_credentials_envelope.py`, which overrides both."""
+
+    from oss.src.apis.fastapi.gateways import credentials_router
+    from oss.src.core.access.context import get_request_access
+    from oss.tests.pytest.utils.principals import (
+        AllowingAccessService,
+        make_envelope,
+        make_request_access,
+    )
+
+    fallback = make_request_access(
+        envelope=make_envelope(), credential_kind="bearer_session"
+    )
+    monkeypatch.setattr(
+        credentials_router,
+        "get_request_access",
+        lambda: get_request_access() or fallback,
+    )
+    monkeypatch.setattr(
+        credentials_router, "get_access_service", lambda: AllowingAccessService()
+    )

@@ -152,3 +152,16 @@ def test_mcp_wire_schema_separates_public_headers_and_credentials():
         WireMcpServer.model_validate(
             {"name": "legacy", "transport": "stdio", "env": {"TOKEN": "secret"}}
         )
+
+
+def test_session_turn_id_rides_as_its_own_wire_key():
+    request = WireRunRequest.model_validate(
+        {"turnId": "resume-1", "sessionTurnId": "turn-start"}
+    )
+    assert request.turn_id == "resume-1"
+    assert request.session_turn_id == "turn-start"
+    dumped = request.model_dump(by_alias=True, exclude_none=True)
+    assert dumped["sessionTurnId"] == "turn-start"
+
+    without = WireRunRequest.model_validate({"turnId": "turn-1"})
+    assert "sessionTurnId" not in without.model_dump(by_alias=True, exclude_none=True)

@@ -1,58 +1,38 @@
 import {useMemo} from "react"
 
-import {fetchSingleOrg} from "@agenta/entities/organization"
-import {useQuery} from "@tanstack/react-query"
-
-import {useCurrentProject} from "../context/useCurrentProject"
+import {sharingMemberRosterQueryAtom, type ProjectMemberProfile} from "@agenta/entities/sharing"
+import {useAtomValue} from "jotai"
 
 export interface AgentOwner {
     id: string
     name: string
 }
 
+/** The roster's people by name, the way the roster's rows and the Owner facet both need them. */
+export const agentOwnersOf = (members: readonly ProjectMemberProfile[]) => {
+    const owners: AgentOwner[] = []
+    const ownerNames = new Map<string, string>()
+    for (const member of members) {
+        const id = member.user_id ? String(member.user_id) : ""
+        if (!id) continue
+        // Everyone by their own name, the reader included: "You" among named colleagues
+        // makes one column say two different kinds of thing.
+        const name = (member.name || member.email || "").trim()
+        if (!name) continue
+        ownerNames.set(id, name)
+        owners.push({id, name})
+    }
+    owners.sort((a, b) => a.name.localeCompare(b.name))
+    return {owners, ownerNames}
+}
+
 /**
- * Who can have created an agent — the org's member roster, named the way the roster's rows and
- * the Created by facet both need it.
- *
- * The roster lives on the org's default workspace, not behind a members endpoint, and the
- * settings screen already reads it under this exact key: arriving here from Settings costs no
- * request, and the two surfaces cannot disagree about a name.
+ * Who can own an agent: the PROJECT's members, every page of them. An owner id the roster does
+ * not hold is a former member, so the organization's roster is the wrong source: someone removed
+ * from this project can still be in the organization.
  */
-export const useAgentOwners = ({
-    workspaceId,
-    projectId,
-}: {
-    workspaceId: string
-    projectId: string
-}) => {
-    const project = useCurrentProject(workspaceId, projectId)
-    const organizationId = project?.organization_id ?? null
-
-    const org = useQuery({
-        queryKey: ["selectedOrg", organizationId],
-        queryFn: () => fetchSingleOrg({organizationId: organizationId!}),
-        enabled: Boolean(organizationId),
-        staleTime: 60_000,
-    })
-
-    return useMemo(() => {
-        const members = org.data?.default_workspace?.members ?? []
-        const owners: AgentOwner[] = []
-        const ownerNames = new Map<string, string>()
-
-        for (const member of members) {
-            const id = member.user?.id ? String(member.user.id) : ""
-            if (!id) continue
-            // Everyone by their own name, the reader included: "You" among named colleagues
-            // makes one column say two different kinds of thing.
-            const name = (member.user.username || member.user.email || "").trim()
-            if (!name) continue
-            ownerNames.set(id, name)
-            owners.push({id, name})
-        }
-
-        owners.sort((a, b) => a.name.localeCompare(b.name))
-
-        return {owners, ownerNames}
-    }, [org.data])
+export const useAgentOwners = () => {
+    // Project-scoped through the bound project atom, which both list screens bind.
+    const roster = useAtomValue(sharingMemberRosterQueryAtom)
+    return useMemo(() => agentOwnersOf(roster.data ?? []), [roster.data])
 }

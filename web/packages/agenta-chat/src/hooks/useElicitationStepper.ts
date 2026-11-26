@@ -14,6 +14,8 @@
  */
 import {useCallback, useEffect, useMemo, useReducer, useRef} from "react"
 
+import {createT} from "@agenta/i18n"
+import chatElicitationCatalog from "@agenta/i18n/catalogs/chat.elicitation"
 import {
     collectStepContent,
     initialStepValues,
@@ -261,6 +263,8 @@ export interface ElicitationStepperState {
     discardDraft: () => void
 }
 
+const tNow = createT(chatElicitationCatalog)
+
 /** `Next` until the last question, `Review` into the summary, `Send answers` to settle. */
 const primaryLabelFor = ({
     index,
@@ -273,9 +277,9 @@ const primaryLabelFor = ({
     hasReview: boolean
     total: number
 }): string => {
-    if (index >= lastIndex) return "Send answers"
-    if (hasReview && index === total - 1) return "Review"
-    return "Next"
+    if (index >= lastIndex) return tNow("chat.elicitation.sendAnswers")
+    if (hasReview && index === total - 1) return tNow("chat.elicitation.review")
+    return tNow("chat.elicitation.next")
 }
 
 export interface UseElicitationStepperArgs {

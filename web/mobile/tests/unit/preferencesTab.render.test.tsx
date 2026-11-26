@@ -43,12 +43,9 @@ vi.mock("@agenta/ui/ui", async (importOriginal) => ({
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
-/** The same structure the desktop Preferences test asserts: the two apps must not drift. */
+/** The mobile Preferences structure. */
 const EXPECTED_STRUCTURE = [
-    {
-        title: "Feature Flags",
-        rows: ["Developer Mode"],
-    },
+    {title: "Feature Flags", rows: ["Developer Mode"]},
     {title: "Debugging", rows: ["Playground inspector", "Channel debug", "Agenta channel probe"]},
 ]
 

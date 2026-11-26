@@ -13,16 +13,15 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
 import {refreshMountListing, type HtmlAppHost} from "@agenta/entities/drive"
-import {mountDirQueryFamily, type MountFile} from "@agenta/entities/session"
+import {mountDirQueryFamily} from "@agenta/entities/session"
 import {getHostQueryClient} from "@agenta/shared/api"
 import {useAtomValue} from "jotai"
+
+import {driveFileFingerprint} from "../driveFileSource"
 
 /** The bump behind the drive's listings: invalidate them (not the bodies — the app has the text). */
 export const bumpDriveListing = (projectId: string): Promise<void> =>
     refreshMountListing(getHostQueryClient(), projectId, {contents: false})
-
-const fingerprint = (file: MountFile & {etag?: string | null}): string =>
-    file.etag ?? (file.mtime != null ? `m${file.mtime}` : `s${file.size ?? ""}`)
 
 const relativeTo = (dir: string, path: string): string =>
     dir && path.startsWith(`${dir}/`) ? path.slice(dir.length + 1) : path
@@ -63,7 +62,7 @@ export function useChangedHint({mountId, projectId, dir, host, enabled}: Changed
         const next = new Map<string, string>()
         for (const file of listing.data) {
             if (file.is_folder) continue
-            next.set(relativeTo(dir, file.path), fingerprint(file))
+            next.set(relativeTo(dir, file.path), driveFileFingerprint(file))
         }
         const prev = snapshot.current
         snapshot.current = next

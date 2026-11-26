@@ -4,11 +4,14 @@ import {
     useCallback,
     useEffect,
     useImperativeHandle,
+    useLayoutEffect,
     useMemo,
     useRef,
     useState,
 } from "react"
 
+import {useT} from "@agenta/i18n"
+import uiChatInputCatalog from "@agenta/i18n/catalogs/ui.chatInput"
 import {modifierKeyLabel} from "@agenta/shared/utils"
 import {CodeHighlightNode, CodeNode} from "@lexical/code"
 import {HistoryExtension} from "@lexical/history"
@@ -33,6 +36,8 @@ import {
     defineExtension,
     type LexicalEditor,
 } from "lexical"
+
+import {Kbd, KbdGroup} from "../components/ui/kbd"
 
 import type {PaletteSpec} from "./assets/palette"
 import type {SlashCommandSection} from "./assets/slashCommands"
@@ -102,6 +107,8 @@ export interface RichChatInputProps {
     footer?: ReactNode
     /** Trailing slot in the toolbar row, right-aligned (e.g. custom submit actions). */
     trailing?: ReactNode
+    /** Right-aligned in the toolbar row, just before Send (e.g. the composer's model button). */
+    beforeSend?: ReactNode
     /** Files pasted into the editor (clipboard images/files). */
     onPasteFile?: (files: FileList) => void
     /** Something besides the text is sendable (e.g. attachments): Send and Enter send "". */
@@ -122,7 +129,7 @@ export interface RichChatInputProps {
     onStop?: () => void
     /** Submit choices displayed beside Stop while `streaming` (for example Queue and Steer). */
     busyActions?: {label: string; onSubmit: SubmitHandler}[]
-    /** Min-height class for the editor area (default `min-h-[72px]`). */
+    /** Min-height class for the editor area (default `min-h-[62px]`). */
     minHeightClassName?: string
     /** How far the editor may grow before it scrolls itself. A surface with a page behind it
      * wants a lower ceiling than a chat dock, which has nothing under it to push. */
@@ -132,6 +139,11 @@ export interface RichChatInputProps {
     size?: "compact" | "comfortable"
     /** Font-size class for the editor text + placeholder (default `text-xs`). */
     textSizeClassName?: string
+    /**
+     * The box's look. `canvas` is the builder layout design (a white card, radius 12, a quiet
+     * shadow, a round dark Send); the default keeps the filled box every other surface uses.
+     */
+    surface?: ComposerSurface
     /** Hide just the Send/Newline shortcut hints (keep prefix + trailing). */
     hideShortcutHints?: boolean
     /** Whether plain Enter submits. Default true (chat); set false for description-style inputs. */
@@ -162,12 +174,19 @@ const chatInputExtension = defineExtension({
     theme: chatInputTheme,
 })
 
+/** The composer box's look; see `RichChatInputProps.surface`. */
+export type ComposerSurface = "default" | "canvas"
+
 export function ShortcutHint({keys, label}: {keys: string; label: string}) {
     return (
         <span className="flex items-center gap-1 whitespace-nowrap text-[12px] text-[var(--ag-colorTextSecondary)]">
-            <kbd className="ag-surface-chip inline-flex items-center justify-center rounded px-1 py-0.5 font-[inherit] text-[12px] font-medium leading-none text-[var(--ag-colorTextSecondary)]">
-                {keys}
-            </kbd>
+            <KbdGroup>
+                {keys.split(" ").map((key) => (
+                    <Kbd key={key} size="md">
+                        {key}
+                    </Kbd>
+                ))}
+            </KbdGroup>
             {label}
         </span>
     )
@@ -177,7 +196,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
     function RichChatInput(
         {
             onSubmit,
-            placeholder = "Type a message…",
+            placeholder: placeholderProp,
             disabled = false,
             dictating = false,
             dictationWave,
@@ -187,6 +206,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             header,
             footer,
             trailing,
+            beforeSend,
             onPasteFile,
             sendForceEnabled,
             sendDisabled,
@@ -196,10 +216,11 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             stopping,
             onStop,
             busyActions,
-            minHeightClassName = "min-h-[72px]",
+            minHeightClassName: minHeightProp,
             maxHeightClassName = "max-h-40",
             size = "compact",
-            textSizeClassName = "text-xs",
+            textSizeClassName: textSizeProp,
+            surface = "default",
             hideShortcutHints = false,
             sendDisabledReason,
             submitOnEnter = true,
@@ -210,10 +231,24 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
         },
         ref,
     ) {
+        const t = useT(uiChatInputCatalog)
+        const placeholder = placeholderProp ?? t("ui.chatInput.typeMessage")
         const editorRef = useRef<LexicalEditor | null>(null)
         const dictationRef = useRef<DictationSession | null>(null)
         // The palettes span this box and float above it.
         const boxRef = useRef<HTMLDivElement | null>(null)
+        // The editor's own height, mirrored onto a clip box so a new or removed line eases in.
+        // Keyed by node: the editor box can remount, and a stale one reads 0.
+        const [editorBox, setEditorBox] = useState<HTMLDivElement | null>(null)
+        const [editorHeight, setEditorHeight] = useState<number | null>(null)
+        useLayoutEffect(() => {
+            if (!editorBox || typeof ResizeObserver === "undefined") return
+            const observer = new ResizeObserver(() =>
+                setEditorHeight(editorBox.offsetHeight || null),
+            )
+            observer.observe(editorBox)
+            return () => observer.disconnect()
+        }, [editorBox])
         const [focused, setFocused] = useState(false)
         // Resolved after mount: SSR has no platform, and answering during render would mismatch on
         // hydration. `SubmitPlugin` accepts meta OR ctrl, so the binding matches the label on both.
@@ -322,6 +357,21 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
         )
 
         const comfortable = size === "comfortable"
+        const canvas = surface === "canvas"
+        // The canvas box: 14 px text on a 22 px line (15 / 20 in a 24 px row on a phone) and a
+        // 12 px inset over a one-line editor; the toolbar sits 12 px under it (S03, M01).
+        const minHeightClassName =
+            minHeightProp ?? (canvas ? "min-h-[34px] max-md:min-h-9" : "min-h-[62px]")
+        const textSizeClassName =
+            textSizeProp ??
+            (canvas ? "text-sm leading-[22px] max-md:text-[15px] max-md:leading-5" : "text-xs")
+        // The default box keeps its relaxed leading under any size a host passes.
+        const leading = canvas ? "" : "leading-relaxed"
+        const editorPad = comfortable
+            ? "px-5 py-4"
+            : canvas
+              ? "pb-0 pl-3.5 pr-3 pt-3 max-md:pr-2"
+              : "px-3 py-2.5"
         const hintsVisible = focused && !dictating
 
         return (
@@ -335,13 +385,27 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         // Filled, not transparent: an outlined box reads as an outline, where a fill reads as
                         // somewhere to type. A FILL token rather than an opaque surface — it lifts off the
                         // page in dark and settles into it in light, where "elevated" is the page colour.
-                        "relative flex flex-col overflow-hidden rounded-lg border border-solid bg-[var(--ag-colorFillTertiary)] shadow-[var(--ag-surface-chat-shadow)] transition-colors",
-                        // The primary input reads as a defined, slightly-lifted field: a visible edge
-                        // + soft shadow, then the accent border on focus (1px, no glow).
-                        "border-[var(--ag-composer-border)] focus-within:border-[var(--ag-composer-focus)]",
+                        "relative flex flex-col overflow-hidden border border-solid border-[var(--ag-composer-border)] transition-colors",
+                        canvas
+                            ? // A white card; focus darkens the edge, no halo. A size container:
+                              // the key hints give way in a narrow box (the builder panel).
+                              "@container/composer rounded-[12px] bg-[var(--ag-colorBgContainer)] shadow-[var(--ag-surface-card-shadow)] focus-within:border-[var(--ag-composer-focus)]"
+                            : // Focus is the kit's control ring: a softer edge plus a 3px halo.
+                              "rounded-lg bg-[var(--ag-colorFillTertiary)] shadow-[var(--ag-surface-chat-shadow)] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-[color:var(--ag-controlOutline)]",
                         disabled && "opacity-60",
                         className,
                     )}
+                    // A tap anywhere on the card that is not a control types into it (M01): the
+                    // editor is one line of a 94 px card on a phone.
+                    onClick={(e) => {
+                        if (!canvas || disabled) return
+                        // React bubbles clicks from portals (the mic's mode menu) through here.
+                        if (!e.currentTarget.contains(e.target as Node)) return
+                        const target = e.target as HTMLElement
+                        if (target.closest("button, a, input, [contenteditable], [role=button]"))
+                            return
+                        editorRef.current?.focus()
+                    }}
                     onPaste={(e) => {
                         const files = e.clipboardData?.files
                         // Take over the paste when it carries files so the editor doesn't also
@@ -354,38 +418,53 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                 >
                     {header}
 
-                    <div className="relative">
-                        <ContentEditable
-                            aria-label="Chat message"
-                            aria-placeholder={placeholder}
-                            className={clsx(
-                                "overflow-y-auto break-words leading-relaxed text-[var(--ag-colorText)] outline-none",
-                                maxHeightClassName,
-                                comfortable ? "px-5 py-4" : "px-3 py-2.5",
-                                textSizeClassName,
-                                minHeightClassName,
-                            )}
-                            placeholder={
-                                // Mirrors the editor's own box exactly — same padding, same
-                                // leading. A different line-height sits the placeholder off the
-                                // caret's baseline by a couple of pixels.
-                                <div
-                                    className={clsx(
-                                        "pointer-events-none absolute inset-0 select-none break-words leading-relaxed text-[var(--ag-composer-placeholder)]",
-                                        comfortable ? "px-5 py-4" : "px-3 py-2.5",
-                                        textSizeClassName,
-                                    )}
-                                >
-                                    {placeholder}
-                                </div>
-                            }
-                        />
+                    <div
+                        className="overflow-hidden transition-[height] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] motion-reduce:transition-none"
+                        style={editorHeight === null ? undefined : {height: editorHeight}}
+                    >
+                        <div ref={setEditorBox} className="relative">
+                            <ContentEditable
+                                aria-label={t("ui.chatInput.chatMessage")}
+                                aria-placeholder={placeholder}
+                                className={clsx(
+                                    "overflow-y-auto break-words text-[var(--ag-colorText)] outline-none",
+                                    leading,
+                                    maxHeightClassName,
+                                    editorPad,
+                                    textSizeClassName,
+                                    minHeightClassName,
+                                )}
+                                placeholder={
+                                    // Mirrors the editor's own box exactly — same padding, same
+                                    // leading. A different line-height sits the placeholder off the
+                                    // caret's baseline by a couple of pixels.
+                                    <div
+                                        className={clsx(
+                                            "pointer-events-none absolute inset-0 select-none break-words text-[var(--ag-composer-placeholder)]",
+                                            leading,
+                                            // The canvas editor is one line high: a long hint
+                                            // ends in "…" rather than spilling under the toolbar.
+                                            canvas && "truncate",
+                                            editorPad,
+                                            textSizeClassName,
+                                        )}
+                                    >
+                                        {placeholder}
+                                    </div>
+                                }
+                            />
+                        </div>
                     </div>
 
                     <div
                         className={clsx(
                             "flex items-center gap-2",
-                            comfortable ? "px-4 pb-3 pt-1.5" : "px-2 py-1.5",
+                            comfortable
+                                ? "px-4 pb-3 pt-1.5"
+                                : canvas
+                                  ? // A phone row is 44 px: the 36 px buttons and their 4 px reach.
+                                    "pb-2.5 pl-2.5 pr-3 pt-3 max-md:min-h-14 max-md:pb-1.5 max-md:pl-1.5 max-md:pr-3 max-md:pt-1.5"
+                                  : "px-2 py-1.5",
                         )}
                     >
                         {prefix}
@@ -393,7 +472,9 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                             still hold their width, and the wave was left drawing in whatever was
                             left over instead of across the row. */}
                         {dictating && dictationWave ? (
-                            <div className="flex min-w-0 flex-1 items-center">{dictationWave}</div>
+                            <div className="flex min-w-0 flex-1 items-center px-2">
+                                {dictationWave}
+                            </div>
                         ) : null}
                         {hideShortcutHints || (dictating && dictationWave) ? null : (
                             // The format hints are a focus-only aid: kept mounted (so their space
@@ -403,7 +484,11 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                             <div
                                 className={clsx(
                                     // Below md: phones have no Enter/Cmd chords worth advertising.
-                                    "flex flex-wrap items-center gap-2.5 transition-[opacity,transform] duration-200 ease-out max-md:hidden",
+                                    "flex items-center gap-2.5 transition-[opacity,transform] duration-200 ease-out max-md:hidden",
+                                    // The canvas row stays one line. In a narrow box (the builder
+                                    // panel, P1b) the hints give way so the model name keeps its
+                                    // room: they hold their width even while faded out.
+                                    canvas ? "shrink-0 @max-[520px]/composer:hidden" : "flex-wrap",
                                     hintsVisible
                                         ? "translate-y-0 opacity-100"
                                         : "pointer-events-none translate-y-0.5 opacity-0",
@@ -413,11 +498,18 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                 {/* Bold/Italic still work (Cmd/Ctrl+B/I) — they just no longer
                                     advertise themselves; the send/newline pair is the only pair
                                     you need told to you. */}
-                                <ShortcutHint keys="↵" label="Send" />
-                                <ShortcutHint keys={`${modKey} ↵`} label="Newline" />
+                                {prefix ? (
+                                    <span aria-hidden className="h-4 w-px bg-border/60" />
+                                ) : null}
+                                <ShortcutHint keys="↵" label={t("ui.chatInput.send")} />
+                                <ShortcutHint
+                                    keys={`${modKey} ↵`}
+                                    label={t("ui.chatInput.newline")}
+                                />
                             </div>
                         )}
-                        <div className="ml-auto flex items-center gap-2">
+                        <div className="ml-auto flex min-w-0 items-center gap-2">
+                            {beforeSend}
                             {hideSendButton ? null : (
                                 <SendButton
                                     onSubmit={handleSubmit}
@@ -429,6 +521,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                     onStop={onStop}
                                     stopping={stopping}
                                     busyActions={busyActions}
+                                    surface={surface}
                                 />
                             )}
                             {trailing}

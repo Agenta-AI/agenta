@@ -1,0 +1,9 @@
+{
+    "automations": "Automations",
+    "recentFiles": "Recent files",
+    "addAutomation": "Add automation",
+    "automationStarter": "I want an automation that",
+    "createManually": "Create manually",
+    "runOnScheduleOrEvent": "Run on a schedule or an event",
+    "workingFilesHint": "The agent’s working files — everything it reads and writes during a run. Open a conversation to browse them here; the agent’s durable folder appears as a subfolder once agent-level storage lands."
+}

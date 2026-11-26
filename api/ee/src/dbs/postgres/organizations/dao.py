@@ -1,7 +1,7 @@
 from typing import Optional, List
 from datetime import datetime, timezone
 
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from oss.src.dbs.postgres.shared.engine import (
@@ -155,12 +155,14 @@ class OrganizationDomainsDAO:
     ) -> Optional[OrganizationDomainDBE]:
         """Get a verified domain by slug (domain name), across organizations."""
         is_verified = OrganizationDomainDBE.flags["is_verified"].astext == "true"
+        # Domain names are case-insensitive; stored slugs keep the case they were added with.
+        same_slug = func.lower(OrganizationDomainDBE.slug) == slug.strip().lower()
 
         if self.session:
             result = await self.session.execute(
                 select(OrganizationDomainDBE).where(
                     and_(
-                        OrganizationDomainDBE.slug == slug,
+                        same_slug,
                         is_verified,
                     )
                 )
@@ -173,7 +175,7 @@ class OrganizationDomainsDAO:
                 result = await session.execute(
                     select(OrganizationDomainDBE).where(
                         and_(
-                            OrganizationDomainDBE.slug == slug,
+                            same_slug,
                             is_verified,
                         )
                     )

@@ -3,9 +3,8 @@ import {useState} from "react"
 import {Button, InlineConfirm} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
-// No antd counterpart: antd's confirm step is a Popconfirm, and the point of this one is that it
-// is NOT a popover — it renders under the control that opened it, so the row it describes stays
-// visible on a phone.
+// The confirm is NOT a popover — it renders under the control that opened it, so the row it
+// describes stays visible on a phone.
 const meta = {
     title: "@agenta/ui/Primitives/Feedback/InlineConfirm",
     component: InlineConfirm,
@@ -31,7 +30,7 @@ type Story = StoryObj<typeof meta>
 
 export const Open: Story = {
     render: (args) => (
-        <div className="w-[420px]" data-vrt-subject>
+        <div className="w-[420px]">
             <InlineConfirm {...args} />
         </div>
     ),
@@ -43,10 +42,7 @@ export const FromALink: Story = {
         const Demo = () => {
             const [confirming, setConfirming] = useState(false)
             return (
-                <div
-                    className="flex w-[420px] flex-col items-start gap-2 border border-solid border-colorBorderSecondary p-4"
-                    data-vrt-subject
-                >
+                <div className="flex w-[420px] flex-col items-start gap-2 border border-solid border-colorBorderSecondary p-4">
                     <Button
                         variant="link"
                         size="sm"

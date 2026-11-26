@@ -39,6 +39,32 @@ describe("resolveDriveFileKind", () => {
     })
 })
 
+describe("office formats (D10)", () => {
+    it.each([
+        ["Q3.xlsx", "spreadsheet"],
+        ["Q3.XLSX", "spreadsheet"],
+        ["macro.Xlsm", "spreadsheet"],
+        ["old.xls", "spreadsheet"],
+        ["calc.ODS", "spreadsheet"],
+        ["report.docx", "document"],
+        ["REPORT.DOCX", "document"],
+        ["deck.pptx", "presentation"],
+        ["Deck.PpTx", "presentation"],
+        ["notes.doc", "other"],
+        ["notes.odt", "other"],
+        ["deck.ppt", "other"],
+        ["deck.odp", "other"],
+    ])("%s resolves to %s", (path, kind) => {
+        expect(resolveDriveFileKind(`reports/${path}`)).toBe(kind)
+    })
+
+    it("tones the three office kinds", () => {
+        expect(driveKindTone("spreadsheet")).toBe("success")
+        expect(driveKindTone("document")).toBe("info")
+        expect(driveKindTone("presentation")).toBe("error")
+    })
+})
+
 describe("labels and tones", () => {
     it("reads well where the bare extension does not", () => {
         expect(fileTypeLabel("script.py")).toBe("Python")

@@ -19,6 +19,7 @@ export const EmbedTranscript = ({
     running,
     waitingForReply,
     waitingOnUser,
+    resuming,
     fileBlob,
     greeting,
 }: {
@@ -27,6 +28,8 @@ export const EmbedTranscript = ({
     running: boolean
     waitingForReply: boolean
     waitingOnUser: boolean
+    /** An answered approval whose run has not started again yet. */
+    resuming: boolean
     fileBlob: (fileId: string) => Promise<Blob>
     greeting: ReactNode
 }) => {
@@ -55,6 +58,7 @@ export const EmbedTranscript = ({
                     sessionId={sessionId}
                     live={!turn.isUser && turn.isLast && running}
                     waitingOnUser={waitingOnUser}
+                    resuming={resuming}
                     fileBlob={fileBlob}
                 />
             ))}

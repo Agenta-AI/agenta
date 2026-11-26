@@ -1,0 +1,369 @@
+{
+  "schema_version": 1,
+  "entry": "seo-content-agent",
+  "agents": {
+    "seo-content-agent": {
+      "name": "SEO Content Agent",
+      "description": "An SEO consultant that researches opportunities, develops approved content and learns from results.",
+      "instructions": "./ai.agenta/agents/seo-content-agent/AGENTS.md",
+      "setup": "./ai.agenta/agents/seo-content-agent/SETUP.md",
+      "skills": [
+        "learn-business-context",
+        "market-competitor-research",
+        "technical-seo-audit",
+        "content-planning",
+        "content-briefing",
+        "content-production",
+        "editorial-seo-review",
+        "content-refresh"
+      ],
+      "connections": [
+        {
+          "key": "composio-search",
+          "required": true,
+          "purpose": "Find public evidence, competitors and search opportunities.",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "composio_search"
+            }
+          ],
+          "policy": {
+            "permissions": {
+              "default": "allow",
+              "tools": {}
+            }
+          },
+          "setup_notes": "Choose your own available connection and verify access when first used. No account binding is included."
+        },
+        {
+          "key": "context-dev",
+          "required": false,
+          "purpose": "Read webpages for research and claim checks.",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "context_dev"
+            }
+          ],
+          "policy": {
+            "permissions": {
+              "default": "allow",
+              "tools": {}
+            }
+          },
+          "setup_notes": "Choose your own available connection and verify access when first used. No account binding is included."
+        },
+        {
+          "key": "peec-ai-mcp",
+          "required": false,
+          "purpose": "Review AI-search visibility for a project the recipient chooses.",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "peec_ai_mcp"
+            }
+          ],
+          "policy": {
+            "permissions": {
+              "default": "allow",
+              "tools": {}
+            }
+          },
+          "setup_notes": "Choose your own available connection and verify access when first used. No account binding is included."
+        },
+        {
+          "key": "fal-ai",
+          "required": false,
+          "purpose": "Generate cover images when the recipient requests them.",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "fal_ai"
+            }
+          ],
+          "policy": {
+            "permissions": {
+              "default": "allow",
+              "tools": {}
+            }
+          },
+          "setup_notes": "Choose your own available connection and verify access when first used. No account binding is included."
+        }
+        ,
+        {
+          "key": "google-search-console",
+          "required": false,
+          "purpose": "Inspect search performance and indexing for the recipient's website.",
+          "options": [{"kind": "gateway", "provider": "composio", "integration": "google_search_console"}],
+          "policy": {"permissions": {"default": "allow", "tools": {}}},
+          "setup_notes": "Choose your own account and website property; verify property access before using its data."
+        },
+        {
+          "key": "browserbase-mcp",
+          "required": false,
+          "purpose": "Inspect rendered webpages and capture evidence during research and review.",
+          "options": [{"kind": "gateway", "provider": "composio", "integration": "browserbase_mcp"}],
+          "policy": {"permissions": {"default": "allow", "tools": {}}},
+          "setup_notes": "Choose your own browser service account; verify a bounded browser read when first used."
+        }
+      ],
+      "automations": [],
+      "workspace": {
+        "entries": [
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/00-context/README.md",
+            "path": "agent-files/00-context/README.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/00-context/publishing-spec.md",
+            "path": "agent-files/00-context/publishing-spec.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/00-context/voice-guide.md",
+            "path": "agent-files/00-context/voice-guide.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/INDEX.md",
+            "path": "agent-files/INDEX.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/apps/seo-workspace/actions.json",
+            "path": "agent-files/apps/seo-workspace/actions.json"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/apps/seo-workspace/app.json",
+            "path": "agent-files/apps/seo-workspace/app.json"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/apps/seo-workspace/index.html",
+            "path": "agent-files/apps/seo-workspace/index.html"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/apps/seo-workspace/knowledge/starting-voice.md",
+            "path": "agent-files/apps/seo-workspace/knowledge/starting-voice.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/apps/seo-workspace/setup/knowledge-audience.md",
+            "path": "agent-files/apps/seo-workspace/setup/knowledge-audience.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/apps/seo-workspace/setup/knowledge-company.md",
+            "path": "agent-files/apps/seo-workspace/setup/knowledge-company.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/apps/seo-workspace/setup/knowledge-focus.md",
+            "path": "agent-files/apps/seo-workspace/setup/knowledge-focus.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/apps/seo-workspace/setup/knowledge-voice.md",
+            "path": "agent-files/apps/seo-workspace/setup/knowledge-voice.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/apps/seo-workspace/setup/publish-access.md",
+            "path": "agent-files/apps/seo-workspace/setup/publish-access.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/apps/seo-workspace/setup/publish-destination.md",
+            "path": "agent-files/apps/seo-workspace/setup/publish-destination.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/apps/seo-workspace/setup/publish-format.md",
+            "path": "agent-files/apps/seo-workspace/setup/publish-format.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/apps/seo-workspace/setup/publish-review.md",
+            "path": "agent-files/apps/seo-workspace/setup/publish-review.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/apps/seo-workspace/setup/research-custom.md",
+            "path": "agent-files/apps/seo-workspace/setup/research-custom.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/apps/seo-workspace/setup/research-review.md",
+            "path": "agent-files/apps/seo-workspace/setup/research-review.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/apps/seo-workspace/setup/research-schedule.md",
+            "path": "agent-files/apps/seo-workspace/setup/research-schedule.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/apps/seo-workspace/setup/research-sources.md",
+            "path": "agent-files/apps/seo-workspace/setup/research-sources.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/decisions.md",
+            "path": "agent-files/decisions.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/open-items.md",
+            "path": "agent-files/open-items.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/playbooks/blog-cover/README.md",
+            "path": "agent-files/playbooks/blog-cover/README.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/playbooks/editorial-workspace/README.md",
+            "path": "agent-files/playbooks/editorial-workspace/README.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/playbooks/editorial-workspace/request_state.py",
+            "path": "agent-files/playbooks/editorial-workspace/request_state.py"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/playbooks/manage-geo-visibility.md",
+            "path": "agent-files/playbooks/manage-geo-visibility.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/playbooks/open-github-prs-from-temp-workspace.md",
+            "path": "agent-files/playbooks/open-github-prs-from-temp-workspace.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/playbooks/pre-publish-quality-check.md",
+            "path": "agent-files/playbooks/pre-publish-quality-check.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/playbooks/serp-and-web-scraping/README.md",
+            "path": "agent-files/playbooks/serp-and-web-scraping/README.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/playbooks/write-checklist.md",
+            "path": "agent-files/playbooks/write-checklist.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/playbooks/write-comparison-listicle.md",
+            "path": "agent-files/playbooks/write-comparison-listicle.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/playbooks/write-for-the-founder.md",
+            "path": "agent-files/playbooks/write-for-the-founder.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/playbooks/write-howto-guide.md",
+            "path": "agent-files/playbooks/write-howto-guide.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/playbooks/write-interactive-tool-article.md",
+            "path": "agent-files/playbooks/write-interactive-tool-article.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/playbooks/write-listicle.md",
+            "path": "agent-files/playbooks/write-listicle.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/playbooks/write-news-analysis.md",
+            "path": "agent-files/playbooks/write-news-analysis.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/playbooks/write-qa-article.md",
+            "path": "agent-files/playbooks/write-qa-article.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/playbooks/write-roundup.md",
+            "path": "agent-files/playbooks/write-roundup.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/playbooks/write-ultimate-guide.md",
+            "path": "agent-files/playbooks/write-ultimate-guide.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/playbooks/write-versus-article.md",
+            "path": "agent-files/playbooks/write-versus-article.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/playbooks/write-youtube-video-article.md",
+            "path": "agent-files/playbooks/write-youtube-video-article.md"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/playbooks/writing-skills.md",
+            "path": "agent-files/playbooks/writing-skills.md"
+          },
+          {
+            "type": "directory",
+            "path": "agent-files/01-research"
+          },
+          {
+            "type": "directory",
+            "path": "agent-files/02-pipeline"
+          },
+          {
+            "type": "directory",
+            "path": "agent-files/03-published"
+          },
+          {
+            "type": "directory",
+            "path": "agent-files/04-measurement"
+          },
+          {
+            "type": "directory",
+            "path": "agent-files/apps/seo-workspace/content"
+          },
+          {
+            "type": "directory",
+            "path": "agent-files/apps/seo-workspace/discoveries"
+          },
+          {
+            "type": "directory",
+            "path": "agent-files/apps/seo-workspace/inputs"
+          },
+          {
+            "type": "directory",
+            "path": "agent-files/apps/seo-workspace/requests"
+          },
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-content-agent/files/agent-files/apps/seo-workspace/AGENTA-LICENSE.txt",
+            "path": "agent-files/apps/seo-workspace/AGENTA-LICENSE.txt"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,5 +1,8 @@
 import {useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiAgentIconCatalog from "@agenta/i18n/catalogs/ui.agentIcon"
 import {MagnifyingGlassIcon} from "@phosphor-icons/react"
 import {useVirtualizer} from "@tanstack/react-virtual"
 
@@ -107,36 +110,39 @@ const ColorSwatchRow = ({
     selected: string | null
     onPick: (hex: string) => void
     onCustom: () => void
-}) => (
-    // `justify-between` so the row spans the same width as the search field below it — at a fixed
-    // gap the swatches pack left and stop ~13px short of it.
-    <div className="flex flex-nowrap items-center justify-between gap-1.5 px-3 pb-2.5">
-        {AGENT_ICON_COLORS.map(([solid]) => (
+}) => {
+    const t = useT(uiAgentIconCatalog, commonCatalog)
+    return (
+        // `justify-between` so the row spans the same width as the search field below it — at a fixed
+        // gap the swatches pack left and stop ~13px short of it.
+        <div className="flex flex-nowrap items-center justify-between gap-1.5 px-3 pb-2.5">
+            {AGENT_ICON_COLORS.map(([solid]) => (
+                <button
+                    key={solid}
+                    type="button"
+                    aria-label={solid}
+                    onClick={() => onPick(solid)}
+                    className={SWATCH_BUTTON}
+                    style={{
+                        background: solid,
+                        ...(solid.toLowerCase() === selected?.toLowerCase()
+                            ? selectedRing(solid)
+                            : null),
+                    }}
+                />
+            ))}
+            <span className="mx-px h-3.5 w-px shrink-0 bg-colorBorderSecondary" />
             <button
-                key={solid}
                 type="button"
-                aria-label={solid}
-                onClick={() => onPick(solid)}
-                className={SWATCH_BUTTON}
-                style={{
-                    background: solid,
-                    ...(solid.toLowerCase() === selected?.toLowerCase()
-                        ? selectedRing(solid)
-                        : null),
-                }}
+                onClick={onCustom}
+                title={t("ui.agentIcon.customColour")}
+                aria-label={t("ui.agentIcon.customColour")}
+                className={SWATCH_PLAIN}
+                style={{background: AGENT_ICON_CONIC}}
             />
-        ))}
-        <span className="mx-px h-3.5 w-px shrink-0 bg-colorBorderSecondary" />
-        <button
-            type="button"
-            onClick={onCustom}
-            title="Custom colour"
-            aria-label="Custom colour"
-            className={SWATCH_PLAIN}
-            style={{background: AGENT_ICON_CONIC}}
-        />
-    </div>
-)
+        </div>
+    )
+}
 
 /**
  * Hue/saturation/value is the state here and the hex is its output — NOT the other way round.
@@ -158,6 +164,7 @@ const CustomColorArea = ({
     onCommitColor: (hex: string) => void
     onBack: () => void
 }) => {
+    const t = useT(uiAgentIconCatalog, commonCatalog)
     const [{hsv, hex}, setColor] = useState(() => ({
         hsv: hexToHsv(seed),
         hex: seed.toUpperCase(),
@@ -202,21 +209,21 @@ const CustomColorArea = ({
         <>
             <div className="flex items-center gap-2 px-3 pb-2.5">
                 <span className="text-[11px] uppercase tracking-[0.04em] text-colorTextTertiary">
-                    Hex
+                    {t("ui.agentIcon.hex")}
                 </span>
                 <input
                     value={draft ?? hex}
                     onChange={(e) => onHexInput(e.target.value)}
                     onBlur={() => setDraft(null)}
                     spellCheck={false}
-                    aria-label="Hex colour"
+                    aria-label={t("ui.agentIcon.hexColour")}
                     className="min-w-0 flex-1 border-0 bg-transparent p-0 py-1 font-mono text-[12px] text-colorText outline-none"
                 />
                 <button
                     type="button"
                     onClick={onBack}
-                    title="Back to palette"
-                    aria-label="Back to palette"
+                    title={t("ui.agentIcon.backToPalette")}
+                    aria-label={t("ui.agentIcon.backToPalette")}
                     className={SWATCH_PLAIN}
                     // Brand accent, not currentColor: the text colour reads as a stray white ring
                     // in dark mode and says nothing about the control being active.
@@ -327,6 +334,7 @@ const IconGrid = ({
 }
 
 export const AgentIconPicker = ({value, onChange}: AgentIconPickerProps) => {
+    const t = useT(uiAgentIconCatalog, commonCatalog)
     const [catalog, setCatalog] = useState<PhosphorCatalogEntry[] | null>(null)
     const [failed, setFailed] = useState(false)
     const [attempt, setAttempt] = useState(0)
@@ -413,8 +421,12 @@ export const AgentIconPicker = ({value, onChange}: AgentIconPickerProps) => {
                     {currentPath ? <AgentIcon path={currentPath} size={18} /> : null}
                 </span>
                 <span className="flex min-w-0 flex-1 flex-col leading-tight">
-                    <span className="text-[13px] font-semibold text-colorText">Agent icon</span>
-                    <span className="text-[11px] text-colorTextTertiary">Saves as you pick</span>
+                    <span className="text-[13px] font-semibold text-colorText">
+                        {t("ui.agentIcon.agentIcon")}
+                    </span>
+                    <span className="text-[11px] text-colorTextTertiary">
+                        {t("ui.agentIcon.savesAsYouPick")}
+                    </span>
                 </span>
                 {value ? (
                     <button
@@ -425,7 +437,7 @@ export const AgentIconPicker = ({value, onChange}: AgentIconPickerProps) => {
                         }}
                         className="shrink-0 cursor-pointer border-0 bg-transparent p-0 text-[12px] text-colorTextTertiary hover:text-colorText"
                     >
-                        Reset
+                        {t("ui.agentIcon.reset")}
                     </button>
                 ) : null}
             </div>
@@ -438,14 +450,14 @@ export const AgentIconPicker = ({value, onChange}: AgentIconPickerProps) => {
                     style={{height: GRID_H + CONTROLS_H}}
                 >
                     <span className="text-[13px] font-medium text-colorText">
-                        Could not load icons
+                        {t("ui.agentIcon.couldNotLoad")}
                     </span>
                     <button
                         type="button"
                         onClick={() => setAttempt((n) => n + 1)}
                         className="cursor-pointer border-0 bg-transparent p-0 text-[12px] text-colorPrimary"
                     >
-                        Try again
+                        {t("common.tryAgain")}
                     </button>
                 </div>
             ) : !catalog ? (
@@ -477,8 +489,8 @@ export const AgentIconPicker = ({value, onChange}: AgentIconPickerProps) => {
                         <SearchInput
                             value={query}
                             onValueChange={setQuery}
-                            placeholder="Search icons"
-                            aria-label="Search icons"
+                            placeholder={t("ui.agentIcon.searchIcons")}
+                            aria-label={t("ui.agentIcon.searchIcons")}
                         />
                     </div>
 
@@ -489,10 +501,10 @@ export const AgentIconPicker = ({value, onChange}: AgentIconPickerProps) => {
                         >
                             <MagnifyingGlassIcon size={20} className="text-colorTextTertiary" />
                             <span className="text-[13px] font-medium text-colorText">
-                                No icons found
+                                {t("ui.agentIcon.noIconsFound")}
                             </span>
                             <span className="max-w-full truncate text-[12px] text-colorTextTertiary">
-                                Nothing matches “{search}”
+                                {t("ui.agentIcon.nothingMatches", {search})}
                             </span>
                         </div>
                     ) : (

@@ -57,6 +57,7 @@ def map_span_dbe_to_span_dbe(
     existing_span_dbe.status_code = new_span_dbe.status_code
     existing_span_dbe.status_message = new_span_dbe.status_message
     existing_span_dbe.session_id = new_span_dbe.session_id
+    existing_span_dbe.turn_id = new_span_dbe.turn_id
     existing_span_dbe.user_id = new_span_dbe.user_id
     existing_span_dbe.agent_id = new_span_dbe.agent_id
     existing_span_dbe.attributes = new_span_dbe.attributes
@@ -123,6 +124,7 @@ def map_span_dbe_to_span_dto(
         status_message=span_dbe.status_message,
         #
         session_id=span_dbe.session_id,
+        turn_id=span_dbe.turn_id,
         user_id=span_dbe.user_id,
         agent_id=span_dbe.agent_id,
         #
@@ -170,6 +172,7 @@ def map_span_dto_to_span_dbe(
         status_message=span_dto.status_message,
         #
         session_id=span_dto.session_id,
+        turn_id=span_dto.turn_id,
         user_id=span_dto.user_id,
         agent_id=span_dto.agent_id,
         #

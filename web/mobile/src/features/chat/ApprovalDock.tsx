@@ -1,10 +1,15 @@
+import type {ReactNode} from "react"
+
 import {ApprovalCard} from "@agenta/chat/components"
 import type {PendingApproval} from "@agenta/chat/model"
 
 import {ContentRail} from "@/components/ContentRail"
 
+import {useIsBuilderChat} from "./builderChat"
+import {ownsShortcutAt} from "./conversationFocus"
 import {isSteerEnabled} from "./steer"
 import type {ApprovalActions} from "./useApprovalActions"
+import {useBuilderApprovalChoices} from "./useBuilderApprovalChoices"
 
 /**
  * Bottom-anchored human-in-the-loop dock — the SAME `ApprovalCard` the desktop dock renders
@@ -20,6 +25,11 @@ export const ApprovalDock = ({
     actions,
     entityId,
     bottomMost = true,
+    readOnly = false,
+    readOnlyNote,
+    privateSession = false,
+    heading,
+    shortcuts = true,
 }: {
     /** Pending gates for the paused turn (index 0 is acted on first). */
     approvals: PendingApproval[]
@@ -28,20 +38,40 @@ export const ApprovalDock = ({
     entityId?: string
     /** False when the composer renders below — only the bottom-most element pads the safe area. */
     bottomMost?: boolean
+    /** The reader cannot answer (no `can_send`, or not known yet): the card shows, but answers
+     *  nothing, and no shortcut or tap reaches `actions`. */
+    readOnly?: boolean
+    /** Shown in place of the actions while read-only (it names who can answer). */
+    readOnlyNote?: string | null
+    /** The session is private to the reader (`isPrivateToViewer`). False while unknown. */
+    privateSession?: boolean
+    /** A line above the card: on another session's card, which session asks. */
+    heading?: ReactNode
+    /** False for another session's card, so the chat's own shortcuts answer only its own card. */
+    shortcuts?: boolean
 }) => {
+    const locked = readOnly || Boolean(readOnlyNote)
+    const builderChat = useIsBuilderChat()
+    // In the builder chat, "Always auto-approve" stores the person's choice (design D32). The
+    // server applies it only in a session private to the person, so only such a session offers it.
+    const {alwaysApprove} = useBuilderApprovalChoices(builderChat && privateSession)
     const busy = actions.phase === "resuming"
     const answered = actions.phase === "answered" || actions.phase === "recoverable"
 
     if (approvals.length === 0) return null
     return (
         <div
-            className={`bg-background shrink-0 px-3 pt-3 ${
+            // The card sits 16 px in: the builder panel (S03) and a phone (M05).
+            className={`bg-background shrink-0 px-4 pt-3 ${
                 // When the composer sits below it brings its own top padding, so only the
                 // bottom-most dock pads the safe area — a full pb here just doubles the gap.
                 bottomMost ? "pb-[calc(0.75rem+env(safe-area-inset-bottom))]" : "pb-0"
             }`}
         >
             <ContentRail>
+                {heading ? (
+                    <p className="text-muted-foreground m-0 mb-1.5 truncate text-xs">{heading}</p>
+                ) : null}
                 <ApprovalCard
                     approvals={approvals}
                     responding={busy}
@@ -50,12 +80,21 @@ export const ApprovalDock = ({
                     entityId={entityId}
                     steerEnabled={isSteerEnabled()}
                     touch
+                    readOnly={locked}
+                    readOnlyNote={readOnlyNote}
+                    alwaysAllowOffered={!builderChat}
+                    alwaysApprove={alwaysApprove}
+                    // Two conversations can each show a card: a key answers the focused one only.
+                    // Another session's card (shortcuts off) never takes the keys.
+                    ownsShortcut={shortcuts ? ownsShortcutAt : () => false}
                     errorText={actions.phase === "error" ? actions.errorText : null}
-                    onRespond={({approvalId, approved, message}) =>
-                        actions.respond({approvalId, approved, message})
-                    }
-                    onApproveAll={() => actions.approveAll()}
-                    onDenyAll={actions.denyAll ? () => actions.denyAll?.() : undefined}
+                    onRespond={({approvalId, approved, message}) => {
+                        if (!locked) actions.respond({approvalId, approved, message})
+                    }}
+                    onApproveAll={() => {
+                        if (!locked) actions.approveAll()
+                    }}
+                    onDenyAll={actions.denyAll && !locked ? () => actions.denyAll?.() : undefined}
                 />
             </ContentRail>
         </div>

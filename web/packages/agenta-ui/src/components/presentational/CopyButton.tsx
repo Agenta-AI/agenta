@@ -22,6 +22,9 @@
 import type {ComponentProps} from "react"
 import {memo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiChatActionsCatalog from "@agenta/i18n/catalogs/ui.chatActions"
 import {Check, Copy} from "@phosphor-icons/react"
 
 import {message} from "../../utils/appMessageContext"
@@ -72,13 +75,16 @@ export interface CopyButtonProps extends Omit<ComponentProps<typeof Button>, "on
  */
 export const CopyButton = memo(function CopyButton({
     text,
-    buttonText = "Copy",
+    buttonText: buttonTextProp,
     icon = false,
     stopPropagation = false,
-    successMessage = "Copied to clipboard!",
+    successMessage: successMessageProp,
     onCopy,
     ...props
 }: CopyButtonProps) {
+    const t = useT(uiChatActionsCatalog, commonCatalog)
+    const buttonText = buttonTextProp ?? t("common.copy")
+    const successMessage = successMessageProp ?? t("ui.chatActions.copiedBang")
     const [copied, setCopied] = useState(false)
 
     const handleClick = async (e: React.MouseEvent<HTMLElement>) => {
@@ -110,7 +116,7 @@ export const CopyButton = memo(function CopyButton({
         <Button
             variant="outline"
             onClick={handleClick}
-            aria-label={buttonText ? undefined : "Copy"}
+            aria-label={buttonText ? undefined : t("common.copy")}
             {...props}
         >
             {icon ? iconNode : undefined}

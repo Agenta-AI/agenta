@@ -21,6 +21,7 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPToolFilter,
 )
 from oss.src.core.gateways.policy.types import SecretInvalidError
+from oss.src.core.shared.dtos import Windowing
 from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.dbs.postgres.gateways.mcps.dao import MCPEndpointsDAO
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
@@ -177,6 +178,64 @@ async def test_delete_endpoint_is_idempotent(seeded_project):
     assert (
         await dao.fetch_endpoint(project_id=project_id, endpoint_id=created.id) is None
     )
+
+
+async def test_query_skips_invalid_rows_within_project_filters_and_windows(
+    seeded_project, other_project, caplog
+):
+    engine = get_transactions_engine()
+    dao = MCPEndpointsDAO(engine=engine)
+    project_id = seeded_project["project_id"]
+    endpoints = []
+    for slug in ["first", "invalid", "last"]:
+        created = await dao.create_endpoint(
+            project_id=project_id,
+            user_id=seeded_project["user_id"],
+            endpoint=_create_dto(slug=slug),
+        )
+        assert created is not None
+        endpoints.append(created)
+    first, invalid, last = endpoints
+    foreign = await dao.create_endpoint(
+        project_id=other_project["project_id"],
+        user_id=other_project["user_id"],
+        endpoint=_create_dto(slug="foreign"),
+    )
+    assert foreign is not None
+    async with engine.session() as session:
+        await session.execute(
+            text(
+                'UPDATE mcps_endpoints SET data = \'{"route": "invalid-route"}\'::jsonb '
+                "WHERE (project_id = :project_id AND id = :endpoint_id) "
+                "OR (project_id = :foreign_project_id AND id = :foreign_endpoint_id)"
+            ),
+            {
+                "project_id": project_id,
+                "endpoint_id": invalid.id,
+                "foreign_project_id": other_project["project_id"],
+                "foreign_endpoint_id": foreign.id,
+            },
+        )
+        await session.commit()
+
+    queried = await dao.query_endpoints(project_id=project_id)
+    assert [endpoint.id for endpoint in queried] == [last.id, first.id]
+    assert str(foreign.id) not in caplog.text
+
+    filtered = await dao.query_endpoints(
+        project_id=project_id,
+        endpoint=MCPEndpointQuery(auth_mode=MCPAuthScheme.OAUTH, slug=first.slug),
+    )
+    assert [endpoint.id for endpoint in filtered] == [first.id]
+
+    page = await dao.query_endpoints(
+        project_id=project_id, windowing=Windowing(limit=2)
+    )
+    assert [endpoint.id for endpoint in page] == [last.id]
+    next_page = await dao.query_endpoints(
+        project_id=project_id, windowing=Windowing(limit=2, next=invalid.id)
+    )
+    assert [endpoint.id for endpoint in next_page] == [first.id]
 
 
 async def test_query_endpoints_filters_by_auth_mode_and_slug(seeded_project):

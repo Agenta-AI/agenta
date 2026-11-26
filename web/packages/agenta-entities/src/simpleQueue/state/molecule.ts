@@ -37,6 +37,8 @@ import {
     type CreateSimpleQueuePayload,
     deleteSimpleQueue,
     deleteSimpleQueues,
+    editSimpleQueue,
+    type EditSimpleQueuePayload,
     fetchSimpleQueue,
     querySimpleQueues,
     querySimpleQueueScenarios,
@@ -121,23 +123,11 @@ function deriveQueueStatusFromScenarios(
  */
 export const simpleQueuesListQueryAtom = atomWithQuery((get) => {
     const isSessionReady = get(sessionAtom)
+    const projectId = get(projectIdAtom)
     return {
-        queryKey: ["simpleQueues", "list"],
-        queryFn: async () => {
-            const projectId = getStore().get(projectIdAtom)
-            if (!projectId) {
-                throw new Error("projectId not yet available")
-            }
-            return querySimpleQueues({projectId})
-        },
-        enabled: isSessionReady,
-        retry: (failureCount: number, error: Error) => {
-            if (error?.message === "projectId not yet available" && failureCount < 5) {
-                return true
-            }
-            return false
-        },
-        retryDelay: (attempt: number) => Math.min(200 * 2 ** attempt, 2000),
+        queryKey: ["simpleQueues", "list", projectId],
+        queryFn: () => querySimpleQueues({projectId: projectId as string}),
+        enabled: isSessionReady && !!projectId,
         staleTime: 30_000,
     }
 })
@@ -283,6 +273,33 @@ export const createSimpleQueueAtom = atom(
             set(simpleQueuePaginatedStore.refreshAtom)
         }
         return queue
+    },
+)
+
+/**
+ * Save a queue's name and description on the server.
+ * Refetches the queue and the lists on success, so every view shows the saved
+ * values. A failed request throws.
+ *
+ * @returns true when the server saved the queue.
+ */
+export const editSimpleQueueAtom = atom(
+    null,
+    async (get, set, queueId: string, payload: EditSimpleQueuePayload): Promise<boolean> => {
+        const projectId = get(projectIdAtom)
+        if (!projectId || !queueId) return false
+
+        const saved = await editSimpleQueue(projectId, queueId, payload)
+        if (saved) {
+            set(simpleQueueDraftAtomFamily(queueId), null)
+            await get(queryClientAtom).invalidateQueries({
+                queryKey: ["simpleQueue", queueId],
+                exact: true,
+            })
+            invalidateSimpleQueuesListCache()
+            set(simpleQueuePaginatedStore.refreshAtom)
+        }
+        return saved
     },
 )
 
@@ -688,6 +705,8 @@ export const simpleQueueMolecule = {
         discard: discardSimpleQueueDraftAtom,
         /** Create a new queue (server mutation) */
         createQueue: createSimpleQueueAtom,
+        /** Save a queue's name and description (server mutation) */
+        edit: editSimpleQueueAtom,
         /** Delete a queue (server mutation) */
         deleteQueue: deleteSimpleQueueAtom,
         /** Delete multiple queues (server mutation) */
@@ -734,6 +753,8 @@ export const simpleQueueMolecule = {
             getStore(options).set(discardSimpleQueueDraftAtom, queueId),
         createQueue: (payload: CreateSimpleQueuePayload, options?: StoreOptions) =>
             getStore(options).set(createSimpleQueueAtom, payload),
+        edit: (queueId: string, payload: EditSimpleQueuePayload, options?: StoreOptions) =>
+            getStore(options).set(editSimpleQueueAtom, queueId, payload),
         deleteQueue: (queueId: string, options?: StoreOptions) =>
             getStore(options).set(deleteSimpleQueueAtom, queueId),
         deleteQueues: (queueIds: string[], options?: StoreOptions) =>

@@ -1,0 +1,19 @@
+{
+    "noParameters": "Nenhum parâmetro para exibir",
+    "viewForm": "Formulário",
+    "variant": "Variante",
+    "type": "Tipo",
+    "slug": "Slug",
+    "deployment": "Implantação",
+    "details": "Detalhes",
+    "dateCreated": "Data de criação",
+    "createdBy": "Criado por",
+    "note": "Nota",
+    "loadError": "Não foi possível carregar esta revisão",
+    "notAvailable": "Esta revisão não está mais disponível.",
+    "titleRevision": "Revisão",
+    "titleDeployment": "Implantação",
+    "titleEvaluator": "Avaliador",
+    "previousRevision": "Revisão anterior",
+    "nextRevision": "Próxima revisão"
+}

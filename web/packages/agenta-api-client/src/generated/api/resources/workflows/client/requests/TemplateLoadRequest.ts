@@ -26,6 +26,7 @@ export interface TemplateLoadRequest {
     attachment_ids?: string[];
     initial_message: string;
     connection_choices?: AgentaApi.TemplateLoadRequestConnectionChoicesItem[];
+    visibility?: AgentaApi.Visibility | null;
 }
 
 export namespace TemplateLoadRequest {

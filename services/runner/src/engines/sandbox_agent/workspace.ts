@@ -38,7 +38,7 @@ export interface PrepareWorkspaceInput {
  * Prepare the run cwd, relay directory, the instructions memory file, generic `harnessFiles`,
  * and harness skill packages for local or Daytona runs. `harnessFiles` are written blind: the
  * Python harness adapter already rendered them. Skills stay resolved inline packages on the
- * wire; Pi loads one immutable `agents/skills/<digest>` snapshot, while Claude loads project-local
+ * wire; Pi loads one immutable snapshot dir (`resolvePiSkillSnapshot`), while Claude loads project-local
  * `.claude/skills/<name>` directories from the cwd.
  *
  * The instructions (`agentsMd`) filename is harness-aware. Claude runs through
@@ -152,7 +152,7 @@ export async function prepareWorkspace({
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, file.content, "utf-8");
   }
-  if (piSkillSnapshot) materializeLocalPiSkillSnapshot(piSkillSnapshot);
+  if (piSkillSnapshot) materializeLocalPiSkillSnapshot(piSkillSnapshot, log);
   if (projectSkillRoot) {
     for (const skill of plan.workspace.skillDirs) {
       const dest = join(plan.workspace.cwd, projectSkillRoot, skill.name);

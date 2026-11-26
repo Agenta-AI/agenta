@@ -15,7 +15,8 @@ export const formatElapsed = (ms: number, {live}: {live: boolean}): string => {
     const minutes = Math.floor(total / 60)
     const seconds = total % 60
     if (live) return `${minutes}:${String(seconds).padStart(2, "0")}`
-    return minutes ? `${minutes}m ${seconds}s` : `${seconds}s`
+    // A space before the unit, as the canvas writes it ("Worked for 5 s").
+    return minutes ? `${minutes} m ${seconds} s` : `${seconds} s`
 }
 
 /**
@@ -23,12 +24,17 @@ export const formatElapsed = (ms: number, {live}: {live: boolean}): string => {
  *
  * `startedAt` is when the run began, where the caller can say. Without it a tab opened on a
  * response already in progress starts its count at zero (#6934); it seeds the first span only,
- * so pause and resume still measure working time.
+ * so pause and resume still measure working time. `seenFromSend` says this tab watched the run
+ * from its send, so every pause is already counted and the start is safe to trust with gates.
  */
 export const useTurnClock = (
     messageId: string,
     live: boolean,
-    startedAt?: number,
+    {
+        startedAt,
+        seenFromSend = false,
+        waitingOnReader = false,
+    }: {startedAt?: number; seenFromSend?: boolean; waitingOnReader?: boolean} = {},
 ): number | null => {
     const span = useAtomValue(turnSpanAtomFamily(messageId))
     const start = useSetAtom(startTurnSpanAtom)
@@ -36,9 +42,9 @@ export const useTurnClock = (
     const [now, setNow] = useState(() => Date.now())
 
     useEffect(() => {
-        if (live) start(messageId, startedAt)
-        else settle(messageId)
-    }, [live, messageId, startedAt, start, settle])
+        if (live) start(messageId, startedAt, seenFromSend)
+        else settle(messageId, waitingOnReader)
+    }, [live, messageId, startedAt, seenFromSend, waitingOnReader, start, settle])
 
     useEffect(() => {
         if (!live) return

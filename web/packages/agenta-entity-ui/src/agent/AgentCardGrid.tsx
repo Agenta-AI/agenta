@@ -1,6 +1,8 @@
 /** The roster's grid SHELL — geometry, the "New agent" cell, loading/empty. Cards are children. */
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import agentPickerCatalog from "@agenta/i18n/catalogs/entityUi.agentPicker"
 import {EmptyState, SkeletonBlock} from "@agenta/ui/ui"
 import {PlusIcon} from "@phosphor-icons/react"
 
@@ -27,12 +29,16 @@ export const AgentCardGrid = ({
     isLoading = false,
     count,
     onCreate,
-    createLabel = "New agent",
+    createLabel: createLabelProp,
     // What the cell actually does on every surface: creates an empty agent and opens it. Picking a
     // template is the separate templates route, not this cell.
-    createHint = "start blank",
-    emptyText = "No agents yet",
+    createHint: createHintProp,
+    emptyText: emptyTextProp,
 }: AgentCardGridProps) => {
+    const t = useT(agentPickerCatalog)
+    const createLabel = createLabelProp ?? t("entityUi.agentPicker.newAgent")
+    const createHint = createHintProp ?? t("entityUi.agentPicker.startBlank")
+    const emptyText = emptyTextProp ?? t("entityUi.agentPicker.noAgentsYet")
     // The SAME grid the cards land in, at the card's own height — a column of thin bars described
     // a list, so the page re-flowed from list to grid on the first painted card.
     if (isLoading && count === 0) {

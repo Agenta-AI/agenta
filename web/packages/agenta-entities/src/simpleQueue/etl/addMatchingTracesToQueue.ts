@@ -10,7 +10,7 @@
  * observability layer) and `addTraces` (the queue mutation). The pipeline
  * itself depends only on `@agenta/entities/etl` — pure and unit-testable.
  *
- * See docs/designs/etl-batch-add-traces.md.
+ * See docs/design/etl-batch-add-traces.md.
  *
  * @packageDocumentation
  */

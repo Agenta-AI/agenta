@@ -4,6 +4,8 @@
  */
 import type {CSSProperties, ReactNode, RefObject} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiChatInputCatalog from "@agenta/i18n/catalogs/ui.chatInput"
 import {CaretRight} from "@phosphor-icons/react"
 import clsx from "clsx"
 
@@ -46,6 +48,7 @@ export function PalettePanel({
     floatingRef,
     floatingStyles,
 }: PalettePanelProps) {
+    const t = useT(uiChatInputCatalog)
     let rowIndex = -1
     const isEmpty = sections.every((section) => section.items.length === 0)
 
@@ -74,7 +77,7 @@ export function PalettePanel({
                 ) : isEmpty ? (
                     <div className="px-4 py-[26px] text-center">
                         <div className="text-xs text-[var(--ag-colorTextSecondary)]">
-                            {emptyText ?? `No match for “${query}”`}
+                            {emptyText ?? t("ui.chatInput.noMatchFor", {query})}
                         </div>
                     </div>
                 ) : (
@@ -159,6 +162,7 @@ function PaletteRow({
     onSelect: () => void
     onDrillIn: () => void
 }) {
+    const t = useT(uiChatInputCatalog)
     const parts = matchLabel(item.label, query)
     return (
         <div
@@ -228,7 +232,7 @@ function PaletteRow({
                 // off the row's own reference action.
                 <button
                     type="button"
-                    aria-label={`Open ${item.label}`}
+                    aria-label={t("ui.chatInput.openItem", {item: item.label})}
                     // mousedown only guards the caret and the row beneath; the action hangs off
                     // click, which a pointer and the keyboard both raise.
                     onMouseDown={(e) => {

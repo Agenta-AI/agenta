@@ -27,17 +27,13 @@ export class GatewayClient {
      *
      * No permission check of its own: the result is strictly weaker than the credential
      * that bought it — same tenant scope, same run, fewer routes — so a caller can reach
-     * nothing here it could not already reach with what it presented.
+     * nothing here it could not already reach with what it presented. The principal must
+     * still be eligible (active, a member of the project). Any caller gets a
+     * credential, but only the platform runtime gets one that built-in models accept.
      *
      * It does check the switch for the plane the caller named, because minting a credential
      * for a plane that will refuse every request is worse than refusing here: the caller
      * still has a pre-gateway path at this point and none once the run is under way.
-     *
-     * The LLM plane checks the master switch only, not the per-organization rollout. The
-     * SDK exchanges a credential only after `/resolve` admitted the organization, and two
-     * API processes may briefly hold different rollout payloads: refusing here then would
-     * fail the run instead of falling back to the vault. The relay still checks the
-     * rollout on every call.
      *
      * @param {AgentaApi.GatewayCredentialsRequest | null} request
      * @param {GatewayClient.RequestOptions} requestOptions - Request-specific configuration.

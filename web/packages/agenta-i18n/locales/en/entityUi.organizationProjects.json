@@ -1,0 +1,23 @@
+{
+    "pickProjects": "Pick projects",
+    "searchProjects": "Search projects",
+    "noProjectsMatch": "No projects match \"{{search}}\".",
+    "projectsThatCanUse": "Projects that can use it",
+    "everyProjectIn": "Every project in {{organization}}.",
+    "allProjects": "All projects",
+    "everyProjectInIncludingNew": "Every project in {{organization}}, including new ones.",
+    "selectedProjects": "Selected projects",
+    "onlyProjectsYouPick": "Only the projects you pick.",
+    "choosingProjectsPlan": "Choosing projects is available on Business and Enterprise plans.",
+    "seePlans": "See plans",
+    "removeProject": "Remove {{project}}",
+    "noProjectUntilPick": "No project can use this connection until you pick one.",
+    "projectLosesAccess": "{{project}} can no longer use this connection after you save. Agents in {{project}} that use it will need configuration.",
+    "savedEveryProject": "{{name}} saved. Every project can use it.",
+    "savedProjectsCount_one": "{{name}} saved. {{count}} project can use it.",
+    "savedProjectsCount_other": "{{name}} saved. {{count}} projects can use it.",
+    "noLongerOwner": "You are no longer an owner or admin of {{organization}}, so you can't change organization connections.",
+    "projectNotInOrg": "One of the selected projects is no longer in {{organization}}. Reload the page and pick again.",
+    "nameTaken": "{{organization}} already has a connection named {{name}}. Pick another name.",
+    "couldNotSave": "Agenta could not save this {{name}} connection. Try again."
+}

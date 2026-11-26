@@ -193,6 +193,24 @@ export function reconcileRowDataForEntity(
 }
 
 /**
+ * The input keys of the other root entities on screen. In compare mode they share the testcase
+ * rows, so cleaning a row for one revision must not delete a key another revision reads.
+ */
+export function collectOtherRootInputKeys(
+    get: Getter,
+    rootEntityIds: string[],
+    entityId: string,
+): Set<string> {
+    const keys = new Set<string>()
+    for (const id of rootEntityIds) {
+        if (id === entityId) continue
+        const ports = get(workflowMolecule.selectors.inputPorts(id)) as {key?: string}[]
+        for (const port of ports) if (port.key) keys.add(port.key)
+    }
+    return keys
+}
+
+/**
  * Collect testcase column names that downstream evaluator nodes consume.
  *
  * An evaluator pulls a testcase column in two ways, and the primary app's

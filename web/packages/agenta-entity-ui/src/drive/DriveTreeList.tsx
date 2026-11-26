@@ -11,6 +11,8 @@ import {parentOf, type FlatTreeRow} from "@agenta/entities/drive"
 import {type DriveDrop} from "@agenta/entities/drive"
 import {type DriveTreeViewport} from "@agenta/entities/drive"
 import {type MountUploadItem} from "@agenta/entities/drive"
+import {useT} from "@agenta/i18n"
+import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
 import {motion} from "motion/react"
 
 import {DriveItemContextMenu, type DriveItemWriteActions} from "./DriveItemContextMenu"
@@ -38,6 +40,7 @@ export function DriveTreeList({
     shownExpanded,
     selectedPath,
     showOrigin,
+    otherDrives,
     isDirLoading,
     scrollXFor,
     onMeasureContent,
@@ -65,6 +68,7 @@ export function DriveTreeList({
     shownExpanded: Set<string>
     selectedPath: string | null
     showOrigin: boolean
+    otherDrives?: readonly {slug: string}[]
     isDirLoading: (path: string) => boolean
     scrollXFor: (parent: string) => number
     onMeasureContent: (parent: string, width: number) => void
@@ -86,11 +90,14 @@ export function DriveTreeList({
     /** Extra indent per row: 1 when the root row is shown. */
     depthOffset?: number
 }) {
+    const t = useT(driveBrowserCatalog)
     return flatRows.length === 0 ? (
         <>
             {rootRow}
             <Text type="secondary" className="px-2 !text-xs">
-                {searchLoading ? "Searching…" : "No matches"}
+                {searchLoading
+                    ? t("entityUi.driveBrowser.searching")
+                    : t("entityUi.driveBrowser.noMatches")}
             </Text>
         </>
     ) : (
@@ -165,6 +172,7 @@ export function DriveTreeList({
                                                 isDirLoading(node.path)
                                             }
                                             showOrigin={showOrigin}
+                                            otherDrives={otherDrives}
                                             parent={parent}
                                             scrollX={scrollXFor(parent)}
                                             onMeasureContent={onMeasureContent}

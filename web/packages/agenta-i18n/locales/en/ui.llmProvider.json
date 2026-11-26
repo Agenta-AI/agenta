@@ -1,0 +1,11 @@
+{
+    "aboutHarnesses": "About harnesses",
+    "harnessExplainer": "A harness is the runtime that executes the model — the same model can be available through several harnesses.",
+    "inputLabel": "Input:",
+    "manageProviders": "Manage model providers",
+    "models": "Models",
+    "outputLabel": "Output:",
+    "providers": "Providers",
+    "selectProvider": "Select a provider",
+    "via": "via"
+}

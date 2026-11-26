@@ -15,6 +15,10 @@ from oss.src.core.secrets.enums import (
     SubscriptionProviderKind,
 )
 from oss.src.core.secrets.services import VaultService, next_provider_key_name
+from oss.tests.pytest.utils.organization_secrets import (
+    load_effective_from_list,
+    owner_scope,
+)
 
 
 PROJECT_ID = uuid4()
@@ -28,6 +32,8 @@ class _FakeSecretsDAO:
     test could see provider numbering or saved policy cross a project boundary.
     """
 
+    load_effective = load_effective_from_list
+
     def __init__(self):
         self.records: list[tuple[tuple, SecretResponseDTO]] = []
 
@@ -38,7 +44,14 @@ class _FakeSecretsDAO:
             if scope == (project_id, organization_id)
         ]
 
-    async def create(self, project_id, organization_id, create_secret_dto):
+    async def create(
+        self,
+        *,
+        owner,
+        create_secret_dto,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         record = SecretResponseDTO(
             id=uuid4(),
             slug=create_secret_dto.slug,
@@ -49,10 +62,23 @@ class _FakeSecretsDAO:
         self.records.append(((project_id, organization_id), record))
         return record
 
-    async def list(self, project_id, organization_id):
+    async def list(
+        self,
+        *,
+        owner,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return self._scoped(project_id, organization_id)
 
-    async def get_by_id(self, secret_id, project_id, organization_id):
+    async def get_by_id(
+        self,
+        *,
+        owner,
+        secret_id,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return next(
             (
                 record
@@ -64,13 +90,15 @@ class _FakeSecretsDAO:
 
     async def update(
         self,
+        *,
+        owner,
         secret_id,
         update_secret_dto,
-        project_id,
-        organization_id,
         user_id=None,
         resolve_update=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         del user_id
         scope = (project_id, organization_id)
         stored = next(
@@ -141,6 +169,25 @@ def _custom_provider_payload(name="My gateway", slug=None):
 @pytest.fixture
 def vault():
     return VaultService(_FakeSecretsDAO())
+
+
+def test_an_organization_default_name_carries_the_owner():
+    assert (
+        next_provider_key_name(
+            kind=StandardProviderKind.OPENAI,
+            taken_names=set(),
+            owner_label="Organization",
+        )
+        == "OpenAI (Organization)"
+    )
+    assert (
+        next_provider_key_name(
+            kind=StandardProviderKind.OPENAI,
+            taken_names={"OpenAI (Organization)"},
+            owner_label="Organization",
+        )
+        == "OpenAI (Organization) 2"
+    )
 
 
 def test_next_provider_key_name_numbers_later_connections():

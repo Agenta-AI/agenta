@@ -20,6 +20,7 @@ from oss.src.core.sessions.dtos import SessionQuery
 from oss.src.core.sessions.service import SessionsService
 from oss.src.core.sessions.streams.dtos import SessionStream, SessionStreamQuery
 from oss.src.dbs.postgres.sessions.streams import dao as dao_module
+from oss.tests.pytest.utils.sharing import PROJECT_SESSION_SCOPE
 
 
 # ---------------------------------------------------------------------------------- #
@@ -65,6 +66,7 @@ async def _run_query(monkeypatch, *, search: Optional[str]):
     monkeypatch.setattr(dao_module, "get_transactions_engine", lambda: mock_engine)
 
     await dao_module.SessionStreamsDAO().query(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=uuid4(),
         filter=SessionStreamQuery(search=search),
     )
@@ -148,6 +150,7 @@ class _FakeStreamsService:
         self,
         *,
         project_id,
+        read_scope,
         filter,
         windowing=None,
         session_ids=None,
@@ -185,6 +188,7 @@ async def test_service_forwards_search_into_stream_query():
     )
 
     await svc.query_sessions(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=_PROJECT,
         query=SessionQuery(search="x"),
     )

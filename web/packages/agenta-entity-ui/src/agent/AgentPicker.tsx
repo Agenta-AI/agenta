@@ -1,7 +1,17 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
-import {cn, Popover, PopoverContent, PopoverTrigger, SkeletonBlock, Spinner} from "@agenta/ui/ui"
+import {createT, useT} from "@agenta/i18n"
+import agentPickerCatalog from "@agenta/i18n/catalogs/entityUi.agentPicker"
+import {
+    cn,
+    PHONE_TOUCH_TARGET_CLASS,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+    SkeletonBlock,
+    Spinner,
+} from "@agenta/ui/ui"
 import {Check, MagnifyingGlass, Plus, Robot} from "@phosphor-icons/react"
 import {CaretDown} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -45,8 +55,11 @@ export interface AgentPickerProps {
     align?: "start" | "center" | "end"
 }
 
+// `agentLabel` also feeds the search filter, outside render.
+const tNow = createT(agentPickerCatalog)
+
 const agentLabel = (agent: Workflow): string =>
-    agent.name?.trim() || agent.slug?.trim() || "Untitled agent"
+    agent.name?.trim() || agent.slug?.trim() || tNow("entityUi.agentPicker.untitledAgent")
 
 const agentDescription = (agent: Workflow): string => agent.description?.trim() ?? ""
 
@@ -135,6 +148,7 @@ const AgentPickerRow = ({
     onKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => void
     onSelect: () => void
 }) => {
+    const t = useT(agentPickerCatalog)
     const description = agentDescription(agent)
     return (
         <button
@@ -173,7 +187,7 @@ const AgentPickerRow = ({
                             description ? "text-placeholder" : "text-placeholder/70",
                         ].join(" ")}
                     >
-                        {description || "No description"}
+                        {description || t("entityUi.agentPicker.noDescription")}
                     </span>
                 ) : null}
             </span>
@@ -209,11 +223,14 @@ export const AgentPickerPanel = ({
     pendingId = null,
     onSelect,
     density = "compact",
-    searchPlaceholder = "Search agents",
+    searchPlaceholder: searchPlaceholderProp,
     onCreateAgent,
-    createLabel = "New agent",
+    createLabel: createLabelProp,
     autoFocusSearch = true,
 }: AgentPickerPanelProps) => {
+    const t = useT(agentPickerCatalog)
+    const searchPlaceholder = searchPlaceholderProp ?? t("entityUi.agentPicker.searchAgents")
+    const createLabel = createLabelProp ?? t("entityUi.agentPicker.newAgent")
     const [query, setQuery] = useState("")
     const searchRef = useRef<HTMLInputElement | null>(null)
     const rowRefs = useRef(new Map<string, HTMLButtonElement | null>())
@@ -297,8 +314,8 @@ export const AgentPickerPanel = ({
                     agents.length === 0 ? (
                         <AgentPickerEmpty
                             icon={<Robot aria-hidden size={19} />}
-                            title="No agents yet"
-                            body="An agent is what does the work. Make one and it shows up here."
+                            title={t("entityUi.agentPicker.noAgentsYet")}
+                            body={t("entityUi.agentPicker.noAgentsYetBody")}
                             action={
                                 onCreateAgent ? (
                                     <button
@@ -315,8 +332,8 @@ export const AgentPickerPanel = ({
                     ) : (
                         <AgentPickerEmpty
                             icon={<MagnifyingGlass aria-hidden size={19} />}
-                            title={`No agents match “${query.trim()}”`}
-                            body="The search covers each agent's name and what it does."
+                            title={t("entityUi.agentPicker.noAgentsMatch", {query: query.trim()})}
+                            body={t("entityUi.agentPicker.searchCovers")}
                             action={
                                 <button
                                     type="button"
@@ -326,7 +343,7 @@ export const AgentPickerPanel = ({
                                     }}
                                     className="mt-1 box-border inline-flex cursor-pointer appearance-none items-center rounded-control-sm border-0 bg-muted px-2.5 py-1.5 font-[inherit] text-[12px] font-medium text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
                                 >
-                                    Clear search
+                                    {t("entityUi.agentPicker.clearSearch")}
                                 </button>
                             }
                         />
@@ -403,17 +420,22 @@ export const AgentPicker = ({
     trigger = "field",
     density = "compact",
     onCreateAgent,
-    createLabel = "New agent",
-    placeholder = "Pick an agent",
-    searchPlaceholder = "Search agents",
+    createLabel: createLabelProp,
+    placeholder: placeholderProp,
+    searchPlaceholder: searchPlaceholderProp,
     fallbackName = null,
-    triggerAriaLabel = "Agent",
+    triggerAriaLabel: triggerAriaLabelProp,
     invalid = false,
     triggerClassName,
     contentClassName,
     side = "bottom",
     align = "start",
 }: AgentPickerProps) => {
+    const t = useT(agentPickerCatalog)
+    const createLabel = createLabelProp ?? t("entityUi.agentPicker.newAgent")
+    const placeholder = placeholderProp ?? t("entityUi.agentPicker.pickAnAgent")
+    const searchPlaceholder = searchPlaceholderProp ?? t("entityUi.agentPicker.searchAgents")
+    const triggerAriaLabel = triggerAriaLabelProp ?? t("entityUi.agentPicker.agent")
     const [open, setOpen] = useState(false)
 
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
@@ -495,6 +517,7 @@ export const AgentPicker = ({
                     "disabled:cursor-default disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:hover:border-border",
                     // The same error treatment the app's own Select trigger wears.
                     "aria-[invalid=true]:border-error aria-[invalid=true]:focus:shadow-[0_0_0_2px_var(--ag-errorOutline)]",
+                    PHONE_TOUCH_TARGET_CLASS,
                     triggerClassName,
                 )}
             >

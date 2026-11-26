@@ -16,6 +16,8 @@ export {
 } from "./featureFlags"
 export {
     advancedNavHiddenAtom,
+    betaDeveloperModeActiveAtom,
+    betaDeveloperModeFlagAtom,
     classicModeEnabledAtom,
     navSimplifiedDefaultAtom,
     navSimplifiedOverrideAtom,

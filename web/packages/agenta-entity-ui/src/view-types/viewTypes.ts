@@ -29,6 +29,12 @@
  * concerns, two distinct vocabularies.
  */
 
+import {createT} from "@agenta/i18n"
+import viewTypesCatalog from "@agenta/i18n/catalogs/entityUi.viewTypes"
+
+// Labels are read when the options are built, at render time, in the active language.
+const t = createT(viewTypesCatalog)
+
 /** A user-selectable rendering mode for a value. */
 export type ViewType = "text" | "markdown" | "chat" | "form" | "json" | "yaml"
 
@@ -107,14 +113,14 @@ export function getViewOptions(value: unknown): ViewOption[] {
     const opts: ViewOption[] = []
 
     if (kind === "string") {
-        opts.push({value: "text", label: "Text", hint: "default"})
+        opts.push({value: "text", label: t("entityUi.viewTypes.text"), hint: "default"})
         opts.push({value: "markdown", label: "Markdown"})
     } else if (kind === "boolean") {
-        opts.push({value: "text", label: "Text", hint: "default"})
+        opts.push({value: "text", label: t("entityUi.viewTypes.text"), hint: "default"})
     } else if (kind === "chat") {
-        opts.push({value: "chat", label: "Chat", hint: "default"})
+        opts.push({value: "chat", label: t("entityUi.viewTypes.chat"), hint: "default"})
     } else if (kind === "object") {
-        opts.push({value: "form", label: "Form", hint: "default"})
+        opts.push({value: "form", label: t("entityUi.viewTypes.form"), hint: "default"})
     }
 
     opts.push({value: "json", label: "JSON"})
@@ -191,12 +197,12 @@ export function getViewOptionsForExpectedType(
 
     const opts: ViewOption[] = []
     if (expectedKind === "string") {
-        opts.push({value: "text", label: "Text", hint: "default"})
+        opts.push({value: "text", label: t("entityUi.viewTypes.text"), hint: "default"})
         opts.push({value: "markdown", label: "Markdown"})
     } else if (expectedKind === "boolean") {
-        opts.push({value: "text", label: "Text", hint: "default"})
+        opts.push({value: "text", label: t("entityUi.viewTypes.text"), hint: "default"})
     } else if (expectedKind === "object") {
-        opts.push({value: "form", label: "Form"})
+        opts.push({value: "form", label: t("entityUi.viewTypes.form")})
     }
     // JSON / YAML always at the bottom, in this order, for every kind.
     opts.push({value: "json", label: "JSON"})

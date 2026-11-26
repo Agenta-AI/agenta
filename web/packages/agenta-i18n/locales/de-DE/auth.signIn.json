@@ -1,0 +1,22 @@
+{
+    "codeHeading": "Prüfen Sie Ihren Posteingang",
+    "codeSubheading": "Geben Sie den 6-stelligen Code ein, den wir an Ihre E-Mail-Adresse gesendet haben.",
+    "continueWithSso": "Mit SSO fortfahren ({{provider}})",
+    "headingNew": "Willkommen bei Agenta",
+    "headingReturning": "Willkommen zurück",
+    "noAuthMethods": "In dieser Bereitstellung ist keine Anmeldemethode aktiviert. Wenden Sie sich an Ihren Administrator.",
+    "noMethodForEmail": "Für diese E-Mail-Adresse gibt es hier keine Anmeldemethode. Versuchen Sie eine andere Adresse.",
+    "otpHeading": "Anmeldecode anfordern",
+    "otpSubheading": "Wir senden einen Einmalcode an diese Adresse.",
+    "passwordHeading": "Geben Sie Ihr Passwort ein",
+    "passwordSubheading": "Neu bei Agenta? Mit dem Passwort, das Sie hier wählen, wird Ihr Konto erstellt.",
+    "providerUnreachable": "Der Anbieter ist nicht erreichbar. Versuchen Sie es erneut.",
+    "redirectingTo": "Weiterleitung zu {{provider}}…",
+    "signedInButAppFailed": "Sie sind angemeldet, aber die App konnte nicht geöffnet werden. Versuchen Sie es erneut.",
+    "ssoHeading": "Mit SSO anmelden",
+    "ssoSubheading": "Ihre Organisation verwaltet die Anmeldung für diese E-Mail-Adresse.",
+    "subheadingNew": "Melden Sie sich an oder erstellen Sie ein Konto.",
+    "subheadingReturning": "Melden Sie sich an, um zu Ihrem Arbeitsbereich zu gelangen.",
+    "termsNotice": "Indem Sie fortfahren, stimmen Sie den <terms>Nutzungsbedingungen</terms> und der <privacy>Datenschutzerklärung</privacy> von Agenta zu.",
+    "or": "oder"
+}

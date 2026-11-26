@@ -1,6 +1,7 @@
 export {
     vaultMigrationAtom,
     vaultSecretsQueryAtom,
+    vaultSecretsWithOrganizationQueryAtom,
     standardSecretsAtom,
     customSecretsAtom,
     createVaultSecretMutationAtom,
@@ -32,6 +33,7 @@ export {
     loginAttemptOutcome,
     loginAttemptPollInterval,
     loginAttemptQueryAtomFamily,
+    refreshSignedInAtom,
     refreshVaultSecretsAtom,
     setSubscriptionTokenAtom,
     startSubscriptionLoginAtom,
@@ -40,3 +42,22 @@ export {
 } from "./subscriptionLogin"
 
 export {useVaultSecret} from "./useVaultSecret"
+
+export {
+    managedOrganizationConnectionsAtom,
+    organizationConnectionsAccessAtom,
+    organizationProviderConnectionsAtom,
+    organizationProjectsQueryAtom,
+    organizationSecretsQueryAtom,
+    setOrganizationConnectionProjectsAtom,
+    type OrganizationConnectionsAccess,
+    type OrganizationSecretProjects,
+} from "./organizationConnections"
+
+export {
+    PERSONAL_SECRETS_KEY,
+    personalAccountsAccessAtom,
+    personalNamedSecretsAtom,
+    personalSecretsQueryAtom,
+    type PersonalAccountsAccess,
+} from "./personalSecrets"

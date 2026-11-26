@@ -1,0 +1,16 @@
+{
+    "connectionDeleted": "Verbindung gelöscht",
+    "connectionRevoked": "Verbindung widerrufen",
+    "default": "Standard",
+    "deleteConnectionFailed": "Die Verbindung konnte nicht gelöscht werden",
+    "deleteConnectionMessage": "Möchten Sie diese Verbindung wirklich löschen? Diese Aktion ist nicht umkehrbar.",
+    "deleteConnectionTitle": "Verbindung löschen",
+    "loadConnectionsFailed": "Ihre Verbindungen konnten nicht geladen werden.",
+    "makeDefault": "Als Standard festlegen",
+    "makeDefaultFailed": "Es konnte nicht als Ihr Standard festgelegt werden. Versuchen Sie es erneut.",
+    "revokeConnectionFailed": "Die Verbindung konnte nicht widerrufen werden",
+    "revokeConnectionMessage": "Dadurch wird die Verbindung als ungültig markiert. Sie können sie später aktualisieren, um sie wieder zu aktivieren.",
+    "revokeConnectionTitle": "Verbindung widerrufen",
+    "runTool": "Werkzeug ausführen",
+    "searchTools": "Werkzeuge durchsuchen"
+}

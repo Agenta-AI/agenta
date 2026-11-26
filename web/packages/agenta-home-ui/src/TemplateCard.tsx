@@ -5,6 +5,7 @@ import {TemplateProviderMarks} from "./TemplateProviderMarks"
 export interface TemplateCardProps {
     template: AgentStarterTemplate
     onSelect: (template: AgentStarterTemplate) => void
+    disabled?: boolean
 }
 
 /**
@@ -15,14 +16,15 @@ export interface TemplateCardProps {
  * design's "1.2k uses" has no telemetry behind it — the footer carries what the template actually
  * declares (its tools and when it fires) instead of an invented popularity number.
  */
-export const TemplateCard = ({template, onSelect}: TemplateCardProps) => {
+export const TemplateCard = ({template, onSelect, disabled}: TemplateCardProps) => {
     return (
         <button
             type="button"
+            disabled={disabled}
             onClick={() => onSelect(template)}
             // `w-full min-w-0`: a flex container defaults to min-width:auto, so the card's own
             // min-content width beat its grid track and cards overlapped their neighbours.
-            className="group relative box-border flex h-full w-full min-w-0 cursor-pointer flex-col gap-2.5 rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated p-5 pt-8 text-left transition-colors hover:border-colorBorder"
+            className="group relative box-border flex h-full w-full min-w-0 cursor-pointer flex-col gap-2.5 rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated p-5 pt-8 text-left transition-colors hover:border-colorBorder disabled:cursor-not-allowed disabled:opacity-60"
         >
             <span
                 aria-hidden

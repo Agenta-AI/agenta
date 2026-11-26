@@ -1,0 +1,11 @@
+{
+    "aboutHarnesses": "ハーネスについて",
+    "harnessExplainer": "ハーネスはモデルを実行するランタイムです。同じモデルを複数のハーネスから利用できる場合があります。",
+    "inputLabel": "入力：",
+    "manageProviders": "モデルプロバイダーを管理",
+    "models": "モデル",
+    "outputLabel": "出力：",
+    "providers": "プロバイダー",
+    "selectProvider": "プロバイダーを選択",
+    "via": "経由"
+}

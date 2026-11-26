@@ -12,8 +12,9 @@ from typing import Any, Dict, Optional
 
 import pytest
 
-from agenta.sdk.middlewares.routing import auth as auth_module
 from agenta.sdk.utils.cache import TTLLRUCache
+
+from agenta.sdk.middlewares.routing import auth as auth_module
 
 
 class _FakeRequest:
@@ -150,3 +151,54 @@ def test_runtime_key_placeholder_is_treated_as_unconfigured(monkeypatch):
     )
 
     assert auth_module._runtime_key_from_environment() == ""
+
+
+def test_the_exchange_cache_keeps_the_m1_ttl():
+    """The services path keeps M1's exchange cache (the middleware TTL), so M2 adds no
+    API call per request."""
+
+    from agenta.sdk.utils.cache import CACHE_TTL
+
+    assert auth_module._cache.ttl == CACHE_TTL
+
+
+async def test_an_allowed_exchange_is_reused_within_the_ttl(platform):
+    platform.body = {"effect": "allow", "credentials": "Secret general-token"}
+    assert await _get_credentials() == "Secret general-token"
+    platform.body = {"effect": "deny"}
+    assert await _get_credentials() == "Secret general-token"
+    assert platform.call_count == 1
+
+
+async def test_after_the_ttl_the_platform_decides_again(platform, monkeypatch):
+    import agenta.sdk.utils.cache as cache_module
+
+    now = [1000.0]
+    monkeypatch.setattr(cache_module, "time", lambda: now[0])
+    platform.body = {"effect": "allow", "credentials": "Secret general-token"}
+    await _get_credentials()
+    now[0] += auth_module._cache.ttl + 1
+    platform.body = {"effect": "deny"}
+    with pytest.raises(auth_module.DenyException) as denied:
+        await _get_credentials()
+    assert denied.value.status_code == 403
+    assert platform.call_count == 2
+
+
+async def test_a_structured_refusal_is_passed_through(platform, monkeypatch):
+    denial = {
+        "code": "access_denied",
+        "message": "no",
+        "details": {"reason": "not_member"},
+    }
+
+    async def _get(self, *args, **kwargs):
+        response = _FakeResponse({"detail": denial})
+        response.status_code = 403
+        return response
+
+    monkeypatch.setattr(platform, "get", _get)
+    with pytest.raises(auth_module.DenyException) as denied:
+        await _get_credentials()
+    assert denied.value.status_code == 403
+    assert denied.value.content == denial

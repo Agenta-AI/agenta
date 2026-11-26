@@ -1,0 +1,21 @@
+{
+    "configuration": "Configuración",
+    "commit": "Commit",
+    "agent": "Agente",
+    "notSaved": "Sin guardar",
+    "saving": "Guardando…",
+    "draft": "Borrador",
+    "saved": "Guardado",
+    "tipFailed": "{{error}}: haz clic para reintentar",
+    "couldNotSave": "No se pudieron guardar los cambios",
+    "tipSaving": "Guardando tus cambios",
+    "tipDraft": "Cambios sin guardar",
+    "statusAndHistory": "{{status}} · Historial de versiones",
+    "versionStatusOpen": "Versión {{version}}, {{status}}. Abrir historial de versiones",
+    "versionHistory": "Historial de versiones",
+    "openVersionHistory": "Abrir historial de versiones",
+    "commitMessage": "Mensaje del commit",
+    "noCommitMessage": "Sin mensaje de commit",
+    "updateAvailable": "Actualizar a v{{version}}",
+    "retrySaving": "Reintentar guardar los cambios"
+}

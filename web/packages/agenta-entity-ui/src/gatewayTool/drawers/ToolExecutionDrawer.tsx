@@ -10,6 +10,8 @@ import {
     type ToolCatalogAction,
     type ToolCatalogActionDetails,
 } from "@agenta/entities/gatewayTool"
+import {createT, useT, type CatalogKey} from "@agenta/i18n"
+import toolExecutionCatalog from "@agenta/i18n/catalogs/entityUi.toolExecution"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {ScrollSentinel, ScrollToTopButton, message} from "@agenta/ui"
 import {Tag} from "@agenta/ui/components/presentational"
@@ -109,13 +111,16 @@ export default function ToolExecutionDrawer() {
     )
 }
 
-/** Composio's MCP-style hints, said as what the action does. */
-const HINT_LABELS: Record<string, string> = {
-    readOnlyHint: "Read-only",
-    createHint: "Creates",
-    updateHint: "Updates",
-    destructiveHint: "Deletes",
-    deleteHint: "Deletes",
+// The execute handler's toast fires outside render.
+const tNow = createT(toolExecutionCatalog)
+
+/** Composio's MCP-style hints, said as what the action does. Catalog keys, translated at render. */
+const HINT_LABELS: Record<string, CatalogKey<typeof toolExecutionCatalog>> = {
+    readOnlyHint: "entityUi.toolExecution.readOnly",
+    createHint: "entityUi.toolExecution.creates",
+    updateHint: "entityUi.toolExecution.updates",
+    destructiveHint: "entityUi.toolExecution.deletes",
+    deleteHint: "entityUi.toolExecution.deletes",
 }
 
 function ActionRow({
@@ -125,6 +130,7 @@ function ActionRow({
     action: CatalogActionItem
     onSelect: (action: CatalogActionItem) => void
 }) {
+    const t = useT(toolExecutionCatalog)
     const categories = action.categories ?? []
     const hint = categories.map((c) => HINT_LABELS[c]).find(Boolean)
     const topic = categories.find((c) => !c.endsWith("Hint"))
@@ -148,10 +154,10 @@ function ActionRow({
                     </span>
                     {hint ? (
                         <Tag
-                            tone={hint === "Deletes" ? "red" : "default"}
+                            tone={hint === "entityUi.toolExecution.deletes" ? "red" : "default"}
                             className="shrink-0 text-xs"
                         >
-                            {hint}
+                            {t(hint)}
                         </Tag>
                     ) : null}
                 </div>
@@ -219,6 +225,7 @@ function ActionPickerStep({
     connectionSlug: string
     onSelectAction: (action: CatalogActionItem) => void
 }) {
+    const t = useT(toolExecutionCatalog)
     const setAtom = useSetAtom(toolActionsSearchAtom)
     const search = useDebouncedAtomSearch(setAtom)
     const scrollRef = useRef<HTMLDivElement>(null)
@@ -244,12 +251,12 @@ function ActionPickerStep({
             <div className="flex flex-col gap-3 px-4 pt-4 pb-3 shrink-0">
                 <div className="flex min-w-0 flex-col gap-1">
                     <span className="truncate text-base font-medium leading-snug text-foreground">
-                        Choose an action to run
+                        {t("entityUi.toolExecution.chooseAction")}
                     </span>
                 </div>
 
                 <InputAffix
-                    placeholder="Search actions…"
+                    placeholder={t("entityUi.toolExecution.searchActions")}
                     prefix={<MagnifyingGlass size={16} />}
                     value={search.value}
                     onValueChange={(value) => search.onChange(value)}
@@ -258,7 +265,7 @@ function ActionPickerStep({
 
                 {total > 0 ? (
                     <span className="text-xs text-colorTextDescription">
-                        {total} action{total !== 1 ? "s" : ""}
+                        {t("entityUi.toolExecution.actionsCount", {count: total})}
                     </span>
                 ) : null}
             </div>
@@ -274,19 +281,23 @@ function ActionPickerStep({
                     search.value.trim() ? (
                         <ToolsEmpty
                             icon={<MagnifyingGlass size={18} />}
-                            title={`No actions match “${search.value.trim()}”`}
-                            description="Try another word, or clear the search to see every action."
+                            title={t("entityUi.toolExecution.noActionsMatch", {
+                                query: search.value.trim(),
+                            })}
+                            description={t("entityUi.toolExecution.noActionsMatchHint")}
                             action={
                                 <Button variant="outline" onClick={() => search.onChange("")}>
-                                    Clear search
+                                    {t("entityUi.toolExecution.clearSearch")}
                                 </Button>
                             }
                         />
                     ) : (
                         <ToolsEmpty
                             icon={<Wrench size={18} />}
-                            title="No actions available"
-                            description={`${integrationName || integrationKey} exposes no actions yet.`}
+                            title={t("entityUi.toolExecution.noActionsAvailable")}
+                            description={t("entityUi.toolExecution.exposesNoActions", {
+                                name: integrationName || integrationKey,
+                            })}
                         />
                     )
                 ) : (
@@ -343,6 +354,7 @@ function ActionDetailStep({
     canGoBack: boolean
     onBack: () => void
 }) {
+    const t = useT(toolExecutionCatalog)
     const schemaFormRef = useRef<SchemaFormHandle>(null)
     const {action, isLoading: detailLoading} = useToolActionDetail(integrationKey, actionKey)
     const {execute, isExecuting, result, error} = useToolExecution()
@@ -370,7 +382,7 @@ function ActionDetailStep({
             })
         } catch (e) {
             if (e instanceof SyntaxError) {
-                message.error("Invalid JSON input")
+                message.error(tNow("entityUi.toolExecution.invalidJsonInput"))
             }
             // form validation failed
         }
@@ -386,11 +398,11 @@ function ActionDetailStep({
                         className="-ml-1 mb-1 flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs text-muted-foreground hover:text-foreground"
                     >
                         <ArrowLeft size={12} />
-                        All actions
+                        {t("entityUi.toolExecution.allActions")}
                     </button>
                 )}
                 <span className="truncate text-base font-medium text-foreground">
-                    {detailLoading ? "Loading…" : displayName}
+                    {detailLoading ? t("entityUi.toolExecution.loading") : displayName}
                 </span>
                 {action?.description && (
                     <p className="m-0 line-clamp-3 text-[13px] leading-5 text-colorTextDescription">
@@ -398,7 +410,7 @@ function ActionDetailStep({
                     </p>
                 )}
                 <span className="flex min-w-0 items-center gap-1.5 text-xs text-colorTextDescription">
-                    Connection
+                    {t("entityUi.toolExecution.connection")}
                     <span className="truncate rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground">
                         {connectionSlug}
                     </span>
@@ -414,7 +426,7 @@ function ActionDetailStep({
                         {/* Inputs section */}
                         <div className="flex flex-col gap-2">
                             <span className="text-[13px] font-medium text-muted-foreground">
-                                Inputs
+                                {t("entityUi.toolExecution.inputs")}
                             </span>
                             <SchemaForm
                                 ref={schemaFormRef}
@@ -426,7 +438,7 @@ function ActionDetailStep({
                         {/* Outputs section */}
                         <div className="flex flex-col gap-2">
                             <span className="text-[13px] font-medium text-muted-foreground">
-                                Output
+                                {t("entityUi.toolExecution.output")}
                             </span>
                             {result || error ? (
                                 <ResultViewer
@@ -437,10 +449,11 @@ function ActionDetailStep({
                             ) : (
                                 <div className="flex flex-col items-center gap-1 rounded-[10px] border border-dashed border-border px-4 py-6 text-center">
                                     <Play size={18} className="text-muted-foreground" />
-                                    <span className="text-sm text-foreground">No output yet</span>
+                                    <span className="text-sm text-foreground">
+                                        {t("entityUi.toolExecution.noOutputYet")}
+                                    </span>
                                     <span className="text-xs text-colorTextDescription">
-                                        Fill in the inputs and run the action to see what it
-                                        returns.
+                                        {t("entityUi.toolExecution.fillInputsHint")}
                                     </span>
                                 </div>
                             )}
@@ -454,7 +467,7 @@ function ActionDetailStep({
                 <div className="flex shrink-0 justify-end border-0 border-t border-solid border-border px-4 py-3">
                     <LoadingButton loading={isExecuting} onClick={handleExecute}>
                         {!isExecuting && <Play size={14} />}
-                        Run action
+                        {t("entityUi.toolExecution.runAction")}
                     </LoadingButton>
                 </div>
             )}

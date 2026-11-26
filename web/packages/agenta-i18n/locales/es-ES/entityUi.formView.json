@@ -1,0 +1,8 @@
+{
+    "emptyObject": "(objeto vacío)",
+    "emptyArray": "(array vacío)",
+    "removeRow": "Quitar fila {{index}}",
+    "addRow": "Añadir fila",
+    "numberPlaceholder": "Introduce un valor numérico",
+    "valuePlaceholder": "Introduce un valor"
+}

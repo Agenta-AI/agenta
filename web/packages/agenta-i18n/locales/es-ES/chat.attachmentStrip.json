@@ -1,0 +1,8 @@
+{
+    "pause": "Pausar {{name}}",
+    "play": "Reproducir {{name}}",
+    "view": "Ver {{name}}",
+    "viewMore_one": "Ver {{count}} archivo más",
+    "viewMore_many": "Ver {{count}} archivos más",
+    "viewMore_other": "Ver {{count}} archivos más"
+}

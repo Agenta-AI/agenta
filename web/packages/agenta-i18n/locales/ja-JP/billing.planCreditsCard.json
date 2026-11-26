@@ -1,0 +1,9 @@
+{
+    "credits": "クレジット",
+    "creditsLeft": "残りのクレジット",
+    "everyCredit": "組織が現在使用できるすべてのクレジットです。",
+    "monthlyCreditsLeft": "今月の残りクレジット",
+    "ofTotal": "/ {{total}}",
+    "resetsAndBalance": "{{date}} にリセット · 合計残高 {{balance}} クレジット",
+    "totalBalance": "合計残高 {{balance}} クレジット"
+}

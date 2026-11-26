@@ -29,10 +29,13 @@ vi.mock("@agenta/shared/api", async (importOriginal) => ({
 
 import {disconnectMcpEndpointAtom, MCP_ENDPOINTS_QUERY_KEY} from "../../src/mcpEndpoint/state/atoms"
 import {getMcpConnectionState} from "../../src/mcpEndpoint/core/connectionState"
-import {projectIdAtom} from "@agenta/shared/state"
+import {projectIdAtom, userAtom} from "@agenta/shared/state"
+import type {User} from "@agenta/shared/types"
 
 const PROJECT = "project-1"
-const KEY = [MCP_ENDPOINTS_QUERY_KEY, PROJECT]
+const USER = {id: "user-1"} as User
+// The list carries the caller's own sign-in, so it is keyed by the person too.
+const KEY = [MCP_ENDPOINTS_QUERY_KEY, USER.id, PROJECT]
 
 const connected: MCPEndpoint = {
     id: "mcp-1",
@@ -75,6 +78,7 @@ beforeEach(() => {
     queryClient.current = client
     store = createStore()
     store.set(projectIdAtom, PROJECT)
+    store.set(userAtom, USER)
     disconnectMcpEndpoint.mockResolvedValue({count: 1, endpoint: disconnected})
 })
 

@@ -1,13 +1,16 @@
 import {useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
-import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
+import {createT} from "@agenta/i18n"
+import chatActivityCatalog from "@agenta/i18n/catalogs/chat.activity"
 import {AgentActivityDots, HeightCollapse, type AgentActivityFormat} from "@agenta/ui"
+import {PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {CaretRight, FileText} from "@phosphor-icons/react"
 import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useReducedMotion} from "motion/react"
 
 import {stageWords} from "../../assets/startupPhases"
+import {useAgentDisplayName} from "../../hooks/useAgentDisplayName"
 import {useHeldFor} from "../../hooks/useHeldFor"
 import {useRevealed} from "../../hooks/useRevealed"
 import {useStageWord} from "../../hooks/useStageWord"
@@ -20,14 +23,15 @@ import {
     partToolName,
     type ActivityStep,
 } from "../../model"
+import {toolHadApproval} from "../../model/approvals"
 import {resolveToolDisplay} from "../../skin"
 import type {ActivityIcon} from "../../skin/types"
 import {activityFoldKey, expandedValueAtomFamily, setExpandedAtom} from "../../state"
-import {useTurnStage, useTurnStageSince} from "../../state/turnClock"
+import {turnSpanAtomFamily, useTurnStage, useTurnStageSince} from "../../state/turnClock"
 import RevealCollapse from "../RevealCollapse"
 
 import {ActivityClientStep} from "./ActivityClientStep"
-import {LIVE_TEXT_CLASS, WaitingGlyph, type WaitingKind} from "./activityIcons"
+import {ActivityNode, LIVE_TEXT_CLASS, WaitingGlyph, type WaitingKind} from "./activityIcons"
 import {ActivityThoughtStep} from "./ActivityThoughtStep"
 import {ActivityToolStep} from "./ActivityToolStep"
 
@@ -199,6 +203,10 @@ const waitingKind = (steps: ActivityStep[]): WaitingKind => {
     return "approval"
 }
 
+/** A step that paused the run to wait on user input or approval. */
+const stepHadGate = (step: ActivityStep): boolean =>
+    step.kind === "client" || (step.kind === "tool" && toolHadApproval(step.part))
+
 /** The last step of the agent's own: a settled ask's verb must not hold the line. */
 const lastAgentStep = (steps: ActivityStep[]): ActivityStep | null => {
     for (let i = steps.length - 1; i >= 0; i--) if (steps[i].kind !== "client") return steps[i]
@@ -229,17 +237,44 @@ interface LiveLine {
 }
 
 /** What the collapsed line narrates for a step, in words and in the dots' motion. */
-const liveStep = (step: ActivityStep): LiveLine => {
-    if (step.kind === "thought") {
-        return step.source === "text"
-            ? {text: "Writing", format: "writing"}
-            : {text: "Thinking", format: "thinking"}
-    }
-    // Reached only once the wait is over, so a gate still `approval-requested` here was just answered.
-    const display = resolveToolDisplay(
+const tNow = createT(chatActivityCatalog)
+
+/** The English words `stageWords` hands out, by the catalog key that says them in any language. */
+const STAGE_WORD_KEYS = {
+    Working: "chat.activity.working",
+    Thinking: "chat.activity.thinking",
+    "Still working": "chat.activity.stillWorking",
+    Sending: "chat.activity.sending",
+    "Getting things ready": "chat.activity.gettingReady",
+    "Starting the sandbox": "chat.activity.startingSandbox",
+    "Setting up the environment": "chat.activity.settingUpEnvironment",
+    "Loading details": "chat.activity.loadingDetails",
+    "Preparing the workspace": "chat.activity.preparingWorkspace",
+    "Almost there": "chat.activity.almostThere",
+    "Opening the agent session": "chat.activity.openingSession",
+    "Starting the agent": "chat.activity.startingAgent",
+    "Still starting up": "chat.activity.stillStarting",
+} as const
+
+const stageWordText = (word: string): string =>
+    Object.hasOwn(STAGE_WORD_KEYS, word)
+        ? tNow(STAGE_WORD_KEYS[word as keyof typeof STAGE_WORD_KEYS])
+        : word
+
+const stepDisplay = (step: ActivityStep & {part: ToolUIPart}, agentName?: string) =>
+    resolveToolDisplay(
         partToolName(step.part),
         (step.part as {input?: unknown}).input,
+        undefined,
+        undefined,
+        agentName,
     )
+
+/** `agentName` names the agent the step's call names by its slug or id, once looked up. */
+const liveStep = (step: ActivityStep, agentName?: string): LiveLine => {
+    if (step.kind === "thought") return {text: tNow("chat.activity.thinking"), format: "thinking"}
+    // Reached only once the wait is over, so a gate still `approval-requested` here was just answered.
+    const display = stepDisplay(step, agentName)
     return {text: display.activity.running, format: ICON_FORMAT[display.icon] ?? "tool"}
 }
 
@@ -252,20 +287,37 @@ export interface ActivityTimelineProps {
     streaming: boolean
     /** The answer has begun: the fold settles even though the turn is still streaming. */
     answerStarted: boolean
+    /** The agent is writing a message right now. */
+    writing?: boolean
     /** The session whose turn stage the line narrates until the first step. */
     sessionId?: string
     /** The run is parked on the reader (a question, a connect). */
     waitingOnUser?: boolean
     /** The ask was answered here and the transcript still carries it: the line reads as work. */
     resuming?: boolean
-    /** The turn's trace: once settled, its duration outranks the local count. */
-    traceId?: string | null
+    /** Gate history from the full turn, including tools hidden or merged in the activity steps. */
+    hadGate?: boolean
+    /** When the session turn started (ISO): the start of a run this tab met mid-flight. */
+    sessionTurnStartedAt?: string | null
+    /** The session turn's duration, from its start to its end: once settled, ungated turns use it. */
+    sessionTurnDurationMs?: number
     /** This tab streamed the run itself, so its first step is the start. False for a run found
-     * already in progress, whose start has to come from the trace. Defaults to true: a caller
-     * that cannot tell is a caller whose turn began here. */
+     * already in progress, whose start has to come from the session turn. Defaults to true: a
+     * caller that cannot tell is a caller whose turn began here. */
     streamedHere?: boolean
+    /** When the server saved the user message that opened this run (ms). */
+    runStartedAt?: number
     /** Renders a client tool's widget in its step; absent on a read-only host. */
     renderClientTool?: (part: ToolUIPart) => ReactNode
+    /** The run failed: the header names it and the server's raw text is the fold's last step. */
+    failure?: ActivityFailure
+}
+
+export interface ActivityFailure {
+    /** The short name of what happened, shown in the header: "Run stopped". */
+    label: string
+    /** The server's text as it came. Absent when the message already shows all of it. */
+    detail?: string | null
 }
 
 /** The turn's work, folded: a live verb or "Worked for 11s" over a timeline of steps. */
@@ -275,12 +327,17 @@ export const ActivityTimeline = ({
     steps,
     streaming,
     answerStarted,
+    writing = false,
     sessionId,
     waitingOnUser = false,
     resuming = false,
-    traceId,
+    hadGate: recordedGate = false,
+    sessionTurnStartedAt,
+    sessionTurnDurationMs,
     streamedHere = true,
+    runStartedAt,
     renderClientTool,
+    failure,
 }: ActivityTimelineProps) => {
     // Any turn can cold start: a parked environment outlives an idle gap by minutes at most.
     const stage = useTurnStage(streaming && sessionId ? sessionId : "")
@@ -294,27 +351,54 @@ export const ActivityTimeline = ({
     const live = streaming || hasLiveStep(steps) || resuming
     // A run this tab met mid-flight: it was already going when the tab opened, so there is no local
     // span to count from and the clock would report the age of the TAB, not of the run (#6934). The
-    // trace's root span is when the run began — the same source the timestamp beside this line
+    // session turn's start is when the run began — the same source the timestamp beside this line
     // already trusts over first-seen-here. A run this tab streamed from the start needs none of
-    // this: its own first step IS the start, so it never fetches a trace mid-stream.
+    // this: its own first step IS the start.
     const metMidFlight = live && !streamedHere
-    const trace = useAtomValue(
-        traceDataSummaryAtomFamily((!live || metMidFlight) && traceId ? traceId : ""),
+    const span = useAtomValue(turnSpanAtomFamily(clockId))
+    // An open clock inherited on mount may have missed a gate while this timeline was absent.
+    const inheritedRunningClock = useRef(Boolean(span && span.endedAt === undefined))
+    const hadGate = Boolean(
+        recordedGate || span?.gated || resuming || waitingOnUser || steps.some(stepHadGate),
     )
-    const startedAt = metMidFlight ? parseTraceTime(trace.rootSpan?.start_time) : undefined
-    // The clock counts the agent's work: from the first step, paused while parked on the reader.
-    const counted = useTurnClock(clockId, live && !awaiting && steps.length > 0, startedAt)
-    // A run resumed after a gate traces only its last leg; the longer of the two is the work.
-    const traced = live ? null : (trace.metrics.durationMs ?? null)
-    const elapsed = live
-        ? counted
-        : traced === null && counted === null
-          ? null
-          : Math.max(traced ?? 0, counted ?? 0)
+    // The saved user row is when the run began: before warm-up and before the first step this tab
+    // can see. Only a run streamed here may use it with a gate, because only then were all its
+    // pauses counted here.
+    const fromSend = runStartedAt !== undefined && (streamedHere || !hadGate)
+    const startedAt = fromSend
+        ? runStartedAt
+        : metMidFlight && !hadGate
+          ? parseTraceTime(sessionTurnStartedAt)
+          : undefined
+    // The clock counts the agent's work: from the run's start, paused while parked on the reader.
+    const measured = useTurnClock(clockId, live && !awaiting && steps.length > 0, {
+        startedAt,
+        seenFromSend: fromSend && streamedHere,
+        waitingOnReader: awaiting,
+    })
+    // A tab that joined later cannot account for earlier waits. A clock already anchored to
+    // the session turn's start is also unsafe if gate history arrives after that start was applied.
+    const counted =
+        hadGate && (!streamedHere || span?.anchored || inheritedRunningClock.current)
+            ? null
+            : measured
+    // A gated session turn's start and end cover the whole run, including the time parked on the
+    // user (#7445). When a turn had a gate, only the local clock saw the actual work time; an
+    // unclocked turn that had a gate falls back to "Worked" rather than reporting the parked time.
+    const recorded = live || hadGate ? null : (sessionTurnDurationMs ?? null)
+    const elapsed =
+        live || hadGate
+            ? counted
+            : recorded === null && counted === null
+              ? null
+              : Math.max(recorded ?? 0, counted ?? 0)
     const files = useMemo(() => activityFiles(steps), [steps])
     // A settled step's verb holds for a beat, then the line reads "Working".
     const idle = useHeldFor(live && !awaiting && !current && steps.length > 0, VERB_HOLD_MS)
     const verbStep = current ?? lastAgentStep(steps)
+    const verbAgentName = useAgentDisplayName(
+        verbStep && verbStep.kind !== "thought" ? stepDisplay(verbStep).agentRef : undefined,
+    )
     // Stage words belong only to the wait before the first step or answer.
     const beforeFirstStep = live && !awaiting && steps.length === 0 && !resuming && !answerStarted
     const stageWord = useStageWord(stageWords(stage), beforeFirstStep, stageSince)
@@ -338,9 +422,15 @@ export const ActivityTimeline = ({
         wasLiveRef.current = live
     }, [live, open, key, setExpanded])
 
-    if (!steps.length && !live) return null
+    // A failure shows only once the run is over: a live line still narrates the work.
+    const failed = !live && failure ? failure : null
+    // A run parked on the reader still says so, even with no step to fold.
+    if (!steps.length && !live && !failed && !awaiting) return null
 
     const count = steps.length
+    const detail = failed?.detail || null
+    // Steps, then the failure's own text as the last node on the wire.
+    const nodes = count + (detail ? 1 : 0)
     // No clock before the first step.
     const clock =
         elapsed === null || awaiting || !count ? "" : ` · ${formatElapsed(elapsed, {live: true})}`
@@ -349,20 +439,35 @@ export const ActivityTimeline = ({
     const line: LiveLine | null = !(live || awaiting)
         ? null
         : awaiting
-          ? {text: "Waiting for you", format: "working"}
+          ? {text: tNow("chat.activity.waitingForYou"), format: "working"}
           : beforeFirstStep
-            ? {text: stageWord, format: "working"}
+            ? {text: stageWordText(stageWord), format: "working"}
             : resuming && !current
-              ? {text: "Working", format: "working"}
-              : answerStarted && !current
-                ? {text: "Answering", format: "writing"}
+              ? {text: tNow("chat.activity.working"), format: "working"}
+              : writing && !current
+                ? {text: tNow("chat.activity.answering"), format: "writing"}
                 : idle || !verbStep
-                  ? {text: "Working", format: "working"}
-                  : liveStep(verbStep)
+                  ? {text: tNow("chat.activity.working"), format: "working"}
+                  : liveStep(verbStep, verbAgentName)
     if (line) {
         title = <SwapLabel shimmer suffix={clock} text={line.text} />
+    } else if (failed && !count) {
+        // Failed before any step: there is no work to name, only the failure.
+        title = <span className="text-colorError">{failed.label}</span>
     } else {
-        title = elapsed === null ? "Worked" : `Worked for ${formatElapsed(elapsed, {live: false})}`
+        title =
+            elapsed === null
+                ? tNow("chat.activity.worked")
+                : tNow("chat.activity.workedFor", {time: formatElapsed(elapsed, {live: false})})
+        if (failed) {
+            title = (
+                <>
+                    {title}
+                    <span className="whitespace-pre text-colorTextTertiary"> · </span>
+                    <span className="text-colorError">{failed.label}</span>
+                </>
+            )
+        }
     }
 
     return (
@@ -370,8 +475,10 @@ export const ActivityTimeline = ({
             <button
                 type="button"
                 onClick={() => setExpanded({key, value: !open})}
-                aria-expanded={open}
-                className="-ml-1.5 flex w-fit max-w-full cursor-pointer items-center gap-2.5 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-[13px] text-colorTextSecondary group/row"
+                // Nothing to open yet (no step, no raw failure): a plain line, not a toggle.
+                disabled={!nodes}
+                aria-expanded={nodes ? open : undefined}
+                className={`-ml-1.5 flex w-fit max-w-full cursor-pointer disabled:cursor-default items-center gap-2.5 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-[13px] text-colorTextSecondary max-md:leading-5 group/row ${PHONE_TOUCH_TARGET_CLASS}`}
             >
                 {awaiting ? (
                     <WaitingGlyph kind={waitingKind(steps)} />
@@ -385,15 +492,15 @@ export const ActivityTimeline = ({
                     <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-colorTextTertiary">
                         <span>·</span>
                         <FileText size={13} />
-                        {files.length} {files.length === 1 ? "file" : "files"}
+                        {tNow("chat.activity.fileCount", {count: files.length})}
                     </span>
                 ) : null}
                 {/* Nothing to open before the first step. */}
-                {count ? (
+                {nodes ? (
                     <CaretRight
                         size={10}
                         weight="bold"
-                        className={`shrink-0 text-colorTextDisabled opacity-50 transition-transform ${
+                        className={`shrink-0 text-colorTextSecondary transition-transform ${
                             open ? "rotate-90" : ""
                         }`}
                     />
@@ -402,7 +509,7 @@ export const ActivityTimeline = ({
             <RevealCollapse open={open}>
                 <div className="relative mt-3 mb-1.5 flex flex-col">
                     {/* The wire behind the nodes; one node has nothing to join. */}
-                    {steps.length > 1 ? (
+                    {nodes > 1 ? (
                         <div
                             aria-hidden
                             className={`absolute bottom-3.5 top-3.5 w-px bg-colorBorderSecondary ${
@@ -435,6 +542,16 @@ export const ActivityTimeline = ({
                             )}
                         </StepReveal>
                     ))}
+                    {detail ? (
+                        <div
+                            className={`flex min-w-0 items-start gap-3.5 ${count ? "pt-4.5" : ""}`}
+                        >
+                            <ActivityNode icon="platform" state="failed" />
+                            <pre className="m-0 max-h-60 min-w-0 flex-1 overflow-auto whitespace-pre-wrap break-words ag-surface-inset rounded-md px-3 py-2 font-mono text-xs leading-relaxed text-colorTextSecondary">
+                                {detail}
+                            </pre>
+                        </div>
+                    ) : null}
                 </div>
             </RevealCollapse>
         </div>

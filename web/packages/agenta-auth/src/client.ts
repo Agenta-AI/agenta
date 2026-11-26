@@ -9,9 +9,10 @@ import Passwordless from "supertokens-web-js/recipe/passwordless"
 import Session from "supertokens-web-js/recipe/session"
 import ThirdParty from "supertokens-web-js/recipe/thirdparty"
 
+import {AUTH_FAILURE_COPY, classifyAuthFailure, type AuthFailure} from "./authError"
 import {describeCreateCode, describeResendCode} from "./otpMachine"
 import {authApiUrl, authEnv} from "./runtime"
-import {readTurnstileRejection} from "./turnstile"
+import {readAuthRejection} from "./turnstile"
 
 /**
  * Headless SuperTokens client (supertokens-web-js — same 0.16.x the desktop's
@@ -92,21 +93,24 @@ export async function requestEmailCode(
         if (outcome.kind === "ok") await tagAttemptWithHost()
         return outcome
     } catch (error) {
-        const rejection = await readTurnstileRejection(error)
+        const rejection = await readAuthRejection(error)
         if (rejection) return {kind: "failed", message: rejection}
-        return describeCreateCode(null)
+        return {kind: "failed", message: AUTH_FAILURE_COPY[classifyAuthFailure(error)]}
     }
 }
 
-/** Re-send the code for the open attempt. */
+/** Re-send the code for the open attempt. A rejection (too many requests) keeps the attempt open. */
 export async function resendEmailCode(): Promise<
-    {kind: "ok"} | {kind: "restart"; message: string}
+    {kind: "ok"} | {kind: "failed"; message: string} | {kind: "restart"; message: string}
 > {
     ensureAuthInit()
     try {
         return describeResendCode(await Passwordless.resendCode())
-    } catch {
-        return describeResendCode(null)
+    } catch (error) {
+        const rejection = await readAuthRejection(error)
+        if (rejection) return {kind: "failed", message: rejection}
+        // A transport failure says nothing about the code, so the attempt stays open.
+        return {kind: "failed", message: AUTH_FAILURE_COPY[classifyAuthFailure(error)]}
     }
 }
 
@@ -132,12 +136,12 @@ function getRegisteredWebUrl(): string {
 }
 
 /** The ONE redirect URI registered with each provider — always the desktop path. */
-export function providerRedirectUri(providerId: string): string {
+function providerRedirectUri(providerId: string): string {
     return `${getRegisteredWebUrl()}/auth/callback/${providerId}`
 }
 
 /** Where the mobile app wants to resume once the code is exchanged. */
-export function mobileCallbackUri(providerId: string): string {
+function mobileCallbackUri(providerId: string): string {
     return `${getRegisteredWebUrl()}/m/auth/callback/${providerId}`
 }
 
@@ -193,7 +197,7 @@ export async function completeOidcSignIn(): Promise<OidcCallbackOutcome> {
             message: "That provider did not share an email. Try another sign-in method.",
         }
     } catch (error) {
-        const rejection = await readTurnstileRejection(error)
+        const rejection = await readAuthRejection(error)
         return {kind: "failed", message: rejection ?? "Sign-in could not be completed. Try again."}
     }
 }
@@ -206,10 +210,9 @@ export async function completeOidcSignIn(): Promise<OidcCallbackOutcome> {
 /**
  * The signed-in session's access token, or `null` when there is no session.
  *
- * Callers that need to send an explicit `Authorization` header rather than rely on the cookie —
- * the playground's run requests are the case that matters, because the backend only honours the
- * `project_id` query param alongside an Authorization header, and without it a run resolves
- * against the caller's DEFAULT project instead of the one it belongs to.
+ * For callers that send an explicit `Authorization` header rather than rely on the cookie (the
+ * playground's run requests). The project rides the `project_id` query param either way: the API
+ * honours it for a cookie session too.
  */
 export async function getAccessToken(): Promise<string | null> {
     if (typeof window === "undefined") return null
@@ -259,7 +262,7 @@ export type EmailPasswordDetailedOutcome =
     | {kind: "wrong-credentials"}
     | {kind: "field-error"; message: string; emailExists: boolean}
     | {kind: "not-allowed"; message: string}
-    | {kind: "error"}
+    | {kind: "error"; failure: AuthFailure}
 
 const FIELDS = (email: string, password: string) => [
     {id: "email", value: email},
@@ -286,9 +289,9 @@ export async function signInDetailed(
             message: "You need to be invited by the organization owner to gain access.",
         }
     } catch (error) {
-        const rejection = await readTurnstileRejection(error)
+        const rejection = await readAuthRejection(error)
         if (rejection) return {kind: "not-allowed", message: rejection}
-        return {kind: "error"}
+        return {kind: "error", failure: classifyAuthFailure(error)}
     }
 }
 
@@ -316,9 +319,34 @@ export async function signUpDetailed(
             message: "You need to be invited by the organization owner to gain access.",
         }
     } catch (error) {
-        const rejection = await readTurnstileRejection(error)
+        const rejection = await readAuthRejection(error)
         if (rejection) return {kind: "not-allowed", message: rejection}
-        return {kind: "error"}
+        return {kind: "error", failure: classifyAuthFailure(error)}
+    }
+}
+
+/* ── password reset (the link carries the token; SuperTokens reads it from the URL) ── */
+
+export type ResetPasswordOutcome =
+    | {kind: "ok"}
+    | {kind: "invalid-link"}
+    | {kind: "field-error"; message: string}
+    | {kind: "error"; failure: AuthFailure}
+
+export async function submitNewPasswordDetailed(password: string): Promise<ResetPasswordOutcome> {
+    ensureAuthInit()
+    try {
+        const response = await EmailPassword.submitNewPassword({
+            formFields: [{id: "password", value: password}],
+        })
+        if (response.status === "OK") return {kind: "ok"}
+        if (response.status === "RESET_PASSWORD_INVALID_TOKEN_ERROR") return {kind: "invalid-link"}
+        return {
+            kind: "field-error",
+            message: response.formFields[0]?.error ?? "Choose a different password.",
+        }
+    } catch (error) {
+        return {kind: "error", failure: classifyAuthFailure(error)}
     }
 }
 
@@ -328,6 +356,7 @@ export type OtpDetailedOutcome =
     | ({kind: "ok"} & AuthUserPayload)
     | {kind: "incorrect"; attemptsLeft: number}
     | {kind: "expired"}
+    | {kind: "failed"; failure: AuthFailure}
     | {kind: "restart"}
 
 export async function submitEmailCodeDetailed(code: string): Promise<OtpDetailedOutcome> {
@@ -350,7 +379,11 @@ export async function submitEmailCodeDetailed(code: string): Promise<OtpDetailed
             }
         if (response.status === "EXPIRED_USER_INPUT_CODE_ERROR") return {kind: "expired"}
         return {kind: "restart"}
-    } catch {
+    } catch (error) {
+        // Offline, rate-limited or a server error says nothing about the code, so the attempt stays open.
+        const failure = classifyAuthFailure(error)
+        if (failure === "unreachable" || failure === "rate-limited" || failure === "server")
+            return {kind: "failed", failure}
         return {kind: "restart"}
     }
 }

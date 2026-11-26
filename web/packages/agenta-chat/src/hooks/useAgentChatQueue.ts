@@ -2,6 +2,8 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {PendingInputWriteOutcome} from "@agenta/entities/session"
+import {createT} from "@agenta/i18n"
+import chatMessagesCatalog from "@agenta/i18n/catalogs/chat.messages"
 import {
     approvalContinuationSettled,
     hasRunningApprovalContinuation,
@@ -10,6 +12,7 @@ import {
 import {generateId} from "@agenta/shared/utils"
 import type {FileUIPart, UIMessage} from "ai"
 
+import type {ChildUpdate} from "../assets/childUpdate"
 import {countUserMessages, durableUserTurnIds} from "../assets/pendingSendEchoes"
 import {
     applyQueueOps,
@@ -20,8 +23,6 @@ import {
     type QueueRowError,
     type QueueRowErrors,
 } from "../assets/queueOverlay"
-import {getPendingConnectInteractions} from "../clientTools/connectInteractions"
-import {getPendingElicitationInteractions} from "../clientTools/elicitationInteractions"
 
 import type {ComposerAttachment} from "./useComposerAttachments"
 import {usePendingSendEchoes} from "./usePendingSendEchoes"
@@ -45,6 +46,13 @@ export interface QueuedMessage {
     promotedExecutionId?: string | null
     /** An edit of this row is still saving. */
     saving?: boolean
+    /**
+     * The input's kind, on a row from the server queue (`message` when the server sent none).
+     * Any other kind is a server input: it can be removed, never edited or sent by hand.
+     */
+    kind?: string
+    /** The structured part of a `child_update` row; absent when the row carries none. */
+    childUpdate?: ChildUpdate
 }
 
 /** `settledSeq`: a snapshot read with a higher sequence reflects this write. */
@@ -84,15 +92,11 @@ export interface ServerQueueAdapter {
     refresh?: (options?: {fresh?: boolean}) => Promise<number | null>
 }
 
-const REMOVE_FAILED = "Couldn't remove this message. Try again."
-const REMOVE_ABOUT_TO_RUN = "This message is about to run and can't be removed."
-const NOT_QUEUED = "This message is no longer queued."
-const SEND_NOW_FAILED = "Couldn't send this message now. Try again."
-const SEND_NOW_BUSY = "Another message is being sent first. Try again once it starts."
-const EDIT_FAILED = "Your edit wasn't saved. Edit to try again."
-const EDIT_ABOUT_TO_RUN = "This message is about to run and can't be edited."
+const tNow = createT(chatMessagesCatalog)
 
 interface UseAgentChatQueueArgs {
+    /** Keys the echo rows, so a remount of this session's view finds the sends it has not seen saved. */
+    sessionId: string
     messages: UIMessage[]
     /** The last turn was user-stopped (cancelled). A stop voids any pending approval, so the
      * aborted turn's tool parts still reading as mid-HITL are not reported as awaiting. */
@@ -120,8 +124,9 @@ interface UseAgentChatQueueArgs {
     restoreRefusedSend?: (message: QueuedMessage) => boolean | Promise<boolean>
     /** A durable send was admitted: the turn it started, or `null` for a parked input. */
     onSendAccepted?: (message: QueuedMessage, executionId: string | null) => void
-    /** A durable send will never become a turn: rejected before it left, or refused after. */
-    onSendFailed?: (message: QueuedMessage) => void
+    /** A durable send will never become a turn: rejected before it left (with the error that
+     * rejected it), or refused after. */
+    onSendFailed?: (message: QueuedMessage, error?: unknown) => void
     /** The durable session queue. Every send is admitted through it. */
     server: ServerQueueAdapter
     /** This tab's own run is going, which the server snapshot reports a poll late. */
@@ -154,6 +159,7 @@ const RELEASE_HOLD_MAX_MS = 2_000
  * held in the browser.
  */
 export const useAgentChatQueue = ({
+    sessionId,
     messages,
     stopped,
     continuationExecutionId = null,
@@ -207,15 +213,9 @@ export const useAgentChatQueue = ({
     // A stop voids the approval gate, so the aborted turn's lingering `approval-requested` part
     // must not read as "awaiting".
     const hitlPending = !stopped && isHitlPending(messages)
-    // Parked CLIENT TOOLS only, not approvals. The steer guard below reads this, and an approval
-    // gate must keep sending a typed message to the queue: answering it is what the dock's buttons
-    // are for, and a message is as likely to be consent as a redirect.
-    const parkedClientTools =
-        !stopped &&
-        (getPendingElicitationInteractions(messages).length > 0 ||
-            getPendingConnectInteractions(messages).length > 0)
-    const parkedClientToolsRef = useRef(parkedClientTools)
-    parkedClientToolsRef.current = parkedClientTools
+    // The steer guard reads this: a host settles whatever dock is parked, then steers the message in.
+    const hitlPendingRef = useRef(hitlPending)
+    hitlPendingRef.current = hitlPending
 
     const restoreRefusedSendRef = useRef(restoreRefusedSend)
     restoreRefusedSendRef.current = restoreRefusedSend
@@ -234,7 +234,7 @@ export const useAgentChatQueue = ({
         () => new Set(server.queued.map((item) => item.id)),
         [server.queued],
     )
-    const echoes = usePendingSendEchoes({messages, dockedInputIds})
+    const echoes = usePendingSendEchoes({sessionId, messages, dockedInputIds})
 
     const [editingId, setEditingId] = useState<string | null>(null)
     const stashRef = useRef("")
@@ -314,11 +314,17 @@ export const useAgentChatQueue = ({
         untilSeq: number | null
     } | null>(null)
     const refreshQueue = server.refresh
+    // Whether a read has listed this session's queue as empty, read in the effect below.
+    const listedEmptyRef = useRef(false)
+    listedEmptyRef.current = server.viewSeq > 0 && server.queued.length === 0
     useEffect(() => {
         const grew = userCount > lastUserCountRef.current
         lastUserCountRef.current = userCount
         if (!grew) return
         const ids = retiredParkedIdsRef.current
+        // Nothing listed and nothing of ours parked: no input can have started, so a re-read has
+        // nothing to drop.
+        if (listedEmptyRef.current && ids.size === 0) return
         const settle = (untilSeq: number) =>
             setHandoff((current) => (current?.ids === ids ? {ids, untilSeq} : current))
         setHandoff({ids, untilSeq: null})
@@ -431,17 +437,27 @@ export const useAgentChatQueue = ({
                         settleOp(id, token, settledSeq)
                     }
                     // 409: promoted, or bound to a pending stop.
-                    else fail(outcome === "conflict" ? REMOVE_ABOUT_TO_RUN : REMOVE_FAILED)
+                    else
+                        fail(
+                            outcome === "conflict"
+                                ? tNow("chat.messages.removeAboutToRun")
+                                : tNow("chat.messages.removeFailed"),
+                        )
                 })
-                .catch(() => fail(REMOVE_FAILED))
+                .catch(() => fail(tNow("chat.messages.removeFailed")))
         },
         [dropOp, server, setOp, setRowError, settleOp],
     )
 
     // One durable admission for both policies, so a steer gets the same echo and refusal
-    // recovery a queued send has.
+    // recovery a queued send has. `after` is a write the request must follow (a dismissed card);
+    // the echo does not wait for it, so the message is on screen while that write is in flight.
     const submitDurable = useCallback(
-        (message: QueuedMessage, policy: "queue" | "steer"): Promise<void> => {
+        (
+            message: QueuedMessage,
+            policy: "queue" | "steer",
+            after?: Promise<unknown>,
+        ): Promise<void> => {
             // Show it before the request leaves. Every exit is driven by evidence about this
             // send: the turn it started, the dock row (queue) or parked input (steer) it
             // became, or its failure.
@@ -462,7 +478,7 @@ export const useAgentChatQueue = ({
                 clearTimeout(cap)
                 admittingRef.current -= 1
             }
-            const admit = () =>
+            const submitNow = () =>
                 server.submit(message, policy, {
                     opensTurn: policy === "queue" && !busy,
                     onTurnNamed: nameTurn,
@@ -522,6 +538,15 @@ export const useAgentChatQueue = ({
                         echoes.markFailed(message.id)
                     },
                 })
+            // A failed `after` means the message never left, so it is not a failed send.
+            let blocked = false
+            const admit = () =>
+                after
+                    ? after.then(submitNow, (error: unknown) => {
+                          blocked = true
+                          throw error
+                      })
+                    : submitNow()
             const admitted = waiting ? admissionChainRef.current.then(admit) : admit()
             admissionChainRef.current = admitted
                 .then(
@@ -537,7 +562,7 @@ export const useAgentChatQueue = ({
                 },
                 (error: unknown) => {
                     echoes.drop(message.id)
-                    onSendFailedRef.current?.(message)
+                    if (!blocked) onSendFailedRef.current?.(message, error)
                     if (forgetDeferredRemoval(message.id)) return
                     throw error
                 },
@@ -605,17 +630,17 @@ export const useAgentChatQueue = ({
                     if (outcome !== "applied") {
                         fail(
                             outcome === "busy"
-                                ? SEND_NOW_BUSY
+                                ? tNow("chat.messages.sendNowBusy")
                                 : outcome === "failed"
-                                  ? SEND_NOW_FAILED
-                                  : NOT_QUEUED,
+                                  ? tNow("chat.messages.sendNowFailed")
+                                  : tNow("chat.messages.notQueued"),
                         )
                         return
                     }
                     settleOp(id, token, settledSeq)
                     if (executionId) echoes.markAccepted(echoId, executionId)
                 })
-                .catch(() => fail(SEND_NOW_FAILED))
+                .catch(() => fail(tNow("chat.messages.sendNowFailed")))
         },
         [dropOp, echoes, server, setOp, setRowError, settleOp],
     )
@@ -629,19 +654,22 @@ export const useAgentChatQueue = ({
     )
 
     const steer = useCallback(
-        async (item: {
-            text: string
-            executionText?: string
-            fileParts?: FileUIPart[]
-            stagedFiles?: ComposerAttachment[]
-        }) => {
-            // A run parked on a client tool counts as busy. Its heartbeat is not in the snapshot
-            // (a parked run reads `idle`), but the turn is still open server-side: the host's
-            // dismiss-then-steer over a parked question or connection resumes it, and the steer
-            // lands in the resumed turn. Read through a ref, not the transcript: the call comes
-            // straight after the dismiss write, before anything has re-rendered. Approvals are
-            // deliberately excluded — see `parkedClientTools`.
-            if (!(serverBusyRef.current || parkedClientToolsRef.current)) {
+        async (
+            item: {
+                text: string
+                executionText?: string
+                fileParts?: FileUIPart[]
+                stagedFiles?: ComposerAttachment[]
+            },
+            options?: {after?: Promise<unknown>},
+        ) => {
+            // Handled here and rethrown below, so a refusal before it is awaited is not unhandled.
+            options?.after?.catch(() => undefined)
+            // A run parked on the user counts as busy. Its heartbeat is not in the snapshot (a parked
+            // run reads `idle`), but the turn is still open server-side: the host settles the dock
+            // (question, connection, secret or approval), which resumes it, and the steer lands in
+            // the resumed turn. Read through a ref: the call comes straight after the dismiss write.
+            if (!(serverBusyRef.current || hitlPendingRef.current)) {
                 throw new Error("The session is not ready to accept a Steer input.")
             }
             const message: QueuedMessage = {
@@ -649,7 +677,7 @@ export const useAgentChatQueue = ({
                 id: generateId(),
                 ...(item.executionText !== undefined ? {editable: false} : {}),
             }
-            await submitDurable(message, "steer")
+            await submitDurable(message, "steer", options?.after)
         },
         [submitDurable],
     )
@@ -716,7 +744,10 @@ export const useAgentChatQueue = ({
                 if (!dropOp(id, token)) return
                 if (serverQueuedRef.current.some((message) => message.id === id)) {
                     setRowError(id, {
-                        message: outcome === "conflict" ? EDIT_ABOUT_TO_RUN : EDIT_FAILED,
+                        message:
+                            outcome === "conflict"
+                                ? tNow("chat.messages.editAboutToRun")
+                                : tNow("chat.messages.editFailed"),
                         unsavedEdit: {text: item.text, fileParts: item.fileParts},
                     })
                     return
@@ -759,7 +790,7 @@ export const useAgentChatQueue = ({
                 editSession?.server || server.queued.some((message) => message.id === id)
             if (id && serverOwnsInput) {
                 const save = server.edit
-                if (!save) return Promise.reject(new Error("This queued message cannot be edited."))
+                if (!save) return Promise.reject(new Error(tNow("chat.messages.cannotEditQueued")))
                 saveEdit(id, item, save)
                 editSessionRef.current = null
                 setEditingId(null)

@@ -16,10 +16,7 @@ import { attachmentCountError } from "../../sessions/attachments.ts";
 import { harnessKindOf } from "../../harness-kind.ts";
 import { CODE_TOOL_UNSUPPORTED_MESSAGE } from "../../tools/code.ts";
 import { piGatewayMcpServersFromWire } from "../../extensions/pi-mcp.ts";
-import {
-  INTERNAL_TOOL_MCP_SERVER_NAME,
-  RESERVED_MCP_SERVER_NAME_MESSAGE,
-} from "./mcp.ts";
+import { reservedUserMcpNameError } from "./mcp.ts";
 import {
   permissionsFromRequest,
   piBuiltinIdentity,
@@ -127,6 +124,25 @@ export const SUBSCRIPTION_INVALID_MESSAGE =
  * boundary, which a direct `/run` caller reaches without passing through the SDK.
  */
 export const SUBSCRIPTION_SUPPORTED_PROVIDER = "chatgpt";
+
+/**
+ * The marker an M5 SDK sends in `subscription` beside an organization login. A runner older
+ * than M5 does not read `organizationSubscription`; it reads this marker as an unusable
+ * subscription and refuses the run (`SUBSCRIPTION_INVALID_MESSAGE`), so it never falls through
+ * to the operator's own login. This runner accepts the marker only beside
+ * `organizationSubscription`.
+ */
+export const ORGANIZATION_SUBSCRIPTION_FENCE = "organization";
+
+function isOrganizationSubscriptionFence(value: unknown): boolean {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { fence?: unknown }).fence === ORGANIZATION_SUBSCRIPTION_FENCE &&
+    !("login" in value)
+  );
+}
+
 export const SUBSCRIPTION_UNSUPPORTED_MESSAGE =
   "A subscription connection is supported only for the ChatGPT provider on a Pi harness. " +
   "Use a managed API key (credentialMode 'env') for anything else.";
@@ -421,7 +437,8 @@ function computeBuiltinGatingActive(
 }
 
 /**
- * Root of the LOCAL provider's durable mounts: `<root>/mounts/<project_id>/<mount_id>`.
+ * Root of the LOCAL provider's durable mounts: `<root>/<stored prefix>`, where the stored prefix
+ * is `mounts/<scope_id>/<mount_id>`.
  *
  * Deliberately NOT under `/tmp`. Every harness treats `/tmp` as scratch it is free to clear, and
  * on this provider a single mount namespace holds every concurrent session's geesefs mount, so one
@@ -747,6 +764,17 @@ export function buildRunPlan(
       error: "platformInstructions must be a string when provided.",
     };
   }
+  // The internal gateway-tool channel's name is reserved on every transport: the Python
+  // Claude adapter renders permission rules against `agenta-tools`, so a user server with
+  // that name would collide with the internal channel and inherit/steal its rendered rules.
+  // Object-key specials (`__proto__`, ...) are refused too, because runner maps are keyed by
+  // server name, so this runs before any of them is built. Refuse at declaration time;
+  // `buildSessionMcpServers` repeats the check at session materialization as defense in depth.
+  const reservedNameError = reservedUserMcpNameError(request.mcpServers);
+  if (reservedNameError) {
+    return { ok: false, error: reservedNameError };
+  }
+
   const harness = request.harness || "pi_core";
   const sandboxId = resolveSandboxProviderId(request, sandboxProvider);
 
@@ -842,7 +870,28 @@ export function buildRunPlan(
   // OPERATOR MOUNT (no block): unchanged. Local only, and the harness config var must name a
   // read-write mount of the operator's own login.
   const requestCredentialMode = request.modelConnection?.credentialMode;
-  const requestSubscription = request.modelConnection?.subscription;
+  const organizationSubscription =
+    request.modelConnection?.organizationSubscription;
+  if (organizationSubscription) {
+    // An organization login never takes the operator path: the only `subscription` beside it
+    // is the fence an older runner refuses. Past this it runs exactly like a project login, on
+    // every engine; only its owner differs, which sends its refreshes to the organization's row.
+    const besideSubscription = request.modelConnection?.subscription;
+    if (
+      (besideSubscription &&
+        !isOrganizationSubscriptionFence(besideSubscription)) ||
+      requestCredentialMode !== "runtime_provided"
+    ) {
+      return {
+        ok: false,
+        error:
+          "modelConnection.organizationSubscription requires credentialMode 'runtime_provided' and no project subscription.",
+      };
+    }
+  }
+  const requestSubscription = organizationSubscription
+    ? { ...organizationSubscription, owner: "organization" as const }
+    : request.modelConnection?.subscription;
   if (requestCredentialMode === "runtime_provided" && requestSubscription) {
     // A malformed block is terminal. Falling through would run on the operator's mount instead,
     // which authenticates as the wrong account.
@@ -974,19 +1023,6 @@ export function buildRunPlan(
         error: error instanceof Error ? error.message : String(error),
       };
     }
-  }
-
-  // The internal gateway-tool channel's name is reserved on every transport: the Python
-  // Claude adapter renders permission rules against `agenta-tools`, so a user server with
-  // that name would collide with the internal channel and inherit/steal its rendered rules.
-  // Refuse at declaration time; `buildSessionMcpServers` repeats the check at session
-  // materialization as defense in depth.
-  if (
-    (request.mcpServers ?? []).some(
-      (server) => server.name === INTERNAL_TOOL_MCP_SERVER_NAME,
-    )
-  ) {
-    return { ok: false, error: RESERVED_MCP_SERVER_NAME_MESSAGE };
   }
 
   // Non-Pi + remote + tools: executable and client tools are both deliverable on Daytona via the

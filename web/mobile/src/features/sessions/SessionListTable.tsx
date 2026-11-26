@@ -1,12 +1,14 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import sessionsMobileListCatalog from "@agenta/i18n/catalogs/sessions.mobileList"
 import type {SessionRowVm} from "@agenta/sessions/row"
-import {sessionSearchAtom, useSessionPins, useSessionsList} from "@agenta/sessions/state"
+import {useSessionFilterAtoms, useSessionPins, useSessionsList} from "@agenta/sessions/state"
 import {SessionListLoadMore, type SessionMenuEntry} from "@agenta/sessions-ui"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {ListTable, type ListTableColumn, type ListTableGroup} from "@agenta/ui/list-table"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {Button, PHONE_TOUCH_TARGET_CLASS, SimpleTooltip} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 import {Plus} from "lucide-react"
 
@@ -14,6 +16,8 @@ import {deriveSessionGroups, type SessionGrouping} from "./sessionListView"
 import {SessionRowCells} from "./SessionRowCells"
 import {SessionsNoMatch} from "./states/SessionsNoMatch"
 import {useProjectHasSessions} from "./useProjectHasSessions"
+
+const tNow = createT(sessionsMobileListCatalog)
 
 /**
  * The columns, shared by the header row and every body row so the two can never drift.
@@ -28,7 +32,9 @@ import {useProjectHasSessions} from "./useProjectHasSessions"
  */
 const SESSION_COLUMN: ListTableColumn = {
     key: "session",
-    label: "Session",
+    get label() {
+        return tNow("sessions.mobileList.columnSession")
+    },
     width: "minmax(160px,2fr)",
 }
 /**
@@ -40,13 +46,17 @@ const SESSION_COLUMN: ListTableColumn = {
  */
 const updatedColumn = (width: string): ListTableColumn => ({
     key: "updated",
-    label: "Updated",
+    get label() {
+        return tNow("sessions.mobileList.columnUpdated")
+    },
     width,
     headerClassName: "text-right",
 })
 const ACTIONS_COLUMN: ListTableColumn = {
     key: "actions",
-    label: "Actions",
+    get label() {
+        return tNow("sessions.mobileList.columnActions")
+    },
     srOnly: true,
     width: "24px",
 }
@@ -54,12 +64,26 @@ const ACTIONS_COLUMN: ListTableColumn = {
 // title: a column there would cost the title the width it needs to be a title.
 const WIDE_COLUMNS: ListTableColumn[] = [
     SESSION_COLUMN,
-    {key: "status", label: "Status", width: "minmax(110px,1fr)"},
-    {key: "agent", label: "Agent", width: "minmax(120px,1fr)"},
+    {
+        key: "status",
+        get label() {
+            return tNow("sessions.mobileList.status")
+        },
+        width: "minmax(110px,1fr)",
+    },
+    {
+        key: "agent",
+        get label() {
+            return tNow("sessions.mobileList.agent")
+        },
+        width: "minmax(120px,1fr)",
+    },
     updatedColumn("96px"),
     ACTIONS_COLUMN,
 ]
 const NARROW_COLUMNS: ListTableColumn[] = [SESSION_COLUMN, updatedColumn("64px"), ACTIONS_COLUMN]
+/** The Sessions page of one agent: every row has that agent, so there is no Agent column. */
+const LOCKED_AGENT_WIDE_COLUMNS = WIDE_COLUMNS.filter((column) => column.key !== "agent")
 
 /** Tailwind's `sm`. Below it the Agent column goes; the minima then fit a 375px screen. */
 const WIDE_QUERY = "(min-width: 640px)"
@@ -91,6 +115,7 @@ export const SessionListTable = ({
     onNewSession,
     onClearSearch,
     onResetView,
+    lockedAgentId,
 }: {
     group: SessionGrouping
     /** ISO floor from the Last activity facet; undefined = no bound. */
@@ -111,13 +136,19 @@ export const SessionListTable = ({
     onClearSearch: () => void
     /** Undoes every facet, the grouping and the search. */
     onResetView: () => void
+    /** The Sessions page of one agent: the list shows only its sessions, and the table has no
+     *  Agent column. */
+    lockedAgentId?: string
 }) => {
+    const t = useT(sessionsMobileListCatalog)
     const list = useSessionsList({
+        agentId: lockedAgentId,
         activityFloor,
         // Release contract: the human list hides automation runs; the Type filter's "Automation
         // runs" swaps in the automation policy. Same policies the desktop list passes.
         defaultPolicy: {origin: "exclude-trigger", expansions: []},
         automationPolicy: {origin: "trigger-only", expansions: ["trigger"]},
+        hideChildSessions: true,
     })
     const {toggle: togglePin} = useSessionPins()
     // Picks the COLUMN SET, not a `display` value: header and body read one array. Asked as
@@ -126,7 +157,7 @@ export const SessionListTable = ({
     const narrow = !useMediaQuery(WIDE_QUERY)
     // The APPLIED term, not the field's draft: the empty state quotes what the rows were actually
     // queried for, so it can never name a search that has not run yet.
-    const term = useAtomValue(sessionSearchAtom).trim()
+    const term = useAtomValue(useSessionFilterAtoms().search).trim()
 
     const probe = useProjectHasSessions(list.isEmpty && !list.isPlaceholder && !list.isPending)
 
@@ -170,13 +201,17 @@ export const SessionListTable = ({
             const agentId = run.rows[0]?.agentId
             if (!agentId || !agentNames.has(agentId)) return null
             return (
-                <SimpleTooltip title={`New session with ${run.label}`}>
+                <SimpleTooltip
+                    title={t("sessions.mobileList.newSessionWith", {agent: run.label ?? ""})}
+                >
                     <Button
                         type="button"
                         variant="ghost"
                         size="icon-sm"
-                        aria-label={`New session with ${run.label}`}
-                        className="size-6 text-muted-foreground hover:text-foreground"
+                        aria-label={t("sessions.mobileList.newSessionWith", {
+                            agent: run.label ?? "",
+                        })}
+                        className={`size-6 text-muted-foreground hover:text-foreground ${PHONE_TOUCH_TARGET_CLASS}`}
                         onClick={() => onNewSession(agentId)}
                     >
                         <Plus className="size-3.5" />
@@ -184,11 +219,13 @@ export const SessionListTable = ({
                 </SimpleTooltip>
             )
         },
-        [agentNames, group, onNewSession],
+        [agentNames, group, onNewSession, t],
     )
 
     if (list.isError)
-        return <LoadError framed title="Could not load sessions" onRetry={list.refetch} />
+        return (
+            <LoadError framed title={t("sessions.mobileList.loadFailed")} onRetry={list.refetch} />
+        )
 
     return (
         // Say that these rows are a previous query's while a new one resolves. Typing in the
@@ -201,24 +238,38 @@ export const SessionListTable = ({
                 }
             >
                 <ListTable
-                    columns={narrow ? NARROW_COLUMNS : WIDE_COLUMNS}
+                    columns={
+                        narrow
+                            ? NARROW_COLUMNS
+                            : lockedAgentId
+                              ? LOCKED_AGENT_WIDE_COLUMNS
+                              : WIDE_COLUMNS
+                    }
                     minWidth={narrow ? NARROW_MIN_WIDTH : WIDE_MIN_WIDTH}
                     // Sessions is the long list in this app — hundreds of rows, four screens of
                     // scrolling — so the column names have to stay put. Affordable here because
                     // the minima fit every width this page is read at, so the frame's own
                     // horizontal scroller was never doing anything.
                     stickyHeader
+                    // The first rows sit right under the header line, as drawn (A02, A03).
+                    flushFirstRows
                     // Compact for the same reason it is sticky: this is the long list.
                     density="compact"
+                    // On a phone a row is a 44 px tap target (compact rows are 40 px).
+                    rowClassName="max-md:min-h-11"
+                    // The page of one agent draws the light chevron on its headings (A02).
+                    groupCaret={lockedAgentId ? "chevron" : "fill"}
                     loading={list.isPending}
                     groups={groups}
                     rowKey={(vm) => vm.id}
                     onOpenRow={verbs.open}
                     collapsedKeys={collapsed}
                     onToggleGroup={toggleGroup}
+                    className="max-md:[&_button[aria-expanded]:not([aria-haspopup])]:min-h-11"
                     groupActions={groupActions}
                     empty={
-                        // Nothing while unsettled; an empty project gets the onboarding.
+                        // Nothing while unsettled. An empty project gets the onboarding from the
+                        // screen; the Sessions page of one agent shows this state too.
                         list.isPlaceholder || probe.pending ? null : (
                             <SessionsNoMatch
                                 term={term || undefined}
@@ -230,6 +281,7 @@ export const SessionListTable = ({
                         <SessionRowCells
                             vm={vm}
                             narrow={narrow}
+                            hideAgent={Boolean(lockedAgentId)}
                             entries={verbs.menuFor(vm)}
                             onMenuSelect={verbs.onMenuSelect}
                             onRenameRow={verbs.onRenameRow}

@@ -1,0 +1,23 @@
+{
+    "formatBoolean": "ブール値（True/False）",
+    "formatContinuous": "連続値（数値範囲）",
+    "formatCategorical": "カテゴリ（定義済みの選択肢）",
+    "enterJsonSchema": "JSON スキーマを入力...",
+    "responseFormat": "レスポンス形式",
+    "responseFormatTooltip": "評価結果の形式を選択します",
+    "booleanInfo": "評価器はフィードバックの基準に基づいて true (1) または false (0) の結果を返します。",
+    "minimum": "最小値",
+    "minimumTooltip": "数値スコア範囲の最小値",
+    "maximum": "最大値",
+    "maximumTooltip": "数値スコア範囲の最大値",
+    "categories": "カテゴリ",
+    "categoriesTooltip": "評価で使用できるカテゴリの値を定義します",
+    "add": "追加",
+    "name": "名前",
+    "categoryName": "カテゴリ {{number}} の名前",
+    "description": "説明",
+    "categoryDescription": "カテゴリ {{number}} の説明",
+    "removeCategory": "カテゴリ {{number}} を削除",
+    "includeReasoning": "理由を含める",
+    "includeReasoningTooltip": "有効にすると、評価器はスコアを説明するコメントも返します"
+}

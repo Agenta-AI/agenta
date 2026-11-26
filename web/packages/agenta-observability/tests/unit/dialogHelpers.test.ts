@@ -9,8 +9,10 @@ import {
     explodeAnnotationAnyEvaluatorRows,
     extractAnnotationValue,
     filtersEqual,
+    findIncompleteIsAnnotationFilter,
     mapFilterData,
     mapToTreeData,
+    normalizeAttributeSearch,
     resolveFieldForFilter,
     sanitizeFilterItems,
     selectSendableRows,
@@ -18,6 +20,7 @@ import {
     type FilterFieldMap,
 } from "../../src/filters/dialogHelpers"
 import type {FieldConfig} from "../../src/filters/fieldAdapter"
+import {FILTER_COLUMNS} from "../../src/filters/filterColumns"
 import type {FilterGroup, FilterItem, FilterLeaf, FilterMenuNode} from "../../src/filters/types"
 
 const fc = (over: Partial<FieldConfig>): FieldConfig => ({
@@ -203,6 +206,146 @@ describe("buildKeyTreeData", () => {
 
     it("adds nothing when the key is already an option", () => {
         expect(buildKeyTreeData(options, undefined, "attributes.ag.cost")).toHaveLength(1)
+    })
+})
+
+describe("normalizeAttributeSearch with a tree path", () => {
+    const INPUTS = "ag.data.inputs"
+    const OUTPUTS = "ag.data.outputs"
+
+    it("reads a bare input key below the inputs path", () => {
+        expect(normalizeAttributeSearch("country", INPUTS)).toEqual({
+            value: "attributes.ag.data.inputs.country",
+            pathLabel: "ag.data.inputs.country",
+        })
+    })
+
+    it("reads a bare output key below the outputs path", () => {
+        expect(normalizeAttributeSearch(" score ", OUTPUTS)?.value).toBe(
+            "attributes.ag.data.outputs.score",
+        )
+    })
+
+    it("keeps the dots of a nested key", () => {
+        expect(normalizeAttributeSearch("question.text", INPUTS)?.value).toBe(
+            "attributes.ag.data.inputs.question.text",
+        )
+        expect(normalizeAttributeSearch("inputs.question.text", INPUTS)?.value).toBe(
+            "attributes.ag.data.inputs.inputs.question.text",
+        )
+    })
+
+    it("leaves a full path unchanged", () => {
+        expect(normalizeAttributeSearch("attributes.ag.data.inputs.country", INPUTS)?.value).toBe(
+            "attributes.ag.data.inputs.country",
+        )
+        expect(normalizeAttributeSearch("ag.data.inputs.country", INPUTS)?.value).toBe(
+            "attributes.ag.data.inputs.country",
+        )
+    })
+
+    it("keeps today's behavior without a tree path (the Custom field)", () => {
+        expect(normalizeAttributeSearch("ag.tags.env")?.value).toBe("attributes.ag.tags.env")
+        expect(normalizeAttributeSearch("env")?.value).toBe("env")
+        expect(normalizeAttributeSearch("   ")).toBeUndefined()
+    })
+
+    it("uses the tree paths of the Input Key and Output Key columns", () => {
+        const treePaths = Object.fromEntries(
+            FILTER_COLUMNS.filter(
+                (node): node is FilterLeaf =>
+                    node.kind === "leaf" &&
+                    (node.field === "input_keys" || node.field === "output_keys"),
+            ).map((node) => [
+                node.field,
+                node.keyInput?.kind === "select" ? node.keyInput.treePath : undefined,
+            ]),
+        )
+        expect(treePaths).toEqual({input_keys: INPUTS, output_keys: OUTPUTS})
+    })
+
+    it("builds the typed node of the key tree with the full path", () => {
+        const tree = buildKeyTreeData([], "country", undefined, INPUTS)
+        expect(tree).toHaveLength(1)
+        expect(tree[0]).toMatchObject({
+            value: "attributes.ag.data.inputs.country",
+            label: "ag.data.inputs.country",
+        })
+    })
+})
+
+describe("sanitizeFilterItems for a key below a tree path", () => {
+    const INPUT_KEY = fc({
+        optionKey: "input_keys",
+        baseField: "input_keys",
+        label: "Input Key",
+        operatorIds: ["is"],
+        keyInput: {
+            kind: "select",
+            options: [],
+            usesAttributeKeyTree: true,
+            treePath: "ag.data.inputs",
+        },
+    })
+    const row = (key: string): FilterItem => ({
+        ...createEmptyFilter(),
+        field: "input_keys",
+        selectedField: "input_keys",
+        key,
+        operator: "is",
+        value: "Japan",
+    })
+
+    it("sends the full path for a bare key saved before the fix", () => {
+        const [filter] = sanitizeFilterItems([row("country")], mapOf(INPUT_KEY))
+        expect(filter).toMatchObject({
+            field: "input_keys",
+            key: "attributes.ag.data.inputs.country",
+            value: "Japan",
+        })
+    })
+
+    it("keeps a full path unchanged", () => {
+        const [filter] = sanitizeFilterItems(
+            [row("attributes.ag.data.inputs.country")],
+            mapOf(INPUT_KEY),
+        )
+        expect(filter.key).toBe("attributes.ag.data.inputs.country")
+    })
+})
+
+describe("findIncompleteIsAnnotationFilter", () => {
+    const MESSAGE = "Pick an evaluator or a feedback for the Is Annotation filter."
+    const isAnnotation = (value: unknown) => ({
+        field: "is_annotation",
+        operator: "in" as const,
+        value: value as FilterItem["value"],
+    })
+
+    it("names the row in plain words when it has neither an evaluator nor a feedback", () => {
+        expect(findIncompleteIsAnnotationFilter([isAnnotation([])])).toBe(MESSAGE)
+        expect(findIncompleteIsAnnotationFilter([isAnnotation([{}])])).toBe(MESSAGE)
+        expect(
+            findIncompleteIsAnnotationFilter([isAnnotation([{feedback: {valueType: "string"}}])]),
+        ).toBe(MESSAGE)
+        expect(MESSAGE).not.toMatch(/is_annotation/)
+    })
+
+    it("accepts a row with an evaluator or a feedback field", () => {
+        expect(findIncompleteIsAnnotationFilter([isAnnotation([{evaluator: "judge"}])])).toBe(
+            undefined,
+        )
+        expect(
+            findIncompleteIsAnnotationFilter([isAnnotation([{feedback: {field: ["score"]}}])]),
+        ).toBe(undefined)
+    })
+
+    it("ignores other rows", () => {
+        expect(
+            findIncompleteIsAnnotationFilter([
+                {field: "has_annotation", operator: "in", value: []},
+            ]),
+        ).toBe(undefined)
     })
 })
 

@@ -69,6 +69,16 @@ def test_initialize_ag_attributes_cleans_known_fields_and_tracks_unsupported():
     assert "refs" not in ag["unsupported"]
 
 
+def test_initialize_ag_attributes_keeps_turn_id():
+    cleaned = initialize_ag_attributes(
+        {"ag": {"turn": {"id": "turn-1", "legacy": True}}}
+    )
+    ag = cleaned["ag"]
+
+    assert ag["turn"] == {"id": "turn-1"}
+    assert "turn" not in (ag.get("unsupported") or {})
+
+
 def test_initialize_ag_attributes_preserves_dotted_reference_slugs():
     cleaned = initialize_ag_attributes(
         {
@@ -235,3 +245,34 @@ def test_parse_into_and_from_attributes_round_trip():
     assert parsed[3] == {"origin": "api"}
     assert parsed[4] == {"inputs": {"q": "hello"}, "outputs": {"a": "world"}}
     assert parsed[5] == {"application": {"id": "31d6cfe0-4b90-11ec-8001-42010a8000b0"}}
+
+
+def test_initialize_ag_attributes_keeps_the_annotation_namespace():
+    attributes = {
+        "ag": {
+            "type": {"trace": "annotation", "span": "task"},
+            "annotation": {
+                "scope": "turn",
+                "author": {"type": "person", "user_id": "u-3"},
+                "actor": {"type": "person", "user_id": "u-3"},
+            },
+        }
+    }
+
+    initialize_ag_attributes(attributes)
+
+    assert attributes["ag"]["annotation"] == {
+        "scope": "turn",
+        "author": {"type": "person", "user_id": "u-3"},
+        "actor": {"type": "person", "user_id": "u-3"},
+    }
+    assert "annotation" not in (attributes["ag"].get("unsupported") or {})
+
+
+def test_initialize_ag_attributes_moves_an_invalid_annotation_to_unsupported():
+    attributes = {"ag": {"annotation": {"scope": "galaxy"}}}
+
+    initialize_ag_attributes(attributes)
+
+    assert "annotation" not in attributes["ag"]
+    assert attributes["ag"]["unsupported"]["annotation"] == {"scope": "galaxy"}

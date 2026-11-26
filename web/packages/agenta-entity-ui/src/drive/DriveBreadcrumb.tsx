@@ -1,6 +1,8 @@
-import {Fragment} from "react"
+import {Fragment, useLayoutEffect, useRef} from "react"
 
 import {driveRootLabel} from "@agenta/entities/drive"
+import {useT} from "@agenta/i18n"
+import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {
     Breadcrumb,
     BreadcrumbItem,
@@ -32,7 +34,14 @@ export const DriveBreadcrumb = ({
     /** The leaf is a file. */
     isFile?: boolean
 }) => {
+    const t = useT(driveExplorerCatalog)
     const segs = shown.split("/").filter(Boolean)
+    // A path wider than the row shows its end: the current folder or file.
+    const scrollRef = useRef<HTMLElement>(null)
+    useLayoutEffect(() => {
+        const el = scrollRef.current
+        if (el) el.scrollLeft = el.scrollWidth
+    }, [shown])
     if (variant === "icons") {
         // `inline-flex` restated: BreadcrumbLink's `inline-block` would stack glyph over label.
         const crumbLink =
@@ -41,13 +50,15 @@ export const DriveBreadcrumb = ({
             <Breadcrumb
                 className="min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                 title={shown}
+                ref={scrollRef}
             >
-                <BreadcrumbList className="flex-nowrap gap-0.5 whitespace-nowrap text-[13px] sm:gap-0.5">
+                {/* Parts never shrink: a long path scrolls instead of cutting the last part. */}
+                <BreadcrumbList className="flex-nowrap gap-0.5 whitespace-nowrap text-[13px] sm:gap-0.5 [&>li]:shrink-0">
                     <BreadcrumbItem>
                         {segs.length === 0 ? (
                             <BreadcrumbPage className="flex h-auto items-center gap-1.5 px-1.5 py-[3px] font-medium">
                                 <House size={15} />
-                                All files
+                                {t("entityUi.driveExplorer.allFiles")}
                             </BreadcrumbPage>
                         ) : (
                             <BreadcrumbLink asChild>
@@ -55,7 +66,7 @@ export const DriveBreadcrumb = ({
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => onNavigate("")}
-                                    aria-label="All files"
+                                    aria-label={t("entityUi.driveExplorer.allFiles")}
                                     title={rootLabel}
                                     className={crumbLink}
                                 >
@@ -125,7 +136,9 @@ export const DriveBreadcrumb = ({
                 <House size={12} />
                 {/* Label the root "root" only when it's alone — a bare home icon reads as empty. Once
                     there's a path the icon stays bare (the segments give the context). */}
-                {segs.length === 0 ? <span className="font-mono">root</span> : null}
+                {segs.length === 0 ? (
+                    <span className="font-mono">{t("entityUi.driveExplorer.root")}</span>
+                ) : null}
             </button>
             {segs.map((seg, i) => {
                 const path = segs.slice(0, i + 1).join("/")

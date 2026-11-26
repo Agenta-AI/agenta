@@ -9,10 +9,13 @@ flattened before they reach the caller.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 import ast
 from pathlib import Path
 
 import pytest
+
+from agenta.sdk.agents.requirements import AgentNeedsSetupError
 
 from agenta.sdk.agents import AgentResult, AgentTemplate, ResolvedToolSet
 from agenta.sdk.agents.connections import (
@@ -163,12 +166,15 @@ async def test_connection_refusal_keeps_its_status_code(monkeypatch, fake_backen
         lambda: AgentTemplate(instructions="x", model="m"),
     )
 
-    with pytest.raises(MissingCredentialError) as excinfo:
+    with pytest.raises(AgentNeedsSetupError) as needs:
         await app._agent(
             request=WorkflowServiceRequest(),
             messages=[{"role": "user", "content": "hi"}],
             parameters={"agent": {"harness": {"kind": "pi_core"}}},
         )
+    # Needs setup: one agent_needs_setup error that keeps the old failure as its cause.
+    assert isinstance(needs.value.__cause__, MissingCredentialError)
+    excinfo = SimpleNamespace(value=needs.value.__cause__)
 
     assert excinfo.value.status_code == 422
 
@@ -176,12 +182,9 @@ async def test_connection_refusal_keeps_its_status_code(monkeypatch, fake_backen
 async def test_a_control_plane_refusal_reaches_the_caller_with_its_code(
     monkeypatch, fake_backend
 ):
-    """OR27: the gateway's `code` and message survive the service, not just the status.
-
-    The resolver used to read only the HTTP status of a refusal, so an endpoint that did not
-    exist reached the person running the agent as an unknown-invoke-error 500 with no code and
-    no sentence they could act on. Both normalizers that build an error response from a raised
-    exception read `failure_code_of`, so asserting it here pins what the browser receives.
+    """OR27, then needs setup: a missing model key reaches the caller as one 422
+    `agent_needs_setup` error, and the gateway's own code survives as the requirement's
+    `detail.code` (and on the kept cause), never an unknown-invoke-error 500.
     """
 
     refusal = GatewayConnectionRefusedError.from_response(
@@ -219,16 +222,26 @@ async def test_a_control_plane_refusal_reaches_the_caller_with_its_code(
         lambda: AgentTemplate(instructions="x", model="m"),
     )
 
-    with pytest.raises(GatewayConnectionRefusedError) as excinfo:
+    with pytest.raises(AgentNeedsSetupError) as needs:
         await app._agent(
             request=WorkflowServiceRequest(),
             messages=[{"role": "user", "content": "hi"}],
             parameters={"agent": {"harness": {"kind": "pi_core"}}},
         )
+    # Needs setup: one agent_needs_setup error that keeps the old failure as its cause.
+    assert isinstance(needs.value.__cause__, GatewayConnectionRefusedError)
+    excinfo = SimpleNamespace(value=needs.value.__cause__)
+
+    # What the normalizer puts on the status: a client error with the needs-setup code
+    # and message, and the requirement that keeps the gateway's code.
+    public = needs.value
+    assert public.code == 422
+    assert failure_code_of(public) == "agent_needs_setup"
+    assert public.message == "The model needs setup before this agent can run."
+    [requirement] = public.failure_details["requirements"]
+    assert requirement["detail"] == {"code": "endpoint_not_found"}
 
     error = excinfo.value
-    # What the normalizer puts on the status: a client error, the gateway's own failure code,
-    # and the gateway's sentence as the message, never "connection resolution failed (HTTP 404)".
     assert error.status_code == 422
     assert failure_code_of(error) == "endpoint_not_found"
     assert str(error) == "LLM endpoint not found: custom/absent-gw"

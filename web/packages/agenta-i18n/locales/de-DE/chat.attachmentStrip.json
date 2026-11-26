@@ -1,0 +1,7 @@
+{
+    "pause": "{{name}} pausieren",
+    "play": "{{name}} abspielen",
+    "view": "{{name}} ansehen",
+    "viewMore_one": "{{count}} weitere Datei ansehen",
+    "viewMore_other": "{{count}} weitere Dateien ansehen"
+}

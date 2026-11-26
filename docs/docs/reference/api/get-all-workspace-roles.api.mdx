@@ -1,11 +1,11 @@
 ---
 id: get-all-workspace-roles
 title: "Get All Workspace Roles"
-description: "Get all workspace roles."
+description: "Get the offered roles of the caller's organization: the roles its invites and"
 sidebar_label: "Get All Workspace Roles"
 hide_title: true
 hide_table_of_contents: true
-api: eJztVMFu2zAM/RWBZyHJdvRpAVa0QXcI0g47pEHBKkysVpY8iU6bGf73gXLstgHa/cB8sSU+8YmPj26BcZ+gWMOvEJ9SjYYSbDRsKZloa7bBQwGXxAqdU88DRsXgKE3u/J1fETfRJ4XK2cQq7DISD2gdPjj67Exx55VS6odNvB7pV8HRilIdfKJNoeZj2u+0w8axxFV4eCTDSUWqIyXybP1ecUn/4kWbaKC9ur1dXrwYykUWarFT6BXFGKIKxjQxqefSOlKROFo6DAzneUFDqCmiZFlsoYA98T06dz8C7zMQNMRTWQmKFr7OZvJ6L/RNYwyltGucGjQADSZ4Js8Cx7p21mSy6WOSMy0kU1KF8mWZqpwct1srGHTLKLdj25PysSYoIHG0fg+dHjZ6Pd9sYIx4BA1s2cl6uI0SK8ydU2O/1CpX18mjoSIuw0kF0FAjl1DAdNQiTQcxEsUDRbFeC010gsLaQqeHZclcp2I6pWZiXGi2E9yTZ5yg7YEbyWGaaPmYk8yXi2s6XhFuKUKx3rwF3IhEvQTvYaMkWNtrkoo9VrKeN1yGaP9kqUGDlfaU/Skp1PpdyMdPAs3z5dR8uYDz6XkXkl6iyb0cmHIY9FnZr9WCBqrQSpAJq29jRPolGvY0s8mXyUy26pC4Qv+G4qOmnd20fXXa/5H/fORPrmF64Wnt0HoRPjewPZl+Da+ml9nPgm80lCGxRNv2ARP9jK7rZPt3Q1F8vNFwwGilnmxiPZhOLP5ERzGMkQpAgK7pvXv2UxDrj5N4eXELXfcXZO8S7g==
+api: eJzVU8tu2zAQ/BViL70QstujeqkPRRrkEiQpenCMZEOtLSYUyZIrt66gfy+Wkp3EQD+gvsjcHe5jZjgA4y5DvYYfIb3kiIYybDQ0lE2ykW3wUMMFseKWVNhuKVGjUnCUVdiWoEHnKH3IKqQdevsH5VJdUhPOclbW7y1TVuibey9hZVr0O8qqw4PKxJW6a0lFh141ZGxDuVRwNvNn9Xjx9U4t0BjKeVGKPt57dDmoRNwnP2G3vXPKIKMLuwo0hEipDHPZQA074gd07uHXcc+HUgg0JMox+EwZ6gE+LZfyeb//bV9ab3unbmYwaDDBM3kWOMborCnNFs9Z7gyQTUsdyj/L1JXi2DRWMOiuk0zHdmrKh0hQQ+Zk/Q5GfQyEp2cy/CaAKeEBNLBlJ+fjNEoUWjmnTiqqm7LdKD8NHXEbZhZAQ0RuoYbFiYuZVdCQKe0piSMG6JMTFEYLoz4eW+aY68WC+sq40DcV7sgzVmgn4EZqmD5ZPpQiq+vLKzp8I2woQb3evAXcCkUTBe9hJ0ow2iuSjT12cl713IY0mww0WJGnnW7JotZvQ7k+E7Qqw6nV9SWcm/pdSrREU7Q8dipp0Gdrv24LGqhDK0km7L6cMqKXcDi1WVYfq6WEYsjcoX/T4l+inU06vDrtP32Js5hMv3kRHVovfBReh9mLa3j1ojzJwsNGQxsyS3YYnjDT9+TGUcI/e0pir42GPSaLTyL2ejPqoxfEeS90EB2NoSim36PrJ0udvVVx5OmBXHy9g3H8C90Zw+0=
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -37,15 +37,9 @@ import Translate from "@docusaurus/Translate";
 
 
 
-Get all workspace roles.
-
-Returns a list of all available workspace roles.
-
-Returns:
-    List[WorkspaceRoleResponse]: A list of DefaultRole objects representing the available workspace roles.
-
-Raises:
-    HTTPException: If an error occurs while retrieving the workspace roles.
+Get the offered roles of the caller's organization: the roles its invites and
+role changes may set. The plan decides the list; `GET /access/roles`
+also returns the full catalog.
 
 <ParamsDetails>
   

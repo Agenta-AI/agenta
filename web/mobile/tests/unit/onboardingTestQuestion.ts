@@ -34,6 +34,21 @@ export const GOALS_QUESTION: OnboardingQuestionDef = {
     ],
 }
 
+/** A question with an Other choice that takes a write-in line, for write-in unit tests. */
+export const WRITE_IN_QUESTION: OnboardingQuestionDef = {
+    id: "role",
+    title: "What is your role?",
+    subtitle: "Pick the one that fits best.",
+    dot: "Your role",
+    enabled: true,
+    personProperty: "role_v1",
+    choices: [
+        {label: "Engineer", icon: Users},
+        {label: "Designer", icon: Users},
+        {label: "Other", icon: Users, text: true},
+    ],
+}
+
 /** Appends a question to the app's registry for one test, as adding its entry would. */
 export const registerQuestion = (question: OnboardingQuestionDef) => {
     const registry = ONBOARDING_QUESTIONS as unknown as OnboardingQuestionDef[]

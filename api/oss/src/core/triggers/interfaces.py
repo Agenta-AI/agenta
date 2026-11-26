@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
+from oss.src.core.access.dtos import PrincipalRef, RunEnvelope
 from oss.src.core.shared.dtos import Status, Windowing
 from oss.src.core.triggers.dtos import (
     TriggerCatalogEventDetails,
@@ -19,7 +21,12 @@ from oss.src.core.triggers.dtos import (
     TriggerSubscriptionCreate,
     TriggerSubscriptionEdit,
     TriggerSubscriptionQuery,
+    TriggerWebhookRegistration,
 )
+
+
+# An edit that does not touch the references keeps the stored target agent.
+KEEP_ARTIFACT_ID = object()
 
 
 class TriggersGatewayInterface(ABC):
@@ -85,8 +92,10 @@ class TriggersGatewayInterface(ABC):
         ...
 
     @abstractmethod
-    async def ensure_webhook_subscription(self, *, webhook_url: str) -> str:
-        """Idempotently ensure the project-level delivery webhook; return its secret."""
+    async def ensure_webhook_subscription(
+        self, *, webhook_url: str
+    ) -> TriggerWebhookRegistration:
+        """Idempotently ensure the project-level delivery webhook; return its registration."""
         ...
 
 
@@ -105,6 +114,8 @@ class TriggersDAOInterface(ABC):
         subscription: TriggerSubscriptionCreate,
         #
         trigger_id: str,
+        principal: PrincipalRef,
+        artifact_id: Optional[UUID],
     ) -> TriggerSubscription: ...
 
     @abstractmethod
@@ -135,7 +146,13 @@ class TriggersDAOInterface(ABC):
         user_id: UUID,
         #
         subscription: TriggerSubscriptionEdit,
-    ) -> Optional[TriggerSubscription]: ...
+        #
+        artifact_id: Any = KEEP_ARTIFACT_ID,
+        trigger_id: Optional[str] = None,
+        principal: Optional[PrincipalRef] = None,
+    ) -> Optional[TriggerSubscription]:
+        """With a `principal`, the edit also writes it as the executing principal."""
+        ...
 
     @abstractmethod
     async def delete_subscription(
@@ -222,6 +239,40 @@ class TriggersDAOInterface(ABC):
     ) -> TriggerDelivery:
         """Upsert a delivery row (idempotent on event_id)."""
         ...
+
+    async def refuse_delivery(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        #
+        delivery: TriggerDeliveryCreate,
+        reason: str,
+    ) -> Optional[TriggerDelivery]:
+        """Record a refused delivery and pause its trigger in one transaction; the dedup
+        key keeps a repeated event from writing twice. No session, no provider sync."""
+        raise NotImplementedError
+
+    async def pause_trigger(
+        self,
+        *,
+        project_id: UUID,
+        schedule_id: Optional[UUID] = None,
+        subscription_id: Optional[UUID] = None,
+        reason: str,
+    ) -> None:
+        """`flags.is_active = false` and `meta.paused_reason = reason`."""
+        raise NotImplementedError
+
+    async def pause_triggers_for_artifact(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: UUID,
+        reason: str,
+    ) -> int:
+        """Pause the live triggers whose direct target is this agent."""
+        raise NotImplementedError
 
     @abstractmethod
     async def write_subscription_delivery_if_live(
@@ -317,6 +368,8 @@ class TriggersDAOInterface(ABC):
         user_id: UUID,
         #
         schedule: TriggerScheduleCreate,
+        principal: PrincipalRef,
+        artifact_id: Optional[UUID],
     ) -> TriggerSchedule: ...
 
     @abstractmethod
@@ -347,7 +400,12 @@ class TriggersDAOInterface(ABC):
         user_id: UUID,
         #
         schedule: TriggerScheduleEdit,
-    ) -> Optional[TriggerSchedule]: ...
+        #
+        artifact_id: Any = KEEP_ARTIFACT_ID,
+        principal: Optional[PrincipalRef] = None,
+    ) -> Optional[TriggerSchedule]:
+        """With a `principal`, the edit also writes it as the executing principal."""
+        ...
 
     @abstractmethod
     async def delete_schedule(
@@ -389,8 +447,69 @@ class TriggersDAOInterface(ABC):
     ) -> List[TriggerSchedule]: ...
 
     @abstractmethod
-    async def fetch_active_schedules_with_project(
+    async def fetch_active_recurring_schedules_with_project(
         self,
         *,
         project_id: Optional[UUID] = None,
     ) -> List[Tuple[UUID, TriggerSchedule]]: ...
+
+    @abstractmethod
+    async def fetch_due_one_time_schedules(
+        self,
+        *,
+        due_by: datetime,
+        limit: int,
+    ) -> List[Tuple[UUID, TriggerSchedule]]: ...
+
+    # Schedules that server code creates: hidden from every public read, fired into an
+    # existing session, and removed from the table after the fire.
+
+    @abstractmethod
+    async def fetch_schedule_to_fire(
+        self,
+        *,
+        project_id: UUID,
+        schedule_id: UUID,
+    ) -> Optional[TriggerSchedule]: ...
+
+    @abstractmethod
+    async def create_hidden_schedule(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        schedule_id: UUID,
+        schedule: TriggerScheduleCreate,
+        principal: PrincipalRef,
+        run_envelope: RunEnvelope,
+    ) -> Optional[TriggerSchedule]: ...
+
+    @abstractmethod
+    async def purge_hidden_schedule(
+        self,
+        *,
+        project_id: UUID,
+        schedule_id: UUID,
+    ) -> Optional[TriggerSchedule]: ...
+
+    @abstractmethod
+    async def purge_stale_hidden_schedules(
+        self,
+        *,
+        first_fired_before: datetime,
+        limit: int,
+    ) -> List[Tuple[UUID, TriggerSchedule]]: ...
+
+    @abstractmethod
+    async def claim_schedule_delivery(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        #
+        delivery_id: UUID,
+        schedule_id: UUID,
+        event_id: str,
+        data: TriggerDeliveryData,
+    ) -> bool: ...

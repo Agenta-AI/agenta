@@ -11,6 +11,9 @@ import {atom} from "jotai"
  * runner — so every consumer of the lean `@agenta/playground/agent-chat` entry pulled that graph
  * in behind it. Keep this file dependency-free.
  *
+ * It is also its own entry (`@agenta/playground/execution-headers`): an app shell registers the
+ * provider from here, so the runner loads only with the pages that run something.
+ *
  * @example
  * ```ts
  * import { getJWT } from "@/oss/services/api"

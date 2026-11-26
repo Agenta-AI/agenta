@@ -1,0 +1,34 @@
+---
+title: "Share AI provider connections"
+slug: organization-ai-connections
+date: 2026-10-28
+tags: [v0.126.0]
+description: "Organization admins can add a provider connection once and make it available to agents in their projects."
+---
+
+<Summary>
+
+Organization owners and admins can now add an AI provider connection once for the whole organization, instead of in every project. Find it in Settings, on the **Organization** tab.
+
+- Choose which projects can use each connection. Picking single projects needs an Enterprise plan.
+- Pick an organization connection in an agent's model list.
+
+</Summary>
+
+{/* truncate */}
+
+## Connect once, choose where to use it
+
+Organization owners and admins can add provider keys, custom providers, and supported ChatGPT or Claude subscription connections at the organization level. Connections are available to all projects by default; selecting specific projects is available with the Enterprise entitlement. Members can see the organization connections available to their project but cannot manage them. [See the backend](https://github.com/Agenta-AI/agenta/pull/7808) and [Settings changes](https://github.com/Agenta-AI/agenta/pull/7839).
+
+An agent uses an organization connection only when you select it. The model picker marks these connections **Organization** and saves that choice with the agent. Existing project connections and project defaults do not silently switch to an organization connection.
+
+## Improvements
+
+- Settings groups AI providers, integrations, secrets, MCPs and channels under **Connections**.
+- A saved model ID without a provider prefix [matches its row](https://github.com/Agenta-AI/agenta/pull/7869) in the model picker.
+
+## Bug fixes
+
+- A failed agent run in a plain SSE or NDJSON stream [ends with an error frame](https://github.com/Agenta-AI/agenta/pull/7868) rather than stopping after status frames without explaining the failure.
+- [Additional access checks](https://github.com/Agenta-AI/agenta/pull/7843) protect private agents and their channel chats.

@@ -9,6 +9,7 @@ from typing import Dict, List, Optional
 from uuid import UUID
 
 from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.shared.dtos import RunUsage
 from oss.src.core.sessions.turns.dtos import (
     HarnessKind,
     SessionTurn,
@@ -93,6 +94,19 @@ class SessionTurnsService:
             log.error("[SESSIONS] Failed to publish turn-ended", exc_info=True)
         return completed
 
+    async def set_turn_usage_from_trace(
+        self,
+        *,
+        project_id: UUID,
+        trace_id: UUID,
+        usage: RunUsage,
+    ) -> int:
+        return await self._dao.set_turn_usage_from_trace(
+            project_id=project_id,
+            trace_id=trace_id,
+            usage=usage,
+        )
+
     async def query_turns(
         self,
         *,
@@ -130,6 +144,22 @@ class SessionTurnsService:
         return await self._dao.latest_turn(
             project_id=project_id,
             session_id=session_id,
+        )
+
+    async def find_turn(
+        self,
+        *,
+        project_id: UUID,
+        session_id: Optional[str] = None,
+        turn_id: Optional[UUID] = None,
+        trace_id: Optional[UUID] = None,
+    ) -> Optional[SessionTurn]:
+        """The matching turn with the highest turn_index; `turn_id` is the column, not the row key."""
+        return await self._dao.find_turn(
+            project_id=project_id,
+            session_id=session_id,
+            turn_id=turn_id,
+            trace_id=trace_id,
         )
 
     async def latest_turn_per_harness_kind(

@@ -58,6 +58,8 @@ export interface AnalyticsSeries {
 export interface AnalyticsRun {
     traceId: string
     agentId: string | null
+    /** The root span's own name; labels a run that carries no agent reference. */
+    name: string | null
     model: string | null
     startedAt: number
     tokens: number

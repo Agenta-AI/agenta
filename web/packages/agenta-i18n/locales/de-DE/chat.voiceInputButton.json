@@ -1,0 +1,13 @@
+{
+    "cannotListen": "Dieses Modell kann kein Audio hören",
+    "hintAudio": "Sprachnachricht aufnehmen",
+    "hintTranscribe": "Nachricht diktieren",
+    "holdToDictate": "{{key}} gedrückt halten zum Diktieren",
+    "limitReached": "Anhangslimit erreicht: Entfernen Sie eine Datei, um eine Sprachnachricht aufzunehmen",
+    "modeAudio": "Sprachnachricht",
+    "modeTranscribe": "Sprache zu Text",
+    "stopDictation": "Diktat beenden",
+    "stopVoiceInput": "Spracheingabe beenden",
+    "voiceInputMode": "Spracheingabemodus",
+    "waitingPrompt": "Warte auf die Mikrofonabfrage Ihres Browsers …"
+}

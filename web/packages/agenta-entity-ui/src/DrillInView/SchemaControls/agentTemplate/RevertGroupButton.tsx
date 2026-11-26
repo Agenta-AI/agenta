@@ -12,6 +12,8 @@
  */
 import {useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {Button, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {ArrowCounterClockwise, WarningCircle} from "@phosphor-icons/react"
 
@@ -32,14 +34,19 @@ export interface RevertGroupButtonProps {
 export function RevertGroupButton({
     onConfirm,
     disabled,
-    title = "Revert this group?",
-    description = "Every unsaved change in it goes back to the committed value.",
-    okText = "Revert",
-    cancelText = "Cancel",
+    title: titleProp,
+    description: descriptionProp,
+    okText: okTextProp,
+    cancelText: cancelTextProp,
     open,
     onOpenChange,
     container,
 }: RevertGroupButtonProps) {
+    const t = useT(configItemsCatalog)
+    const title = titleProp ?? t("entityUi.configItems.revertGroupTitle")
+    const description = descriptionProp ?? t("entityUi.configItems.revertGroupDescription")
+    const okText = okTextProp ?? t("entityUi.configItems.revert")
+    const cancelText = cancelTextProp ?? t("entityUi.configItems.cancel")
     const [internalOpen, setInternalOpen] = useState(false)
     const isOpen = open ?? internalOpen
     const setOpen = (next: boolean) => {
@@ -62,14 +69,16 @@ export function RevertGroupButton({
                     className="!h-auto !px-1 !py-0.5 !text-xs !text-colorTextSecondary"
                 >
                     <ArrowCounterClockwise size={13} />
-                    Revert
+                    {t("entityUi.configItems.revert")}
                 </Button>
             </PopoverTrigger>
             <PopoverContent
                 align="end"
                 container={container}
                 // Radix gives the content role="dialog"; axe requires it to be named.
-                aria-label={typeof title === "string" ? title : "Revert this group?"}
+                aria-label={
+                    typeof title === "string" ? title : t("entityUi.configItems.revertGroupTitle")
+                }
                 className="w-auto p-3"
                 onClick={(e) => e.stopPropagation()}
             >

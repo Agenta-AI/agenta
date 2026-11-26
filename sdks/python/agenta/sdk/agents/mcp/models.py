@@ -13,6 +13,8 @@ from pydantic import (
     model_validator,
 )
 
+from ..accounts import AccountSource
+
 
 Permission = Literal["allow", "ask", "deny"]
 
@@ -77,9 +79,16 @@ class MCPGatewayConnection(BaseModel):
     namespace: Literal["builtin", "standard", "custom"]
     provider: Optional[str] = Field(default=None, min_length=1, max_length=128)
     slug: Optional[str] = Field(default=None, min_length=1, max_length=128)
+    # ``user``: the run person's own sign-in to this project server. Custom routes only;
+    # the slug still names the server.
+    account_source: Optional[AccountSource] = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
     @model_validator(mode="after")
     def _validate_route_identity(self) -> "MCPGatewayConnection":
+        if self.account_source == "user" and self.namespace != "custom":
+            raise ValueError("account_source 'user' is for custom gateway MCP routes")
         if self.namespace == "custom":
             if not self.slug or self.provider:
                 raise ValueError("custom gateway MCP routes require slug only")
@@ -190,6 +199,9 @@ class MCPPolicy(BaseModel):
         return self
 
 
+_OBJECT_KEY_SERVER_NAMES = frozenset({"__proto__", "constructor", "prototype"})
+
+
 class MCPServerConfig(BaseModel):
     """Saved author intent. This model never contains resolved secret values.
 
@@ -218,6 +230,9 @@ class MCPServerConfig(BaseModel):
     def _reject_reserved_name(cls, value: str) -> str:
         if value == "agenta-tools":
             raise ValueError("MCP server name 'agenta-tools' is reserved")
+        # The runner keys JavaScript objects by server name.
+        if value in _OBJECT_KEY_SERVER_NAMES:
+            raise ValueError(f"MCP server name '{value}' is reserved")
         return value
 
 

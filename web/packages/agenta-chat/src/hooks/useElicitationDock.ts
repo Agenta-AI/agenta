@@ -8,12 +8,15 @@
  * What IS kept from that hook is the closing latch, which is load-bearing: without it the card's
  * content vanishes the instant the call settles, and the host animates a collapse around an empty box.
  */
-import {useCallback, useEffect, useMemo, useRef} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {createT} from "@agenta/i18n"
+import chatMessagesCatalog from "@agenta/i18n/catalogs/chat.messages"
 import {
     buildCancelResult,
     buildDegradationErrorText,
     parseElicitationPayload,
+    parseSecretRefusal,
 } from "@agenta/shared/utils"
 import type {UIMessage} from "ai"
 
@@ -26,6 +29,8 @@ import type {ClientToolMeta} from "../skin"
 
 import {discardElicitationDraft} from "./useElicitationStepper"
 import {useSettlingIds} from "./useSettlingIds"
+
+const tNow = createT(chatMessagesCatalog)
 
 export interface UseElicitationDockArgs {
     messages: UIMessage[]
@@ -81,6 +86,16 @@ const payloadArrived = (meta: ClientToolMeta): boolean => {
     return meta.input !== undefined
 }
 
+const DEGRADED_RETRY_MS = 3000
+
+/** The cancel for a repeat bad form. The reader sees it too, so it speaks to both. */
+const repeatCancel = (reason: string): Record<string, unknown> =>
+    buildCancelResult(
+        parseSecretRefusal(reason)
+            ? "Forms never carry secrets, so this one was not shown. Request the credential with request_secret."
+            : "This form couldn't be shown, so the question continues in chat.",
+    ) as unknown as Record<string, unknown>
+
 export const useElicitationDock = ({
     messages,
     enabled = true,
@@ -98,72 +113,83 @@ export const useElicitationDock = ({
 
     const front = pending[0] ?? null
 
-    // An unrenderable payload settles `errorText` once so the run resumes; a repeat malformed
-    // emission parks instead, which is what breaks the settle -> resume -> re-emit loop.
+    // An unrenderable payload never shows: the first settles an error, a repeat settles a cancel.
     const degradedRef = useRef(new Set<string>())
+    const [retryTick, setRetryTick] = useState(0)
+    const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const unmountedRef = useRef(false)
+    useEffect(
+        () => () => {
+            unmountedRef.current = true
+            if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
+        },
+        [],
+    )
     useEffect(() => {
-        if (!front || front.settled || degradedEarlierInTurn) return
+        if (!front || front.settled || !onOutput) return
         if (!payloadArrived(front) || degradedRef.current.has(front.toolCallId)) return
         const parsed = parseElicitationPayload(front.input)
         if (parsed.ok) return
-        degradedRef.current.add(front.toolCallId)
-        onOutput?.({
-            toolName: front.toolName,
-            toolCallId: front.toolCallId,
-            errorText: buildDegradationErrorText(parsed.reason),
-        })
-    }, [front, degradedEarlierInTurn, onOutput])
+        const {toolName, toolCallId} = front
+        degradedRef.current.add(toolCallId)
+        // No card is left to answer, so a write that fails must go out again.
+        const retry = () => {
+            degradedRef.current.delete(toolCallId)
+            if (unmountedRef.current) return
+            if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
+            retryTimerRef.current = setTimeout(() => {
+                retryTimerRef.current = null
+                setRetryTick((tick) => tick + 1)
+            }, DEGRADED_RETRY_MS)
+        }
+        try {
+            void Promise.resolve(
+                onOutput(
+                    degradedEarlierInTurn
+                        ? {toolName, toolCallId, output: repeatCancel(parsed.reason)}
+                        : {
+                              toolName,
+                              toolCallId,
+                              errorText: buildDegradationErrorText(parsed.reason),
+                          },
+                ),
+            )
+                .then((landed) => {
+                    if (landed === false) retry()
+                })
+                .catch(retry)
+        } catch {
+            retry()
+        }
+    }, [front, degradedEarlierInTurn, onOutput, retryTick])
 
     // `pending` through a ref: the host calls `dismiss` from a send handler with a stale closure.
     const pendingRef = useRef(pending)
     pendingRef.current = pending
-    const {settlingIds, mark, forget, isSettling, settle} = useSettlingIds(pending, onOutput)
+    const {settlingIds, settle, dismiss: dismissAll} = useSettlingIds(pending, onOutput)
 
     const dismiss = useCallback(async () => {
-        // No settle channel means nothing can be written, so nothing is dismissed. Checked before
-        // the markers go up: closing the dock over a question that is still parked would hide it.
-        if (!onOutput) return
-        const targets = pendingRef.current.filter(
-            (meta) => !meta.settled && !isSettling(meta.toolCallId),
+        const dismissed = await dismissAll(
+            pendingRef.current,
+            () => buildCancelResult("Dismissed the request.") as unknown as Record<string, unknown>,
+            tNow("chat.messages.questionDismissFailed"),
         )
-        if (targets.length === 0) return
-        mark(targets.map((meta) => meta.toolCallId))
-        try {
-            const landed = await Promise.all(
-                targets.map((meta) =>
-                    onOutput?.({
-                        toolName: meta.toolName,
-                        toolCallId: meta.toolCallId,
-                        output: buildCancelResult("Dismissed the request.") as unknown as Record<
-                            string,
-                            unknown
-                        >,
-                    }),
-                ),
-            )
-            if (landed.some((result) => result === false))
-                throw new Error("The question couldn't be dismissed.")
-            // Only once they landed: a failed write re-opens the dock, and the cards must find the
-            // answers the user had already typed.
-            for (const meta of targets) discardElicitationDraft(meta.toolCallId)
-        } catch (error) {
-            // The questions are still live: give the dock back.
-            forget(targets.map((meta) => meta.toolCallId))
-            throw error
-        }
-    }, [onOutput, mark, forget, isSettling])
+        // Only once they landed: a failed write re-opens the dock, and the cards must find the
+        // answers the user had already typed.
+        for (const meta of dismissed) discardElicitationDraft(meta.toolCallId)
+    }, [dismissAll])
 
     // A card whose answer is out can never be the front one the actions address. Shown only once
-    // its schema is whole and renders; a bad one settles unseen unless it parked for a Skip.
+    // its schema is whole and renders; a bad one settles unseen.
     const live = useMemo(
         () =>
             pending.filter(
                 (meta) =>
                     !settlingIds.has(meta.toolCallId) &&
                     payloadArrived(meta) &&
-                    (degradedEarlierInTurn || parseElicitationPayload(meta.input).ok),
+                    parseElicitationPayload(meta.input).ok,
             ),
-        [pending, settlingIds, degradedEarlierInTurn],
+        [pending, settlingIds],
     )
     // Hold the last non-empty view so a host can animate the dock closed around content already gone.
     const open = live.length > 0

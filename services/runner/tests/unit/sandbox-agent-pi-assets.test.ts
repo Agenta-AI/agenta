@@ -12,13 +12,16 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   statSync,
+  symlinkSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../src/extensions/model-provider-override.ts";
@@ -26,6 +29,8 @@ import { PI_GATEWAY_MCP_SERVERS_ENV } from "../../src/extensions/pi-mcp.ts";
 import {
   buildPiExtensionEnv,
   configurePiSkillSnapshot,
+  LOCAL_PI_SKILL_SNAPSHOT_TTL_MS,
+  localPiSkillSnapshotRoot,
   GATEWAY_PI_RETRY,
   configurePiSessionWorkspace,
   materializeDaytonaPiSkillSnapshot,
@@ -39,12 +44,12 @@ import {
   resolvePiSkillSnapshot,
   resolvePiToolSpecsDelivery,
   uploadDirToSandbox,
-  uploadGatewayPiRetryToSandbox,
+  uploadRunnerPiSettingsToSandbox,
   uploadPiToolSpecsToSandbox,
   uploadSystemPromptToSandbox,
   writePiModelsConfigLocal,
   writePiToolSpecsFileLocal,
-  withGatewayPiRetry,
+  withRunnerPiSettings,
   writeSystemPromptLocal,
 } from "../../src/engines/sandbox_agent/pi-assets.ts";
 import { PUBLIC_SPECS_FILE_ENV } from "../../src/tools/tool-mcp-env.ts";
@@ -208,6 +213,7 @@ describe("buildPiExtensionEnv", () => {
         acpAgent: "pi",
         isPi: true,
         isDaytona,
+        driveOnRunner: !isDaytona,
         sandboxId: isDaytona ? "daytona" : "local",
         workspace: {
           cwd: "/workspace",
@@ -1006,9 +1012,11 @@ describe("prepareLocalPiAssets (managed/none routes through a throwaway dir)", (
     // The managed custom run authenticates from $OPENAI_API_KEY, never the operator's login.
     assert.equal(existsSync(join(runDir as string, "auth.json")), false);
     // Non-credential settings are still carried.
-    assert.equal(
-      readFileSync(join(runDir as string, "settings.json"), "utf-8"),
-      '{"model":"x"}',
+    assert.deepEqual(
+      JSON.parse(
+        readFileSync(join(runDir as string, "settings.json"), "utf-8"),
+      ),
+      { model: "x", quietStartup: true },
     );
     // The exact models.json is present and references only the env var.
     const modelsText = readFileSync(
@@ -1023,49 +1031,126 @@ describe("prepareLocalPiAssets (managed/none routes through a throwaway dir)", (
 });
 
 describe("Pi skill snapshots", () => {
-  it("publishes content-addressed local snapshots without replacing older versions", () => {
-    const cwd = tempDir("agenta-pi-snapshot-cwd-");
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  /** Point `os.tmpdir()` (and so the shared snapshot root) at a fresh dir for one test. */
+  function isolatedSnapshotRoot(): string {
+    const tmp = tempDir("agenta-pi-snapshot-tmp-");
+    vi.stubEnv("TMPDIR", tmp);
+    return join(tmp, "agenta-pi-skills");
+  }
+
+  function oneSkill(content = "skill"): string {
     const skill = tempDir("agenta-pi-snapshot-skill-");
     mkdirSync(join(skill, "references"));
-    writeFileSync(join(skill, "SKILL.md"), "first", "utf-8");
+    writeFileSync(join(skill, "SKILL.md"), content, "utf-8");
     writeFileSync(join(skill, "references", "guide.md"), "guide", "utf-8");
+    return skill;
+  }
 
-    const first = resolvePiSkillSnapshot({
+  function localSnapshot(skill: string, cwd = "/work/session") {
+    const snapshot = resolvePiSkillSnapshot({
       isPi: true,
+      driveOnRunner: true,
+      workspace: { cwd, skillDirs: [{ name: "release-notes", dir: skill }] },
+    });
+    assert.ok(snapshot);
+    return snapshot;
+  }
+
+  it("keeps a local snapshot on the runner disk, off the session cwd, and points Pi at it", () => {
+    const root = isolatedSnapshotRoot();
+    const snapshot = localSnapshot(oneSkill(), "/var/lib/agenta/mounts/p/s");
+    assert.equal(snapshot.dir, join(root, snapshot.digest));
+    assert.match(snapshot.digest, /^[a-f0-9]{64}$/);
+    assert.equal(localPiSkillSnapshotRoot(), root);
+
+    const env: Record<string, string> = {};
+    configurePiSkillSnapshot(snapshot, env);
+    assert.equal(env.PI_CODING_AGENT_SKILL_DIR, snapshot.dir);
+  });
+
+  it("gives two sessions with the same skills the same snapshot dir", () => {
+    isolatedSnapshotRoot();
+    const skill = oneSkill();
+    const first = localSnapshot(skill, "/work/a");
+    const second = localSnapshot(skill, "/work/b");
+    assert.equal(first.dir, second.dir);
+  });
+
+  it("keeps a Daytona snapshot under the sandbox cwd", () => {
+    isolatedSnapshotRoot();
+    const snapshot = resolvePiSkillSnapshot({
+      isPi: true,
+      driveOnRunner: false,
       workspace: {
-        cwd,
-        skillDirs: [{ name: "release-notes", dir: skill }],
+        cwd: "/workspace",
+        skillDirs: [{ name: "release-notes", dir: oneSkill() }],
       },
     });
-    assert.ok(first);
-    assert.match(first.dir, new RegExp(`${cwd}/agents/skills/[a-f0-9]{64}$`));
-    const env: Record<string, string> = {};
-    configurePiSkillSnapshot(first, env);
-    assert.equal(env.PI_CODING_AGENT_SKILL_DIR, first.dir);
+    assert.ok(snapshot);
+    assert.equal(snapshot.dir, `/workspace/agents/skills/${snapshot.digest}`);
+  });
 
-    materializeLocalPiSkillSnapshot(first);
+  it("keeps an inprocess snapshot under the cwd, which it publishes to the drive", () => {
+    isolatedSnapshotRoot();
+    const snapshot = resolvePiSkillSnapshot({
+      isPi: true,
+      driveOnRunner: false,
+      workspace: {
+        cwd: "/var/lib/agenta/inprocess/s",
+        skillDirs: [{ name: "release-notes", dir: oneSkill() }],
+      },
+    });
+    assert.ok(snapshot);
+    assert.equal(
+      snapshot.dir,
+      `/var/lib/agenta/inprocess/s/agents/skills/${snapshot.digest}`,
+    );
+  });
+
+  it("publishes a new digest owner-only and reuses it on a hit", () => {
+    const root = isolatedSnapshotRoot();
+    const snapshot = localSnapshot(oneSkill());
+
+    materializeLocalPiSkillSnapshot(snapshot);
     assert.equal(
       readFileSync(
-        join(first.dir, "release-notes", "references", "guide.md"),
+        join(snapshot.dir, "release-notes", "references", "guide.md"),
         "utf-8",
       ),
       "guide",
     );
     assert.equal(
-      readFileSync(join(first.dir, PI_SKILL_SNAPSHOT_MARKER), "utf-8"),
-      first.marker,
+      readFileSync(join(snapshot.dir, PI_SKILL_SNAPSHOT_MARKER), "utf-8"),
+      snapshot.marker,
     );
+    assert.equal(statSync(root).mode & 0o777, 0o700);
+    assert.equal(statSync(snapshot.dir).mode & 0o777, 0o700);
+
+    // A hit leaves the copy in place and only refreshes its last-use time.
+    const inode = statSync(join(snapshot.dir, "release-notes", "SKILL.md")).ino;
+    const old = new Date(Date.now() - 60_000);
+    utimesSync(snapshot.dir, old, old);
+    materializeLocalPiSkillSnapshot(snapshot);
+    assert.equal(
+      statSync(join(snapshot.dir, "release-notes", "SKILL.md")).ino,
+      inode,
+    );
+    assert.ok(statSync(snapshot.dir).mtimeMs > old.getTime() + 1_000);
+    assert.deepEqual(readdirSync(root), [snapshot.digest]);
+  });
+
+  it("publishes a changed skill set as a new digest beside the old one", () => {
+    isolatedSnapshotRoot();
+    const skill = oneSkill("first");
+    const first = localSnapshot(skill);
     materializeLocalPiSkillSnapshot(first);
 
     writeFileSync(join(skill, "SKILL.md"), "second", "utf-8");
-    const second = resolvePiSkillSnapshot({
-      isPi: true,
-      workspace: {
-        cwd,
-        skillDirs: [{ name: "release-notes", dir: skill }],
-      },
-    });
-    assert.ok(second);
+    const second = localSnapshot(skill);
     assert.notEqual(second.dir, first.dir);
     materializeLocalPiSkillSnapshot(second);
     assert.equal(existsSync(first.dir), true);
@@ -1075,35 +1160,147 @@ describe("Pi skill snapshots", () => {
     );
   });
 
-  it("fails closed when the digest path exists without its completion marker", () => {
-    const cwd = tempDir("agenta-pi-snapshot-invalid-cwd-");
-    const skill = tempDir("agenta-pi-snapshot-invalid-skill-");
-    writeFileSync(join(skill, "SKILL.md"), "skill", "utf-8");
-    const snapshot = resolvePiSkillSnapshot({
-      isPi: true,
-      workspace: {
-        cwd,
-        skillDirs: [{ name: "release-notes", dir: skill }],
-      },
-    });
-    assert.ok(snapshot);
-    mkdirSync(snapshot.dir, { recursive: true });
-    writeFileSync(join(snapshot.dir, "partial.txt"), "keep", "utf-8");
+  it("replaces a shared copy whose content or entries no longer match its digest", () => {
+    isolatedSnapshotRoot();
+    const snapshot = localSnapshot(oneSkill("original"));
+    materializeLocalPiSkillSnapshot(snapshot);
 
-    assert.throws(
-      () => materializeLocalPiSkillSnapshot(snapshot),
-      /expected completion marker/,
-    );
+    writeFileSync(join(snapshot.dir, "release-notes", "SKILL.md"), "edited");
+    materializeLocalPiSkillSnapshot(snapshot);
     assert.equal(
-      readFileSync(join(snapshot.dir, "partial.txt"), "utf-8"),
-      "keep",
+      readFileSync(join(snapshot.dir, "release-notes", "SKILL.md"), "utf-8"),
+      "original",
+    );
+
+    mkdirSync(join(snapshot.dir, "extra-skill"));
+    writeFileSync(join(snapshot.dir, "extra-skill", "SKILL.md"), "extra");
+    materializeLocalPiSkillSnapshot(snapshot);
+    assert.equal(existsSync(join(snapshot.dir, "extra-skill")), false);
+
+    rmSync(join(snapshot.dir, PI_SKILL_SNAPSHOT_MARKER));
+    materializeLocalPiSkillSnapshot(snapshot);
+    assert.equal(
+      readFileSync(join(snapshot.dir, PI_SKILL_SNAPSHOT_MARKER), "utf-8"),
+      snapshot.marker,
+    );
+    // Each damaged copy is moved aside for the sweep, never deleted under a reader.
+    const leftovers = readdirSync(dirname(snapshot.dir)).filter((name) =>
+      name.startsWith("."),
+    );
+    assert.equal(leftovers.length, 3);
+    for (const name of leftovers) assert.match(name, /\.replaced-/);
+  });
+
+  it("removes snapshots and staging dirs unused past their TTL when it publishes", () => {
+    const root = isolatedSnapshotRoot();
+    mkdirSync(root, { recursive: true, mode: 0o700 });
+    const stale = join(root, "a".repeat(64));
+    const recent = join(root, "b".repeat(64));
+    const staleStaging = join(root, `.${"c".repeat(64)}.tmp-x`);
+    const unrelated = join(root, "not-a-digest");
+    for (const dir of [stale, recent, staleStaging, unrelated]) mkdirSync(dir);
+    const longAgo = new Date(
+      Date.now() - LOCAL_PI_SKILL_SNAPSHOT_TTL_MS - 60_000,
+    );
+    for (const dir of [stale, staleStaging, unrelated])
+      utimesSync(dir, longAgo, longAgo);
+
+    const snapshot = localSnapshot(oneSkill());
+    materializeLocalPiSkillSnapshot(snapshot);
+    assert.deepEqual(
+      readdirSync(root).sort(),
+      [snapshot.digest, "b".repeat(64), "not-a-digest"].sort(),
     );
   });
+
+  it("refuses a shared root that is a symlink", () => {
+    const root = isolatedSnapshotRoot();
+    const elsewhere = tempDir("agenta-pi-snapshot-elsewhere-");
+    symlinkSync(elsewhere, root);
+    assert.throws(
+      () => materializeLocalPiSkillSnapshot(localSnapshot(oneSkill())),
+      /not a directory owned by the runner user/,
+    );
+    assert.deepEqual(readdirSync(elsewhere), []);
+  });
+
+  it("refuses a symlinked root even when the copy behind it is intact", () => {
+    const root = isolatedSnapshotRoot();
+    const snapshot = localSnapshot(oneSkill());
+    materializeLocalPiSkillSnapshot(snapshot);
+    const elsewhere = tempDir("agenta-pi-snapshot-moved-");
+    rmSync(elsewhere, { recursive: true, force: true });
+    renameSync(root, elsewhere);
+    symlinkSync(elsewhere, root);
+    assert.throws(
+      () => materializeLocalPiSkillSnapshot(snapshot),
+      /not a directory owned by the runner user/,
+    );
+  });
+
+  it("starts the sweep clock of a replaced copy when it is moved aside", () => {
+    isolatedSnapshotRoot();
+    const snapshot = localSnapshot(oneSkill("original"));
+    materializeLocalPiSkillSnapshot(snapshot);
+    writeFileSync(join(snapshot.dir, "release-notes", "SKILL.md"), "edited");
+    const old = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    utimesSync(snapshot.dir, old, old);
+    materializeLocalPiSkillSnapshot(snapshot);
+    const replaced = readdirSync(dirname(snapshot.dir)).filter((n) =>
+      n.includes(".replaced-"),
+    );
+    // Not swept by the same publish, although the copy itself was three hours old.
+    assert.equal(replaced.length, 1);
+  });
+
+  it("publishes one intact snapshot when several processes race on a new digest", async () => {
+    const root = isolatedSnapshotRoot();
+    const skill = oneSkill();
+    const snapshot = localSnapshot(skill);
+    const script =
+      `import { materializeLocalPiSkillSnapshot } from ${JSON.stringify(
+        join(process.cwd(), "src/engines/sandbox_agent/pi-assets.ts"),
+      )};\n` +
+      `materializeLocalPiSkillSnapshot(JSON.parse(process.argv[1]));\n`;
+    const racers = Array.from(
+      { length: 6 },
+      () =>
+        new Promise<number | null>((resolve) => {
+          const child = spawn(
+            process.execPath,
+            [
+              "--import",
+              "tsx",
+              "--input-type=module",
+              "-e",
+              script,
+              JSON.stringify(snapshot),
+            ],
+            {
+              env: { ...process.env, TMPDIR: dirname(root) },
+              stdio: "inherit",
+            },
+          );
+          child.on("exit", resolve);
+        }),
+    );
+    assert.deepEqual(await Promise.all(racers), [0, 0, 0, 0, 0, 0]);
+    assert.deepEqual(readdirSync(root), [snapshot.digest]);
+    assert.equal(
+      readFileSync(join(snapshot.dir, "release-notes", "SKILL.md"), "utf-8"),
+      "skill",
+    );
+    assert.equal(
+      readFileSync(join(snapshot.dir, PI_SKILL_SNAPSHOT_MARKER), "utf-8"),
+      snapshot.marker,
+    );
+  }, 60_000);
 
   it("does not configure snapshots for non-Pi or empty-skill runs", () => {
     assert.equal(
       resolvePiSkillSnapshot({
         isPi: false,
+        driveOnRunner: true,
         workspace: { cwd: "/work", skillDirs: [] },
       }),
       undefined,
@@ -1111,6 +1308,7 @@ describe("Pi skill snapshots", () => {
     assert.equal(
       resolvePiSkillSnapshot({
         isPi: true,
+        driveOnRunner: true,
         workspace: { cwd: "/work", skillDirs: [] },
       }),
       undefined,
@@ -1586,6 +1784,7 @@ describe("sandbox uploads", () => {
     writeFileSync(join(skill, "SKILL.md"), "skill", "utf-8");
     const snapshot = resolvePiSkillSnapshot({
       isPi: true,
+      driveOnRunner: false,
       workspace: {
         cwd: "/workspace",
         skillDirs: [{ name: "release-notes", dir: skill }],
@@ -1639,7 +1838,7 @@ describe("sandbox uploads", () => {
   });
 });
 
-describe("Pi retries on a run through the LLM gateway", () => {
+describe("the runner's Pi settings (gateway retry and quietStartup)", () => {
   const plan = (throughGateway: boolean, sourcePiAgentDir = "/unused") => ({
     isPi: true,
     isDaytona: false,
@@ -1654,17 +1853,23 @@ describe("Pi retries on a run through the LLM gateway", () => {
 
   it("keeps the operator's settings and their other retry fields", () => {
     const merged = JSON.parse(
-      withGatewayPiRetry('{"theme":"dark","retry":{"maxRetries":5,"baseDelayMs":10}}'),
+      withRunnerPiSettings(
+        '{"theme":"dark","retry":{"maxRetries":5,"baseDelayMs":10}}',
+        true,
+      ),
     );
 
     assert.deepEqual(merged, {
       theme: "dark",
+      quietStartup: true,
       retry: { maxRetries: 1, baseDelayMs: 10 },
     });
-    assert.deepEqual(JSON.parse(withGatewayPiRetry(undefined)), {
+    assert.deepEqual(JSON.parse(withRunnerPiSettings(undefined, true)), {
+      quietStartup: true,
       retry: GATEWAY_PI_RETRY,
     });
-    assert.deepEqual(JSON.parse(withGatewayPiRetry("not json")), {
+    assert.deepEqual(JSON.parse(withRunnerPiSettings("not json", true)), {
+      quietStartup: true,
       retry: GATEWAY_PI_RETRY,
     });
   });
@@ -1680,19 +1885,29 @@ describe("Pi retries on a run through the LLM gateway", () => {
     dirs.push(runDir as string);
 
     assert.deepEqual(
-      JSON.parse(readFileSync(join(runDir as string, "settings.json"), "utf-8")),
-      { model: "x", retry: { maxRetries: 1 } },
+      JSON.parse(
+        readFileSync(join(runDir as string, "settings.json"), "utf-8"),
+      ),
+      { model: "x", quietStartup: true, retry: { maxRetries: 1 } },
     );
   });
 
-  it("leaves Pi's own retries on a run that goes straight to the provider", () => {
-    const { dir: runDir } = prepareLocalPiAssets({ plan: plan(false), env: {} });
+  it("leaves Pi's own retries on a run that goes straight to the provider, and quiets the banner", () => {
+    const { dir: runDir } = prepareLocalPiAssets({
+      plan: plan(false),
+      env: {},
+    });
     dirs.push(runDir as string);
 
-    assert.equal(existsSync(join(runDir as string, "settings.json")), false);
+    assert.deepEqual(
+      JSON.parse(
+        readFileSync(join(runDir as string, "settings.json"), "utf-8"),
+      ),
+      { quietStartup: true },
+    );
   });
 
-  it("merges the retry into a Daytona sandbox's settings.json", async () => {
+  it("merges the runner's settings into a Daytona sandbox's settings.json", async () => {
     const written: Record<string, string> = {};
     const sandbox = {
       readFsFile: async () => new TextEncoder().encode('{"model":"y"}'),
@@ -1702,12 +1917,32 @@ describe("Pi retries on a run through the LLM gateway", () => {
       },
     };
 
-    await uploadGatewayPiRetryToSandbox(sandbox, "/home/sandbox/.pi/agent");
+    await uploadRunnerPiSettingsToSandbox(
+      sandbox,
+      "/home/sandbox/.pi/agent",
+      true,
+    );
+    assert.deepEqual(
+      JSON.parse(written["/home/sandbox/.pi/agent/settings.json"]),
+      {
+        model: "y",
+        quietStartup: true,
+        retry: { maxRetries: 1 },
+      },
+    );
 
-    assert.deepEqual(JSON.parse(written["/home/sandbox/.pi/agent/settings.json"]), {
-      model: "y",
-      retry: { maxRetries: 1 },
-    });
+    await uploadRunnerPiSettingsToSandbox(
+      sandbox,
+      "/home/sandbox/.pi/agent",
+      false,
+    );
+    assert.deepEqual(
+      JSON.parse(written["/home/sandbox/.pi/agent/settings.json"]),
+      {
+        model: "y",
+        quietStartup: true,
+      },
+    );
   });
 
   it("gives an in-process session the retry it is handed", async () => {
@@ -1728,7 +1963,10 @@ describe("Pi retries on a run through the LLM gateway", () => {
       log: () => {},
     });
     try {
-      assert.equal(opened.session.settingsManager.getRetrySettings().maxRetries, 1);
+      assert.equal(
+        opened.session.settingsManager.getRetrySettings().maxRetries,
+        1,
+      );
     } finally {
       opened.session.dispose();
       await opened.cleanup();

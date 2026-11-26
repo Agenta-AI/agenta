@@ -1,0 +1,6 @@
+{
+    "aboutToDelete": "Você está prestes a excluir:",
+    "deleteOrganizationDescription": "Os agentes que usam esta conexão precisarão ser reconfigurados, em todos os projetos que a usam.",
+    "deleteProjectDescription": "Esta ação é irreversível. Os agentes e prompts que usam esta conexão deixam de funcionar.",
+    "deleteTitle": "Tem certeza de que deseja excluir?"
+}

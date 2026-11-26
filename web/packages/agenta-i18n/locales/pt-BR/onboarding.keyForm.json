@@ -1,0 +1,17 @@
+{
+    "title": "Sua chave de API",
+    "hint": "OpenAI, Anthropic, Gemini e mais {{more}}.",
+    "saved": "Salva com segurança. Você pode usá-la em qualquer agente.",
+    "using": "Usando {{name}}.",
+    "usingMore": "Usando {{name}} e mais {{more}}.",
+    "cancel": "Cancelar",
+    "add": "Adicionar chave",
+    "save": "Salvar",
+    "keyLabel": "Chave de API",
+    "provider": "Provedor",
+    "providerCount": "{{total}} provedores",
+    "search": "Buscar provedores",
+    "noMatch": "Nenhum provedor corresponde",
+    "invalid": "Isso não parece uma chave válida.",
+    "saveFailed": "Não foi possível salvar esta chave. Tente novamente."
+}

@@ -50,6 +50,11 @@ export interface Column {
     label?: string
     /** Parent column key (for grouped/expanded columns) */
     parentKey?: string
+    /**
+     * The keys from the row down to this column, when read from row data. Unlike `key`, a key
+     * that holds a dot stays one segment.
+     */
+    path?: string[]
     /** Column width in pixels */
     width?: number
     /** Whether column is sortable */

@@ -1,0 +1,22 @@
+{
+    "label": "Conta",
+    "eachPersonSignIn": "O login de cada pessoa",
+    "projectSignIn": "O login do projeto",
+    "connectAnother": "Conectar outra conta do {{name}}",
+    "signOut": "Sair",
+    "signInExpired": "Quando você executa: seu login expirou",
+    "tokenPlaceholder": "Seu token",
+    "saveToken": "Salvar",
+    "choiceFailed": "Não foi possível salvar sua escolha. Tente novamente.",
+    "createNewSecret": "Criar novo segredo",
+    "addOne": "Adicionar um",
+    "addAnotherSecret": "Adicionar outro segredo",
+    "addYourSecret": "Adicione seu segredo",
+    "whoCanUseIt": "Quem pode usá-lo",
+    "onlyMe": "Somente eu",
+    "onlyMeSecretNote": "Você o escolhe quando um agente pede seu próprio valor.",
+    "everyoneInProject": "Todos em {{project}}",
+    "everyoneInThisProject": "Todos neste projeto",
+    "everyoneSecretNote": "Os criadores podem anexá-lo aos agentes deste projeto.",
+    "userSecretRow": "O segredo de cada pessoa"
+}

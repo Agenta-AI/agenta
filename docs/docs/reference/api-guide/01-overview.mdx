@@ -21,6 +21,8 @@ Authorization: ApiKey YOUR_API_KEY
 
 API keys are scoped to a single project. Endpoints do not accept a `project_id` parameter; the project is resolved from the key.
 
+A key cannot act in another project: a request such as `PATCH /projects/{id}` for a different project returns `403`. Routes that manage a workspace or an organization (invites, role changes, member removal, workspace updates) need a key of the workspace's default project.
+
 ## Entity model
 
 Resources that support history (applications, evaluators, testsets, workflows, queries, environments) are modeled as three nested entities:

@@ -1,0 +1,12 @@
+{
+    "cancel": "Cancelar",
+    "couldNotIdentifyRun": "Não foi possível identificar a execução a parar. Tente de novo.",
+    "couldNotLoadEarlier": "Não foi possível carregar as mensagens anteriores desta sessão.",
+    "couldNotStopRun": "Não foi possível parar a execução. Ela pode ainda estar em andamento.",
+    "noMessagesSaved": "Não há mensagens salvas nesta sessão. Mensagens que falharam ao enviar não são mantidas, e mensagens antigas podem expirar.",
+    "rewindAnyway": "Voltar mesmo assim",
+    "rewindBody": "{{tools}} já foi executado. Voltar executa a conversa de novo a partir daqui, mas NÃO desfaz isso.",
+    "rewindTitle": "Voltar além de uma ferramenta que já foi executada?",
+    "runAlreadyFinished": "Essa execução já tinha terminado. A sessão está executando outra coisa agora.",
+    "tryAgain": "Tentar de novo"
+}

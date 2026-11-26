@@ -1,0 +1,1 @@
+{"title":"Body","body":{"required":true,"content":{"application/json":{"schema":{"properties":{"user_id":{"type":"string","format":"uuid","title":"User Id","description":"The new owner: an active human member of the project, not the current owner."}},"type":"object","required":["user_id"],"title":"AgentTransferRequest"}}}}}

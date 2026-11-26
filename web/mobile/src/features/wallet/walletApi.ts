@@ -11,8 +11,8 @@ export interface WalletCredit {
     created_at: string | null
 }
 
-/** The organization's `wallets-rollout` mode. Only `enforce` shows the credits view. */
-export type WalletMode = "off" | "shadow" | "enforce"
+/** `enforce` while the deployment's wallet is on, else `off`. Only `enforce` shows the credits view. */
+export type WalletMode = "off" | "enforce"
 
 export interface WalletSummary {
     mode: WalletMode
@@ -47,7 +47,7 @@ export interface WalletUsage {
     sessions: WalletUsageSession[]
 }
 
-/** The usage detail is owner-only; a 403 is an answer, not a failure. */
+/** The usage detail needs `edit_billing` (owner and admin); a 403 is an answer, not a failure. */
 export const isForbidden = (error: unknown) =>
     (error as {response?: {status?: number}} | null)?.response?.status === 403
 

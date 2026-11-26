@@ -9,11 +9,20 @@
  * context — the sandbox the spec asks for); audio/video/PDF bytes come as cached blobs (see
  * driveMedia.ts for the signed-URL deviation).
  */
-import {useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {driveCodeLanguage, resolveDriveFileKind, type DriveFileKind} from "@agenta/entities/drive"
 import {humanSize} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
+import {useT} from "@agenta/i18n"
+import drivePreviewCatalog from "@agenta/i18n/catalogs/entityUi.drivePreview"
+import {
+    getQuotes,
+    PreviewCommentLayer,
+    usePreviewComments,
+    useQuoteReveal,
+    type PreviewCommentTarget,
+} from "@agenta/ui/quote-selection"
 import {
     Button,
     Empty,
@@ -22,19 +31,31 @@ import {
     EmptyMedia,
     EmptyTitle,
     SkeletonBlock,
+    Tabs,
+    TabsList,
+    TabsTrigger,
 } from "@agenta/ui/ui"
 import {DownloadSimple, FileDashed} from "@phosphor-icons/react"
 
+import {rangeToBox} from "./cellAddress"
 import {
     useDriveDownload,
+    useDriveFileBlob,
     useDriveFileText,
+    useDriveFileVersion,
     useDriveMediaSrc,
     useDriveObjectUrl,
 } from "./driveFileSource"
 import {DriveCodeBlock, DriveMarkdown} from "./driveMarkdown"
 import {HtmlAppBody} from "./htmlApp"
+import {OfficeViewerFrame} from "./officeViewer/OfficeViewerFrame"
+import type {OfficeViewerKind} from "./officeViewer/protocol"
+import {previewTarget, usePreviewCommentMode, usePreviewCommentSession} from "./previewCommentMode"
 import {useQuotableFile} from "./quotable"
+import {SheetFooter, SheetGrid} from "./SheetGrid"
+import {useSheetComments} from "./spreadsheetComments"
 import {useDriveAnchorClickCapture} from "./useDriveLinkClick"
+import type {Sheet, Workbook} from "./workbook"
 
 // The host's code viewer (see `registerDriveCodeBlock`). The desktop registers a Lexical +
 // lazy-Shiki block — an ~8.7 MB chunk it keeps out of first load — so the indirection is also
@@ -44,6 +65,11 @@ const LazyCodeBlock = DriveCodeBlock
 // Inline-render caps (bytes). Over-cap is a graceful card, never a frozen tab.
 export const PREVIEW_TEXT_CAP = 1.5 * 1024 * 1024
 const MEDIA_CAP = 25 * 1024 * 1024
+const OFFICE_CAPS: Partial<Record<DriveFileKind, number>> = {
+    spreadsheet: 10 * 1024 * 1024,
+    document: 10 * 1024 * 1024,
+    presentation: 25 * 1024 * 1024,
+}
 
 /** Quote-aware-enough CSV parse for previews (RFC 4180 essentials: quotes, escaped quotes,
  * newlines in quotes). Row-capped by the caller. */
@@ -94,12 +120,13 @@ const Inset = ({children, flush}: {children: React.ReactNode; flush?: boolean}) 
 export const DownloadCard = ({
     mount,
     path,
-    title = "No preview for this type",
+    title,
 }: {
     mount: Mount | null
     path: string
     title?: string
 }) => {
+    const t = useT(drivePreviewCatalog)
     const download = useDriveDownload(mount, path)
     return (
         <Inset>
@@ -108,12 +135,14 @@ export const DownloadCard = ({
                     <EmptyMedia variant="icon">
                         <FileDashed size={26} />
                     </EmptyMedia>
-                    <EmptyTitle className="text-xs">{title}</EmptyTitle>
+                    <EmptyTitle className="text-xs">
+                        {title ?? t("entityUi.drivePreview.noPreviewForType")}
+                    </EmptyTitle>
                 </EmptyHeader>
                 <EmptyContent>
                     <Button variant="outline" size="sm" onClick={download}>
                         <DownloadSimple />
-                        Download to open
+                        {t("entityUi.drivePreview.downloadToOpen")}
                     </Button>
                 </EmptyContent>
             </Empty>
@@ -138,6 +167,7 @@ const TextBody = ({
     onNavigate?: (path: string) => void
     linkExists?: (path: string) => boolean
 }) => {
+    const t = useT(drivePreviewCatalog)
     const contentQuery = useDriveFileText(mount, path)
     const content = contentQuery.data
     // A link to a neighbouring file opens it here; the host's renderer keeps web links.
@@ -157,7 +187,13 @@ const TextBody = ({
             </Inset>
         )
     if (typeof content !== "string")
-        return <DownloadCard mount={mount} path={path} title="Couldn't load this file's content" />
+        return (
+            <DownloadCard
+                mount={mount}
+                path={path}
+                title={t("entityUi.drivePreview.couldNotLoadContent")}
+            />
+        )
     // flush Inset + an inner BLOCK scroll container (matching CodeBody/CsvBody). Rendering the body
     // directly into the flex-col Inset made markdown unscrollable: MD_CLASS sets `overflow-hidden`,
     // so as a flex child its auto min-height collapses to 0 — it shrinks to the pane and clips the
@@ -199,6 +235,7 @@ const CodeBody = ({
     path: string
     displayPath?: string
 }) => {
+    const t = useT(drivePreviewCatalog)
     const contentQuery = useDriveFileText(mount, path)
     const content = contentQuery.data
     // The raw file, not the pretty print: line numbers are the file's. A selection maps onto it
@@ -226,7 +263,13 @@ const CodeBody = ({
             </Inset>
         )
     if (value == null)
-        return <DownloadCard mount={mount} path={path} title="Couldn't load this file's content" />
+        return (
+            <DownloadCard
+                mount={mount}
+                path={path}
+                title={t("entityUi.drivePreview.couldNotLoadContent")}
+            />
+        )
     return (
         <Inset flush>
             <div
@@ -241,71 +284,73 @@ const CodeBody = ({
 
 const CSV_ROW_CAP = 500
 
-const CsvBody = ({mount, path}: {mount: Mount | null; path: string}) => {
+const TableSkeleton = () => (
+    <Inset>
+        <div className="flex flex-col gap-2">
+            {Array.from({length: 6}).map((_, i) => (
+                <SkeletonBlock key={i} className="h-4 w-full" />
+            ))}
+        </div>
+    </Inset>
+)
+
+const CsvBody = ({
+    mount,
+    path,
+    displayPath,
+}: {
+    mount: Mount | null
+    path: string
+    displayPath?: string
+}) => {
+    const t = useT(drivePreviewCatalog)
     const contentQuery = useDriveFileText(mount, path)
     const content = contentQuery.data
-    // +2 (header + CSV_ROW_CAP body + 1 probe): parse one row PAST the display cap so `capped` below
-    // can tell "exactly CSV_ROW_CAP body rows" from "more than that" and show the truncation banner.
+    // One row past the cap tells "exactly the cap" from "more".
     const rows = useMemo(
         () =>
             typeof content === "string"
-                ? parseCsv(content, CSV_ROW_CAP + 2, /\.tsv$/i.test(path) ? "\t" : ",")
+                ? parseCsv(content, CSV_ROW_CAP + 1, /\.tsv$/i.test(path) ? "\t" : ",").map((r) =>
+                      r.map((value) => ({value})),
+                  )
                 : [],
         [content, path],
     )
 
-    if (contentQuery.isPending)
-        return (
-            <Inset>
-                <div className="flex flex-col gap-2">
-                    {Array.from({length: 6}).map((_, i) => (
-                        <SkeletonBlock key={i} className="h-4 w-full" />
-                    ))}
-                </div>
-            </Inset>
-        )
-    if (typeof content !== "string" || rows.length === 0)
-        return <DownloadCard mount={mount} path={path} title="Couldn't load this file's content" />
+    // One unnamed sheet at A1, so CSV cells take comments like a spreadsheet's.
+    const workbook = useMemo<Workbook>(
+        () => ({
+            sheets: [
+                {
+                    name: "",
+                    rows: rows.slice(0, CSV_ROW_CAP),
+                    truncated: {rows: rows.length > CSV_ROW_CAP, totalColumns: null},
+                    origin: {r: 0, c: 0},
+                },
+            ],
+        }),
+        [rows],
+    )
 
-    const [header, ...body] = rows
-    const capped = body.length > CSV_ROW_CAP
+    if (contentQuery.isPending) return <TableSkeleton />
+    if (typeof content !== "string" || rows.length === 0)
+        return (
+            <DownloadCard
+                mount={mount}
+                path={path}
+                title={t("entityUi.drivePreview.couldNotLoadContent")}
+            />
+        )
+
     return (
         <Inset flush>
-            <div className="min-h-0 flex-1 overflow-auto">
-                <table className="w-full border-collapse font-mono text-xs">
-                    <thead>
-                        <tr>
-                            {header.map((h, i) => (
-                                <th
-                                    key={i}
-                                    className="sticky top-0 border-0 border-b border-solid border-colorBorderSecondary bg-colorFillTertiary px-2.5 py-1.5 text-left font-medium text-colorTextSecondary"
-                                >
-                                    {h}
-                                </th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {body.slice(0, CSV_ROW_CAP).map((r, i) => (
-                            <tr key={i}>
-                                {r.map((c, j) => (
-                                    <td
-                                        key={j}
-                                        className="border-0 border-b border-solid border-colorBorderSecondary px-2.5 py-1 align-top"
-                                    >
-                                        {c}
-                                    </td>
-                                ))}
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-            {capped ? (
-                <div className="border-0 border-t border-solid border-colorBorderSecondary px-2.5 py-1 text-xs text-colorTextTertiary">
-                    Showing the first {CSV_ROW_CAP} rows — download for the full file.
-                </div>
-            ) : null}
+            <CommentableTable
+                workbook={workbook}
+                sheet={workbook.sheets[0]}
+                target={previewTarget(path, displayPath, mount?.id)}
+                stickyFirstRow
+            />
+            <SheetFooter sheet={workbook.sheets[0]} />
         </Inset>
     )
 }
@@ -324,6 +369,7 @@ export const DriveHtmlApp = ({
     /** Open another drive file (a link outside the app resolves to its path). */
     onNavigate?: (path: string) => void
 }) => {
+    const t = useT(drivePreviewCatalog)
     const contentQuery = useDriveFileText(mount, path)
     const content = contentQuery.data
 
@@ -338,7 +384,13 @@ export const DriveHtmlApp = ({
             </Inset>
         )
     if (typeof content !== "string")
-        return <DownloadCard mount={mount} path={path} title="Couldn't load this file's content" />
+        return (
+            <DownloadCard
+                mount={mount}
+                path={path}
+                title={t("entityUi.drivePreview.couldNotLoadContent")}
+            />
+        )
 
     return (
         <Inset flush>
@@ -366,12 +418,19 @@ const MediaLoading = () => (
 )
 
 const ImageBody = ({mount, path}: {mount: Mount | null; path: string}) => {
+    const t = useT(drivePreviewCatalog)
     // Direct URL first: the browser streams/decodes outside the JS heap; blob only on auth error.
     const {src: url, isPending, failed, onError} = useDriveMediaSrc(mount, path)
     const [zoomed, setZoomed] = useState(false)
     if (isPending) return <MediaLoading />
     if (failed || !url)
-        return <DownloadCard mount={mount} path={path} title="Couldn't load this image" />
+        return (
+            <DownloadCard
+                mount={mount}
+                path={path}
+                title={t("entityUi.drivePreview.couldNotLoadImage")}
+            />
+        )
     return (
         <Inset flush>
             <div
@@ -406,10 +465,17 @@ const ImageBody = ({mount, path}: {mount: Mount | null; path: string}) => {
 }
 
 const PdfBody = ({mount, path}: {mount: Mount | null; path: string}) => {
+    const t = useT(drivePreviewCatalog)
     const {url, isPending, failed} = useDriveObjectUrl(mount, path)
     if (isPending) return <MediaLoading />
     if (failed || !url)
-        return <DownloadCard mount={mount} path={path} title="Couldn't load this PDF" />
+        return (
+            <DownloadCard
+                mount={mount}
+                path={path}
+                title={t("entityUi.drivePreview.couldNotLoadPdf")}
+            />
+        )
     return (
         <Inset flush>
             <embed src={url} type="application/pdf" className="min-h-0 w-full flex-1" />
@@ -418,11 +484,18 @@ const PdfBody = ({mount, path}: {mount: Mount | null; path: string}) => {
 }
 
 const AudioBody = ({mount, path}: {mount: Mount | null; path: string}) => {
+    const t = useT(drivePreviewCatalog)
     // Direct URL first: progressive playback, no JS-heap buffering; blob only on auth error.
     const {src: url, isPending, failed, onError} = useDriveMediaSrc(mount, path)
     if (isPending) return <MediaLoading />
     if (failed || !url)
-        return <DownloadCard mount={mount} path={path} title="Couldn't load this audio file" />
+        return (
+            <DownloadCard
+                mount={mount}
+                path={path}
+                title={t("entityUi.drivePreview.couldNotLoadAudio")}
+            />
+        )
     return (
         <Inset>
             <div className="flex flex-1 items-center justify-center p-4">
@@ -433,11 +506,18 @@ const AudioBody = ({mount, path}: {mount: Mount | null; path: string}) => {
 }
 
 const VideoBody = ({mount, path}: {mount: Mount | null; path: string}) => {
+    const t = useT(drivePreviewCatalog)
     // Direct URL first: progressive playback, no JS-heap buffering; blob only on auth error.
     const {src: url, isPending, failed, onError} = useDriveMediaSrc(mount, path)
     if (isPending) return <MediaLoading />
     if (failed || !url)
-        return <DownloadCard mount={mount} path={path} title="Couldn't load this video" />
+        return (
+            <DownloadCard
+                mount={mount}
+                path={path}
+                title={t("entityUi.drivePreview.couldNotLoadVideo")}
+            />
+        )
     return (
         <Inset flush>
             <video
@@ -446,6 +526,269 @@ const VideoBody = ({mount, path}: {mount: Mount | null; path: string}) => {
                 src={url}
                 onError={onError}
                 className="max-h-full min-h-0 w-full flex-1 bg-black"
+            />
+        </Inset>
+    )
+}
+
+// ---- Office bodies (bytes keyed by the listing's file version) --------------------------------
+
+type WorkbookState =
+    | {status: "ready"; workbook: Workbook}
+    | {status: "unreadable"}
+    | {status: "too-large"; unpackedBytes: number}
+
+/** Parses the blob with SheetJS, loaded on first use; undefined while parsing. */
+function useWorkbook(blob: Blob | null): WorkbookState | undefined {
+    const [parsed, setParsed] = useState<{blob: Blob; state: WorkbookState} | null>(null)
+    useEffect(() => {
+        if (!blob) return
+        let cancelled = false
+        Promise.all([import("./workbook"), blob.arrayBuffer()])
+            .then(([{parseWorkbook}, bytes]): WorkbookState => {
+                const workbook = parseWorkbook(bytes)
+                return workbook.sheets.length ? {status: "ready", workbook} : {status: "unreadable"}
+            })
+            .catch(
+                (error: unknown): WorkbookState =>
+                    error instanceof Error && "unpackedBytes" in error
+                        ? {status: "too-large", unpackedBytes: error.unpackedBytes as number}
+                        : {status: "unreadable"},
+            )
+            .then((state) => !cancelled && setParsed({blob, state}))
+        return () => {
+            cancelled = true
+        }
+    }, [blob])
+    return parsed && parsed.blob === blob ? parsed.state : undefined
+}
+
+/** A sheet's preview table that takes cell comments in comment mode. */
+const CommentableTable = ({
+    workbook,
+    sheet,
+    target,
+    stickyFirstRow,
+}: {
+    workbook: Workbook
+    sheet: Sheet
+    /** The file comments attach to. */
+    target: PreviewCommentTarget
+    stickyFirstRow?: boolean
+}) => {
+    const t = useT(drivePreviewCatalog)
+    const sessionId = usePreviewCommentSession()
+    const {enabled} = usePreviewCommentMode()
+    const rootRef = useRef<HTMLDivElement>(null)
+    const comments = usePreviewComments(sessionId, target)
+    const [noteOpen, setNoteOpen] = useState(false)
+    const {selection, pick, onPickConsumed, onDraftClose, pinRects} = useSheetComments({
+        rootRef,
+        workbook,
+        sheet,
+        comments,
+        enabled: enabled && !!sessionId,
+    })
+    return (
+        <div ref={rootRef} className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+            {sheet.rows.length > 0 ? (
+                <SheetGrid
+                    rows={sheet.rows}
+                    origin={sheet.origin}
+                    comments={selection && {...selection, held: noteOpen}}
+                    stickyFirstRow={stickyFirstRow}
+                />
+            ) : (
+                <div className="p-3 text-xs text-colorTextTertiary">
+                    {t("entityUi.drivePreview.sheetEmpty")}
+                </div>
+            )}
+            <PreviewCommentLayer
+                rootRef={rootRef}
+                sessionId={sessionId}
+                target={target}
+                pick={pick}
+                onPickConsumed={onPickConsumed}
+                onDraftClose={onDraftClose}
+                onNoteChange={setNoteOpen}
+                onRevealPin={({source: {anchor}}) => {
+                    const box =
+                        anchor.type === "cells" ? rangeToBox(sheet.origin, anchor.range) : null
+                    if (!box) return
+                    rootRef.current
+                        ?.querySelector(`[data-row="${box.top}"][data-col="${box.left}"]`)
+                        ?.scrollIntoView({block: "center", inline: "nearest"})
+                }}
+                commenting={enabled}
+                pinRects={pinRects}
+            />
+        </div>
+    )
+}
+
+export const SpreadsheetView = ({
+    workbook,
+    target,
+}: {
+    workbook: Workbook
+    /** The file comments attach to. */
+    target: PreviewCommentTarget
+}) => {
+    const t = useT(drivePreviewCatalog)
+    const [active, setActive] = useState(0)
+    // A chip asked for a comment on another sheet: show that sheet first.
+    const sessionId = usePreviewCommentSession()
+    const reveal = useQuoteReveal(sessionId)
+    useEffect(() => {
+        if (!reveal || !sessionId) return
+        const quote = getQuotes(sessionId).find((held) => held.id === reveal.id)
+        if (quote?.source.kind !== "preview") return
+        if (quote.source.path !== target.path || quote.source.mountId !== target.mountId) return
+        const {anchor} = quote.source
+        if (anchor.type !== "cells") return
+        const at = workbook.sheets.findIndex((s) => s.name === (anchor.sheet ?? ""))
+        if (at !== -1) setActive(at)
+    }, [reveal, sessionId, target.path, workbook])
+    const index = Math.min(active, workbook.sheets.length - 1)
+    const sheet = workbook.sheets[index]
+    return (
+        <Inset flush>
+            <CommentableTable key={index} workbook={workbook} sheet={sheet} target={target} />
+            <SheetFooter sheet={sheet}>
+                <Tabs value={String(index)} onValueChange={(v) => setActive(Number(v))}>
+                    <TabsList
+                        aria-label={t("entityUi.drivePreview.sheets")}
+                        className="w-full shrink-0 justify-start overflow-x-auto px-2.5"
+                    >
+                        {workbook.sheets.map((s, i) => (
+                            <TabsTrigger key={i} value={String(i)} className="flex-none text-xs">
+                                {s.name}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+                </Tabs>
+            </SheetFooter>
+        </Inset>
+    )
+}
+
+// The blob's own size: a caller that passed no `size` (an attachment) must not skip the cap.
+const overCap = (kind: DriveFileKind, blob: Blob | null): boolean =>
+    blob !== null && blob.size > (OFFICE_CAPS[kind] ?? Infinity)
+
+const TooLargeCard = ({mount, path, bytes}: {mount: Mount | null; path: string; bytes: number}) => {
+    const t = useT(drivePreviewCatalog)
+    return (
+        <DownloadCard
+            mount={mount}
+            path={path}
+            title={t("entityUi.drivePreview.tooLarge", {size: humanSize(bytes)})}
+        />
+    )
+}
+
+const SpreadsheetBody = ({
+    mount,
+    path,
+    displayPath,
+}: {
+    mount: Mount | null
+    path: string
+    displayPath?: string
+}) => {
+    const t = useT(drivePreviewCatalog)
+    const version = useDriveFileVersion(mount, path)
+    const {blob, isPending, failed} = useDriveFileBlob(mount, path, version)
+    const tooLarge = overCap("spreadsheet", blob)
+    const parsed = useWorkbook(tooLarge ? null : blob)
+    if (failed)
+        return (
+            <DownloadCard
+                mount={mount}
+                path={path}
+                title={t("entityUi.drivePreview.couldNotLoadSpreadsheet")}
+            />
+        )
+    if (tooLarge && blob) return <TooLargeCard mount={mount} path={path} bytes={blob.size} />
+    if (isPending || parsed === undefined) return <TableSkeleton />
+    if (parsed.status === "too-large")
+        return (
+            <DownloadCard
+                mount={mount}
+                path={path}
+                title={t("entityUi.drivePreview.tooLargeUnpacked", {
+                    size: humanSize(parsed.unpackedBytes),
+                })}
+            />
+        )
+    if (parsed.status === "unreadable")
+        return (
+            <DownloadCard
+                mount={mount}
+                path={path}
+                title={t("entityUi.drivePreview.couldNotPreviewSpreadsheet")}
+            />
+        )
+    return (
+        <SpreadsheetView
+            workbook={parsed.workbook}
+            target={previewTarget(path, displayPath, mount?.id)}
+        />
+    )
+}
+
+/** A DOCX or PPTX in the sandboxed viewer frame; a new file version mounts a fresh frame. */
+const OfficeFrameBody = ({
+    mount,
+    path,
+    kind,
+    displayPath,
+}: {
+    mount: Mount | null
+    path: string
+    kind: OfficeViewerKind
+    displayPath?: string
+}) => {
+    const t = useT(drivePreviewCatalog)
+    const version = useDriveFileVersion(mount, path)
+    const {blob, isPending, failed} = useDriveFileBlob(mount, path, version)
+    const [failedBlob, setFailedBlob] = useState<Blob | null>(null)
+    const onFailed = useCallback(() => setFailedBlob(blob), [blob])
+    if (isPending) return <MediaLoading />
+    if (failed || !blob)
+        return (
+            <DownloadCard
+                mount={mount}
+                path={path}
+                title={
+                    kind === "document"
+                        ? t("entityUi.drivePreview.couldNotLoadDocument")
+                        : t("entityUi.drivePreview.couldNotLoadPresentation")
+                }
+            />
+        )
+    if (overCap(kind, blob)) return <TooLargeCard mount={mount} path={path} bytes={blob.size} />
+    if (failedBlob === blob)
+        return (
+            <DownloadCard
+                mount={mount}
+                path={path}
+                title={
+                    kind === "document"
+                        ? t("entityUi.drivePreview.couldNotPreviewDocument")
+                        : t("entityUi.drivePreview.couldNotPreviewPresentation")
+                }
+            />
+        )
+    return (
+        <Inset flush>
+            <OfficeViewerFrame
+                key={version}
+                kind={kind}
+                blob={blob}
+                onFailed={onFailed}
+                placeholder={<MediaLoading />}
+                target={previewTarget(path, displayPath, mount?.id)}
             />
         </Inset>
     )
@@ -481,6 +824,7 @@ export function DriveFileBody({
     /** Overrides the extension match, for a file whose media type is known (an attachment). */
     kind?: DriveFileKind
 }) {
+    const t = useT(drivePreviewCatalog)
     const kind = kindProp ?? resolveDriveFileKind(path)
 
     if (size != null) {
@@ -489,15 +833,16 @@ export function DriveFileBody({
                 <DownloadCard
                     mount={mount}
                     path={path}
-                    title={`Too large to preview (${humanSize(size)})`}
+                    title={t("entityUi.drivePreview.tooLarge", {size: humanSize(size)})}
                 />
             )
-        if (MEDIA_KINDS.has(kind) && size > MEDIA_CAP)
+        const cap = MEDIA_KINDS.has(kind) ? MEDIA_CAP : OFFICE_CAPS[kind]
+        if (cap !== undefined && size > cap)
             return (
                 <DownloadCard
                     mount={mount}
                     path={path}
-                    title={`Too large to preview (${humanSize(size)})`}
+                    title={t("entityUi.drivePreview.tooLarge", {size: humanSize(size)})}
                 />
             )
     }
@@ -519,7 +864,7 @@ export function DriveFileBody({
         case "json":
             return <CodeBody mount={mount} path={path} displayPath={displayPath} />
         case "csv":
-            return <CsvBody mount={mount} path={path} />
+            return <CsvBody mount={mount} path={path} displayPath={displayPath} />
         case "html":
             return <CodeBody mount={mount} path={path} />
         case "image":
@@ -530,6 +875,13 @@ export function DriveFileBody({
             return <AudioBody mount={mount} path={path} />
         case "video":
             return <VideoBody mount={mount} path={path} />
+        case "spreadsheet":
+            return <SpreadsheetBody mount={mount} path={path} displayPath={displayPath} />
+        case "document":
+        case "presentation":
+            return (
+                <OfficeFrameBody mount={mount} path={path} kind={kind} displayPath={displayPath} />
+            )
         default:
             return <DownloadCard mount={mount} path={path} />
     }

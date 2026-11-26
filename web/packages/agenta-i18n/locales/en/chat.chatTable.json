@@ -1,0 +1,11 @@
+{
+    "columns_one": "{{count}} column",
+    "columns_other": "{{count}} columns",
+    "copied": "Copied",
+    "copyAsMarkdown": "Copy as Markdown",
+    "downloadCsv": "Download CSV",
+    "expand": "Expand",
+    "rows_one": "{{count}} row",
+    "rows_other": "{{count}} rows",
+    "summary": "{{rows}} · {{columns}}"
+}

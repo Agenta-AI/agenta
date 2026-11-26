@@ -20,6 +20,8 @@
  * Run: pnpm exec vitest run tests/unit/session-lifecycle-characterization.test.ts
  */
 import { turnLogUnmoved } from "../utils/turn-log.ts";
+import { personAnsweredRows } from "../utils/answered-decisions.ts";
+import { driveSigns } from "../utils/drive-sign.ts";
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
@@ -198,6 +200,7 @@ function makeEngine(scripts: TurnScript[] = []) {
       );
     },
     readLatestTurnIndex: turnLogUnmoved,
+    signDrive: driveSigns,
     async runCold() {
       return { ok: true, output: "cold", stopReason: "complete" };
     },
@@ -576,7 +579,7 @@ describe("(c) applied state is owned by the environment, never stamped by a requ
               {
                 type: "tool_result",
                 toolCallId: "tc-gate",
-                output: { approved: true },
+                output: { approved: true, interactionToken: "tc-gate" },
               },
             ],
           },
@@ -607,7 +610,11 @@ describe("(c) applied state is owned by the environment, never stamped by a requ
     assert.equal(r1.stopReason, "paused");
     assert.equal(ctx.pool.get(POOL_KEY)!.state, "awaiting_approval");
     const parkedFp = ctx.pool.get(POOL_KEY)!.configFingerprint;
-    const r2 = await runWithKeepalive(resume, undefined, undefined, ctx);
+    // The person's answer is on the gate's row before the resume arrives.
+    const r2 = await runWithKeepalive(resume, undefined, undefined, {
+      ...ctx,
+      approvalRows: personAnsweredRows(resume),
+    });
     return { calls, ctx, r2, parked, parkedFp };
   }
 
@@ -711,7 +718,7 @@ describe("(c) applied state is owned by the environment, never stamped by a requ
               {
                 type: "tool_result",
                 toolCallId: "tc-gate",
-                output: { approved: true },
+                output: { approved: true, interactionToken: "tc-gate" },
               },
             ],
           },

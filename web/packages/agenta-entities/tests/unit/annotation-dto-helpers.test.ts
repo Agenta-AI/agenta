@@ -97,6 +97,69 @@ describe("attachAnnotationsToTraces", () => {
         expect(trace.annotations).toHaveLength(0)
         expect(children[0].annotations).toHaveLength(1)
     })
+
+    it("attaches each annotation once per linked span, in order, through nested children", () => {
+        const root = {trace_id: "t1", span_id: "root"}
+        const child = {trace_id: "t1", span_id: "child"}
+        const grandchild = {trace_id: "t1", span_id: "grand"}
+        const twoKeysSameSpan = {
+            ...annotation("a", {score: 2}),
+            links: {invocation: child, "test-1": child},
+        } as AnnotationDto
+        const rootAndGrand = {
+            ...annotation("b", {score: 6}),
+            links: {invocation: root, other: grandchild},
+        } as AnnotationDto
+        const childLater = annotation("a", {score: 4}, child)
+        const unrelated = annotation("a", {score: 9}, {trace_id: "t2", span_id: "root"})
+
+        const result = attachAnnotationsToTraces(
+            [
+                {
+                    invocationIds: root,
+                    children: [
+                        {invocationIds: child, children: [{invocationIds: grandchild}]},
+                        {invocationIds: null},
+                    ],
+                },
+            ],
+            [twoKeysSameSpan, rootAndGrand, unrelated, childLater],
+        )
+
+        const metric = (value: number) => ({value, user: "alice"})
+        expect(result).toEqual([
+            {
+                invocationIds: root,
+                annotations: [rootAndGrand],
+                aggregatedEvaluatorMetrics: {b: {score: {average: 6, annotations: [metric(6)]}}},
+                children: [
+                    {
+                        invocationIds: child,
+                        annotations: [twoKeysSameSpan, childLater],
+                        aggregatedEvaluatorMetrics: {
+                            a: {score: {average: 3, annotations: [metric(2), metric(4)]}},
+                        },
+                        children: [
+                            {
+                                invocationIds: grandchild,
+                                annotations: [rootAndGrand],
+                                aggregatedEvaluatorMetrics: {
+                                    b: {score: {average: 6, annotations: [metric(6)]}},
+                                },
+                                children: undefined,
+                            },
+                        ],
+                    },
+                    {
+                        invocationIds: null,
+                        annotations: [],
+                        aggregatedEvaluatorMetrics: {},
+                        children: undefined,
+                    },
+                ],
+            },
+        ])
+    })
 })
 
 describe("getNodeById", () => {

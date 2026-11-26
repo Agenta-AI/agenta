@@ -8,6 +8,8 @@ import {
 } from "@agenta/chat/components"
 import {useVoiceComposer, type useComposerAttachments} from "@agenta/chat/hooks"
 import {AgentPicker} from "@agenta/entity-ui/agent"
+import {useT} from "@agenta/i18n"
+import composerCatalog from "@agenta/i18n/catalogs/home.composer"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {Button} from "@agenta/ui/ui"
 import {XIcon} from "@phosphor-icons/react"
@@ -77,10 +79,12 @@ export interface HomeTaskComposerProps {
     onChange?: (text: string) => void
     /** Drop the dock, for a host where the composer is aimed at nothing to name or pick. */
     hideDock?: boolean
+    /**
+     * Mark create mode with the sweeping ring. ON by default, as Home wants; a host that sets the
+     * composer among other form fields turns it off so the box keeps a plain border like theirs.
+     */
+    ring?: boolean
 }
-
-const TASK_PLACEHOLDER = "Describe the task, or start the conversation…"
-const CREATE_PLACEHOLDER = "Describe the agent you want — what it does, when it runs…"
 
 /** What the composer is aimed at, named under the input. One shape for an agent and a template —
  * only the tile differs, and two copies of this row is how they stop matching. */
@@ -148,9 +152,12 @@ export const HomeTaskComposer = ({
     initialMarkdown,
     onChange,
     hideDock,
+    ring = true,
 }: HomeTaskComposerProps) => {
+    const t = useT(composerCatalog)
     const effectiveAgentId = fixedAgentId ?? agentId ?? null
     const creating = mode === "create"
+    const ringed = creating && ring
 
     // Voice needs a handle whether or not the host asked for one.
     const ownInputRef = useRef<RichChatInputHandle | null>(null)
@@ -180,7 +187,7 @@ export const HomeTaskComposer = ({
             }
             name={template.name}
             onClear={onClear}
-            clearLabel="Clear this template"
+            clearLabel={t("home.composer.clearTemplate")}
         />
     ) : fixedAgentId ? null : (
         // The app's one AgentPicker, not a label. A name that only READ as text gave no sign it
@@ -196,11 +203,11 @@ export const HomeTaskComposer = ({
             trigger="pill"
             density="compact"
             value={creating ? null : effectiveAgentId}
-            placeholder="New agent"
+            placeholder={t("home.composer.newAgent")}
             onChange={(id) => onAgentChange?.(id)}
             disabled={!onAgentChange}
             onCreateAgent={creating ? undefined : onClear}
-            triggerAriaLabel="Agent"
+            triggerAriaLabel={t("home.composer.agent")}
             // The dock is already a surface; a filled pill on it is a box within a box.
             triggerClassName="bg-transparent px-1 text-[12px] font-normal hover:bg-accent"
         />
@@ -218,8 +225,10 @@ export const HomeTaskComposer = ({
             {/* Lifted, so the dock behind it stays behind it. The ring lives HERE and not around
                 the whole thing: it marks the box you are typing in, and sweeping the dock too made
                 it read as a border on the pair. */}
-            <div className="relative z-10 box-border rounded-[9px] p-px">
-                {creating ? (
+            <div
+                className={ringed ? "relative z-10 box-border rounded-[9px] p-px" : "relative z-10"}
+            >
+                {ringed ? (
                     // A conic sweep behind the composer's own border, clipped to its radius.
                     <div className="animate-composer-ring-in pointer-events-none absolute inset-0 overflow-hidden rounded-[9px]">
                         <div
@@ -235,7 +244,7 @@ export const HomeTaskComposer = ({
                     a composer you can read the animation through is a distraction, not a border. */}
                 <div
                     className={
-                        creating
+                        ringed
                             ? "relative flex flex-col overflow-hidden rounded-lg bg-[var(--ag-colorBgContainer)]"
                             : "relative flex flex-col"
                     }
@@ -264,7 +273,10 @@ export const HomeTaskComposer = ({
                         }}
                         attachments={attachments}
                         placeholder={
-                            placeholder ?? (creating ? CREATE_PLACEHOLDER : TASK_PLACEHOLDER)
+                            placeholder ??
+                            (creating
+                                ? t("home.composer.createPlaceholder")
+                                : t("home.composer.taskPlaceholder"))
                         }
                         initialMarkdown={initialMarkdown}
                         onChange={onChange}
@@ -292,7 +304,13 @@ export const HomeTaskComposer = ({
                         // and hide the very thing the mode exists to show. `!`, because
                         // RichChatInput composes with clsx, so a plain class would be left to
                         // stylesheet order against its own `focus-within:border-*`.
-                        className={creating ? "!border-transparent" : undefined}
+                        className={
+                            ringed
+                                ? "!border-transparent"
+                                : creating
+                                  ? "!bg-[var(--ag-colorBgContainer)]"
+                                  : undefined
+                        }
                     />
                 </div>
                 {voiceEnabled && voice.voiceRecorder.takeoverVisible ? (

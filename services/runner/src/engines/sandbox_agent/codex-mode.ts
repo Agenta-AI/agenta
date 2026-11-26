@@ -1,10 +1,11 @@
 /**
- * The ACP session modes codex-acp exposes. All three send `on-request` approvals in our image:
- * `read-only` and `agent` ship that way, and the runner image patches the `agent-full-access`
- * preset from the stock `approvalPolicy: "never"` to `on-request` (see `codex-acp-patch.ts`).
- * That is what makes Codex tool approvals park WARM, like Claude's, instead of resuming cold on
- * a follow-up turn. The sandbox policies are untouched, so full access is still full access and
- * shell stays gate-free (codex only asks for exec approval under a restricted filesystem sandbox).
+ * The ACP session modes codex-acp exposes. The runner image patches the default
+ * `agent-full-access` preset from the stock `approvalPolicy: "never"` to `untrusted` (see
+ * `codex-acp-patch.ts`), so codex asks before every file patch and every shell command it does
+ * not know to be safe, and the run's permission policy answers. `read-only` keeps `on-request`.
+ * `agent` is codex-acp's "Auto review" preset: a reviewer model inside Codex answers its
+ * requests, so the run's permission policy does not see them. The sandbox policies are
+ * untouched, so full access is still full access.
  */
 export const CODEX_MODES = ["agent", "read-only", "agent-full-access"] as const;
 export type CodexMode = (typeof CODEX_MODES)[number];

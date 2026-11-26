@@ -1,3 +1,6 @@
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsProjectsTabCatalog from "@agenta/i18n/catalogs/settings.projectsTab"
 import {ProjectsPage} from "@agenta/settings-ui"
 import {
     AlertDialog,
@@ -13,9 +16,12 @@ import {
 import {useQueryClient} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
+import {useProjectPermission} from "../context/useProjectPermission"
+
 import {NameDialog} from "./NameDialog"
 import type {SettingsTabProps} from "./settingsTabProps"
 import {switchSettingsContext} from "./switchContext"
+import {useOrganizationOwner} from "./useOrganizationOwner"
 import {useSettingsOrg} from "./useSettingsOrg"
 
 /**
@@ -24,31 +30,45 @@ import {useSettingsOrg} from "./useSettingsOrg"
  * ProjectsPage; this only supplies the surfaces that collect the input.
  */
 export const ProjectsTab = ({workspaceId, projectId}: SettingsTabProps) => {
+    const t = useT(commonCatalog, settingsProjectsTabCatalog)
     const router = useRouter()
     const queryClient = useQueryClient()
     const {projects: query} = useSettingsOrg(workspaceId)
+    const canCreate = useProjectPermission(projectId, "create_workspace")
+    const canEdit = useProjectPermission(projectId, "edit_workspace")
+    // The default project carries organization writes, so the API lets only owners and admins
+    // choose it, also where a member may create and rename projects.
+    const {isOwner} = useOrganizationOwner(workspaceId)
+    const currentRole = query.data?.find((project) => project.project_id === projectId)?.user_role
+    const canSetDefault = isOwner || currentRole === "admin" || currentRole === "owner"
+    // Deleting a project loses its data for good: the route checks `delete_workspace`, which only
+    // the owner role holds by default.
+    const canDelete = useProjectPermission(projectId, "delete_workspace")
     return (
         <ProjectsPage
             projects={query.data ?? []}
             isLoading={query.isPending}
             workspaceId={workspaceId}
             currentProjectId={projectId}
+            canCreate={canCreate}
+            canEdit={canEdit}
+            canSetDefault={canSetDefault}
+            canDelete={canDelete}
             // The nav switcher reads its own projects list.
             onChanged={() => void queryClient.invalidateQueries({queryKey: ["mobile", "projects"]})}
             onSwitch={(project) =>
                 switchSettingsContext(router, {
-                    workspaceId: project.workspace_id ?? workspaceId,
+                    workspaceId: project.organization_id ?? project.workspace_id ?? workspaceId,
                     projectId: project.project_id,
-                    tab: "projects",
                 })
             }
             renderCreateDialog={({open, onClose, onSubmit, pending}) => (
                 <NameDialog
                     open={open}
-                    title="New project"
-                    description="Projects group your agents, datasets and deployments."
-                    placeholder="Project name"
-                    submitLabel="Create"
+                    title={t("settings.projectsTab.newTitle")}
+                    description={t("settings.projectsTab.newDescription")}
+                    placeholder={t("settings.projectsTab.namePlaceholder")}
+                    submitLabel={t("common.create")}
                     pending={pending}
                     onClose={onClose}
                     onSubmit={(name) => onSubmit({name})}
@@ -61,17 +81,22 @@ export const ProjectsTab = ({workspaceId, projectId}: SettingsTabProps) => {
                 >
                     <AlertDialogContent>
                         <AlertDialogHeader>
-                            <AlertDialogTitle>Delete project</AlertDialogTitle>
-                            <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+                            <AlertDialogTitle>
+                                {t("settings.projectsTab.deleteTitle")}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {t("common.thisCannotBeUndone")}
+                            </AlertDialogDescription>
                         </AlertDialogHeader>
                         <p className="m-0 text-sm">
-                            Permanently deletes {project?.project_name}, including all of its
-                            agents, datasets and deployments.
+                            {t("settings.projectsTab.deleteBody", {
+                                name: project?.project_name ?? "",
+                            })}
                         </p>
                         <AlertDialogFooter>
                             <AlertDialogCancel asChild>
                                 <Button variant="outline" onClick={onClose} disabled={pending}>
-                                    Cancel
+                                    {t("common.cancel")}
                                 </Button>
                             </AlertDialogCancel>
                             {/* The page closes it once the delete lands. */}
@@ -84,7 +109,9 @@ export const ProjectsTab = ({workspaceId, projectId}: SettingsTabProps) => {
                                         onSubmit()
                                     }}
                                 >
-                                    {pending ? "Deleting…" : "Delete project"}
+                                    {pending
+                                        ? t("settings.projectsTab.deleting")
+                                        : t("settings.projectsTab.deleteTitle")}
                                 </Button>
                             </AlertDialogAction>
                         </AlertDialogFooter>

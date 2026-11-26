@@ -1,21 +1,59 @@
-import type {SessionExpansion, SessionListFilters, SessionStream} from "@agenta/entities/session"
+import type {
+    SessionExpansion,
+    SessionListFilters,
+    SessionOrigin,
+    SessionStream,
+} from "@agenta/entities/session"
 
 import {sessionAgentId} from "../row/sessionAgent"
 import {isAutomationSession} from "../row/sessionTrigger"
 
-export type SessionOriginPolicy = "all" | "exclude-trigger" | "trigger-only"
+export type SessionOriginPolicy =
+    | "all"
+    | "exclude-trigger"
+    | "exclude-trigger-and-calling-session"
+    | "trigger-only"
 
 export interface SessionListRequestPolicy {
     origin: SessionOriginPolicy
     expansions: readonly SessionExpansion[]
 }
 
+const EXCLUDED_ORIGINS: Partial<Record<SessionOriginPolicy, SessionOrigin[]>> = {
+    "exclude-trigger": ["trigger"],
+    "exclude-trigger-and-calling-session": ["trigger", "calling_session"],
+}
+
 export const sessionListRequestFilters = (
     policy: SessionListRequestPolicy,
 ): Pick<SessionListFilters, "origins" | "excludeOrigins" | "expand"> => ({
     origins: policy.origin === "trigger-only" ? ["trigger"] : undefined,
-    excludeOrigins: policy.origin === "exclude-trigger" ? ["trigger"] : undefined,
+    excludeOrigins: EXCLUDED_ORIGINS[policy.origin],
     expand: [...policy.expansions],
+})
+
+/**
+ * The child sessions switch on one list. A list that opts in (`hideChildSessions`) hides child
+ * sessions (origin `calling_session`) until the reader's switch shows them, and counts the switch
+ * as an active filter. Only the human list narrows: the automations list holds trigger sessions
+ * alone, so in automations mode the switch does nothing. A list that does not opt in is unchanged.
+ */
+export const childSessionsFilter = ({
+    policy,
+    hideChildSessions,
+    showChildSessions,
+    automationMode,
+}: {
+    policy: SessionListRequestPolicy
+    hideChildSessions: boolean
+    showChildSessions: boolean
+    automationMode: boolean
+}): {policy: SessionListRequestPolicy; active: boolean} => ({
+    policy:
+        hideChildSessions && !showChildSessions && policy.origin === "exclude-trigger"
+            ? {...policy, origin: "exclude-trigger-and-calling-session"}
+            : policy,
+    active: hideChildSessions && showChildSessions && !automationMode,
 })
 
 export const selectedSessionListPolicy = (

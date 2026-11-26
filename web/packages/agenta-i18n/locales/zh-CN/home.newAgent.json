@@ -1,0 +1,10 @@
+{
+    "label": "新建 Agent",
+    "scratchTitle": "从零开始",
+    "scratchHint": "从空 Agent 开始，在对话中调整它",
+    "uploadTitle": "上传",
+    "uploadHint": "Agent 模板 .zip",
+    "importTitle": "从仓库导入",
+    "importHint": "扫描公开的 GitHub 仓库以查找 Agent 模板",
+    "browseAll": "浏览全部模板"
+}

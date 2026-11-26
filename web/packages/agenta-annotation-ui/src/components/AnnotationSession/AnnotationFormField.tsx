@@ -12,7 +12,7 @@ import {memo, useCallback, type ReactNode} from "react"
 import {X} from "@phosphor-icons/react"
 import {Button, Input, InputNumber, Radio, Select, Slider, Typography} from "antd"
 
-import type {AnnotationMetricField} from "../../hooks/useAnnotationFormState"
+import type {AnnotationMetricField} from "../../state/useAnnotationFormState"
 
 // ============================================================================
 // TYPES

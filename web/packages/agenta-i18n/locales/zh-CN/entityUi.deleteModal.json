@@ -1,0 +1,17 @@
+{
+    "title": "删除",
+    "titleTestset_other": "删除测试集（{{count}}）",
+    "titleRevision_other": "删除修订版本（{{count}}）",
+    "titleVariant_other": "删除变体（{{count}}）",
+    "titleEvaluator_other": "删除评测器（{{count}}）",
+    "titleApplication_other": "删除应用（{{count}}）",
+    "titleSimpleQueue_other": "删除标注队列（{{count}}）",
+    "titleItems_other": "删除 {{count}} 项",
+    "confirm": "确定要删除以下内容吗？此操作无法撤销。",
+    "warning": "警告",
+    "cannotDelete": "无法删除",
+    "blockedItems": "以下项目无法删除：",
+    "deleteFailed": "删除失败",
+    "deleted": "删除成功",
+    "delete": "删除"
+}

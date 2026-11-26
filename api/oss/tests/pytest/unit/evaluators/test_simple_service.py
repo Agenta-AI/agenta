@@ -19,6 +19,10 @@ from oss.src.core.evaluators.service import (
     SimpleEvaluatorsService,
 )
 from oss.src.core.shared.dtos import Reference
+from oss.src.core.sharing.dtos import AgentReadScope
+
+# A person's read scope: the route passes it down to the workflow query.
+OWNER_SCOPE = AgentReadScope(owner_user_id=uuid4())
 
 
 @pytest.mark.asyncio
@@ -143,6 +147,7 @@ async def test_query_filters_simple_evaluators_by_revision_flags():
 
     simple_evaluators = await service.query(
         project_id=uuid4(),
+        read_scope=OWNER_SCOPE,
         simple_evaluator_query=SimpleEvaluatorQuery(
             flags=SimpleEvaluatorQueryFlags(is_feedback=True),
         ),
@@ -168,6 +173,7 @@ async def test_query_passes_evaluator_refs_to_evaluator_service():
 
     simple_evaluators = await service.query(
         project_id=uuid4(),
+        read_scope=OWNER_SCOPE,
         simple_evaluator_refs=[evaluator_ref],
     )
 
@@ -184,7 +190,7 @@ async def test_evaluator_queries_default_to_evaluator_flags():
 
     workflows_service.query_workflows.return_value = []
 
-    await service.query_evaluators(project_id=uuid4())
+    await service.query_evaluators(project_id=uuid4(), read_scope=OWNER_SCOPE)
 
     workflow_query = workflows_service.query_workflows.await_args.kwargs[
         "workflow_query"
@@ -193,6 +199,7 @@ async def test_evaluator_queries_default_to_evaluator_flags():
 
     await service.query_evaluators(
         project_id=uuid4(),
+        read_scope=OWNER_SCOPE,
         evaluator_query=EvaluatorQuery(tags={"marker": "case"}),
     )
 
@@ -201,3 +208,36 @@ async def test_evaluator_queries_default_to_evaluator_flags():
     ]
     assert workflow_query.flags.is_evaluator is True
     assert workflow_query.tags == {"marker": "case"}
+
+
+@pytest.mark.asyncio
+async def test_queries_forward_the_callers_read_scope():
+    # CONTRACT section 6: a person's list shows their own private agents, the same
+    # items a direct read shows them. The scope the route derives reaches every
+    # workflow query unchanged.
+    workflows_service = AsyncMock()
+    service = EvaluatorsService(workflows_service=workflows_service)
+    workflows_service.query_workflows.return_value = []
+    workflows_service.query_workflow_variants.return_value = []
+    workflows_service.query_workflow_revisions.return_value = []
+
+    await service.query_evaluators(project_id=uuid4(), read_scope=OWNER_SCOPE)
+    await service.query_evaluator_variants(project_id=uuid4(), read_scope=OWNER_SCOPE)
+    await service.query_evaluator_revisions(project_id=uuid4(), read_scope=OWNER_SCOPE)
+
+    for method in (
+        workflows_service.query_workflows,
+        workflows_service.query_workflow_variants,
+        workflows_service.query_workflow_revisions,
+    ):
+        assert method.await_args.kwargs["read_scope"] is OWNER_SCOPE
+
+    simple_service = SimpleEvaluatorsService(evaluators_service=AsyncMock())
+    simple_service.evaluators_service.query_evaluators.return_value = []
+    await simple_service.query(project_id=uuid4(), read_scope=OWNER_SCOPE)
+    assert (
+        simple_service.evaluators_service.query_evaluators.await_args.kwargs[
+            "read_scope"
+        ]
+        is OWNER_SCOPE
+    )

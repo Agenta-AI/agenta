@@ -586,3 +586,44 @@ async def test_a_configuration_with_no_connection_reference_still_resolves():
     assert resolved[0].to_wire()["connection"]["url"] == _gateway_route(
         "legacy-by-name"
     )
+
+
+async def test_a_user_item_says_so_on_its_gateway_url():
+    """A "user" item uses the run person's own sign-in to the project server. The URL
+    keeps the server's slug and adds `account_source=user`, which the gateway reads."""
+    resolved = await MCPResolver(
+        secret_provider=DictSecretProvider({}),
+        gateway_base_url=_GATEWAY_BASE,
+        gateway_credentials_value="Access tok",
+    ).resolve(
+        [
+            server(
+                name="linear",
+                connection=MCPGatewayConnection(
+                    namespace="custom", slug="linear", account_source="user"
+                ),
+            )
+        ]
+    )
+
+    assert resolved[0].url == f"{_gateway_route('linear')}?account_source=user"
+
+
+@pytest.mark.parametrize("account_source", [None, "agent"])
+async def test_an_agent_item_keeps_the_plain_gateway_url(account_source):
+    resolved = await MCPResolver(
+        secret_provider=DictSecretProvider({}),
+        gateway_base_url=_GATEWAY_BASE,
+        gateway_credentials_value="Access tok",
+    ).resolve(
+        [
+            server(
+                name="linear",
+                connection=MCPGatewayConnection(
+                    namespace="custom", slug="linear", account_source=account_source
+                ),
+            )
+        ]
+    )
+
+    assert resolved[0].url == _gateway_route("linear")

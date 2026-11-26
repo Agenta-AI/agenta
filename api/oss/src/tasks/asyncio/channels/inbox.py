@@ -17,6 +17,21 @@ import mimetypes
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4, uuid5
 
+from oss.src.core.access.dtos import (
+    PrincipalKind,
+    PrincipalRef,
+    RunAuthority,
+    RunContext,
+    RunEnvelope,
+    RunOrigin,
+    RunSender,
+)
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.principals import approval_from_request
+from oss.src.core.access.service import get_access_service
+from oss.src.core.access.types import AccessDenied
+from oss.src.core.sharing.admission import CHANNEL_TURN_BOUNDARY, RunAdmission
+from oss.src.core.sharing.types import AdmissionDenied
 from oss.src.core.channels.commands import (
     COMMAND_NEW,
     COMMAND_SESSIONS,
@@ -39,7 +54,10 @@ from oss.src.core.channels.dtos import (
     ChannelKeyGrain,
     ChannelOutboxEventCreate,
     ChannelOutboxEventData,
+    ChannelRefusal,
+    ChannelRefusalReason,
     ChannelResolution,
+    ChannelSpaceKind,
     ChannelThreadCreate,
     ChannelThreadData,
     ChannelTriggerState,
@@ -50,6 +68,9 @@ from oss.src.core.channels.render.dtos import RenderItem
 from oss.src.core.channels.render.render import (
     OPTED_IN_TEXT,
     OPTED_OUT_TEXT,
+    REFUSED_CHANNEL_TEXT,
+    REFUSED_DIRECT_MESSAGE_TEXT,
+    REFUSED_SENDER_TEXT,
     UNSUPPORTED_TEXT,
     render_busy,
     render_failed_start,
@@ -69,6 +90,7 @@ from oss.src.core.channels.fill import run_backfill
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.types import (
     ChannelConnectionNotFound,
+    ChannelsError,
     ChannelThreadNotFound,
 )
 from oss.src.core.shared.dtos import Status
@@ -79,7 +101,7 @@ from oss.src.core.channels.identity import (
 from oss.src.core.sessions.attachments.media import classify
 from oss.src.core.sessions.attachments.service import SessionAttachmentsService
 from oss.src.core.sessions.attachments.types import AttachmentTooLarge
-from oss.src.core.sessions.streams.service import SessionStreamsService
+from oss.src.core.sessions.commands.service import SessionCommandsService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.utils.logging import get_module_logger
 
@@ -97,6 +119,9 @@ InvokeFn = Callable[..., Awaitable[str]]
 # the runner's refusal of a second turn on a running session, as the workflow
 # service reports it in the first frame of a detached start
 _TURN_IN_USE_CODE = "session_turn_in_use"
+
+# the refusal note's outbox key: person, place, reason and day
+_REFUSAL_NOTE_NAMESPACE = UUID("6f1d2a7c-3b8e-5c41-9a0d-c2e7b5f48a13")
 
 # answers one parked session interaction: (project_id, user_id, interaction_id, answer)
 RespondInteractionFn = Callable[..., Awaitable[None]]
@@ -121,21 +146,25 @@ class InboxDispatcher:
         self,
         *,
         channels_service: ChannelsService,
+        run_admission: RunAdmission,
         workflows_service: Optional[WorkflowsService] = None,
         identity_service: Optional[ChannelIdentityService] = None,
-        streams_service: Optional[SessionStreamsService] = None,
+        commands_service: Optional[SessionCommandsService] = None,
         invoke_fn: Optional[InvokeFn] = None,
         respond_interaction_fn: Optional[RespondInteractionFn] = None,
         session_queue: Optional[ChannelSessionQueue] = None,
         attachments_service: Optional[SessionAttachmentsService] = None,
     ):
         self.channels_service = channels_service
+        # Admits each turn (the installation and the bound agent) right before the
+        # invoke; a refusal settles the trigger failed with the failed-start reply.
+        self.run_admission = run_admission
         self.workflows_service = workflows_service
         # None means the turn runs as the agent's creator, not the sender.
         self.identity_service = identity_service
         # None means `!stop` is not offered; commands.dispatch_command raises
         # CommandNotOffered before ever touching this attribute either way.
-        self.streams_service = streams_service
+        self.commands_service = commands_service
         # `invoke_fn` overrides the default entirely (tests inject a fake
         # here); otherwise the default closes over `workflows_service`.
         self._invoke_fn = invoke_fn or self._invoke_via_workflows_service
@@ -200,11 +229,22 @@ class InboxDispatcher:
                 interaction_id,
             )
             return
-        user_id = await self._invoking_user_id(
+        user_id, external_user_key = await self._invoking_identity(
             project_id=project_id,
             connection_id=connection_id,
             event=event,
             resolution=resolution,
+        )
+        # The installation answered; the approver names the binding, the linked user
+        # and the external sender key.
+        # A channel answer has no request credential.
+        approved_by = approval_from_request(
+            principal=PrincipalRef(
+                kind=PrincipalKind.INSTALLATION, id=resolution.agent.id
+            ),
+            credential_kind=None,
+            user_id=user_id,
+            external_key=external_user_key,
         )
         # The answer belongs to the parked interaction, never to a later turn
         # as conversation. Marked before the response is admitted: a failure
@@ -224,6 +264,7 @@ class InboxDispatcher:
             user_id=user_id or resolution.agent.created_by_id,
             interaction_id=UUID(interaction_id),
             answer={"approved": approved},
+            approved_by=approved_by,
         )
         # Clear only the answered card; a continuation may already have parked
         # on a newer interaction while the response admission was returning.
@@ -239,6 +280,8 @@ class InboxDispatcher:
                 connection_id=connection_id,
                 thread=resolution.thread,
                 interaction_id=interaction_id,
+                approved=approved,
+                answered_by=event.data.processed.sender,
             )
         except Exception:  # UI cleanup must not replay an admitted decision.
             log.warning(
@@ -263,12 +306,31 @@ class InboxDispatcher:
         unconfigured — the caller falls back to the agent's creator, which
         is attribution's stand-in, not its mechanism."""
 
+        user_id, _ = await self._invoking_identity(
+            project_id=project_id,
+            connection_id=connection_id,
+            event=event,
+            resolution=resolution,
+        )
+        return user_id
+
+    async def _invoking_identity(
+        self,
+        *,
+        project_id: UUID,
+        connection_id: UUID,
+        event: ChannelInboxEvent,
+        resolution,
+    ) -> Tuple[Optional[UUID], Optional[str]]:
+        """`(linked user id, external sender key)`. Both None when identity is not
+        configured or the event names no sender."""
+
         if self.identity_service is None:
-            return None
+            return None, None
 
         platform_user_id = (event.data.processed.sender or {}).get("id")
         if not platform_user_id:
-            return None
+            return None, None
 
         connection = await self.channels_service.fetch_connection(
             project_id=project_id,
@@ -301,7 +363,52 @@ class InboxDispatcher:
             external_user_key=external_user_key,
         )
 
-        return link.user_id if link is not None else None
+        return (link.user_id if link is not None else None), external_user_key
+
+    async def _installation_envelope(
+        self,
+        *,
+        resolution: ChannelResolution,
+        organization_id: UUID,
+        project_id: UUID,
+        linked_user_id: Optional[UUID],
+        external_user_key: Optional[str],
+        run_id: Optional[str],
+    ) -> RunEnvelope:
+        """The channel turn runs as the installation (the binding), with the linked
+        user's role when the sender is linked, else the binding creator's (today's
+        authority). The sender is attribution only."""
+
+        principal = PrincipalRef(
+            kind=PrincipalKind.INSTALLATION, id=resolution.agent.id
+        )
+        sender = (
+            RunSender(user_id=linked_user_id, external_key=external_user_key)
+            if linked_user_id is not None or external_user_key
+            else None
+        )
+        return RunEnvelope(
+            authority=RunAuthority(
+                principal=principal,
+                organization_id=organization_id,
+                project_id=project_id,
+                linked_user_id=linked_user_id,
+            ),
+            context=RunContext(
+                run_id=run_id,
+                origin=RunOrigin.INSTALLATION,
+                origin_id=str(resolution.agent.id),
+            ),
+            sender=sender,
+        )
+
+    async def _organization_id(self, *, project_id: UUID) -> UUID:
+        organization_id = await get_access_service().project_organization_id(
+            project_id=project_id
+        )
+        if organization_id is None:
+            raise ChannelConnectionNotFound(connection_id=project_id)
+        return organization_id
 
     async def _dispatch_command(
         self,
@@ -317,7 +424,7 @@ class InboxDispatcher:
 
         `user_id` falls back to the agent's creator exactly like the invoke
         path, since a command still needs an actor for audit (`close_thread`)
-        and for `SessionStreamsService.command`.
+        and for `SessionCommandsService.request_cancel`.
         """
 
         user_id = await self._invoking_user_id(
@@ -332,7 +439,7 @@ class InboxDispatcher:
         try:
             result = await dispatch_command(
                 channels_service=self.channels_service,
-                streams_service=self.streams_service,
+                commands_service=self.commands_service,
                 project_id=project_id,
                 user_id=user_id,
                 thread=resolution.thread,
@@ -540,11 +647,20 @@ class InboxDispatcher:
         under that order. A matched command never opens a turn.
         """
 
-        resolution = await self.channels_service.resolve(
+        routing = await self.channels_service.resolve_or_refuse(
             project_id=project_id,
             connection_id=connection_id,
             event=event,
         )
+        if routing.refusal is not None:
+            await self._send_refusal_note(
+                project_id=project_id,
+                connection_id=connection_id,
+                event=event,
+                refusal=routing.refusal,
+            )
+            return
+        resolution = routing.resolution
         if resolution is None:
             # default-deny, no addressed agent, or a silent grant refusal —
             # the logged row is all there is.
@@ -633,12 +749,13 @@ class InboxDispatcher:
         # Everything that can still fail runs before the trigger is claimed: a
         # claimed trigger makes the task retry return early, so a failure
         # between the claim and the invoke would drop the mention for good.
-        user_id = await self._invoking_user_id(
+        user_id, external_user_key = await self._invoking_identity(
             project_id=project_id,
             connection_id=connection_id,
             event=event,
             resolution=resolution,
         )
+        organization_id = await self._organization_id(project_id=project_id)
         turn_input.content, notes = await self._attach_media(
             project_id=project_id,
             connection=connection,
@@ -654,6 +771,14 @@ class InboxDispatcher:
             )
 
         turn_id = str(uuid4())
+        envelope = await self._installation_envelope(
+            resolution=resolution,
+            organization_id=organization_id,
+            project_id=project_id,
+            linked_user_id=user_id,
+            external_user_key=external_user_key,
+            run_id=turn_id,
+        )
 
         trigger = await self.channels_service.open_turn(
             project_id=project_id,
@@ -688,7 +813,137 @@ class InboxDispatcher:
             connection=connection,
             capabilities=capabilities,
             request_locator=event.data.external_locator,
+            envelope=envelope,
         )
+
+    async def _send_refusal_note(
+        self,
+        *,
+        project_id: UUID,
+        connection_id: UUID,
+        event: ChannelInboxEvent,
+        refusal: ChannelRefusal,
+    ) -> None:
+        """One short private note to a person the agent refused, at most once a
+        day per person, place and reason. The row is claimed before the send
+        (the nonce tells this worker's insert apart from a concurrent one), and
+        a failed send is logged and dropped: a note is never retried.
+
+        A DM gets a normal reply; a shared place gets a message only that
+        person sees, where the platform has one (Slack), else nothing (a
+        Telegram group). No turn opens, no session, no credits."""
+
+        try:
+            space = refusal.space
+            # never write to a person who opted out
+            if space.flags.is_opted_out:
+                return
+            day = datetime.now(timezone.utc).date().isoformat()
+            key = uuid5(
+                _REFUSAL_NOTE_NAMESPACE,
+                f"{connection_id}:{refusal.sender_id}:{space.id}:"
+                f"{refusal.reason.value}:{day}",
+            )
+            dao = self.channels_service.channels_dao
+            # today's note already sent (or tried): one read, nothing more
+            if await dao.fetch_outbox_event_by_key(project_id=project_id, key=key):
+                return
+            connection = await self.channels_service.fetch_connection(
+                project_id=project_id,
+                connection_id=connection_id,
+            )
+            if connection is None:
+                return
+
+            is_dm = space.kind is ChannelSpaceKind.PRIVATE
+            if refusal.reason is ChannelRefusalReason.SENDER_NOT_LISTED:
+                text = REFUSED_SENDER_TEXT
+            elif is_dm:
+                text = REFUSED_DIRECT_MESSAGE_TEXT
+            else:
+                text = REFUSED_CHANNEL_TEXT
+
+            capabilities = await self.channels_service.fetch_capabilities(
+                channel=connection.channel,
+                connection=connection,
+            )
+            # an opt-out or opt-in word is consent, not a request (where the
+            # platform has consent words: WhatsApp)
+            if (
+                capabilities.conversation.opt_out
+                and _consent_keyword(event) is not None
+            ):
+                return
+            item = render_notice(capabilities=capabilities, text=text)
+            content = [part.model_dump(exclude_none=True) for part in item.parts]
+            adapter = self.channels_service.adapter_registry.get(connection.channel)
+            locator = dict(event.data.external_locator or {})
+            if is_dm:
+                # top level in a DM, like every reply there
+                locator.pop("thread_ts", None)
+            elif not capabilities.rendering.controls.ephemeral:
+                return  # no private message in a shared place (Telegram)
+
+            nonce = str(uuid4())
+            row = await dao.record_outbox_event(
+                project_id=project_id,
+                event=ChannelOutboxEventCreate(
+                    connection_id=connection.id,
+                    space_id=space.id,
+                    turn_id=f"refusal:{refusal.reason.value}",
+                    key=key,
+                    data=ChannelOutboxEventData(processed={"attempt": nonce}),
+                ),
+            )
+            if (row.data.processed or {}).get("attempt") != nonce:
+                return  # a concurrent worker claimed today's note
+
+            try:
+                if is_dm:
+                    receipt = await adapter.post_message(
+                        connection=connection,
+                        locator=locator,
+                        content=content,
+                        idempotency_key=key,
+                    )
+                else:
+                    if not await adapter.post_ephemeral(
+                        connection=connection,
+                        locator=locator,
+                        recipient_id=refusal.sender_id,
+                        content=content,
+                    ):
+                        raise ChannelsError("no private message in this place")
+                    receipt = None
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                log.warning(
+                    "[INBOX DISPATCHER] refusal note not delivered event=%s: %s",
+                    event.id,
+                    str(e)[:200],
+                )
+                await dao.transition_outbox_event(
+                    project_id=project_id,
+                    event_id=row.id,
+                    state=ChannelDeliveryState.FAILED,
+                    status=Status(code="refusal_note_failed"),
+                )
+                return
+            await dao.transition_outbox_event(
+                project_id=project_id,
+                event_id=row.id,
+                state=ChannelDeliveryState.SENT,
+                status=Status(code="sent"),
+                data=ChannelOutboxEventData(
+                    external_locator=receipt,
+                    processed={"content": content},
+                ),
+            )
+        except Exception:  # pylint: disable=broad-exception-caught
+            log.error(
+                "[INBOX DISPATCHER] refusal note failed event=%s",
+                event.id,
+                exc_info=True,
+            )
 
     async def _handle_consent(
         self,
@@ -847,6 +1102,7 @@ class InboxDispatcher:
         turn_input: ChannelTurnInput,
         trigger_id: UUID,
         user_id: Optional[UUID],
+        envelope: RunEnvelope,
     ) -> ChannelQueueDecision:
         """Admit the message to the thread session's queue, the way the
         playground admits a message sent while a turn runs. A free session
@@ -865,6 +1121,7 @@ class InboxDispatcher:
                     resolution=resolution, turn_input=turn_input
                 ).model_dump(mode="json", exclude_none=True),
                 idempotency_key=f"channels:{trigger_id}",
+                envelope=envelope,
             )
         except Exception:
             # An admission that cannot answer must not lose the message: the
@@ -888,6 +1145,7 @@ class InboxDispatcher:
         connection: Optional[ChannelConnection] = None,
         capabilities: Optional[ChannelCapabilities] = None,
         request_locator: Optional[Dict] = None,
+        envelope: Optional[RunEnvelope] = None,
     ) -> None:
         """Queue behind a running turn, else invoke once, retrying only on a
         refused overlapping turn — never the `force` path, never coalescing.
@@ -903,6 +1161,7 @@ class InboxDispatcher:
                 turn_input=turn_input,
                 trigger_id=trigger_id,
                 user_id=user_id,
+                envelope=envelope,
             )
             if decision is ChannelQueueDecision.QUEUED:
                 # The offset stands: the message is the session's next turn,
@@ -920,6 +1179,20 @@ class InboxDispatcher:
                 )
                 return
             try:
+                # Inside the try: a transient failure of the recheck (not a denial)
+                # settles the trigger FAILED below, as an invoke failure does, instead
+                # of escaping after the trigger was claimed.
+                if envelope is not None and not await self._may_run(
+                    project_id=project_id,
+                    resolution=resolution,
+                    turn_id=turn_id,
+                    trigger_id=trigger_id,
+                    envelope=envelope,
+                    connection=connection,
+                    capabilities=capabilities,
+                    request_locator=request_locator,
+                ):
+                    return
                 # user_id is passed only when identity resolved a linked
                 # account; an injected invoke_fn keeps its four-argument shape.
                 extra = {"user_id": user_id} if user_id is not None else {}
@@ -928,8 +1201,22 @@ class InboxDispatcher:
                     resolution=resolution,
                     turn_input=turn_input,
                     turn_id=turn_id,
+                    envelope=envelope,
                     **extra,
                 )
+            except AdmissionDenied as denied:
+                # A decision, not a failed start: never retried.
+                await self._refuse_turn(
+                    project_id=project_id,
+                    resolution=resolution,
+                    turn_id=turn_id,
+                    trigger_id=trigger_id,
+                    reason=denied.decision.reason.value,
+                    connection=connection,
+                    capabilities=capabilities,
+                    request_locator=request_locator,
+                )
+                return
             except TurnRefused:
                 if attempt >= _MAX_INVOKE_ATTEMPTS:
                     log.error(
@@ -1017,6 +1304,82 @@ class InboxDispatcher:
                     state=ChannelTriggerState.SETTLED,
                 )
                 return
+
+    async def _may_run(
+        self,
+        *,
+        project_id: UUID,
+        resolution: ChannelResolution,
+        turn_id: str,
+        trigger_id: UUID,
+        envelope: RunEnvelope,
+        connection: Optional[ChannelConnection],
+        capabilities: Optional[ChannelCapabilities],
+        request_locator: Optional[Dict],
+    ) -> bool:
+        """The turn runs as the installation: recheck it before the invoke. A refusal
+        (an archived binding is `principal_inactive`, a linked user without the
+        capability is `missing_capability`) settles the trigger failed and posts the
+        failed-start reply; nothing is invoked."""
+
+        try:
+            await get_access_service().require(
+                envelope=envelope, action=Permission.RUN_SESSIONS
+            )
+            return True
+        except AccessDenied as denied:
+            await self._refuse_turn(
+                project_id=project_id,
+                resolution=resolution,
+                turn_id=turn_id,
+                trigger_id=trigger_id,
+                reason=denied.decision.reason.value,
+                connection=connection,
+                capabilities=capabilities,
+                request_locator=request_locator,
+            )
+            return False
+
+    async def _refuse_turn(
+        self,
+        *,
+        project_id: UUID,
+        resolution: ChannelResolution,
+        turn_id: str,
+        trigger_id: UUID,
+        reason: str,
+        connection: Optional[ChannelConnection],
+        capabilities: Optional[ChannelCapabilities],
+        request_locator: Optional[Dict],
+    ) -> None:
+        """A refused turn: the trigger settles failed with `access_denied`, and the chat
+        gets the failed-start reply. Nothing is invoked."""
+
+        log.info(
+            "[INBOX DISPATCHER] turn refused",
+            turn_id=turn_id,
+            binding_id=str(resolution.agent.id),
+            reason=reason,
+        )
+        await self.channels_service.settle_turn(
+            project_id=project_id,
+            trigger_id=trigger_id,
+            state=ChannelTriggerState.FAILED,
+            status=Status(code="access_denied", message=reason),
+        )
+        if connection and connection.channel == "slack" and request_locator:
+            adapter = self.channels_service.adapter_registry.get(connection.channel)
+            await adapter.set_message_status(
+                connection=connection, locator=request_locator, status="failed"
+            )
+        await self._notify_not_started(
+            project_id=project_id,
+            resolution=resolution,
+            turn_id=turn_id,
+            connection=connection,
+            capabilities=capabilities,
+            render=render_failed_start,
+        )
 
     async def _notify_not_started(
         self,
@@ -1106,6 +1469,7 @@ class InboxDispatcher:
         resolution: ChannelResolution,
         turn_input: ChannelTurnInput,
         turn_id: str,
+        envelope: RunEnvelope,
         user_id: Optional[UUID] = None,
     ) -> str:
         """Invoke via `WorkflowsService.invoke_workflow_detached` over the
@@ -1127,16 +1491,29 @@ class InboxDispatcher:
 
         request = self._build_request(resolution=resolution, turn_input=turn_input)
 
+        # Raises `AdmissionDenied` for an agent the installation may not run (the
+        # caller settles the turn). Resolves the target once and leaves it on the
+        # request, so the invoke runs what was checked.
+        agent_artifact_id = await self.run_admission.admit_request(
+            envelope=envelope,
+            session_id=None,
+            project_id=project_id,
+            request=request,
+            boundary=CHANNEL_TURN_BOUNDARY,
+        )
+
         try:
             response = await self.workflows_service.invoke_workflow_detached(
                 project_id=project_id,
                 user_id=user_id or resolution.agent.created_by_id,
                 request=request,
+                envelope=envelope,
                 run_id=turn_id,
                 # A first frame that reports an error is a failed start, not
                 # an accepted run: otherwise the trigger settles and the chat
                 # hears nothing, because no turn event ever follows.
                 strict_start=True,
+                admitted_agent_id=agent_artifact_id,
             )
         except Exception as e:
             if type(e).__name__ == "SessionTurnInUse" or (

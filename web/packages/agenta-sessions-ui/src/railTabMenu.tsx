@@ -1,8 +1,12 @@
+import {createT} from "@agenta/i18n"
+import sessionsRowsCatalog from "@agenta/i18n/catalogs/sessions.rows"
 import {sessionTabCloseTargets, type SessionTabCloseTargets} from "@agenta/sessions/state"
 import {ArrowLineRightIcon, XIcon, XSquareIcon} from "@phosphor-icons/react"
 
 import {type SessionMenuEntry} from "./menu"
 import {withShortcutKey} from "./menuShortcut"
+
+const tNow = createT(sessionsRowsCatalog)
 
 /**
  * The rail's own menu verbs, appended to the host's. Reserved keys, handled here and never
@@ -23,19 +27,19 @@ export const closeEntries = (targets: SessionTabCloseTargets): SessionMenuEntry[
     {type: "divider"},
     {
         key: CLOSE,
-        label: withShortcutKey("Close", "session.close"),
+        label: withShortcutKey(tNow("sessions.rows.close"), "session.close"),
         icon: <XIcon size={14} />,
         disabled: !targets.closable,
     },
     {
         key: CLOSE_OTHERS,
-        label: "Close other tabs",
+        label: tNow("sessions.rows.closeOthers"),
         icon: <XSquareIcon size={14} />,
         disabled: targets.others.length === 0,
     },
     {
         key: CLOSE_RIGHT,
-        label: "Close tabs to the right",
+        label: tNow("sessions.rows.closeToRight"),
         icon: <ArrowLineRightIcon size={14} />,
         disabled: targets.toRight.length === 0,
     },
@@ -46,8 +50,12 @@ export const moveEntries = (index: number, count: number): SessionMenuEntry[] =>
         ? []
         : [
               {type: "divider"},
-              {key: MOVE_LEFT, label: "Move left", disabled: index === 0},
-              {key: MOVE_RIGHT, label: "Move right", disabled: index === count - 1},
+              {key: MOVE_LEFT, label: tNow("sessions.rows.moveLeft"), disabled: index === 0},
+              {
+                  key: MOVE_RIGHT,
+                  label: tNow("sessions.rows.moveRight"),
+                  disabled: index === count - 1,
+              },
           ]
 
 /**

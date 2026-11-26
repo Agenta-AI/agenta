@@ -1,5 +1,7 @@
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Search, X} from "lucide-react"
 
 import {
@@ -34,31 +36,38 @@ export const ListTableToolbar = ({
     searchAriaLabel?: string
     actions?: ReactNode
     className?: string
-}) => (
-    <div className={cn("mb-3 flex items-center gap-2", className)}>
-        <InputGroup className="min-w-0 max-w-[340px] flex-1 bg-transparent dark:bg-transparent">
-            <InputGroupAddon>
-                <Search size={14} aria-hidden />
-            </InputGroupAddon>
-            <InputGroupInput
-                value={search}
-                onChange={(event) => onSearchChange(event.target.value)}
-                placeholder={searchPlaceholder}
-                aria-label={searchAriaLabel ?? searchPlaceholder}
-                className="text-[13px] md:text-[13px]"
-            />
-            {search ? (
-                <InputGroupAddon align="inline-end">
-                    <InputGroupButton
-                        size="icon-xs"
-                        aria-label="Clear search"
-                        onClick={() => onSearchChange("")}
-                    >
-                        <X size={14} aria-hidden />
-                    </InputGroupButton>
+}) => {
+    const t = useT(commonCatalog)
+    return (
+        // Wraps on a narrow screen, so the actions never squeeze the search to nothing.
+        <div className={cn("mb-3 flex flex-wrap items-center gap-2", className)}>
+            {/* 46 px high on a phone, so the field inside its 1 px border is 44 px (tap rule); the
+                desktop keeps the control height. */}
+            <InputGroup className="min-w-[160px] max-w-[340px] flex-1 bg-transparent max-md:h-[46px] dark:bg-transparent">
+                <InputGroupAddon>
+                    <Search size={14} aria-hidden />
                 </InputGroupAddon>
-            ) : null}
-        </InputGroup>
-        {actions}
-    </div>
-)
+                <InputGroupInput
+                    value={search}
+                    onChange={(event) => onSearchChange(event.target.value)}
+                    placeholder={searchPlaceholder}
+                    aria-label={searchAriaLabel ?? searchPlaceholder}
+                    // Fills the group on a phone, so a tap anywhere in it lands on the field.
+                    className="text-[13px] max-md:h-full md:text-[13px]"
+                />
+                {search ? (
+                    <InputGroupAddon align="inline-end">
+                        <InputGroupButton
+                            size="icon-xs"
+                            aria-label={t("common.clearSearch")}
+                            onClick={() => onSearchChange("")}
+                        >
+                            <X size={14} aria-hidden />
+                        </InputGroupButton>
+                    </InputGroupAddon>
+                ) : null}
+            </InputGroup>
+            {actions}
+        </div>
+    )
+}

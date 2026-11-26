@@ -94,6 +94,7 @@ export type {
 
 export {
     createExecutionItemHandle,
+    cancelRunningResults,
     resolveAgConfigCandidate,
     buildCompletionExecutionItem,
     buildChatExecutionItem,
@@ -387,7 +388,11 @@ export {
     flushAgentAutoCommitAtom,
     registerAgentAutoCommitHandler,
 } from "./agentAutoCommit"
-export {watchLatestVersion, type LatestVersion} from "./latestVersionCheck"
+export {
+    requestLatestVersionCheck,
+    watchLatestVersion,
+    type LatestVersion,
+} from "./latestVersionCheck"
 // Agent version history: the drawer's rows, and the revert that commits an old config as a new one.
 export {
     buildVersionRows,

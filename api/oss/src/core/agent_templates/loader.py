@@ -1,8 +1,10 @@
-from typing import Any
+from typing import Any, Optional
 from uuid import UUID
 
 from agenta.sdk.agents import ContentBlock, Message
 
+from oss.src.core.access.dtos import RunEnvelope
+from oss.src.core.sharing.dtos import AccessPolicy
 from oss.src.core.agent_templates.bindings import TemplateBindingResolver
 from oss.src.core.agent_templates.compiler import TemplateCompiler
 from oss.src.core.agent_templates.dtos import (
@@ -33,6 +35,10 @@ from oss.src.core.mounts.dtos import MountFileSeed
 from oss.src.core.mounts.service import MountsService
 from oss.src.core.sessions.attachments.service import SessionAttachmentsService
 from oss.src.core.sessions.attachments.types import AttachmentError
+from oss.src.core.sessions.inputs.types import (
+    SessionInputKeyReserved,
+    is_reserved_input_key,
+)
 from oss.src.core.sessions.starts.service import SessionStartsService
 from oss.src.core.shared.exceptions import EntityCreationIdempotencyConflict
 from oss.src.core.shared.idempotency import request_fingerprint, request_key_hash
@@ -127,6 +133,10 @@ class AgentTemplateLoader:
         request_key = command.request_key.strip()
         if not request_key:
             raise ValueError("request_key must not be empty")
+        # The first message is a session input keyed by this request key, and `ag:`
+        # keys are server keys.
+        if is_reserved_input_key(request_key):
+            raise SessionInputKeyReserved()
         return request_key
 
     @staticmethod
@@ -186,11 +196,17 @@ class AgentTemplateLoader:
         command: TemplateLoadCommand,
         request_key: str,
         request_fingerprint: str,
+        envelope: RunEnvelope,
     ) -> TemplateLoadResult | None:
         """Replay a finished load from stored records, without reading its source.
 
         An upload can expire and a session file can change after a load completes;
         neither may turn a completed retry into a failure or new bytes.
+
+        The records are found by project and request key, not by caller, so the replay
+        is admitted first (the session and the agent, as a start would be): another
+        member with the same key, or a former owner after a transfer, gets the refusal
+        and never the stored ids.
         """
         if self._session_starts_service is None:
             return None
@@ -221,6 +237,11 @@ class AgentTemplateLoader:
             (workflow.id, workflow.slug, workflow.variant_id, workflow.revision_id)
         ):
             raise TemplateWorkflowCreationFailed()
+        await self._session_starts_service.admit_replay(
+            envelope=envelope,
+            session_id=start.session_id,
+            workflow_id=workflow.id,
+        )
         return TemplateLoadResult(
             workflow_id=workflow.id,
             workflow_slug=workflow.slug,
@@ -278,7 +299,11 @@ class AgentTemplateLoader:
         project_id: UUID,
         user_id: UUID,
         command: TemplateLoadCommand,
+        access: Optional[AccessPolicy] = None,
+        first_agent_owner_user_id: Optional[UUID] = None,
     ) -> PreparedTemplateLoad:
+        """`access` and `first_agent_owner_user_id` come from the route's ownership
+        rule and are passed to the agent's create."""
         request_key = self._request_key(command)
         self._require_mutable_source_pin(command)
         fingerprint = template_request_fingerprint(command)
@@ -359,6 +384,8 @@ class AgentTemplateLoader:
                     ),
                 ),
                 trusted_meta=origin_meta,
+                access=access,
+                first_agent_owner_user_id=first_agent_owner_user_id,
             )
         except EntityCreationIdempotencyConflict as exc:
             raise TemplateCreateConflict() from exc
@@ -420,8 +447,15 @@ class AgentTemplateLoader:
         project_id: UUID,
         user_id: UUID,
         command: TemplateLoadCommand,
+        envelope: RunEnvelope,
+        access: Optional[AccessPolicy] = None,
+        first_agent_owner_user_id: Optional[UUID] = None,
+        session_access: Optional[AccessPolicy] = None,
     ) -> TemplateLoadResult:
-        """Create every declared resource before handing off the first turn."""
+        """Create every declared resource before handing off the first turn.
+
+        `access` is the agent's initial policy and `session_access` the first
+        session's, both from the load's requested visibility."""
         if self._mounts_service is None or self._session_starts_service is None:
             raise RuntimeError("Template loader runtime services are not configured.")
 
@@ -432,6 +466,7 @@ class AgentTemplateLoader:
             command=command,
             request_key=request_key,
             request_fingerprint=template_request_fingerprint(command),
+            envelope=envelope,
         )
         if completed is not None:
             return completed
@@ -462,17 +497,30 @@ class AgentTemplateLoader:
             project_id=project_id,
             user_id=user_id,
             command=command,
+            access=access,
+            first_agent_owner_user_id=first_agent_owner_user_id,
         )
-        await self._mounts_service.materialize_entries_if_absent(
-            project_id=project_id,
-            user_id=user_id,
-            workflow_id=prepared.workflow_id,
-            directories=prepared.workspace.directories,
-            files=[
-                MountFileSeed(path=item.path, content=item.content)
-                for item in prepared.workspace.files
-            ],
+        # The workflow is new in this load, so a drive created with it was created by
+        # this load's first commit. A template that names an existing home or null
+        # gets none, and its files are skipped: it never writes into a used drive.
+        drive = await self._mounts_service.fetch_agent_drive(
+            project_id=project_id, artifact_id=str(prepared.workflow_id)
         )
+        skipped_files: list[str] = []
+        if drive is not None:
+            await self._mounts_service.materialize_entries_if_absent(
+                project_id=project_id,
+                user_id=user_id,
+                workflow_id=prepared.workflow_id,
+                mount=drive,
+                directories=prepared.workspace.directories,
+                files=[
+                    MountFileSeed(path=item.path, content=item.content)
+                    for item in prepared.workspace.files
+                ],
+            )
+        else:
+            skipped_files = [item.path for item in prepared.workspace.files]
         start_key = self._start_key(
             request_key=request_key,
             digest=prepared.resolved_source.digest,
@@ -522,6 +570,8 @@ class AgentTemplateLoader:
             ),
             parameters=prepared.runtime_parameters,
             request_key=start_key,
+            envelope=envelope,
+            access=session_access,
         )
         return TemplateLoadResult(
             workflow_id=prepared.workflow_id,
@@ -532,4 +582,5 @@ class AgentTemplateLoader:
             execution_id=start.execution_id,
             input_id=start.input_id,
             replayed=prepared.replayed or start.replayed,
+            skipped_files=skipped_files,
         )

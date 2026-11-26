@@ -1,0 +1,11 @@
+{
+    "agent": "エージェント",
+    "loadingConversation": "会話を読み込み中",
+    "noMessages": "メッセージはありません。このセッションには再生できる履歴がありません。",
+    "readOnlyNoAgent": "読み取り専用：このセッションにはまだメッセージを送れるエージェントがいません。",
+    "readOnlyNoRevision": "読み取り専用：このエージェントにはまだメッセージを送れるリビジョンがありません。",
+    "running": "実行中",
+    "tryAgain": "もう一度試す",
+    "unreachableDescription": "サーバーが応答しませんでした。接続を確認して、もう一度お試しください。",
+    "unreachableTitle": "このセッションを読み込めませんでした"
+}

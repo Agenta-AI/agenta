@@ -116,6 +116,12 @@ export function normalizeDesiredState(
     // served by a rebuild (audit finding 4). The rest of `runContext` stays out of every
     // facet — it is per-turn metadata.
     agentArtifactId: request.runContext?.workflow?.artifact?.id?.trim() || null,
+    // Mounted with the sandbox, so a changed list or home is a rebuild too.
+    ...(request.drives !== undefined ? { drives: request.drives } : {}),
+    ...(request.homeDrive !== undefined ? { homeDrive: request.homeDrive } : {}),
+    ...(request.hasSessionDrive !== undefined
+      ? { hasSessionDrive: request.hasSessionDrive }
+      : {}),
   });
 
   // RUNTIME: what is baked into the agent daemon at start. Model connection, process
@@ -127,6 +133,10 @@ export function normalizeDesiredState(
           provider: request.modelConnection.provider,
           deployment: request.modelConnection.deployment,
           endpoint: request.modelConnection.endpoint ?? null,
+          // Only when present, so every connection without it keeps the digest it had.
+          ...(request.modelConnection.protocol
+            ? { protocol: request.modelConnection.protocol }
+            : {}),
           credentialMode: request.modelConnection.credentialMode,
           environment: request.modelConnection.environment ?? null,
           credentials: credentialShapes(request.modelConnection.credentials),

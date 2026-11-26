@@ -4,9 +4,10 @@ Implements ``docs/design/agent-config-editing/contracts/change-set.md`` (slice S
 contract is authoritative; this module is its executable half.
 
 The engine is dependency-free: plain dicts in, a plain result out, no pydantic, no I/O, no
-database. Two wrappers call it. The commit wrapper checks ``base_revision_id`` against the
-head and persists; the invoke-override wrapper resolves an immutable revision, applies with
-the ``parameters``-only scope policy, and persists nothing.
+database. Its one import from the SDK is a constant: the tool types the runtime allows once
+per list, which the engine keys by type. Two wrappers call it. The commit wrapper checks
+``base_revision_id`` against the head and persists; the invoke-override wrapper resolves an
+immutable revision, applies with the ``parameters``-only scope policy, and persists nothing.
 
 Three things belong to the wrapper, not here, and the contract says so: the selector
 normalization (contract 4.3), the platform-tool rejection (11), the derived commit message
@@ -20,6 +21,8 @@ from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
+from agenta.sdk.agents.tools import SINGLE_ENTRY_TOOL_TYPES
+
 __all__ = [
     "ChangeSetError",
     "ChangeSetResult",
@@ -29,10 +32,12 @@ __all__ = [
     "apply_text_edits",
     "deep_merge",
     "item_key",
+    "resolve_target",
     "allow_all",
     "subtree_scope",
     "PARAMETERS_ONLY",
     "AGENT_COMMIT_SCOPE",
+    "editable_scope",
     "KEY_FIELDS",
     "FILE_MARKER",
     "PLATFORM_GUIDANCE_START",
@@ -110,11 +115,11 @@ _RETRYABLE = frozenset(
 # An agent that reads only this line must still know what to do.
 NEXT_STEPS: Dict[str, str] = {
     Reason.TARGET_NOT_FOUND: (
-        "Call read_config for that part of the configuration and correct the target."
+        "Read that part of the configuration again and correct the target."
     ),
     Reason.TARGET_TYPE_MISMATCH: (
-        "Call read_config for that path to see what type it holds, then use the matching "
-        "operation."
+        "Read that part of the configuration again to see what type it holds, then use "
+        "the matching operation."
     ),
     Reason.INVALID_TARGET_SHAPE: (
         "The message names the segment at fault. A segment is a field name, or "
@@ -127,9 +132,10 @@ NEXT_STEPS: Dict[str, str] = {
         "different entry — one integration takes one gateway_connection entry."
     ),
     Reason.ITEM_NOT_FOUND: (
-        "Call read_config with a {list, key} selector for that list: its refusal lists "
-        "every key the list actually holds. A gateway_connection entry's key is "
-        "gateway_connection:<connection.provider>:<connection.integration>."
+        "Read that list again with a {list, key} selector: its refusal lists every key "
+        "the list actually holds. A gateway_connection entry's key is "
+        "gateway_connection:<connection.provider>:<connection.integration>; an "
+        "agenta_tools entry's key is agenta_tools."
     ),
     Reason.ITEM_RENAME_NOT_ALLOWED: (
         "Send remove_item for the old key, then add_item with the new value."
@@ -143,7 +149,7 @@ NEXT_STEPS: Dict[str, str] = {
         "file. For a tool the key depends on its type: gateway_connection needs "
         "connection.provider and connection.integration (together they are its key); "
         "gateway needs an explicit name; reference needs name or slug; platform is keyed "
-        "by op; everything else needs name."
+        "by op; agenta_tools is keyed agenta_tools; everything else needs name."
     ),
     Reason.UNKEYED_COLLECTION: (
         "That list is not addressed by name. Use set to replace the whole list."
@@ -154,7 +160,7 @@ NEXT_STEPS: Dict[str, str] = {
     ),
     Reason.TEXT_NOT_FOUND: (
         "Re-anchor on one of details.nearest_lines, which holds the closest lines actually "
-        "stored, or call read_config for that field and copy old_text out of its value."
+        "stored, or read that field again and copy old_text out of its value."
     ),
     Reason.TEXT_NOT_UNIQUE: (
         "Add more surrounding lines to old_text until it appears once, then send the "
@@ -175,13 +181,13 @@ NEXT_STEPS: Dict[str, str] = {
         "That file is not readable as text. Reference a UTF-8 text file."
     ),
     Reason.PLATFORM_TOOL_NOT_COMMITTABLE: (
-        "Remove those entries from `tools` and send the commit again."
+        "Remove those entries from `tools` and send the call again."
     ),
     Reason.NON_EMBEDDABLE_REFERENCE: (
-        "Remove the embedded reference to that workflow and send the commit again."
+        "Remove the embedded reference to that workflow and send the call again."
     ),
     Reason.FINAL_VALIDATION_FAILED: (
-        "Correct the fields listed in `issues` and send the commit again."
+        "Correct the fields listed in `issues` and send the call again."
     ),
     Reason.VALUE_TOO_DEEP: (
         "Flatten the value: the configuration nests a few levels deep, not hundreds."
@@ -471,6 +477,11 @@ def _tool_name(entry: Dict[str, Any], *, allow_legacy_fallback: bool) -> Optiona
         return entry.get("name") or entry.get("slug")
     if kind == "platform":
         return entry.get("op")
+    if isinstance(kind, str) and kind in SINGLE_ENTRY_TOOL_TYPES:
+        # A type the runtime allows once per list has no name, so its type is its key, and
+        # an operation can reach inside the entry instead of replacing the whole list around
+        # it. A legacy list holding two is a duplicate key, which the engine already reports.
+        return kind
     return entry.get("name")
 
 
@@ -558,6 +569,27 @@ def subtree_scope(
     return policy
 
 
+def editable_scope(paths: Sequence[Sequence[str]]) -> ScopePolicy:
+    """Allow only targets at or under one of ``paths``.
+
+    The policy of a static workflow's editable fields. A target above an editable path is
+    refused too, because writing it would rewrite the fields beside the editable one.
+    """
+    allowed = [list(path) for path in paths]
+
+    def policy(target: Target) -> Optional[str]:
+        segments = list(target)
+        for path in allowed:
+            if _plain_prefix(path, segments):
+                return None
+        got = ".".join(str(s) for s in segments) or "<empty>"
+        return f"'{got}' is not an editable field of this workflow"
+
+    # The legacy arm walks the `set` tree this deep before it asks the policy.
+    policy._prefix_depth = max(len(path) for path in allowed)  # type: ignore[attr-defined]
+    return policy
+
+
 def _plain_prefix(prefix: Sequence[str], segments: Sequence[Segment]) -> bool:
     if len(segments) < len(prefix):
         return False
@@ -577,6 +609,9 @@ AGENT_COMMIT_SCOPE: ScopePolicy = subtree_scope(
         ["parameters", "agent", "sandbox", "kind"],
         ["parameters", "agent", "sandbox", "permissions"],
         ["parameters", "agent", "sandbox", "credentials"],
+        ["parameters", "agent", "drives"],
+        ["parameters", "agent", "home_drive"],
+        ["parameters", "agent", "has_session_drive"],
     ),
 )
 
@@ -972,6 +1007,15 @@ def _walk(root: Dict[str, Any], segments: Sequence[Segment]) -> Any:
             )
             node = collection[index]
     return node
+
+
+def resolve_target(root: Dict[str, Any], segments: Sequence[Segment]) -> Any:
+    """The node a target addresses in ``root``. Raises ``LookupError`` when it addresses
+    nothing there. Reads only; the approval preview uses it on the base and the result."""
+    try:
+        return _walk(root, segments)
+    except _Fail as error:
+        raise LookupError(error.message) from error
 
 
 def _walk_creating(root: Dict[str, Any], segments: Sequence[Segment]) -> Any:
@@ -1435,7 +1479,8 @@ def _apply_operation(
         if not isinstance(current, str):
             raise _Fail(
                 Reason.TARGET_TYPE_MISMATCH,
-                f"'edit_text' needs a string target; {name!r} is {_type_name(current)}",
+                f"'edit_text' needs a string target; {name!r} is {_type_name(current)}. "
+                "Use 'set' to replace a value, or 'merge' to change keys of an object.",
             )
         tolerance = "code" if mode == "exact" else content_class(name)
         new_text, normalized = apply_text_edits(current, edits, tolerance=tolerance)
@@ -1535,7 +1580,13 @@ def _warn_wholesale(
     index: int,
     segments: Sequence[Segment],
 ) -> None:
-    if name in ("tools", "skills", "mcps") and isinstance(value, list):
+    # Only when every entry has a key. An entry without one (an `@ag.embed`) is out of
+    # reach of the item operations, so replacing the whole list was the only way to write it.
+    if (
+        name in ("tools", "skills", "mcps")
+        and isinstance(value, list)
+        and all(item_key(name, entry) is not None for entry in value)
+    ):
         warnings.append(
             Warning(
                 code=WarningCode.WHOLESALE_LIST_REPLACE,
@@ -1876,10 +1927,10 @@ def _scope_next_step(scope_policy: ScopePolicy) -> str:
     """
     prefix = ".".join(getattr(scope_policy, "_prefix", ()) or ())
     if not prefix:
-        return "Remove the operation on that path and send the commit again."
+        return "Remove the operation on that path and send the call again."
     return (
         f"Write only under `{prefix}`. Remove the operation on the path this refusal "
-        "names, then send the commit again."
+        "names, then send the call again."
     )
 
 
@@ -2090,7 +2141,7 @@ def _finish(
         if issues:
             raise ChangeSetError(
                 Reason.FINAL_VALIDATION_FAILED,
-                "The finished configuration is not valid.",
+                f"The finished configuration is not valid: {'; '.join(issues)}.",
                 issues=list(issues),
             )
 

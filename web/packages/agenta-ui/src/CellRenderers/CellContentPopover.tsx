@@ -1,10 +1,14 @@
 import {memo, useCallback, useEffect, useRef, useState, type ReactNode} from "react"
 
+import {createT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Copy} from "@phosphor-icons/react"
 
 import {Button} from "../components/ui/button"
 import {Popover, PopoverAnchor, PopoverArrow, PopoverContent} from "../components/ui/popover"
 import {message} from "../utils/appMessageContext"
+
+const tNow = createT(commonCatalog)
 
 /** Radix Popover has no hover trigger; reproduce antd's enter/leave delays. */
 function useHoverOpen(enterDelay: number, leaveDelay: number) {
@@ -28,6 +32,11 @@ function useHoverOpen(enterDelay: number, leaveDelay: number) {
             clear()
             timer.current = setTimeout(() => setOpen(false), leaveDelay)
         },
+        // A row click opens a drawer; the preview must not stay over it.
+        onPointerDown: () => {
+            clear()
+            setOpen(false)
+        },
     }
 }
 
@@ -46,7 +55,7 @@ const PopoverContentWrapper = memo(({children, onCopy}: PopoverContentProps) => 
                 <div className="flex justify-end">
                     <Button variant="ghost" size="sm" onClick={onCopy}>
                         {<Copy size={14} />}
-                        Copy
+                        {tNow("common.copy")}
                     </Button>
                 </div>
             )}
@@ -72,7 +81,7 @@ interface CellContentPopoverProps {
 }
 
 /**
- * Wraps table cell content with a hover popover that shows the full content.
+ * Wraps table cell content with a hover popover that shows the full content beside the cell.
  * Used to preview truncated cell content without opening the focus drawer.
  *
  * Features:
@@ -92,7 +101,7 @@ const CellContentPopover = memo(
         const handleCopy = useCallback(() => {
             if (copyText) {
                 navigator.clipboard.writeText(copyText)
-                message.success("Copied to clipboard")
+                message.success(tNow("common.copiedToClipboard"))
             }
         }, [copyText])
 
@@ -114,13 +123,16 @@ const CellContentPopover = memo(
                         className="self-start h-fit"
                         onMouseEnter={hover.onMouseEnter}
                         onMouseLeave={hover.onMouseLeave}
+                        onPointerDown={hover.onPointerDown}
                     >
                         {children}
                     </div>
                 </PopoverAnchor>
                 <PopoverContent
-                    side="top"
-                    align="center"
+                    // Beside the cell, not over the rows above it; flips left at the edge.
+                    side="right"
+                    align="start"
+                    sideOffset={4}
                     className="p-3"
                     onMouseEnter={hover.onMouseEnter}
                     onMouseLeave={hover.onMouseLeave}

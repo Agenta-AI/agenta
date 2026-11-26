@@ -29,6 +29,18 @@ const noop = () => undefined
 
 const PROJECT_SKILLS: SkillListItem[] = [
     {
+        // The card titles the SKILL.md name, not the suffixed workflow name.
+        id: "s0",
+        slug: "laptop-replacement-policy",
+        name: "laptop-replacement-policy",
+        description: "When and how an employee gets a new laptop, and who approves it.",
+        origin: "project",
+        version: "2",
+        filesCount: 2,
+        usedByCount: 3,
+        age: "2d ago",
+    },
+    {
         id: "s1",
         slug: "pdf-tools",
         name: "PDF tools",
@@ -78,8 +90,8 @@ const IMPORTED_SKILLS: SkillListItem[] = [
 ]
 
 const SOURCES = [
-    {key: "all", label: "All skills", count: 3},
-    {key: "project", label: "This project", count: 2},
+    {key: "all", label: "All skills", count: 4},
+    {key: "project", label: "This project", count: 3},
     {key: "anthropics-skills", label: "anthropics/skills", count: 1},
 ]
 

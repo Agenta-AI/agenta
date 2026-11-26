@@ -15,6 +15,7 @@ from agenta.sdk.agents import (
     ReferenceToolConfig,
 )
 from agenta.sdk.agents.platform import AgentaWorkflowToolResolver, PlatformConnection
+from agenta.sdk.agents.platform.workflow import REFERENCE_TOOL_TIMEOUT_MS
 
 
 def _resolver(connection):
@@ -54,6 +55,18 @@ async def test_builds_callback_spec_and_shared_callback(connection):
     # The shared callback points at the backend execute endpoint with the caller's credential.
     assert resolution.tool_callback.endpoint == "https://api.x/api/tools/call"
     assert resolution.tool_callback.authorization == "Access tok"
+
+
+async def test_reference_spec_carries_the_long_tool_call_limit(connection):
+    resolution = await _resolver(connection).resolve(
+        [ReferenceToolConfig(slug="child-agent")]
+    )
+    spec = resolution.tool_specs[0]
+
+    # A called agent turn takes minutes; without a spec limit the runner falls back to 30 s.
+    assert REFERENCE_TOOL_TIMEOUT_MS == 30 * 60_000
+    assert spec.timeout_ms == REFERENCE_TOOL_TIMEOUT_MS
+    assert spec.model_dump(by_alias=True)["timeoutMs"] == REFERENCE_TOOL_TIMEOUT_MS
 
 
 async def test_versioned_slug_and_default_name(connection):

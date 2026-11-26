@@ -18,6 +18,8 @@
 import {memo, useMemo, useCallback, useEffect, useRef, useState} from "react"
 
 import {workflowDraftConsumedAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
 import type {DataPath} from "@agenta/shared/utils"
 import type {MoleculeDrillInAdapter} from "@agenta/ui/drill-in"
 import {useDrillInUI} from "@agenta/ui/drill-in"
@@ -71,6 +73,7 @@ function PlaygroundConfigSection({
     stickyHeaderTop = 48,
     loadingFallback,
 }: PlaygroundConfigSectionProps) {
+    const t = useT(playgroundConfigCatalog)
     const {llmProviderConfig} = useDrillInUI()
 
     const mol = moleculeAdapter ?? defaultAdapter
@@ -121,6 +124,11 @@ function PlaygroundConfigSection({
     // Schema for model config popover
     const schemaAtom = useMemo(() => mol.atoms.agConfigSchema(revisionId), [mol, revisionId])
     const schema = useAtomValue(schemaAtom)
+
+    // The empty-config copy names an evaluator only for an evaluator.
+    const isEvaluator = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.isEvaluator(revisionId), [revisionId]),
+    )
 
     // Choose the best available data for loading checks
     const activeData = pickActiveData(useServerData, data, serverData)
@@ -234,7 +242,9 @@ function PlaygroundConfigSection({
     // Without this, switching Form → YAML/JSON after a revision change renders
     // the SharedEditor with stale/empty content for one frame until the useEffect
     // fires. The code editor may not properly re-hydrate from that empty initial state.
-    const prevViewModeRef = useRef(viewMode)
+    // Starts at "form", so a section that mounts in JSON or YAML fills its editor on the first
+    // render too. Filled only by the effect below, a read-only editor stayed empty.
+    const prevViewModeRef = useRef<ConfigViewMode>("form")
     if (viewMode !== "form" && prevViewModeRef.current !== viewMode) {
         const next =
             viewMode === "yaml"
@@ -389,11 +399,14 @@ function PlaygroundConfigSection({
             >
                 <div className="flex flex-col items-center gap-2 text-center max-w-[320px]">
                     <span className="text-sm font-medium text-[var(--ag-rgba-051729-65)]">
-                        No configuration needed
+                        {isEvaluator
+                            ? t("entityUi.playgroundConfig.noConfigNeeded")
+                            : t("entityUi.playgroundConfig.noConfiguration")}
                     </span>
                     <span className="text-xs text-[var(--ag-rgba-051729-45)]">
-                        This evaluator runs with default settings. You can use it directly without
-                        any additional configuration.
+                        {isEvaluator
+                            ? t("entityUi.playgroundConfig.evaluatorDefaults")
+                            : t("entityUi.playgroundConfig.revisionNoConfig")}
                     </span>
                 </div>
             </div>
@@ -420,7 +433,9 @@ function PlaygroundConfigSection({
                         <SharedEditor
                             key={`${viewMode}-${discardVersionRef.current}`}
                             editorType="border"
-                            placeholder={`Enter ${viewMode.toUpperCase()} configuration…`}
+                            placeholder={t("entityUi.playgroundConfig.enterConfiguration", {
+                                format: viewMode.toUpperCase(),
+                            })}
                             initialValue={rawEditorValue}
                             value={rawEditorValue}
                             handleChange={handleRawEditorChange}
@@ -454,7 +469,9 @@ function PlaygroundConfigSection({
                             className="flex items-center w-full px-3 py-2 bg-[var(--ag-surface-section-header)] border-0 border-b border-solid border-colorBorderSecondary sticky z-[2]"
                             style={{top: stickyHeaderTop}}
                         >
-                            <span className="capitalize font-medium text-sm">Config</span>
+                            <span className="capitalize font-medium text-sm">
+                                {t("entityUi.playgroundConfig.config")}
+                            </span>
                         </div>
                     )}
                     <MoleculeDrillInView
@@ -462,7 +479,7 @@ function PlaygroundConfigSection({
                         entityId={revisionId}
                         molecule={drillInAdapter}
                         editable={!disabled && !useServerData}
-                        rootTitle="Configuration"
+                        rootTitle={t("entityUi.playgroundConfig.configuration")}
                         showBreadcrumb={false}
                         collapsible={false}
                         slots={drillInSlots}

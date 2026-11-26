@@ -1,5 +1,7 @@
 import {useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import chatCollapsibleMessageBodyCatalog from "@agenta/i18n/catalogs/chat.collapsibleMessageBody"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {expandedValueAtomFamily, setExpandedAtom} from "../state/expandState"
@@ -42,6 +44,7 @@ export const CollapsibleMessageBody = ({
     collapsedMaxPx = COLLAPSED_MESSAGE_MAX_PX,
     className,
 }: CollapsibleMessageBodyProps) => {
+    const t = useT(chatCollapsibleMessageBodyCatalog)
     const stored = useAtomValue(expandedValueAtomFamily(stateKey))
     const setExpanded = useSetAtom(setExpandedAtom)
     const expanded = stored ?? false
@@ -96,7 +99,9 @@ export const CollapsibleMessageBody = ({
                     aria-controls={regionId}
                     className="-ml-1 mt-1 w-fit cursor-pointer rounded border-0 bg-transparent px-1 py-0.5 text-xs font-medium text-colorTextSecondary transition-colors hover:bg-colorFillQuaternary hover:text-colorText"
                 >
-                    {expanded ? "Show less" : "Show more"}
+                    {expanded
+                        ? t("chat.collapsibleMessageBody.showLess")
+                        : t("chat.collapsibleMessageBody.showMore")}
                 </button>
             )}
         </div>

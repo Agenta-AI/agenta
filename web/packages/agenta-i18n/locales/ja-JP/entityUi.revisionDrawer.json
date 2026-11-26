@@ -1,0 +1,19 @@
+{
+    "noParameters": "表示するパラメータがありません",
+    "viewForm": "フォーム",
+    "variant": "バリアント",
+    "type": "タイプ",
+    "slug": "スラッグ",
+    "deployment": "デプロイ",
+    "details": "詳細",
+    "dateCreated": "作成日",
+    "createdBy": "作成者",
+    "note": "メモ",
+    "loadError": "このリビジョンを読み込めませんでした",
+    "notAvailable": "このリビジョンは利用できなくなりました。",
+    "titleRevision": "リビジョン",
+    "titleDeployment": "デプロイ",
+    "titleEvaluator": "評価器",
+    "previousRevision": "前のリビジョン",
+    "nextRevision": "次のリビジョン"
+}

@@ -1,0 +1,9 @@
+{
+    "dataResidency": "データ所在地",
+    "dataResidencyRegion": "データ所在地リージョン",
+    "learnMore": "詳細を見る",
+    "multipleRegions": "複数のリージョンでアカウントを持つことができます。それぞれ個別の登録が必要です。",
+    "regionLabel": "{{region}} リージョン",
+    "regionsIntro": "Agenta Cloud は 2 つのリージョンで利用できます:",
+    "regionsIsolated": "リージョンは完全に分離されており、リージョン間でデータは共有されません。データ所在地の要件とレイテンシーの必要性に応じてリージョンを選んでください。"
+}

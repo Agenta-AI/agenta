@@ -20,7 +20,6 @@ import {
     looksLikeFilePath,
     driveHasMixedOrigins,
     fileOrigin,
-    type FileOrigin,
     type SessionDriveData,
 } from "@agenta/entities/drive"
 import {type MountFile} from "@agenta/entities/session"
@@ -33,6 +32,7 @@ export function useDriveTreeData({
     uploadFiles,
     expanded,
     selectedPath,
+    folderHint,
     searchActive,
     deferredSearch,
     showTemporary,
@@ -46,6 +46,8 @@ export function useDriveTreeData({
     uploadFiles: MountFile[]
     expanded: Set<string>
     selectedPath: string | null
+    /** A path known to be a folder; beats the name guess (`v1.2/` is a folder). */
+    folderHint?: string | null
     searchActive: boolean
     deferredSearch: string
     /** "Show temporary files" — the session-scoped files beside the `agent-files/` mount. */
@@ -63,7 +65,7 @@ export function useDriveTreeData({
             ? false
             : knownKind?.path === selectedPath
               ? knownKind.isFolder
-              : !looksLikeFilePath(selectedPath)
+              : selectedPath === folderHint || !looksLikeFilePath(selectedPath)
     // Directories to keep loaded: the root, every expanded folder, and the OPEN folder — which stays
     // subscribed even when its tree row is collapsed, since the content pane is still showing it. A
     // selected FILE needs no directory; its preview reads by path.
@@ -94,20 +96,24 @@ export function useDriveTreeData({
             return name === ".gitignore" && ancestors.has(dir)
         })
     }, [lazyTree.files, selectedPath])
-    // Read off the loaded listing, not the recents; a single-origin drive never filters.
+    // Read off the loaded listing, not the recents; a single-origin drive never filters. A home
+    // drive shown at the root (no session folder) holds no session file at all.
     const showOrigin = useMemo(
-        () => driveHasMixedOrigins(explicitFiles ?? lazyTree.files),
-        [explicitFiles, lazyTree.files],
+        () =>
+            !drive.homeAtRoot &&
+            driveHasMixedOrigins(explicitFiles ?? lazyTree.files, drive.otherDrives),
+        [explicitFiles, lazyTree.files, drive.otherDrives, drive.homeAtRoot],
     )
     // "Show temporary files" is the origin filter: session-scoped files are the temporary ones.
-    const originFilter: "all" | FileOrigin = showOrigin && !showTemporary ? "agent" : "all"
+    const hideTemporary = showOrigin && !showTemporary
     const originFiltered = useMemo(() => {
         // Local-file mode: the explicit list is the whole tree; the mount's lazy files are ignored.
         let files = explicitFiles ?? lazyTree.files
-        if (originFilter !== "all") files = files.filter((f) => fileOrigin(f.path) === originFilter)
+        if (hideTemporary)
+            files = files.filter((f) => fileOrigin(f.path, drive.otherDrives) !== "session")
         if (!showHidden) files = files.filter((f) => !isHiddenPath(f.path))
         return files
-    }, [explicitFiles, lazyTree.files, originFilter, showHidden])
+    }, [explicitFiles, lazyTree.files, hideTemporary, showHidden, drive.otherDrives])
     // Listed files first: an upload whose file has landed yields to the real entry (one path, one
     // node — the tile keeps its slot).
     const tree = useMemo(

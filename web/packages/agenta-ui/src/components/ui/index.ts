@@ -45,6 +45,7 @@ export {
     type TooltipShortcut,
 } from "./tooltip"
 export {Kbd, KbdGroup, kbdVariants, type KbdProps} from "./kbd"
+export {CollapseCaret, type CollapseCaretProps} from "./collapse-caret"
 export {CarouselDots, type CarouselDotsProps} from "./carousel-dots"
 export {SimpleTooltip, type SimpleTooltipProps} from "./tooltip-composed"
 export {RadioGroup, RadioGroupItem, type RadioGroupProps} from "./radio-group"
@@ -196,7 +197,6 @@ export {
     type AvatarProps,
     type AvatarBoxProps,
     type AvatarSize,
-    type AvatarShape,
 } from "./avatar"
 export {
     Empty,
@@ -233,6 +233,7 @@ export {DatePicker, type DatePickerProps} from "./date-picker"
 export {DateTimePicker, type DateTimePickerProps} from "./date-time-picker"
 export {TimePicker, type TimePickerProps} from "./time-picker"
 export {
+    PHONE_TOUCH_TARGET_CLASS,
     touchTargetExpansion,
     touchTargetHeight,
     touchTargetHitArea,

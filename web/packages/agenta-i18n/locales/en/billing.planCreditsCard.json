@@ -1,0 +1,9 @@
+{
+    "credits": "credits",
+    "creditsLeft": "Credits left",
+    "everyCredit": "Every credit your organization can spend right now.",
+    "monthlyCreditsLeft": "Monthly credits left",
+    "ofTotal": "of {{total}}",
+    "resetsAndBalance": "Resets {{date}} · total balance {{balance}} credits",
+    "totalBalance": "total balance {{balance}} credits"
+}

@@ -7,7 +7,6 @@ import {useRouter} from "next/router"
 import {postAuthBootAtom} from "@/features/app/postAuthBoot"
 import {markOnboardingPending} from "@/features/onboarding/onboardingPending"
 import {writeLastAuthEmail, writeLastAuthMethod} from "@/lib/auth"
-import {isOnboardingFlowEnabled} from "@/lib/env"
 import {queryClient} from "@/lib/queryClient"
 
 export interface AuthSuccess {
@@ -19,13 +18,16 @@ export interface AuthSuccess {
     isNewUser: boolean
 }
 
-/** A new account owes onboarding; the mark is keyed by the Agenta user id the app reads later. */
+/**
+ * A new account owes onboarding; the mark is keyed by the Agenta user id the app reads later.
+ * When the profile cannot load yet, an unowned mark stands in until Home reads the user.
+ */
 const markNewAccount = async () => {
     const user = await queryClient
         // Reuses the profile the sign-in just refetched; an invalidated one is still fetched.
         .fetchQuery({queryKey: ["profile"], queryFn: fetchProfile, staleTime: 30_000})
         .catch(() => null)
-    if (user) markOnboardingPending(user.id)
+    markOnboardingPending(user?.id ?? null)
 }
 
 /** Every successful sign-in: remember the method, raise the loader, refetch, go home. */
@@ -42,7 +44,7 @@ export function useAuthSuccess() {
                     queryClient.invalidateQueries({queryKey: ["profile"]}),
                     queryClient.invalidateQueries({queryKey: ["mobile", "projects"]}),
                 ])
-                if (isNewUser && isOnboardingFlowEnabled()) await markNewAccount()
+                if (isNewUser) await markNewAccount()
                 await router.replace("/")
             } catch (error) {
                 startBoot(null)

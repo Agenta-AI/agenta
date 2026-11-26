@@ -1657,7 +1657,7 @@ export class OrganizationsClient {
     }
 
     /**
-     * Create a new workspace in an organization (owner only).
+     * Workspaces were removed (workspace removal step 2): always 410.
      *
      * @param {AgentaApi.CreateWorkspace} request
      * @param {OrganizationsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -1737,7 +1737,8 @@ export class OrganizationsClient {
     }
 
     /**
-     * Update a workspace's details (requires EDIT_WORKSPACE permission).
+     * Workspaces were removed (workspace removal step 2): always 410, and the name
+     * stays.
      *
      * @param {AgentaApi.UpdateWorkspace} request
      * @param {OrganizationsClient.RequestOptions} requestOptions - Request-specific configuration.

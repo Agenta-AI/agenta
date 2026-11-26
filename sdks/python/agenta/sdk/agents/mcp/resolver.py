@@ -55,7 +55,12 @@ def _gateway_mcp_route(
         return f"{base}/custom/{name}"
     if connection.namespace == "custom":
         assert connection.slug is not None
-        return f"{base}/custom/{connection.slug}"
+        route = f"{base}/custom/{connection.slug}"
+        # A "user" item: the run person's own sign-in to this project server, which the
+        # gateway reads from the run's claim. Without the marker, the request is "agent".
+        if connection.account_source == "user":
+            return f"{route}?account_source=user"
+        return route
     assert connection.provider is not None
     if connection.namespace == "builtin":
         # Agenta's builtin is the run-scoped bridge to the callback tools already

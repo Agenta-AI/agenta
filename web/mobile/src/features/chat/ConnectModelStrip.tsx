@@ -2,11 +2,15 @@ import {useState} from "react"
 
 import {RevealCollapse} from "@agenta/chat/components"
 import type {AgentModelKeyStatus} from "@agenta/chat/hooks"
-import {providerConnectionsAtom, useVaultSecret} from "@agenta/entities/secret"
-import {ProviderDrawer} from "@agenta/entity-ui/secretProvider"
+import {providerAddView} from "@agenta/entity-ui/secretProvider"
+import {useT} from "@agenta/i18n"
+import chatMobileComposerCatalog from "@agenta/i18n/catalogs/chat.mobileComposer"
 import {Button} from "@agenta/ui/ui"
-import {useAtomValue} from "jotai"
+import {ViewDrawerHost} from "@agenta/ui/view-stack"
 import {Lock} from "lucide-react"
+
+/** "Add a provider or subscription" in a drawer; a picked provider's form takes its place. */
+const ADD_PROVIDER_REQUEST = {view: providerAddView, params: {}, target: {kind: "project"}} as const
 
 /**
  * Mobile skin of the desktop `ConnectModelBanner` — the set-up-your-key prompt above the composer
@@ -19,8 +23,9 @@ import {Lock} from "lucide-react"
  * raw backend reason and nothing to click. The vault lived only in Settings, which a new user has
  * no reason to open.
  *
- * The button opens the shared model-providers drawer at its catalog, matching desktop and Settings.
- * The user chooses the provider instead of being sent directly to the current model's key form.
+ * The button opens "Add a provider or subscription" in a drawer, the same view as Settings and the
+ * panel. The user chooses the provider instead of being sent directly to the current model's key
+ * form; the form checks the key by itself.
  *
  * Always mounted so it can animate IN (gate activates) and OUT (key saved) through `RevealCollapse`
  * — the shared composer-chrome idiom this app already uses for the mic notice — instead of
@@ -28,9 +33,8 @@ import {Lock} from "lucide-react"
  * is exactly what happens when the key lands.
  */
 export const ConnectModelStrip = ({gateActive}: Pick<AgentModelKeyStatus, "gateActive">) => {
+    const t = useT(chatMobileComposerCatalog)
     const [open, setOpen] = useState(false)
-    const connections = useAtomValue(providerConnectionsAtom)
-    const {mutate} = useVaultSecret()
 
     return (
         <>
@@ -38,22 +42,22 @@ export const ConnectModelStrip = ({gateActive}: Pick<AgentModelKeyStatus, "gateA
                 <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-solid border-colorWarning/30 bg-colorWarningBg px-3 py-2">
                     <span className="flex min-w-0 items-center gap-2 text-xs text-colorWarningText">
                         <Lock className="size-3.5 shrink-0" />
-                        <span className="truncate">
-                            Add your model provider key to run this agent.
-                        </span>
+                        <span className="truncate">{t("chat.mobileComposer.addProviderKey")}</span>
                     </span>
-                    <Button size="sm" className="shrink-0" onClick={() => setOpen(true)}>
-                        Set up model providers
+                    <Button
+                        size="sm"
+                        // A phone: 44 px high itself, into the strip's padding. Not an after area:
+                        // the reveal around the strip clips its overflow.
+                        className="shrink-0 max-md:-my-2 max-md:min-h-11"
+                        onClick={() => setOpen(true)}
+                    >
+                        {t("chat.mobileComposer.setUpProviders")}
                     </Button>
                 </div>
             </RevealCollapse>
-            <ProviderDrawer
-                open={open}
-                onClose={() => setOpen(false)}
-                context="playground"
-                connections={connections}
-                onSaved={mutate}
-            />
+            {open ? (
+                <ViewDrawerHost request={ADD_PROVIDER_REQUEST} onClosed={() => setOpen(false)} />
+            ) : null}
         </>
     )
 }

@@ -20,6 +20,8 @@ import {projectIdAtom} from "@agenta/shared/state"
 import type {UIMessage} from "ai"
 import {getDefaultStore} from "jotai"
 
+import {childUpdateOfRecord, type ChildUpdate} from "./childUpdate"
+
 /**
  * Replay adapter — durable session-record `AgentEvent`s → v6 `UIMessage[]`.
  *
@@ -105,6 +107,8 @@ interface DraftMessage {
     pausedExecutionId?: string
     /** The record's `turn_id`. Emitted on USER rows only, so a client can recognise its own send. */
     executionId?: string
+    /** When the server saved a user row: the run it opens started then, before any agent output. */
+    createdAt?: number
     /** The turn's persisted `error` event — replayed through the same `metadata.runError` channel
      *  the live stream stamps, so a failure renders as the error bubble, not as body text. */
     runError?: string
@@ -112,6 +116,8 @@ interface DraftMessage {
     runErrorCode?: string
     /** The terminal `done` carried `stopReason:"cancelled"` — a user Stop, not a failure. */
     runStopped?: boolean
+    /** A user row whose turn a child update started: the server part its record carries. */
+    childUpdate?: ChildUpdate
 }
 
 interface TranscriptIndex {
@@ -608,6 +614,15 @@ function applyEvent(
                     },
                 })
             }
+            // The server preview of an agent write rides the same event: the card shows its old
+            // and new values from the records the durable send path renders.
+            if (reqPayload.preview !== undefined) {
+                draft.parts.push({
+                    type: "data-approval-preview",
+                    id: `${toolCallId}:preview`,
+                    data: {toolCallId, approvalId: str(payload.id), preview: reqPayload.preview},
+                })
+            }
             return
         }
         case "interaction_response": {
@@ -648,6 +663,19 @@ function applyEvent(
                 mediaType: str(payload.mediaType),
                 filename: str(payload.filename) || undefined,
             })
+            return
+        }
+        case "data": {
+            // The runner's mark of a call the person's approval choice ran with no card. The
+            // live stream projects the same event as a `data-auto-approved` part; replay rebuilds
+            // it so the call keeps its approved-automatically row (design D32).
+            if (
+                payload.name === "auto-approved" &&
+                payload.data &&
+                typeof payload.data === "object"
+            ) {
+                draft.parts.push({type: "data-auto-approved", data: payload.data})
+            }
             return
         }
         case "mcp_server_failed": {
@@ -770,12 +798,19 @@ export function transcriptToMessages(
                 ) {
                     target.approvalContinuation.state = "done"
                 }
+                // A Steer's own cancel is the user's reply replacing the run, not a Stop: no label,
+                // and no empty carrier row to hold one.
+                const steered = p.cancelledBy === "steer"
+                if (steered && current?.role !== "assistant") {
+                    current = null
+                    continue
+                }
                 // Keep a carrier so a content-free cancellation can still render Stopped.
                 if (!current || current.role !== "assistant") {
                     current = newDraft(row.id, "assistant")
                     drafts.push(current)
                 }
-                current.runStopped = true
+                if (!steered) current.runStopped = true
                 current.paused = false
                 for (const part of current.parts) {
                     if (part.state === "approval-requested") part.state = "output-denied"
@@ -833,7 +868,15 @@ export function transcriptToMessages(
             current = newDraft(row.id, role)
             drafts.push(current)
         }
+        if (role === "user" && current.createdAt === undefined && row.created_at) {
+            const at = Date.parse(row.created_at)
+            if (Number.isFinite(at)) current.createdAt = at
+        }
         if (traceId && !current.traceId) current.traceId = traceId
+        if (role === "user") {
+            const childUpdate = childUpdateOfRecord(row)
+            if (childUpdate) current.childUpdate = childUpdate
+        }
         applyEvent(current, p, index, row.session_id, row.project_id)
         if (
             p.type === "error" &&
@@ -892,6 +935,8 @@ export function transcriptToMessages(
             // User rows only: an assistant `turnId` is the live stream's Stop guard, and minting
             // one here from records would change what `latestTurnId` reports.
             if (d.role === "user" && d.executionId) metadata.turnId = d.executionId
+            if (d.role === "user" && d.createdAt !== undefined) metadata.createdAt = d.createdAt
+            if (d.role === "user" && d.childUpdate) metadata.childUpdate = d.childUpdate
             if (d.runError && !d.runStopped)
                 metadata.runError = {
                     message: d.runError,

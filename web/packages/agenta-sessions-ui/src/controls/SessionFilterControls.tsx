@@ -1,5 +1,7 @@
 import {useEffect, useRef, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import sessionsFiltersCatalog from "@agenta/i18n/catalogs/sessions.filters"
 import {useSessionFilters, type SessionStatusFilter} from "@agenta/sessions/state"
 import {
     SearchInput,
@@ -21,12 +23,13 @@ import {Tip} from "../assets/Tip"
 const SEARCH_DEBOUNCE_MS = 300
 
 export const SessionSearchControl = ({
-    placeholder = "Search sessions",
+    placeholder,
     className,
 }: {
     placeholder?: string
     className?: string
 }) => {
+    const t = useT(sessionsFiltersCatalog)
     const {search, setSearch} = useSessionFilters()
     const [draft, setDraft] = useState(search)
     const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -59,7 +62,7 @@ export const SessionSearchControl = ({
         <SearchInput
             allowClear
             value={draft}
-            placeholder={placeholder}
+            placeholder={placeholder ?? t("sessions.filters.searchSessions")}
             className={className}
             prefix={<MagnifyingGlassIcon size={14} className="text-colorTextTertiary" />}
             onChange={(event) => {
@@ -80,6 +83,7 @@ export const SessionSearchControl = ({
 
 /** The status choice, sized for a toolbar row: three exclusive options on one line. */
 export const SessionStatusControl = ({waitingCount}: {waitingCount?: number}) => {
+    const t = useT(sessionsFiltersCatalog)
     const {status, setStatus} = useSessionFilters()
     return (
         <Segmented
@@ -89,29 +93,46 @@ export const SessionStatusControl = ({waitingCount}: {waitingCount?: number}) =>
             // toolbar the track and its thumb both disappear.
             className="bg-colorFillTertiary"
             options={[
-                {value: "all", label: "All"},
-                {value: "live", label: "Live"},
+                {value: "all", label: t("sessions.filters.all")},
+                {value: "live", label: t("sessions.filters.live")},
                 // The count rides in the label — a toolbar has no room for a separate badge.
-                {value: "waiting", label: waitingCount ? `Waiting ${waitingCount}` : "Waiting"},
+                {
+                    value: "waiting",
+                    label: waitingCount
+                        ? t("sessions.filters.waitingCount", {count: waitingCount})
+                        : t("sessions.filters.waiting"),
+                },
             ]}
         />
     )
 }
 
-const STATUSES: {value: SessionStatusFilter; label: string}[] = [
-    {value: "all", label: "All sessions"},
-    {value: "live", label: "Live"},
-    {value: "waiting", label: "Waiting on you"},
+const statusOptions = (
+    t: (
+        key:
+            | "sessions.filters.allSessions"
+            | "sessions.filters.live"
+            | "sessions.filters.waitingOnYou",
+    ) => string,
+): {value: SessionStatusFilter; label: string}[] => [
+    {value: "all", label: t("sessions.filters.allSessions")},
+    {value: "live", label: t("sessions.filters.live")},
+    {value: "waiting", label: t("sessions.filters.waitingOnYou")},
 ]
 
 /** The status choice as a list, for a rail or a mobile sheet; the toolbar uses
  * {@link SessionStatusControl}. */
 export const SessionStatusListControl = ({waitingCount}: {waitingCount?: number}) => {
+    const t = useT(sessionsFiltersCatalog)
     const {status, setStatus} = useSessionFilters()
     return (
         // Styling alone doesn't reach AT: the group is named, and each option states its state.
-        <div className="flex flex-col gap-0.5" role="group" aria-label="Filter sessions by status">
-            {STATUSES.map((option) => (
+        <div
+            className="flex flex-col gap-0.5"
+            role="group"
+            aria-label={t("sessions.filters.filterByStatus")}
+        >
+            {statusOptions(t).map((option) => (
                 <button
                     key={option.value}
                     type="button"
@@ -146,16 +167,17 @@ export const SessionStatusChipsControl = ({
     waitingCount?: number
     className?: string
 }) => {
+    const t = useT(sessionsFiltersCatalog)
     const {status, setStatus} = useSessionFilters()
     return (
         <div
             role="group"
-            aria-label="Filter sessions by status"
+            aria-label={t("sessions.filters.filterByStatus")}
             className={`flex gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
                 className ?? ""
             }`}
         >
-            {STATUSES.map((option) => (
+            {statusOptions(t).map((option) => (
                 <button
                     key={option.value}
                     type="button"
@@ -183,6 +205,7 @@ const ALL_AGENTS = "__all__"
 
 /** The agent picker on the kit Select; the roster comes from the host (each app resolves it). */
 export const SessionAgentControl = ({agents}: {agents: {id: string; name: string}[]}) => {
+    const t = useT(sessionsFiltersCatalog)
     const {agentId, setAgentId} = useSessionFilters()
     return (
         <Select
@@ -190,10 +213,10 @@ export const SessionAgentControl = ({agents}: {agents: {id: string; name: string
             onValueChange={(value) => setAgentId(value === ALL_AGENTS ? null : value)}
         >
             <SelectTrigger className="w-full">
-                <SelectValue placeholder="All agents" />
+                <SelectValue placeholder={t("sessions.filters.allAgents")} />
             </SelectTrigger>
             <SelectContent>
-                <SelectItem value={ALL_AGENTS}>All agents</SelectItem>
+                <SelectItem value={ALL_AGENTS}>{t("sessions.filters.allAgents")}</SelectItem>
                 {agents.map((agent) => (
                     <SelectItem key={agent.id} value={agent.id}>
                         {agent.name}
@@ -234,30 +257,32 @@ const ToggleRow = ({
 
 /** Picks WHICH sessions: automation runs INSTEAD of the ones you started. */
 export const SessionModeControl = ({size}: {size?: SessionToggleSize}) => {
+    const t = useT(sessionsFiltersCatalog)
     const {mode, setMode} = useSessionFilters()
     return (
         <ToggleRow
             checked={mode}
             onChange={setMode}
             size={size}
-            tooltip="Runs started by an automation, instead of the sessions you started"
+            tooltip={t("sessions.filters.automationRunsTooltip")}
         >
-            Automation runs
+            {t("sessions.filters.automationRuns")}
         </ToggleRow>
     )
 }
 
 /** Widens the set: archived sessions are hidden but recoverable. */
 export const SessionArchivedControl = ({size}: {size?: SessionToggleSize}) => {
+    const t = useT(sessionsFiltersCatalog)
     const {includeArchived, setIncludeArchived} = useSessionFilters()
     return (
         <ToggleRow
             checked={includeArchived}
             onChange={setIncludeArchived}
             size={size}
-            tooltip="Archived sessions are hidden but recoverable"
+            tooltip={t("sessions.filters.archivedTooltip")}
         >
-            Archived
+            {t("sessions.filters.archived")}
         </ToggleRow>
     )
 }

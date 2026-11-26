@@ -69,12 +69,18 @@ describe("groupByOrganization", () => {
 
         expect(groups).toHaveLength(2)
         expect(groups[0].projects.map((p) => p.project_id)).toEqual(["p1", "p3"])
-        // The org row enters its FIRST workspace; each project row carries its own.
-        expect(groups[0].workspaceId).toBe("ws-a")
+        // Workspace removal step 2: the org row routes under the organization id.
+        expect(groups[0].workspaceId).toBe("o1")
+        expect(groups[0].projects.map((p) => p.workspace_id)).toEqual(["o1", "o1"])
     })
 
-    it("drops a project with no workspace — it cannot be routed to", () => {
-        expect(groupByOrganization([orgProject("orphan", "o1", "Acme", null)])).toHaveLength(0)
+    it("routes a project with no workspace by its organization id", () => {
+        const groups = groupByOrganization([orgProject("p1", "o1", "Acme", null)])
+        expect(groups.map((g) => g.workspaceId)).toEqual(["o1"])
+    })
+
+    it("drops a project with neither an organization nor a workspace", () => {
+        expect(groupByOrganization([orgProject("orphan", null, null, null)])).toHaveLength(0)
     })
 
     it("keeps an org-less project, keyed by its workspace", () => {

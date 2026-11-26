@@ -5,6 +5,7 @@ import {
     reconcileInteractionRowStates,
     type SessionTranscript,
 } from "@agenta/chat/assets"
+import {refreshSessionTurnsOnTurnEndAtom} from "@agenta/chat/state"
 import {
     fetchSessionInteractionStatesAtom,
     interactionStatesFromWatchEvent,
@@ -171,7 +172,14 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
         getDefaultStore().set(revalidateSessionRecordsAtom, sessionId)
         void adoptTranscriptRead(
             () => loadSessionMessages(sessionId),
-            (transcript) => adoptRef.current(transcript),
+            (transcript) => {
+                // Only an ended turn reads the session turns (the footer's figures).
+                getDefaultStore().set(refreshSessionTurnsOnTurnEndAtom, {
+                    sessionId,
+                    messages: transcript.messages,
+                })
+                return adoptRef.current(transcript)
+            },
         ).finally(() => {
             inFlightRef.current = false
             if (pendingRef.current) {

@@ -9,6 +9,9 @@ import {
     itemCountLabel,
     relativeTime,
 } from "@agenta/entities/drive"
+import {createT, useT, type CatalogKey} from "@agenta/i18n"
+import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
+import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
 import {DownloadSimple} from "@phosphor-icons/react"
@@ -17,12 +20,18 @@ import {DriveItemContextMenu, type DriveItemWriteActions} from "./DriveItemConte
 import {DriveNameField, type DriveNameEdit} from "./DriveNameField"
 import {DriveFolderGlyph, DriveTypeMark} from "./DriveTypeMark"
 
-const COLUMNS: ListTableColumn[] = [
-    {key: "name", label: "Name", width: "minmax(180px,2fr)"},
-    {key: "type", label: "Type", width: "92px"},
-    {key: "size", label: "Size", width: "84px"},
-    {key: "modified", label: "Modified", width: "92px"},
-    {key: "download", label: "Download", srOnly: true, width: "28px"},
+// The row renderer is a memoized callback; it reads the language when a row renders.
+const tNow = createT(driveExplorerCatalog, driveBrowserCatalog)
+
+/** The list's columns; labels translate when the list renders. */
+const columnsFor = (
+    t: (key: CatalogKey<typeof driveExplorerCatalog | typeof driveBrowserCatalog>) => string,
+): ListTableColumn[] => [
+    {key: "name", label: t("entityUi.driveBrowser.columnName"), width: "minmax(180px,2fr)"},
+    {key: "type", label: t("entityUi.driveBrowser.columnType"), width: "92px"},
+    {key: "size", label: t("entityUi.driveBrowser.columnSize"), width: "84px"},
+    {key: "modified", label: t("entityUi.driveBrowser.columnModified"), width: "92px"},
+    {key: "download", label: t("entityUi.driveExplorer.download"), srOnly: true, width: "28px"},
 ]
 
 export const FolderList = ({
@@ -42,6 +51,7 @@ export const FolderList = ({
     writes?: DriveItemWriteActions
     editing?: DriveNameEdit | null
 }) => {
+    const t = useT(driveExplorerCatalog, driveBrowserCatalog)
     const groups = useMemo(() => [{key: "all", label: null, rows: nodes}], [nodes])
     const renderRow = useCallback(
         (n: DriveTreeNode) => {
@@ -75,7 +85,7 @@ export const FolderList = ({
                         )}
                     </span>
                     <span className="truncate text-xs text-colorTextSecondary">
-                        {n.isFolder ? "Folder" : fileTypeLabel(n.path)}
+                        {n.isFolder ? tNow("entityUi.driveBrowser.folder") : fileTypeLabel(n.path)}
                     </span>
                     <span className="text-xs tabular-nums text-colorTextSecondary">
                         {n.isFolder
@@ -88,7 +98,11 @@ export const FolderList = ({
                     <Button
                         variant="ghost"
                         size="icon-sm"
-                        aria-label={n.isFolder ? "Download as zip" : "Download"}
+                        aria-label={
+                            n.isFolder
+                                ? tNow("entityUi.driveExplorer.downloadAsZip")
+                                : tNow("entityUi.driveExplorer.download")
+                        }
                         onClick={(e) => {
                             e.stopPropagation()
                             onDownload(n.path, n.isFolder)
@@ -139,7 +153,7 @@ export const FolderList = ({
         <div className="flex min-h-0 flex-1 flex-col pt-2">
             <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6" onKeyDown={onKeyDown}>
                 <ListTable
-                    columns={COLUMNS}
+                    columns={columnsFor(t)}
                     groups={groups}
                     rowKey={(n) => n.path}
                     renderRow={renderRow}

@@ -1,5 +1,5 @@
 diff --git a/dist/index.js b/dist/index.js
-index 2e731a0eccb370a29e4a8328e87dd661115d2649..f6329aae80651e0102ade2d3738112d70487364c 100755
+index 2e731a0eccb370a29e4a8328e87dd661115d2649..acf91ac81e77c041996c9c97ef832baacb291ac8 100755
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -2,54 +2,26 @@
@@ -885,6 +885,14 @@ index 2e731a0eccb370a29e4a8328e87dd661115d2649..f6329aae80651e0102ade2d3738112d7
      const { configOptions, models, modes } = await getSessionConfiguration(proc);
      const response = {
        configOptions,
+@@ -2548,6 +1771,7 @@ function compareSemver(a, b) {
+   return 0;
+ }
+ function buildUpdateNotice() {
++  if (process.env.PI_ACP_CHECK_FOR_UPDATES !== "true") return null;
+   try {
+     const piVersion = spawnSync("pi", ["--version"], { encoding: "utf-8" });
+     const installed = (String(piVersion.stdout ?? "").trim() || String(piVersion.stderr ?? "").trim()).replace(
 diff --git a/dist/session.d.ts b/dist/session.d.ts
 new file mode 100644
 index 0000000000000000000000000000000000000000..fa30e59696b3524fc28c0b2e1c3d28b548f282df

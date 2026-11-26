@@ -46,7 +46,8 @@ interface TokenPathSuggestionsContextValue {
 const TokenPathSuggestionsContext = createContext<TokenPathSuggestionsContextValue | null>(null)
 
 export interface TokenPathSuggestionsProviderProps {
-    getSuggestions: TokenPathSuggestionsGetter
+    /** `null` provides nothing: the editors below fall back as if no provider were mounted. */
+    getSuggestions: TokenPathSuggestionsGetter | null
     /** Optional subset of envelope slots to show at depth 0. */
     allowedEnvelopeSlots?: readonly string[]
     children: ReactNode
@@ -63,8 +64,8 @@ export function TokenPathSuggestionsProvider({
     allowedEnvelopeSlots,
     children,
 }: TokenPathSuggestionsProviderProps): ReactElement {
-    const value = useMemo<TokenPathSuggestionsContextValue>(
-        () => ({getSuggestions, allowedEnvelopeSlots}),
+    const value = useMemo<TokenPathSuggestionsContextValue | null>(
+        () => (getSuggestions ? {getSuggestions, allowedEnvelopeSlots} : null),
         [getSuggestions, allowedEnvelopeSlots],
     )
     return (

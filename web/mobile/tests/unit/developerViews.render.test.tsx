@@ -1,0 +1,198 @@
+// @vitest-environment jsdom
+import {act, type ReactNode} from "react"
+
+import {NavMenu} from "@agenta/navigation-ui"
+import {activeUserIdAtom} from "@agenta/shared/state"
+import {createStore, Provider} from "jotai"
+import {createRoot, type Root} from "react-dom/client"
+import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
+
+import {developerNavItems} from "@/features/developer/developerNavItems"
+import {DEVELOPER_VIEWS_ENV} from "@/features/developer/developerViewAccess"
+import {DeveloperViewGate} from "@/features/developer/DeveloperViewGate"
+import type {DeveloperView} from "@/features/developer/developerViews"
+import PlaygroundPage from "@/pages/w/[workspace_id]/p/[project_id]/apps/[app_id]/playground"
+
+import {TEST_DEVELOPER_VIEWS} from "./developerViewFixtures"
+
+vi.mock("@/features/developer/developerViews", async () => ({
+    DEVELOPER_VIEWS: (await import("./developerViewFixtures")).TEST_DEVELOPER_VIEWS,
+}))
+
+vi.mock("next/router", () => ({
+    useRouter: () => ({
+        asPath: "/w/ws/p/pr/lab-one",
+        back: vi.fn(),
+        query: {workspace_id: "ws", project_id: "pr", app_id: "app-1"},
+    }),
+}))
+
+// Counts how many times the playground screen module loads. A hidden view must load none.
+const playgroundScreenLoads = vi.hoisted(() => ({count: 0}))
+
+vi.mock("@/features/playground/PlaygroundScreen", () => {
+    playgroundScreenLoads.count += 1
+    return {PlaygroundScreen: () => <p data-testid="playground-screen" />}
+})
+
+vi.mock("@/features/playground/states/PlaygroundSkeleton", () => ({
+    PlaygroundSkeleton: () => <p data-testid="playground-skeleton" />,
+}))
+
+vi.mock("@/features/nav/AppShell", () => ({
+    AppShell: ({children}: {children: ReactNode}) => <>{children}</>,
+}))
+
+// The prop the rail must pass is invisible in the DOM: expose it.
+vi.mock("next/link", () => ({
+    default: ({
+        href,
+        prefetch,
+        children,
+        ...props
+    }: {
+        href: string
+        prefetch?: boolean
+        children?: ReactNode
+    }) => (
+        <a href={href} data-prefetch={String(prefetch)} {...props}>
+            {children}
+        </a>
+    ),
+}))
+
+vi.mock("@agenta/auth-ui", () => ({
+    NotFoundScreen: ({path}: {path?: string}) => <p data-testid="not-found">{path}</p>,
+}))
+;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
+    true
+
+const PROJECT = "/w/ws/p/pr"
+
+describe("developer views", () => {
+    let root: Root
+    let host: HTMLDivElement
+    let store: ReturnType<typeof createStore>
+
+    const render = (node: ReactNode) =>
+        act(() => root.render(<Provider store={store}>{node}</Provider>))
+
+    beforeEach(() => {
+        host = document.createElement("div")
+        document.body.append(host)
+        root = createRoot(host)
+        store = createStore()
+        store.set(activeUserIdAtom, "u1")
+    })
+
+    afterEach(() => {
+        act(() => root.unmount())
+        host.remove()
+        vi.unstubAllEnvs()
+    })
+
+    describe("nav section", () => {
+        it("adds nothing when no view is enabled, or only a feature gate with no route", () => {
+            expect(developerNavItems(PROJECT, [])).toEqual([])
+            const gate = TEST_DEVELOPER_VIEWS.find((view) => view.id === "lab-gate")!
+            expect(developerNavItems(PROJECT, [gate])).toEqual([])
+        })
+
+        it("renders a Developer section whose links turn off prefetch", () => {
+            const [one] = TEST_DEVELOPER_VIEWS
+            render(
+                <NavMenu
+                    items={developerNavItems(PROJECT, [one])}
+                    collapsed={false}
+                    mode="inline"
+                />,
+            )
+            expect(host.textContent).toContain("Developer")
+            const links = Array.from(host.querySelectorAll("a"))
+            expect(links.map((link) => link.getAttribute("href"))).toEqual([`${PROJECT}/lab-one`])
+            expect(links.map((link) => link.dataset.prefetch)).toEqual(["false"])
+        })
+    })
+
+    describe("DeveloperViewGate", () => {
+        const view = <p data-testid="view">view</p>
+
+        it("renders nothing until the signed-in user is known", () => {
+            store.set(activeUserIdAtom, null)
+            vi.stubEnv(DEVELOPER_VIEWS_ENV, "lab-one")
+            render(<DeveloperViewGate viewId="lab-one">{view}</DeveloperViewGate>)
+            expect(host.innerHTML).toBe("")
+        })
+
+        it("renders the view when the deployment forces it on", () => {
+            vi.stubEnv(DEVELOPER_VIEWS_ENV, "lab-one")
+            render(<DeveloperViewGate viewId="lab-one">{view}</DeveloperViewGate>)
+            expect(host.querySelector("[data-testid=view]")).not.toBeNull()
+        })
+
+        it("renders not found for a view that is off, and for an unknown id", () => {
+            render(<DeveloperViewGate viewId="lab-one">{view}</DeveloperViewGate>)
+            expect(host.querySelector("[data-testid=view]")).toBeNull()
+            expect(host.querySelector("[data-testid=not-found]")?.textContent).toBe(
+                `${PROJECT}/lab-one`,
+            )
+            render(<DeveloperViewGate viewId="nope">{view}</DeveloperViewGate>)
+            expect(host.querySelector("[data-testid=not-found]")).not.toBeNull()
+        })
+    })
+
+    describe("endpoints view", () => {
+        it("Endpoints is a page at /endpoints", async () => {
+            const actual = await vi.importActual<{DEVELOPER_VIEWS: readonly DeveloperView[]}>(
+                "@/features/developer/developerViews",
+            )
+            const endpoints = actual.DEVELOPER_VIEWS.find((view) => view.id === "endpoints")
+            expect(endpoints).toBeDefined()
+            expect(endpoints!.routes?.[0]).toBe("/endpoints")
+        })
+    })
+
+    describe("playground view", () => {
+        it("Playground is a page with no nav link", async () => {
+            const actual = await vi.importActual<{DEVELOPER_VIEWS: readonly DeveloperView[]}>(
+                "@/features/developer/developerViews",
+            )
+            const playground = actual.DEVELOPER_VIEWS.find((view) => view.id === "playground")
+            expect(playground).toBeDefined()
+            expect(playground!.nav).toBeUndefined()
+            expect(playground!.routes?.[0]).toBe("/apps/[app_id]/playground")
+        })
+
+        it("A playground view that is off loads no screen code", () => {
+            render(<PlaygroundPage />)
+            expect(host.querySelector("[data-testid=not-found]")).not.toBeNull()
+            expect(host.querySelector("[data-testid=playground-screen]")).toBeNull()
+            expect(playgroundScreenLoads.count).toBe(0)
+        })
+    })
+
+    describe("evaluations view", () => {
+        it("Evaluations cover the runs list and the results page", async () => {
+            const actual = await vi.importActual<{DEVELOPER_VIEWS: readonly DeveloperView[]}>(
+                "@/features/developer/developerViews",
+            )
+            const evaluations = actual.DEVELOPER_VIEWS.find((view) => view.id === "evaluations")
+            expect(evaluations).toBeDefined()
+            expect(evaluations!.routes).toEqual([
+                "/evaluations",
+                "/evaluations/results/[evaluation_id]",
+            ])
+        })
+    })
+
+    describe("evaluators view", () => {
+        it("Evaluators cover the list and the archived list", async () => {
+            const actual = await vi.importActual<{DEVELOPER_VIEWS: readonly DeveloperView[]}>(
+                "@/features/developer/developerViews",
+            )
+            const evaluators = actual.DEVELOPER_VIEWS.find((view) => view.id === "evaluators")
+            expect(evaluators).toBeDefined()
+            expect(evaluators!.routes).toEqual(["/evaluators", "/evaluators/archived"])
+        })
+    })
+})

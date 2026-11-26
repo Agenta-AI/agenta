@@ -164,6 +164,8 @@ const CORE: Row[] = [
     ["colorErrorActive", palette.semantic.errorActive],
     ["colorErrorBorder", palette.semantic.errorBorder],
     ["colorInfo", palette.semantic.info],
+    ["colorSelection", palette.semantic.selection],
+    ["colorSelectionBg", palette.semantic.selectionBg],
     ["colorInfoBorder", palette.semantic.infoBorder],
     ["colorPrimaryBorder", palette.semantic.primaryBorder],
     ["colorPrimaryBorderHover", palette.semantic.primaryBorderHover],
@@ -403,6 +405,9 @@ const FEATURES: [string, FVal][] = [
     ["status-warning-text", pairOf(pf.status.warningText)],
     ["surface-error-well", pairOf(pf.status.errorWell)],
     ["surface-error-well-border", pairOf(pf.status.errorWellBorder)],
+    ["tile-schedule", pairOf(pf.canvasTone.scheduleTile)],
+    ["tag-latest-text", pairOf(pf.canvasTone.latestText)],
+    ["danger-text", pairOf(pf.canvasTone.dangerText)],
     ...Object.entries(pf.drawerDark).map(
         ([k, v]) => [`drawer-${camelToKebab(k)}`, {dark: v as string}] as [string, FVal],
     ),

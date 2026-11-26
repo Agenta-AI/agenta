@@ -19,6 +19,8 @@ quietly relax it. Webhook delivery keeps its own permissive default, and the gat
 longer reads it.
 """
 
+from uuid import uuid4
+
 import asyncio
 import json
 import threading
@@ -573,7 +575,7 @@ def _vertex_credential(document: dict) -> ResolvedSecret:
         secret=SecretResponseDTO(
             kind=SecretKind.CUSTOM_PROVIDER, data=data, header=Header(name="vertex")
         ),
-        owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
+        owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=uuid4()),
         origin=SecretOrigin.VAULT,
     )
 
@@ -610,9 +612,9 @@ async def test_vertex_token_uri_pointing_at_loopback_is_refused_without_minting(
 
 @pytest.mark.asyncio
 async def test_vertex_credential_urls_other_than_token_uri_are_checked_too(resolves_to):
-    """Which field a given google-auth version dials is the library's business: a workload
-    identity document carries `token_url`, `service_account_impersonation_url` and a
-    `credential_source.url` besides. Every URL in the document goes through the boundary."""
+    """Which field a given google-auth version dials is the library's business: a service
+    account also carries `auth_uri` and the certificate URLs. Every URL in the document goes
+    through the boundary."""
     resolves_to(LINK_LOCAL_ADDRESS)
 
     with patch(_VERTEX_MINT, new_callable=AsyncMock) as mint:
@@ -621,16 +623,36 @@ async def test_vertex_credential_urls_other_than_token_uri_are_checked_too(resol
                 _vertex_route(),
                 _vertex_credential(
                     {
-                        "type": "external_account",
-                        "token_url": "https://sts.googleapis.com/v1/token",
-                        "credential_source": {
-                            "url": "https://metadata.internal.example/token"
-                        },
+                        "type": "service_account",
+                        "client_x509_cert_url": "https://metadata.internal.example/certs",
                     }
                 ),
             )
 
     assert "blocked target" in (excinfo.value.detail or "")
+    mint.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "document",
+    [
+        {
+            "type": "external_account",
+            "token_url": "https://sts.googleapis.com/v1/token",
+        },
+        {"type": "authorized_user", "refresh_token": "x"},
+        {"private_key": "x"},
+        {"type": "service_account", "credential_source": {"file": "/x"}},
+    ],
+)
+async def test_vertex_credential_other_than_a_service_account_is_refused(document):
+    """Only a service-account document is a stored Vertex credential."""
+    with patch(_VERTEX_MINT, new_callable=AsyncMock) as mint:
+        with pytest.raises(LLMUpstreamError) as excinfo:
+            await build_auth_headers(_vertex_route(), _vertex_credential(document))
+
+    assert "service-account" in (excinfo.value.detail or "")
     mint.assert_not_awaited()
 
 

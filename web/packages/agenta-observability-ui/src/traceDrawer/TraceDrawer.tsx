@@ -1,11 +1,29 @@
 import {useCallback, useState} from "react"
 
 import {traceDrawerClearParams} from "@agenta/observability/traceDrawer"
-import {closeTraceDrawerAtom, isDrawerOpenAtom} from "@agenta/observability/traceDrawer"
+import {
+    closeTraceDrawerAtom,
+    isDrawerOpenAtom,
+    traceDrawerTraceIdAtom,
+} from "@agenta/observability/traceDrawer"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {useAtomValue, useSetAtom} from "jotai"
+import dynamic from "next/dynamic"
 
-import TraceDrawerContent, {type TraceDrawerLayout} from "./TraceDrawerContent"
+import {deleteTraceModalAtom} from "../delete/store/atom"
+
+import type {TraceDrawerLayout} from "./TraceDrawerContent"
+import TraceDrawerContentSkeleton from "./TraceDrawerContentSkeleton"
+
+// The body loads on the first open, so a host that mounts the drawer on every page carries only
+// the panel. The panel opens at once and shows the skeleton until the body arrives.
+const TraceDrawerContent = dynamic(() => import("./TraceDrawerContent"), {
+    ssr: false,
+    loading: TraceDrawerContentSkeleton,
+})
+
+// The one trace-delete confirmation for the app; it loads on the first delete.
+const DeleteTraceModal = dynamic(() => import("../delete"), {ssr: false})
 
 interface TraceDrawerProps {
     /**
@@ -19,6 +37,11 @@ interface TraceDrawerProps {
 const TraceDrawer = ({layout = "split"}: TraceDrawerProps) => {
     const open = useAtomValue(isDrawerOpenAtom)
     const closeDrawer = useSetAtom(closeTraceDrawerAtom)
+    const traceId = useAtomValue(traceDrawerTraceIdAtom)
+    const deleteOpen = useAtomValue(deleteTraceModalAtom).isOpen
+    // Stays mounted after the first open so the dialog can animate closed.
+    const [deleteLoaded, setDeleteLoaded] = useState(false)
+    if (deleteOpen && !deleteLoaded) setDeleteLoaded(true)
 
     const initialWidth = 1200
     const [drawerWidth, setDrawerWidth] = useState(initialWidth)
@@ -43,25 +66,30 @@ const TraceDrawer = ({layout = "split"}: TraceDrawerProps) => {
     }, [initialWidth])
 
     return (
-        <EnhancedDrawer
-            closable={false}
-            title={null}
-            open={open}
-            onClose={handleClose}
-            width={drawerWidth}
-            afterOpenChange={handleAfterOpenChange}
-            styles={{body: {padding: 0}}}
-            destroyOnHidden
-        >
-            {open && (
-                <TraceDrawerContent
-                    onClose={handleClose}
-                    onToggleWidth={toggleWidth}
-                    isExpanded={drawerWidth !== initialWidth}
-                    layout={layout}
-                />
-            )}
-        </EnhancedDrawer>
+        <>
+            <EnhancedDrawer
+                closable={false}
+                title={null}
+                open={open}
+                onClose={handleClose}
+                width={drawerWidth}
+                afterOpenChange={handleAfterOpenChange}
+                styles={{body: {padding: 0}}}
+                destroyOnHidden
+            >
+                {open && (
+                    <TraceDrawerContent
+                        onClose={handleClose}
+                        onToggleWidth={toggleWidth}
+                        isExpanded={drawerWidth !== initialWidth}
+                        layout={layout}
+                    />
+                )}
+            </EnhancedDrawer>
+            {deleteLoaded ? (
+                <DeleteTraceModal openTraceId={open ? traceId : null} onDrawerClose={handleClose} />
+            ) : null}
+        </>
     )
 }
 

@@ -109,7 +109,7 @@ describe("admitSandboxTurn", () => {
       log: () => {},
       intervalMs: 60_000,
       heartbeat: false,
-      startLease: () => ({ credential: () => "Secret run-1", release: () => {} }),
+      startLease: () => ({ credential: () => "Secret run-1", seed: "Secret run-1", release: () => {} }),
     });
     slot.release();
     await vi.waitFor(() => expect(calls).toHaveLength(1));
@@ -129,7 +129,7 @@ describe("admitSandboxTurn", () => {
       baseUrl: BASE,
       log: () => {},
       intervalMs: 60_000,
-      startLease: () => ({ credential: () => "Secret run-1", release: () => {} }),
+      startLease: () => ({ credential: () => "Secret run-1", seed: "Secret run-1", release: () => {} }),
     });
     slot.release();
     await vi.waitFor(() => expect(seen).toHaveLength(2));
@@ -172,7 +172,7 @@ describe("holdTurnSlot", () => {
       baseUrl: BASE,
       log: () => {},
       intervalMs: 60_000,
-      startLease: () => ({ credential: () => credential, release: released }),
+      startLease: () => ({ credential: () => credential, seed: credential, release: released }),
     });
 
     await vi.advanceTimersByTimeAsync(60_000);
@@ -205,7 +205,7 @@ describe("holdTurnSlot", () => {
       baseUrl: BASE,
       log: () => {},
       intervalMs: 60_000,
-      startLease: () => ({ credential: () => "Secret run-1", release: () => {} }),
+      startLease: () => ({ credential: () => "Secret run-1", seed: "Secret run-1", release: () => {} }),
     });
 
     await vi.advanceTimersByTimeAsync(60_000);
@@ -219,7 +219,7 @@ describe("holdTurnSlot", () => {
 
   it("holds nothing and posts nothing without a credential, as admission asks nothing", async () => {
     const { calls, fetch } = platform();
-    const startLease = vi.fn(() => ({ credential: () => "", release: () => {} }));
+    const startLease = vi.fn(() => ({ credential: () => "", seed: "", release: () => {} }));
     const slot = holdTurnSlot("", "t-1", "sess-1", {
       fetch,
       baseUrl: BASE,
@@ -244,7 +244,7 @@ describe("holdTurnSlot", () => {
       baseUrl: BASE,
       log: (line) => lines.push(line),
       intervalMs: 60_000,
-      startLease: () => ({ credential: () => "Secret run-1", release: () => {} }),
+      startLease: () => ({ credential: () => "Secret run-1", seed: "Secret run-1", release: () => {} }),
     });
     await vi.advanceTimersByTimeAsync(60_000);
     slot.release();
@@ -643,7 +643,7 @@ describe("the runner proves it is the runner", () => {
         fetch,
         log: () => {},
         heartbeat: false,
-        startLease: (credential) => ({ credential: () => credential, release: () => {} }),
+        startLease: (credential) => ({ credential: () => credential, seed: credential, release: () => {} }),
       }),
     }));
     t += 5_000;
@@ -667,7 +667,7 @@ describe("startLeasedSandboxMeter", () => {
       authorization: "Access run-token",
       startLease: (authorization) => {
         events.push(`lease ${authorization}`);
-        return { credential: () => authorization, release: () => events.push("release") };
+        return { credential: () => authorization, seed: authorization, release: () => events.push("release") };
       },
       provider: "daytona",
       sandboxId: "sb-1",

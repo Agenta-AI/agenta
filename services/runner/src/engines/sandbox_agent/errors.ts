@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import {
+  carriesGatewayRefusalMarker,
   isUpstreamFailure,
   parseGatewayErrorDetail,
   personFacingGatewayRefusal,
@@ -107,8 +108,61 @@ export const SESSION_RECORDS_INCOMPLETE_CODE: RunErrorCode = "session_records_in
 export const SESSION_RECORDS_INCOMPLETE_MESSAGE =
   "Part of this session's history could not be saved, so the agent cannot continue it. Start a new session.";
 
+export const SESSION_DRIVE_REQUIRED_CODE: RunErrorCode = "session_drive_required";
+
+/** The line the person reads when an agent without a session drive runs on `inprocess`. */
+export const SESSION_DRIVE_REQUIRED_MESSAGE =
+  "The inprocess sandbox needs the session drive, and this agent has it turned off. Turn the session drive on, or run the agent on the 'local' sandbox.";
+
+export const ACCESS_DENIED_CODE: RunErrorCode = "access_denied";
+
+/**
+ * The line the person reads when they lost access to the project while the turn ran. One line:
+ * the SDK keeps only the first line of a runner error. See `sessions/access-denied.ts`.
+ */
+export const ACCESS_DENIED_MESSAGE =
+  "You no longer have access to this project, so the agent run was stopped.";
+
+/** The line the person reads when the LLM gateway's spending check refused the model call. */
+export const GATEWAY_ENTITLEMENT_DENIED_MESSAGE =
+  "Agenta's spending check refused this model call, so the turn was stopped. Check your organization's credits and plan, then send the message again.";
+
+/**
+ * The LLM gateway answers two different refusals with code `policy_denied`
+ * (`api/oss/src/apis/fastapi/gateways/llms/proxy.py`), told apart by the sentence it writes:
+ *
+ * - "Denied use_llm_endpoints on <target>": the permission check refused. Every role that may run
+ *   a session may use the LLM endpoints, so during a turn this means the caller lost access to
+ *   the project: `access_denied`.
+ * - "Entitlement <key> exceeded for <target>": the spending check refused (or could not answer).
+ *   Not a provider refusal, so it does not get the provider's "you can keep going" advice.
+ *
+ * Any other `policy_denied` (the MCP plane's tool refusals included) keeps the rules below.
+ */
+export function classifyGatewayPolicyDenial(
+  detail: AgentErrorDetail | undefined,
+): ClassifiedRunError | undefined {
+  if (detail?.code !== "policy_denied") return undefined;
+  if (/\bDenied use_llm_endpoints\b/.test(detail.message)) return accessDeniedClassified();
+  if (/\bEntitlement \S+ exceeded\b/.test(detail.message))
+    return { message: GATEWAY_ENTITLEMENT_DENIED_MESSAGE, code: "runner_error", detail };
+  return undefined;
+}
+
+/** The classified form of a lost access, with its structured detail. */
+export function accessDeniedClassified(): ClassifiedRunError {
+  return {
+    message: ACCESS_DENIED_MESSAGE,
+    code: ACCESS_DENIED_CODE,
+    detail: { code: ACCESS_DENIED_CODE, message: ACCESS_DENIED_MESSAGE, retryable: false },
+  };
+}
+
 export type RunErrorCode =
   | "runner_error"
+  // The agent turns its session drive off, and the `inprocess` sandbox cannot run without it.
+  // Refused before anything ran; a retry fails the same way.
+  | "session_drive_required"
   // The sandbox provider (or this runner's own sandbox admission) is at capacity; retryable later.
   | "sandbox_capacity"
   // This runner is at its session or memory limit and refused a new session; retryable later.
@@ -138,6 +192,10 @@ export type RunErrorCode =
   | "run_total_time_limit"
   | "credential_delivery_failed"
   | "rate_limited"
+  // The harness did not answer while the run was opening its ACP session, so nothing ran. A
+  // wedged or cold-installing adapter, not a fault of the model or the key: retryable, never an
+  // "add a key" prompt. Set by `HarnessInitTimeoutError` (`harness-session-lifecycle.ts`).
+  | "harness_init_timeout"
   // Not a failure: the turn was REFUSED before it started because another turn already owns
   // this session. Nothing ran, nothing was destroyed, and the user's message was never sent.
   // Clients render it as a "not sent, try again" state and keep the text, never as a run error.
@@ -186,6 +244,10 @@ export type RunErrorCode =
   // rebuilt from it. Not retryable: every later turn of the session fails the same way, and the
   // user has to start a new session. See `sessions/persist.ts`.
   | "session_records_incomplete"
+  // The caller lost access to the project while the turn ran (removed from it, a lower role, a
+  // deleted key): a session call of the turn answered 403. Not retryable. See
+  // `sessions/access-denied.ts`.
+  | "access_denied"
   // A failure no rule recognized, whose text the runner withholds (it may hold paths, ids or
   // credentials): the message is one sentence with a reference to the runner's log. A client must
   // not show any other text for it in its place (a trace's error text included). Only runs whose
@@ -427,9 +489,54 @@ export function withinCredentialPropagationWindow(
   );
 }
 
-const MALFORMED_FUNCTION_CALL = /finish_reason: malformed_function_call/;
-const MALFORMED_FUNCTION_CALL_MESSAGE =
+/**
+ * The OpenAI client's own timeout (`APIConnectionTimeoutError`): Pi waited for a model call that
+ * sent nothing back, and its one retry did too. Matched in the client's spelling only, so a
+ * runner-side timeout worded another way stays with the rules below.
+ */
+export const MODEL_REQUEST_TIMED_OUT = /\bRequest timed out\.(?:\s|$)/;
+export const MODEL_REQUEST_TIMED_OUT_MESSAGE =
+  "The model provider did not answer in time. Try again in a moment.";
+
+// Pi's OpenAI client words it `finish_reason: malformed_function_call`; its Google client, on the
+// built-in Gemini route's native protocol, `Provider stopped with: MALFORMED_FUNCTION_CALL`.
+export const MALFORMED_FUNCTION_CALL =
+  /finish_reason: malformed_function_call|Provider stopped with: MALFORMED_FUNCTION_CALL/;
+export const MALFORMED_FUNCTION_CALL_MESSAGE =
   "The model sent a tool call that could not be read (malformed_function_call). Try again, or pick another model.";
+
+/**
+ * The ChatGPT plan behind a Codex subscription run is out of usage. OpenAI words it two ways:
+ * "You have hit your ChatGPT usage limit (plus plan). Try again in ~2075 min." and, once the
+ * limit is known, "Codex error: The usage limit has been reached". The limit belongs to the
+ * ChatGPT account, so signing in again does not lift it.
+ */
+export const CHATGPT_USAGE_LIMIT =
+  /you have hit your chatgpt usage limit|codex error: the usage limit has been reached/i;
+const CHATGPT_USAGE_LIMIT_RETRY_MINUTES = /try again in ~?(\d+)\s*min/i;
+
+/** When OpenAI says the limit lifts, in words, or undefined when it did not say. */
+function chatgptUsageLimitWait(raw: string): string | undefined {
+  const minutes = Number(CHATGPT_USAGE_LIMIT_RETRY_MINUTES.exec(raw)?.[1]);
+  if (!Number.isFinite(minutes) || minutes <= 0) return undefined;
+  if (minutes < 60) return minutes === 1 ? "1 minute" : `${minutes} minutes`;
+  const hours = Math.round(minutes / 60);
+  return hours === 1 ? "1 hour" : `${hours} hours`;
+}
+
+export function chatgptUsageLimitMessage(raw: string): string {
+  const wait = chatgptUsageLimitWait(raw);
+  const when = wait ? `Try again in about ${wait}` : "Try again later";
+  return `Your ChatGPT plan has reached its usage limit, so OpenAI refused this request. Signing in again does not change this. ${when}, or pick a model that does not use your ChatGPT subscription.`;
+}
+
+/** OpenAI refuses a model that a ChatGPT account cannot use through Codex. */
+export const CHATGPT_MODEL_UNSUPPORTED =
+  /the '([^'\n]{1,80})' model is not supported when using codex with a chatgpt account/i;
+
+export function chatgptModelUnsupportedMessage(model: string): string {
+  return `Your ChatGPT subscription cannot use the model ${sanitizeErrorText(model)}. Pick another model for this agent.`;
+}
 
 /** The proxy answered but cannot reach its own store, or was not reachable at all. */
 const PROXY_NO_DATABASE = /no_db_connection/i;
@@ -503,6 +610,10 @@ export function classifyRunError(
   if (isPublicError(err))
     return { message: sanitizeErrorText(err.message), code: err.publicCode };
   const raw = err instanceof Error ? err.message : String(err);
+  // The LLM gateway's own `policy_denied` refusals: a lost access, or its spending check. Neither
+  // is a provider refusal, and "you can keep going" would be wrong for both.
+  const policyDenial = classifyGatewayPolicyDenial(parseGatewayErrorDetail(raw));
+  if (policyDenial) return policyDenial;
   // The gateway refused a model call with a sentence written for the person (out of credit,
   // built-in models not enabled): that sentence and its class, never the raw text and marker.
   const refusal = personFacingGatewayRefusal(raw);
@@ -542,6 +653,15 @@ export function classifyRunError(
   // Pi's own verdict on a completion the gateway relayed as a success, so no marker.
   if (MALFORMED_FUNCTION_CALL.test(raw))
     return { message: MALFORMED_FUNCTION_CALL_MESSAGE, code: "upstream_error" };
+  if (MODEL_REQUEST_TIMED_OUT.test(raw))
+    return { message: MODEL_REQUEST_TIMED_OUT_MESSAGE, code: "upstream_error" };
+  // The ChatGPT plan's own refusals on a Codex subscription run, before the rate-limit and auth
+  // rules: neither is throttling, and neither is fixed by signing in again.
+  if (CHATGPT_USAGE_LIMIT.test(raw))
+    return { message: chatgptUsageLimitMessage(raw), code: "upstream_rejected" };
+  const unsupportedModel = CHATGPT_MODEL_UNSUPPORTED.exec(raw)?.[1];
+  if (unsupportedModel)
+    return { message: chatgptModelUnsupportedMessage(unsupportedModel), code: "model_unavailable" };
   // A budget refusal is checked first: it is the most specific reading of a 429, and its body also
   // trips the rate-limit and quota matchers below.
   if (BUDGET_REFUSAL.test(raw)) {
@@ -663,7 +783,11 @@ export function classifyRunError(
   if (
     /\b(?:WebSocket (?:error|closed|connect timeout|idle timeout|stream closed)|connection error|fetch failed)\b/i.test(
       raw,
-    )
+    ) ||
+    // Pi's Google client, when the native Gemini stream breaks off before its finish reason
+    // (`@google/genai` does not raise an error event inside a stream).
+    // `@google/genai` raises "Incomplete JSON segment at the end" when it is cut inside one.
+    /Google stream ended without a finish reason|Incomplete JSON segment at the end/.test(raw)
   ) {
     return {
       message:
@@ -676,7 +800,7 @@ export function classifyRunError(
   }
   const providerError = describeProviderError(raw);
   if (providerError) return { message: providerError, code: "provider_error" };
-  const rawProviderError = describeRawProviderError(msg);
+  const rawProviderError = describeRawProviderError(googleStatusLine(msg) ?? msg);
   if (rawProviderError) return rawProviderError;
   if (options.unknownText !== "hidden")
     return {
@@ -720,6 +844,36 @@ function providerSentence(text: string): string | undefined {
     .trim();
   if (!said) return undefined;
   return /[.!?]$/.test(said) ? said : `${said}.`;
+}
+
+/**
+ * The gateway's Google-shaped refusal (`{"error": {"code": <HTTP status>, "message": "...
+ * ⟦agenta_code:…⟧", "status": "<CANONICAL>"}}`) as the `NNN {json}` line `describeRawProviderError`
+ * reads. Pi's Google client, on the native Gemini route, keeps only the body as its error text,
+ * without the status prefix Pi's OpenAI client writes. Only a marked body with a numeric `code` and
+ * a string `status` qualifies, so another `{"error": ...}` in some text is never read as a model
+ * refusal; undefined otherwise.
+ */
+function googleStatusLine(line: string): string | undefined {
+  if (RAW_PROVIDER_ERROR.test(line) || !carriesGatewayRefusalMarker(line)) return undefined;
+  const prefix = /^(?:[A-Za-z][A-Za-z ]*:\s*)*(?=\{)/.exec(line);
+  if (!prefix) return undefined;
+  const body = line.slice(prefix[0].length);
+  let error: { code?: unknown; status?: unknown } | undefined;
+  try {
+    error = (JSON.parse(body) as { error?: { code?: unknown; status?: unknown } }).error;
+  } catch {
+    return undefined;
+  }
+  const status = error?.code;
+  if (
+    typeof status !== "number" ||
+    status < 400 ||
+    status > 599 ||
+    typeof error?.status !== "string"
+  )
+    return undefined;
+  return `${status} ${body}`;
 }
 
 /** The `message` of a provider's JSON error body (`{"error":{"message":...}}` or `{"message":...}`). */
@@ -860,6 +1014,26 @@ export function runLimitError(
         ),
         "run_total_time_limit",
       );
+  }
+}
+
+/**
+ * The harness never answered while its ACP session was being opened.
+ *
+ * A CLASS, not a bare `withPublicCode`, because `openSession` must tell a load that timed out
+ * from a load that failed: the second degrades to a create, the first must not. The message is
+ * the line the person in the chat reads (the harness by name and the budget that elapsed);
+ * everything the operator needs (mode, harness id, budget in ms) goes in the runner log at the
+ * throw site.
+ */
+export class HarnessInitTimeoutError extends Error implements PublicError {
+  readonly publicCode: RunErrorCode = "harness_init_timeout";
+
+  constructor(harnessLabel: string, budgetMs: number) {
+    super(
+      `The ${harnessLabel} harness did not start within ${formatRunLimit(budgetMs)}, so the turn was ended. Send the message again to retry.`,
+    );
+    this.name = "HarnessInitTimeoutError";
   }
 }
 

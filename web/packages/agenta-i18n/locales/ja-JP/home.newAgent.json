@@ -1,0 +1,10 @@
+{
+    "label": "新しいエージェント",
+    "scratchTitle": "ゼロから始める",
+    "scratchHint": "空のエージェントから始めて、チャットで形にします",
+    "uploadTitle": "アップロード",
+    "uploadHint": "エージェントテンプレートの .zip",
+    "importTitle": "リポジトリからインポート",
+    "importHint": "公開 GitHub リポジトリからエージェントテンプレートを探します",
+    "browseAll": "すべてのテンプレートを見る"
+}

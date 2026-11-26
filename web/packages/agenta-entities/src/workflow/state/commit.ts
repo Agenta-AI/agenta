@@ -27,6 +27,7 @@ import {extractApiErrorMessage, preserveResponseStatus} from "@agenta/shared/uti
 import isEqual from "fast-deep-equal"
 import {atom, getDefaultStore} from "jotai"
 
+import type {Visibility} from "../../sharing/core/schema"
 import {
     commitWorkflowRevisionApi,
     createWorkflow as createWorkflowApi,
@@ -38,6 +39,7 @@ import {
 import {generateSlug, type Workflow} from "../core"
 
 import {workflowsListDataAtom} from "./allWorkflows"
+import {invalidateBuilderAgentRevisionCache} from "./builderAgent"
 import {
     buildCreatePayloadFromEphemeral,
     prepareCommitParameters,
@@ -315,6 +317,9 @@ export const commitWorkflowRevisionAtom = atom(
             // The picker lists by VARIANT, so without this the revision just created is missing
             // from the dropdown until something else refetches.
             if (variantId) invalidateWorkflowRevisionsByVariantCache(variantId)
+            // A committed static workflow is one with editable fields, which today is only the
+            // builder. Its chats read its revision id from their own query.
+            if (entity.flags?.is_static) invalidateBuilderAgentRevisionCache()
             if (_commitCallbacks.onQueryInvalidate) {
                 void _commitCallbacks.onQueryInvalidate()
             }
@@ -529,6 +534,8 @@ export interface WorkflowCreateFromEphemeralParams {
     name?: string
     /** Slug for the new workflow. When provided, overrides auto-generation. */
     slug?: string
+    /** Sharing (M3): forwarded to the workflow create body. */
+    visibility?: Visibility
 }
 
 /**
@@ -549,7 +556,7 @@ export interface WorkflowCreateFromEphemeralParams {
 export const createWorkflowFromEphemeralAtom = atom(
     null,
     async (get, set, params: WorkflowCreateFromEphemeralParams): Promise<WorkflowCommitOutcome> => {
-        const {revisionId, commitMessage, name, slug} = params
+        const {revisionId, commitMessage, name, slug, visibility} = params
 
         try {
             const projectId = get(projectIdAtom)
@@ -565,12 +572,15 @@ export const createWorkflowFromEphemeralAtom = atom(
             const workflowSlug = slug || generateSlug(workflowName)
 
             // 3. Create workflow via API
+            const folderId = (entity.meta as {folderId?: unknown} | null | undefined)?.folderId
             const newWorkflow = await createWorkflowApi(projectId, {
                 slug: workflowSlug,
                 name: workflowName,
                 flags,
                 message: commitMessage || undefined,
                 data,
+                visibility,
+                ...(typeof folderId === "string" && folderId ? {folderId} : {}),
             })
 
             const newRevisionId = newWorkflow.id

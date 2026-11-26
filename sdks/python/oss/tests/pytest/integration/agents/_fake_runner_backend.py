@@ -60,6 +60,7 @@ class FakeRunnerSession(Session):
         session_id: Optional[str],
         detached: bool = False,
         turn_id: Optional[str] = None,
+        session_turn_id: Optional[str] = None,
         project_id: Optional[str] = None,
         control_command_id: Optional[str] = None,
         effective_parameters: Optional[Dict[str, Any]] = None,
@@ -73,6 +74,7 @@ class FakeRunnerSession(Session):
         self._session_id = session_id
         self._detached = detached
         self._turn_id = turn_id
+        self._session_turn_id = session_turn_id
         self._project_id = project_id
         self._control_command_id = control_command_id
         self._effective_parameters = effective_parameters
@@ -94,6 +96,7 @@ class FakeRunnerSession(Session):
             session_id=self._session_id,
             detached=self._detached,
             turn_id=self._turn_id,
+            session_turn_id=self._session_turn_id,
             project_id=self._project_id,
             control_command_id=self._control_command_id,
             effective_parameters=self._effective_parameters,
@@ -176,6 +179,7 @@ class FakeRunnerBackend(Backend):
         session_id: Optional[str] = None,
         detached: bool = False,
         turn_id: Optional[str] = None,
+        session_turn_id: Optional[str] = None,
         project_id: Optional[str] = None,
         control_command_id: Optional[str] = None,
         effective_parameters: Optional[Dict[str, Any]] = None,
@@ -192,6 +196,7 @@ class FakeRunnerBackend(Backend):
             session_id=session_id,
             detached=detached,
             turn_id=turn_id,
+            session_turn_id=session_turn_id,
             project_id=project_id,
             control_command_id=control_command_id,
             effective_parameters=effective_parameters,

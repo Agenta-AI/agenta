@@ -57,11 +57,13 @@ from oss.src.core.tracing.dtos import Windowing
 from oss.src.core.evaluations.service import SimpleEvaluationsService
 from oss.src.core.evaluations.tasks import processor as source_slice_tasks
 from oss.src.core.evaluations.tasks import run as run_tasks
+from oss.tests.pytest.utils.principals import any_principal, make_envelope
 
 
 def _run(*, steps, flags=None, repeats=1):
     return EvaluationRun(
         id=uuid4(),
+        principal=any_principal(),
         flags=flags or EvaluationRunFlags(),
         data=EvaluationRunData(steps=list(steps), repeats=repeats),
     )
@@ -1191,7 +1193,10 @@ async def test_backend_workflow_runner_invokes_application_through_workflow_serv
     )
 
     result = await runner.execute(
-        request=request, project_id=project_id, user_id=user_id
+        request=request,
+        project_id=project_id,
+        user_id=user_id,
+        envelope=make_envelope(),
     )
 
     assert result.status == SDKEvaluationStatus.SUCCESS
@@ -1277,7 +1282,10 @@ async def test_backend_evaluator_runner_sends_normalized_workflow_request():
     )
 
     result = await runner.execute(
-        request=request, project_id=project_id, user_id=user_id
+        request=request,
+        project_id=project_id,
+        user_id=user_id,
+        envelope=make_envelope(),
     )
 
     assert result.status == SDKEvaluationStatus.SUCCESS
@@ -1348,7 +1356,10 @@ async def test_backend_evaluator_runner_preserves_dict_revision_data():
     )
 
     result = await runner.execute(
-        request=request, project_id=project_id, user_id=user_id
+        request=request,
+        project_id=project_id,
+        user_id=user_id,
+        envelope=make_envelope(),
     )
 
     assert result.status == SDKEvaluationStatus.SUCCESS
@@ -1381,7 +1392,13 @@ async def test_backend_cached_runner_preserves_partial_hit_order():
             self.requests = []
 
         async def execute_batch(
-            self, requests, semaphore=None, *, project_id=None, user_id=None
+            self,
+            requests,
+            semaphore=None,
+            *,
+            project_id=None,
+            user_id=None,
+            envelope=None,
         ):
             self.requests.append(requests)
             return [
@@ -1419,7 +1436,10 @@ async def test_backend_cached_runner_preserves_partial_hit_order():
     ]
 
     results = await runner.execute_batch(
-        requests=requests, project_id=project_id, user_id=user_id
+        requests=requests,
+        project_id=project_id,
+        user_id=user_id,
+        envelope=make_envelope(),
     )
 
     assert [result.trace_id for result in results] == ["cached-trace", "fresh-trace"]

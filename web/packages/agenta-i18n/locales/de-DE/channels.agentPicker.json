@@ -1,0 +1,7 @@
+{
+    "agents": "Agents",
+    "channelsLive_one": "{{count}} Kanal aktiv",
+    "channelsLive_other": "{{count}} Kanäle aktiv",
+    "noAgents": "Dieses Projekt hat noch keine Agents. Erstellen Sie einen und verbinden Sie ihn dann hier.",
+    "noChannels": "Noch keine Kanäle"
+}

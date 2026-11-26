@@ -385,9 +385,19 @@ const referencedVariableKeysAtomFamily = atomFamily((downstreamKey: string) =>
         const primaryKeys = columns.map((column) => column.key)
         const evaluatorKeys = get(evaluatorExpectedColumnsAtom)
 
+        // In compare mode the rows are shared, so they ask for every variable that any
+        // revision on screen uses, not only the anchor's.
+        const otherRootKeys = get(playgroundNodesAtom)
+            .filter((node) => node.depth === 0)
+            .flatMap((node) =>
+                (get(workflowMolecule.selectors.inputPorts(node.entityId)) as RunnablePort[]).map(
+                    (port) => port.key,
+                ),
+            )
+
         const keySet = new Set(primaryKeys)
         const merged = [...primaryKeys]
-        for (const key of evaluatorKeys) {
+        for (const key of [...otherRootKeys, ...evaluatorKeys]) {
             if (key && !keySet.has(key)) {
                 keySet.add(key)
                 merged.push(key)

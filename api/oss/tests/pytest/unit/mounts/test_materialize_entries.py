@@ -13,6 +13,15 @@ PROJECT_ID = uuid4()
 USER_ID = uuid4()
 WORKFLOW_ID = uuid4()
 BUCKET = "mounts-test"
+_DRIVE_ID = uuid4()
+DRIVE = Mount(
+    id=_DRIVE_ID,
+    project_id=PROJECT_ID,
+    storage_prefix=f"mounts/{PROJECT_ID}/{_DRIVE_ID}",
+    slug="quote-files",
+    name="Quote",
+    agent_id=str(WORKFLOW_ID),
+)
 
 
 class _MemoryLock:
@@ -43,9 +52,11 @@ class _MountsDAO:
     async def upsert_mount(self, *, project_id, user_id, mount_create):
         self.upsert_calls += 1
         if self.mount is None:
+            mount_id = uuid4()
             self.mount = Mount(
-                id=uuid4(),
+                id=mount_id,
                 project_id=project_id,
+                storage_prefix=f"mounts/{project_id}/{mount_id}",
                 slug=mount_create.slug,
                 name=mount_create.name,
                 agent_id=mount_create.agent_id,
@@ -111,6 +122,7 @@ async def test_materialize_creates_directories_before_files():
         project_id=PROJECT_ID,
         user_id=USER_ID,
         workflow_id=WORKFLOW_ID,
+        mount=DRIVE,
         directories=["reports"],
         files=_files(),
     )
@@ -121,7 +133,7 @@ async def test_materialize_creates_directories_before_files():
         "target-profile.md",
     ]
     assert result.preserved == []
-    base = f"mounts/{PROJECT_ID}/{dao.mount.id}/"
+    base = f"mounts/{PROJECT_ID}/{DRIVE.id}/"
     assert store.puts == [
         base + "reports/",
         base + "reports/example.md",
@@ -137,16 +149,18 @@ async def test_retry_preserves_an_edited_existing_file():
         project_id=PROJECT_ID,
         user_id=USER_ID,
         workflow_id=WORKFLOW_ID,
+        mount=DRIVE,
         directories=["reports"],
         files=_files(),
     )
-    base = f"mounts/{PROJECT_ID}/{dao.mount.id}/"
+    base = f"mounts/{PROJECT_ID}/{DRIVE.id}/"
     store.objects[base + "target-profile.md"] = b"user edit"
 
     replay = await service.materialize_entries_if_absent(
         project_id=PROJECT_ID,
         user_id=USER_ID,
         workflow_id=WORKFLOW_ID,
+        mount=DRIVE,
         directories=["reports"],
         files=_files(),
     )
@@ -171,6 +185,7 @@ async def test_retry_repairs_only_entries_missing_after_partial_failure():
             project_id=PROJECT_ID,
             user_id=USER_ID,
             workflow_id=WORKFLOW_ID,
+            mount=DRIVE,
             directories=["reports"],
             files=_files(),
         )
@@ -179,13 +194,14 @@ async def test_retry_repairs_only_entries_missing_after_partial_failure():
         project_id=PROJECT_ID,
         user_id=USER_ID,
         workflow_id=WORKFLOW_ID,
+        mount=DRIVE,
         directories=["reports"],
         files=_files(),
     )
 
     assert result.preserved == ["reports/"]
     assert result.created == ["reports/example.md", "target-profile.md"]
-    base = f"mounts/{PROJECT_ID}/{dao.mount.id}/"
+    base = f"mounts/{PROJECT_ID}/{DRIVE.id}/"
     assert store.objects[base + "reports/"] == b""
     assert store.objects[base + "reports/example.md"] == b"# Example\n"
     assert store.objects[base + "target-profile.md"] == b"# Target\n"
@@ -200,6 +216,7 @@ async def test_concurrent_materializers_write_each_path_once():
             project_id=PROJECT_ID,
             user_id=USER_ID,
             workflow_id=WORKFLOW_ID,
+            mount=DRIVE,
             directories=["reports"],
             files=_files(),
         ),
@@ -207,6 +224,7 @@ async def test_concurrent_materializers_write_each_path_once():
             project_id=PROJECT_ID,
             user_id=USER_ID,
             workflow_id=WORKFLOW_ID,
+            mount=DRIVE,
             directories=["reports"],
             files=_files(),
         ),
@@ -231,6 +249,7 @@ async def test_configured_lock_failure_refuses_an_unsafe_write():
             project_id=PROJECT_ID,
             user_id=USER_ID,
             workflow_id=WORKFLOW_ID,
+            mount=DRIVE,
             directories=["reports"],
             files=_files(),
         )
@@ -248,6 +267,7 @@ async def test_invalid_declarations_fail_before_mount_or_storage_writes():
             project_id=PROJECT_ID,
             user_id=USER_ID,
             workflow_id=WORKFLOW_ID,
+            mount=DRIVE,
             directories=["reports"],
             files=[MountFileSeed(path="../escape", content=b"bad")],
         )
@@ -270,6 +290,7 @@ async def test_writer_between_listing_and_put_keeps_its_content():
         project_id=PROJECT_ID,
         user_id=USER_ID,
         workflow_id=WORKFLOW_ID,
+        mount=DRIVE,
         directories=[],
         files=[MountFileSeed(path="race.md", content=b"seed")],
     )

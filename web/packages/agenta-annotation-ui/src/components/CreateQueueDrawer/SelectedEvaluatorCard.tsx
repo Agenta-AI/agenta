@@ -1,15 +1,16 @@
 import {useMemo} from "react"
 
-import {workflowMolecule} from "@agenta/entities/workflow"
-import {Trash} from "@phosphor-icons/react"
-import {Button, Tag, Typography} from "antd"
-import {useAtomValue} from "jotai"
-
 import {
     formatHumanMetricLabel,
     getHumanMetrics,
     type WorkflowRevisionLike,
-} from "./EntityEvaluatorSelector"
+} from "@agenta/annotation"
+import {workflowMolecule} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import queuesCatalog from "@agenta/i18n/catalogs/annotation.queues"
+import {Trash} from "@phosphor-icons/react"
+import {Button, Tag, Typography} from "antd"
+import {useAtomValue} from "jotai"
 
 export interface SelectedEvaluatorCardData {
     revisionId: string
@@ -29,6 +30,7 @@ export default function SelectedEvaluatorCard({
     onRemove,
     disabled = false,
 }: SelectedEvaluatorCardProps) {
+    const t = useT(queuesCatalog)
     const revisionData = useAtomValue(
         useMemo(
             () => workflowMolecule.selectors.data(evaluator.revisionId),
@@ -61,7 +63,7 @@ export default function SelectedEvaluatorCard({
                 type="text"
                 size="small"
                 danger
-                aria-label={`Remove ${evaluator.evaluatorName}`}
+                aria-label={t("annotation.queues.removeEvaluator", {name: evaluator.evaluatorName})}
                 icon={<Trash size={14} />}
                 disabled={disabled}
                 onClick={() => onRemove(evaluator.revisionId)}

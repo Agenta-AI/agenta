@@ -1,5 +1,7 @@
 import {useRef} from "react"
 
+import {useT} from "@agenta/i18n"
+import chatMicPermissionNoticeCatalog from "@agenta/i18n/catalogs/chat.micPermissionNotice"
 import {WarningCircle} from "@phosphor-icons/react"
 
 import RevealCollapse from "./RevealCollapse"
@@ -21,6 +23,7 @@ const MicPermissionNotice = ({
     className?: string
 }) => {
     // Latch so the notice keeps its text while it collapses closed.
+    const t = useT(chatMicPermissionNoticeCatalog)
     const messageRef = useRef("")
     if (message) messageRef.current = message
 
@@ -36,9 +39,11 @@ const MicPermissionNotice = ({
                 <button
                     type="button"
                     onClick={onDismiss}
-                    className="shrink-0 cursor-pointer rounded border-0 bg-transparent text-xs text-colorError hover:underline"
+                    // A phone: 44 px high, into the row's padding. Not an after area: the reveal
+                    // around the notice clips its overflow.
+                    className="shrink-0 cursor-pointer rounded border-0 bg-transparent text-xs text-colorError hover:underline max-md:-my-2 max-md:min-h-11 max-md:px-2"
                 >
-                    Dismiss
+                    {t("chat.micPermissionNotice.dismiss")}
                 </button>
             </div>
         </RevealCollapse>

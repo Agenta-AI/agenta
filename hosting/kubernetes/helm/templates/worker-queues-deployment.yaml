@@ -62,7 +62,7 @@ spec:
           command: ["python", "-m", "entrypoints.worker_queues"]
           env:
             {{- include "agenta.commonEnv" . | nindent 12 }}
-            # empty ⇒ all queue loops; see docs/designs/workers-sprawl/specs.md
+            # empty ⇒ all queue loops; see docs/design/workers-sprawl/specs.md
             - name: AGENTA_WORKER_QUEUES
               value: {{ default "" $workerQueues.queues | quote }}
             {{- range $key, $val := $workerQueues.env }}

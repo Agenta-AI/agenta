@@ -1,0 +1,14 @@
+{
+    "toolsCount_one": "{{count}} Werkzeug",
+    "toolsCount_other": "{{count}} Werkzeuge",
+    "skillsCount_one": "{{count}} Skill",
+    "skillsCount_other": "{{count}} Skills",
+    "toolsAndSkills": "{{tools}} · {{skills}}",
+    "agent": "Agent",
+    "tomorrowAt": "morgen {{time}}",
+    "unassignedAgent": "Nicht zugewiesener Agent",
+    "eventAutomation": "Ereignis-Automatisierung",
+    "onEvent": "bei Ereignis",
+    "firesOn": "Wird bei {{eventKey}} ausgelöst",
+    "firesWhenEventArrives": "Wird ausgelöst, wenn das Ereignis eintrifft"
+}

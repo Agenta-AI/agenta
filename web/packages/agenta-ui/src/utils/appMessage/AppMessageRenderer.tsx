@@ -1,5 +1,7 @@
 import * as React from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {createPortal} from "react-dom"
 
 import {
@@ -104,6 +106,7 @@ function NotificationOutlet() {
 // ---------------------------------------------------------------------------
 
 function ConfirmModal({record}: {record: ConfirmRecord}) {
+    const t = useT(commonCatalog)
     const {config} = record
     const [okLoading, setOkLoading] = React.useState(false)
     const [thirdLoading, setThirdLoading] = React.useState(false)
@@ -195,7 +198,7 @@ function ConfirmModal({record}: {record: ConfirmRecord}) {
             >
                 <AlertDialogHeader>
                     <AlertDialogTitle className={hasTitle ? undefined : "sr-only"}>
-                        {hasTitle ? config.title : "Confirm"}
+                        {hasTitle ? config.title : t("common.confirm")}
                     </AlertDialogTitle>
                     {hasContent ? (
                         // `asChild` swaps Radix's <p> for a <div>: `content` is an arbitrary
@@ -215,7 +218,7 @@ function ConfirmModal({record}: {record: ConfirmRecord}) {
                             style={config.cancelButtonProps?.style}
                         >
                             {config.cancelButtonProps?.icon}
-                            {config.cancelText ?? "Cancel"}
+                            {config.cancelText ?? t("common.cancel")}
                         </AlertDialogCancel>
                     ) : null}
                     {/* Agenta extension (not antd): an extra button between Cancel and OK. */}
@@ -240,7 +243,7 @@ function ConfirmModal({record}: {record: ConfirmRecord}) {
                         data-loading={okLoading || undefined}
                     >
                         {config.okButtonProps?.icon}
-                        {config.okText ?? "OK"}
+                        {config.okText ?? t("common.ok")}
                     </Button>
                 </AlertDialogFooter>
             </AlertDialogContent>

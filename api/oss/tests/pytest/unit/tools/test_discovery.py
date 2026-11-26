@@ -39,6 +39,7 @@ from oss.src.core.tools.exceptions import (
 )
 from oss.src.core.tools.registry import ToolsGatewayRegistry
 from oss.src.core.tools.service import ToolsService
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 FIXTURE = Path(__file__).parent / "fixtures" / "composio_search_tools.json"
 
@@ -536,6 +537,7 @@ def _capabilities_result() -> CapabilitiesResult:
 
 def _router_with_discover(discover_fn):
     return ToolsRouter(
+        run_admission=NoopRunAdmission(),
         tools_service=SimpleNamespace(discover_capabilities=discover_fn),
         workflows_service=None,
     )

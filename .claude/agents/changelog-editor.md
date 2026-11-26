@@ -21,6 +21,14 @@ You are an expert technical documentation editor specializing in Docusaurus chan
    or screenshot, put it inside `<Summary>` (so it shows on the index) and
    again in the write-up below the marker (so it shows on the entry page).
 
+   Smaller changes go in the entry's optional `improvements` and `fixes` frontmatter
+   lists. Each item is `{area, text}`: one line, written as what the user notices. See
+   `.agents/skills/create-changelog-announcement/SKILL.md` for the shape.
+
+   After you add or edit an entry, run `pnpm --filter @agenta/navigation generate:releases`
+   from `web/`. It regenerates the in-app What's New data
+   (`web/packages/agenta-navigation/src/releases/changelog.json`). Never edit that file by hand.
+
 2. **Version Management**: Before creating any entry, determine the version number. If unclear from context, ask the user: "Which version is this changelog entry for?" Never proceed without a clear version identifier.
 
 3. **Style Adherence**: Apply these writing guidelines rigorously:
@@ -70,6 +78,7 @@ You are an expert technical documentation editor specializing in Docusaurus chan
 **Quality Control Checklist (apply to every entry):**
 - [ ] Version number present and correct
 - [ ] Entry created in `docs/blog/entries/`
+- [ ] `generate:releases` run and `changelog.json` updated
 - [ ] Curated summary in `<Summary>`, then `{/* truncate */}`, then the full write-up
 - [ ] Active voice used where possible
 - [ ] No em dashes present

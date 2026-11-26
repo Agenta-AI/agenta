@@ -183,3 +183,41 @@ async def test_no_sandbox_in_the_result_stamps_nothing(make_backend):
         )
 
     assert "ag.meta.agent.sandbox" not in dict(span.attributes or {})
+
+
+async def _run_under_workflow_span(make_backend, request):
+    backend = make_backend(result=AgentResult(output="ok"))
+    handler = make_agent_handler(
+        AgentComposition(select_backend=lambda template: backend)
+    )
+    span = _workflow_span()
+    with otel_trace.use_span(span, end_on_exit=False):
+        await handler(request=request, messages=_messages(), parameters=_params())
+    return dict(span.attributes or {})
+
+
+async def test_workflow_span_carries_the_session_and_its_own_turn(make_backend):
+    attributes = await _run_under_workflow_span(
+        make_backend,
+        WorkflowServiceRequest(session_id="s-40", meta={"run_id": "t2"}),
+    )
+    assert attributes["ag.session.id"] == "s-40"
+    assert attributes["ag.turn.id"] == "t2"
+
+
+async def test_resumed_workflow_span_carries_the_paused_turn(make_backend):
+    attributes = await _run_under_workflow_span(
+        make_backend,
+        WorkflowServiceRequest(
+            session_id="s-40",
+            meta={"run_id": "resume-1", "session_turn_id": "t2"},
+        ),
+    )
+    assert attributes["ag.session.id"] == "s-40"
+    assert attributes["ag.turn.id"] == "t2"
+
+
+async def test_workflow_span_without_a_turn_carries_no_ids(make_backend):
+    attributes = await _run_under_workflow_span(make_backend, WorkflowServiceRequest())
+    assert "ag.session.id" not in attributes
+    assert "ag.turn.id" not in attributes

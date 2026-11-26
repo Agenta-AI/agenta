@@ -1,12 +1,12 @@
 import type {Ref} from "react"
 
+import {useT} from "@agenta/i18n"
+import creatorCatalog from "@agenta/i18n/catalogs/onboarding.creator"
+
 import {FOCUS_RING} from "@/lib/interactive"
 import {cn} from "@/lib/utils"
 
-import {ONBOARDING_COPY} from "./onboardingCopy"
 import type {OnboardingCreateState} from "./OnboardingCreateState"
-
-const copy = ONBOARDING_COPY.creator
 
 /** Why Create did not or cannot run: its error, else the missing model with a way to pick one. */
 export const OnboardingCreateStatus = ({
@@ -15,14 +15,15 @@ export const OnboardingCreateStatus = ({
 }: {
     create: OnboardingCreateState
     chooseModelRef?: Ref<HTMLButtonElement>
-}) =>
-    create.error ? (
+}) => {
+    const t = useT(creatorCatalog)
+    return create.error ? (
         <span role="alert" className="text-destructive text-xs">
             {create.error}
         </span>
     ) : !create.modelReady && !create.pending ? (
         <span className="text-muted-foreground text-xs">
-            {copy.modelMissing}{" "}
+            {t("onboarding.creator.modelMissing")}{" "}
             <button
                 ref={chooseModelRef}
                 type="button"
@@ -32,7 +33,8 @@ export const OnboardingCreateStatus = ({
                     FOCUS_RING,
                 )}
             >
-                {copy.modelMissingAction}
+                {t("onboarding.creator.modelMissingAction")}
             </button>
         </span>
     ) : null
+}

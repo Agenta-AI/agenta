@@ -26,6 +26,7 @@ import type {EvaluatorCatalogPresetsResponse} from "../api/templates"
 import {fetchEvaluatorCatalogPresets} from "../api/templates"
 import type {Workflow} from "../core"
 import {buildWorkflowUri, parseWorkflowKeyFromUri, resolveOutputSchemaProperties} from "../core"
+import type {HumanEvaluatorMetric} from "../core/humanEvaluatorMetrics"
 
 import {evaluatorTemplatesDataAtom} from "./evaluatorTemplateAtoms"
 import {buildServiceUrlFromUri, filterNonDeterministicEvaluatorWorkflows} from "./helpers"
@@ -444,11 +445,6 @@ export const evaluatorConfigsListDataAtom = atom<Workflow[]>((get) => {
         if (revisionFlags?.isCustom) return false
         return true
     }) as Workflow[]
-
-    console.log(
-        `[evaluatorConfigsListData] refs=${refs.length}, after filter=${result.length}`,
-        `flagsMap size=${revisionFlagsMap.size}`,
-    )
 
     return result
 })
@@ -953,20 +949,22 @@ export async function createEvaluatorFromTemplate(templateKey: string): Promise<
 // HUMAN EVALUATOR CRUD
 // ============================================================================
 
-export interface HumanEvaluatorMetric {
-    name: string
-    type: string
-    optional: boolean
-    minimum?: number
-    maximum?: number
-    enum?: string[]
-}
+export type {HumanEvaluatorMetric} from "../core/humanEvaluatorMetrics"
 
 export interface CreateHumanEvaluatorParams {
     name: string
     slug: string
     description?: string
     metrics: HumanEvaluatorMetric[]
+}
+
+/** A human evaluator just created: what a picker needs to select it. */
+export interface CreatedHumanEvaluator {
+    slug: string
+    name: string
+    workflowId: string
+    revisionId: string
+    version: number
 }
 
 export interface UpdateHumanEvaluatorParams {
@@ -1039,7 +1037,7 @@ export function buildHumanEvaluatorOutputsSchema(metrics: HumanEvaluatorMetric[]
  * Write atom: create a human evaluator workflow.
  *
  * Builds the outputs schema from metrics, calls `createWorkflow`, and invalidates cache.
- * Returns the evaluator slug on success.
+ * Returns the new evaluator and its first revision, so a picker can select it.
  */
 export const createHumanEvaluatorAtom = atom(
     null,
@@ -1049,7 +1047,7 @@ export const createHumanEvaluatorAtom = atom(
 
         const outputsSchema = buildHumanEvaluatorOutputsSchema(params.metrics)
 
-        await createWorkflow(projectId, {
+        const revision = await createWorkflow(projectId, {
             slug: params.slug,
             name: params.name,
             description: params.description,
@@ -1062,7 +1060,14 @@ export const createHumanEvaluatorAtom = atom(
 
         invalidateWorkflowsListCache()
         invalidateEvaluatorsListCache()
-        return params.slug
+        const created: CreatedHumanEvaluator = {
+            slug: params.slug,
+            name: params.name,
+            workflowId: revision.workflow_id ?? "",
+            revisionId: revision.id,
+            version: revision.version ?? 1,
+        }
+        return created
     },
 )
 

@@ -128,6 +128,11 @@ export const useQueryParamState = (
         ) => {
             const resolved = typeof value === "function" ? (value as any)(currentValue) : value
 
+            // Clearing a param that is not in the URL changes nothing. Navigating anyway
+            // rebuilds the URL from the router's query, which misses what the page wrote with
+            // `history.replaceState` (the playground's `?revisions=` and `#pgSnapshot`).
+            if (resolved == null && currentValue == null) return
+
             if (Array.isArray(resolved) && Array.isArray(currentValue)) {
                 if (arraysEqual(resolved, currentValue)) return
             } else if (!Array.isArray(resolved) && !Array.isArray(currentValue)) {

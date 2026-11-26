@@ -5,6 +5,8 @@
  */
 import {useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {EmptyState, SkeletonBlock} from "@agenta/ui/ui"
 
 import {SkillCard} from "./SkillCard"
@@ -37,6 +39,7 @@ export function SkillGallerySections({
     search = "",
     loading,
 }: SkillGallerySectionsProps) {
+    const t = useT(skillsGalleryCatalog)
     const visibleSections = useMemo(() => sections.filter((s) => s.skills.length > 0), [sections])
 
     if (loading && visibleSections.length === 0) {
@@ -57,12 +60,14 @@ export function SkillGallerySections({
                 description={
                     <span className="flex flex-col gap-1 text-xs">
                         <span className="font-medium text-[var(--ag-colorText)]">
-                            {search.trim() ? "No skills match your search" : "No skills yet"}
+                            {search.trim()
+                                ? t("skills.gallery.noMatchTitle")
+                                : t("skills.gallery.noSkillsTitle")}
                         </span>
                         <span>
                             {search.trim()
-                                ? "Try a different name or description."
-                                : "Write one from scratch, upload a folder, or import from a repo."}
+                                ? t("skills.gallery.noMatchBody")
+                                : t("skills.gallery.noSkillsBody")}
                         </span>
                     </span>
                 }

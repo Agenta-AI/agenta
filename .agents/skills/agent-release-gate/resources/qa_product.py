@@ -339,11 +339,12 @@ CELLS = {
         "harness": "pi_core",
         "sandbox": "local",
         # The connection advertises several models, but a ChatGPT subscription does NOT accept
-        # all of them through this path: `gpt-5.4-mini` and `gpt-5.3-codex-spark` are refused
-        # with "not supported when using Codex with a ChatGPT account". Pin a model the
+        # all of them through this path: `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini` and
+        # `gpt-5.3-codex-spark` are refused with "not supported when using Codex with a ChatGPT
+        # account". Pin a model the
         # subscription really serves; a cheaper-looking id from the same list is not
         # interchangeable.
-        "model": "gpt-5.5",
+        "model": "gpt-5.6-luna",
         # `openai-codex`, not `openai`: the subscription provider slug Pi authenticates against.
         # The vault-key `openai` provider is a different code path (cell C3).
         "provider": "openai-codex",
@@ -360,7 +361,7 @@ CELLS = {
     "H2": {
         "harness": "pi_core",
         "sandbox": "daytona",
-        "model": "gpt-5.5",
+        "model": "gpt-5.6-luna",
         "provider": "openai-codex",
         "connection": {"mode": "self_managed", "slug": None},
         "subscription": True,

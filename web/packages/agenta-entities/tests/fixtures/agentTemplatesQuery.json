@@ -1,5 +1,5 @@
 {
-  "count": 29,
+  "count": 30,
   "templates": [
     {
       "key": "pr-reviewer",
@@ -2943,6 +2943,180 @@
           "job-hunt/reports/<date>.md"
         ],
         "status": "Report saved"
+      },
+      "media": []
+    },
+    {
+      "key": "seo-content-agent",
+      "source": {
+        "kind": "internal",
+        "key": "seo-content-agent"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:93128f4203170dac94cb810299417cb5fc625022ea1f0add74edcc0d94cefec1",
+      "name": "SEO Content Agent",
+      "summary": "Research search opportunities and turn approved briefs into useful content.",
+      "description": "An SEO coworker with eight research, planning, writing and review skills, a clean editorial workspace, and separate brief and publish-readiness approvals.",
+      "category": "Marketing",
+      "tags": [
+        "seo",
+        "content",
+        "research",
+        "editorial"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta team",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "avatar_url": "https://agenta.ai/android-chrome-512x512.png",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          },
+          {
+            "kind": "linkedin",
+            "url": "https://www.linkedin.com/company/agenta-ai",
+            "label": "LinkedIn"
+          },
+          {
+            "kind": "x",
+            "url": "https://x.com/agenta_ai",
+            "label": "X"
+          }
+        ]
+      },
+      "initials": "SEO",
+      "color": "#315B58",
+      "instructions_summary": "Learn the website, investigate demand, recommend a small content plan, and develop approved briefs into reviewed drafts. Keep evidence and owner decisions with the work.",
+      "trigger": "On demand",
+      "trigger_description": "Start in chat or send a saved editorial-workspace request. No schedules are active by default.",
+      "seed_message": "Build an SEO content agent that researches my website, recommends a small content plan, and drafts approved briefs.",
+      "builder_message": "Build an SEO content agent that researches my website, recommends a small content plan, and drafts approved briefs.",
+      "model": "gpt-5",
+      "tools_summary": "1 Composio Search + 1 Context.dev + 1 Peec + 1 fal.ai + 1 Google Search Console + 1 Browserbase tools",
+      "connections": [
+        {
+          "key": "composio-search",
+          "role": "Find public evidence, competitors and search opportunities.",
+          "required": true,
+          "primary": {
+            "slug": "composio_search",
+            "scope": "Choose your own available connection and verify access when first used. No account binding is included.",
+            "tools": [
+              {
+                "name": "Search the web",
+                "description": "Find public evidence, competitors and audience questions."
+              }
+            ]
+          },
+          "alternatives": []
+        },
+        {
+          "key": "context-dev",
+          "role": "Read webpages for research and claim checks.",
+          "required": false,
+          "primary": {
+            "slug": "context_dev",
+            "scope": "Choose your own available connection and verify access when first used. No account binding is included.",
+            "tools": [
+              {
+                "name": "Read webpages",
+                "description": "Read sources for research and factual checks."
+              }
+            ]
+          },
+          "alternatives": []
+        },
+        {
+          "key": "peec-ai-mcp",
+          "role": "Review AI-search visibility for a project the recipient chooses.",
+          "required": false,
+          "primary": {
+            "slug": "peec_ai_mcp",
+            "scope": "Choose your own available connection and verify access when first used. No account binding is included.",
+            "tools": [
+              {
+                "name": "Review AI visibility",
+                "description": "Inspect visibility in the recipient's own project."
+              }
+            ]
+          },
+          "alternatives": []
+        },
+        {
+          "key": "fal-ai",
+          "role": "Generate cover images when the recipient requests them.",
+          "required": false,
+          "primary": {
+            "slug": "fal_ai",
+            "scope": "Choose your own available connection and verify access when first used. No account binding is included.",
+            "tools": [
+              {
+                "name": "Generate images",
+                "description": "Create requested cover assets using the recipient's brand guidance."
+              }
+            ]
+          },
+          "alternatives": []
+        },
+        {
+          "key": "google-search-console",
+          "role": "Inspect search performance and indexing for the recipient's website.",
+          "required": false,
+          "primary": {
+            "slug": "google_search_console",
+            "scope": "Choose your own account and website property; verify property access before using its data.",
+            "tools": [
+              {
+                "name": "Inspect search evidence",
+                "description": "Read performance and indexing data for the recipient's property."
+              }
+            ]
+          },
+          "alternatives": []
+        },
+        {
+          "key": "browserbase-mcp",
+          "role": "Inspect rendered webpages and capture evidence during research and review.",
+          "required": false,
+          "primary": {
+            "slug": "browserbase_mcp",
+            "scope": "Choose your own browser service account; verify a bounded browser read when first used.",
+            "tools": [
+              {
+                "name": "Inspect rendered pages",
+                "description": "Check webpages and capture research evidence in a browser."
+              }
+            ]
+          },
+          "alternatives": []
+        }
+      ],
+      "example": {
+        "prompt": "Investigate my website's SEO and propose a small starting content plan.",
+        "steps": [
+          "Read existing context and research representative pages",
+          "Capture available demand and competitor evidence",
+          "Recommend a focused plan and explain evidence limits",
+          "Save the report and ask for feedback before briefing"
+        ],
+        "reply": "The first investigation is ready. It separates observed evidence from assumptions and recommends a small starting plan for your review. No articles have been drafted or published.",
+        "artifacts": [
+          "agent-files/01-research/<date>/report.md"
+        ],
+        "status": "Awaiting direction feedback"
       },
       "media": []
     }

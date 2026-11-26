@@ -1,0 +1,11 @@
+{
+    "agent": "Agent",
+    "loadingConversation": "Loading conversation",
+    "noMessages": "No messages here — this session has no replayable history.",
+    "readOnlyNoAgent": "Read-only — this session has no agent to message yet.",
+    "readOnlyNoRevision": "Read-only — this agent has no revision to message yet.",
+    "running": "running",
+    "tryAgain": "Try again",
+    "unreachableDescription": "The server didn't respond. Check your connection, then try again.",
+    "unreachableTitle": "Couldn't load this session"
+}

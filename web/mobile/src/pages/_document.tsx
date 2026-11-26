@@ -1,5 +1,9 @@
-import {Html, Head, Main, NextScript} from "next/document"
+import {languageInitScript, languagePendingStyle} from "@agenta/i18n/document"
+import {Html, Head, Main, NextScript, type DocumentProps} from "next/document"
 import Script from "next/script"
+
+import {isEmbedPath} from "@/features/embed/embedRoute"
+import {mobileGateScript} from "@/lib/mobileGateScript"
 
 // Runs synchronously before paint to apply the persisted theme, preventing a
 // flash of the wrong theme on load. Same localStorage key as the desktop app
@@ -7,7 +11,9 @@ import Script from "next/script"
 // user's theme follows them between /m and the desktop app.
 const themeInitScript = `(function(){try{var r=localStorage.getItem('agenta-theme');var m=r?(r.charAt(0)==='"'?JSON.parse(r):r):'system';var d=m==='dark'||(m==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d){document.documentElement.classList.add('dark');document.documentElement.style.colorScheme='dark';}}catch(e){}})();`
 
-export default function Document() {
+export default function Document({__NEXT_DATA__}: DocumentProps) {
+    // The embed widget never mounts LanguageSync, so nothing would show its page again.
+    const hidesUntilTranslated = !isEmbedPath(__NEXT_DATA__.page)
     return (
         <Html lang="en" className="antialiased">
             <Head>
@@ -18,7 +24,29 @@ export default function Document() {
                 <link rel="icon" href="/m/assets/favicon.ico" sizes="any" />
                 <link rel="icon" href="/m/assets/agenta-symbol.svg" type="image/svg+xml" />
                 <link rel="apple-touch-icon" href="/m/assets/agenta-symbol.svg" />
+                {/* The website's card: og:image must be absolute, and this app's host is only known at runtime. */}
+                <meta property="og:type" content="website" />
+                <meta property="og:site_name" content="Agenta" />
+                <meta property="og:title" content="Agenta" />
+                <meta
+                    property="og:description"
+                    content="The open-source, no-code agent workspace."
+                />
+                <meta property="og:image" content="https://agenta.ai/og/default.png" />
+                <meta property="og:image:width" content="2000" />
+                <meta property="og:image:height" content="1050" />
+                <meta name="twitter:card" content="summary_large_image" />
+                <meta name="twitter:image" content="https://agenta.ai/og/default.png" />
+                {/* Before anything else: it may leave the page. */}
+                <script dangerouslySetInnerHTML={{__html: mobileGateScript}} />
                 <script dangerouslySetInnerHTML={{__html: themeInitScript}} />
+                {/* Pages are prerendered, so the language cookie is applied before paint. */}
+                {hidesUntilTranslated && (
+                    <>
+                        <style dangerouslySetInnerHTML={{__html: languagePendingStyle}} />
+                        <script dangerouslySetInnerHTML={{__html: languageInitScript}} />
+                    </>
+                )}
             </Head>
             <body>
                 <Main />

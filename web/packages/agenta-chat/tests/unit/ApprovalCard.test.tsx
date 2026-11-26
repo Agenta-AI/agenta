@@ -9,6 +9,8 @@
 import {renderToStaticMarkup} from "react-dom/server"
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
+import editAgentConfigTurn from "./fixtures/editAgentConfigTurn.json"
+
 const grantState = vi.hoisted(() => ({eligible: false, alreadyAllowed: false}))
 // Records what a decision actually granted, so the batch case can assert every tool landed.
 const granted = vi.hoisted(() => ({calls: [] as string[][]}))
@@ -23,21 +25,32 @@ vi.mock("../../src/hooks/useAlwaysAllowTool", () => ({
     }),
 }))
 
+// The agent's latest version, as the latest-revision query would answer it.
+const versions = vi.hoisted(() => ({latest: undefined as number | undefined}))
+vi.mock("../../src/hooks/useChangeVersions", () => ({
+    useChangeVersions: (base?: {version?: number}) => ({
+        baseVersion: base?.version,
+        latestVersion: versions.latest,
+    }),
+}))
+
 const {ApprovalCard} = await import("../../src/components/ApprovalCard")
 const {createRoot} = await import("react-dom/client")
 const {act} = await import("react")
 
 beforeEach(() => {
+    versions.latest = undefined
     grantState.eligible = false
     grantState.alreadyAllowed = false
     granted.calls = []
 })
 
-const render = () =>
+const render = ({alwaysAllowOffered}: {alwaysAllowOffered?: boolean} = {}) =>
     renderToStaticMarkup(
         <ApprovalCard
             approvals={[{approvalId: "a1", toolName: "bash", input: {command: "ls"}}]}
             entityId="rev-1"
+            alwaysAllowOffered={alwaysAllowOffered}
             onRespond={() => undefined}
             onApproveAll={() => undefined}
         />,
@@ -51,6 +64,12 @@ describe("the auto-approve row", () => {
 
     it("stays hidden for an ineligible gate (platform ops like commit_revision)", () => {
         expect(render()).not.toContain("Always auto-approve")
+    })
+
+    // A builder chat: the grant would go to the builder itself, not to the agent it edits.
+    it("stays hidden when the host does not offer it", () => {
+        grantState.eligible = true
+        expect(render({alwaysAllowOffered: false})).not.toContain("Always auto-approve")
     })
 
     it("stays hidden once the tool is already allowed — the row would be a no-op", () => {
@@ -100,6 +119,84 @@ describe("the auto-approve row", () => {
     })
 })
 
+describe("the auto-approve row in the builder chat", () => {
+    const builderGate = {
+        approvalId: "a1",
+        toolName: "start_session",
+        input: {agent: "email-writer", message: "Draft it"},
+    }
+
+    it("offers the builder tools the person can choose, whatever the configuration", () => {
+        const markup = (toolNames: string[]) =>
+            renderToStaticMarkup(
+                <ApprovalCard
+                    approvals={[builderGate]}
+                    entityId="rev-1"
+                    alwaysAllowOffered={false}
+                    alwaysApprove={{toolNames: new Set(toolNames), choose: () => undefined}}
+                    onRespond={() => undefined}
+                    onApproveAll={() => undefined}
+                />,
+            )
+        expect(markup(["start_session"])).toContain("Always auto-approve")
+        expect(markup(["edit_agent_config"])).not.toContain("Always auto-approve")
+    })
+
+    it("a viewer sees no control", () => {
+        const markup = renderToStaticMarkup(
+            <ApprovalCard
+                approvals={[builderGate]}
+                readOnly
+                alwaysApprove={{toolNames: new Set(["start_session"]), choose: () => undefined}}
+                onRespond={() => undefined}
+                onApproveAll={() => undefined}
+            />,
+        )
+        expect(markup).not.toContain("Always auto-approve")
+    })
+
+    it("approving with it armed stores the choice, not the configuration", () => {
+        const chosen: string[][] = []
+        const answers: boolean[] = []
+        const host = document.createElement("div")
+        document.body.appendChild(host)
+        const root = createRoot(host)
+        act(() => {
+            root.render(
+                <ApprovalCard
+                    approvals={[builderGate]}
+                    entityId="rev-1"
+                    alwaysAllowOffered={false}
+                    alwaysApprove={{
+                        toolNames: new Set(["start_session"]),
+                        choose: (toolNames) => chosen.push(toolNames),
+                    }}
+                    onRespond={({approved}) => answers.push(approved)}
+                    onApproveAll={() => undefined}
+                />,
+            )
+        })
+        act(() => {
+            host.querySelector('[role="checkbox"]')!.dispatchEvent(
+                new MouseEvent("click", {bubbles: true}),
+            )
+        })
+        const approve = [...host.querySelectorAll("button")].find((node) =>
+            node.textContent?.startsWith("Approve"),
+        )!
+        act(() => {
+            approve.dispatchEvent(new MouseEvent("click", {bubbles: true}))
+        })
+        expect(chosen).toEqual([["start_session"]])
+        expect(answers).toEqual([true])
+        expect(granted.calls).toEqual([])
+        act(() => {
+            root.unmount()
+            host.remove()
+        })
+    })
+})
+
 describe("durable response state", () => {
     it("shows that the answer was accepted while the continuation catches up", () => {
         const markup = renderToStaticMarkup(
@@ -112,12 +209,11 @@ describe("durable response state", () => {
             />,
         )
 
-        expect(markup).toContain("Answered, waiting for the agent")
-        expect(markup).toContain("The answer is saved")
-        // HeightCollapse keeps its child mounted for the leave animation, but removes it from
-        // layout, accessibility, and interaction while the answered state is visible.
-        expect(markup).toContain('aria-hidden="true" inert=""')
-        expect(markup).toContain('disabled=""')
+        // The card shrinks to its result row (task 26.1): no buttons while the result comes.
+        expect(markup).toContain("Waiting for the agent")
+        expect(markup).toContain("Your answer is saved.")
+        expect(markup).not.toContain("Approve")
+        expect(markup).not.toContain("Deny")
     })
 
     it("keeps a failed answer pending and surfaces the retryable error", () => {
@@ -386,6 +482,30 @@ describe("keyboard shortcuts", () => {
         offscreen.remove()
     })
 
+    // Two conversations on one screen (the session and the builder chat) can each show a card.
+    it("answers only when the host says the keys belong to this card", () => {
+        const responses: unknown[] = []
+        let owns = false
+        const cards: HTMLElement[] = []
+        const {cleanup} = mount({
+            onRespond: () => responses.push(1),
+            ownsShortcut: (card: HTMLElement) => {
+                cards.push(card)
+                return owns
+            },
+        })
+
+        press({key: "Enter", metaKey: true})
+        press({key: "Escape"})
+        expect(responses).toEqual([])
+        expect(cards[0]?.isConnected).toBe(true)
+
+        owns = true
+        press({key: "Enter", metaKey: true})
+        expect(responses).toEqual([1])
+        cleanup()
+    })
+
     // antd sets no data-state and leaves its popups mounted, so the guard matches them by class.
     it.each([".ant-dropdown", ".ant-select-dropdown", ".ant-popover", ".ant-modal-wrap"])(
         "answers nothing while %s is open",
@@ -420,5 +540,298 @@ describe("keyboard shortcuts", () => {
         expect(responses).toEqual([1])
 
         cleanup()
+    })
+
+    // Another session's card shares the screen with the chat's own card: one Cmd+Enter must not
+    // approve the tool call of another agent.
+    it("binds no keys when the card does not own the shortcuts", () => {
+        const responses: unknown[] = []
+        const {cleanup} = mount({ownsShortcut: () => false, onRespond: () => responses.push(1)})
+
+        press({key: "Enter", metaKey: true})
+        press({key: "Escape"})
+        expect(responses).toEqual([])
+        cleanup()
+    })
+})
+
+describe("the read-only card (a person who can view but not send)", () => {
+    const renderReadOnly = () =>
+        renderToStaticMarkup(
+            <ApprovalCard
+                approvals={[{approvalId: "a1", toolName: "bash", input: {command: "ls"}}]}
+                entityId="rev-1"
+                steerEnabled
+                readOnly
+                readOnlyNote="Waiting for Alice Martin or someone who can send in this chat."
+                onRespond={() => undefined}
+                onApproveAll={() => undefined}
+            />,
+        )
+
+    it("readOnly renders no answer buttons", () => {
+        grantState.eligible = true
+        const html = renderReadOnly()
+        expect(html).not.toContain("Approve")
+        expect(html).not.toContain("Deny")
+        expect(html).not.toContain("Redirect")
+        expect(html).not.toContain("Always auto-approve")
+    })
+
+    it("keeps the eyebrow and shows who it waits for", () => {
+        const html = renderReadOnly()
+        expect(html).toContain("Needs your approval")
+        expect(html).toContain("Only the owner can approve")
+        expect(html).toContain("Waiting for Alice Martin or someone who can send in this chat.")
+    })
+
+    it("says the reader can read the chat when the host names nobody", () => {
+        const html = renderToStaticMarkup(
+            <ApprovalCard
+                approvals={[{approvalId: "a1", toolName: "bash", input: {command: "ls"}}]}
+                readOnly
+                onRespond={() => undefined}
+                onApproveAll={() => undefined}
+            />,
+        )
+        expect(html).toContain("Only the owner can approve")
+        expect(html).toContain("You can read this chat.")
+    })
+})
+
+describe("the change card of a builder edit (task 8.2)", () => {
+    const recorded = editAgentConfigTurn.message.parts
+    const preview = (recorded[0] as {data: {preview: unknown}}).data.preview
+    const input = (recorded[1] as {input: unknown}).input
+    const card = (changePreview?: unknown) =>
+        renderToStaticMarkup(
+            <ApprovalCard
+                approvals={[
+                    {approvalId: "perm-1", toolName: "edit_agent_config", input, changePreview},
+                ]}
+                onRespond={() => undefined}
+                onApproveAll={() => undefined}
+            />,
+        )
+
+    it("shows the old and the new values of the server preview", () => {
+        const html = card(preview)
+        expect(html).toContain('data-testid="change-sections"')
+        expect(html).toMatch(/data-testid="change-old"[^>]*>claude-sonnet-5-5</)
+        expect(html).toMatch(/data-testid="change-new"[^>]*>claude-opus-5-5</)
+        expect(html).not.toContain('data-testid="change-proposed"')
+        // The changes show in place; the toggle would repeat them.
+        expect(html).not.toContain("See what changes")
+    })
+
+    it("keeps a changed line that starts like a diff header", () => {
+        const html = card({
+            applies: true,
+            operations: [{index: 0, applies: true}],
+            changes: [
+                {
+                    path: ["parameters", "agent", "instructions", "agents_md"],
+                    operation_indexes: [0],
+                    kind: "changed",
+                    diff: "--- old\n+++ new\n@@ -1,2 +1,2 @@\n Intro\n----\n+++ bold\n",
+                },
+            ],
+        })
+        expect(html).not.toContain(">-- old<")
+        // The sign goes to the gutter; the rest of the line is its text.
+        expect(html).toContain(">---<")
+        expect(html).toContain(">++ bold<")
+    })
+
+    it("says a refused change cannot apply and marks the failing change", () => {
+        const html = card(editAgentConfigTurn.failedPreview)
+        expect(html).toContain("This change cannot be applied to the current version of the agent.")
+        expect(html).toContain('data-fails="true"')
+        expect(html).not.toContain("does not occur")
+        expect(html).not.toContain('data-testid="change-proposed"')
+    })
+
+    it("shows the proposed values with a label when the call has no preview", () => {
+        const html = card(undefined)
+        expect(html).toContain("Proposed values. The current values could not be loaded.")
+        expect(html).not.toMatch(/data-testid="change-old"[^>]*>claude-sonnet-5-5</)
+        expect(html).toContain("Approve")
+    })
+
+    it("has a header per change, and a footer that says which version it saves", () => {
+        const html = card(preview)
+        expect(html).toContain("3 changes to support-triage")
+        expect(html).toContain("Edit the instructions")
+        expect(html).toContain("Instructions › AGENTS.md")
+        expect(html).toMatch(/data-testid="change-saves-as"[^>]*>Saves as v5</)
+        // The change is the header: no eyebrow and no tool sentence while it waits.
+        expect(html).not.toContain("Needs your approval")
+        expect(html).not.toContain("Agenta saves this as a new version")
+        expect(html).not.toContain('data-testid="change-conflict"')
+    })
+
+    it("shows the conflict before a click when a newer version landed", () => {
+        versions.latest = 5
+        const html = card(preview)
+        expect(html).toContain('data-testid="change-conflict"')
+        expect(html).toContain("Someone saved v5 after the builder read v4.")
+        // The number does not follow the latest version.
+        expect(html).toContain("Saves as v5")
+        expect(html).toContain("Approve")
+    })
+
+    it("says no version when the base version is not known", () => {
+        expect(card(undefined)).not.toContain("change-saves-as")
+    })
+
+    it("words the main button Remove for a card that only removes", () => {
+        const gmail = {list: "tools", key: "gateway_connection:composio:gmail"}
+        const html = renderToStaticMarkup(
+            <ApprovalCard
+                approvals={[
+                    {
+                        approvalId: "perm-2",
+                        toolName: "edit_agent_config",
+                        input: {
+                            agent: "support-triage",
+                            operations: [
+                                {operation: "remove_item", target: ["parameters", "agent", gmail]},
+                            ],
+                        },
+                    },
+                ]}
+                onRespond={() => undefined}
+                onApproveAll={() => undefined}
+            />,
+        )
+        expect(html).toContain("Remove an integration")
+        // A card with one change starts its path at the section, as C01 and M05 draw it.
+        expect(html).toContain("Integrations")
+        expect(html).not.toContain("support-triage ›")
+        expect(html).toContain("No longer available to the agent")
+        expect(html).toMatch(/>Remove</)
+        expect(html).not.toMatch(/>Approve</)
+    })
+
+    it("shows the warning line and border of a risky change", () => {
+        const target = [
+            "parameters",
+            "agent",
+            {list: "tools", key: "gateway_connection:composio:zendesk"},
+            "policy",
+            "permissions",
+            "tools",
+            "ZENDESK_CLOSE_TICKET",
+        ]
+        const html = renderToStaticMarkup(
+            <ApprovalCard
+                approvals={[
+                    {
+                        approvalId: "perm-3",
+                        toolName: "edit_agent_config",
+                        input: {
+                            agent: "support-triage",
+                            operations: [{operation: "set", target, value: "allow"}],
+                        },
+                    },
+                ]}
+                onRespond={() => undefined}
+                onApproveAll={() => undefined}
+            />,
+        )
+        expect(html).toContain('data-testid="change-risk"')
+        expect(html).toContain("The agent will use Close ticket without asking you.")
+        expect(html).toContain("!border-colorWarningBorder")
+    })
+})
+
+describe("the grouped card of several change calls (task 26.2)", () => {
+    const call = (id: string, value: string) => ({
+        approvalId: id,
+        toolName: "edit_agent_config",
+        input: {
+            agent: "Support triage",
+            base_revision_id: "rev-4",
+            operations: [
+                {
+                    operation: "set",
+                    target: ["parameters", "agent", "llm", "model"],
+                    value,
+                },
+            ],
+        },
+        changePreview: {
+            applies: true,
+            base: {id: "rev-4", version: "4"},
+            operations: [{index: 0, applies: true}],
+            changes: [
+                {
+                    path: ["parameters", "agent", "llm", "model"],
+                    operation_indexes: [0],
+                    kind: "changed",
+                    old: "claude-sonnet-5.5",
+                    new: value,
+                },
+            ],
+        },
+    })
+    const render = (onDenyAll?: () => void) =>
+        renderToStaticMarkup(
+            <ApprovalCard
+                approvals={[call("a1", "claude-opus-5.5"), call("a2", "gpt-6")]}
+                onRespond={() => undefined}
+                onApproveAll={() => undefined}
+                onDenyAll={onDenyAll}
+            />,
+        )
+
+    it("shows one group per call, each saved as its own version", () => {
+        const html = render(() => undefined)
+        expect(html).toContain("2 changes to Support triage")
+        expect(html.match(/Saved together as v5/g)?.length).toBe(2)
+        expect(html.match(/data-testid="change-block-row"/g)?.length).toBe(2)
+        expect(html).toContain("claude-sonnet-5.5 to claude-opus-5.5")
+        expect(html).toContain("Open a row to see its details")
+        expect(html).toContain("Deny all")
+        expect(html).toContain("Approve all")
+        // No list of actions behind a toggle: the groups are the details.
+        expect(html).not.toContain("See what runs")
+    })
+
+    it("shows the conflict state of a group before a click", () => {
+        versions.latest = 5
+        expect(render()).toContain('data-testid="change-conflict"')
+    })
+
+    it("names the agent of each group when the calls change several agents", () => {
+        const other = call("a2", "gpt-6")
+        const html = renderToStaticMarkup(
+            <ApprovalCard
+                approvals={[
+                    call("a1", "claude-opus-5.5"),
+                    {...other, input: {...other.input, agent: "Refund checker"}},
+                ]}
+                onRespond={() => undefined}
+                onApproveAll={() => undefined}
+            />,
+        )
+        expect(html).toContain("2 changes")
+        expect(html).toContain(">Support triage<")
+        expect(html).toContain(">Refund checker<")
+    })
+
+    it("keeps the list of actions for a batch with another tool", () => {
+        const html = renderToStaticMarkup(
+            <ApprovalCard
+                approvals={[
+                    call("a1", "claude-opus-5.5"),
+                    {approvalId: "a2", toolName: "bash", input: {command: "ls"}},
+                ]}
+                onRespond={() => undefined}
+                onApproveAll={() => undefined}
+            />,
+        )
+        expect(html).toContain("See what runs (2)")
+        expect(html).not.toContain("Saved together")
     })
 })

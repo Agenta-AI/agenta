@@ -1,4 +1,8 @@
-from agenta.sdk.redaction.redactor import Redactor, redaction_mode
+from agenta.sdk.redaction.redactor import (
+    Redactor,
+    redaction_mode,
+    strip_echoed_key_fragments,
+)
 from agenta.sdk.redaction import metrics
 from agenta.sdk.redaction.seed import seed_from_request, curated_env_secret_values
 from agenta.sdk.redaction.context import (
@@ -11,6 +15,7 @@ from agenta.sdk.redaction.context import (
 __all__ = [
     "Redactor",
     "redaction_mode",
+    "strip_echoed_key_fragments",
     "metrics",
     "seed_from_request",
     "curated_env_secret_values",

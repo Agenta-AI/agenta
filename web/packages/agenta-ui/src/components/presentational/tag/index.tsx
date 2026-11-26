@@ -19,6 +19,9 @@
 
 import {memo, type CSSProperties, type ReactNode} from "react"
 
+import {type CatalogKey, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiStatusCatalog from "@agenta/i18n/catalogs/ui.status"
 import {type MappingStatus, getMappingStatusConfig} from "@agenta/shared/utils"
 import {MagicWand, PencilSimpleLine, Warning, X} from "@phosphor-icons/react"
 
@@ -27,30 +30,31 @@ import {Badge, type BadgeProps} from "../../ui/badge"
 import {type EnvironmentName, type ExecutionStatus, type QueryStatus} from "../status"
 
 type Tone = BadgeProps["variant"]
+type StatusTextKey = CatalogKey<typeof uiStatusCatalog> | CatalogKey<typeof commonCatalog>
 
 /** Testcase sync state (was `SyncStateTag`'s `SyncState`; `Tag` now owns it). */
 export type SyncState = "unmodified" | "modified" | "new" | "hidden"
 
 // ── Preset tone/label maps (the single home for tag colour knowledge) ────────
-const STATUS: Record<QueryStatus | ExecutionStatus, {tone: Tone; label: string}> = {
-    loading: {tone: "warning", label: "Loading..."},
-    pending: {tone: "warning", label: "Pending"},
-    running: {tone: "processing", label: "Running..."},
-    error: {tone: "error", label: "Error"},
-    success: {tone: "success", label: "Success"},
-    ready: {tone: "success", label: "Ready"},
-    idle: {tone: "default", label: "Idle"},
+const STATUS: Record<QueryStatus | ExecutionStatus, {tone: Tone; labelKey: StatusTextKey}> = {
+    loading: {tone: "warning", labelKey: "ui.status.loading"},
+    pending: {tone: "warning", labelKey: "common.pending"},
+    running: {tone: "processing", labelKey: "ui.status.running"},
+    error: {tone: "error", labelKey: "ui.status.error"},
+    success: {tone: "success", labelKey: "ui.status.success"},
+    ready: {tone: "success", labelKey: "ui.status.ready"},
+    idle: {tone: "default", labelKey: "ui.status.idle"},
 }
 
-const SYNC: Partial<Record<SyncState, {tone: Tone; label: string}>> = {
-    modified: {tone: "blue", label: "Edited"},
-    new: {tone: "green", label: "New"},
+const SYNC: Partial<Record<SyncState, {tone: Tone; labelKey: StatusTextKey}>> = {
+    modified: {tone: "blue", labelKey: "ui.status.edited"},
+    new: {tone: "green", labelKey: "ui.status.new"},
 }
 
-const ENV_LABEL: Record<EnvironmentName, string> = {
-    production: "Production",
-    staging: "Staging",
-    development: "Development",
+const ENV_LABEL: Record<EnvironmentName, StatusTextKey> = {
+    production: "ui.status.production",
+    staging: "ui.status.staging",
+    development: "ui.status.development",
 }
 
 function mappingTone(status: MappingStatus): Tone {
@@ -130,6 +134,7 @@ function TagImpl({
     children,
     ...rest
 }: TagProps) {
+    const t = useT(uiStatusCatalog, commonCatalog)
     const iconSize = size === "small" ? 10 : 12
     let variant = tone
     let content: ReactNode = label ?? children
@@ -138,7 +143,7 @@ function TagImpl({
 
     if (status != null) {
         variant = STATUS[status]?.tone ?? "default"
-        content = label ?? STATUS[status]?.label ?? status
+        content = label ?? (STATUS[status] ? t(STATUS[status].labelKey) : status)
     } else if (mapping != null) {
         variant = mappingTone(mapping)
         content = label ?? getMappingStatusConfig(mapping).label
@@ -146,7 +151,7 @@ function TagImpl({
     } else if (env != null) {
         const name = env.toLowerCase() as EnvironmentName
         const known = ENV_LABEL[name]
-        content = label ?? known ?? env ?? "Unknown"
+        content = label ?? (known ? t(known) : (env ?? t("common.unknown")))
         if (known)
             style = {
                 backgroundColor: `var(--ag-env-${name}-bg)`,
@@ -155,13 +160,13 @@ function TagImpl({
             }
     } else if (draft) {
         variant = "draft"
-        content = label ?? "Draft"
+        content = label ?? t("ui.status.draft")
         leadingIcon = showIcon === false ? undefined : (icon ?? <PencilSimpleLine size={14} />)
     } else if (sync != null) {
         const cfg = SYNC[sync]
         if (!cfg) return null
         variant = cfg.tone
-        content = label ?? cfg.label
+        content = label ?? t(cfg.labelKey)
     }
 
     const showDismiss = Boolean(dismissible && sync === "modified" && onDismiss)
@@ -185,7 +190,7 @@ function TagImpl({
             {showDismiss ? (
                 // antd's close-icon slot: 3px inset (Badge's own gap-1 is 4px) and colorIcon grey.
                 <span
-                    title="Discard changes"
+                    title={t("ui.status.discardChanges")}
                     className="-ml-px inline-flex cursor-pointer text-colorIcon"
                     onClick={onDismiss}
                 >

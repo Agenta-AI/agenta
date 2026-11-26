@@ -33,7 +33,6 @@ from oss.src.core.gateways.types import GatewaysError
 
 from oss.src.core.gateways.policy.dtos import (
     BoundSecretRef,
-    SecretMode,
     SecretOwner,
     SecretOwnerKind,
     GatewayOutcome,
@@ -151,9 +150,8 @@ def _standard_secret() -> SecretResponseDTO:
 
 def test_policy_dtos():
     assert GatewayPlane.LLM.value == "llm"
-    assert SecretMode.USER_OPTIONAL.value == "user_optional"
-    owner = SecretOwner(kind=SecretOwnerKind.PROJECT)
-    assert owner.user_id is None
+    owner = SecretOwner(kind=SecretOwnerKind.PROJECT, id=uuid4())
+    assert owner.id is not None
     assert SecretOrigin.VAULT.value == "vault"
 
     assert ProviderKeyRef(provider_key="openai").provider_key == "openai"
@@ -190,7 +188,6 @@ def test_policy_exceptions():
     assert entitlement.key == "llm_calls"
 
     not_found = SecretNotFoundError(
-        mode=SecretMode.PROJECT_ONLY,
         missing=SecretOwnerKind.PROJECT,
         target="builtin/openai",
     )
@@ -363,7 +360,7 @@ def test_mcp_dtos():
     direct_auth = MCPDirectAuth(
         secret=ResolvedSecret(
             secret=_standard_secret(),
-            owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
+            owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=uuid4()),
             origin=SecretOrigin.VAULT,
         )
     )

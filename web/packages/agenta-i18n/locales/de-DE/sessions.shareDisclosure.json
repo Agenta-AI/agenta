@@ -1,0 +1,14 @@
+{
+    "back": "Zurück",
+    "bodyAgent": "Alle in {{project}} können diesen Agent ausführen und ihn die verbundenen Konten nutzen lassen: {{accounts}}.",
+    "bodyAgentNoAccounts": "Alle in {{project}} können diesen Agent ansehen und ausführen.",
+    "bodySession": "Sie sehen alles in diesem Chat, und jeder, der senden darf, kann den Agent dazu bringen, die verbundenen Konten zu nutzen: {{accounts}}.",
+    "bodySessionNoAccounts": "Sie sehen alles in diesem Chat.",
+    "cancel": "Abbrechen",
+    "personalAccount": "Das eigene {{account}} jeder Person",
+    "share": "Freigeben",
+    "shareWithProject": "Mit dem Projekt teilen",
+    "titleAgent": "{{agent}} mit dem Projekt teilen?",
+    "titlePeople": "Mit {{names}} teilen?",
+    "titleProject": "Mit allen in {{project}} teilen?"
+}

@@ -6,9 +6,10 @@ import {
 import { parseGatewayErrorDetail } from "../../gateway-error.ts";
 import { isCooperativeCancelAbort } from "../../sessions/stop-signal.ts";
 import { acquireEnvironment } from "./environment.ts";
-import { runCredential } from "./runtime-policy.ts";
-import { loadDurableDecisions } from "../../sessions/interactions.ts";
+import { platformCredentialForRequest } from "./runtime-policy.ts";
+import { loadTurnApprovalRows } from "../../sessions/interactions.ts";
 import { runTurn } from "./run-turn.ts";
+import { withDaytonaActivityHeartbeat } from "./daytona-heartbeat.ts";
 import { normalizeRequestModel } from "./model.ts";
 import { TURN_INDEX_TAKEN_CODE } from "./errors.ts";
 import {
@@ -110,6 +111,26 @@ export function turnTeardownReason(
 }
 
 /**
+ * Why the keep-alive engine's `runCold` tears its environment down. The coordinator calls
+ * `runCold` only for a run it cannot pool: one with no session id, or no project scope to key a
+ * pool entry on. Such a sandbox must never stop instead of delete. A stopped sandbox with no pool
+ * entry has no owner: the shutdown sweep does not see it, no later turn is keyed to it, and its
+ * Daytona Secrets live only as long as the process-local cleanup timer, which a restart drops.
+ *
+ * So every ending maps to a reason that deletes. An abort and a failure keep their names for the
+ * log, a turn another runner already wrote included; every other ending is `unpooled`.
+ */
+export function unpooledTeardownReason(
+  result: AgentRunResult | undefined,
+  signal: AbortSignal | undefined,
+  clientGone: (() => boolean) | undefined,
+): TeardownReason {
+  if (signal?.aborted || clientGone?.()) return "aborted";
+  if (result === undefined || !result.ok) return "failed-turn";
+  return "unpooled";
+}
+
+/**
  * The cold, one-turn-per-environment entry (also the flag-off path). Acquire an environment, run
  * one turn, then tear the environment down — exactly as the single `try/finally` did before the
  * split, so behavior here is byte-identical to pre-keep-alive.
@@ -119,7 +140,10 @@ export async function runSandboxAgent(
   emit?: EmitEvent,
   signal?: AbortSignal,
   deps: SandboxAgentDeps = {},
-  turnOptions: Pick<RunTurnOptions, "credential" | "seededDecisions"> = {},
+  turnOptions: Pick<
+    RunTurnOptions,
+    "credentialLease" | "seededDecisions" | "approvalRows"
+  > = {},
 ): Promise<AgentRunResult> {
   normalizeRequestModel(request);
   const acquired = await acquireEnvironment(
@@ -134,21 +158,26 @@ export async function runSandboxAgent(
   const env = acquired.env;
   let result: AgentRunResult | undefined;
   try {
-    result = await runTurn(env, request, emit, signal, {
-      loaded: env.loadedFromContinuity,
-      nativeHistoryVerified: env.nativeHistoryVerified,
-      ...turnOptions,
-      // After the spread so a caller-supplied set wins, and short-circuited so we never CLAIM
-      // rows the spread would then discard — a claimed row is spent even if it is thrown away.
-      // Read + claim BEFORE the turn: runTurn must not suspend before its responder is wired.
-      seededDecisions:
-        turnOptions.seededDecisions ??
-        (await loadDurableDecisions(
-          env.sessionId,
-          runCredential(request),
-          env.logger,
-        )),
-    });
+    result = await withDaytonaActivityHeartbeat(env, async () =>
+      runTurn(env, request, emit, signal, {
+        loaded: env.loadedFromContinuity,
+        nativeHistoryVerified: env.nativeHistoryVerified,
+        ...turnOptions,
+        // After the spread so a caller-supplied set wins, and short-circuited so we never CLAIM
+        // rows the spread would then discard — a claimed row is spent even if it is thrown away.
+        // Read + claim BEFORE the turn: runTurn must not suspend before its responder is wired.
+        seededDecisions:
+          turnOptions.seededDecisions ??
+          (await (
+            turnOptions.approvalRows ??
+            (await loadTurnApprovalRows(
+              env.sessionId,
+              platformCredentialForRequest(request),
+              env.logger,
+            ))
+          ).claimAll()),
+      }),
+    );
     result = withGatewayErrorDetail(result);
     return result;
   } finally {

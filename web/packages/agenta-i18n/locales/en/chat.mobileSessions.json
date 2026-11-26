@@ -1,0 +1,17 @@
+{
+    "exportJson": "Export JSON",
+    "exportRecords": "Export session records",
+    "inspectSession": "Inspect session",
+    "inspectorTitle": "Session inspector",
+    "linkCopied": "Link copied",
+    "loadingRecords": "Loading records…",
+    "newSession": "New session",
+    "noRecords": "This session has no records yet.",
+    "noSessions": "No sessions with this agent yet.",
+    "recordsAndTurns": "{{records}} records · {{turns}} turns",
+    "recordsFailed": "Session records could not be loaded.",
+    "refresh": "Refresh",
+    "refreshInspector": "Refresh session inspector",
+    "sessionHistory": "Session history",
+    "sessions": "Sessions"
+}

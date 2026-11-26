@@ -1,21 +1,60 @@
 import asyncio
+from copy import deepcopy
 from contextlib import asynccontextmanager
 from time import monotonic
-from typing import Any, AsyncIterator, Awaitable, Callable
+from typing import Any, AsyncIterator, Awaitable, Callable, Optional
 from uuid import UUID, uuid4
 
 from agenta.sdk.agents import Message
 from agenta.sdk.decorators.running import WorkflowServiceRequest
 from agenta.sdk.models.workflows import WorkflowRequestData
 
+from oss.src.core.access.dtos import RunEnvelope, RunOrigin
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.service import get_access_service
 from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
+from oss.src.core.sessions.executions.senders import server_input_waits
+from oss.src.core.sessions.inputs.dtos import (
+    PendingInput,
+    PendingInputKind,
+    PendingInputState,
+)
+from oss.src.core.sessions.inputs.interfaces import SessionInputsDAOInterface
 from oss.src.core.sessions.inputs.service import SessionInputsService
-from oss.src.core.sessions.starts.dtos import SessionStartResult
+from oss.src.core.sessions.inputs.types import (
+    SessionInputCarriesApprovalAnswer,
+    SessionInputEnvelopeMismatch,
+    SessionInputIdempotencyConflict,
+    carries_approval_answer,
+    is_reserved_input_key,
+)
+from oss.src.core.sessions.starts.dtos import (
+    SessionInputEnqueueResult,
+    SessionStartResult,
+)
 from oss.src.core.sessions.starts.types import SessionStartNotDurable
+from oss.src.core.sharing.service import (
+    cache_created_session_access,
+    channel_binding_of,
+    channel_session_policy,
+    created_session_access,
+    invalidate_sharing_caches,
+)
+from oss.src.core.sessions.streams.dtos import SessionNameSource, SessionStreamCreate
+from oss.src.core.sessions.types import SessionCallingSession
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
+from oss.src.core.sessions.streams.types import (
+    SessionStreamAlreadyExists,
+    SessionStreamNotFound,
+)
+from oss.src.core.sessions.turns.interfaces import SessionTurnsDAOInterface
+from oss.src.core.access.prefetch import request_memo_scope
+from oss.src.core.sharing.admission import TEMPLATE_START_BOUNDARY, RunAdmission
+from oss.src.core.sharing.dtos import AccessPolicy
 from oss.src.core.shared.idempotency import resource_identity
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.types import invoke_never_dispatched
+from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
 
@@ -30,6 +69,10 @@ else
 end
 """
 _START_NAMESPACE = "session-start"
+_INPUT_NAMESPACE = "session-input"
+# The child admissions of one calling session wait up to 10 seconds for each other,
+# so the lock, a start and the longest short wait stay inside the tool call limit.
+_CALLING_SESSION_LOCK_ATTEMPTS = 200
 
 
 class SessionStartsService:
@@ -40,14 +83,22 @@ class SessionStartsService:
         executions_dao: SessionExecutionsDAOInterface,
         workflows_service: WorkflowsService,
         lock_engine: Any,
+        run_admission: RunAdmission,
         streams_dao: SessionStreamsDAOInterface | None = None,
+        inputs_dao: SessionInputsDAOInterface | None = None,
+        turns_dao: SessionTurnsDAOInterface | None = None,
+        cancelled_by_steer: Callable[..., Awaitable[bool]] | None = None,
         poll_timeout_seconds: float = 2.0,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
         self._inputs = inputs_service
         self._executions = executions_dao
         self._streams = streams_dao
+        self._inputs_dao = inputs_dao
+        self._turns = turns_dao
+        self._cancelled_by_steer = cancelled_by_steer
         self._workflows = workflows_service
+        self._run_admission = run_admission
         self._lock_engine = lock_engine
         self._poll_timeout_seconds = poll_timeout_seconds
         self._sleep = sleep
@@ -57,13 +108,17 @@ class SessionStartsService:
         self,
         *,
         project_id: UUID,
-        execution_id: str,
+        lock_id: str,
+        attempts: int = 100,
     ) -> AsyncIterator[None]:
-        key = f"agenta:session-start:{project_id}:{execution_id}"
+        """`lock_id` names what the lock serializes: one start's execution, one
+        session for `enqueue_session_input`, or the child admissions of one calling
+        session. One attempt waits 50 ms."""
+        key = f"agenta:session-start:{project_id}:{lock_id}"
         token = uuid4().hex
         acquired = False
         try:
-            for _ in range(100):
+            for _ in range(attempts):
                 acquired = bool(await self._lock_engine.set(key, token, nx=True, ex=60))
                 if acquired:
                     break
@@ -87,6 +142,25 @@ class SessionStartsService:
                 # The lock has a TTL. A release failure cannot make a durable start
                 # disappear, and the next retry will read the execution row.
                 pass
+
+    @asynccontextmanager
+    async def calling_session_lock(
+        self,
+        *,
+        project_id: UUID,
+        calling_session_id: str,
+    ) -> AsyncIterator[None]:
+        """Serialize the child admissions of one calling session: the count of its
+        running children or of its queued messages, and the start or the send that
+        adds one. Two concurrent calls cannot both pass a cap. The session tool
+        handlers hold it for the count and the dispatch only, never for a wait; a
+        call waits for it up to 10 seconds."""
+        async with self._start_lock(
+            project_id=project_id,
+            lock_id=f"calling:{calling_session_id}",
+            attempts=_CALLING_SESSION_LOCK_ATTEMPTS,
+        ):
+            yield
 
     async def _has_started(
         self,
@@ -170,6 +244,63 @@ class SessionStartsService:
             ),
         )
 
+    async def _create_session_row(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        session_id: str,
+        access: AccessPolicy,
+        envelope: RunEnvelope,
+        channel_binding_id: Optional[UUID] = None,
+        calling_session: Optional[SessionCallingSession] = None,
+        name: Optional[str] = None,
+        grants_from_session_id: Optional[str] = None,
+    ) -> bool:
+        """Create the session row with its initial policy, unless a first touch (a
+        heartbeat, a rename, another start with the same key) already created it: that
+        row keeps its policy. True when this call created the row. An id a channel
+        thread names is created only by its channel's run (`SessionIdTombstoned`
+        otherwise). With `grants_from_session_id`, the row this call creates gets that
+        session's grants in the insert's transaction, before any claim, so the first
+        turn runs with them and no row exists without them."""
+        try:
+            created = await self._streams.create(
+                project_id=project_id,
+                user_id=user_id,
+                stream=SessionStreamCreate(
+                    session_id=session_id,
+                    access=access,
+                    channel_binding_id=channel_binding_id,
+                    run_envelope=envelope,
+                    calling_session=calling_session,
+                    name=name,
+                    name_source=SessionNameSource.automatic if name else None,
+                ),
+                grants_from_session_id=grants_from_session_id,
+            )
+        except SessionStreamAlreadyExists:
+            return False
+        policy, in_channel, binding_id = created_session_access(
+            created, requested=access, channel_binding_id=channel_binding_id
+        )
+        grants = list(getattr(created, "created_grants", None) or [])
+        await cache_created_session_access(
+            project_id=project_id,
+            session_id=session_id,
+            stream_id=getattr(created, "id", None),
+            policy=policy,
+            grants=grants,
+            is_channel=in_channel,
+            channel_binding_id=binding_id,
+        )
+        if grants:
+            await invalidate_sharing_caches(
+                project_id=project_id,
+                grant_user_ids=[grant.user_id for grant in grants],
+            )
+        return True
+
     async def _release_dispatch(
         self,
         *,
@@ -239,6 +370,305 @@ class SessionStartsService:
             replayed=True,
         )
 
+    async def admit_replay(
+        self,
+        *,
+        envelope: RunEnvelope,
+        session_id: str,
+        workflow_id: UUID,
+        boundary: str = TEMPLATE_START_BOUNDARY,
+    ) -> None:
+        """Admit the replay of a completed start: the caller may run the session and
+        the agent. Raises `AdmissionDenied` (a hidden item is not readable)."""
+        await self._run_admission.admit(
+            envelope=envelope,
+            session_id=session_id,
+            agent_artifact_id=workflow_id,
+            boundary=boundary,
+        )
+
+    async def _claim_and_dispatch(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        session_id: str,
+        execution_id: str,
+        request: WorkflowServiceRequest,
+        content: dict[str, Any],
+        idempotency_key: str,
+        envelope: RunEnvelope,
+        kind: PendingInputKind,
+        admitted_agent_id: Optional[UUID],
+        calling_turn_id: Optional[str] = None,
+    ) -> tuple[PendingInput, bool]:
+        """Write and promote the input for `execution_id`, then invoke it once. Call it
+        under `_start_lock`, after the run was admitted.
+
+        Returns the input and whether the turn had already started (a replay). Raises
+        `SessionStartNotDurable` when the turn cannot be shown to have started; a retry
+        with the same key then finishes the dispatch."""
+        claimed = await self._inputs.claim_for_execution(
+            project_id=project_id,
+            user_id=user_id,
+            session_id=session_id,
+            execution_id=execution_id,
+            content=content,
+            idempotency_key=idempotency_key,
+            envelope=envelope,
+            kind=kind,
+            calling_turn_id=calling_turn_id,
+        )
+        existing = await self._has_started(
+            project_id=project_id,
+            session_id=session_id,
+            execution_id=execution_id,
+        )
+        if existing:
+            return claimed, True
+
+        dispatch = await self._inputs.claim_dispatch(
+            project_id=project_id,
+            session_id=session_id,
+            input_id=claimed.id,
+            execution_id=execution_id,
+        )
+        if not dispatch:
+            durable = await self._wait_for_start(
+                project_id=project_id,
+                session_id=session_id,
+                execution_id=execution_id,
+            )
+            if not durable:
+                raise SessionStartNotDurable()
+            return claimed, True
+
+        # `claimed.content` equals `content` (same fingerprint), so `request` is the
+        # stored request with its target resolved.
+        error: Exception | None = None
+        # `except Exception` deliberately lets `asyncio.CancelledError` through with the claim
+        # still held. A shutdown or a client disconnect can cancel this task with the request
+        # already on the wire, which is the ambiguous case, not a never-sent one.
+        #
+        # Two narrow windows do strand the claim rather than decide it: a cancel delivered at
+        # the `claim_dispatch` await after its UPDATE committed, and a cancel during the
+        # readback below after a provably never-sent failure. Both need an attempt id on the
+        # row to close, which needs a migration, so they are named here and not papered over.
+        try:
+            await self._workflows.invoke_workflow_detached(
+                project_id=project_id,
+                user_id=user_id,
+                request=request,
+                envelope=envelope,
+                run_id=execution_id,
+                strict_start=True,
+                admitted_agent_id=admitted_agent_id,
+                # A child session's turn keeps its sandbox warm for the next message
+                # from the calling session; `deliver_continue_input` does the same for
+                # a queued one.
+                keep_session_warm=envelope.context.origin == RunOrigin.CALLING_SESSION,
+            )
+        except Exception as exc:
+            error = exc
+
+        durable = await self._wait_for_start(
+            project_id=project_id,
+            session_id=session_id,
+            execution_id=execution_id,
+        )
+        if not durable:
+            if error is not None:
+                if invoke_never_dispatched(error):
+                    await self._release_dispatch(
+                        project_id=project_id,
+                        session_id=session_id,
+                        input_id=claimed.id,
+                        execution_id=execution_id,
+                    )
+                raise SessionStartNotDurable() from error
+            raise SessionStartNotDurable()
+
+        return claimed, False
+
+    async def enqueue_session_input(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        session_id: str,
+        kind: PendingInputKind,
+        content: dict[str, Any],
+        idempotency_key: str,
+        run_envelope: RunEnvelope,
+        dispatch_boundary: str,
+        calling_turn_id: Optional[str] = None,
+    ) -> SessionInputEnqueueResult:
+        """Put one input that server code writes into an existing session.
+
+        `content` is the turn's invoke request on `session_id`. `run_envelope` is the
+        authority the turn runs with; `user_id` is the acting user the invoke and the
+        row record. The row is written with the policy `queue`: it waits as `pending`
+        when the session runs a turn or waits for a person, and it is claimed and
+        dispatched at once, admitted at `dispatch_boundary`, when the session is idle. A
+        queued row that a later settle promotes is admitted at
+        `QUEUED_DISPATCH_BOUNDARY`. A server input (`kind` other than `message`) also
+        waits while `server_input_waits` holds, here and at the queue promotion.
+
+        One row per key in the session: a repeat writes nothing and answers the first
+        row. Raises `SessionInputEnvelopeMismatch` for an envelope of another project,
+        `SessionStreamNotFound` when the session does not exist,
+        `SessionInputIdempotencyConflict` for a key reused with other content (or a
+        resumed dispatch with another envelope),
+        `SessionInputCarriesApprovalAnswer` for content with an approval answer (no row
+        is written),
+        `AdmissionDenied` when the immediate dispatch is refused (no row is written), and
+        `SessionStartNotDurable` when the dispatch cannot be shown to have started.
+
+        `calling_turn_id` is the first execution id of the calling turn of a child
+        input. Only server code that sends a child input passes it; the row stores
+        it and no response returns it."""
+        if run_envelope.authority.project_id != project_id:
+            raise SessionInputEnvelopeMismatch()
+        if not is_reserved_input_key(idempotency_key):
+            raise ValueError("A key that server code builds must start with 'ag:'.")
+        # A copy: validation rewrites nested references in the dict it reads. The row
+        # stores the request's canonical form, taken before the admission resolves the
+        # target, as `start_once` stores its first message.
+        request = WorkflowServiceRequest.model_validate(deepcopy(content))
+        content = request.model_dump(mode="json", exclude_none=True)
+        if request.session_id != session_id:
+            raise ValueError("The input's request names another session.")
+        if request.on_busy is not None:
+            # The detached invoke would run the service's own admission again.
+            raise ValueError("A server input's request must not carry on_busy.")
+        if carries_approval_answer(content):
+            log.warning(
+                "[SESSIONS] server input refused, content carries an approval answer: "
+                f"project={project_id} session={session_id} kind={kind.value}"
+            )
+            raise SessionInputCarriesApprovalAnswer()
+        execution_id = str(
+            resource_identity(
+                project_id,
+                _INPUT_NAMESPACE,
+                f"{session_id}:{idempotency_key}",
+                "execution",
+            )
+        )
+
+        # One lock per session, not per key: two inputs with different keys must not
+        # both find the session idle and both dispatch. The second one, once the lock is
+        # free, sees the first turn running and waits as `pending`.
+        # The helper puts an input into a session that exists; it never creates one.
+        if (
+            await self._streams.get_by_session_id_including_archived(
+                project_id=project_id, session_id=session_id
+            )
+            is None
+        ):
+            raise SessionStreamNotFound(session_id)
+
+        async with self._start_lock(
+            project_id=project_id, lock_id=f"{_INPUT_NAMESPACE}:{session_id}"
+        ):
+            # A retry of a call that already passed the hold and was promoted for its own
+            # turn finishes that dispatch; the hold does not change its answer.
+            earlier = await self._inputs.fetch_by_idempotency_key(
+                project_id=project_id,
+                session_id=session_id,
+                idempotency_key=idempotency_key,
+            )
+            resumes = (
+                earlier is not None
+                and earlier.state == PendingInputState.promoted
+                and earlier.promoted_execution_id == execution_id
+            )
+            if resumes and earlier.run_envelope != run_envelope:
+                # The resumed turn would run with this call's authority, not the
+                # stored one. Only the same authority finishes its own dispatch.
+                raise SessionInputIdempotencyConflict()
+            if (
+                not resumes
+                and kind != PendingInputKind.message
+                and await server_input_waits(
+                    streams_dao=self._streams,
+                    executions_dao=self._executions,
+                    inputs_dao=self._inputs_dao,
+                    turns_dao=self._turns,
+                    cancelled_by_steer=self._cancelled_by_steer,
+                    project_id=project_id,
+                    session_id=session_id,
+                    turns_without_person_limit=env.agenta.sessions.turns_without_person_limit,
+                )
+            ):
+                waiting = await self._inputs.queue_input(
+                    project_id=project_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                    content=content,
+                    idempotency_key=idempotency_key,
+                    envelope=run_envelope,
+                    kind=kind,
+                    calling_turn_id=calling_turn_id,
+                )
+                return SessionInputEnqueueResult(
+                    input_id=waiting.id,
+                    state=waiting.state,
+                    execution_id=waiting.promoted_execution_id,
+                )
+
+            admission = await self._inputs.admit(
+                project_id=project_id,
+                user_id=user_id,
+                session_id=session_id,
+                content=content,
+                policy="queue",
+                idempotency_key=idempotency_key,
+                envelope=run_envelope,
+                kind=kind,
+                calling_turn_id=calling_turn_id,
+            )
+            if admission.action == "pending":
+                item = admission.input
+                resumes_own_dispatch = (
+                    item.state == PendingInputState.promoted
+                    and item.promoted_execution_id == execution_id
+                )
+                if not resumes_own_dispatch:
+                    return SessionInputEnqueueResult(
+                        input_id=item.id,
+                        state=item.state,
+                        execution_id=item.promoted_execution_id,
+                    )
+
+            # Before the row is written, so a refusal leaves no input behind. The
+            # admission resolves the target on `request`, and the invoke runs it.
+            agent_artifact_id = await self._run_admission.admit_request(
+                envelope=run_envelope,
+                session_id=session_id,
+                project_id=project_id,
+                request=request,
+                boundary=dispatch_boundary,
+            )
+            claimed, _ = await self._claim_and_dispatch(
+                project_id=project_id,
+                user_id=user_id,
+                session_id=session_id,
+                execution_id=execution_id,
+                request=request,
+                content=content,
+                idempotency_key=idempotency_key,
+                envelope=run_envelope,
+                kind=kind,
+                admitted_agent_id=agent_artifact_id,
+                calling_turn_id=calling_turn_id,
+            )
+            return SessionInputEnqueueResult(
+                input_id=claimed.id,
+                state=PendingInputState.promoted,
+                execution_id=execution_id,
+            )
+
     async def start_once(
         self,
         *,
@@ -249,7 +679,38 @@ class SessionStartsService:
         message: str | Message,
         parameters: dict[str, Any] | None = None,
         request_key: str,
+        envelope: RunEnvelope,
+        access: AccessPolicy | None = None,
+        calling_session: SessionCallingSession | None = None,
+        calling_turn_id: str | None = None,
+        boundary: str = TEMPLATE_START_BOUNDARY,
+        name: str | None = None,
+        grants_from_session_id: Optional[str] = None,
     ) -> SessionStartResult:
+        """`access` is the first session's initial policy (the caller's requested
+        visibility, through `initial_policy`). When given, the session row is created
+        with it before the invoke, so the first heartbeat finds the row and never
+        writes its own default. A row that already exists keeps its policy.
+
+        The row's origin comes from `envelope`'s run origin. `calling_session` is the
+        record of the session whose agent starts this one; it needs an envelope with
+        the run origin `calling_session` and an `access`, because only the row that
+        the start creates carries the record. `calling_turn_id` is the first execution
+        id of the calling turn; the first input row stores it for the producer of
+        child updates.
+
+        `boundary` is the admission point every check of this start logs (the template
+        loader's by default; `start_session` passes the child run's). `name` names the
+        session row that this start creates, and `grants_from_session_id` names the
+        session whose grants that row gets (a private child's copy of its calling
+        session's grants)."""
+        if calling_session is not None and access is None:
+            raise ValueError("a calling session record needs the initial policy")
+        # The start runs as the request's principal; recheck before anything is
+        # claimed (AccessDenied -> 403 at the route).
+        await get_access_service().require(
+            envelope=envelope, action=Permission.RUN_SESSIONS
+        )
         session_id = self.session_id_for(project_id=project_id, request_key=request_key)
         execution_id = str(
             resource_identity(project_id, _START_NAMESPACE, request_key, "execution")
@@ -262,94 +723,75 @@ class SessionStartsService:
             parameters=parameters,
         )
         content = request.model_dump(mode="json", exclude_none=True)
+        # Before anything is claimed, so a refusal (`AdmissionDenied`, an
+        # `AccessDenied`: 403 at the route) leaves no input behind. It resolves the
+        # target on `request` (after `content` is taken, so the stored input keeps its
+        # references only); the invoke below sends this request, so it runs the target
+        # that was checked without resolving it again.
+        # The session the key names is checked too: a row that exists is another
+        # start's (or a chat with the same id), and a retry may not run in a session
+        # this caller cannot send to.
+        # A channel session is the one its installation's run creates: private to the
+        # agent's owner when the agent is private. One memo for both: the policy read
+        # takes the agent entry the admission read (no round trip).
+        channel_binding_id = channel_binding_of(envelope)
+        with request_memo_scope():
+            agent_artifact_id = await self._run_admission.admit_request(
+                envelope=envelope,
+                session_id=session_id,
+                project_id=project_id,
+                request=request,
+                boundary=boundary,
+            )
+            if channel_binding_id is not None and access is not None:
+                access = await channel_session_policy(
+                    project_id=project_id, agent_artifact_id=agent_artifact_id
+                )
 
         async with self._start_lock(
             project_id=project_id,
-            execution_id=execution_id,
+            lock_id=execution_id,
         ):
-            claimed = await self._inputs.claim_for_execution(
+            # The session row comes before every claim, so a database failure here
+            # leaves nothing claimed and a retry with the same key can still invoke. A
+            # row that a concurrent first touch created after the admission above was
+            # never checked: it is checked here, before anything is claimed.
+            if access is not None and self._streams is not None:
+                created = await self._create_session_row(
+                    project_id=project_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                    access=access,
+                    envelope=envelope,
+                    channel_binding_id=channel_binding_id,
+                    calling_session=calling_session,
+                    name=name,
+                    grants_from_session_id=grants_from_session_id,
+                )
+                if not created:
+                    await self._run_admission.admit(
+                        envelope=envelope,
+                        session_id=session_id,
+                        agent_artifact_id=None,
+                        boundary=boundary,
+                    )
+
+            claimed, replayed = await self._claim_and_dispatch(
                 project_id=project_id,
                 user_id=user_id,
                 session_id=session_id,
                 execution_id=execution_id,
+                request=request,
                 content=content,
                 idempotency_key=request_key,
+                envelope=envelope,
+                kind=PendingInputKind.message,
+                admitted_agent_id=agent_artifact_id,
+                calling_turn_id=calling_turn_id,
             )
-            existing = await self._has_started(
-                project_id=project_id,
-                session_id=session_id,
-                execution_id=execution_id,
-            )
-            if existing:
-                return SessionStartResult(
-                    session_id=session_id,
-                    execution_id=execution_id,
-                    input_id=claimed.id,
-                    replayed=True,
-                )
-
-            dispatch = await self._inputs.claim_dispatch(
-                project_id=project_id,
-                session_id=session_id,
-                input_id=claimed.id,
-                execution_id=execution_id,
-            )
-            if not dispatch:
-                durable = await self._wait_for_start(
-                    project_id=project_id,
-                    session_id=session_id,
-                    execution_id=execution_id,
-                )
-                if not durable:
-                    raise SessionStartNotDurable()
-                return SessionStartResult(
-                    session_id=session_id,
-                    execution_id=execution_id,
-                    input_id=claimed.id,
-                    replayed=True,
-                )
-
-            stored_request = WorkflowServiceRequest.model_validate(claimed.content)
-            error: Exception | None = None
-            # `except Exception` deliberately lets `asyncio.CancelledError` through with the claim
-            # still held. A shutdown or a client disconnect can cancel this task with the request
-            # already on the wire, which is the ambiguous case, not a never-sent one.
-            #
-            # Two narrow windows do strand the claim rather than decide it: a cancel delivered at
-            # the `claim_dispatch` await after its UPDATE committed, and a cancel during the
-            # readback below after a provably never-sent failure. Both need an attempt id on the
-            # row to close, which needs a migration, so they are named here and not papered over.
-            try:
-                await self._workflows.invoke_workflow_detached(
-                    project_id=project_id,
-                    user_id=user_id,
-                    request=stored_request,
-                    run_id=execution_id,
-                    strict_start=True,
-                )
-            except Exception as exc:
-                error = exc
-
-            durable = await self._wait_for_start(
-                project_id=project_id,
-                session_id=session_id,
-                execution_id=execution_id,
-            )
-            if not durable:
-                if error is not None:
-                    if invoke_never_dispatched(error):
-                        await self._release_dispatch(
-                            project_id=project_id,
-                            session_id=session_id,
-                            input_id=claimed.id,
-                            execution_id=execution_id,
-                        )
-                    raise SessionStartNotDurable() from error
-                raise SessionStartNotDurable()
-
             return SessionStartResult(
                 session_id=session_id,
                 execution_id=execution_id,
                 input_id=claimed.id,
-                replayed=False,
+                replayed=replayed,
             )

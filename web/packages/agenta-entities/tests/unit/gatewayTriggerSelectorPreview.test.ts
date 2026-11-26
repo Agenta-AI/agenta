@@ -82,3 +82,11 @@ describe("previewValue", () => {
         expect(previewValue({k: 1})).toBe('{"k":1}')
     })
 })
+
+describe("resolveSelectorPreview: quoted keys", () => {
+    it("keeps a quoted key with a dot whole", () => {
+        const data = {event: {attributes: {"a.b": "whole", a: {b: "split"}}}}
+        expect(resolveSelectorPreview('$.event.attributes["a.b"]', data)).toBe("whole")
+        expect(resolveSelectorPreview("$.event.attributes['a.b']", data)).toBe("whole")
+    })
+})

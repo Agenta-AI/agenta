@@ -26,7 +26,10 @@ from oss.src.services import db_manager
 from ee.src.core.organizations.service import (
     update_organization as update_organization_ee,
 )
-from oss.src.core.access.permissions.service import check_action_access
+from oss.src.core.access.permissions.service import (
+    check_action_access,
+    check_organization_write,
+)
 from oss.src.core.access.permissions.types import Permission
 from ee.src.core.access.entitlements.types import Tracker, Quota, Period, Scope
 from ee.src.core.access.controls import get_plan_entitlements, get_plans
@@ -53,7 +56,6 @@ from ee.src.core.wallets.purchases import (
 )
 from ee.src.core.wallets.service import WalletsService
 from oss.src.models.api.organization_models import OrganizationUpdate
-from oss.src.core.rollout.switches import WalletMode, wallet_mode_for
 from ee.src.apis.fastapi.billing.models import (
     TopUpPackResponse,
     TopUpPacksResponse,
@@ -968,11 +970,6 @@ class BillingRouter:
         ):
             return "unavailable", None
 
-        # Credits stop work only where the wallet is enforced; elsewhere a pack buys
-        # nothing the organization would notice.
-        if await wallet_mode_for(UUID(organization_id)) is not WalletMode.ENFORCE:
-            return "unavailable", None
-
         subscription = await self.subscription_service.read(
             organization_id=organization_id,
         )
@@ -1652,6 +1649,13 @@ class BillingRouter:
             permission=Permission.EDIT_BILLING,
         ):
             return FORBIDDEN_RESPONSE
+        # Billing is organization-level: a key of another project is refused.
+        if not await check_organization_write(
+            user_uid=request.state.user_id,
+            organization_id=request.state.organization_id,
+            permission=Permission.EDIT_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.create_portal(
             organization_id=request.state.organization_id,
@@ -1676,6 +1680,13 @@ class BillingRouter:
         if not await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
+            permission=Permission.EDIT_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
+        # Billing is organization-level: a key of another project is refused.
+        if not await check_organization_write(
+            user_uid=request.state.user_id,
+            organization_id=request.state.organization_id,
             permission=Permission.EDIT_BILLING,
         ):
             return FORBIDDEN_RESPONSE
@@ -1710,6 +1721,13 @@ class BillingRouter:
         if not await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
+            permission=Permission.EDIT_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
+        # Billing is organization-level: a key of another project is refused.
+        if not await check_organization_write(
+            user_uid=request.state.user_id,
+            organization_id=request.state.organization_id,
             permission=Permission.EDIT_BILLING,
         ):
             return FORBIDDEN_RESPONSE
@@ -1783,6 +1801,13 @@ class BillingRouter:
             permission=Permission.EDIT_BILLING,
         ):
             return FORBIDDEN_RESPONSE
+        # Billing is organization-level: a key of another project is refused.
+        if not await check_organization_write(
+            user_uid=request.state.user_id,
+            organization_id=request.state.organization_id,
+            permission=Permission.EDIT_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.switch_plans(
             organization_id=request.state.organization_id,
@@ -1824,6 +1849,13 @@ class BillingRouter:
         if not await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
+            permission=Permission.EDIT_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
+        # Billing is organization-level: a key of another project is refused.
+        if not await check_organization_write(
+            user_uid=request.state.user_id,
+            organization_id=request.state.organization_id,
             permission=Permission.EDIT_BILLING,
         ):
             return FORBIDDEN_RESPONSE

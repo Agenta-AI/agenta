@@ -1,5 +1,17 @@
 import {useMemo, useCallback, useEffect, useRef, useState} from "react"
 
+import {
+    createQueueDrawerOpenAtom,
+    createQueueDrawerDefaultKindAtom,
+    createQueueDrawerSelectionAtom,
+} from "@agenta/annotation"
+import {
+    QUEUE_KIND_LABELS,
+    formatQueueReviewed,
+    queueKindLabel,
+    queueKindTone,
+    queueStatusLabel,
+} from "@agenta/annotation"
 import {userByIdFamily} from "@agenta/entities/shared"
 import {
     simpleQueuePaginatedStore,
@@ -23,47 +35,13 @@ import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
 import {useAnnotationNavigation} from "../../context/AnnotationUIContext"
-import {
-    createQueueDrawerOpenAtom,
-    createQueueDrawerDefaultKindAtom,
-    createQueueDrawerSelectionAtom,
-} from "../../state/atoms"
 import CreateQueueDrawer from "../CreateQueueDrawer"
 import QueueStatusTag from "../QueueStatusTag"
 
 import CreatedByCell from "./cells/CreatedByCell"
 import QueueProgressCell from "./cells/QueueProgressCell"
 
-const kindColorMap: Record<string, string> = {
-    traces: "blue",
-    testcases: "green",
-    testsets: "purple",
-    queries: "orange",
-}
-
-const kindLabelMap: Record<string, string> = {
-    traces: "Traces",
-    testcases: "Test cases",
-    testsets: "Test set",
-    queries: "Queries",
-}
-
-const statusLabelMap: Record<string, string> = {
-    pending: "Pending",
-    queued: "Queued",
-    running: "Running",
-    success: "Completed",
-    failure: "Failed",
-    errors: "Errors",
-    cancelled: "Cancelled",
-}
-
 const ANNOTATION_QUEUES_DOCS_URL = "https://docs.agenta.ai"
-
-function formatQueueKind(kind: string | null | undefined) {
-    if (!kind) return ""
-    return kindLabelMap[kind] ?? ""
-}
 
 function resolveUserDisplayName(userId: string | null | undefined) {
     if (!userId) return "—"
@@ -75,17 +53,15 @@ function resolveUserDisplayName(userId: string | null | undefined) {
 }
 
 function formatReviewed(queueId: string) {
-    const progress = getDefaultStore().get(simpleQueueMolecule.selectors.scenarioProgress(queueId))
-    if (!progress) return ""
-    if (progress.total === 0) return "No items"
-    return `${progress.completed} out of ${progress.total}`
+    return formatQueueReviewed(
+        getDefaultStore().get(simpleQueueMolecule.selectors.scenarioProgress(queueId)),
+    )
 }
 
 function formatQueueStatus(queueId: string, fallbackStatus: string | null | undefined) {
     const resolvedStatus = getDefaultStore().get(simpleQueueMolecule.selectors.status(queueId))
-    const statusKey = (resolvedStatus ?? fallbackStatus ?? "pending").toLowerCase()
 
-    return statusLabelMap[statusKey] ?? statusKey.charAt(0).toUpperCase() + statusKey.slice(1)
+    return queueStatusLabel(resolvedStatus ?? fallbackStatus)
 }
 
 function AnnotationQueuesEmptyState({onCreate}: {onCreate: () => void}) {
@@ -322,8 +298,8 @@ const AnnotationQueuesView = ({
                         if (!kind) return null
                         return (
                             <div className="h-full flex items-center">
-                                <Tag color={kindColorMap[kind] ?? "default"}>
-                                    {kindLabelMap[kind] ?? kind}
+                                <Tag color={queueKindTone(kind)}>
+                                    {QUEUE_KIND_LABELS[kind] ?? kind}
                                 </Tag>
                             </div>
                         )
@@ -500,7 +476,7 @@ const AnnotationQueuesView = ({
             resolveValue: ({columnKey, row}: {columnKey: string; row: SimpleQueueTableRow}) => {
                 switch (columnKey) {
                     case "kind":
-                        return formatQueueKind(row.data?.kind ?? null)
+                        return queueKindLabel(row.data?.kind ?? null)
                     case "reviewed":
                         return formatReviewed(row.id)
                     case "status":

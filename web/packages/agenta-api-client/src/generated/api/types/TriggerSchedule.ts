@@ -16,4 +16,6 @@ export interface TriggerSchedule {
     deleted_by_id?: (string | null) | undefined;
     id?: (string | null) | undefined;
     data: AgentaApi.TriggerScheduleData;
+    principal?: (AgentaApi.PrincipalRef | null) | undefined;
+    artifact_id?: (string | null) | undefined;
 }

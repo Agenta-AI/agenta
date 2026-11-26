@@ -14,6 +14,8 @@ import {memo, useMemo} from "react"
 
 import {withoutSlugBoundGroups} from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
+import {useT} from "@agenta/i18n"
+import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
@@ -74,9 +76,11 @@ export const GroupedChoiceControl = memo(function GroupedChoiceControl({
     description,
     withTooltip = true,
     disabled = false,
-    placeholder = "Select...",
+    placeholder: placeholderProp,
     className,
 }: GroupedChoiceControlProps) {
+    const t = useT(schemaControlsCatalog)
+    const placeholder = placeholderProp ?? t("entityUi.schemaControls.selectPlaceholder")
     // Get LLM provider config data from context (vault secrets, footer)
     const {llmProviderConfig} = useDrillInUI()
 

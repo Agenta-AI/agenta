@@ -82,7 +82,7 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({apiKeyValue, onApiKeyChange}) 
                         return
                     }
 
-                    const preferredProject = scoped.find((project) => !project.is_demo) || scoped[0]
+                    const preferredProject = scoped[0]
 
                     if (preferredProject) {
                         projectId = preferredProject.project_id

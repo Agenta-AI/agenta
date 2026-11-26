@@ -33,6 +33,10 @@ export function useConfigDrive(
     // Summary only: the config header/body show a count + the latest handful. The browse drawer
     // gets its own full drive, gated on open (see StorageSection), so the whole tree is never
     // fetched just to render this always-mounted section.
-    const drive = useSessionDriveSummary(resolvedSessionId, artifactId ?? undefined)
+    const drive = useSessionDriveSummary(
+        resolvedSessionId,
+        artifactId ?? undefined,
+        revisionId ?? undefined,
+    )
     return {drive, sessionId: resolvedSessionId, artifactId: artifactId ?? undefined}
 }

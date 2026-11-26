@@ -6,7 +6,11 @@ import httpx
 from agenta.client import AgentaApi, AsyncAgentaApi
 from agenta.sdk.engines.tracing import Tracing
 from agenta.sdk.utils.globals import set_global
-from agenta.sdk.utils.helpers import parse_url
+from agenta.sdk.utils.helpers import (
+    parse_url,
+    strip_query_and_fragment,
+    strip_trailing_api_segment,
+)
 from agenta.sdk.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -96,9 +100,10 @@ class AgentaSingleton:
 
         if _api_url:
             _api_url = parse_url(url=_api_url)
-            _host = _api_url.rsplit("/api", 1)[0]
+            _host = strip_trailing_api_segment(_api_url)
         elif _host:
             _host = parse_url(url=_host)
+            _host = strip_query_and_fragment(_host)
             _api_url = _host + "/api"
 
         try:
@@ -106,7 +111,7 @@ class AgentaSingleton:
                 "API URL is required. Please set AGENTA_API_URL environment variable or pass api_url parameter in ag.init()."
             )
             self.host = _host
-            self.api_url = _api_url
+            self.api_url = strip_query_and_fragment(_api_url)
         except AssertionError as e:
             log.error(str(e))
             raise

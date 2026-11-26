@@ -30,6 +30,7 @@ import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 // Node-side execution. Pure molecule utilities are Node-safe.
 // instrumentedAtomFamily wraps jotai-family's atomFamily with size/clear
 // visibility — see ../../shared/molecule/instrumentedAtomFamily.
+import {canViewSpansAtom} from "../../access"
 import {
     createEntityDraftState,
     normalizeValueForComparison,
@@ -567,7 +568,7 @@ export const spanQueryAtomFamily = instrumentedAtomFamily(
                 // Use cached data as initial data - prevents fetch if already in cache
                 initialData: cachedData ?? undefined,
                 // Always fetch if we have projectId and spanId (cache redirect handles deduplication)
-                enabled: Boolean(get(sessionAtom) && projectId && spanId),
+                enabled: Boolean(get(sessionAtom) && projectId && spanId) && get(canViewSpansAtom),
                 staleTime: 60_000, // 1 minute
                 gcTime: 5 * 60_000, // 5 minutes
                 // Retry configuration for spans not yet ingested
@@ -727,7 +728,7 @@ export const traceEntityAtomFamily = instrumentedAtomFamily(
 
             return {
                 queryKey: ["trace-entity", projectId, traceId ?? "none"],
-                enabled: Boolean(get(sessionAtom) && traceId && projectId),
+                enabled: Boolean(get(sessionAtom) && traceId && projectId) && get(canViewSpansAtom),
                 // Traces are immutable once ingested — never refetch a found one.
                 // invalidateTraceEntityCache still forces a refresh after runs.
                 staleTime: Infinity,
@@ -794,7 +795,7 @@ export const traceSummaryQueryAtomFamily = instrumentedAtomFamily(
 
             return {
                 queryKey: ["trace-summary", projectId, traceId ?? "none"],
-                enabled: Boolean(get(sessionAtom) && traceId && projectId),
+                enabled: Boolean(get(sessionAtom) && traceId && projectId) && get(canViewSpansAtom),
                 // Class A persistence: reloads restore summaries from IDB, no refetch.
                 persister: immutablePersister.persisterFn<TraceSummarySpans | null, QueryKey>,
                 // Immutable once ingested; invalidateTraceEntityCache covers reruns.

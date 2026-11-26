@@ -1,17 +1,23 @@
+import {useT} from "@agenta/i18n"
+import agentActionsCatalog from "@agenta/i18n/catalogs/entityUi.agentActions"
 import {
+    cn,
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
+    PHONE_TOUCH_TARGET_CLASS,
 } from "@agenta/ui/ui"
 import {
     Archive,
     Broadcast,
     Copy,
-    DotsThreeVertical,
+    DotsThree,
+    ArrowCounterClockwise,
     Note,
     PencilSimple,
+    Rocket,
     TextAlignLeft,
 } from "@phosphor-icons/react"
 
@@ -37,6 +43,14 @@ export interface AgentActionsMenuProps {
     onDelete?: () => void
     /** Custom-workflow "Configure" — only the desktop has that flow, so absent means no item. */
     onConfigure?: () => void
+    /** Opens a chat with the agent. Absent means no item. */
+    onOpenPlayground?: () => void
+    /** The agent is archived: Rename, Configure and Archive agent do not apply to it. */
+    archived?: boolean
+    /** Restores an archived agent. Absent means no Restore, for a reader who may not. */
+    onRestore?: () => void
+    /** False hides Archive agent, for a reader who may not archive. Defaults to true. */
+    canArchive?: boolean
     /** Which edge the menu hangs from. A trigger near the right edge wants `end`. */
     align?: "start" | "end"
     /** The close's focus restore. A host whose rename mounts an editor suppresses it here. */
@@ -45,7 +59,7 @@ export interface AgentActionsMenuProps {
 }
 
 /**
- * THE agent kebab: open, rename, copy slug, archive. One definition for the desktop overview
+ * THE agent kebab: open, open in playground, rename, copy slug, archive, and restore for an archived agent. One definition for the desktop overview
  * header and the mobile screens, so they can't offer different verbs for the same object.
  * Copying is entirely the menu's business; open, rename and archive defer to the host — and an
  * entry whose handler is missing is dropped rather than offered dead.
@@ -58,10 +72,15 @@ export const AgentActionsMenu = ({
     onEditDescription,
     onDelete,
     onConfigure,
+    onOpenPlayground,
+    archived = false,
+    onRestore,
+    canArchive = true,
     align = "start",
     onCloseAutoFocus,
     className,
 }: AgentActionsMenuProps) => {
+    const t = useT(agentActionsCatalog)
     const actions = useAgentActions()
 
     return (
@@ -69,11 +88,16 @@ export const AgentActionsMenu = ({
             <DropdownMenuTrigger asChild>
                 <button
                     type="button"
-                    aria-label="Agent actions"
-                    // ::after hit extender: 28px is under the touch guideline.
-                    className={`relative flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextSecondary after:absolute after:-inset-1.5 after:content-[''] hover:bg-colorFillTertiary hover:text-colorText ${className ?? ""}`}
+                    aria-label={t("entityUi.agentActions.agentActions")}
+                    // ::after hit extender: 28px is under the touch guideline. 40px on a desktop,
+                    // 44px on a phone.
+                    className={cn(
+                        "relative flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextSecondary after:absolute after:content-[''] hover:bg-colorFillTertiary hover:text-colorText md:after:-inset-1.5",
+                        PHONE_TOUCH_TARGET_CLASS,
+                        className,
+                    )}
                 >
-                    <DotsThreeVertical size={16} weight="bold" />
+                    <DotsThree size={16} weight="bold" />
                 </button>
             </DropdownMenuTrigger>
             {/* Sized to its longest verb rather than to a number: at a fixed 180 "Open
@@ -86,50 +110,74 @@ export const AgentActionsMenu = ({
                 {onOpen ? (
                     <DropdownMenuItem onSelect={onOpen}>
                         <Note size={16} />
-                        Open configuration
+                        {t("entityUi.agentActions.openConfiguration")}
+                    </DropdownMenuItem>
+                ) : null}
+                {onOpenPlayground ? (
+                    <DropdownMenuItem onSelect={onOpenPlayground}>
+                        <Rocket size={16} />
+                        {t("entityUi.agentActions.openInPlayground")}
                     </DropdownMenuItem>
                 ) : null}
                 {onPublish ? (
                     <DropdownMenuItem onSelect={onPublish}>
                         <Broadcast size={16} />
-                        Publish
+                        {t("entityUi.agentActions.publish")}
                     </DropdownMenuItem>
                 ) : null}
-                {onConfigure ? (
+                {archived ? null : onConfigure ? (
                     <DropdownMenuItem onSelect={onConfigure}>
                         <PencilSimple size={16} />
-                        Configure
+                        {t("entityUi.agentActions.configure")}
                     </DropdownMenuItem>
                 ) : (
                     <DropdownMenuItem onSelect={onRename ?? (() => actions.rename(agent))}>
                         <PencilSimple size={16} />
-                        Rename
+                        {t("entityUi.agentActions.rename")}
                     </DropdownMenuItem>
                 )}
                 {onEditDescription ? (
                     <DropdownMenuItem onSelect={onEditDescription}>
                         <TextAlignLeft size={16} />
-                        Edit description
+                        {t("entityUi.agentActions.editDescription")}
                     </DropdownMenuItem>
                 ) : null}
                 {agent.slug ? (
-                    <DropdownMenuItem onSelect={() => void actions.copy(agent.slug!, "Slug")}>
+                    <DropdownMenuItem
+                        onSelect={() =>
+                            void actions.copy(agent.slug!, {
+                                copied: t("entityUi.agentActions.slugCopied"),
+                                failed: t("entityUi.agentActions.couldNotCopySlug"),
+                            })
+                        }
+                    >
                         <Copy size={16} />
-                        Copy Slug
+                        {t("entityUi.agentActions.copySlug")}
                     </DropdownMenuItem>
                 ) : null}
-                {/* Set apart: everything above is reversible in a keystroke, and this one takes
-                    the agent off the roster. */}
-                <DropdownMenuSeparator />
-                {/* Archive, not Delete: the verb behind it has always been `archiveWorkflow`,
-                    and the modal it opens is already titled "Archive". */}
-                <DropdownMenuItem
-                    className="!text-colorError"
-                    onSelect={onDelete ?? (() => actions.remove(agent))}
-                >
-                    <Archive size={16} />
-                    Archive agent
-                </DropdownMenuItem>
+                {archived ? (
+                    onRestore ? (
+                        <DropdownMenuItem onSelect={onRestore}>
+                            <ArrowCounterClockwise size={16} />
+                            {t("entityUi.agentActions.restore")}
+                        </DropdownMenuItem>
+                    ) : null
+                ) : canArchive ? (
+                    <>
+                        {/* Set apart: everything above is reversible in a keystroke, and this one
+                            takes the agent off the roster. */}
+                        <DropdownMenuSeparator />
+                        {/* Archive, not Delete: the verb behind it has always been
+                            `archiveWorkflow`, and the modal it opens is already titled "Archive". */}
+                        <DropdownMenuItem
+                            className="!text-colorError"
+                            onSelect={onDelete ?? (() => actions.remove(agent))}
+                        >
+                            <Archive size={16} />
+                            {t("entityUi.agentActions.archiveAgent")}
+                        </DropdownMenuItem>
+                    </>
+                ) : null}
             </DropdownMenuContent>
         </DropdownMenu>
     )

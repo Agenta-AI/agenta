@@ -6,6 +6,8 @@ import {
     setSessionHeader,
     unarchiveSessionRemote,
 } from "@agenta/entities/session"
+import {createT} from "@agenta/i18n"
+import sessionsRowsCatalog from "@agenta/i18n/catalogs/sessions.rows"
 import {shareUrl} from "@agenta/sessions/link"
 import {pinnedSessionIdsAtom, toggleSessionPinAtom, unpinSessionAtom} from "@agenta/sessions/state"
 import {projectIdAtom} from "@agenta/shared/state"
@@ -19,12 +21,15 @@ import {
     PushPinIcon,
     PushPinSlashIcon,
     TrashIcon,
+    UsersIcon,
 } from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import type {SessionMenuEntry} from "./menu"
 import {NAMED_SESSION_QUERY_KEYS, withRenamedSession} from "./renameCache"
+
+const tNow = createT(sessionsRowsCatalog)
 
 export interface SessionActionTarget {
     sessionId: string
@@ -33,6 +38,27 @@ export interface SessionActionTarget {
     appId: string | null
     name?: string | null
     archived?: boolean
+    /**
+     * Sharing (M3): the session's owner, from its row. `null` = ownerless (channel, API key,
+     * trigger): today's verbs, no Share. Absent = the host does not know, so today's verbs too.
+     */
+    ownerUserId?: string | null
+}
+
+/** Who the current user is to a session, for the verbs it offers. */
+export type SessionMenuAccess = "owner" | "member" | "ownerless"
+
+/**
+ * The owner gets every verb plus Share; someone else on an owned session gets Open, Pin and
+ * Copy share link only (rename, share, archive and delete are the owner's); an ownerless session,
+ * or one whose owner the host does not know, keeps today's verbs without Share.
+ */
+export const sessionMenuAccess = (
+    target: Pick<SessionActionTarget, "ownerUserId">,
+    currentUserId: string | null | undefined,
+): SessionMenuAccess => {
+    if (!target.ownerUserId) return "ownerless"
+    return currentUserId && target.ownerUserId === currentUserId ? "owner" : "member"
 }
 
 /**
@@ -74,6 +100,10 @@ export interface UseSessionActionsOptions {
      * list read will no longer carry the row.
      */
     onRemoved?: (target: SessionActionTarget) => void | Promise<unknown>
+    /** The signed-in user, to tell the owner of a session from everyone else. */
+    currentUserId?: string | null
+    /** Opens the Share dialog. Supplying it adds "Share" to the owner's menu. */
+    onShare?: (target: SessionActionTarget) => void
 }
 
 /**
@@ -87,6 +117,8 @@ export const useSessionActions = ({
     localCache,
     sharePathFor,
     onRemoved,
+    currentUserId,
+    onShare,
 }: UseSessionActionsOptions = {}) => {
     const queryClient = useQueryClient()
     const projectId = useAtomValue(projectIdAtom) ?? ""
@@ -158,7 +190,11 @@ export const useSessionActions = ({
                 const call = target.archived ? unarchiveSessionRemote : archiveSessionRemote
                 const ok = await call({sessionId: target.sessionId, projectId})
                 if (!ok) {
-                    message.error(target.archived ? "Couldn't unarchive" : "Couldn't archive")
+                    message.error(
+                        target.archived
+                            ? tNow("sessions.rows.unarchiveFailed")
+                            : tNow("sessions.rows.archiveFailed"),
+                    )
                     return
                 }
             }
@@ -177,11 +213,13 @@ export const useSessionActions = ({
         (target: SessionActionTarget) => {
             modal.confirm({
                 centered: true,
-                title: "Delete session",
+                title: tNow("sessions.rows.deleteTitle"),
                 // Delete is a hard fan-out across turns, streams, interactions and mounts. Say so:
                 // archive sits right next to it in the menu and looks like the same kind of verb.
-                content: `"${target.name?.trim() || "This session"}" and its full transcript will be permanently deleted. Archive it instead if you might want it back.`,
-                okText: "Delete",
+                content: tNow("sessions.rows.deleteBody", {
+                    name: target.name?.trim() || tNow("sessions.rows.thisSession"),
+                }),
+                okText: tNow("sessions.rows.delete"),
                 okButtonProps: {danger: true},
                 onOk: async () => {
                     if (isCached(target)) {
@@ -195,7 +233,7 @@ export const useSessionActions = ({
                             projectId,
                         })
                         if (!ok) {
-                            message.error("Couldn't delete this session")
+                            message.error(tNow("sessions.rows.deleteFailed"))
                             return
                         }
                     }
@@ -212,11 +250,11 @@ export const useSessionActions = ({
         async (target: SessionActionTarget) => {
             const link = shareUrl(sharePathFor?.(target) ?? "")
             if (!link) {
-                message.error("This session has no link yet")
+                message.error(tNow("sessions.rows.noLink"))
                 return
             }
-            if (await copyToClipboard(link)) message.success("Share link copied")
-            else message.error("Couldn't copy the link")
+            if (await copyToClipboard(link)) message.success(tNow("sessions.rows.linkCopied"))
+            else message.error(tNow("sessions.rows.copyFailed"))
         },
         [sharePathFor],
     )
@@ -228,56 +266,85 @@ export const useSessionActions = ({
         (
             target: SessionActionTarget,
             options?: {onOpen?: () => void; openLabel?: string},
-        ): SessionMenuEntry[] => [
-            ...(options?.onOpen
+        ): SessionMenuEntry[] => {
+            const access = sessionMenuAccess(target, currentUserId)
+            const open: SessionMenuEntry[] = options?.onOpen
                 ? [
                       {
                           key: "open",
-                          label: options.openLabel ?? "Open",
+                          label: options.openLabel ?? tNow("sessions.rows.open"),
                           icon: <ArrowSquareOutIcon size={14} />,
                           disabled: !target.appId,
                       },
                   ]
-                : []),
-            // An archived session is out of the way on purpose: renaming or pinning it would put
-            // it back in your face without unarchiving it. Unarchive first, then rename.
-            ...(target.archived
-                ? []
-                : [
+                : []
+            const pin: SessionMenuEntry = {
+                key: "pin",
+                label: pinnedSet.has(target.sessionId)
+                    ? tNow("sessions.rows.unpin")
+                    : tNow("sessions.rows.pin"),
+                icon: pinnedSet.has(target.sessionId) ? (
+                    <PushPinSlashIcon size={14} />
+                ) : (
+                    <PushPinIcon size={14} />
+                ),
+            }
+            const copyLink: SessionMenuEntry[] = sharePathFor
+                ? [
                       {
-                          key: "rename",
-                          label: "Rename",
-                          icon: <PencilSimpleIcon size={14} />,
+                          key: "copy-link",
+                          label: tNow("sessions.rows.copyShareLink"),
+                          icon: <LinkSimpleIcon size={14} />,
+                          disabled: !sharePathFor(target),
                       },
-                      {
-                          key: "pin",
-                          label: pinnedSet.has(target.sessionId) ? "Unpin" : "Pin",
-                          icon: pinnedSet.has(target.sessionId) ? (
-                              <PushPinSlashIcon size={14} />
-                          ) : (
-                              <PushPinIcon size={14} />
-                          ),
-                      },
-                      ...(sharePathFor
-                          ? [
-                                {
-                                    key: "copy-link",
-                                    label: "Copy share link",
-                                    icon: <LinkSimpleIcon size={14} />,
-                                    disabled: !sharePathFor(target),
-                                },
-                            ]
-                          : []),
-                      {type: "divider" as const},
-                  ]),
-            {
-                key: "archive",
-                label: target.archived ? "Unarchive" : "Archive",
-                icon: <ArchiveIcon size={14} />,
-            },
-            {key: "delete", label: "Delete", icon: <TrashIcon size={14} />, danger: true},
-        ],
-        [pinnedSet, sharePathFor],
+                  ]
+                : []
+            // Removed, not disabled: these verbs are the owner's (S4).
+            if (access === "member")
+                return [...open, ...(target.archived ? [] : [pin]), ...copyLink]
+            const share: SessionMenuEntry[] =
+                access === "owner" && onShare && !target.archived
+                    ? [
+                          {
+                              key: "share",
+                              label: tNow("sessions.rows.share"),
+                              icon: <UsersIcon size={14} />,
+                          },
+                      ]
+                    : []
+            return [
+                ...open,
+                // An archived session is out of the way on purpose: renaming or pinning it would put
+                // it back in your face without unarchiving it. Unarchive first, then rename.
+                ...(target.archived
+                    ? []
+                    : [
+                          {
+                              key: "rename",
+                              label: tNow("sessions.rows.rename"),
+                              icon: <PencilSimpleIcon size={14} />,
+                          },
+                          pin,
+                          ...share,
+                          ...copyLink,
+                          {type: "divider" as const},
+                      ]),
+                {
+                    key: "archive",
+                    label: target.archived
+                        ? tNow("sessions.rows.unarchive")
+                        : tNow("sessions.rows.archive"),
+                    icon: <ArchiveIcon size={14} />,
+                },
+                {
+                    key: "delete",
+                    label: tNow("sessions.rows.delete"),
+                    icon: <TrashIcon size={14} />,
+                    danger: true,
+                },
+            ]
+        },
+        [currentUserId, onShare, pinnedSet, sharePathFor],
     )
 
     /**
@@ -296,10 +363,11 @@ export const useSessionActions = ({
                 if (key === "rename") options?.onRename?.()
                 if (key === "pin") togglePin(target.sessionId)
                 if (key === "copy-link") void copyShareLink(target)
+                if (key === "share") onShare?.(target)
                 if (key === "archive") void setArchived(target)
                 if (key === "delete") remove(target)
             },
-        [copyShareLink, remove, setArchived, togglePin],
+        [copyShareLink, onShare, remove, setArchived, togglePin],
     )
 
     return {

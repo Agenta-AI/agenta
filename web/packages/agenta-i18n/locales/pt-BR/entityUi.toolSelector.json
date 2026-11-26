@@ -1,0 +1,23 @@
+{
+    "searchProviderTools": "Pesquisar ferramentas de {{provider}}",
+    "noToolsFound": "Nenhuma ferramenta encontrada",
+    "failedToLoadSchema": "Falha ao carregar o schema da ação da ferramenta",
+    "searchActions": "Pesquisar ações",
+    "actionCount_one": "{{count}} ação",
+    "actionCount_many": "{{count}} ações",
+    "actionCount_other": "{{count}} ações",
+    "noActionsFound": "Nenhuma ação encontrada",
+    "searchIntegrations": "Pesquisar integrações",
+    "builtInTools": "Ferramentas integradas",
+    "noBuiltInMatches": "Nenhuma ferramenta integrada corresponde",
+    "thirdPartyTools": "Ferramentas de terceiros",
+    "browseThirdParty": "Procurar ferramentas de terceiros",
+    "noConnectedTools": "Nenhuma ferramenta conectada",
+    "customTools": "Ferramentas personalizadas",
+    "createInlineTool": "Criar ferramenta de função em linha",
+    "referenceWorkflow": "Referenciar um fluxo de trabalho",
+    "runWorkflowAsTool": "Executar um fluxo de trabalho como ferramenta",
+    "hoverToBrowse": "Passe o cursor sobre um provedor ou integração conectada para procurar ferramentas.",
+    "tool": "Ferramenta",
+    "addTool": "Adicionar uma ferramenta"
+}

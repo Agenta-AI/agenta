@@ -33,6 +33,7 @@ export type {
     TriggerDeliveriesResponse,
     TriggerDeliveryData,
     TriggerDeliveryQuery,
+    TriggerDeliveryWindowing,
     TriggerDeliveryResponse,
     TriggerProviderKind,
     TriggerReference,
@@ -83,6 +84,7 @@ export type {CronValidationResult} from "./core/cron"
 export {
     builderToCron,
     cronToBuilder,
+    describeSchedule,
     defaultBuilderState,
     describeCadence,
     formatNextRun,
@@ -92,21 +94,31 @@ export {
     DEFAULT_TIME,
 } from "./core/scheduleBuilder"
 export type {CronCadence, CronTimeOfDay, ScheduleBuilderState} from "./core/scheduleBuilder"
+export type {ScheduleText} from "./core/scheduleText"
 export {
+    FALLBACK_MESSAGE_SHAPE,
     getScheduleMessage,
     getScheduleMessagePreview,
     messageContentText,
     parseInputsFields,
+    misplacedMessageShape,
     remapMessageShape,
     setScheduleMessage,
 } from "./core/messageInputs"
 export {
     compileMessageTemplate,
     parseMessageTemplate,
+    remapMessageTemplate,
     splitTemplate,
+    templateSelectors,
 } from "./core/eventMessageTemplate"
+export {eventFieldsFromSchema, selectorLabel} from "./core/eventFields"
+export type {EventField} from "./core/eventFields"
+export {addsEventText, includesEvent, renderMessagePreview} from "./core/eventPreview"
+export {latestDeliveryEvent} from "./core/latestDeliveryEvent"
 export {localFaceToUtcIso, utcIsoToLocalFace} from "./core/window"
 export {previewValue, resolveSelectorPreview} from "./core/selectorPreview"
+export {normalizeRepoFilters} from "./core/repoFilter"
 
 // ---------------------------------------------------------------------------
 // API — HTTP wrappers (axios + zod boundary validation)
@@ -163,18 +175,13 @@ export {
     triggerScheduleDrawerAtom,
     triggerSelectedCatalogEventAtom,
     triggerSubscriptionDrawerAtom,
-    triggerDeliveriesPaginatedStore,
-    triggerDeliveriesOwnerAtom,
 } from "./state"
 export type {
     DeliveriesDrawerState,
-    DeliveriesOwner,
     ExactDeliveryDrawerState,
     EventsDrawerState,
-    OwnerDeliveriesDrawerState,
     ScheduleDrawerState,
     SubscriptionDrawerState,
-    TriggerDeliveryRow,
 } from "./state"
 
 // ---------------------------------------------------------------------------
@@ -188,6 +195,11 @@ export {
     triggerConnectionSubscriptionsAtomFamily,
     triggerDeliveryQueryAtomFamily,
     triggerDeliveriesAtomFamily,
+    triggerDeliveryPagesAtomFamily,
+    triggerRecentDeliveriesAtomFamily,
+    nextDeliveriesWindowing,
+    TRIGGER_DELIVERIES_PAGE_SIZE,
+    RECENT_TRIGGER_DELIVERIES_LIMIT,
     triggerEventDetailQueryFamily,
     triggerEventsSearchAtom,
     triggerIntegrationConnectionsAtomFamily,
@@ -202,6 +214,7 @@ export {
     useTriggerConnectionSubscriptions,
     useTriggerDelivery,
     useTriggerDeliveries,
+    useTriggerDeliveryPages,
     useTriggerEvent,
     useTriggerIntegrationConnections,
     useTriggerSchedule,

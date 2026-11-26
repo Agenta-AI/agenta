@@ -26,6 +26,7 @@ from .test_channels_outbox_worker import (
     FakeTurnsDAO,
     PROJECT_ID,
 )
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 @pytest.mark.parametrize(
@@ -42,7 +43,11 @@ async def test_inbox_adds_eyes_before_invoke_or_queue(queue_decision):
         assert adapter.set_message_status.call_args.kwargs["status"] == "received"
         return queue_decision
 
-    dispatcher = InboxDispatcher(channels_service=service, invoke_fn=AsyncMock())
+    dispatcher = InboxDispatcher(
+        run_admission=NoopRunAdmission(),
+        channels_service=service,
+        invoke_fn=AsyncMock(),
+    )
     dispatcher._queue_behind_running_turn = admit
     event = _make_event()
     event.data.external_locator["message_ts"] = "200.002"
@@ -64,7 +69,9 @@ async def test_refused_or_duplicate_message_has_no_reaction(resolution, trigger)
     service.fetch_connection.return_value = _make_connection(channel="slack")
     event = _make_event()
     await InboxDispatcher(
-        channels_service=service, invoke_fn=AsyncMock()
+        run_admission=NoopRunAdmission(),
+        channels_service=service,
+        invoke_fn=AsyncMock(),
     ).dispatch_event(
         project_id=PROJECT_ID, connection_id=event.connection_id, event=event
     )
@@ -81,7 +88,9 @@ async def test_failed_start_clears_eyes(error, monkeypatch):
     )
     service.fetch_connection.return_value = _make_connection(channel="slack")
     dispatcher = InboxDispatcher(
-        channels_service=service, invoke_fn=AsyncMock(side_effect=error)
+        run_admission=NoopRunAdmission(),
+        channels_service=service,
+        invoke_fn=AsyncMock(side_effect=error),
     )
     dispatcher._notify_not_started = AsyncMock()
     event = _make_event()

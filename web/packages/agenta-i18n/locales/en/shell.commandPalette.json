@@ -1,0 +1,12 @@
+{
+    "agentFallback": "Agent",
+    "browseTemplates": "Browse templates",
+    "description": "Search sessions, agents and pages, or run an action.",
+    "groupEvaluators": "Evaluators",
+    "groupPages": "Pages",
+    "groupPrompts": "Prompts",
+    "newAgent": "New agent",
+    "nothingMatches": "Nothing matches",
+    "placeholder": "Search sessions, agents, pages…",
+    "searching": "Searching…"
+}

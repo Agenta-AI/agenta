@@ -7,7 +7,6 @@ const mocks = vi.hoisted(() => ({
     stash: vi.fn(),
     drop: vi.fn(),
     reveal: vi.fn(),
-    draft: vi.fn(),
     captureIntent: vi.fn(),
 }))
 vi.mock("react", () => ({useCallback: (fn: unknown) => fn, useState: () => [false, vi.fn()]}))
@@ -20,25 +19,39 @@ vi.mock("@agenta/entities/workflow", () => ({
     agentTemplatesAtom: "templates",
     agentTemplateByKey: (templates: {key: string}[], key: string) =>
         templates.find((template) => template.key === key),
-    appendSetupPreamble: (text: string) => text,
     invalidateWorkflowsListCache: vi.fn(),
 }))
 vi.mock("@agenta/home-ui", () => ({useCreateAgent: () => mocks.create}))
 vi.mock("@agenta/chat/assets", () => ({uploadAttachment: vi.fn()}))
 vi.mock("@agenta/shared/state", () => ({projectIdAtom: "project"}))
 vi.mock("@/features/analytics/client", () => ({captureIntent: mocks.captureIntent}))
-vi.mock("jotai", () => ({
-    useAtomValue: (atom: string) =>
-        atom === "templates" ? [{key: "reviewer", name: "Reviewer"}] : undefined,
-    useSetAtom: (atom: string) =>
-        ({stash: mocks.stash, drop: mocks.drop, reveal: mocks.reveal, draft: mocks.draft})[atom],
-}))
+// The real jotai stays under the mock: @agenta/i18n builds its language atoms from it.
+vi.mock("jotai", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("jotai")>()
+    return {
+        ...actual,
+        useAtomValue: (atom: unknown) =>
+            typeof atom !== "string"
+                ? actual.useAtomValue(atom as Parameters<typeof actual.useAtomValue>[0])
+                : atom === "templates"
+                  ? [{key: "reviewer", name: "Reviewer"}]
+                  : undefined,
+        useSetAtom: (atom: unknown) =>
+            typeof atom !== "string"
+                ? actual.useSetAtom(atom as Parameters<typeof actual.useSetAtom>[0])
+                : (
+                      {stash: mocks.stash, drop: mocks.drop, reveal: mocks.reveal} as Record<
+                          string,
+                          unknown
+                      >
+                  )[atom],
+    }
+})
 vi.mock("../../src/lib/ids", () => ({newId: () => "fresh-session"}))
 vi.mock("../../src/features/home/pendingTask", () => ({
     stashPendingTaskAtom: "stash",
     takePendingTaskAtom: "drop",
 }))
-vi.mock("../../src/features/agents/templateSetupDraft", () => ({templateSetupDraftAtom: "draft"}))
 
 import {useNewAgentAction} from "../../src/features/agents/useNewAgentAction"
 
@@ -88,7 +101,7 @@ describe("creation handoff after merging release changes", () => {
         expect(mocks.fresh).toHaveBeenCalledWith("staging")
         expect(mocks.stash).toHaveBeenCalledWith({
             sessionId: "staging",
-            task: {agentId: "agent", text: "Hello", parts: undefined, templateKey: undefined},
+            task: {agentId: "agent", text: "Hello", parts: undefined},
         })
         expect(mocks.reveal).not.toHaveBeenCalled()
     })

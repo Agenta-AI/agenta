@@ -1,0 +1,21 @@
+{
+    "configuration": "設定",
+    "commit": "コミット",
+    "agent": "エージェント",
+    "notSaved": "保存されていません",
+    "saving": "保存中…",
+    "draft": "下書き",
+    "saved": "保存済み",
+    "tipFailed": "{{error}}。クリックして再試行",
+    "couldNotSave": "変更を保存できませんでした",
+    "tipSaving": "変更を保存しています",
+    "tipDraft": "未保存の変更",
+    "statusAndHistory": "{{status}} · バージョン履歴",
+    "versionStatusOpen": "バージョン {{version}}、{{status}}。バージョン履歴を開く",
+    "versionHistory": "バージョン履歴",
+    "openVersionHistory": "バージョン履歴を開く",
+    "commitMessage": "コミットメッセージ",
+    "noCommitMessage": "コミットメッセージはありません",
+    "updateAvailable": "v{{version}} に更新",
+    "retrySaving": "変更の保存を再試行"
+}

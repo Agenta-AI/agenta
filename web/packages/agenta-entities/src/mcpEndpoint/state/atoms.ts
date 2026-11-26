@@ -6,7 +6,7 @@
  * playground shows up in Settings without a reload.
  */
 import {getHostQueryClient} from "@agenta/shared/api"
-import {projectIdAtom} from "@agenta/shared/state"
+import {projectIdAtom, userAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
@@ -21,11 +21,16 @@ import type {MCPEndpoint, MCPEndpointCreate, MCPEndpointEdit} from "../core/type
 
 export const MCP_ENDPOINTS_QUERY_KEY = "mcp-endpoints"
 
+/** Keyed by the person too: each row carries the caller's own `user_sign_in`. */
+const mcpEndpointsQueryKey = (userId: string | undefined, projectId: string | null) =>
+    [MCP_ENDPOINTS_QUERY_KEY, userId, projectId] as const
+
 export const mcpEndpointsQueryAtom = atomWithQuery<MCPEndpoint[]>((get) => {
     const projectId = get(projectIdAtom)
+    const userId = get(userAtom)?.id
 
     return {
-        queryKey: [MCP_ENDPOINTS_QUERY_KEY, projectId],
+        queryKey: mcpEndpointsQueryKey(userId, projectId),
         queryFn: async () => {
             // The query route, not the list route: the list mixes in synthesized builtin
             // and provider rows that carry no id, and every caller filters them out again.
@@ -82,11 +87,12 @@ export const deleteMcpEndpointAtom = atom(null, async (get, _set, endpointId: st
  */
 export const disconnectMcpEndpointAtom = atom(null, async (get, _set, endpointId: string) => {
     const projectId = get(projectIdAtom)
+    // Read before the request: another person may sign in while it runs.
+    const queryKey = mcpEndpointsQueryKey(get(userAtom)?.id, projectId)
     const result = await disconnectMcpEndpoint(endpointId, projectId ?? undefined)
     const endpoint = result.endpoint ?? null
 
     const queryClient = getHostQueryClient()
-    const queryKey = [MCP_ENDPOINTS_QUERY_KEY, projectId]
     const cached = queryClient.getQueryData<MCPEndpoint[]>(queryKey)
 
     if (endpoint && cached) {

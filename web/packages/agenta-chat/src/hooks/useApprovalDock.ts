@@ -8,10 +8,14 @@
 // supplies those around this hook's state.
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {createT} from "@agenta/i18n"
+import chatMessagesCatalog from "@agenta/i18n/catalogs/chat.messages"
 import type {UIMessage} from "ai"
 
 import type {ApprovalSubmissionOutcome} from "../assets/serverOwnedApproval"
 import {getPendingApprovals, type PendingApproval} from "../model/approvals"
+
+const tNow = createT(chatMessagesCatalog)
 
 type ApprovalResponse = void | ApprovalSubmissionOutcome
 
@@ -46,6 +50,9 @@ export interface ApprovalDock {
     respond: (approved: boolean) => void
     /** Approve every pending gate in one step (the shown set is frozen while they settle). */
     approveAll: () => void
+    /** Deny every pending gate, from outside the card: the host calls it when the user sends a
+     *  message over the dock. Rejects (and re-opens the dock) when the denial fails. */
+    dismiss: () => Promise<void>
 }
 
 /**
@@ -147,7 +154,7 @@ export const useApprovalDock = ({
             setErrorText(
                 failed.reason instanceof Error
                     ? failed.reason.message
-                    : "Approval failed. Please try again.",
+                    : tNow("chat.messages.approvalFailed"),
             )
         },
         [forgetSettled],
@@ -195,6 +202,34 @@ export const useApprovalDock = ({
         )
     }, [responding, shown, onRespond, onRespondAll, settle])
 
+    // Through refs: the host calls `dismiss` from a send handler with a stale closure.
+    const approvalsRef = useRef(approvals)
+    approvalsRef.current = approvals
+    const settledIdsRef = useRef(settledIds)
+    settledIdsRef.current = settledIds
+    const dismiss = useCallback(async () => {
+        const ids = approvalsRef.current
+            .map((approval) => approval.approvalId)
+            .filter((id) => !settledIdsRef.current.has(id))
+        if (ids.length === 0) return
+        setSettledIds((prev) => new Set([...prev, ...ids]))
+        let outcomes: ApprovalResponse[]
+        try {
+            outcomes = onRespondAll
+                ? [await onRespondAll({ids, approved: false})]
+                : await Promise.all(ids.map((id) => onRespond({id, approved: false})))
+        } catch (error) {
+            forgetSettled(ids)
+            throw error
+        }
+        // Recorded, but nothing resumes on its own: a steer now would wait on a run that never comes.
+        if (outcomes.some((outcome) => outcome?.recoverable === true)) {
+            forgetSettled(ids)
+            setRecoverable(true)
+            throw new Error(tNow("chat.messages.approvalNotResumed"))
+        }
+    }, [onRespond, onRespondAll, forgetSettled])
+
     return {
         open,
         current,
@@ -206,5 +241,6 @@ export const useApprovalDock = ({
         errorText,
         respond,
         approveAll,
+        dismiss,
     }
 }

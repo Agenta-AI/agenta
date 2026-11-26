@@ -6,10 +6,13 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from oss.src.core.sessions.records.dtos import (
+    NON_ENDING_STOP_REASONS,
     RECORD_SETTLED_BY_ATTRIBUTE,
+    RunnerEnding,
     SETTLED_BY_WATCHDOG,
     SESSION_MESSAGE_PREVIEW_TEXT_LIMIT,
     TERMINAL_RECORD_TYPE,
+    runner_ending,
     SessionMessagePreview,
     SessionRecord,
     SessionRecordEvent,
@@ -248,6 +251,80 @@ class RecordsDAO(RecordsDAOInterface):
             dbes = (await session.execute(stmt)).scalars().all()
             return [map_record_dbe_to_dto(dbe=dbe) for dbe in dbes]
 
+    async def get_execution_records(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_ids: List[str],
+    ) -> List[SessionRecord]:
+        """The records of the given executions only (the stored `turn_id` of a record
+        is its execution id), in send order, quarantined ones left out as in
+        `get_records`."""
+        if not execution_ids:
+            return []
+        async with self.engine.session() as session:
+            stmt = (
+                select(RecordDBE)
+                .where(
+                    RecordDBE.project_id == project_id,
+                    RecordDBE.session_id == session_id,
+                    RecordDBE.turn_id.in_(execution_ids),
+                    RecordDBE.quarantined_at.is_(None),
+                )
+                .order_by(*self._send_order())
+            )
+            dbes = (await session.execute(stmt)).scalars().all()
+            return [map_record_dbe_to_dto(dbe=dbe) for dbe in dbes]
+
+    async def get_ending_records(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> List[SessionRecord]:
+        async with self.engine.session() as session:
+            stmt = (
+                select(RecordDBE)
+                .where(
+                    RecordDBE.project_id == project_id,
+                    RecordDBE.session_id == session_id,
+                    RecordDBE.record_type.in_((TERMINAL_RECORD_TYPE, "error")),
+                    RecordDBE.deleted_at.is_(None),
+                    RecordDBE.quarantined_at.is_(None),
+                )
+                .order_by(*self._send_order())
+            )
+
+            dbes = (await session.execute(stmt)).scalars().all()
+            return [map_record_dbe_to_dto(dbe=dbe) for dbe in dbes]
+
+    async def get_ending_records_of_executions(
+        self,
+        *,
+        project_id: UUID,
+        session_ids: List[str],
+        execution_ids: List[str],
+    ) -> List[SessionRecord]:
+        if not execution_ids:
+            return []
+        async with self.engine.session() as session:
+            stmt = (
+                select(RecordDBE)
+                .where(
+                    RecordDBE.project_id == project_id,
+                    RecordDBE.session_id.in_(session_ids),
+                    RecordDBE.turn_id.in_(execution_ids),
+                    RecordDBE.record_type.in_((TERMINAL_RECORD_TYPE, "error")),
+                    RecordDBE.deleted_at.is_(None),
+                    RecordDBE.quarantined_at.is_(None),
+                )
+                .order_by(*self._send_order())
+            )
+
+            dbes = (await session.execute(stmt)).scalars().all()
+            return [map_record_dbe_to_dto(dbe=dbe) for dbe in dbes]
+
     @staticmethod
     def _send_order():
         # The order the runner sent the records, for transcript reads. `sequence` is commit
@@ -293,6 +370,7 @@ class RecordsDAO(RecordsDAOInterface):
         offset: int,
         limit: int,
         through_sequence: int,
+        after_sequence: int = 0,
     ) -> SessionRecordsPage:
         async with self.engine.session() as session:
             stmt = (
@@ -305,6 +383,10 @@ class RecordsDAO(RecordsDAOInterface):
                     or_(
                         RecordDBE.sequence.is_(None),
                         RecordDBE.sequence <= through_sequence,
+                    )
+                    if after_sequence == 0
+                    else RecordDBE.sequence.between(
+                        after_sequence + 1, through_sequence
                     ),
                 )
                 .order_by(*self._send_order())
@@ -536,17 +618,18 @@ class RecordsDAO(RecordsDAOInterface):
 
         return {(row.session_id, row.turn_id) for row in rows}
 
-    async def runner_completed_turns(
+    async def runner_ended_turns(
         self,
         *,
         project_id: UUID,
         keys: Sequence[Tuple[str, str]],
-    ) -> Set[Tuple[str, str]]:
+    ) -> Dict[Tuple[str, str], RunnerEnding]:
         if not keys:
-            return set()
+            return {}
+        stop_reason = func.coalesce(RecordDBE.attributes["stopReason"].astext, "")
         async with self.engine.session() as session:
             stmt = (
-                select(RecordDBE.session_id, RecordDBE.turn_id)
+                select(RecordDBE.session_id, RecordDBE.turn_id, stop_reason)
                 .where(
                     RecordDBE.project_id == project_id,
                     RecordDBE.record_type == TERMINAL_RECORD_TYPE,
@@ -557,15 +640,19 @@ class RecordsDAO(RecordsDAOInterface):
                         "",
                     )
                     != SETTLED_BY_WATCHDOG,
-                    func.coalesce(RecordDBE.attributes["stopReason"].astext, "").notin_(
-                        ("paused", "cancelled", "error")
-                    ),
+                    stop_reason.notin_(NON_ENDING_STOP_REASONS),
                     tuple_(RecordDBE.session_id, RecordDBE.turn_id).in_(keys),
                 )
                 .distinct()
             )
             rows = (await session.execute(stmt)).all()
-        return {(row.session_id, row.turn_id) for row in rows}
+        endings: Dict[Tuple[str, str], RunnerEnding] = {}
+        for session_id, turn_id, reason in rows:
+            ending = runner_ending(reason)
+            # Should a turn hold both endings, completed wins.
+            if ending and endings.get((session_id, turn_id)) != "completed":
+                endings[(session_id, turn_id)] = ending
+        return endings
 
     async def mark_records_incomplete(
         self,

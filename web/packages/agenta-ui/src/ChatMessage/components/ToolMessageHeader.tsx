@@ -10,6 +10,9 @@
 
 import React from "react"
 
+import {useT} from "@agenta/i18n"
+import uiChatCatalog from "@agenta/i18n/catalogs/ui.chat"
+
 import {MetadataHeader} from "../../components/presentational/metadata"
 
 interface ToolMessageHeaderProps {
@@ -30,12 +33,13 @@ export const ToolMessageHeader: React.FC<ToolMessageHeaderProps> = ({
     toolCallId,
     className,
 }) => {
+    const t = useT(uiChatCatalog)
     return (
         <MetadataHeader
             label={name}
-            labelTooltip="Function name"
+            labelTooltip={t("ui.chat.functionName")}
             value={toolCallId}
-            valueTooltip="Tool call ID"
+            valueTooltip={t("ui.chat.toolCallId")}
             className={className}
         />
     )

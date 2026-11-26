@@ -3,7 +3,7 @@ import {selectAtom} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 
 /** Per-message first-seen timestamp (ms), keyed by message id — an in-memory FALLBACK only. The
- * authoritative time is the turn's trace `start_time`; this just covers turns with no trace yet (e.g.
+ * authoritative time is the session turn's `start_time`; this just covers turns with none yet (e.g.
  * a just-sent user message). Deliberately NOT persisted: it's transient UI state, so keeping it out
  * of localStorage avoids an unbounded, lifecycle-unmanaged store (no per-delete pruning to maintain).
  */

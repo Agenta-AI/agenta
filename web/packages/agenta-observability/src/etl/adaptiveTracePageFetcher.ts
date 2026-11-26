@@ -111,6 +111,8 @@ export const createAdaptiveTracePageFetcher = ({
                     hasAnnotationConditions,
                     hasAnnotationOperator,
                     signal: callerSignal,
+                    // A failed page must stop the scan, not end it as if no trace was left.
+                    throwOnError: true,
                 })
                 lastRateLimit = result.rateLimit
                 return {

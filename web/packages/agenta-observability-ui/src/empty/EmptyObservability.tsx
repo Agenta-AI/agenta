@@ -1,5 +1,7 @@
 import {memo, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import emptyCatalog from "@agenta/i18n/catalogs/observabilityUi.empty"
 import {EmptyPlaceholder, EmptyState} from "@agenta/ui/components/presentational"
 import {ProhibitIcon, TreeStructureIcon} from "@phosphor-icons/react"
 
@@ -24,6 +26,7 @@ export const EmptyObservability = memo(
         onSetupTracing,
         upgradeAction,
     }: EmptyObservabilityProps) => {
+        const t = useT(emptyCatalog)
         if (rateLimited) {
             return (
                 <div className="py-16">
@@ -32,11 +35,10 @@ export const EmptyObservability = memo(
                         description={
                             <div className="flex flex-col gap-2">
                                 <span className="text-lg font-medium text-colorText">
-                                    Rate limit reached
+                                    {t("observabilityUi.empty.rateLimitReached")}
                                 </span>
                                 <span className="text-colorTextSecondary">
-                                    {rateLimitMessage ||
-                                        "You have reached your monthly quota limit. Please try again later or upgrade your plan."}
+                                    {rateLimitMessage || t("observabilityUi.empty.quotaReached")}
                                     {upgradeAction ? <> {upgradeAction}</> : null}
                                 </span>
                             </div>
@@ -54,10 +56,10 @@ export const EmptyObservability = memo(
                         description={
                             <div className="flex flex-col gap-2">
                                 <span className="text-lg font-medium text-colorText">
-                                    No traces found
+                                    {t("observabilityUi.empty.noTracesFound")}
                                 </span>
                                 <span className="text-colorTextSecondary">
-                                    Try adjusting your filters or time range to view traces.
+                                    {t("observabilityUi.empty.adjustTraces")}
                                 </span>
                             </div>
                         }
@@ -70,12 +72,15 @@ export const EmptyObservability = memo(
             <EmptyState
                 className="py-4"
                 videoId={videoId}
-                previewAlt="Observability demo showing trace visualization"
-                title="No traces yet"
-                description="Add a few lines of code to start capturing traces from your LLM application. Monitor latency, token usage, and debug issues with detailed insights."
-                primaryCta={{label: "Set Up Tracing", onClick: onSetupTracing}}
+                previewAlt={t("observabilityUi.empty.demoAlt")}
+                title={t("observabilityUi.empty.noTracesYet")}
+                description={t("observabilityUi.empty.onboardingDescription")}
+                primaryCta={{
+                    label: t("observabilityUi.empty.setUpTracing"),
+                    onClick: onSetupTracing,
+                }}
                 secondaryCta={{
-                    label: "Learn More",
+                    label: t("observabilityUi.empty.learnMore"),
                     href: "https://docs.agenta.ai/observability/quickstart",
                 }}
             />

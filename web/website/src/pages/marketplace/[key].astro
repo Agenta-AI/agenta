@@ -576,7 +576,8 @@ const num = (id: string) => String(sections.indexOf(id) + 1).padStart(2, "0");
     }
     .ag-tpl-overview {
       margin: 0;
-      font: var(--text-display-md);
+      max-width: 62ch;
+      font: 300 22px/32px var(--font-display);
       color: var(--th-text-hi);
       text-wrap: pretty;
     }
@@ -811,6 +812,7 @@ const num = (id: string) => String(sections.indexOf(id) + 1).padStart(2, "0");
     }
     .ag-tpl-related__head {
       display: flex;
+      flex-wrap: wrap;
       align-items: baseline;
       justify-content: space-between;
       gap: 16px;
@@ -829,6 +831,12 @@ const num = (id: string) => String(sections.indexOf(id) + 1).padStart(2, "0");
     }
     .ag-tpl-related__all:hover {
       color: var(--th-text-hi);
+    }
+    /* Three suggestions: keep them on one row on tablets (no orphan card). */
+    @media (min-width: 768px) and (max-width: 1100px) {
+      .ag-tpl-related .ag-tplgrid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
     }
 
     @media (max-width: 1199px) {
@@ -888,7 +896,7 @@ const num = (id: string) => String(sections.indexOf(id) + 1).padStart(2, "0");
         gap: 10px;
       }
       .ag-tpl-overview {
-        font: 300 24px/32px var(--font-display);
+        font: 300 19px/28px var(--font-display);
       }
       .ag-tpl-tools {
         grid-template-columns: minmax(0, 1fr);

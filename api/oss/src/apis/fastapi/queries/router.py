@@ -15,6 +15,7 @@ from oss.src.core.shared.dtos import (
 )
 from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.queries.dtos import QueryRevision, QueryRevisionCommit
+from oss.src.apis.fastapi.queries.exceptions import handle_filtering_exceptions
 from oss.src.core.queries.service import (
     QueriesService,
     SimpleQueriesService,
@@ -726,6 +727,7 @@ class QueriesRouter:
 
     @intercept_exceptions()
     @handle_git_exceptions()
+    @handle_filtering_exceptions()
     async def create_query_revision(
         self,
         request: Request,
@@ -798,6 +800,7 @@ class QueriesRouter:
         return query_revision_response
 
     @intercept_exceptions()
+    @handle_filtering_exceptions()
     async def edit_query_revision(
         self,
         request: Request,
@@ -933,6 +936,7 @@ class QueriesRouter:
         return query_revisions_response
 
     @intercept_exceptions()
+    @handle_filtering_exceptions()
     async def commit_query_revision(
         self,
         request: Request,
@@ -1183,6 +1187,7 @@ class SimpleQueriesRouter:
     # SIMPLE QUERIES -----------------------------------------------------------
 
     @intercept_exceptions()
+    @handle_filtering_exceptions()
     async def create_simple_query(
         self,
         request: Request,
@@ -1243,6 +1248,7 @@ class SimpleQueriesRouter:
         return simple_query_response
 
     @intercept_exceptions()
+    @handle_filtering_exceptions()
     async def edit_simple_query(
         self,
         request: Request,

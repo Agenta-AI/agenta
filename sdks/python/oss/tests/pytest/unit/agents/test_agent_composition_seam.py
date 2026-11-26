@@ -14,6 +14,8 @@ from typing import Any, AsyncIterator, Dict, List, Optional
 
 import pytest
 
+from agenta.sdk.agents.requirements import AgentNeedsSetupError
+
 from agenta.sdk.agents import (
     AgentResult,
     HarnessKind,
@@ -131,6 +133,7 @@ class _FakeBackend(Backend):
         session_id=None,
         detached=False,
         turn_id=None,
+        session_turn_id=None,
         project_id=None,
         control_command_id=None,
         effective_parameters=None,
@@ -145,7 +148,7 @@ class _FakeBackend(Backend):
         self.created_gateway_policies.append(gateway_policy)
         self.created_detached.append(detached)
         self.created_coordination.append(
-            (session_id, turn_id, project_id, control_command_id)
+            (session_id, turn_id, session_turn_id, project_id, control_command_id)
         )
         self.created_configs.append(config)
         self.created_turn_contexts.append(turn_context)
@@ -256,6 +259,7 @@ async def test_detached_coordination_meta_reaches_the_backend_session():
             session_id="session-1",
             meta={
                 "run_id": "turn-continuation-1",
+                "session_turn_id": "turn-start",
                 "project_id": "project-1",
                 "control_command_id": "command-1",
             },
@@ -265,7 +269,56 @@ async def test_detached_coordination_meta_reaches_the_backend_session():
     )
 
     assert backend.created_coordination == [
-        ("session-1", "turn-continuation-1", "project-1", "command-1")
+        (
+            "session-1",
+            "turn-continuation-1",
+            "turn-start",
+            "project-1",
+            "command-1",
+        )
+    ]
+
+
+async def test_a_fresh_session_turn_gets_a_minted_turn_id():
+    backend = _FakeBackend()
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(session_id="session-1"),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    ((_, turn_id, _, _, _),) = backend.created_coordination
+    assert turn_id
+
+
+async def test_a_continuation_without_run_id_gets_no_minted_turn_id():
+    # The runner refuses a continuation with no turnId. A minted id would hide that refusal.
+    backend = _FakeBackend()
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(
+            session_id="session-1",
+            meta={"control_command_id": "command-1"},
+        ),
+        messages=[{"role": "user", "content": "approved"}],
+        parameters=_params(),
+    )
+
+    assert backend.created_coordination == [
+        ("session-1", None, None, None, "command-1")
     ]
 
 
@@ -311,7 +364,9 @@ async def test_default_composition_rejects_unsupported_provider_pre_resolve():
     )
     handler = make_agent_handler(comp)
 
-    with pytest.raises(UnsupportedProviderError):
+    # The model needs setup: the harness cannot run it. One `agent_needs_setup` error,
+    # which keeps the old failure as the requirement's `detail.code`.
+    with pytest.raises(AgentNeedsSetupError) as raised:
         await handler(
             request=_request(),
             messages=[{"role": "user", "content": "hi"}],
@@ -319,6 +374,12 @@ async def test_default_composition_rejects_unsupported_provider_pre_resolve():
                 "claude", model={"provider": "openai", "model": "gpt-5.5"}
             ),
         )
+    assert isinstance(raised.value.__cause__, UnsupportedProviderError)
+    [requirement] = raised.value.requirements
+    assert requirement["kind"] == "model"
+    assert requirement["reason"] == "not_available"
+    assert requirement["blocks_run"] is True
+    assert requirement["detail"] == {"code": "unsupported_provider"}
 
 
 async def test_default_composition_rejects_unconsumable_deployment_post_resolve():
@@ -346,7 +407,7 @@ async def test_default_composition_rejects_unconsumable_deployment_post_resolve(
     )
     handler = make_agent_handler(comp)
 
-    with pytest.raises(UnsupportedDeploymentError):
+    with pytest.raises(AgentNeedsSetupError) as raised:
         await handler(
             request=_request(),
             messages=[{"role": "user", "content": "hi"}],
@@ -355,6 +416,7 @@ async def test_default_composition_rejects_unconsumable_deployment_post_resolve(
                 model={"provider": "anthropic", "model": "anthropic.claude-x"},
             ),
         )
+    assert isinstance(raised.value.__cause__, UnsupportedDeploymentError)
 
 
 async def test_named_connection_defers_provider_reject_to_post_resolve():
@@ -430,7 +492,7 @@ async def test_pi_custom_with_non_openai_family_rejected_post_resolve():
     )
     handler = make_agent_handler(comp)
 
-    with pytest.raises(UnsupportedProviderError):
+    with pytest.raises(AgentNeedsSetupError) as raised:
         await handler(
             request=_request(),
             messages=[{"role": "user", "content": "hi"}],
@@ -443,6 +505,7 @@ async def test_pi_custom_with_non_openai_family_rejected_post_resolve():
                 },
             ),
         )
+    assert isinstance(raised.value.__cause__, UnsupportedProviderError)
 
 
 async def test_default_composition_fails_closed_on_connection_resolution_failure():
@@ -1393,5 +1456,98 @@ async def test_only_one_deadline_owns_a_turn(monkeypatch):
         parameters=_params(),
     )
 
-    # One owner per optional read, never two around the same read.
-    assert owners == ["channel tools resolver", "session context resolver"]
+    # One owner per optional read, never two around the same read. The two reads run
+    # together, so their start order is not part of the contract.
+    assert sorted(owners) == ["channel tools resolver", "session context resolver"]
+
+
+# --------------------------------------------------------------------------- #
+# Turn start: the independent lookups share one wait
+# --------------------------------------------------------------------------- #
+async def test_tools_connection_and_session_context_resolve_together():
+    """The tool chain blocks until the connection and the session facts are in flight.
+
+    Run one after another, the tool resolve would wait for lookups that start only after it.
+    """
+    backend = _FakeBackend()
+    connection_started = asyncio.Event()
+    session_started = asyncio.Event()
+
+    async def _tools(tools, **kwargs):
+        await asyncio.wait_for(connection_started.wait(), timeout=1)
+        await asyncio.wait_for(session_started.wait(), timeout=1)
+        return ResolvedToolSet()
+
+    async def _connection(*, model, context):
+        connection_started.set()
+        return _no_connection_result()
+
+    async def _session_context(*, session_id, workflow_id):
+        session_started.set()
+        return SessionContext(session_name="named")
+
+    comp = AgentComposition(
+        select_backend=lambda template: backend,
+        resolve_tools=_tools,
+        resolve_connection=_connection,
+        resolve_session_context=_session_context,
+    )
+    await make_agent_handler(comp)(
+        request=_request(),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(model={"provider": "openai", "model": "gpt-5.5"}),
+    )
+
+    assert backend.created_turn_contexts[0] is not None
+
+
+async def test_a_tool_failure_wins_over_a_connection_failure_that_came_first():
+    """The error a caller sees is the one a serial run would raise: tools come first."""
+
+    async def _tools(tools, **kwargs):
+        await asyncio.sleep(0.05)
+        raise RuntimeError("tools down")
+
+    async def _connection(*, model, context):
+        raise ConnectionResolutionError("vault down")
+
+    comp = AgentComposition(
+        select_backend=lambda template: _FakeBackend(),
+        resolve_tools=_tools,
+        resolve_connection=_connection,
+    )
+    with pytest.raises(RuntimeError, match="tools down"):
+        await make_agent_handler(comp)(
+            request=_request(),
+            messages=[{"role": "user", "content": "hi"}],
+            parameters=_params(model={"provider": "openai", "model": "gpt-5.5"}),
+        )
+
+
+async def test_a_tool_failure_cancels_the_connection_resolve_in_flight():
+    cancelled = asyncio.Event()
+
+    async def _tools(tools, **kwargs):
+        await asyncio.sleep(0.05)
+        raise RuntimeError("tools down")
+
+    async def _connection(*, model, context):
+        try:
+            await asyncio.sleep(10)
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+        return _no_connection_result()
+
+    comp = AgentComposition(
+        select_backend=lambda template: _FakeBackend(),
+        resolve_tools=_tools,
+        resolve_connection=_connection,
+    )
+    with pytest.raises(RuntimeError, match="tools down"):
+        await make_agent_handler(comp)(
+            request=_request(),
+            messages=[{"role": "user", "content": "hi"}],
+            parameters=_params(model={"provider": "openai", "model": "gpt-5.5"}),
+        )
+    assert cancelled.is_set()

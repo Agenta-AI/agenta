@@ -17,6 +17,18 @@ export interface PromptsColumnActions {
     onDeleteApp: (record: PromptsTableRow) => void
 }
 
+/**
+ * The row menu traps the focus until it has closed, and an antd dialog traps it too. A dialog
+ * opened from the menu's click handler made the two move the focus back and forth without end
+ * ("Maximum call stack size exceeded"). So the menu items that open an antd dialog wait one tick,
+ * until the menu has closed. A timeout, because the menu lives in `@agenta/ui` and gives no close
+ * callback per item. The app Rename and Archive dialogs do not show the loop, so they open
+ * directly.
+ */
+const afterMenuCloses = (openDialog: () => void) => {
+    setTimeout(openDialog, 0)
+}
+
 export function createPromptsColumns(actions: PromptsColumnActions) {
     return createStandardColumns<PromptsTableRow>([
         {
@@ -80,14 +92,15 @@ export function createPromptsColumns(actions: PromptsColumnActions) {
                     key: "rename_folder",
                     label: "Rename",
                     icon: <PencilSimple size={16} />,
-                    onClick: (record) => actions.onRenameFolder(record.id as string),
+                    onClick: (record) =>
+                        afterMenuCloses(() => actions.onRenameFolder(record.id as string)),
                     hidden: (record) => record.type !== "folder",
                 },
                 {
                     key: "move_folder",
                     label: "Move",
                     icon: <FolderDashed size={16} />,
-                    onClick: (record) => actions.onMoveItem(record),
+                    onClick: (record) => afterMenuCloses(() => actions.onMoveItem(record)),
                     hidden: (record) => record.type !== "folder",
                 },
                 {
@@ -99,7 +112,8 @@ export function createPromptsColumns(actions: PromptsColumnActions) {
                     label: "Delete",
                     icon: <Trash size={16} />,
                     danger: true,
-                    onClick: (record) => actions.onDeleteFolder(record.id as string),
+                    onClick: (record) =>
+                        afterMenuCloses(() => actions.onDeleteFolder(record.id as string)),
                     hidden: (record) => record.type !== "folder",
                 },
                 // App actions
@@ -122,7 +136,7 @@ export function createPromptsColumns(actions: PromptsColumnActions) {
                     key: "move_app",
                     label: "Move",
                     icon: <FolderDashed size={16} />,
-                    onClick: (record) => actions.onMoveItem(record),
+                    onClick: (record) => afterMenuCloses(() => actions.onMoveItem(record)),
                     hidden: (record) => record.type === "folder",
                 },
                 {

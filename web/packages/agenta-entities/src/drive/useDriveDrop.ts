@@ -14,6 +14,8 @@ import {type DroppedFile, readDroppedFiles} from "./dropEntries"
 
 const SPRING_MS = 700
 
+const anyFolder = () => true
+
 export const isFileDrag = (e: React.DragEvent): boolean =>
     Array.from(e.dataTransfer?.types ?? []).includes("Files")
 
@@ -38,11 +40,14 @@ export interface DriveDrop {
 
 export function useDriveDrop({
     enabled = true,
+    canDropAt = anyFolder,
     onUpload,
     onNavigate,
 }: {
     /** False leaves the hook mounted but inert — no window listeners, nothing to hover. */
     enabled?: boolean
+    /** A folder that refuses a drop (a read drive) is not highlighted and does not accept the drag. */
+    canDropAt?: (folder: string) => boolean
     onUpload: (files: DroppedFile[], folder: string) => void
     onNavigate: (folder: string) => void
 }): DriveDrop {
@@ -106,56 +111,66 @@ export function useDriveDrop({
     )
 
     const folderDropProps = useCallback(
-        (path: string) => ({
-            // Folder targets stop propagation, so the container's onDragEnter only fires over empty
-            // space — which is how the hover clears when you move off a folder.
-            onDragEnter: (e: React.DragEvent) => {
-                if (!isFileDrag(e)) return
-                e.preventDefault()
-                e.stopPropagation()
-                setHoverPath(path)
-                startSpring(path)
-            },
-            onDragOver: (e: React.DragEvent) => {
-                if (!isFileDrag(e)) return
-                e.preventDefault()
-                e.stopPropagation()
-            },
-            onDrop: (e: React.DragEvent) => {
-                if (!isFileDrag(e)) return
-                e.preventDefault()
-                e.stopPropagation()
-                void readDroppedFiles(e.dataTransfer).then((files) => {
-                    if (files.length) onUpload(files, path)
-                })
-                setHoverPath(null)
-                clearSpring()
-            },
-        }),
-        [onUpload, startSpring, clearSpring],
+        (path: string) => {
+            const droppable = canDropAt(path)
+            return {
+                // Folder targets stop propagation, so the container's onDragEnter only fires over
+                // empty space — which is how the hover clears when you move off a folder. A folder
+                // that refuses the drop still spring-loads, so a drag can pass through it.
+                onDragEnter: (e: React.DragEvent) => {
+                    if (!isFileDrag(e)) return
+                    e.stopPropagation()
+                    if (droppable) {
+                        e.preventDefault()
+                        setHoverPath(path)
+                    } else setHoverPath(null)
+                    startSpring(path)
+                },
+                // Without preventDefault the browser refuses the drop here.
+                onDragOver: (e: React.DragEvent) => {
+                    if (!isFileDrag(e)) return
+                    e.stopPropagation()
+                    if (droppable) e.preventDefault()
+                },
+                onDrop: (e: React.DragEvent) => {
+                    if (!isFileDrag(e) || !droppable) return
+                    e.preventDefault()
+                    e.stopPropagation()
+                    void readDroppedFiles(e.dataTransfer).then((files) => {
+                        if (files.length) onUpload(files, path)
+                    })
+                    setHoverPath(null)
+                    clearSpring()
+                },
+            }
+        },
+        [canDropAt, onUpload, startSpring, clearSpring],
     )
 
     const containerDropProps = useCallback(
-        (currentFolder: string) => ({
-            onDragEnter: (e: React.DragEvent) => {
-                if (!isFileDrag(e)) return
-                setHoverPath(null)
-                clearSpring()
-            },
-            onDragOver: (e: React.DragEvent) => {
-                if (isFileDrag(e)) e.preventDefault()
-            },
-            onDrop: (e: React.DragEvent) => {
-                if (!isFileDrag(e)) return
-                e.preventDefault()
-                void readDroppedFiles(e.dataTransfer).then((files) => {
-                    if (files.length) onUpload(files, currentFolder)
-                })
-                setHoverPath(null)
-                clearSpring()
-            },
-        }),
-        [onUpload, clearSpring],
+        (currentFolder: string) => {
+            const droppable = canDropAt(currentFolder)
+            return {
+                onDragEnter: (e: React.DragEvent) => {
+                    if (!isFileDrag(e)) return
+                    setHoverPath(null)
+                    clearSpring()
+                },
+                onDragOver: (e: React.DragEvent) => {
+                    if (droppable && isFileDrag(e)) e.preventDefault()
+                },
+                onDrop: (e: React.DragEvent) => {
+                    if (!isFileDrag(e) || !droppable) return
+                    e.preventDefault()
+                    void readDroppedFiles(e.dataTransfer).then((files) => {
+                        if (files.length) onUpload(files, currentFolder)
+                    })
+                    setHoverPath(null)
+                    clearSpring()
+                },
+            }
+        },
+        [canDropAt, onUpload, clearSpring],
     )
 
     return {dragging, hoverPath, folderDropProps, containerDropProps}

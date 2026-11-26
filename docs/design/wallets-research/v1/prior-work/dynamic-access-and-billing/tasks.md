@@ -147,10 +147,10 @@ moves out of billing.
 - [x] `docker-compose.dev.yml` volume mount for `events.sh`.
 - [x] Tests: `test_events_retention.py` (service logic), `test_admin_retention_routers.py` (lock + handler).
 - [x] Doc updates:
-  - [docs/designs/data-retention/README.md](../data-retention/README.md)
-  - [docs/designs/data-retention/data-retention-periods.initial.specs.md](../data-retention/data-retention-periods.initial.specs.md)
+  - [docs/design/data-retention/README.md](../data-retention/README.md)
+  - [docs/design/data-retention/data-retention-periods.initial.specs.md](../data-retention/data-retention-periods.initial.specs.md)
   - [docs/design/ee-self-hosting/research.md](../../design/ee-self-hosting/research.md)
-  - [docs/openapi-cleanup/endpoints.md](../../openapi-cleanup/endpoints.md)
+  - [docs/design/openapi-cleanup/endpoints.md](../../../../openapi-cleanup/endpoints.md)
   - [docs/docs/self-host/04-dynamic-access-controls.mdx](../../docs/self-host/04-dynamic-access-controls.mdx) (events counter row)
 
 ## Roles Overlay (post-initial)

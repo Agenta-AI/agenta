@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import agentActivityCatalog from "@agenta/i18n/catalogs/home.agentActivity"
 import {timeAgo} from "@agenta/shared/utils"
 import {SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
 
@@ -11,6 +13,7 @@ import {useAgentLastSession} from "./useAgentActivity"
  * first one (twice, next to "Created at").
  */
 export const AgentActivity = ({agentId}: {agentId: string}) => {
+    const t = useT(agentActivityCatalog)
     const {session, isPending} = useAgentLastSession(agentId)
 
     if (isPending) return <SkeletonBlock className="h-4 w-16" />
@@ -20,7 +23,7 @@ export const AgentActivity = ({agentId}: {agentId: string}) => {
     if (!session) return null
 
     const activity = session.updated_at ?? session.created_at
-    const label = session.name?.trim() || "Untitled session"
+    const label = session.name?.trim() || t("home.agentActivity.untitledSession")
 
     return (
         <SimpleTooltip title={label}>

@@ -10,7 +10,12 @@
 
 import {useCallback, useMemo} from "react"
 
-import {annotationFormController, annotationSessionController} from "@agenta/annotation"
+import {
+    annotationFormController,
+    annotationSessionController,
+    getAddToTestsetDisabledReason,
+} from "@agenta/annotation"
+import {truncateScenarioId} from "@agenta/annotation"
 import {traceRootSpanAtomFamily} from "@agenta/entities/trace"
 import {useModifierKey} from "@agenta/shared/hooks"
 import {message} from "@agenta/ui/app-message"
@@ -20,18 +25,6 @@ import {Button, Select, Switch, Tag, Tooltip, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigation} from "../../context"
-
-import {getAddToTestsetDisabledReason} from "./assets/utils"
-
-// ============================================================================
-// HELPERS
-// ============================================================================
-
-/** Truncates an ID to "first8...last4" format for display */
-function truncateId(id: string): string {
-    if (id.length <= 14) return id
-    return `${id.slice(0, 5)}...${id.slice(-5)}`
-}
 
 // ============================================================================
 // TYPES
@@ -185,7 +178,7 @@ const SessionNavigation = ({scenarioId, queueId, onCompleted}: SessionNavigation
                         title={isTrace ? "Copy trace ID" : "Copy testcase ID"}
                     >
                         <Tag className="!font-mono bg-default flex items-center gap-2">
-                            {truncateId(displayId)} <Copy size={12} />
+                            {truncateScenarioId(displayId)} <Copy size={12} />
                         </Tag>
                     </CopyTooltip>
                 )}

@@ -1,0 +1,15 @@
+{
+    "start": "Beginn",
+    "startsRightAway": "Beginnt sofort",
+    "end": "Ende",
+    "neverEnds": "Endet nie",
+    "windowHint": "Die Zeiten sind in UTC. Lassen Sie ein Feld leer, um keine Grenze zu setzen. Ein Beginn in der Zukunft verzögert die erste Ausführung, ein Ende in der Vergangenheit stoppt den Zeitplan.",
+    "messagePlaceholder": "Fassen Sie die Support-Tickets von gestern zusammen und posten Sie die Übersicht in #ops.",
+    "richerInputsSchedule": "Dieser Zeitplan sendet umfangreichere Eingaben als eine einzelne Nachricht. Eine Eingabe hier ersetzt sie.",
+    "sentEveryRun": "Wird bei jeder Ausführung an den Agent gesendet.",
+    "inputsNotValidJson": "Die Eingaben sind kein gültiges JSON",
+    "inputsNotValidJsonSentence": "Die Eingaben sind kein gültiges JSON.",
+    "runInPlayground": "Im Playground ausführen",
+    "createScheduleFirst": "Erstellen Sie zuerst den Zeitplan, um ihn auszuführen",
+    "agentWillReceive": "Der Agent erhält"
+}

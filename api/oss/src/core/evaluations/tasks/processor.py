@@ -19,6 +19,11 @@ from agenta.sdk.evaluations.runtime.status import (
     ProcessedScenario,
 )
 
+from oss.src.core.access.dtos import RunEnvelope
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.service import get_access_service
+from oss.src.core.access.types import AccessDenied, MissingPrincipal
+from oss.src.core.evaluations.run_access import evaluation_run_envelope
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.testcases.service import TestcasesService
@@ -32,6 +37,7 @@ from oss.src.core.evaluations.types import (
     EvaluationStatus,
     EvaluationRun,
     EvaluationRunEdit,
+    EvaluationRunFlags,
     EvaluationResult,
     EvaluationResultQuery,
     EvaluationClosedConflict,
@@ -226,16 +232,20 @@ class _BoundRunner:
         *,
         project_id: UUID,
         user_id: UUID,
+        envelope: RunEnvelope,
     ):
         self._runner = runner
         self._project_id = project_id
         self._user_id = user_id
+        # The run executes as the evaluation run's principal (origin `evaluation`).
+        self._envelope = envelope
 
     async def execute(self, *, request: Any) -> Any:
         return await self._runner.execute(
             request=request,
             project_id=self._project_id,
             user_id=self._user_id,
+            envelope=self._envelope,
         )
 
     async def execute_batch(self, *, requests: Any, semaphore: Any = None) -> Any:
@@ -244,7 +254,45 @@ class _BoundRunner:
             semaphore=semaphore,
             project_id=self._project_id,
             user_id=self._user_id,
+            envelope=self._envelope,
         )
+
+
+async def _close_refused_run(
+    *,
+    project_id: UUID,
+    user_id: UUID,
+    #
+    run: EvaluationRun,
+    #
+    evaluations_service: EvaluationsService,
+) -> None:
+    """Set a run that has no principal to failed and inactive. It never executes."""
+
+    current = await evaluations_service.fetch_run(project_id=project_id, run_id=run.id)
+    if current is None:
+        return
+    flags = current.flags.model_copy() if current.flags else EvaluationRunFlags()
+    flags.is_active = False
+    await evaluations_service.edit_run(
+        project_id=project_id,
+        user_id=user_id,
+        #
+        run=EvaluationRunEdit(
+            id=current.id,
+            #
+            name=current.name,
+            description=current.description,
+            #
+            flags=flags,
+            tags=current.tags,
+            meta=current.meta,
+            #
+            status=EvaluationStatus.FAILURE,
+            #
+            data=current.data,
+        ),
+    )
 
 
 async def _finalize_run_after_slice(
@@ -453,6 +501,11 @@ class APISliceProcessor:
 
         return context_by_repeat
 
+    async def _run_envelope(
+        self, *, project_id: UUID, run: EvaluationRun
+    ) -> RunEnvelope:
+        return await evaluation_run_envelope(project_id=project_id, run=run)
+
     async def _resolve_runners_and_revisions(
         self,
         *,
@@ -460,6 +513,7 @@ class APISliceProcessor:
         user_id: UUID,
         #
         run: EvaluationRun,
+        envelope: RunEnvelope,
         #
         invocation_steps: List[Any],
         annotation_steps: List[Any],
@@ -507,6 +561,7 @@ class APISliceProcessor:
                 ),
                 project_id=project_id,
                 user_id=user_id,
+                envelope=envelope,
             )
             revisions[invocation_step.key] = application_revision
 
@@ -540,6 +595,7 @@ class APISliceProcessor:
                 ),
                 project_id=project_id,
                 user_id=user_id,
+                envelope=envelope,
             )
             revisions[annotation_step.key] = evaluator_revision
 
@@ -704,7 +760,46 @@ class APISliceProcessor:
             project_id=project_id,
             run_id=run_id,
         )
-        if not run or not run.data or not run.data.steps:
+        if not run:
+            return ProcessSummary()
+
+        # The run executes as its stored principal. A run without one (created by a
+        # pod before M2) fails; the principal is never rebuilt from created_by_id.
+        try:
+            envelope = await self._run_envelope(project_id=project_id, run=run)
+            await get_access_service().require(
+                envelope=envelope, action=Permission.EDIT_EVALUATION_RUNS
+            )
+        except AccessDenied as denied:
+            log.info(
+                "[evaluations] run refused",
+                run_id=str(run.id),
+                project_id=str(project_id),
+                code="access_denied",
+                reason=denied.decision.reason.value,
+            )
+            await _close_refused_run(
+                project_id=project_id,
+                user_id=user_id,
+                run=run,
+                evaluations_service=self.evaluations_service,
+            )
+            return ProcessSummary()
+        except MissingPrincipal:
+            # Close the run (failed, inactive) so no path leaves it active: the rerun
+            # and direct-batch flows do not catch errors, and a live run would
+            # otherwise be ticked again.
+            await _close_refused_run(
+                project_id=project_id,
+                user_id=user_id,
+                run=run,
+                evaluations_service=self.evaluations_service,
+            )
+            return ProcessSummary()
+
+        # Checked after the access decision, so a refused run without steps is
+        # still settled.
+        if not run.data or not run.data.steps:
             return ProcessSummary()
 
         steps = run.data.steps
@@ -764,6 +859,7 @@ class APISliceProcessor:
             user_id=user_id,
             #
             run=run,
+            envelope=envelope,
             #
             invocation_steps=invocation_steps,
             annotation_steps=annotation_steps,

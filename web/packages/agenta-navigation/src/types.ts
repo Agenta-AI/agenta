@@ -2,6 +2,8 @@ import type {ComponentType, MouseEvent, ReactElement, ReactNode} from "react"
 
 import type {PrimitiveAtom, WritableAtom} from "jotai"
 
+import type {SidebarGroupEnter} from "./dynamic/types"
+
 /**
  * Identity of a hand-arrangeable row or heading. Items sharing a `zone` reorder against each
  * other and nothing else — which is what makes a cross-heading drop impossible by construction.
@@ -18,6 +20,8 @@ export interface SidebarConfig {
     title: string
     tooltip?: string
     link?: string
+    /** Next's `<Link prefetch>` for this row. Unset keeps Next's default. */
+    prefetch?: boolean
     icon?: ReactNode
     isHidden?: boolean
     submenu?: SidebarConfig[]
@@ -41,6 +45,9 @@ export interface SidebarConfig {
     isCollapsed?: boolean
     /** Collapsible heading only: a trailing "+" that links somewhere (an agent's new session). */
     groupAdd?: {link: string; label: string; onClick?: (event: MouseEvent) => void}
+    /** Collapsible heading only: a trailing open button beside the "+" that runs `onClick` (an
+     * agent heading opens that agent's sidebar). */
+    groupEnter?: SidebarGroupEnter
     /** Render the item normally but suppress its navigation — clicking it is a no-op (current location). */
     inert?: boolean
     /** Route prefixes that select this row; empty opts it out of matching. Defaults to `[link]`. */
@@ -128,4 +135,7 @@ export interface SidebarShellProps {
     /** Dismisses the rail. Passed ONLY by an overlay mount (the drawer), so the header slot can
      * offer a close instead of a collapse toggle without testing a viewport width. */
     onDismiss?: () => void
+    /** The side the rail's content slides in from when it mounts (a focus change between two
+     * sidebars). Unset: no slide. Reduced motion: no slide. */
+    enterFrom?: "start" | "end"
 }

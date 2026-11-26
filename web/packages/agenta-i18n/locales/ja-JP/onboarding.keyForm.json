@@ -1,0 +1,17 @@
+{
+    "title": "あなたの API キー",
+    "hint": "OpenAI、Anthropic、Gemini ほか {{more}} 件。",
+    "saved": "安全に保存されました。どのエージェントでも使えます。",
+    "using": "{{name}} を使用中。",
+    "usingMore": "{{name}} ほか {{more}} 件を使用中。",
+    "cancel": "キャンセル",
+    "add": "キーを追加",
+    "save": "保存",
+    "keyLabel": "API キー",
+    "provider": "プロバイダー",
+    "providerCount": "{{total}} 件のプロバイダー",
+    "search": "プロバイダーを検索",
+    "noMatch": "一致するプロバイダーがありません",
+    "invalid": "有効なキーではないようです。",
+    "saveFailed": "このキーを保存できませんでした。もう一度お試しください。"
+}

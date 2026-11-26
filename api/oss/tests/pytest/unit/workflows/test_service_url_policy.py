@@ -21,6 +21,7 @@ from oss.src.core.workflows.types import (
     invoke_never_dispatched,
 )
 from oss.src.middlewares.auth import SECRET_RESOLVE_GRANT
+from oss.tests.pytest.utils.principals import make_envelope
 
 _SERVICES_URL = "https://agenta.example.com/services"
 
@@ -92,16 +93,17 @@ async def _prepared_grants(monkeypatch, *, revision_url):
     )
 
     service = WorkflowsService(workflows_dao=AsyncMock())
-    service._ensure_request_revision = AsyncMock()
+    service._ensure_request_revision = AsyncMock(return_value=None)
     service._stamp_session_context = AsyncMock()
     service._get_revision_data = lambda request: SimpleNamespace(
-        url=revision_url, uri=None
+        parameters=None, url=revision_url, uri=None
     )
 
     credentials, service_url = await service._prepare_invoke(
         project_id=uuid4(),
         user_id=uuid4(),
-        request=SimpleNamespace(meta=None),
+        request=SimpleNamespace(session_id=None, meta=None),
+        envelope=make_envelope(),
     )
 
     assert credentials == "Secret tok"
@@ -190,6 +192,24 @@ async def test_a_platform_call_does_not_follow_a_redirect():
 
     assert response.status_code == 302
     assert hops == [f"{_SERVICES_URL}/agent/v0/invoke"]
+
+
+async def test_a_platform_call_uses_the_caller_timeout():
+    seen = []
+
+    def handle(request):
+        seen.append(request.extensions["timeout"]["read"])
+        return httpx.Response(200, json={})
+
+    with _through(httpx.MockTransport(handle)):
+        await WorkflowsService._post_service_json(
+            url=f"{_SERVICES_URL}/agent/v0/invoke",
+            credentials="Secret tok",
+            payload={},
+            timeout=1800.0,
+        )
+
+    assert seen == [1800.0]
 
 
 async def test_a_refused_detached_start_is_never_sent(monkeypatch):

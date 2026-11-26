@@ -120,6 +120,10 @@ export async function prefetchTracesByIds(
                 projectId,
             )
 
+            // `fetchAllPreviewTraces` answers null when the request failed. That is not "no
+            // traces yet": it must not be cached as missing, and the caller must see no entry.
+            if (data === null) throw new Error("the traces request failed")
+
             const tracesObj = (data as {traces?: Record<string, unknown>} | null)?.traces ?? {}
 
             // Rekey by dashed trace_id (the value callers see in

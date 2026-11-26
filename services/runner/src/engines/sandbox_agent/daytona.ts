@@ -7,7 +7,7 @@ import {
 } from "./acp-fetch.ts";
 import {
   resolvePiToolSpecsDelivery,
-  uploadGatewayPiRetryToSandbox,
+  uploadRunnerPiSettingsToSandbox,
   uploadPiExtensionToSandbox,
   uploadPiToolSpecsToSandbox,
   uploadSkillsToSandbox,
@@ -46,7 +46,7 @@ export const DAYTONA_PI_DIR =
 // runner pins the Pi version, probes the expected executable in the sandbox, and installs the
 // pinned version when a custom image or snapshot lacks it. There is no "installed" env flag.
 export const DAYTONA_PI_INSTALL_DIR = "/home/sandbox/.agenta-pi";
-export const PINNED_PI_VERSION = "0.99.1";
+export const PINNED_PI_VERSION = "1.5.2";
 /** The expected Pi executable path the runner probes and points `PI_ACP_PI_COMMAND` at. */
 export const DAYTONA_PI_COMMAND = `${DAYTONA_PI_INSTALL_DIR}/node_modules/.bin/pi`;
 
@@ -402,8 +402,12 @@ export async function prepareDaytonaPiAssets({
     plan.workspace.relayDir,
   );
   if (toolSpecs) await uploadPiToolSpecsToSandbox(sandbox, toolSpecs, log);
-  if (plan.credentials.throughGateway)
-    await uploadGatewayPiRetryToSandbox(sandbox, agentDir, log);
+  await uploadRunnerPiSettingsToSandbox(
+    sandbox,
+    agentDir,
+    plan.credentials.throughGateway,
+    log,
+  );
   // A models.json plan (a custom provider, or a hand-entered model merged into a built-in one):
   // upload the exact file (overwriting stale) before the session starts. No plan: remove any stale
   // file so a reused sandbox keeps no earlier configuration. Upload failure THROWS here and is

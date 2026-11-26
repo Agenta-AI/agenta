@@ -1,0 +1,13 @@
+{
+    "emptyDescription": "Abonnez un point de terminaison pour recevoir les événements de workflow sous forme de requêtes HTTP signées.",
+    "emptyTitle": "Aucun webhook pour le moment",
+    "events": "Événements",
+    "paused": "Webhook suspendu",
+    "pausedStatus": "Suspendu",
+    "resumed": "Webhook repris",
+    "subscribe": "S’abonner",
+    "target": "Cible",
+    "test": "Tester",
+    "updateFailed": "Impossible de mettre à jour le webhook",
+    "webhookActions": "Actions du webhook"
+}

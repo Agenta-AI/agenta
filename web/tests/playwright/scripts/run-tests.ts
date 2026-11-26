@@ -197,7 +197,17 @@ function runVitestLayer(targetLayer: TestLayer, grepPatterns: string[]): number 
     const script = LAYER_PACKAGE_SCRIPT[targetLayer]
     // Exclude this package from the recursive vitest run — its tests are playwright,
     // not vitest, and are already executed in Phase 2 of the caller.
-    const pnpmArgs = ["-r", "--filter=!agenta-web-tests", "--if-present", "run", script]
+    // Run one package at a time. Each vitest already starts one worker per CPU, so the
+    // pnpm default of four packages at once starves the render tests of CPU on a small
+    // CI runner, and their waits and the 5s test timeout then fail at random.
+    const pnpmArgs = [
+        "-r",
+        "--workspace-concurrency=1",
+        "--filter=!agenta-web-tests",
+        "--if-present",
+        "run",
+        script,
+    ]
 
     // Forward dimension markers to vitest as a name filter, mirroring how the
     // Playwright phase turns them into --grep. Args after `--` reach vitest.

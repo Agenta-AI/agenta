@@ -13,6 +13,7 @@ from oss.src.apis.fastapi.tools.router import ToolsRouter
 from oss.src.core.gateway.connections.utils import make_oauth_state
 from oss.src.core.tools.dtos import ToolCatalogIntegration, ToolProviderKind
 from oss.src.utils.env import env
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 def _fake_connection():
@@ -44,7 +45,7 @@ async def test_oauth_callback_reuses_cached_integration_across_calls(monkeypatch
 
     tools_service.get_integration = AsyncMock(side_effect=_get_integration)
 
-    router = ToolsRouter(tools_service=tools_service)
+    router = ToolsRouter(run_admission=NoopRunAdmission(), tools_service=tools_service)
 
     # In-memory fake cache standing in for Redis: same get_cache/set_cache contract.
     store: dict = {}

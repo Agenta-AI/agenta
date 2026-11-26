@@ -1,5 +1,10 @@
+import {useT, type CatalogKey} from "@agenta/i18n"
+import settingsPreferencesCatalog from "@agenta/i18n/catalogs/settings.preferences"
+import {isBetaDeveloperModeEnabled} from "@agenta/shared/api"
+import {clearClassicModeCookie, mobileEscapeHref} from "@agenta/shared/hooks"
 import {
     agentaChannelSurfaceEnabledAtom,
+    betaDeveloperModeFlagAtom,
     channelDebugEnabledAtom,
     classicModeEnabledAtom,
     playgroundInspectorEnabledAtom,
@@ -7,64 +12,72 @@ import {
 import {Switch} from "@agenta/ui/ui"
 import {useAtom} from "jotai"
 
+import {LanguagePicker} from "./LanguagePicker"
 import {SettingsRow, SettingsSection} from "./shared/SettingsSection"
 import {ThemePicker, type ThemePickerProps} from "./ThemePicker"
 
 /** One switch on the Preferences page. The key names the row, not its storage. */
 export type PreferenceKey =
     | "classic-mode"
+    | "beta-developer-mode"
     | "playground-inspector"
     | "channel-debug"
     | "agenta-channel-surface"
 
+/** `title` and `description` are translation keys, translated at render. */
 export interface PreferenceItem {
     key: PreferenceKey
-    title: string
-    description: string
+    title: CatalogKey<typeof settingsPreferencesCatalog>
+    description: CatalogKey<typeof settingsPreferencesCatalog>
 }
 
 export interface PreferenceSection {
     key: string
-    title: string
-    description?: string
+    title: CatalogKey<typeof settingsPreferencesCatalog>
+    description?: CatalogKey<typeof settingsPreferencesCatalog>
     items: PreferenceItem[]
 }
 
 /**
- * The page's sections, rows and copy. Defined once so `/w` and `/m` cannot drift: a host only
- * decides how each row is bound, never what it says or where it sits.
+ * The page's sections, rows and copy. Defined once so `/w` and `/m` cannot drift: a host decides
+ * how each row is bound.
  */
 export const PREFERENCE_SECTIONS: PreferenceSection[] = [
     {
         key: "feature-flags",
-        title: "Feature Flags",
+        title: "settings.preferences.featureFlags",
         items: [
             {
                 key: "classic-mode",
-                title: "Developer Mode",
-                description: "Show Evaluation, Prompt Management, and Tracing in the navigation.",
+                title: "settings.preferences.developerMode",
+                description: "settings.preferences.developerModeDescription",
+            },
+            {
+                key: "beta-developer-mode",
+                title: "settings.preferences.betaDeveloperMode",
+                description: "settings.preferences.betaDeveloperModeDescription",
             },
         ],
     },
     {
         key: "debugging",
-        title: "Debugging",
-        description: "Tools for inspecting runs and channels.",
+        title: "settings.preferences.debugging",
+        description: "settings.preferences.debuggingDescription",
         items: [
             {
                 key: "playground-inspector",
-                title: "Playground inspector",
-                description: "Show controls for inspecting Playground sessions and turns.",
+                title: "settings.preferences.playgroundInspector",
+                description: "settings.preferences.playgroundInspectorDescription",
             },
             {
                 key: "channel-debug",
-                title: "Channel debug",
-                description: "Show channel spaces, threads and raw events in Channels settings.",
+                title: "settings.preferences.channelDebug",
+                description: "settings.preferences.channelDebugDescription",
             },
             {
                 key: "agenta-channel-surface",
-                title: "Agenta channel probe",
-                description: "Show the temporary in-browser channel probe.",
+                title: "settings.preferences.channelProbe",
+                description: "settings.preferences.channelProbeDescription",
             },
         ],
     },
@@ -77,12 +90,25 @@ export interface PreferenceBinding {
 
 export type PreferenceBindings = Partial<Record<PreferenceKey, PreferenceBinding>>
 
+/** Bound only while Developer Mode is on; every other row is always bound. */
+type ConditionalPreferenceKey = "beta-developer-mode"
+
 /**
  * Every row bound to its shared atom. A host replaces a binding only where its behavior differs
  * (`/m`'s Developer Mode switch also navigates to the desktop app).
+ *
+ * The beta developer mode row is bound only while Developer Mode is on and the deployment offers
+ * it (`AGENTA_BETA_DEVELOPER_MODE`). Its default binding is the desktop's: turning it on sends the
+ * user to `/m`, where Developer Mode then stays. Turning it off keeps Developer Mode on as an
+ * explicit choice, so the gate cookie says "1" again.
  */
-export const usePreferenceBindings = (): Record<PreferenceKey, PreferenceBinding> => {
+export const usePreferenceBindings = (): Record<
+    Exclude<PreferenceKey, ConditionalPreferenceKey>,
+    PreferenceBinding
+> &
+    PreferenceBindings => {
     const [classicMode, setClassicMode] = useAtom(classicModeEnabledAtom)
+    const [betaDeveloperMode, setBetaDeveloperMode] = useAtom(betaDeveloperModeFlagAtom)
     const [inspector, setInspector] = useAtom(playgroundInspectorEnabledAtom)
     const [channelDebug, setChannelDebug] = useAtom(channelDebugEnabledAtom)
     const [channelProbe, setChannelProbe] = useAtom(agentaChannelSurfaceEnabledAtom)
@@ -92,6 +118,23 @@ export const usePreferenceBindings = (): Record<PreferenceKey, PreferenceBinding
         "playground-inspector": {enabled: inspector, onChange: setInspector},
         "channel-debug": {enabled: channelDebug, onChange: setChannelDebug},
         "agenta-channel-surface": {enabled: channelProbe, onChange: setChannelProbe},
+        ...(classicMode &&
+            isBetaDeveloperModeEnabled() && {
+                "beta-developer-mode": {
+                    enabled: betaDeveloperMode,
+                    onChange: (enabled: boolean) => {
+                        setBetaDeveloperMode(enabled)
+                        if (!enabled) {
+                            setClassicMode(true)
+                            return
+                        }
+                        // Withdraw the "1" before leaving: the sync effect would not run before the
+                        // document unloads, and `/m`'s gate would send the user straight back.
+                        clearClassicModeCookie()
+                        window.location.replace(mobileEscapeHref())
+                    },
+                },
+            }),
     }
 }
 
@@ -99,6 +142,8 @@ export interface PreferencesPageProps {
     theme: ThemePickerProps
     /** Rows without a binding are not rendered; a section left empty is dropped. */
     bindings?: PreferenceBindings
+    /** Only a host that loads the translations (/m) shows the language choice. */
+    showLanguage?: boolean
 }
 
 /**
@@ -107,42 +152,62 @@ export interface PreferencesPageProps {
  * Theme is a per-viewer choice both apps show the same way; the switches share storage across
  * apps, so a choice made in `/m` holds on the desktop and the other way round.
  */
-export const PreferencesPage = ({theme, bindings = {}}: PreferencesPageProps) => (
-    <div className="flex flex-col gap-8">
-        <SettingsSection title="Appearance" framed={false}>
-            <ThemePicker {...theme} />
-        </SettingsSection>
+export const PreferencesPage = ({
+    theme,
+    bindings = {},
+    showLanguage = false,
+}: PreferencesPageProps) => {
+    const t = useT(settingsPreferencesCatalog)
+    return (
+        <div className="flex flex-col gap-8">
+            <SettingsSection title={t("settings.preferences.appearance")} framed={false}>
+                <ThemePicker {...theme} />
+            </SettingsSection>
 
-        {PREFERENCE_SECTIONS.map((section) => {
-            const rows = section.items.flatMap((item) => {
-                const binding = bindings[item.key]
-                return binding ? [{item, binding}] : []
-            })
-            if (rows.length === 0) return null
-            return (
-                <SettingsSection
-                    key={section.key}
-                    data-section={section.key}
-                    title={section.title}
-                    description={section.description}
-                >
-                    {rows.map(({item, binding}) => (
-                        <SettingsRow
-                            key={item.key}
-                            data-preference={item.key}
-                            title={item.title}
-                            description={item.description}
-                            control={
-                                <Switch
-                                    checked={binding.enabled}
-                                    onCheckedChange={binding.onChange}
-                                    aria-label={item.title}
-                                />
-                            }
-                        />
-                    ))}
-                </SettingsSection>
-            )
-        })}
-    </div>
-)
+            {showLanguage ? <LanguagePicker /> : null}
+
+            {PREFERENCE_SECTIONS.map((section) => {
+                const rows = section.items.flatMap((item) => {
+                    const binding = bindings[item.key]
+                    return binding
+                        ? [
+                              {
+                                  item: {
+                                      key: item.key,
+                                      title: t(item.title),
+                                      description: t(item.description),
+                                  },
+                                  binding,
+                              },
+                          ]
+                        : []
+                })
+                if (rows.length === 0) return null
+                return (
+                    <SettingsSection
+                        key={section.key}
+                        data-section={section.key}
+                        title={t(section.title)}
+                        description={section.description ? t(section.description) : undefined}
+                    >
+                        {rows.map(({item, binding}) => (
+                            <SettingsRow
+                                key={item.key}
+                                data-preference={item.key}
+                                title={item.title}
+                                description={item.description}
+                                control={
+                                    <Switch
+                                        checked={binding.enabled}
+                                        onCheckedChange={binding.onChange}
+                                        aria-label={item.title}
+                                    />
+                                }
+                            />
+                        ))}
+                    </SettingsSection>
+                )
+            })}
+        </div>
+    )
+}

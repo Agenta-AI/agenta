@@ -1,0 +1,8 @@
+{
+    "title": "ホーム",
+    "loading": "ホームを読み込み中",
+    "untitledAgent": "名称未設定のエージェント",
+    "templatesError": "テンプレートを読み込めませんでした",
+    "agentsEmpty": "作成したエージェントはここに表示されます。",
+    "agentsError": "エージェントを読み込めませんでした"
+}

@@ -1,0 +1,14 @@
+{
+    "back": "戻る",
+    "bodyAgent": "{{project}} の全員がこのエージェントを実行し、連携済みのアカウント（{{accounts}}）を使わせることができます。",
+    "bodyAgentNoAccounts": "{{project}} の全員がこのエージェントを閲覧・実行できます。",
+    "bodySession": "このチャットのすべてを見られます。また、送信できる人は誰でも、エージェントに連携済みのアカウント（{{accounts}}）を使わせることができます。",
+    "bodySessionNoAccounts": "このチャットのすべてを見られます。",
+    "cancel": "キャンセル",
+    "personalAccount": "各自の {{account}}",
+    "share": "共有",
+    "shareWithProject": "プロジェクトと共有",
+    "titleAgent": "{{agent}} をプロジェクトと共有しますか？",
+    "titlePeople": "{{names}} と共有しますか？",
+    "titleProject": "{{project}} の全員と共有しますか？"
+}

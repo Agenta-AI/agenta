@@ -4,11 +4,12 @@ import {Button} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 import {ChannelManagePanel} from "./ChannelManagePanel"
-import {platformLabel} from "./helpers"
+import {EMPTY_CONNECTIONS, platformLabel} from "./helpers"
 import {platformLogo} from "./icons"
 import {
     AGENT_ID,
     AGENT_NAME,
+    DISCORD_SETUP,
     HOSTED_HANDLE,
     OTHER_AGENT,
     SLACK_SETUP,
@@ -16,10 +17,12 @@ import {
     TELEGRAM_SETUP,
     WORKSPACE_NAME,
     createChannelStoryActions,
+    discordHere,
     InlinePanel,
     slackCustomHere,
     slackHere,
     slackRevoked,
+    teamsHere,
     telegramCustomHere,
     telegramElsewhere,
     telegramHere,
@@ -55,12 +58,12 @@ const meta = {
 export default meta
 type Story = StoryObj
 
-const asConnections = (connection: ChannelConnection): ChannelConnections =>
-    connection.platform === "slack"
-        ? {slack: connection, telegram: null, whatsapp: null}
-        : {slack: null, telegram: connection, whatsapp: null}
+const asConnections = (connection: ChannelConnection): ChannelConnections => ({
+    ...EMPTY_CONNECTIONS,
+    [connection.platform]: connection,
+})
 
-const setup = {slack: SLACK_SETUP, telegram: TELEGRAM_SETUP}
+const setup = {slack: SLACK_SETUP, telegram: TELEGRAM_SETUP, discord: DISCORD_SETUP}
 
 /**
  * The manage view inside the story panel, with the fake actions wired. The panel renders from
@@ -122,6 +125,9 @@ const ManageHost = ({
                 onDisconnect={async () => {
                     await actions.disconnect(connection.platform, connection.connectionId ?? "")
                 }}
+                onTurnOn={async () => {
+                    await actions.turnOn(connection.platform, connection.connectionId ?? "")
+                }}
             />
             {sentTo ? (
                 <p
@@ -133,6 +139,20 @@ const ManageHost = ({
             ) : null}
         </InlinePanel>
     )
+}
+
+const slackOff: ChannelConnection = {...slackHere, workspaceName: WORKSPACE_NAME, agentOff: true}
+
+/** The binding is off, and the connection stays off until turned on. */
+export const OffUntilTurnedOn: Story = {
+    render: () => <ManageHost connection={slackOff} />,
+    parameters: {
+        docs: {
+            description: {
+                story: "The connection row lists its channels. Turn on is enabled; press it.",
+            },
+        },
+    },
 }
 
 /** Connected here, on the Agenta-hosted Telegram bot. */
@@ -193,12 +213,36 @@ export const ConnectedOwnTelegramBot: Story = {
     },
 }
 
+/** Discord: the user's own bot, with the invite link to add it to another server. */
+export const ConnectedDiscordBot: Story = {
+    render: () => <ManageHost connection={discordHere} />,
+    parameters: {
+        docs: {
+            description: {
+                story:
+                    'The panel reads the invite link from the setup document and shows "Add to a ' +
+                    'server" next to the channel list. Discord channels use the Slack wording.',
+            },
+        },
+    },
+}
+
+/** Discord: the invite link does not load, so the panel offers a retry. */
+export const DiscordInviteLinkFails: Story = {
+    render: () => <ManageHost connection={discordHere} options={{discordInviteUrl: null}} />,
+}
+
+/** The customer's own Teams bot: the messaging endpoint and the app download stay findable. */
+export const ConnectedTeams: Story = {
+    render: () => <ManageHost connection={teamsHere} />,
+}
+
 /** One switch is off, so the agent answers direct messages only. */
 export const GroupChatsDenied: Story = {
     render: () => (
         <ManageHost
             connection={telegramHere}
-            options={{behavior: {"cx-telegram": {dm: true, group: false}}}}
+            options={{behavior: {"cx-telegram": {dm: true, group: false, spaceIds: null}}}}
         />
     ),
     parameters: {
@@ -231,12 +275,19 @@ export const BehaviorSaveFails: Story = {
     },
 }
 
-/** Only two Telegram accounts may talk to the bot. */
-export const AllowedUsers: Story = {
+/** The agent answers only two Telegram accounts. */
+export const Audience: Story = {
     render: () => (
         <ManageHost
             connection={telegramHere}
-            options={{allowedUsers: {"cx-telegram": ["123456789", "987654321"]}}}
+            options={{
+                audience: {
+                    "cx-telegram": [
+                        {id: "123456789", name: null, email: null},
+                        {id: "987654321", name: null, email: null},
+                    ],
+                },
+            }}
         />
     ),
     parameters: {

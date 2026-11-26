@@ -38,8 +38,9 @@ class MetersService:
         self,
         *,
         meters: List[MeterDTO],
+        synced_read: Optional[dict] = None,
     ) -> None:
-        await self.meters_dao.bump(meters=meters)
+        await self.meters_dao.bump(meters=meters, synced_read=synced_read)
 
     async def fetch(
         self,
@@ -339,6 +340,9 @@ class MetersService:
             # Set synced = value for all meters we want to flush from dump().
             # This includes both successfully reported AND non-reportable meters.
             # Only actual Stripe API failures are excluded (not in meters_to_bump).
+            # Keep the dumped `synced` of each row: the bump is a compare-and-set on it,
+            # so a row moved, recreated or folded since the dump is not overwritten.
+            synced_read = {meter.meter_id: meter.synced for meter in meters_to_bump}
             for meter in meters_to_bump:
                 meter.synced = meter.value
 
@@ -352,7 +356,7 @@ class MetersService:
                 log.info(
                     f"[report] Bumping batch #{batch_number} ({len(meters_to_bump)} meters)"
                 )
-                await self.bump(meters=meters_to_bump)
+                await self.bump(meters=meters_to_bump, synced_read=synced_read)
                 log.info(f"[report] ✅ Batch #{batch_number} completed successfully")
             except Exception:  # pylint: disable=broad-exception-caught
                 log.error(

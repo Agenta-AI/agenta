@@ -1,18 +1,16 @@
 import {useCallback, useMemo, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import actionsCatalog from "@agenta/i18n/catalogs/observabilityUi.actions"
 import {renderTableMenuItems, type TableMenuItem} from "@agenta/ui/table"
 import {Button} from "@agenta/ui/ui"
 import {DropdownMenu, DropdownMenuContent, DropdownMenuTrigger} from "@agenta/ui/ui"
 import {DatabaseIcon, ListChecks, ListPlus, PlusIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
-import dynamic from "next/dynamic"
+
+import {getTraceDrawerReferences} from "../traceDrawer/referenceSlots"
 
 import {AddActionsDropdownProps} from "./types"
-
-const AddToQueuePopover = dynamic(
-    () => import("@agenta/annotation-ui/add-to-queue").then((m) => m.default),
-    {ssr: false},
-)
 
 /** Which queue action the (single) picker popover is serving. */
 type QueueScope = "selected" | "all-matching"
@@ -29,6 +27,7 @@ const AddActionsDropdown = ({
     queueAction,
     queueAllMatchingAction,
 }: AddActionsDropdownProps) => {
+    const t = useT(actionsCatalog)
     const [dropdownOpen, setDropdownOpen] = useState(false)
     // `null` = picker closed; otherwise which queue action opened it.
     const [queueScope, setQueueScope] = useState<QueueScope | null>(null)
@@ -115,7 +114,7 @@ const AddActionsDropdown = ({
         if (testsetAction) {
             items.push({
                 key: "testset",
-                label: "Add to testset",
+                label: t("observabilityUi.actions.addToTestset"),
                 icon: <DatabaseIcon size={14} />,
                 disabled: testsetAction.disabled ?? false,
             })
@@ -133,7 +132,7 @@ const AddActionsDropdown = ({
         if (queueAction) {
             items.push({
                 key: "queue",
-                label: queueAction.label ?? "Add annotation queue",
+                label: queueAction.label ?? t("observabilityUi.actions.addAnnotationQueue"),
                 icon: <ListChecks size={14} />,
                 disabled: queueAction.disabled ?? false,
             })
@@ -149,7 +148,7 @@ const AddActionsDropdown = ({
         }
 
         return items
-    }, [additionalActions, queueAction, queueAllMatchingAction, testsetAction])
+    }, [additionalActions, queueAction, queueAllMatchingAction, testsetAction, t])
 
     if (actions.length === 0) return null
 
@@ -159,19 +158,21 @@ const AddActionsDropdown = ({
             size={size === "small" ? "sm" : "default"}
             className={clsx(buttonClassName)}
             disabled={isButtonDisabled}
-            aria-label="Add"
+            aria-label={t("observabilityUi.actions.add")}
             data-tour={dataTour}
             onClick={handleButtonClick}
         >
             <PlusIcon size={14} />
-            Add
+            {t("observabilityUi.actions.add")}
         </Button>
     )
 
     const dropdown = (
         <DropdownMenu open={dropdownOpen} onOpenChange={handleDropdownOpenChange}>
             <DropdownMenuTrigger asChild>{button}</DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            {/* An action can open a picker of its own; focus going back to the Add button
+                would close that picker as soon as it opens. */}
+            <DropdownMenuContent align="end" onCloseAutoFocus={(event) => event.preventDefault()}>
                 {renderTableMenuItems(
                     menuItems.map((item) => ({
                         ...item,
@@ -182,6 +183,7 @@ const AddActionsDropdown = ({
         </DropdownMenu>
     )
 
+    const {AddToQueuePopover} = getTraceDrawerReferences()
     const hasQueuePicker = Boolean(queueAction || queueAllMatchingAction)
     // When the picker is closed `queueScope` is null — fall back to whichever
     // action exists so the popover always has a coherent set of props.

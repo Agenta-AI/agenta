@@ -1,0 +1,10 @@
+{
+    "skillReference": "Referência de habilidade",
+    "skill": "Habilidade",
+    "remove": "Remover",
+    "staticSkill": "Habilidade estática",
+    "staticSkillHint": "Fornecida pelo Agenta. Esta habilidade não pode ser editada nem removida.",
+    "skillTemplate": "Modelo de habilidade",
+    "dragHint": "Arraste para cá uma pasta de habilidade, um <mono>.zip</mono> ou um <mono>.skill</mono>",
+    "browseFiles": "Procurar arquivos"
+}

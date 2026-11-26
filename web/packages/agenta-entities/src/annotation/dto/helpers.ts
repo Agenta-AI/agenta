@@ -199,26 +199,34 @@ interface AnnotatableTrace {
     children?: unknown[] | null
 }
 
+const linkKey = (traceId: string, spanId: string) => `${traceId}\u0000${spanId}`
+
 export function attachAnnotationsToTraces<T>(
     traces: T[],
     annotations: AnnotationDto[] = [],
 ): (T & AnnotationAttachments)[] {
+    // An annotation matches a span through ANY link key ("invocation" or dynamic ones like "test-xxx").
+    const bySpan = new Map<string, AnnotationDto[]>()
+    for (const annotation of annotations) {
+        if (!annotation.links || typeof annotation.links !== "object") continue
+        const keys = new Set<string>()
+        for (const link of Object.values(annotation.links)) {
+            if (typeof link?.trace_id === "string" && typeof link?.span_id === "string") {
+                keys.add(linkKey(link.trace_id, link.span_id))
+            }
+        }
+        for (const key of keys) {
+            const list = bySpan.get(key)
+            if (list) list.push(annotation)
+            else bySpan.set(key, [annotation])
+        }
+    }
+
     function attach(trace: T): T & AnnotationAttachments {
         const node = trace as AnnotatableTrace
-        const invocationIds = node.invocationIds
-
-        const matchingAnnotations = annotations.filter((annotation: AnnotationDto) => {
-            // Check if annotation links to this trace via ANY link key (including "invocation" and dynamic keys like "test-xxx")
-            if (annotation.links && typeof annotation.links === "object") {
-                const linkValues = Object.values(annotation.links)
-                return linkValues.some(
-                    (link) =>
-                        link?.trace_id === (invocationIds?.trace_id || "") &&
-                        link?.span_id === (invocationIds?.span_id || ""),
-                )
-            }
-            return false
-        })
+        const ids = node.invocationIds
+        const matchingAnnotations =
+            bySpan.get(linkKey(ids?.trace_id || "", ids?.span_id || "")) ?? []
 
         return {
             ...trace,

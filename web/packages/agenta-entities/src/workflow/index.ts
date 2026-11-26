@@ -79,10 +79,42 @@ export {
 
 export {
     agentModelCandidatesAtomFamily,
+    builtinModelEndpointsQueryAtom,
     loadAgentModelCandidates,
     resolveAgentModelCandidateSources,
     type AgentModelCandidatesState,
 } from "./state/agentModelCandidates"
+
+// Needs setup: the items an agent names that are not ready where it runs.
+export {
+    agentRequirementsQueryAtomFamily,
+    agentRequirementsAtomFamily,
+    invalidateAgentRequirements,
+} from "./state/agentRequirements"
+export {
+    retrieveWorkflowRevisionByRefs,
+    type RetrievedWorkflowRevision,
+    type WorkflowRevisionRefs,
+} from "./api/retrieveRevisionByRefs"
+export {
+    retrievedWorkflowRevisionQueryAtomFamily,
+    retrievedWorkflowRevisionFamilyKey,
+} from "./state/retrievedRevision"
+export {
+    BUILDER_AGENT_SLUG,
+    builderAgentRevisionIdQueryAtom,
+    builderAgentWorkflowIdAtom,
+} from "./state/builderAgent"
+export {
+    AGENT_NEEDS_SETUP_CODE,
+    canFixRequirement,
+    isPersonalRequirement,
+    modelRequirement,
+    requirementAtPath,
+    requirementForItem,
+    type AgentRequirementItem,
+    type AgentRequirementsResult,
+} from "./requirements"
 
 export {
     type SubscriptionStatusResponse,
@@ -161,8 +193,39 @@ export {
     resolveScript,
 } from "./core"
 
+export {pickModelName} from "./core/pickModelName"
+
 // Flag query type
 export type {WorkflowQueryFlags} from "./core"
+
+// Which evaluators a list shows
+export {
+    isHumanEvaluator,
+    isManagedEvaluator,
+    selectEvaluators,
+    type EvaluatorCategory,
+    type EvaluatorEntry,
+    type EvaluatorListMode,
+} from "./core"
+
+// Which templates a create picker offers
+export {
+    ALL_EVALUATOR_TEMPLATES_TAB,
+    CREATABLE_EVALUATOR_TEMPLATE_KEYS,
+    buildEvaluatorTemplateTabs,
+    evaluatorTemplateCategories,
+    filterEvaluatorTemplates,
+    selectCreatableEvaluatorTemplates,
+    type EvaluatorTemplateTab,
+} from "./core"
+
+// The feedback fields of a human evaluator
+export {
+    CHOICE_FEEDBACK_TYPES,
+    HUMAN_FEEDBACK_TYPES,
+    NUMERIC_FEEDBACK_TYPES,
+    humanEvaluatorMetricsFromSchema,
+} from "./core"
 
 export type {
     // API parameter types
@@ -200,6 +263,7 @@ export {
     queryWorkflowRevisionsByWorkflow,
     queryWorkflowRevisionsByWorkflows,
     queryWorkflowRevisions,
+    archiveWorkflowRevision,
     type WorkflowRevisionWindowing,
     // Retrieve (single revision by ref — slug/version/id)
     retrieveWorkflowRevision,
@@ -266,6 +330,7 @@ export {
     workflowVariantsCachedListAtomFamily,
     workflowRevisionsQueryAtomFamily,
     workflowRevisionRefsByVariantAtomFamily,
+    workflowVariantNewestVersionAtomFamily,
     workflowRevisionsListDataAtomFamily,
     // Revision by workflow
     workflowRevisionsByWorkflowQueryAtomFamily,
@@ -274,6 +339,7 @@ export {
     type WorkflowListRef,
     // Single entity
     workflowQueryAtomFamily,
+    workflowIncludeArchivedAtom,
     workflowDraftAtomFamily,
     workflowBaseEntityAtomFamily,
     workflowEntityAtomFamily,
@@ -288,6 +354,7 @@ export {
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
     invalidateAgentCommittedRevisionCache,
+    revalidateAgentRevisionReads,
     seedCreatedWorkflowCache,
     // ListQueryState wrappers (for selection adapters and relations)
     workflowVariantsListQueryStateAtomFamily,
@@ -305,6 +372,7 @@ export {
     workflowLatestRevisionIdAtomFamily,
     workflowAppTypeAtomFamily,
     workflowLatestRevisionQueryAtomFamily,
+    reloadWorkflowLatestRevisionAtom,
     agTypeSchemaAtomFamily,
     // Agent icon (per-agent glyph + colour, stored on the artifact's tags)
     agentIconAtomFamily,
@@ -318,6 +386,7 @@ export {
     workflowArtifactScopedQueryAtomFamily,
     workflowVariantsScopedQueryAtomFamily,
     primeWorkflowArtifactCacheImperative,
+    primeWorkflowRevisionDetailCacheImperative,
     // Commit / Archive
     commitWorkflowRevisionAtom,
     commitWorkflowRevision,
@@ -422,6 +491,7 @@ export {
     type CreateHumanEvaluatorParams,
     type UpdateHumanEvaluatorParams,
     type HumanEvaluatorMetric,
+    type CreatedHumanEvaluator,
     // Selection config
     evaluatorSelectionConfig,
     type EvaluatorSelectionConfig,
@@ -556,3 +626,5 @@ export {
 
 export {buildKitDefaultPermission, resolveBuildKitPermissions} from "./buildKitPolicy"
 export {readAgentaTools, writeAgentaTools, type AgentaToolsMap} from "./agentaTools"
+
+export * from "./folder"

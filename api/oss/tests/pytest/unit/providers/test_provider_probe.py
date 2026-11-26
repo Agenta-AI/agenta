@@ -1210,3 +1210,164 @@ def test_a_managed_secret_cannot_be_probed_even_with_caller_overrides(
     assert recorder.requests == []
     assert STORED_KEY not in response.text
     assert CANARY not in response.text
+
+
+# -- organization connections (M5) --------------------------------------------------
+
+
+ORGANIZATION_ID = uuid4()
+
+
+class _OrganizationVault(_StubVault):
+    """The organization rows by id: `organization` are available to the project,
+    `unavailable` are not. The available-only read misses the second kind; the
+    organization read (a manager's) finds both."""
+
+    def __init__(self):
+        super().__init__()
+        self.organization: dict = {}
+        self.unavailable: dict = {}
+        self.permissions: list = []
+
+    async def get_available_organization_secret_by_id(
+        self, *, organization_id, project_id, secret_id
+    ):
+        if str(organization_id) != str(ORGANIZATION_ID):
+            return None
+        return self.organization.get(str(secret_id))
+
+    async def fetch_organization_secret(self, *, organization_id, secret_id):
+        if str(organization_id) != str(ORGANIZATION_ID):
+            return None
+        return self.organization.get(str(secret_id)) or self.unavailable.get(
+            str(secret_id)
+        )
+
+
+def _organization_client(monkeypatch, responder, vault, *, manage: bool):
+    seen: list = []
+
+    async def _check_action_access(**kwargs) -> bool:
+        seen.append(kwargs["permission"])
+        return True
+
+    class _Decision:
+        allowed = manage
+
+    async def _decide(**_kwargs):
+        return _Decision()
+
+    monkeypatch.setattr(router_module, "check_action_access", _check_action_access)
+    monkeypatch.setattr(router_module, "decide_organization", _decide)
+    monkeypatch.setattr(router_module, "get_request_access", lambda: None)
+    service, _ = probe_service(responder)
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def _scope(request, call_next):
+        request.state.user_id = str(uuid4())
+        request.state.project_id = str(PROJECT_ID)
+        request.state.organization_id = str(ORGANIZATION_ID)
+        return await call_next(request)
+
+    app.include_router(
+        ProvidersRouter(provider_probe_service=service, vault_service=vault).router
+    )
+    return TestClient(app), seen
+
+
+def test_a_member_tests_an_organization_connection_as_saved(monkeypatch):
+    from oss.src.core.access.permissions.types import Permission
+
+    vault = _OrganizationVault()
+    secret_id = uuid4()
+    vault.organization[str(secret_id)] = _stored_provider_key()
+    # A project row with the same id never answers an organization probe.
+    vault.store(secret_id, PROJECT_ID, _stored_provider_key(key="sk-project-0123"))
+    recorder = Recorder(json_response({"data": [{"id": "gpt-5.6-luna"}]}))
+    client, seen = _organization_client(monkeypatch, recorder, vault, manage=False)
+
+    response = client.post(
+        "/providers/probe",
+        json={"secret_id": str(secret_id), "secret_scope": "organization"},
+    )
+
+    assert response.status_code == 200, response.text
+    assert seen == [Permission.VIEW_SECRET]
+    (sent,) = recorder.requests
+    assert sent.headers["authorization"] == f"Bearer {STORED_KEY}"
+    assert STORED_KEY not in response.text
+
+
+def test_testing_an_organization_connection_with_changes_needs_an_admin(monkeypatch):
+    vault = _OrganizationVault()
+    secret_id = uuid4()
+    vault.organization[str(secret_id)] = _stored_provider_key()
+    body = {
+        "secret_id": str(secret_id),
+        "secret_scope": "organization",
+        "provider": {"url": "https://other.example.com/v1"},
+    }
+    member, _ = _organization_client(
+        monkeypatch, json_response({"data": []}), vault, manage=False
+    )
+    assert member.post("/providers/probe", json=body).status_code == 403
+    recorder = Recorder(json_response({"data": []}))
+    admin, _ = _organization_client(monkeypatch, recorder, vault, manage=True)
+    response = admin.post("/providers/probe", json=body)
+    assert response.status_code == 200, response.text
+    (sent,) = recorder.requests
+    assert sent.headers["authorization"] == f"Bearer {STORED_KEY}"
+
+
+def test_an_unavailable_organization_connection_is_not_found(monkeypatch):
+    vault = _OrganizationVault()
+    client, _ = _organization_client(
+        monkeypatch, json_response({"data": []}), vault, manage=False
+    )
+    response = client.post(
+        "/providers/probe",
+        json={"secret_id": str(uuid4()), "secret_scope": "organization"},
+    )
+    assert response.status_code == 404
+
+
+def test_an_organization_probe_answer_that_echoes_the_key_is_refused(monkeypatch):
+    """A provider that puts the organization key in its model list (or anywhere in the
+    answer) gets the gateway's refusal: the member never sees the key (M5)."""
+    vault = _OrganizationVault()
+    secret_id = uuid4()
+    vault.organization[str(secret_id)] = _stored_provider_key()
+    recorder = Recorder(json_response({"data": [{"id": STORED_KEY}]}))
+    client, _ = _organization_client(monkeypatch, recorder, vault, manage=False)
+
+    response = client.post(
+        "/providers/probe",
+        json={"secret_id": str(secret_id), "secret_scope": "organization"},
+    )
+
+    assert response.status_code == 502, response.text
+    assert STORED_KEY not in response.text
+    assert response.json() == {"detail": router_module.PROBE_CREDENTIAL_ECHO_MESSAGE}
+
+
+def test_an_admin_tests_an_organization_connection_this_project_may_not_use(
+    monkeypatch,
+):
+    vault = _OrganizationVault()
+    secret_id = uuid4()
+    vault.unavailable[str(secret_id)] = _stored_provider_key()
+    body = {"secret_id": str(secret_id), "secret_scope": "organization"}
+
+    recorder = Recorder(json_response({"data": [{"id": "gpt-5.6-luna"}]}))
+    admin, _ = _organization_client(monkeypatch, recorder, vault, manage=True)
+    response = admin.post("/providers/probe", json=body)
+    assert response.status_code == 200, response.text
+    (sent,) = recorder.requests
+    assert sent.headers["authorization"] == f"Bearer {STORED_KEY}"
+    assert STORED_KEY not in response.text
+
+    member, _ = _organization_client(
+        monkeypatch, json_response({"data": []}), vault, manage=False
+    )
+    assert member.post("/providers/probe", json=body).status_code == 404

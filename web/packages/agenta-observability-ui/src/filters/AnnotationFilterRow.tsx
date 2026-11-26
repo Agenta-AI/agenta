@@ -10,6 +10,8 @@ import {
 } from "react"
 
 import type {EvaluatorFeedbackSchema} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import filtersCatalog from "@agenta/i18n/catalogs/observabilityUi.filters"
 import {
     NUM_OPS,
     STRING_EQU_AND_CONTAINS_OPS,
@@ -92,11 +94,11 @@ const ALL_FEEDBACK_OPERATOR_VALUES = new Set<FilterConditions>(
 
 const NUMERIC_FEEDBACK_OPERATOR_VALUES = new Set<FilterConditions>(NUM_OPS.map((opt) => opt.value))
 
-const FEEDBACK_VALUE_TYPE_OPTIONS: {value: AnnotationFeedbackValueType; label: string}[] = [
-    {label: "Text", value: "string"},
-    {label: "Number", value: "number"},
-    {label: "Boolean", value: "boolean"},
-]
+const FEEDBACK_VALUE_TYPE_OPTIONS = [
+    {label: "observabilityUi.filters.typeText", value: "string"},
+    {label: "observabilityUi.filters.typeNumber", value: "number"},
+    {label: "observabilityUi.filters.typeBoolean", value: "boolean"},
+] as const satisfies readonly {value: AnnotationFeedbackValueType; label: string}[]
 
 // ============================================================================
 // PURE HELPERS
@@ -597,6 +599,7 @@ function FeedbackFieldPicker({
     className,
     container,
 }: FeedbackFieldPickerProps) {
+    const t = useT(filtersCatalog)
     const [open, setOpen] = useState(false)
     const [activeIndex, setActiveIndex] = useState(0)
     const inputRef = useRef<HTMLInputElement>(null)
@@ -704,7 +707,9 @@ function FeedbackFieldPicker({
                                   <span className="truncate">{labelFor(entry)}</span>
                                   <button
                                       type="button"
-                                      aria-label={`Remove ${labelFor(entry)}`}
+                                      aria-label={t("observabilityUi.filters.removeItem", {
+                                          name: labelFor(entry),
+                                      })}
                                       className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-placeholder hover:text-foreground"
                                       onMouseDown={(event) => {
                                           event.preventDefault()
@@ -750,7 +755,9 @@ function FeedbackFieldPicker({
             >
                 <div role="listbox" id={listId} aria-multiselectable={multiple}>
                     {filtered.length === 0 ? (
-                        <div className="px-3 py-1 text-field-md text-placeholder">No results</div>
+                        <div className="px-3 py-1 text-field-md text-placeholder">
+                            {t("observabilityUi.filters.noResults")}
+                        </div>
                     ) : (
                         filtered.map((option, index) => {
                             const selected = selectedValues.includes(option.value)
@@ -796,17 +803,26 @@ export const AnnotationFilterLabel = ({
     className?: string
 }) => <span className={cn("whitespace-nowrap text-colorTextSecondary", className)}>{children}</span>
 
-const AddFeedbackButton = ({onClick, disabled}: {onClick: () => void; disabled?: boolean}) => (
-    <EnhancedButton type="text" icon={<PlusIcon size={14} />} onClick={onClick} disabled={disabled}>
-        Add Feedback
-    </EnhancedButton>
-)
+const AddFeedbackButton = ({onClick, disabled}: {onClick: () => void; disabled?: boolean}) => {
+    const t = useT(filtersCatalog)
+    return (
+        <EnhancedButton
+            type="text"
+            icon={<PlusIcon size={14} />}
+            onClick={onClick}
+            disabled={disabled}
+        >
+            {t("observabilityUi.filters.addFeedback")}
+        </EnhancedButton>
+    )
+}
 
 // ============================================================================
 // EVALUATOR CONTROL — renders inline on the field/operator line
 // ============================================================================
 
 export function AnnotationEvaluatorControl(props: AnnotationFilterRowProps) {
+    const t = useT(filtersCatalog)
     const {value, evaluatorOptions, disabled, className, container} = props
     const {
         isEvaluatorActive,
@@ -836,7 +852,7 @@ export function AnnotationEvaluatorControl(props: AnnotationFilterRowProps) {
                     onClick={addEvaluator}
                     disabled={disabled}
                 >
-                    Add Evaluator
+                    {t("observabilityUi.filters.addEvaluator")}
                 </EnhancedButton>
                 {!isFeedbackActive ? (
                     <AddFeedbackButton onClick={addFeedback} disabled={disabled} />
@@ -852,8 +868,8 @@ export function AnnotationEvaluatorControl(props: AnnotationFilterRowProps) {
                 options={comboboxOptions}
                 value={value?.evaluator || undefined}
                 onChange={handleEvaluatorChange}
-                placeholder="Evaluator"
-                aria-label="Evaluator"
+                placeholder={t("observabilityUi.filters.evaluator")}
+                aria-label={t("observabilityUi.filters.evaluator")}
                 allowClear
                 disabled={disabled}
                 container={container}
@@ -863,7 +879,7 @@ export function AnnotationEvaluatorControl(props: AnnotationFilterRowProps) {
                 icon={<TrashIcon size={14} />}
                 onClick={removeEvaluator}
                 disabled={disabled}
-                aria-label="Remove evaluator"
+                aria-label={t("observabilityUi.filters.removeEvaluator")}
             />
         </div>
     )
@@ -874,6 +890,7 @@ export function AnnotationEvaluatorControl(props: AnnotationFilterRowProps) {
 // ============================================================================
 
 export function AnnotationFeedbackControl(props: AnnotationFilterRowProps) {
+    const t = useT(filtersCatalog)
     const {value, disabled, className, container} = props
     const {
         isEvaluatorActive,
@@ -906,14 +923,18 @@ export function AnnotationFeedbackControl(props: AnnotationFilterRowProps) {
 
     return (
         <div className={cn("flex w-full items-center gap-2", className)}>
-            <AnnotationFilterLabel>Feedback</AnnotationFilterLabel>
+            <AnnotationFilterLabel>{t("observabilityUi.filters.feedback")}</AnnotationFilterLabel>
 
             <FeedbackFieldPicker
                 className="w-[180px]"
                 options={feedbackOptionsForSelect}
                 value={feedbackFieldValueForSelect}
                 multiple={!value?.evaluator}
-                placeholder={value?.evaluator ? "Feedback" : "Select one or more"}
+                placeholder={
+                    value?.evaluator
+                        ? t("observabilityUi.filters.feedback")
+                        : t("observabilityUi.filters.selectOneOrMore")
+                }
                 searchValue={feedbackFieldSearch}
                 onSearchChange={setFeedbackFieldSearch}
                 onChange={handleFeedbackFieldChange}
@@ -929,8 +950,11 @@ export function AnnotationFeedbackControl(props: AnnotationFilterRowProps) {
                 }}
                 disabled={disabled}
             >
-                <SelectTrigger className="w-[80px]" aria-label="Feedback condition">
-                    <SelectValue placeholder="Condition" />
+                <SelectTrigger
+                    className="w-[80px]"
+                    aria-label={t("observabilityUi.filters.feedbackCondition")}
+                >
+                    <SelectValue placeholder={t("observabilityUi.filters.condition")} />
                 </SelectTrigger>
                 <SelectContent container={container}>
                     {ALL_FEEDBACK_OPERATOR_OPTIONS.map((option) => (
@@ -947,19 +971,26 @@ export function AnnotationFeedbackControl(props: AnnotationFilterRowProps) {
                     onValueChange={(next) => handleFeedbackValueChange(next === "true")}
                     disabled={disabled}
                 >
-                    <SelectTrigger className="flex-1" aria-label="Feedback value">
+                    <SelectTrigger
+                        className="flex-1"
+                        aria-label={t("observabilityUi.filters.feedbackValue")}
+                    >
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent container={container}>
-                        <SelectItem value="true">true</SelectItem>
-                        <SelectItem value="false">false</SelectItem>
+                        <SelectItem value="true">
+                            {t("observabilityUi.filters.boolTrue")}
+                        </SelectItem>
+                        <SelectItem value="false">
+                            {t("observabilityUi.filters.boolFalse")}
+                        </SelectItem>
                     </SelectContent>
                 </Select>
             ) : (
                 <Input
                     className="flex-1"
-                    placeholder="Value"
-                    aria-label="Feedback value"
+                    placeholder={t("observabilityUi.filters.value")}
+                    aria-label={t("observabilityUi.filters.feedbackValue")}
                     value={feedbackValueRaw}
                     onChange={(event) => handleFeedbackValueChange(event.target.value)}
                     disabled={disabled}
@@ -974,13 +1005,16 @@ export function AnnotationFeedbackControl(props: AnnotationFilterRowProps) {
                 }}
                 disabled={disabled}
             >
-                <SelectTrigger className="w-[100px]" aria-label="Feedback value type">
+                <SelectTrigger
+                    className="w-[100px]"
+                    aria-label={t("observabilityUi.filters.feedbackValueType")}
+                >
                     <SelectValue />
                 </SelectTrigger>
                 <SelectContent container={container}>
                     {FEEDBACK_VALUE_TYPE_OPTIONS.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
-                            {option.label}
+                            {t(option.label)}
                         </SelectItem>
                     ))}
                 </SelectContent>
@@ -991,7 +1025,7 @@ export function AnnotationFeedbackControl(props: AnnotationFilterRowProps) {
                 icon={<TrashIcon size={14} />}
                 onClick={removeFeedback}
                 disabled={disabled}
-                aria-label="Remove feedback"
+                aria-label={t("observabilityUi.filters.removeFeedback")}
             />
         </div>
     )

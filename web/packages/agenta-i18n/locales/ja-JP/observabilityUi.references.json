@@ -1,0 +1,14 @@
+{
+    "application": "アプリケーション",
+    "variant": "バリアント",
+    "testSet": "テストセット",
+    "evaluator": "評価器",
+    "environment": "環境",
+    "slug": "スラッグ",
+    "id": "ID",
+    "version": "バージョン",
+    "revisionId": "リビジョン ID",
+    "copyName": "名前をコピー",
+    "copyField": "{{name}}をコピー",
+    "deleted": "削除済み"
+}

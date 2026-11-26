@@ -1,0 +1,20 @@
+{
+    "testset_one": "Jeu de test",
+    "testset_many": "Jeux de test",
+    "testset_other": "Jeux de test",
+    "revision_one": "Révision",
+    "revision_many": "Révisions",
+    "revision_other": "Révisions",
+    "variant_one": "Variante",
+    "variant_many": "Variantes",
+    "variant_other": "Variantes",
+    "evaluator_one": "Évaluateur",
+    "evaluator_many": "Évaluateurs",
+    "evaluator_other": "Évaluateurs",
+    "application_one": "Application",
+    "application_many": "Applications",
+    "application_other": "Applications",
+    "simpleQueue_one": "File d’attente d’annotation",
+    "simpleQueue_many": "Files d’attente d’annotation",
+    "simpleQueue_other": "Files d’attente d’annotation"
+}

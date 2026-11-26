@@ -5,6 +5,7 @@
  */
 
 export {TestcaseTable, type TestcaseTableProps} from "./TestcaseTable"
+export type {EntityColumnHeader} from "../shared"
 export {default as TestcaseDrawer} from "./TestcaseDrawer"
 export type {TestcaseDrawerContentRenderProps, TestcaseDrawerProps} from "./TestcaseDrawer"
 export {TestcaseDataEditor} from "./TestcaseDataEditor"

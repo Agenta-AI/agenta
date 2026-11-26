@@ -1,25 +1,26 @@
 import secrets
-from typing import List
+from uuid import UUID
+from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
 from fastapi import HTTPException
+from sqlalchemy.exc import NoResultFound
 
 from oss.src.utils.env import env
 from oss.src.utils.common import is_ee
-from oss.src.utils.caching import invalidate_cache
 from oss.src.utils.logging import get_module_logger
-from oss.src.models.db_models import UserDB, WorkspaceDB
+from oss.src.models.db_models import UserDB
 from oss.src.services import db_manager
+from oss.src.core.memberships.service import get_memberships_service
 from oss.src.utils import emailing
 from oss.src.models.api.workspace_models import (
     InviteRequest,
     ResendInviteRequest,
-    CreateWorkspace,
-    UpdateWorkspace,
-    WorkspaceResponse,
 )
 from oss.src.core.access.controls import get_role
+from oss.src.core.access.service import ROLE_SCOPE, get_access_service
+from oss.src.core.access.types import RbacEntitlementUnavailable, RoleNotOffered
 from oss.src.core.access.permissions.types import DefaultRole, Permission
 
 log = get_module_logger(__name__)
@@ -139,7 +140,7 @@ async def send_invitation_email(
     project_param = quote(project_id, safe="")
 
     invite_link = (
-        f"{env.agenta.web_url}/auth"
+        f"{env.agenta.web_url}/m/auth"
         f"?token={token_param}"
         f"&email={email_param}"
         f"&organization_id={org_param}"
@@ -165,25 +166,60 @@ async def send_invitation_email(
     return True
 
 
-def resolve_workspace_invite_role(payload: InviteRequest) -> str:
-    """Resolve the workspace role for an invite, defaulting to the catalog floor.
+async def resolve_workspace_invite_role(
+    payload: InviteRequest, *, organization_id: str
+) -> str:
+    """Resolve the role of an invite: the named role, or the plan's floor role.
 
-    Shared by OSS and EE invite paths. Validates against the effective workspace
-    catalog (env-overridable via AGENTA_ACCESS_ROLES in EE) since the API model
-    accepts any string for forward-compatibility with custom roles.
+    Shared by OSS and EE invite paths. The role must be in the effective catalog
+    (env-overridable via AGENTA_ACCESS_ROLES in EE) and offered by the
+    organization's plan, which never offers `owner`.
     """
 
     raw = payload.roles[0] if payload.roles else None
     role = getattr(raw, "value", None) or (str(raw) if raw is not None else None)
-    role = role or DefaultRole.VIEWER.value
+    if not role:
+        # The floor role is always offered and in the catalog.
+        try:
+            offered = await get_access_service().offered_roles(
+                organization_id=UUID(str(organization_id))
+            )
+        except RbacEntitlementUnavailable as exc:
+            raise HTTPException(status_code=503, detail=exc.message) from exc
+        return offered.floor_role
 
-    if get_role("workspace", role) is None:
+    await check_invite_role(role, organization_id=organization_id)
+    return role
+
+
+async def check_invite_role(role: str, *, organization_id: str) -> None:
+    """Refuse an invitation role that the catalog lacks (400) or that the organization's
+    plan does not offer (400, `owner` included), or whose plan cannot be read (503). The
+    one check of a new invite and of a resent one."""
+
+    if get_role(ROLE_SCOPE, role) is None:
         raise HTTPException(
             status_code=400,
             detail=f"Workspace role '{role}' is invalid.",
         )
+    try:
+        await get_access_service().require_offered_role(
+            organization_id=UUID(str(organization_id)), role=role
+        )
+    except RoleNotOffered as exc:
+        raise HTTPException(status_code=400, detail=exc.message) from exc
+    except RbacEntitlementUnavailable as exc:
+        raise HTTPException(status_code=503, detail=exc.message) from exc
 
-    return role
+
+def accepted_invitation_role(stored_role: str) -> str:
+    """The role an accepted invitation grants. An invitation stored as `owner` (written
+    before invites refused it; OSS has no migration for them) grants `admin`: only the
+    transfer route makes an owner."""
+
+    if stored_role == DefaultRole.OWNER.value:
+        return DefaultRole.ADMIN.value
+    return stored_role
 
 
 async def create_invitation(role: str, project_id: str, email: str):
@@ -217,6 +253,7 @@ async def invite_user_to_organization(
     payload: InviteRequest,
     project_id: str,
     user_id: str,
+    role: str,
     organization_id: str | None = None,
 ):
     """
@@ -265,8 +302,6 @@ async def invite_user_to_organization(
 
         await assert_invite_domain_allowed(organization_id, payload.email)
 
-    role = resolve_workspace_invite_role(payload)
-
     log.info(
         "[invite] creating invitation",
         email=payload.email,
@@ -287,7 +322,8 @@ async def invite_user_to_organization(
         payload.email,
         invitation.token,  # type: ignore
         project_id=str(project_db.id),
-        workspace_id=str(project_db.workspace_id),
+        # The organization id where the link carries a workspace id (design D6).
+        workspace_id=str(project_db.organization_id),
         organization_id=str(project_db.organization_id),
         user=user_performing_action,
     )
@@ -322,38 +358,48 @@ async def resend_user_organization_invite(
 
     user_performing_action = await db_manager.get_user_with_id(user_id=user_id)
 
-    # Check if the email address already has a valid, unused invitation for the workspace
+    # Read the unused invitation without deleting an expired one: the role check below
+    # can fail with "try again", and a retry must still find it.
     if organization_id:
-        (
-            existing_invitation,
-            existing_role,
-        ) = await check_existing_organization_invitation(
+        stored = await db_manager.get_project_invitation_by_organization_and_email(
             organization_id=organization_id, email=payload.email
         )
     else:
-        existing_invitation, existing_role = await check_existing_invitation(
-            project_id, payload.email
+        stored = await db_manager.get_project_invitation_by_email(
+            project_id=project_id, email=payload.email
         )
-    if existing_invitation:
-        invitation = existing_invitation
-    elif existing_role:
-        # Create a new invitation with the previous role
-        invitation = await create_invitation(existing_role, project_id, payload.email)
-    else:
+    if (
+        stored is None
+        or stored.used
+        or stored.email != payload.email
+        or (not organization_id and str(stored.project_id) != project_id)
+    ):
         raise HTTPException(
             status_code=404,
             detail="No existing invitation found for the user",
         )
 
-    # Get project by id
+    # A resent invitation keeps its role only while the plan still offers it, as a new
+    # invite would: nothing is deleted, created or sent before this check.
     project_db = await db_manager.get_project_by_id(project_id=project_id)
+    await check_invite_role(
+        stored.role, organization_id=str(project_db.organization_id)
+    )
+
+    if stored.expiration_date > datetime.now(timezone.utc):
+        invitation = stored
+    else:
+        # Replace the expired invitation with a new one that keeps its role.
+        await db_manager.delete_invitation(str(stored.id))
+        invitation = await create_invitation(stored.role, project_id, payload.email)
 
     # Send the invitation email
     send_email = await send_invitation_email(
         payload.email,
         invitation.token,  # type: ignore
         project_id=str(project_db.id),
-        workspace_id=str(project_db.workspace_id),
+        # The organization id where the link carries a workspace id (design D6).
+        workspace_id=str(project_db.organization_id),
         organization_id=str(project_db.organization_id),
         user=user_performing_action,
     )
@@ -370,11 +416,37 @@ async def resend_user_organization_invite(
     return send_email
 
 
+async def get_project_of_workspace_ref(workspace_id: str):
+    """The default project of the organization that a `{workspace_id}` route segment
+    names (design D6). Any other id, a legacy workspace id included, is a 404."""
+
+    try:
+        return await db_manager.get_project_by_workspace(workspace_id)
+    except (NoResultFound, ValueError) as exc:
+        raise HTTPException(
+            status_code=404, detail="Workspace not found for organization."
+        ) from exc
+
+
+def _check_invitation_scope(
+    *,
+    organization_id: str,
+    workspace_id: str,
+    project,
+) -> None:
+    """The `{ws}` of an accept link must be the organization id (design D6): any other
+    id, a legacy workspace id included, is an unknown invitation."""
+
+    if not (str(workspace_id) == str(organization_id) == str(project.organization_id)):
+        raise InviteNotFoundError()
+
+
 async def accept_organization_invitation(
     token: str,
     organization_id: str,
     email: str,
     session_email: str,
+    workspace_id: Optional[str] = None,
 ) -> bool:
     """
     Accept an invitation to a workspace.
@@ -391,12 +463,6 @@ async def accept_organization_invitation(
     Raises:
         HTTPException: If there is an error retrieving the workspace.
     """
-
-    user_exists = await db_manager.get_user_with_email(
-        email=email,
-    )
-    if user_exists is None:
-        raise HTTPException(status_code=400, detail="User does not exist")
 
     invitation = (
         await db_manager.get_project_invitation_by_organization_token_and_email(
@@ -417,11 +483,28 @@ async def accept_organization_invitation(
             invited_email=invitation.email,
         )
 
+    user_exists = await db_manager.get_user_with_email(
+        email=email,
+    )
+    if user_exists is None:
+        raise HTTPException(status_code=400, detail="User does not exist")
+
     project_pre = await db_manager.get_project_by_id(
         project_id=str(invitation.project_id),
     )
-    if project_pre and await db_manager.check_user_in_workspace_with_email(
-        email, str(project_pre.workspace_id)
+    if project_pre is not None and workspace_id is not None:
+        _check_invitation_scope(
+            organization_id=organization_id,
+            workspace_id=workspace_id,
+            project=project_pre,
+        )
+    if (
+        project_pre
+        and await get_memberships_service().fetch_organization_member(
+            organization_id=project_pre.organization_id,
+            user_id=user_exists.id,
+        )
+        is not None
     ):
         raise InviteAlreadyAcceptedError()
 
@@ -439,27 +522,22 @@ async def accept_organization_invitation(
     if project is None:
         raise HTTPException(status_code=400, detail="Invited project no longer exists")
 
-    organization = await db_manager.get_organization_by_id(
-        organization_id=str(project.organization_id)
-    )
-    workspace = await db_manager.get_workspace(
-        workspace_id=str(project.workspace_id),
-    )
-
     log.info(
         "[invite] accepting invitation",
-        email=email,
+        user_id=str(user_exists.id),
         invitation_role=invitation.role,
         project_id=str(project.id),
         organization_id=str(project.organization_id),
     )
 
-    await db_manager.add_user_to_workspace_and_org(
-        organization=organization,
-        workspace=workspace,
-        user=user_exists,
-        project_id=str(project.id),
-        role=invitation.role,
+    # Writes the organization, workspace and project rows in one transaction and
+    # clears the caches of the user in every project of the organization.
+    await get_memberships_service().set_member_role(
+        organization_id=project.organization_id,
+        user_id=user_exists.id,
+        role=accepted_invitation_role(invitation.role),
+        join_all_projects=True,
+        actor_user_id=user_exists.id,
     )
 
     await db_manager.update_invitation(
@@ -470,81 +548,72 @@ async def accept_organization_invitation(
         },
     )
 
-    # Invalidate any cached auth deny so the user can access the project
-    # immediately after accepting.
-    await invalidate_cache(
-        namespace="verify_bearer_token",
-        user_id=str(user_exists.id),
+    await notify_org_admin_invitation(
+        organization_id=project.organization_id,
+        project_id=project.id,
+        user=user_exists,
     )
-
-    await notify_org_admin_invitation(workspace, user_exists)
 
     return True
 
 
-async def notify_org_admin_invitation(workspace: WorkspaceDB, user: UserDB) -> bool:
-    """Email the workspace admins when a new member joins."""
+# The organization's name and its owners and admins other than the new member, in one
+# statement (one row with NULL email when there is none).
+_ADMIN_NOTICE_RECIPIENTS_SQL = """
+SELECT DISTINCT o.name AS organization_name, u.email
+FROM organizations o
+LEFT JOIN organization_members om
+       ON om.organization_id = o.id
+      AND om.role IN ('owner', 'admin')
+      AND om.user_id <> :user_id
+LEFT JOIN users u ON u.id = om.user_id
+WHERE o.id = :organization_id
+"""
 
-    organization = await db_manager.get_organization(str(workspace.organization_id))
-    project = await db_manager.get_project_by_workspace(str(workspace.id))
 
-    workspace_admins = await db_manager.get_workspace_administrators(workspace)
+async def notify_org_admin_invitation(
+    *,
+    organization_id: UUID,
+    project_id: UUID,
+    user: UserDB,
+) -> bool:
+    """Email the organization's owners and admins when a new member joins (once per
+    accepted invitation, for every project, design D6)."""
 
-    for workspace_admin in workspace_admins:
+    from sqlalchemy import text  # noqa: PLC0415
+
+    from oss.src.dbs.postgres.shared.engine import (  # noqa: PLC0415
+        get_transactions_engine,
+    )
+
+    async with get_transactions_engine().session() as session:
+        rows = (
+            await session.execute(
+                text(_ADMIN_NOTICE_RECIPIENTS_SQL),
+                {"organization_id": organization_id, "user_id": user.id},
+            )
+        ).all()
+
+    for row in rows:
+        if not row.email:
+            continue
         await emailing.send_email(
             from_email="account@hello.agenta.ai",
-            to_email=workspace_admin.email,
-            subject=f"New Member Joined {organization.name}",
+            to_email=row.email,
+            subject=f"New Member Joined {row.organization_name}",
             username=user.username,
             action="joined your Workspace",
-            workspace=f'"{organization.name}"',
+            workspace=f'"{row.organization_name}"',
             call_to_action=(
                 "Click the link below to view your Organization:</p><br>"
-                f'<a href="{env.agenta.web_url}/w/{workspace.id}/p/{project.id}/settings?tab=workspace">View Organization</a>'
+                f'<a href="{env.agenta.web_url}/w/{organization_id}/p/{project_id}/settings?tab=workspace">View Organization</a>'
             ),
         )
 
     return True
 
 
-async def get_workspace(workspace_id: str) -> WorkspaceDB:
-    """Get a workspace by ID, raising 404 when absent."""
-
-    workspace = await db_manager.get_workspace(workspace_id)
-    if workspace is not None:
-        return workspace
-    raise HTTPException(
-        status_code=404, detail=f"Workspace by id {workspace_id} not found"
-    )
-
-
-async def create_new_workspace(
-    payload: CreateWorkspace, organization_id: str, user_uid: str
-) -> WorkspaceResponse:
-    """Create a new workspace (with owner membership, default project, seeds)."""
-
-    return await db_manager.create_workspace_with_defaults(
-        payload, organization_id, user_uid
-    )
-
-
-async def update_workspace(
-    payload: UpdateWorkspace, workspace_id: str
-) -> WorkspaceResponse:
-    """Update a workspace's details."""
-
-    workspace = await get_workspace(workspace_id)
-
-    return await db_manager.update_workspace(payload, workspace)
-
-
 async def get_all_workspace_permissions() -> List[Permission]:
     """Return the full permission catalog."""
 
     return list(Permission)
-
-
-async def remove_user_from_workspace(workspace_id: str, email: str) -> bool:
-    """Remove a user (or pending invite) from a workspace."""
-
-    return await db_manager.remove_user_from_workspace(workspace_id, email)

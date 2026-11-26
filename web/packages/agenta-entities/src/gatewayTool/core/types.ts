@@ -127,3 +127,8 @@ export function isConnectionActive(connection: ToolConnection | null | undefined
 export function isConnectionValid(connection: ToolConnection | null | undefined): boolean {
     return readConnectionFlag(connection, "is_valid") ?? false
 }
+
+/** The caller's default for its integration. */
+export function isConnectionDefault(connection: ToolConnection | null | undefined): boolean {
+    return connection?.is_default === true
+}

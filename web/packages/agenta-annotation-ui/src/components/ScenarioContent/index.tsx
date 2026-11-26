@@ -13,6 +13,11 @@
 import {memo, useMemo} from "react"
 
 import {
+    categorizeScenarioEntries,
+    formatScenarioValue,
+    isComplexScenarioValue,
+} from "@agenta/annotation"
+import {
     traceEntityAtomFamily,
     traceRootSpanAtomFamily,
     traceInputsAtomFamily,
@@ -41,44 +46,6 @@ interface ScenarioContentProps {
 // HELPERS
 // ============================================================================
 
-/** Keys to exclude from display entirely */
-const EXCLUDE_KEYS = new Set([
-    "id",
-    "created_at",
-    "updated_at",
-    "created_by_id",
-    "updated_by_id",
-    "run_id",
-    "version",
-    "__isSkeleton",
-    "key",
-    "trace_id",
-    "span_id",
-    "testcase_dedup_id",
-    "__dedup_id__",
-])
-
-/** Keys that represent scenario metadata (shown in a separate section) */
-const META_KEYS = new Set(["status", "interval", "timestamp"])
-
-/** Keys that identify trace/span references (not displayed as data) */
-const TRACE_REF_KEYS = new Set(["trace_id", "span_id"])
-
-/** Keys typically representing outputs */
-const OUTPUT_KEYS = new Set(["output", "outputs", "result", "response", "completion"])
-
-/** Keys typically representing expected/reference outputs (for test cases) */
-const EXPECTED_OUTPUT_KEYS = new Set([
-    "expected_output",
-    "expected",
-    "reference",
-    "reference_output",
-    "ground_truth",
-    "golden",
-    "target",
-    "correct_answer",
-])
-
 function readScenarioRefString(
     scenario: Record<string, unknown> | null,
     key: "trace_id" | "testcase_id",
@@ -97,81 +64,6 @@ function readScenarioRefString(
     if (typeof metaValue === "string" && metaValue) return metaValue
 
     return ""
-}
-
-function formatValue(value: unknown): string {
-    if (value === null || value === undefined) return "—"
-    if (typeof value === "string") return value || "—"
-    if (typeof value === "boolean") return value ? "true" : "false"
-    if (typeof value === "number") return String(value)
-    return JSON.stringify(value, null, 2)
-}
-
-function isComplexValue(value: unknown): boolean {
-    if (value === null || value === undefined) return false
-    if (typeof value === "object") return true
-    if (typeof value === "string" && value.length > 200) return true
-    return false
-}
-
-/**
- * Categorize scenario entries into structured sections (for test cases).
- */
-function categorizeEntries(scenario: Record<string, unknown>) {
-    const inputs: [string, unknown][] = []
-    const outputs: [string, unknown][] = []
-    const expectedOutputs: [string, unknown][] = []
-    const metaEntries: [string, unknown][] = []
-    let tags: Record<string, unknown> | null = null
-
-    for (const [key, value] of Object.entries(scenario)) {
-        if (EXCLUDE_KEYS.has(key)) continue
-
-        // Tags section
-        if (key === "tags" && value && typeof value === "object") {
-            const tagObj = value as Record<string, unknown>
-            const filteredTags: Record<string, unknown> = {}
-            for (const [tk, tv] of Object.entries(tagObj)) {
-                if (!TRACE_REF_KEYS.has(tk)) filteredTags[tk] = tv
-            }
-            if (Object.keys(filteredTags).length > 0) tags = filteredTags
-            continue
-        }
-
-        // Meta section — flatten into appropriate buckets
-        if (key === "meta" && value && typeof value === "object") {
-            for (const [mk, mv] of Object.entries(value as Record<string, unknown>)) {
-                if (TRACE_REF_KEYS.has(mk)) continue
-                if (META_KEYS.has(mk)) {
-                    metaEntries.push([mk, mv])
-                } else if (OUTPUT_KEYS.has(mk)) {
-                    outputs.push([mk, mv])
-                } else if (EXPECTED_OUTPUT_KEYS.has(mk)) {
-                    expectedOutputs.push([mk, mv])
-                } else {
-                    inputs.push([mk, mv])
-                }
-            }
-            continue
-        }
-
-        // Status/interval/timestamp metadata
-        if (META_KEYS.has(key)) {
-            metaEntries.push([key, value])
-            continue
-        }
-
-        // Categorize by key name
-        if (OUTPUT_KEYS.has(key)) {
-            outputs.push([key, value])
-        } else if (EXPECTED_OUTPUT_KEYS.has(key)) {
-            expectedOutputs.push([key, value])
-        } else {
-            inputs.push([key, value])
-        }
-    }
-
-    return {inputs, outputs, expectedOutputs, metaEntries, tags}
 }
 
 // ============================================================================
@@ -198,13 +90,13 @@ const DataSection = memo(function DataSection({
                         <Typography.Text className="text-xs font-medium text-[var(--ag-c-758391)]">
                             {key}
                         </Typography.Text>
-                        {isComplexValue(value) ? (
+                        {isComplexScenarioValue(value) ? (
                             <pre className="text-xs m-0 whitespace-pre-wrap break-all max-h-80 overflow-auto p-2 rounded bg-[var(--ant-color-fill-quaternary)]">
-                                {formatValue(value)}
+                                {formatScenarioValue(value)}
                             </pre>
                         ) : (
                             <Typography.Text className="text-sm">
-                                {formatValue(value)}
+                                {formatScenarioValue(value)}
                             </Typography.Text>
                         )}
                     </div>
@@ -346,7 +238,7 @@ const TestcaseScenarioContent = memo(function TestcaseScenarioContent({
     const TestcaseContentRenderer = useTestcaseContentRenderer()
 
     const {inputs, outputs, expectedOutputs, metaEntries, tags} = useMemo(
-        () => categorizeEntries(scenario),
+        () => categorizeScenarioEntries(scenario),
         [scenario],
     )
 

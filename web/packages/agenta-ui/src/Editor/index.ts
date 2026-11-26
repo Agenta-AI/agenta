@@ -111,6 +111,7 @@ export {$getRoot, $createTextNode} from "lexical"
 export {
     TokenPathSuggestionsProvider,
     useTokenPathSuggestions,
+    useTokenPathSuggestionsContext,
 } from "./plugins/token/TokenPathSuggestionsContext"
 export type {
     TokenPathSuggestion,

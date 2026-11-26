@@ -1,6 +1,9 @@
 import {useCallback, useEffect, useRef} from "react"
 
-import {retrieveWorkflowRevision} from "@agenta/entities/workflow"
+import {
+    primeWorkflowRevisionDetailCacheImperative,
+    retrieveWorkflowRevision,
+} from "@agenta/entities/workflow"
 import {isValidUUID} from "@agenta/shared/utils"
 import {useQuery} from "@tanstack/react-query"
 
@@ -23,6 +26,8 @@ export const retrieveBoundRevision = async (projectId: string, boundId: string) 
     for (const ref of refs) {
         const revision = await retrieveWorkflowRevision({projectId, ...ref})
         if (revision?.id) {
+            // The workflow molecule reads this id next; without the prime it fetches it again.
+            primeWorkflowRevisionDetailCacheImperative(revision, {projectId})
             return {revisionId: revision.id, workflowId: revision.workflow_id ?? null}
         }
     }
@@ -115,10 +120,17 @@ export const useAgentEntity = (
     return {
         agentId: revisionQuery.data?.workflowId ?? boundId,
         entityId: revisionQuery.data?.revisionId ?? null,
+        /** The session names the agent itself. One bound to a variant or revision stays there. */
+        followsAgent: Boolean(boundId) && revisionQuery.data?.workflowId === boundId,
         resolving: awaitingHeader || (Boolean(boundId) && revisionQuery.isPending),
         /** Ask the server for the latest revision now; the cached answer may be 30 s old. */
         refetchLatest: revisionQuery.refetch,
         unreachable,
+        /**
+         * The session names an agent the reader cannot see: the server answers a hidden agent
+         * exactly like an unknown one, with no revision at any level. The history stays readable.
+         */
+        agentHidden: Boolean(boundId) && revisionQuery.isSuccess && revisionQuery.data === null,
         retry,
         retrying: header.isFetching || revisionQuery.isFetching,
     }

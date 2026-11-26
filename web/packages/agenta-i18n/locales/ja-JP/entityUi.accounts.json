@@ -1,0 +1,22 @@
+{
+    "label": "アカウント",
+    "eachPersonSignIn": "各ユーザー自身のサインイン",
+    "projectSignIn": "プロジェクトのサインイン",
+    "connectAnother": "別の {{name}} アカウントを接続",
+    "signOut": "サインアウト",
+    "signInExpired": "実行時：サインインの有効期限が切れています",
+    "tokenPlaceholder": "あなたのトークン",
+    "saveToken": "保存",
+    "choiceFailed": "選択を保存できませんでした。もう一度お試しください。",
+    "createNewSecret": "新しいシークレットを作成",
+    "addOne": "追加する",
+    "addAnotherSecret": "別のシークレットを追加",
+    "addYourSecret": "シークレットを追加",
+    "whoCanUseIt": "使用できるユーザー",
+    "onlyMe": "自分のみ",
+    "onlyMeSecretNote": "エージェントがあなた自身の値を求めたときに選択します。",
+    "everyoneInProject": "{{project}} の全員",
+    "everyoneInThisProject": "このプロジェクトの全員",
+    "everyoneSecretNote": "ビルダーはこのプロジェクトのエージェントにこれを添付できます。",
+    "userSecretRow": "各ユーザー自身のシークレット"
+}

@@ -9,7 +9,8 @@
 export interface GatewayConnectionRef {
     provider?: GatewayConnectionRef.Provider | undefined;
     integration: string;
-    slug: string;
+    slug?: (string | null) | undefined;
+    account_source?: (GatewayConnectionRef.AccountSource | null) | undefined;
 }
 
 export namespace GatewayConnectionRef {
@@ -17,4 +18,9 @@ export namespace GatewayConnectionRef {
         Composio: "composio",
     } as const;
     export type Provider = (typeof Provider)[keyof typeof Provider];
+    export const AccountSource = {
+        Agent: "agent",
+        User: "user",
+    } as const;
+    export type AccountSource = (typeof AccountSource)[keyof typeof AccountSource];
 }

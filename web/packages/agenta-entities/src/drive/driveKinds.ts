@@ -17,6 +17,9 @@ export type DriveFileKind =
     | "pdf"
     | "audio"
     | "video"
+    | "spreadsheet"
+    | "document"
+    | "presentation"
     | "other"
 
 // Extension → Shiki language id for the code body (the lexical CodeBlock normalizes further;
@@ -123,6 +126,10 @@ const EXT_KINDS: [RegExp, DriveFileKind][] = [
     [/\.pdf$/i, "pdf"],
     [/\.(mp3|wav|m4a|ogg|oga|flac|aac|opus|weba)$/i, "audio"],
     [/\.(mp4|m4v|mov|webm|mkv|ogv)$/i, "video"],
+    // Legacy .doc/.ppt and ODF text/slides have no renderer and stay "other".
+    [/\.(xlsx|xlsm|xls|ods)$/i, "spreadsheet"],
+    [/\.docx$/i, "document"],
+    [/\.pptx$/i, "presentation"],
 ]
 
 const CODE_EXT = new RegExp(`\\.(${Object.keys(CODE_LANGS).join("|")})$`, "i")
@@ -213,13 +220,17 @@ export const driveKindTone = (kind: DriveFileKind, path?: string): DriveKindTone
         case "image":
             return "warning"
         case "csv":
+        case "spreadsheet":
             return "success"
         case "code":
             // Python is green in the design; other languages read as neutral code.
             return path && /\.py$/i.test(path) ? "success" : "neutral"
         case "html":
         case "pdf":
+        case "presentation":
             return "error"
+        case "document":
+            return "info"
         case "audio":
         case "video":
             return "warning"

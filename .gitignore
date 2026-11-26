@@ -76,10 +76,14 @@ clients/python/tests/results/
 !.husky/
 !.husky/**
 !.coderabbit.yaml
+!.gitattributes
+!web/packages/agenta-i18n/locales/.meta/
+!web/packages/agenta-i18n/locales/.meta/**
 
 # QA gate run outputs: machine artifacts with per-run probe tokens that trip secret
 # scanners (and once rode a blanket commit onto a public branch). Never tracked.
 .agents/skills/agent-release-gate/qa-gate-runs/
+.agents/skills/agent-release-gate/resources/qa-gate-runs/
 !.dockerignore
 !api/.dockerignore
 !services/.dockerignore
@@ -106,10 +110,22 @@ clients/python/tests/results/
 !.agents/skills/write-issue/
 !.agents/skills/write-pr-description/
 !.agents/skills/write-social-announcement/
+!.agents/skills/write-whats-new/
 !.agents/skills/write-template-playbooks/
+!.agents/skills/update-public-surfaces/
 !.agents/skills/mobile-app-structure/
 !.agents/skills/mobile-shadcn-conventions/
 !.agents/skills/mobile-motion-patterns/
+!.agents/skills/design-interfaces/
+!.agents/skills/keep-docs-in-sync/
+!.agents/skills/naming-and-resources/
+!.agents/skills/plain-writing/
+!.agents/skills/prepare-pr-review/
+!.agents/skills/review-correctness/
+!.agents/skills/review-naming/
+!.agents/skills/review-simplify/
+!.agents/skills/review-slop/
+!.agents/skills/test-design/
 !.claude/
 .claude/*
 !.claude/skills/
@@ -123,12 +139,14 @@ clients/python/tests/results/
 !.claude/skills/style-editing
 !.claude/skills/sync-model-catalog
 !.claude/skills/update-api-docs
+!.claude/skills/write-whats-new
 !.claude/skills/update-llm-model-list
 !.claude/skills/write-docs
 !.claude/skills/write-issue
 !.claude/skills/write-pr-description
 !.claude/skills/write-social-announcement
 !.claude/skills/write-template-playbooks
+!.claude/skills/update-public-surfaces
 !.claude/skills/scan-codebase
 !.claude/skills/triage-findings
 !.claude/skills/resolve-findings
@@ -138,6 +156,16 @@ clients/python/tests/results/
 !.claude/skills/mobile-shadcn-conventions
 !.claude/skills/mobile-motion-patterns
 !.claude/skills/gitbutler-stacks
+!.claude/skills/design-interfaces
+!.claude/skills/keep-docs-in-sync
+!.claude/skills/naming-and-resources
+!.claude/skills/plain-writing
+!.claude/skills/prepare-pr-review
+!.claude/skills/review-correctness
+!.claude/skills/review-naming
+!.claude/skills/review-simplify
+!.claude/skills/review-slop
+!.claude/skills/test-design
 
 # Temporary SDK copies created by run.sh --local
 api/sdks
@@ -167,9 +195,8 @@ skills-lock.json
 !web/storybook/.storybook/
 !web/storybook/.storybook/**
 
-# Storybook build output and the VRT's diff PNGs.
+# Storybook build output.
 web/storybook/storybook-static/
-web/storybook/parity/__vrt__/
 
 # Test artifacts in any workspace (vitest/playwright write a junit report on every run).
 test-results/

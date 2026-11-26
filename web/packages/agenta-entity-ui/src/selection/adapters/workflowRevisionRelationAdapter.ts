@@ -44,10 +44,12 @@ import {
     workflowRevisionsListQueryStateAtomFamily,
     type WorkflowQueryFlags,
 } from "@agenta/entities/workflow"
+import {formatDate} from "@agenta/i18n"
 import {EntityListItemLabel} from "@agenta/ui/components/presentational"
 import {atom} from "jotai"
 import type {Atom} from "jotai"
 
+import {tSelection} from "../text"
 import type {
     EntitySelectionAdapter,
     EntitySelectionResult,
@@ -62,13 +64,13 @@ import {createRevisionLevel} from "./revisionLevelFactory"
 // WORKFLOW TYPE GROUPING HELPERS
 // ============================================================================
 
-const WORKFLOW_GROUP_LABELS: Record<string, string> = {
-    completion: "Completion",
-    chat: "Chat",
-    custom: "Custom",
-    evaluator: "Evaluator",
-    human: "Human",
-}
+const WORKFLOW_GROUP_LABEL_KEYS = {
+    completion: "entityUi.selection.groupCompletion",
+    chat: "entityUi.selection.groupChat",
+    custom: "entityUi.selection.groupCustom",
+    evaluator: "entityUi.selection.groupEvaluator",
+    human: "entityUi.selection.groupHuman",
+} as const
 
 function getWorkflowGroupKey(entity: unknown): string {
     const flags = (entity as {flags?: Record<string, boolean> | null}).flags
@@ -80,7 +82,8 @@ function getWorkflowGroupKey(entity: unknown): string {
 }
 
 function getWorkflowGroupLabel(key: string): string {
-    return WORKFLOW_GROUP_LABELS[key] ?? key
+    const labelKey = WORKFLOW_GROUP_LABEL_KEYS[key as keyof typeof WORKFLOW_GROUP_LABEL_KEYS]
+    return labelKey ? tSelection(labelKey) : key
 }
 
 /**
@@ -106,8 +109,9 @@ function renderWorkflowLabelNode(entity: unknown): React.ReactNode {
               )
             : undefined
 
+    const w = entity as {name?: string; slug?: string}
     return React.createElement(EntityListItemLabel, {
-        label: getWorkflowDisplayName(entity),
+        label: w.name?.trim() || w.slug?.trim() || tSelection("entityUi.selection.unnamed"),
         trailing: tag,
     })
 }
@@ -132,8 +136,10 @@ function getWorkflowVariantSubtitle(entity: unknown): string | undefined {
     if (dateStr) {
         const date = new Date(dateStr)
         if (!isNaN(date.getTime())) {
-            const label = v.updated_at ? "Updated" : "Created"
-            return `${label} ${date.toLocaleDateString(undefined, {month: "short", day: "numeric", year: "numeric"})}`
+            const shown = formatDate(date, {month: "short", day: "numeric", year: "numeric"})
+            return v.updated_at
+                ? tSelection("entityUi.selection.updatedOn", {date: shown})
+                : tSelection("entityUi.selection.createdOn", {date: shown})
         }
     }
     return undefined
@@ -206,7 +212,10 @@ export const workflowRevisionAdapter = createThreeLevelAdapter<WorkflowRevisionS
         getLabelNode: (entity: unknown) => {
             const v = entity as {name?: string}
             return React.createElement(EntityListItemLabel, {
-                label: v.name?.trim() || (v as {slug?: string}).slug?.trim() || "Unnamed",
+                label:
+                    v.name?.trim() ||
+                    (v as {slug?: string}).slug?.trim() ||
+                    tSelection("entityUi.selection.unnamed"),
                 subtitle: getWorkflowVariantSubtitle(entity),
             })
         },
@@ -592,7 +601,9 @@ export function createWorkflowRevisionAdapter(
                         const v = entity as {name?: string}
                         return React.createElement(EntityListItemLabel, {
                             label:
-                                v.name?.trim() || (v as {slug?: string}).slug?.trim() || "Unnamed",
+                                v.name?.trim() ||
+                                (v as {slug?: string}).slug?.trim() ||
+                                tSelection("entityUi.selection.unnamed"),
                             subtitle: getWorkflowVariantSubtitle(entity),
                         })
                     }),
@@ -772,7 +783,10 @@ export function createWorkflowRevisionAdapter(
             getLabelNode: (entity: unknown) => {
                 const v = entity as {name?: string}
                 return React.createElement(EntityListItemLabel, {
-                    label: v.name?.trim() || (v as {slug?: string}).slug?.trim() || "Unnamed",
+                    label:
+                        v.name?.trim() ||
+                        (v as {slug?: string}).slug?.trim() ||
+                        tSelection("entityUi.selection.unnamed"),
                     subtitle: getWorkflowVariantSubtitle(entity),
                     reserveSubtitleSpace: true,
                 })

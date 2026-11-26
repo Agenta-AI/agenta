@@ -83,8 +83,21 @@ _AGENT_CATALOG_IDS: set = _agent_catalog_ids()
 # catalog. Remove an id once a litellm bump indexes it.
 _KNOWN_LIVE_MAP_ONLY = {
     "gemini/gemini-4-argon",
+    "gemini/gemini-4-carbon",
+    "gemini/gemini-4-hydrogen",
+    "gemini/gemini-4-neon",
     "gpt-5.6-cyber",
     "xai/grok-4.20-0309-non-reasoning",
+}
+
+# Ids that litellm dropped from both its bundled and its live price map (gone as of 1.106.2).
+# Calls still route, but litellm has no cost data for them. Remove an id once the catalog
+# drops or renames it.
+_DROPPED_FROM_LITELLM = {
+    "together_ai/deepseek-ai/DeepSeek-R1",
+    "together_ai/meta-llama/Llama-3.2-3B-Instruct-Turbo",
+    "together_ai/meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
+    "together_ai/meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
 }
 
 
@@ -106,6 +119,8 @@ def test_model_exists_in_litellm(model: str, provider: str) -> None:
         pytest.xfail(
             f"'{model}' is only in litellm's live price map, not the one bundled with this build"
         )
+    if not found and model in _DROPPED_FROM_LITELLM:
+        pytest.xfail(f"'{model}' was dropped from litellm's price maps")
     if not found and (
         model in _AGENT_CATALOG_IDS or f"{provider}/{model}" in _AGENT_CATALOG_IDS
     ):

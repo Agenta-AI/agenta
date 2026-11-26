@@ -32,6 +32,7 @@ const nextConfig: NextConfig = {
     // transpile the full dependency closure (chat → entities/playground/shared;
     // entities → sdk/api-client/shared/ui).
     transpilePackages: [
+        "@agenta/annotation",
         "@agenta/auth",
         "@agenta/auth-ui",
         "@agenta/sdk",
@@ -50,6 +51,7 @@ const nextConfig: NextConfig = {
         "@agenta/settings",
         "@agenta/settings-ui",
         "@agenta/home-ui",
+        "@agenta/i18n",
         "@agenta/observability",
         "@agenta/playground",
         "@agenta/playground-ui",
@@ -111,6 +113,9 @@ const nextConfig: NextConfig = {
             effect: "./src/lib/emptyModule.ts",
             arktype: "./src/lib/emptyModule.ts",
             "@valibot/to-json-schema": "./src/lib/emptyModule.ts",
+            // The trace drawer's default add-to-queue picker is antd. /m registers its own in the
+            // drawer slot, so the antd popover is kept out of the build instead of left unused.
+            "@agenta/annotation-ui/add-to-queue": "./src/lib/emptyModule.ts",
         },
     },
 }

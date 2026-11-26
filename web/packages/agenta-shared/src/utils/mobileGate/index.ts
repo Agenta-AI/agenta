@@ -28,6 +28,14 @@ export const MOBILE_AUTH_CALLBACK_MAX_AGE = 60 * 10
  */
 export const CLASSIC_MODE_COOKIE = "agenta-classic-mode"
 
+/**
+ * Published by the desktop app while the user has beta developer mode on (`"1"`), absent
+ * otherwise. The middleware reads only cookies, and `agenta-classic-mode` says "0" for a
+ * simplified user too, whose `/m` hides the developer views. This cookie is how the gate knows
+ * the developer views are there, so a `/w` developer link can go to the `/m` page that shows it.
+ */
+export const BETA_DEVELOPER_MODE_COOKIE = "agenta-beta-developer-mode"
+
 /** Reserved query param: `view=desktop` | `view=mobile` set the escape cookies. */
 export const VIEW_PARAM = "view"
 /** 180 days, in seconds. */
@@ -80,13 +88,29 @@ const AUTH_CALLBACK_RE = /^\/auth\/callback(\/|$)/
 
 const AUTH_RE = /^\/auth(\/|$)/
 
+/** The `/m` screen that accepts an invite; the invite itself waits in browser storage. */
+const INVITE_ROUTE_RE = /^\/invite\/?$/
+
+/** An emailed invite: `/auth` with a one-time token and its organization. A reset link has neither the path nor the organization. */
+export function isInviteLink(pathname: string, search: string): boolean {
+    if (!/^\/auth\/?$/.test(pathname)) return false
+    const params = new URLSearchParams(search)
+    return Boolean(params.get("token") && params.get("organization_id"))
+}
+
+/** The reset password page; only `/m` has it. */
+const RESET_PASSWORD_ROUTE_RE = /^\/auth\/reset-password\/?$/
+
+/** A SuperTokens password reset link (`website_base_path` + `/reset-password?token=`). */
+export function isResetPasswordLink(pathname: string, search: string): boolean {
+    if (!RESET_PASSWORD_ROUTE_RE.test(pathname)) return false
+    return Boolean(new URLSearchParams(search).get("token"))
+}
+
 /**
- * An `/auth` link carrying a one-time `token` (SuperTokens password reset, invite acceptance —
- * `web/oss/src/pages/auth/[[...path]].tsx` reads `router.query.token`) completes on desktop.
- *
- * Redirecting it would drop the token twice over: `mapDesktopToMobile` returns a bare `/m/auth`,
- * and the mobile app has no screen that consumes one. Same reasoning as the OAuth callback
- * exception — a single-use credential must not be bounced.
+ * Any other `/auth` link carrying a one-time `token` completes where it landed. The desktop gate
+ * forwards invite and reset links before it reaches this check; `mapDesktopToMobile` returns a
+ * bare `/m/auth`, so a redirect would drop the token.
  */
 export function isTokenBearingAuthLink(pathname: string, search: string): boolean {
     if (!AUTH_RE.test(pathname)) return false
@@ -110,7 +134,8 @@ const DESKTOP_EXCEPTIONS = [AUTH_CALLBACK_RE, /^\/post-signup(\/|$)/, /^\/worksp
 /**
  * Routes that finish where they landed, whatever any gate would prefer: an OAuth callback, the
  * post-signup survey, an invite acceptance, and any `/auth` link carrying a one-time token or a
- * policy error. One list, so the middleware and the client-side redirect cannot disagree.
+ * policy error. The desktop gate forwards an invite link before this list. One list, so the
+ * middleware and the client-side redirect cannot disagree.
  */
 export function isDesktopOnlyLink(pathname: string, search: string): boolean {
     if (DESKTOP_EXCEPTIONS.some((re) => re.test(pathname))) return true
@@ -143,6 +168,78 @@ const templateQueryFrom = (search: string): string => {
     return templateKey ? `?${TEMPLATE_QUERY_PARAM}=${encodeURIComponent(templateKey)}` : ""
 }
 
+export interface MobileRouteOptions {
+    /**
+     * Beta developer mode is on: `/m` shows the developer views, so the `/w` pages they rebuild
+     * map to them. Off, `/m` has none of them and every app page collapses to the agent screen.
+     */
+    developerViews?: boolean
+}
+
+/**
+ * `/w` project pages that a developer view of `/m` rebuilds, as `/m` paths relative to the
+ * project, or `null` for a sub-page `/m` has no view for. The one place that lists them: when
+ * `/m` moves a view, change it here and in {@link developerAppRoute}.
+ */
+const developerProjectRoute = (segments: string[]): string | null => {
+    const [head, first, second] = segments
+    switch (head) {
+        case "prompts":
+            return first ? null : "/prompts"
+        case "evaluations":
+            if (!first) return "/evaluations"
+            return first === "results" && second && second !== "compare" && !segments[3]
+                ? `/evaluations/results/${second}`
+                : null
+        case "testsets":
+            return segments.length > 2 ? null : `/testsets${first ? `/${first}` : ""}`
+        case "evaluators":
+            return first === "archived" && !second
+                ? "/evaluators/archived"
+                : first
+                  ? null
+                  : "/evaluators"
+        case "annotations":
+            return segments.length > 2 ? null : `/annotations${first ? `/${first}` : ""}`
+        default:
+            return null
+    }
+}
+
+/**
+ * `/w` app pages (`/apps/<id>/<section>`) as `/m` paths relative to the project: the same
+ * `/apps/<id>/<section>` pages, which beta developer mode has. Overview and playground tell a
+ * prompt app from an agent themselves and send an agent to its own screen. A `switch`, not a lookup by name: `section` is user
+ * input. `undefined` means the section has no view of its own; `null`, no `/m` page.
+ */
+const developerAppRoute = (
+    section: string,
+    appId: string,
+    [kind, evaluationId, extra]: string[],
+): string | null | undefined => {
+    switch (section) {
+        case "overview":
+            return `/apps/${appId}/overview`
+        case "playground":
+            return `/apps/${appId}/playground`
+        case "variants":
+            return `/apps/${appId}/variants`
+        case "deployments":
+            return `/apps/${appId}/variants?tab=deployments`
+        case "endpoints":
+            return `/apps/${appId}/endpoints`
+        case "traces":
+            return `/apps/${appId}/traces`
+        case "evaluations":
+            if (!kind) return `/apps/${appId}/evaluations`
+            return kind === "results" && evaluationId && evaluationId !== "compare" && !extra
+                ? `/evaluations/results/${evaluationId}`
+                : null
+        default:
+            return undefined
+    }
+}
+
 /**
  * Desktop URL → the `/m` route that shows the same thing, or `null` when `/m` has no such
  * screen (evaluations, test sets, prompts, evaluators, annotations, the registry).
@@ -150,8 +247,15 @@ const templateQueryFrom = (search: string): string => {
  * Null is a real answer, not a failure: the classic-mode gate leaves those on the desktop app
  * rather than dumping the user somewhere unrelated. The device gate treats it as "/m root",
  * because a phone cannot use those pages either way — see {@link mapDesktopToMobile}.
+ *
+ * With `developerViews`, the pages the developer views rebuild are not null: see
+ * {@link MobileRouteOptions}.
  */
-export function mobileRouteFor(pathname: string, search: string): string | null {
+export function mobileRouteFor(
+    pathname: string,
+    search: string,
+    {developerViews = false}: MobileRouteOptions = {},
+): string | null {
     // Mobile sign-in: /auth/callback never reaches here (handled as an exception).
     if (/^\/auth(\/|$)/.test(pathname)) return "/m/auth"
 
@@ -168,7 +272,8 @@ export function mobileRouteFor(pathname: string, search: string): string | null 
     const [, ws, proj, tail] = match
     const base = `/m/w/${ws}/p/${proj}`
     const rest = trimSlashes(tail ?? "")
-    const [head, first, second] = rest.split("/")
+    const segments = rest.split("/")
+    const [head, first, second] = segments
     const params = new URLSearchParams(search)
 
     // The project root and /apps are both the home screen.
@@ -182,11 +287,28 @@ export function mobileRouteFor(pathname: string, search: string): string | null 
         }
         if (APPS_RESERVED.has(first)) return null
 
-        // `/m` has no playground route: a session's page IS the playground, and `?agent=`
-        // names the agent for a session whose turns cannot yet.
+        // `/m` has no playground route for an agent: a session's page IS the playground, and
+        // `?agent=` names the agent for a session whose turns cannot yet.
         const sessionId = params.get(SESSION_QUERY_PARAM)
         if (second === "playground" && sessionId) {
             return `${base}/sessions/${encodeURIComponent(sessionId)}?agent=${first}`
+        }
+        if (developerViews) {
+            const appRoute = developerAppRoute(
+                second || "overview",
+                encodeURIComponent(first),
+                segments.slice(3),
+            )
+            // A section with no view of its own (sessions, ...) still lands on the app's screen.
+            // The playground's own selection rides along: both apps read `?revisions=`.
+            const revisions = second === "playground" ? params.get("revisions") : null
+            const deployments = second === "variants" && params.get("tab") === "deployments"
+            const selection = revisions
+                ? `?revisions=${encodeURIComponent(revisions)}`
+                : deployments
+                  ? "?tab=deployments"
+                  : ""
+            if (appRoute !== undefined) return appRoute ? `${base}${appRoute}${selection}` : null
         }
         // Every other app-scoped desktop page (playground, overview, sessions, deployments…)
         // collapses to the agent's own screen — the only agent surface `/m` has.
@@ -211,7 +333,20 @@ export function mobileRouteFor(pathname: string, search: string): string | null 
             : `${base}/observability`
     }
 
-    if (head === "settings" && !first) return `${base}/settings`
+    if (head === "settings" && !first) {
+        // `/m` Settings reads the same `tab` keys and falls back for one it does not have.
+        const tab = params.get("tab")
+        // The pack picker opens from Billing on the desktop and from Credits in `/m`.
+        if (tab === "billing" && params.get("buy_credits") === "1") {
+            return `${base}/settings?tab=credits&buy_credits=1`
+        }
+        return tab ? `${base}/settings?tab=${encodeURIComponent(tab)}` : `${base}/settings`
+    }
+
+    if (developerViews) {
+        const route = developerProjectRoute(segments)
+        if (route) return `${base}${route}`
+    }
 
     return null
 }
@@ -220,10 +355,24 @@ export function mobileRouteFor(pathname: string, search: string): string | null 
  * Desktop URL → mobile equivalent for the DEVICE gate, which is total: a phone gets `/m` even
  * for a page `/m` does not mirror, because the desktop page is unusable there regardless.
  */
-export function mapDesktopToMobile(pathname: string, search: string): string {
+export function mapDesktopToMobile(
+    pathname: string,
+    search: string,
+    options?: MobileRouteOptions,
+): string {
     // The `/m` root still opens a website template link (`/?template=`) on its setup step.
-    return mobileRouteFor(pathname, search) ?? `/m/${templateQueryFrom(search)}`
+    return mobileRouteFor(pathname, search, options) ?? `/m/${templateQueryFrom(search)}`
 }
+
+/** `/m` app pages with the same path in `/w`. */
+const APP_PAGES = new Set([
+    "overview",
+    "playground",
+    "variants",
+    "endpoints",
+    "evaluations",
+    "traces",
+])
 
 /**
  * Mobile URL (basePath already stripped) → the desktop route showing the same thing, or `null`
@@ -242,9 +391,39 @@ export function desktopRouteFor(pathname: string, search = ""): string | null {
     const [, ws, proj, tail] = match
     const base = `/w/${ws}/p/${proj}`
     const rest = trimSlashes(tail ?? "")
-    const [head, first] = rest.split("/")
+    const [head, first, second] = rest.split("/")
+    const params = new URLSearchParams(search)
 
-    if (!head || head === "apps") return first ? null : `${base}/apps`
+    if (!head || head === "apps") {
+        if (!first) return `${base}/apps`
+        if (first === "archived") return second ? null : `${base}/apps/archived`
+        // The app pages are the same path on both sides; Registry keeps its Deployments tab.
+        if (!APP_PAGES.has(second ?? "") || rest.split("/")[3]) return null
+        const deployments = second === "variants" && params.get("tab") === "deployments"
+        return `${base}/apps/${first}/${second}${deployments ? "?tab=deployments" : ""}`
+    }
+
+    // The developer views `/m` rebuilt. Project pages that take the app as `?app=` are app pages
+    // on the desktop; without the app there is no desktop page to name.
+    // `?app=` is decoded user input: encode it into one path segment, and refuse the dot
+    // segments `encodeURIComponent` leaves alone.
+    const rawAppId = params.get("app")
+    const appId =
+        rawAppId && rawAppId !== "." && rawAppId !== ".." ? encodeURIComponent(rawAppId) : null
+    if (head === "variants" && !first) return appId ? `${base}/apps/${appId}/variants` : null
+    if (head === "endpoints" && !first) return appId ? `${base}/apps/${appId}/endpoints` : null
+    if (head === "evaluations" && !first) {
+        return appId ? `${base}/apps/${appId}/evaluations` : `${base}/evaluations`
+    }
+    if (head === "evaluations" && first === "results" && second && !rest.split("/")[3]) {
+        return `${base}/evaluations/results/${second}`
+    }
+    if (head === "prompts" && !first) return `${base}/prompts`
+    if (head === "testsets" && !second) return `${base}/testsets${first ? `/${first}` : ""}`
+    if (head === "evaluators" && !second && (!first || first === "archived")) {
+        return `${base}/evaluators${first ? `/${first}` : ""}`
+    }
+    if (head === "annotations" && !second) return `${base}/annotations${first ? `/${first}` : ""}`
 
     if (head === "agents") return first ? `${base}/apps/${first}/playground` : `${base}/agents`
 
@@ -263,6 +442,8 @@ export function desktopRouteFor(pathname: string, search = ""): string | null {
             : `${base}/observability?session=${encodeURIComponent(first)}`
     }
 
+    if (head === "observability" && !first && appId) return `${base}/apps/${appId}/traces`
+
     if ((head === "observability" || head === "settings") && !first) return `${base}/${head}`
 
     return null
@@ -279,6 +460,35 @@ function stripViewParam(pathname: string, search: string): string {
     const qs = params.toString()
     return qs ? `${pathname}?${qs}` : pathname
 }
+
+/**
+ * SuperTokens' cookie-mode session cookies that reach a page request (both on path `/`). Either
+ * one means a session exists; the gate never validates it, the app does that after it loads.
+ */
+const SESSION_COOKIES = ["sAccessToken", "sFrontToken"]
+
+/**
+ * Where a signed-out visitor with no Classic mode preference signs in, or `null` to stay.
+ *
+ * Only the entry points move: bare `/w` (where `/` redirects) and `/auth`. A deep link keeps the
+ * desktop sign-in, which returns the user to it (`?redirectToPath=`); `/m`'s sign-in always lands
+ * on its home screen. A website template link goes to the `/m` root, which keeps the key across
+ * sign-in; `/m/auth` would drop it.
+ */
+const signedOutEntryRoute = (pathname: string, search: string): string | null => {
+    if (/^\/w\/?$/.test(pathname)) {
+        const templateQuery = templateQueryFrom(search)
+        return templateQuery ? `/m/${templateQuery}` : "/m/auth"
+    }
+    if (AUTH_RE.test(pathname) && !new URLSearchParams(search).has("redirectToPath")) {
+        return "/m/auth"
+    }
+    return null
+}
+
+const gateOptions = (input: GateInput): MobileRouteOptions => ({
+    developerViews: input.cookie(BETA_DEVELOPER_MODE_COOKIE) === "1",
+})
 
 /** Forward gate: runs in the DESKTOP apps. Sees no /m traffic behind Traefik. */
 export function decideDesktopGate(input: GateInput): GateDecision {
@@ -314,6 +524,15 @@ export function decideDesktopGate(input: GateInput): GateDecision {
             }
         }
 
+        // Before the opt-out and Classic mode: invites join through /m, and the link lives 7 days.
+        if (isInviteLink(input.pathname, input.search)) {
+            return {kind: "redirect", location: `/m/auth${input.search}`}
+        }
+        // Same for a password reset link: only /m has the page that takes the token.
+        if (isResetPasswordLink(input.pathname, input.search)) {
+            return {kind: "redirect", location: `/m/auth/reset-password${input.search}`}
+        }
+
         // The mobile-started callback is handled above, before the flag.
         if (isDesktopOnlyLink(input.pathname, input.search)) return {kind: "pass"}
         if (input.cookie(MOBILE_OPTOUT_COOKIE)) return {kind: "pass"}
@@ -327,12 +546,25 @@ export function decideDesktopGate(input: GateInput): GateDecision {
 
         // Device: a phone gets /m for anything, mapped or not.
         if (!wantsClassic && isMobileDevice(input.header)) {
-            return {kind: "redirect", location: mapDesktopToMobile(input.pathname, input.search)}
+            return {
+                kind: "redirect",
+                location: mapDesktopToMobile(input.pathname, input.search, gateOptions(input)),
+            }
+        }
+
+        // Signed out, no preference: the cookie is only written after a sign-in, so without
+        // this a new visitor signs up on the desktop app and never sees /m's onboarding.
+        if (
+            !input.cookie(CLASSIC_MODE_COOKIE) &&
+            !SESSION_COOKIES.some((name) => input.cookie(name))
+        ) {
+            const location = signedOutEntryRoute(input.pathname, input.search)
+            if (location) return {kind: "redirect", location}
         }
 
         // Preference: Classic mode off means live in /m — but only for pages /m actually has.
         if (input.cookie(CLASSIC_MODE_COOKIE) === "0") {
-            const location = mobileRouteFor(input.pathname, input.search)
+            const location = mobileRouteFor(input.pathname, input.search, gateOptions(input))
             if (location) return {kind: "redirect", location}
         }
 
@@ -366,6 +598,14 @@ export function decideMobileGate(input: GateInput): GateDecision {
         // An OAuth landing completes wherever it lands — bouncing it drops the
         // one-time code and strands the flow.
         if (AUTH_CALLBACK_RE.test(input.pathname)) return {kind: "pass"}
+        // Same for an invite or a reset link: the desktop route for either would drop the token.
+        if (
+            INVITE_ROUTE_RE.test(input.pathname) ||
+            isInviteLink(input.pathname, input.search) ||
+            RESET_PASSWORD_ROUTE_RE.test(input.pathname)
+        ) {
+            return {kind: "pass"}
+        }
         if (input.cookie(MOBILE_OPTIN_COOKIE)) return {kind: "pass"}
 
         // The desktop gate ranks Classic mode above the device heuristic (`wantsClassic`), so a

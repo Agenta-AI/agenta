@@ -1,0 +1,12 @@
+{
+    "agentFallback": "Agente",
+    "browseTemplates": "Explorar modelos",
+    "description": "Pesquise sessões, agentes e páginas ou execute uma ação.",
+    "groupEvaluators": "Avaliadores",
+    "groupPages": "Páginas",
+    "groupPrompts": "Prompts",
+    "newAgent": "Novo agente",
+    "nothingMatches": "Nada corresponde",
+    "placeholder": "Pesquisar sessões, agentes, páginas…",
+    "searching": "Pesquisando…"
+}

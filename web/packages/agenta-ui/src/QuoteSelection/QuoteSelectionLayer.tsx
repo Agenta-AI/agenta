@@ -1,12 +1,15 @@
 // Quote-to-reply over a `relative` pane: selection pill, note box, draft highlight.
 import {useCallback, useEffect, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiQuoteSelectionCatalog from "@agenta/i18n/catalogs/ui.quoteSelection"
 import {locateQuote, type Quote} from "@agenta/shared/quotes"
 import {generateId} from "@agenta/shared/utils"
 
 import {hasCoarsePointer} from "../hooks/useVisualViewport"
 
 import {QuoteNote} from "./QuoteNote"
+import {QuoteNoteSheet} from "./QuoteNoteSheet"
 import {QuoteToolbar} from "./QuoteToolbar"
 import {addQuote, submitSessionMessage, useStagedQuotes} from "./store"
 import {useDraftHighlight} from "./useQuoteHighlights"
@@ -44,6 +47,7 @@ export const QuoteSelectionLayer = ({
     sessionId: string | null
     touch?: boolean
 }) => {
+    const t = useT(uiQuoteSelectionCatalog)
     const [draft, setDraft] = useState<{quote: Quote; candidate: QuoteCandidate} | null>(null)
     const [announced, setAnnounced] = useState("")
     const staged = useStagedQuotes(sessionId)
@@ -111,8 +115,16 @@ export const QuoteSelectionLayer = ({
     const stage = (note: string) => {
         if (!draft) return
         addQuote(sessionId, {...draft.quote, note, staged: true})
-        setAnnounced(`Quote added. ${staged.length + 1} attached.`)
+        setAnnounced(t("ui.quoteSelection.quoteAdded", {count: staged.length + 1}))
         finish()
+    }
+
+    // A touch screen gets the bottom sheet; `touch` alone also marks large chat controls.
+    const sheet = hasCoarsePointer()
+    // Staged first, so the composer's send carries it with everything else held.
+    const send = (note: string) => {
+        stage(note)
+        submitSessionMessage(sessionId)
     }
 
     return (
@@ -137,18 +149,22 @@ export const QuoteSelectionLayer = ({
                     }}
                 />
             ) : null}
-            {draft ? (
+            {draft && sheet ? (
+                <QuoteNoteSheet
+                    key={draft.quote.id}
+                    quote={draft.quote}
+                    onStage={stage}
+                    onSend={send}
+                    onCancel={finish}
+                />
+            ) : draft ? (
                 <QuoteNote
                     key={draft.quote.id}
                     quote={draft.quote}
                     anchor={draft.candidate.rect}
                     bounds={bounds}
                     onStage={stage}
-                    // Staged first, so the composer's send carries it with everything else held.
-                    onSend={(note) => {
-                        stage(note)
-                        submitSessionMessage(sessionId)
-                    }}
+                    onSend={send}
                     onCancel={finish}
                 />
             ) : null}

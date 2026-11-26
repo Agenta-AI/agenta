@@ -75,6 +75,7 @@ const mergeRun = (run: TurnViewModel[]): TurnViewModel => {
         message: {...last.message, id: first.message.id, parts},
         index: first.index,
         items,
+        hadGate: run.some((turn) => turn.hadGate),
         isStreamingTurn: run.some((turn) => turn.isStreamingTurn),
         status: {
             ...last.status,

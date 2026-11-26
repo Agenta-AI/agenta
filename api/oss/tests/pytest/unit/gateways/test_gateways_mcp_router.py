@@ -9,6 +9,10 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
+
+from oss.tests.pytest.utils.principals import HumanCheckFromWrapper
+
+from oss.tests.pytest.utils.principals import make_envelope
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
@@ -44,6 +48,7 @@ from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthStateInvalidError,
 )
 from oss.src.utils.context import AuthScope
+from oss.src.utils.env import env
 
 
 FIXED_SCOPE = AuthScope(
@@ -134,7 +139,7 @@ class MockMCPGatewayService:
         self.calls.append("fetch_endpoint")
         return self.fetch_return
 
-    async def edit_endpoint(self, *, project_id, user_id, endpoint):
+    async def edit_endpoint(self, *, organization_id, project_id, user_id, endpoint):
         self.calls.append("edit_endpoint")
         return self.edit_return
 
@@ -162,7 +167,9 @@ class MockMCPGatewayService:
         self.bound_secret_id = secret_id
         return self.edit_return
 
-    async def delete_endpoint(self, *, project_id, endpoint_id, pending_auth_mode=None):
+    async def delete_endpoint(
+        self, *, organization_id, project_id, endpoint_id, pending_auth_mode=None
+    ):
         self.calls.append("delete_endpoint")
         self.pending_auth_mode = pending_auth_mode
         if self.delete_raises is not None:
@@ -232,6 +239,10 @@ class MockMCPOAuthConnectService:
         self.cancelled.append((endpoint_id, attempt_id))
         return 1
 
+    async def fetch_attempt(self, *, project_id, endpoint_id, attempt_id):
+        # No attempt of the caller's own, so only the edit permission lets them in.
+        return None
+
     async def outcome(self, *, project_id, endpoint_id, attempt_id):
         return self.outcome_return
 
@@ -255,7 +266,7 @@ class MockMCPOAuthConnectService:
             return _oauth_endpoint(endpoint_id, secret_id=None)
         return self.disconnect_return
 
-    async def complete(self, *, attempt, code):
+    async def complete(self, *, attempt, code, organization_id=None):
         self.calls.append(("complete", code, attempt.state))
         if self.complete_raises is not None:
             raise self.complete_raises
@@ -304,6 +315,11 @@ def allow(monkeypatch):
     monkeypatch.setattr(
         "oss.src.apis.fastapi.gateways.mcps.router.check_action_access", mock
     )
+    # The OAuth callback checks the attempt's user with `check_human`.
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.gateways.mcps.router.get_access_service",
+        lambda: HumanCheckFromWrapper(mock),
+    )
     return mock
 
 
@@ -312,6 +328,11 @@ def deny(monkeypatch):
     mock = AsyncMock(return_value=False)
     monkeypatch.setattr(
         "oss.src.apis.fastapi.gateways.mcps.router.check_action_access", mock
+    )
+    # The OAuth callback checks the attempt's user with `check_human`.
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.gateways.mcps.router.get_access_service",
+        lambda: HumanCheckFromWrapper(mock),
     )
     return mock
 
@@ -344,6 +365,7 @@ _COMMIT_REVISION_CALL_REF = "tools.agenta.commit_revision"
 
 def _mint_request(**state):
     """A stand-in Request carrying only the auth state the mint reads."""
+    state.setdefault("run_envelope", make_envelope(run_id="run-1"))
     return type("Request", (), {"state": type("State", (), dict(state))()})()
 
 
@@ -411,6 +433,44 @@ async def test_agenta_credential_confines_the_issued_value_to_the_gateway_audien
     )
 
     assert signer.await_args.kwargs["audience"] == GATEWAY_TOKEN_AUDIENCE
+
+
+@pytest.mark.asyncio
+async def test_agenta_credential_copies_the_callers_run_session(router, signer, allow):
+    """The builtin MCP relay reaches `/tools/call` with this credential, so a session op
+    sees the same calling session as on the direct path."""
+
+    await router.issue_agenta_credential(
+        request=_mint_request(gateway_run_id="run-1", run_session_id="session-a"),
+        body=MCPAgentaCredentialRequest(
+            tools=[_tool("read_config", _READ_CONFIG_CALL_REF)]
+        ),
+    )
+    assert signer.await_args.kwargs["run_session_id"] == "session-a"
+
+    await router.issue_agenta_credential(
+        request=_mint_request(gateway_run_id="run-1"),
+        body=MCPAgentaCredentialRequest(
+            tools=[_tool("read_config", _READ_CONFIG_CALL_REF)]
+        ),
+    )
+    assert signer.await_args.kwargs["run_session_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_agenta_credential_lives_as_long_as_the_gateway_credential_setting(
+    router, signer, allow, monkeypatch
+):
+    monkeypatch.setattr(env.gateway_credentials, "ttl_seconds", 1800)
+
+    await router.issue_agenta_credential(
+        request=_mint_request(gateway_run_id="run-1"),
+        body=MCPAgentaCredentialRequest(
+            tools=[_tool("read_config", _READ_CONFIG_CALL_REF)]
+        ),
+    )
+
+    assert signer.await_args.kwargs["expires_in"] == 1800
 
 
 @pytest.mark.asyncio
@@ -1748,3 +1808,16 @@ def test_a_refused_base_url_does_not_echo_the_bound_key(client):
     assert response.status_code == 422, response.text
     assert "api_key" in response.text
     assert canary not in response.text
+
+
+@pytest.mark.asyncio
+async def test_mcp_mint_copies_the_run_envelope(router, signer, allow):
+    envelope = make_envelope(run_id="run-1")
+    request = _mint_request(gateway_run_id="run-1", run_envelope=envelope)
+    await router.issue_agenta_credential(
+        request=request,
+        body=MCPAgentaCredentialRequest(
+            tools=[_tool("read_config", _READ_CONFIG_CALL_REF)]
+        ),
+    )
+    assert signer.await_args.kwargs["envelope"] == envelope

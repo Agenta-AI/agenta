@@ -1,0 +1,6 @@
+{
+    "backToSignIn": "Voltar ao login",
+    "codeUsed": "Este link de login já foi usado. Faça login novamente.",
+    "securityCheckFailed": "A verificação de segurança falhou. Tente novamente.",
+    "signedInButAppFailed": "Login feito, mas o app não pôde ser aberto. Tente novamente."
+}

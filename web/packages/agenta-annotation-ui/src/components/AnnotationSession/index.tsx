@@ -1,7 +1,12 @@
 import {useCallback, useEffect, useMemo, useRef} from "react"
 
 import type {SessionView} from "@agenta/annotation"
-import {annotationFormController, annotationSessionController} from "@agenta/annotation"
+import {
+    ADD_TO_TESTSET_COMMIT_MODES,
+    annotationFormController,
+    annotationSessionController,
+    CREATE_TESTSET_FIELDS,
+} from "@agenta/annotation"
 import {simpleQueueMolecule} from "@agenta/entities/simpleQueue"
 import {
     EntityCommitModal,
@@ -16,11 +21,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigation} from "../../context"
 
-import {
-    ADD_TO_TESTSET_COMMIT_MODES,
-    ADD_TO_TESTSET_TARGET_ADAPTER,
-    CREATE_TESTSET_FIELDS,
-} from "./assets/constants"
+import {ADD_TO_TESTSET_TARGET_ADAPTER} from "./assets/constants"
 import type {AddToTestsetTargetSelection, AnnotationSessionProps} from "./assets/type"
 import ConfigurationView from "./ConfigurationView"
 import EmptyQueueState from "./EmptyQueueState"

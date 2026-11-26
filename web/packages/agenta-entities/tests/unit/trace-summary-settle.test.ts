@@ -23,6 +23,12 @@ import {beforeEach, describe, expect, it, vi} from "vitest"
 
 const {fetchAllPreviewTracesMock} = vi.hoisted(() => ({fetchAllPreviewTracesMock: vi.fn()}))
 
+// The reader holds `view_spans`: trace reads wait on that check, which this file is not about.
+vi.mock("@agenta/sdk/resources", async (importOriginal) => ({
+    ...(await importOriginal<object>()),
+    getAccessClient: () => ({checkPermissions: async () => ({})}),
+}))
+
 vi.mock("../../src/trace/api/api", async (importOriginal) => {
     const actual = await importOriginal<typeof import("../../src/trace/api/api")>()
     return {...actual, fetchAllPreviewTraces: fetchAllPreviewTracesMock}

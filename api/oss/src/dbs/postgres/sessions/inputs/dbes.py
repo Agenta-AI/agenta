@@ -27,10 +27,17 @@ class SessionInputDBE(Base, ProjectScopeDBA, LifecycleDBA, IdentifierDBA):
     position = Column(BigInteger, nullable=False)
     state = Column(String, nullable=False, default="pending", server_default="pending")
     policy = Column(String, nullable=False)
+    # What the input is (`PendingInputKind`). Server-owned; NULL reads as `message`.
+    kind = Column(String, nullable=True)
     idempotency_key = Column(String, nullable=False)
     request_fingerprint = Column(String(64), nullable=False)
     promoted_execution_id = Column(String, nullable=True)
     dispatch_claimed = Column(Boolean, nullable=False, server_default=text("false"))
+    # The admitting request's run envelope (M2); copied onto the continue_input command.
+    run_envelope = Column(JSONB(none_as_null=True), nullable=True)
+    # Server-owned: the first execution id of the calling turn of a child input. Only
+    # server code that sends a child input sets it; no route reads or writes it.
+    calling_turn_id = Column(String, nullable=True)
 
     __table_args__ = (
         ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),

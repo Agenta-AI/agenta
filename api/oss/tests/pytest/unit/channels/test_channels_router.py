@@ -14,6 +14,7 @@ import pytest
 from fastapi import FastAPI, HTTPException, Request
 
 from oss.src.apis.fastapi.channels.models import (
+    ChannelPeopleQueryRequest,
     ChannelAgentCreateRequest,
     ChannelAgentEditRequest,
     ChannelAgentQueryRequest,
@@ -262,6 +263,16 @@ def _grant(grant_id, agent_id, space_id) -> ChannelGrant:
             True,
         ),
         (
+            lambda r, req: r.query_channel_people(
+                req, connection_id=uuid4(), body=ChannelPeopleQueryRequest()
+            ),
+            False,
+        ),
+        (
+            lambda r, req: r.refresh_channel_people(req, connection_id=uuid4()),
+            False,
+        ),
+        (
             lambda r, req: r.create_channel_grant(
                 req,
                 body=ChannelGrantCreateRequest(
@@ -389,6 +400,8 @@ async def test_permission_matrix_covers_every_registered_route():
         "edit_channel_space",
         "delete_channel_space",
         "discover_channel_spaces",
+        "query_channel_people",
+        "refresh_channel_people",
         "create_channel_grant",
         "list_channel_grants",
         "query_channel_grants",
@@ -619,6 +632,8 @@ def test_trailing_slash_audit():
         "/connections/{connection_id}/archive",
         "/connections/{connection_id}/unarchive",
         "/connections/{connection_id}/setup",
+        "/connections/{connection_id}/people/query",
+        "/connections/{connection_id}/people/refresh",
         "/agents/query",
         "/agents/{agent_id}",
         "/agents/{agent_id}/default",

@@ -161,7 +161,7 @@ describe("immutablePersister (Class A)", () => {
         expect(clientB.getQueryState(key)?.dataUpdatedAt).toBe(agedAt)
     })
 
-    it("restores entries far older than 14d (maxAge Infinity)", async () => {
+    it("restores entries older than 14d (maxAge 30d)", async () => {
         const key: QueryKey = ["imm", "ancient"]
         const body = {id: "rev-old"}
         await idbQueryStorage.setItem(
@@ -180,6 +180,21 @@ describe("immutablePersister (Class A)", () => {
         expect(restored).toEqual(body)
         await flushMacrotasks()
         expect(spy).not.toHaveBeenCalled()
+    })
+
+    it("persisterGc drops entries older than 30d and keeps younger ones", async () => {
+        const oldKey: QueryKey = ["imm", "past-30d"]
+        const youngKey: QueryKey = ["imm", "under-30d"]
+        await idbQueryStorage.setItem(
+            immStorageKey(oldKey),
+            makePersisted(oldKey, {id: "rev-old"}, Date.now() - 31 * DAY_MS),
+        )
+        const young = makePersisted(youngKey, {id: "rev-young"}, Date.now() - 29 * DAY_MS)
+        await idbQueryStorage.setItem(immStorageKey(youngKey), young)
+
+        await immutablePersister.persisterGc()
+
+        expect(await listEntries()).toEqual([[immStorageKey(youngKey), young]])
     })
 })
 

@@ -206,6 +206,7 @@ function buildAnnotationOutputEntries(params: {
     annotations: Annotation[]
     evaluators: TestsetSyncEvaluator[]
     queueId: string
+    existingData?: Record<string, unknown> | null
 }): {columnKey: string; outputs: Record<string, unknown>}[] {
     const entries: {columnKey: string; outputs: Record<string, unknown>}[] = []
     const slugByEvaluatorId = buildSlugByEvaluatorId(params.evaluators)
@@ -220,15 +221,19 @@ function buildAnnotationOutputEntries(params: {
 
         if (!selection.annotation || selection.conflictCode) continue
 
-        const outputs = getAnnotationOutputs(selection.annotation)
-        if (Object.keys(outputs).length === 0) continue
-
         const columnKey = getTestsetSyncEvaluatorColumnKey({
             evaluator,
             annotation: selection.annotation,
             slugByEvaluatorId,
         })
         if (!columnKey) continue
+
+        const outputs = getAnnotationOutputs(selection.annotation)
+        const hasExistingColumn =
+            isPlainRecord(params.existingData?.[columnKey]) &&
+            Object.keys(params.existingData[columnKey]).length > 0
+
+        if (Object.keys(outputs).length === 0 && !hasExistingColumn) continue
 
         entries.push({
             columnKey,
@@ -248,9 +253,7 @@ function applyAnnotationOutputEntries(
     entries: {columnKey: string; outputs: Record<string, unknown>}[],
 ): void {
     for (const entry of entries) {
-        const existingValue = data[entry.columnKey]
         data[entry.columnKey] = {
-            ...(isPlainRecord(existingValue) ? existingValue : {}),
             ...entry.outputs,
         }
     }
@@ -503,6 +506,7 @@ export function buildTestcaseExportRows(params: TestcaseExportRowBuilderParams):
             annotations,
             evaluators: params.evaluators,
             queueId: params.queueId,
+            existingData: testcase.data,
         })
         if (entries.length === 0) continue
 
@@ -599,7 +603,7 @@ export function buildTestsetSyncPreview(params: BuildTestsetSyncPreviewParams): 
                 code: "missing_testcase",
                 scenarioId: completed.scenarioId,
                 testcaseId: completed.testcaseId,
-                message: "The source testcase could not be loaded.",
+                message: "The source test case could not be loaded.",
             })
             continue
         }
@@ -610,7 +614,7 @@ export function buildTestsetSyncPreview(params: BuildTestsetSyncPreviewParams): 
                 code: "missing_testset",
                 scenarioId: completed.scenarioId,
                 testcaseId: completed.testcaseId,
-                message: "The source testcase is not linked to a testset.",
+                message: "The source test case is not linked to a test set.",
             })
             continue
         }
@@ -645,15 +649,19 @@ export function buildTestsetSyncPreview(params: BuildTestsetSyncPreviewParams): 
 
             if (!selection.annotation) continue
 
-            const outputs = getAnnotationOutputs(selection.annotation)
-
-            if (Object.keys(outputs).length === 0) continue
             const columnKey = getTestsetSyncEvaluatorColumnKey({
                 evaluator,
                 annotation: selection.annotation,
                 slugByEvaluatorId,
             })
             if (!columnKey) continue
+
+            const outputs = getAnnotationOutputs(selection.annotation)
+            const hasExistingColumn =
+                isPlainRecord(testcase.data?.[columnKey]) &&
+                Object.keys(testcase.data[columnKey]).length > 0
+
+            if (Object.keys(outputs).length === 0 && !hasExistingColumn) continue
 
             selected.push({
                 columnKey,
@@ -708,7 +716,7 @@ export function buildTestsetSyncPreview(params: BuildTestsetSyncPreviewParams): 
                 scenarioId: target.rows[0]?.scenarioId ?? "",
                 testcaseId: target.rows[0]?.testcaseId,
                 testsetId: target.testsetId,
-                message: "The latest revision for this testset could not be resolved.",
+                message: "The latest revision for this test set could not be resolved.",
             })
             continue
         }

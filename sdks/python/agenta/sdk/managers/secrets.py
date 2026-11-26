@@ -1,3 +1,4 @@
+import json
 from typing import Optional, Dict, Any, List
 
 from agenta.sdk.utils.logging import get_module_logger
@@ -11,6 +12,7 @@ from agenta.sdk.utils.assets import (
 )
 from agenta.sdk.engines.running.errors import (
     ConnectionModelMismatchV0Error,
+    InvalidConfigurationParameterV0Error,
     UnknownConnectionV0Error,
 )
 
@@ -19,6 +21,39 @@ from agenta.sdk.middlewares.running.vault import get_secrets
 import agenta as ag
 
 log = get_module_logger(__name__)
+
+
+_VERTEX_CREDENTIAL_KEYS = ("vertex_credentials", "vertex_ai_credentials")
+
+
+def _check_vertex_credentials(extras: Dict[str, Any]) -> None:
+    """Accept a Vertex credential only as an inline service-account document.
+
+    LiteLLM opens a string that names an existing file, and google-auth follows the other
+    credential types (external accounts, credential sources) to URLs, files or programs.
+    Dropping the value is not an option either: LiteLLM would then use the server's own
+    Google identity.
+    """
+    for key in _VERTEX_CREDENTIAL_KEYS:
+        if key not in extras or extras[key] in (None, ""):
+            continue
+        value = extras[key]
+        document = value
+        if isinstance(value, str):
+            try:
+                document = json.loads(value)
+            except ValueError:
+                document = None
+        if not (
+            isinstance(document, dict)
+            and document.get("type") == "service_account"
+            and "credential_source" not in document
+        ):
+            raise InvalidConfigurationParameterV0Error(
+                path=key,
+                expected="a service-account JSON document",
+                got="another credential format",
+            )
 
 
 def _safe_api_base(url: Optional[str]) -> Optional[str]:
@@ -153,30 +188,6 @@ class SecretsManager:
         secrets = standard_secrets + custom_secrets
 
         return secrets
-
-    @staticmethod
-    def _custom_provider_get_value(
-        *, model: str, secrets: list[dict], key: str, from_provider: bool = True
-    ):
-        for secret in secrets:
-            models = secret.get("data", {}).get("models") or []
-            if model in models:
-                if from_provider:
-                    return secret.get("data", {}).get("provider", {}).get(key)
-                return secret.get("data", {}).get(key)
-        return None
-
-    @staticmethod
-    def _custom_providers_get(*, model: str, secrets: list[dict]):
-        return SecretsManager._custom_provider_get_value(
-            model=model, secrets=secrets, key="kind", from_provider=True
-        )
-
-    @staticmethod
-    def _custom_provider_slug_get(*, model: str, secrets: list[dict]):
-        return SecretsManager._custom_provider_get_value(
-            model=model, secrets=secrets, key="provider_slug", from_provider=False
-        )
 
     @staticmethod
     def _get_compatible_model(*, model: str, provider_slug: str):
@@ -323,6 +334,15 @@ class SecretsManager:
                 api_key=provider_info["key"],
             )
 
+        return SecretsManager._settings_for_custom_record(record=record, model=model)
+
+    @staticmethod
+    def _settings_for_custom_record(
+        *, record: Dict[str, Any], model: str
+    ) -> Optional[Dict]:
+        data = record.get("data", {})
+        provider_info = data.get("provider", {})
+
         # A custom connection's model string encodes its namespace
         # (`provider_slug/kind/model`), so the slug and the model have to agree or the litellm
         # rewrite below produces nonsense. They disagree after the connection is renamed, which
@@ -339,10 +359,30 @@ class SecretsManager:
         )
         extras = provider_info.get("extras", {})
         if extras:
+            _check_vertex_credentials(extras)
             provider_settings.update(extras)
 
         if len(provider_settings.keys()) <= 1:
             return None
+
+        # These providers use structured cloud credentials rather than an API key.
+        # API-key endpoints must not let LiteLLM fall back to process credentials.
+        family = provider_info.get("kind") or data.get("kind")
+        routed_family = str(provider_settings.get("model", "")).split("/", 1)[0]
+        explicit_family = provider_settings.get("custom_llm_provider") or routed_family
+        structured_credentials = (
+            family in {"bedrock", "sagemaker", "vertex_ai"}
+            and routed_family == family
+            and explicit_family == family
+        )
+        if not structured_credentials:
+            key = provider_settings.get("api_key")
+            if not isinstance(key, str) or not key.strip():
+                raise InvalidConfigurationParameterV0Error(
+                    path="connection.provider.extras.api_key",
+                    expected="an explicit API key for the custom provider",
+                    got="missing or empty key",
+                )
 
         return provider_settings
 
@@ -375,48 +415,32 @@ class SecretsManager:
     def _settings_by_family(
         *, secrets: List[Dict[str, Any]], model: str
     ) -> Optional[Dict]:
+        # A custom model selects one complete connection. Never combine its endpoint
+        # with a standard provider record, including an environment-backed record.
+        custom = next(
+            (
+                secret
+                for secret in secrets
+                if secret.get("kind") == "custom_provider"
+                and model in (secret.get("data", {}).get("models") or [])
+            ),
+            None,
+        )
+        if custom is not None:
+            return SecretsManager._settings_for_custom_record(
+                record=custom, model=model
+            )
+
         request_provider_model = model
-
-        # STEP 1: check model exists in supported standard models
-        standard_family = _standard_providers.get(request_provider_model)
-        provider = standard_family
-        if not provider:
-            # check and get provider kind if model exists in custom provider models
-            provider = SecretsManager._custom_providers_get(
-                model=request_provider_model,
-                secrets=secrets,
-            )
-
-        # STEP 1b: return None in the case provider is None
-        if not provider:
+        standard_family = _standard_providers.get(model)
+        if not standard_family:
             return None
-
-        # STEP 1c: get litellm compatible model
-        request_provider_slug = (
-            SecretsManager._custom_provider_slug_get(
-                model=request_provider_model, secrets=secrets
-            )
-            or ""
-        )
-        compatible_provider_model = SecretsManager._get_compatible_model(
-            model=request_provider_model, provider_slug=request_provider_slug
-        )
-
-        # STEP 2: initialize provider settings and simplify provider name.
-        # A model that resolved through the catalog is a standard provider's, so it goes to
-        # litellm with its family prefix. A model that resolved through a custom connection is
-        # exempt: `standard_family` is None for it, and `_get_compatible_model` above has
-        # already put its model string in the form litellm wants.
+        request_provider_kind = SecretsManager._normalize_provider_kind(standard_family)
         provider_settings = dict(
-            model=SecretsManager._litellm_model(
-                model=compatible_provider_model, family=standard_family
-            )
-            if standard_family
-            else compatible_provider_model
+            model=SecretsManager._litellm_model(model=model, family=standard_family)
         )
-        request_provider_kind = SecretsManager._normalize_provider_kind(provider)
 
-        # STEP 3a: standard credentials (openai/anthropic/gemini, ...). A connection that saved
+        # Standard credentials (openai/anthropic/gemini, ...). A connection that saved
         # the requested model wins over a bare family match; ties fall back to the first record.
         family_records = [
             secret
@@ -449,28 +473,6 @@ class SecretsManager:
             provider_info = chosen.get("data", {}).get("provider", {})
             if "key" in provider_info:
                 provider_settings["api_key"] = provider_info["key"]
-
-        # STEP 3b: custom provider credentials (aws bedrock/sagemaker, vertex_ai, ...)
-        for secret in secrets:
-            if secret.get("kind") != "custom_provider":
-                continue
-
-            secret_data = secret.get("data", {})
-            provider_info = secret_data.get("provider", {})
-            secret_provider_kind = (
-                provider_info.get("kind", "").lower().replace(" ", "")
-            )
-            secret_provider_slug = secret_data.get("provider_slug", "")
-            secret_provider_models = secret_data.get("models", "")
-            secret_provider_extras = provider_info.get("extras", {})
-
-            if (
-                request_provider_kind == secret_provider_kind
-                and request_provider_slug == secret_provider_slug
-                and request_provider_model in secret_provider_models
-            ):
-                if secret_provider_extras:
-                    provider_settings.update(secret_provider_extras)
 
         if len(provider_settings.keys()) <= 1:
             return None

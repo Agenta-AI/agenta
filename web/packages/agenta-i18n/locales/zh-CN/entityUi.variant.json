@@ -1,0 +1,8 @@
+{
+    "draftDiscarded": "已放弃草稿更改",
+    "discardFailed": "放弃草稿更改失败",
+    "noDeployment": "未部署",
+    "discardDraft": "放弃草稿更改",
+    "lastModified": "最近修改",
+    "deployedTo": "已部署到 {{name}}"
+}

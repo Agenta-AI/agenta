@@ -1,0 +1,22 @@
+{
+    "label": "Compte",
+    "eachPersonSignIn": "La connexion propre à chaque personne",
+    "projectSignIn": "La connexion du projet",
+    "connectAnother": "Connecter un autre compte {{name}}",
+    "signOut": "Se déconnecter",
+    "signInExpired": "Quand vous l’exécutez : votre connexion a expiré",
+    "tokenPlaceholder": "Votre jeton",
+    "saveToken": "Enregistrer",
+    "choiceFailed": "Impossible d’enregistrer votre choix. Réessayez.",
+    "createNewSecret": "Créer un nouveau secret",
+    "addOne": "En ajouter un",
+    "addAnotherSecret": "Ajouter un autre secret",
+    "addYourSecret": "Ajoutez votre secret",
+    "whoCanUseIt": "Qui peut l’utiliser",
+    "onlyMe": "Moi uniquement",
+    "onlyMeSecretNote": "Vous le choisissez quand un agent demande votre propre valeur.",
+    "everyoneInProject": "Tout le monde dans {{project}}",
+    "everyoneInThisProject": "Tout le monde dans ce projet",
+    "everyoneSecretNote": "Les créateurs peuvent l’associer aux agents de ce projet.",
+    "userSecretRow": "Le secret propre à chaque personne"
+}

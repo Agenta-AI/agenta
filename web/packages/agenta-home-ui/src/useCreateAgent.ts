@@ -1,5 +1,6 @@
 import {useCallback} from "react"
 
+import type {Visibility} from "@agenta/entities/sharing"
 import {
     createEphemeralAppFromTemplate,
     createWorkflowFromEphemeralAtom,
@@ -9,6 +10,8 @@ import {
     type AgentStarterTemplate,
     type AgentTemplateSource,
 } from "@agenta/entities/workflow"
+import {createT} from "@agenta/i18n"
+import createAgentCatalog from "@agenta/i18n/catalogs/home.createAgent"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {useSetAtom} from "jotai"
 
@@ -40,8 +43,10 @@ export interface CreateAgentParams {
     stagingSessionId?: string
     attachmentIds?: string[]
     initialMessage?: string
-    /** Account choices made in the starter setup step. */
+    /** Ignored: web/oss still passes it. Connection choices come from the project's live connections. */
     setup?: AgentSetupSelection
+    /** Who sees the new agent. Omitted, the server keeps its default. */
+    visibility?: Visibility
 }
 
 export interface UseCreateAgentOptions {
@@ -64,6 +69,8 @@ export interface UseCreateAgentOptions {
  */
 let creating = false
 
+const tNow = createT(createAgentCatalog)
+
 export const useCreateAgent = ({onError}: UseCreateAgentOptions = {}) => {
     const commitFromEphemeral = useSetAtom(createWorkflowFromEphemeralAtom)
     const loadTemplateFromEphemeral = useSetAtom(loadAgentTemplateFromEphemeralAtom)
@@ -77,7 +84,7 @@ export const useCreateAgent = ({onError}: UseCreateAgentOptions = {}) => {
             initialMessage,
             stagingSessionId,
             attachmentIds,
-            setup,
+            visibility,
         }: CreateAgentParams = {}): Promise<CreatedAgent | null> => {
             if (creating) return null
             creating = true
@@ -90,7 +97,7 @@ export const useCreateAgent = ({onError}: UseCreateAgentOptions = {}) => {
                         defaultName: agentName,
                     }))
                 if (!ephemeralId) {
-                    onError?.("Couldn't start agent creation — please retry")
+                    onError?.(tNow("home.createAgent.startFailed"))
                     return null
                 }
 
@@ -102,7 +109,7 @@ export const useCreateAgent = ({onError}: UseCreateAgentOptions = {}) => {
                         initialMessage,
                         stagingSessionId,
                         attachmentIds,
-                        setup,
+                        visibility,
                     })
                     return {
                         appId: result.workflow_id,
@@ -126,6 +133,7 @@ export const useCreateAgent = ({onError}: UseCreateAgentOptions = {}) => {
                     revisionId: ephemeralId,
                     name: agentName,
                     slug,
+                    visibility,
                 })
                 if (!result.success) {
                     onError?.(extractApiErrorMessage(result.error))
@@ -135,7 +143,7 @@ export const useCreateAgent = ({onError}: UseCreateAgentOptions = {}) => {
                 const appId = result.workflow?.workflow_id ?? result.workflow?.id
                 const revisionId = result.newRevisionId
                 if (!appId || !revisionId) {
-                    onError?.("Agent created, but couldn't open it — find it under Agents")
+                    onError?.(tNow("home.createAgent.openFailed"))
                     return null
                 }
 

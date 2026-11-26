@@ -1,4 +1,5 @@
 export {ChannelsPage, type ChannelsPageProps, type ChannelsPanelRenderProps} from "./ChannelsPage"
+export {AgentChannelsView, type AgentChannelsViewProps} from "./AgentChannelsView"
 export {
     useChannelPanel,
     type ChannelsRoute,
@@ -30,6 +31,8 @@ export {
     summarizeConnection,
     type ChannelRowSummary,
 } from "./helpers"
+export {channelSharingCopy} from "./sharingCopy"
+export {ChannelAgentPicker, type ChannelAgentPickerProps} from "./ChannelAgentPicker"
 export {
     buildAgentChannelsActions,
     channelKey,
@@ -51,6 +54,10 @@ export type {
     ChannelChatType,
     ChannelBehavior,
     ChannelBehaviorState,
+    ChannelAudiencePerson,
+    ChannelPerson,
+    ChannelPeopleDirectory,
+    ChannelPeopleResult,
     ChannelChat,
     ChannelSpace,
     ChannelSpaceCandidate,

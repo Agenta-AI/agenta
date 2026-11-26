@@ -2,6 +2,7 @@ import json
 from typing import (
     Tuple,
     Any,
+    Awaitable,
     Callable,
     Dict,
     Optional,
@@ -28,6 +29,7 @@ from oss.src.utils.exceptions import suppress_exceptions
 
 from oss.src.core.shared.dtos import Windowing
 from oss.src.core.tracing.interfaces import TracingDAOInterface
+from oss.src.core.tracing.utils.trees import trace_root_usage
 from oss.src.core.tracing.dtos import (
     OTelLink,
     OTelFlatSpan,
@@ -40,6 +42,7 @@ from oss.src.core.tracing.dtos import (
     Condition,
     ListOperator,
     AnalyticsQueryTimeoutError,
+    TraceType,
 )
 
 from oss.src.dbs.postgres.shared.utils import apply_windowing
@@ -993,11 +996,15 @@ class TracingDAO(TracingDAOInterface):
         #
         recompute: Callable[[List[OTelFlatSpan]], Dict[str, Dict[str, Any]]],
         max_spans: int,
+        on_root_usage: Optional[Callable[..., Awaitable[object]]] = None,
     ) -> Optional[int]:
         """Rewrite the cumulative metrics of one trace from all its stored spans.
 
         Returns the number of cumulative values written, or None when the trace has more
-        than `max_spans` spans and is skipped.
+        than `max_spans` spans and is skipped. `on_root_usage` gets the root's usage (keyword `usage`)
+        after the roll-up, when the trace has one. It runs before the commit, under the
+        trace's lock, so two recomputes of one trace hand on their usage in order, and
+        its failure rolls the recompute back.
         """
         async with self.engine.session() as session:
             # Serializes recomputes of one trace, so an older read never lands last.
@@ -1073,6 +1080,11 @@ class TracingDAO(TracingDAOInterface):
 
             if params:
                 await session.execute(UPDATE_CUMULATIVE_METRIC_STMT, params)
+
+            if on_root_usage is not None:
+                root_usage = trace_root_usage(span_dtos)
+                if root_usage is not None:
+                    await on_root_usage(usage=root_usage)
 
             await session.commit()
 
@@ -1152,9 +1164,10 @@ class TracingDAO(TracingDAOInterface):
 
             # BASE QUERY: Use DISTINCT ON pattern (like query() does for traces)
             # DISTINCT ON picks one row per identifier based on ORDER BY
-            # TODO(WP0.7, deferred): SpanDBE.session_id/user_id are now indexed
-            # root-only columns (see migration oss000000003) — this JSONB path
-            # scan can become a column scan. Left as-is; not blocking.
+            # TODO(WP0.7, deferred): SpanDBE.session_id and turn_id are indexed
+            # columns set on every span, and user_id and agent_id are indexed
+            # root-only columns. This JSONB path scan can become a column scan.
+            # Left as-is; not blocking.
             id_column = SpanDBE.attributes["ag"][group]["id"].as_string()
             base = (
                 select(
@@ -1164,6 +1177,10 @@ class TracingDAO(TracingDAOInterface):
                 .distinct(id_column)
                 .filter(SpanDBE.project_id == project_id)
                 .filter(SpanDBE.attributes["ag"][group].has_key("id"))
+                # An annotation copies `ag.session.id` from the span it annotates.
+                # Count only the traced runs as activity, so a new annotation does
+                # not move an old session into a recent window.
+                .filter(SpanDBE.trace_type.is_distinct_from(TraceType.ANNOTATION))
             )
 
             # Apply time-range filters on base query (before deduplication)

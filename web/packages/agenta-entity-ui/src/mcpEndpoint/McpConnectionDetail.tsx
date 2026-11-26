@@ -25,6 +25,9 @@ import {
     type MCPEndpoint,
     type McpToolSummary,
 } from "@agenta/entities/mcpEndpoint"
+import {createT, useT} from "@agenta/i18n"
+import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
+import mcpDetailCatalog from "@agenta/i18n/catalogs/entityUi.mcpDetail"
 import {projectIdAtom} from "@agenta/shared/state"
 import {EnhancedModal, ModalContent} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
@@ -53,13 +56,15 @@ export interface McpConnectionDetailProps {
 }
 
 /** An OAuth connection whose sign-in could not be renewed, in place of the gateway's words. */
-const SIGN_IN_AGAIN = "Sign in again to keep using this connection."
+// Toasts fire from the rename handler, outside render.
+const tNow = createT(mcpDetailCatalog)
 
 type ToolsState =
     | {status: "idle"}
     | {status: "loading"}
     | {status: "ready"; tools: McpToolSummary[]}
-    | {status: "failed"; error: string}
+    /** `error` is the server's own message, or null; `signInLost` picks the sign-in sentence. */
+    | {status: "failed"; error: string | null; signInLost: boolean}
 
 export default function McpConnectionDetail({
     endpoint,
@@ -71,6 +76,7 @@ export default function McpConnectionDetail({
     readOnly = false,
     canListTools = true,
 }: McpConnectionDetailProps) {
+    const t = useT(mcpDetailCatalog, mcpConnectCatalog)
     const projectId = useAtomValue(projectIdAtom) ?? undefined
     const [name, setName] = useState("")
     const [saving, setSaving] = useState(false)
@@ -115,9 +121,8 @@ export default function McpConnectionDetail({
             if (signInLost) onChanged?.()
             setTools({
                 status: "failed",
-                error: signInLost
-                    ? SIGN_IN_AGAIN
-                    : (error as Error)?.message || "The tool list could not be read.",
+                error: (error as Error)?.message || null,
+                signInLost,
             })
         }
     }, [canListTools, endpoint?.slug, isReady, onChanged, projectId])
@@ -151,10 +156,10 @@ export default function McpConnectionDetail({
                 },
                 projectId,
             )
-            message.success("Connection renamed.")
+            message.success(tNow("entityUi.mcpDetail.connectionRenamed"))
             onChanged?.()
         } catch (error) {
-            message.error((error as Error)?.message || "The connection could not be renamed.")
+            message.error((error as Error)?.message || tNow("entityUi.mcpDetail.couldNotRename"))
         } finally {
             setSaving(false)
         }
@@ -166,7 +171,7 @@ export default function McpConnectionDetail({
         <div className="flex w-full flex-wrap items-center gap-2">
             {readOnly ? null : (
                 <Button variant="outline" onClick={() => onReconnect(endpoint)}>
-                    {isReady ? "Reconnect" : "Connect"}
+                    {isReady ? t("entityUi.mcpDetail.reconnect") : t("entityUi.mcpDetail.connect")}
                 </Button>
             )}
             {/* Only an OAuth connection holds a grant to revoke; the route refuses anything else. */}
@@ -176,16 +181,16 @@ export default function McpConnectionDetail({
                     className="text-colorError"
                     onClick={() => onDisconnect(endpoint)}
                 >
-                    Disconnect
+                    {t("entityUi.mcpDetail.disconnect")}
                 </Button>
             ) : null}
             <div className="ml-auto flex items-center gap-2">
                 <Button variant="outline" onClick={onClose}>
-                    Close
+                    {t("entityUi.mcpDetail.close")}
                 </Button>
                 {readOnly ? null : (
                     <Button onClick={rename} disabled={saving || !!nameProblem || unchanged}>
-                        Save
+                        {t("entityUi.mcpDetail.save")}
                     </Button>
                 )}
             </div>
@@ -196,7 +201,7 @@ export default function McpConnectionDetail({
         <EnhancedModal
             open={!!endpoint}
             onCancel={onClose}
-            title={endpoint?.name || endpoint?.slug || "Connection"}
+            title={endpoint?.name || endpoint?.slug || t("entityUi.mcpDetail.connection")}
             footer={footer}
             width={520}
             destroyOnClose
@@ -214,7 +219,7 @@ export default function McpConnectionDetail({
                                 ·
                             </span>
                             <span
-                                className="truncate font-mono text-xs text-colorTextDescription"
+                                className="truncate text-xs text-colorTextDescription"
                                 title={endpoint.data.route.base_url ?? undefined}
                             >
                                 {endpoint.data.route.base_url}
@@ -222,14 +227,14 @@ export default function McpConnectionDetail({
                         </div>
 
                         <Field
-                            label="Name"
+                            label={t("entityUi.mcpDetail.name")}
                             error={nameProblem ?? undefined}
                             // Said out loud: renaming something an agent uses invites the opposite assumption.
-                            description="Agents keep using this connection under its existing reference, so renaming it does not change any agent."
+                            description={t("entityUi.mcpDetail.renameNote")}
                         >
                             <Input
                                 value={name}
-                                aria-label="Connection name"
+                                aria-label={t("entityUi.mcpDetail.connectionName")}
                                 readOnly={readOnly}
                                 onChange={(event) => setName(event.target.value)}
                                 onKeyDown={(event) => {
@@ -240,9 +245,11 @@ export default function McpConnectionDetail({
                         </Field>
 
                         <div className="flex items-center gap-2 text-sm">
-                            <span className="font-medium text-colorText">Authentication</span>
+                            <span className="font-medium text-colorText">
+                                {t("entityUi.mcpDetail.authentication")}
+                            </span>
                             <span className="text-colorTextSecondary">
-                                {MCP_AUTH_MODE_LABEL[endpoint.auth_mode]}
+                                {t(MCP_AUTH_MODE_LABEL[endpoint.auth_mode])}
                             </span>
                             {readOnly ? null : (
                                 <Button
@@ -251,7 +258,7 @@ export default function McpConnectionDetail({
                                     className={cn("ml-auto px-0 text-xs", touchTargetExpansion(24))}
                                     onClick={() => onReconnect(endpoint)}
                                 >
-                                    Change
+                                    {t("entityUi.mcpDetail.change")}
                                 </Button>
                             )}
                         </div>
@@ -260,11 +267,10 @@ export default function McpConnectionDetail({
                             <section className="flex flex-col gap-2">
                                 <div className="flex flex-col gap-0.5">
                                     <h4 className="m-0 text-sm font-medium text-colorText">
-                                        Tools
+                                        {t("entityUi.mcpDetail.tools")}
                                     </h4>
                                     <p className="m-0 text-xs text-colorTextDescription">
-                                        Choose what this server may do in an agent&apos;s
-                                        configuration.
+                                        {t("entityUi.mcpDetail.toolsHint")}
                                     </p>
                                 </div>
                                 <ToolFilterInput
@@ -301,17 +307,20 @@ const ToolList = ({
     onRetry: () => void
     filter: string
 }) => {
+    const t = useT(mcpDetailCatalog)
     if (!isReady) {
         return (
             <p className="m-0 text-sm text-colorTextDescription">
-                {signInExpired ? SIGN_IN_AGAIN : "Connect this server to see the tools it exposes."}
+                {signInExpired
+                    ? t("entityUi.mcpDetail.signInAgain")
+                    : t("entityUi.mcpDetail.connectToSeeTools")}
             </p>
         )
     }
     if (state.status === "loading") {
         return (
             <p className="m-0 text-sm text-colorTextDescription" role="status">
-                Reading the tool list…
+                {t("entityUi.mcpDetail.readingToolList")}
             </p>
         )
     }
@@ -321,12 +330,16 @@ const ToolList = ({
         return (
             <ToolsEmpty
                 icon={<WarningCircle size={18} />}
-                title="Couldn't read this server's tools"
-                description={state.error}
+                title={t("entityUi.mcpDetail.couldNotReadTools")}
+                description={
+                    state.signInLost
+                        ? t("entityUi.mcpDetail.signInAgain")
+                        : (state.error ?? t("entityUi.mcpDetail.toolListUnreadable"))
+                }
                 action={
                     <Button variant="outline" onClick={onRetry}>
                         <ArrowClockwise size={14} />
-                        Retry tools
+                        {t("entityUi.mcpDetail.retryTools")}
                     </Button>
                 }
             />
@@ -337,8 +350,8 @@ const ToolList = ({
         return (
             <ToolsEmpty
                 icon={<Wrench size={18} />}
-                title="No tools yet"
-                description="This server exposes no tools yet."
+                title={t("entityUi.mcpDetail.noToolsYet")}
+                description={t("entityUi.mcpDetail.noToolsYetBody")}
             />
         )
     }
@@ -348,7 +361,11 @@ const ToolList = ({
     if (shown.length === 0) {
         // The server has tools; this query does not name any of them. Said as such, so nobody
         // reads a filter's own emptiness as a server that stopped advertising.
-        return <p className="m-0 text-sm text-colorTextDescription">No tool here matches that.</p>
+        return (
+            <p className="m-0 text-sm text-colorTextDescription">
+                {t("entityUi.mcpDetail.noToolMatches")}
+            </p>
+        )
     }
 
     return (

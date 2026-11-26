@@ -68,7 +68,7 @@ const SECRETS = [
 
 const fixture = (rows: Row[]): AgentaDataParameters => ({
     queries: (scope) => [
-        [["mcp-endpoints", scope.projectId], rows],
+        [["mcp-endpoints", undefined, scope.projectId], rows],
         // `userAtom` is unseeded here, so the vault key carries an undefined user id.
         [["vault", "secrets", undefined, scope.projectId], SECRETS],
     ],
@@ -183,6 +183,32 @@ export const Empty: Story = {
 /** Three skeleton rows rather than a collapsed page. */
 export const Loading: Story = {
     parameters: {agenta: loadingFixture},
+}
+
+/**
+ * Personal accounts on: "Yours" lists the person's own sign-ins to the project's servers (a
+ * server that needs none is left out), then the project's table under its heading.
+ */
+export const WithYourSignIns: Story = {
+    args: {projectSwitch: "Support"},
+    parameters: {
+        agenta: {
+            queries: (scope) => [
+                [
+                    ["mcp-endpoints", undefined, scope.projectId],
+                    [
+                        {...LINEAR, user_sign_in: {is_ready: true}},
+                        {...AXIOM, user_sign_in: null},
+                        {...OCTOLENS, user_sign_in: null},
+                        MEMORY,
+                    ],
+                ],
+                [["vault", "secrets", undefined, scope.projectId], SECRETS],
+                // The personal-accounts read answering: the switch is on.
+                [["vault", "personal-secrets", undefined, scope.projectId], []],
+            ],
+        } satisfies AgentaDataParameters,
+    },
 }
 
 /** A viewer with no write access: the list, and nothing that changes it. */

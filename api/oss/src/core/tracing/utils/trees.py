@@ -3,7 +3,7 @@ from collections import OrderedDict
 from typing import Any, Dict, List, Optional
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.core.shared.dtos import Trace, Traces
+from oss.src.core.shared.dtos import RunUsage, Trace, Traces
 from oss.src.core.tracing.dtos import (
     OTelFlatSpan,
     OTelSpan,
@@ -122,6 +122,29 @@ def recompute_cumulative_metrics(
     return changes
 
 
+def trace_root_usage(span_dtos: List[OTelFlatSpan]) -> Optional[RunUsage]:
+    """The cumulative tokens and cost of the trace's one root span, after the roll-up.
+    None when the trace has no single root or the root carries no usage."""
+
+    roots = [span for span in span_dtos if span.parent_id is None]
+    if len(roots) != 1:
+        return None
+    tokens = _read_breakdown(roots[0], "tokens", "cumulative")
+    costs = _read_breakdown(roots[0], "costs", "cumulative")
+    if not tokens and not costs:
+        return None
+
+    def _int(value) -> Optional[int]:
+        return int(value) if value is not None else None
+
+    return RunUsage(
+        input_tokens=_int(tokens.get("prompt")),
+        output_tokens=_int(tokens.get("completion")),
+        total_tokens=_int(tokens.get("total")),
+        cost=costs.get("total"),
+    )
+
+
 def calculate_and_propagate_metrics_by_trace(
     span_dtos: List[OTelFlatSpan],
 ) -> List[OTelFlatSpan]:
@@ -203,28 +226,34 @@ def promote_identity_by_trace(
     span_dtos: List[OTelFlatSpan],
 ) -> List[OTelFlatSpan]:
     """
-    Lift session/user/agent identity from the root span's attributes onto its
-    own session_id/user_id/agent_id columns.
+    Lift identity from span attributes onto the identity columns.
 
-    Root-only: ingestion is span-by-span / partial-batch, so there is no cheap
-    way to propagate identity from a root to children arriving in a different
-    request. Children are left untouched (nullable columns).
+    session_id and turn_id come from each span's own ag.session.id and
+    ag.turn.id, on every span, so a child never needs its root.
+
+    user_id and agent_id stay root-only: ingestion is span-by-span /
+    partial-batch, so there is no cheap way to propagate identity from a root
+    to children arriving in a different request.
     """
     if not span_dtos:
         return span_dtos
 
     for span_dto in span_dtos:
-        if span_dto.parent_id is not None:
-            continue
-
         attributes = span_dto.attributes or {}
         ag = attributes.get("ag") or {}
 
         session = ag.get("session") or {}
+        turn = ag.get("turn") or {}
+
+        span_dto.session_id = session.get("id") if isinstance(session, dict) else None
+        span_dto.turn_id = turn.get("id") if isinstance(turn, dict) else None
+
+        if span_dto.parent_id is not None:
+            continue
+
         user = ag.get("user") or {}
         agent = ag.get("agent") or {}
 
-        span_dto.session_id = session.get("id") if isinstance(session, dict) else None
         span_dto.user_id = user.get("id") if isinstance(user, dict) else None
         span_dto.agent_id = agent.get("id") if isinstance(agent, dict) else None
 

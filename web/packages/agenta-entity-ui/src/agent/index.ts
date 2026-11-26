@@ -62,11 +62,17 @@ export {
     type AgentNameSize,
 } from "./AgentNameInline"
 export {AgentIconPopover} from "./AgentIconPopover"
-export {AgentIdentity, type AgentIdentityProps, type AgentIdentitySize} from "./AgentIdentity"
+export {
+    AgentIdentity,
+    AgentKindBadge,
+    type AgentIdentityProps,
+    type AgentIdentitySize,
+} from "./AgentIdentity"
 export {AGENT_CHIP_BOX, AGENT_CHIP_FALLBACK, AGENT_FOCUS_RING} from "./chrome"
 export {
     useAgentActions,
     useRenameAgent,
+    useRestoreWorkflow,
     useUpdateAgentDescription,
     type AgentActionTarget,
 } from "./useAgentActions"

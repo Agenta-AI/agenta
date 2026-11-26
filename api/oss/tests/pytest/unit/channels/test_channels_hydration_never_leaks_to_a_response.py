@@ -80,7 +80,7 @@ class _FakeAdapter(ChannelAdapterInterface):
     async def verify_connection(self, *, connection, credentials):
         return {"team_id": "T1", "api_app_id": "A1"}
 
-    async def build_setup_document(self, *, request_url, locator=None):
+    async def build_setup_document(self, *, request_url, identity=None, locator=None):
         return None
 
 
@@ -181,7 +181,12 @@ class _FakeConnectionsDAO:
         self._store[updated.id] = updated
         return updated
 
-    async def unarchive_connection(self, *, project_id, user_id, connection_id):
+    async def query_agents(self, **kwargs):
+        return []
+
+    async def unarchive_connection(
+        self, *, project_id, user_id, connection_id, **_guard
+    ):
         existing = self._store.get(connection_id)
         if existing is None:
             return None

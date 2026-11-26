@@ -1,5 +1,7 @@
 import {useEffect, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Button} from "@agenta/ui/ui"
 import {Check, Copy} from "@phosphor-icons/react"
 
@@ -13,6 +15,8 @@ export interface CodeBlockProps {
     maxHeightClass?: string
     /** More header actions, shown before Copy. */
     actions?: ReactNode
+    /** Runs when the browser refuses the copy. Without it the code just stays on screen. */
+    onCopyError?: () => void
     "data-testid"?: string
 }
 
@@ -23,8 +27,10 @@ export const CodeBlock = ({
     wrap = false,
     maxHeightClass = "max-h-64",
     actions,
+    onCopyError,
     "data-testid": testId,
 }: CodeBlockProps) => {
+    const t = useT(commonCatalog)
     const [copied, setCopied] = useState(false)
 
     useEffect(() => {
@@ -38,7 +44,8 @@ export const CodeBlock = ({
             await navigator.clipboard.writeText(code)
             setCopied(true)
         } catch {
-            /* the code stays on screen to select by hand */
+            // The code stays on screen to select by hand.
+            onCopyError?.()
         }
     }
 
@@ -54,7 +61,7 @@ export const CodeBlock = ({
                         ) : (
                             <Copy data-icon="inline-start" />
                         )}
-                        {copied ? "Copied" : "Copy"}
+                        {copied ? t("common.copied") : t("common.copy")}
                     </Button>
                 </div>
             </div>

@@ -5,16 +5,50 @@
  * so both offer the same four policies under the same names — the palette is a shortcut to the
  * drawer's control, not a second opinion about what the policies are.
  */
-import {permissionPolicyOptionsForEnum, type PermissionPolicyOption} from "@agenta/shared/utils"
-
-export {
-    DEFAULT_PERMISSION_POLICY,
-    PERMISSION_POLICY_OPTIONS,
+import {createT, type CatalogKey} from "@agenta/i18n"
+import permissionPolicyCatalog from "@agenta/i18n/catalogs/shared.permissionPolicy"
+import {
     isPermissionPolicy,
-    permissionPolicyLabel,
-    permissionPolicyOptionsForEnum,
+    permissionPolicyOptionsForEnum as englishOptionsForEnum,
+    type PermissionPolicy,
+    type PermissionPolicyOption,
 } from "@agenta/shared/utils"
+
+export {DEFAULT_PERMISSION_POLICY, PERMISSION_POLICY_OPTIONS} from "@agenta/shared/utils"
+export {isPermissionPolicy}
 export type {PermissionPolicy, PermissionPolicyOption} from "@agenta/shared/utils"
+
+const tNow = createT(permissionPolicyCatalog)
+type PolicyKey = CatalogKey<typeof permissionPolicyCatalog>
+
+/** Display text per stored value. The stored value itself is never translated. */
+const POLICY_TEXT: Record<PermissionPolicy, {label: PolicyKey; help: PolicyKey}> = {
+    allow_reads: {
+        label: "shared.permissionPolicy.allowReads",
+        help: "shared.permissionPolicy.allowReadsHelp",
+    },
+    allow: {
+        label: "shared.permissionPolicy.allowAll",
+        help: "shared.permissionPolicy.allowAllHelp",
+    },
+    ask: {label: "shared.permissionPolicy.ask", help: "shared.permissionPolicy.askHelp"},
+    deny: {label: "shared.permissionPolicy.denyAll", help: "shared.permissionPolicy.denyAllHelp"},
+}
+
+const translated = (option: PermissionPolicyOption): PermissionPolicyOption => ({
+    value: option.value,
+    label: tNow(POLICY_TEXT[option.value].label),
+    help: tNow(POLICY_TEXT[option.value].help),
+})
+
+/** What a human calls a policy value, in the active language. */
+export const permissionPolicyLabel = (value: string | null | undefined): string | undefined => {
+    return isPermissionPolicy(value) ? tNow(POLICY_TEXT[value].label) : undefined
+}
+
+/** The options a schema `enum` permits, or all of them when it names none, in the active language. */
+export const permissionPolicyOptionsForEnum = (values: unknown): PermissionPolicyOption[] =>
+    englishOptionsForEnum(values).map(translated)
 
 const asRecord = (value: unknown): Record<string, unknown> | null =>
     value && typeof value === "object" && !Array.isArray(value)

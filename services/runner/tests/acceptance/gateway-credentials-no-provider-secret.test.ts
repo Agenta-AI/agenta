@@ -74,10 +74,19 @@ describe("gateway route -> no provider secret in the sandbox (local and Daytona 
     assert.equal(text.includes("$AGENTA_GATEWAY_CREDENTIALS_VALUE"), true);
   });
 
-  it("daytona: the secret plan for a gateway connection hides nothing, because there is nothing left to hide", () => {
+  it("daytona: the secret plan for a gateway connection hides only the gateway credential, restricted to the gateway host", () => {
     const plan = buildDaytonaSecretPlan({ modelConnection: GOLDEN });
-    assert.deepEqual(plan.candidates, []);
     assert.deepEqual(plan.environment, {});
+    assert.deepEqual(plan.candidates, [
+      {
+        ordinal: 0,
+        consumer: { kind: "gateway" },
+        binding: { kind: "header", name: GOLDEN.gatewayCredentials!.header },
+        allowedHost: new URL(GOLDEN.endpoint!.baseUrl!).hostname,
+        value: GATEWAY_VALUE,
+      },
+    ]);
+    assertNoProviderSecret(JSON.stringify(plan));
   });
 
   it("across every harness, the ONLY credential value ever set is our own gateway credential", () => {

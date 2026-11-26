@@ -1,12 +1,23 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
-import {mediaViewerAtom, useRemoteObjectUrl, type MediaViewerItem} from "@agenta/entity-ui/drive"
+import {
+    DriveFileGlyph,
+    mediaViewerAtom,
+    useRemoteObjectUrl,
+    type MediaViewerItem,
+} from "@agenta/entity-ui/drive"
+import {useT} from "@agenta/i18n"
+import chatAttachmentStripCatalog from "@agenta/i18n/catalogs/chat.attachmentStrip"
 import {useInView} from "@agenta/shared/hooks"
+import {cn} from "@agenta/ui/ui"
 import {ImageBroken, Pause, Play} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
-import {typeBadgeFor} from "../assets/attachmentRules"
-
+import {
+    ATTACHMENT_TILE,
+    ATTACHMENT_TILE_FACE,
+    AttachmentTileName as TileName,
+} from "./attachmentTile"
 import {useAudioPlayback} from "./useAudioPlayback"
 
 /** One file on a sent message. `src` is already resolved; the strip never fetches it itself. */
@@ -26,20 +37,13 @@ export interface AttachmentStripProps {
 }
 
 /** One square for every kind, so a mixed batch reads as one row; a step down on a phone. */
-const TILE =
-    "relative box-border size-16 shrink-0 overflow-hidden rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary sm:size-[72px]"
+const TILE = `${ATTACHMENT_TILE} sm:size-24`
 
 /** The whole tile, as the control that opens the viewer. A sibling of any inner control. */
-const OPEN_BUTTON =
-    "absolute inset-0 flex cursor-pointer flex-col items-center justify-center gap-1 border-0 bg-transparent p-1.5 text-colorTextSecondary disabled:cursor-default"
-
-const TileName = ({name}: {name: string}) => (
-    <span className="line-clamp-2 w-full break-all text-center text-[10px] leading-3 text-colorTextSecondary">
-        {name}
-    </span>
-)
+const OPEN_BUTTON = `${ATTACHMENT_TILE_FACE} cursor-pointer disabled:cursor-default`
 
 const ImageTile = ({file, onOpen}: {file: AttachmentStripFile; onOpen?: () => void}) => {
+    const t = useT(chatAttachmentStripCatalog)
     // Keyed by source, so a fresh URL gets a fresh attempt without an effect racing its load event.
     const [settled, setSettled] = useState<{src: string; ok: boolean} | null>(null)
     const state =
@@ -47,20 +51,20 @@ const ImageTile = ({file, onOpen}: {file: AttachmentStripFile; onOpen?: () => vo
     return (
         <button
             type="button"
-            aria-label={`View ${file.name}`}
+            aria-label={t("chat.attachmentStrip.view", {name: file.name})}
             disabled={!onOpen}
             onClick={onOpen}
             className={OPEN_BUTTON}
         >
             {state === "failed" || !file.src ? (
                 <>
-                    <ImageBroken size={18} className="shrink-0 text-colorTextTertiary" />
+                    <ImageBroken size={18} className="shrink-0 text-muted-foreground" />
                     <TileName name={file.name} />
                 </>
             ) : (
                 <>
                     {state === "loading" ? (
-                        <span className="absolute inset-0 bg-colorFillTertiary motion-safe:animate-pulse" />
+                        <span className="absolute inset-0 bg-accent motion-safe:animate-pulse" />
                     ) : null}
                     {/* A cookie-authenticated URL; next/image cannot optimize it. */}
                     <img
@@ -85,6 +89,7 @@ const ImageTile = ({file, onOpen}: {file: AttachmentStripFile; onOpen?: () => vo
 const VIDEO_FRAME_CAP = 8 * 1024 * 1024
 
 const VideoTile = ({file, onOpen}: {file: AttachmentStripFile; onOpen?: () => void}) => {
+    const t = useT(chatAttachmentStripCatalog)
     // Fetched whole: the attachments endpoint ignores `Range`, so a URL `src` never loads metadata.
     const small = file.size !== undefined && file.size <= VIDEO_FRAME_CAP
     // Fetched only near the viewport: the transcript is not virtualized.
@@ -94,7 +99,7 @@ const VideoTile = ({file, onOpen}: {file: AttachmentStripFile; onOpen?: () => vo
         <button
             ref={ref}
             type="button"
-            aria-label={`View ${file.name}`}
+            aria-label={t("chat.attachmentStrip.view", {name: file.name})}
             disabled={!onOpen}
             onClick={onOpen}
             className={OPEN_BUTTON}
@@ -121,6 +126,7 @@ const VideoTile = ({file, onOpen}: {file: AttachmentStripFile; onOpen?: () => vo
 
 /** Plays in place, fetching its bytes on the first Play; the rest of the tile opens the viewer. */
 const AudioTile = ({file, onOpen}: {file: AttachmentStripFile; onOpen?: () => void}) => {
+    const t = useT(chatAttachmentStripCatalog)
     const [requested, setRequested] = useState(false)
     const {url, isPending, failed} = useRemoteObjectUrl(requested ? (file.src ?? null) : null)
     const {ref, playing, toggle} = useAudioPlayback(url ?? undefined)
@@ -140,7 +146,7 @@ const AudioTile = ({file, onOpen}: {file: AttachmentStripFile; onOpen?: () => vo
         <>
             <button
                 type="button"
-                aria-label={`View ${file.name}`}
+                aria-label={t("chat.attachmentStrip.view", {name: file.name})}
                 disabled={!onOpen}
                 onClick={onOpen}
                 className={`${OPEN_BUTTON} justify-end`}
@@ -150,10 +156,15 @@ const AudioTile = ({file, onOpen}: {file: AttachmentStripFile; onOpen?: () => vo
             <button
                 type="button"
                 disabled={!file.src || failed}
-                aria-label={`${playing ? "Pause" : "Play"} ${file.name}`}
+                aria-label={t(
+                    playing ? "chat.attachmentStrip.pause" : "chat.attachmentStrip.play",
+                    {
+                        name: file.name,
+                    },
+                )}
                 aria-busy={isPending}
                 onClick={onPlay}
-                className={`absolute left-1/2 top-2 flex size-8 -translate-x-1/2 cursor-pointer items-center justify-center rounded-full border-0 bg-colorFillSecondary p-0 text-colorText transition-colors hover:bg-colorFill disabled:cursor-default disabled:opacity-50 ${
+                className={`absolute left-1/2 top-2 flex size-8 -translate-x-1/2 cursor-pointer items-center justify-center rounded-full border-0 bg-background p-0 text-foreground shadow-sm transition-colors hover:bg-accent disabled:cursor-default disabled:opacity-50 ${
                     isPending ? "motion-safe:animate-pulse" : ""
                 }`}
             >
@@ -164,20 +175,21 @@ const AudioTile = ({file, onOpen}: {file: AttachmentStripFile; onOpen?: () => vo
     )
 }
 
-const DocumentTile = ({file, onOpen}: {file: AttachmentStripFile; onOpen?: () => void}) => (
-    <button
-        type="button"
-        aria-label={`View ${file.name}`}
-        disabled={!onOpen}
-        onClick={onOpen}
-        className={OPEN_BUTTON}
-    >
-        <span className="rounded bg-colorFillTertiary px-1.5 py-0.5 text-[10px] font-semibold uppercase leading-4 text-colorTextSecondary">
-            {typeBadgeFor(file.mediaType, file.name)}
-        </span>
-        <TileName name={file.name} />
-    </button>
-)
+const DocumentTile = ({file, onOpen}: {file: AttachmentStripFile; onOpen?: () => void}) => {
+    const t = useT(chatAttachmentStripCatalog)
+    return (
+        <button
+            type="button"
+            aria-label={t("chat.attachmentStrip.view", {name: file.name})}
+            disabled={!onOpen}
+            onClick={onOpen}
+            className={OPEN_BUTTON}
+        >
+            <DriveFileGlyph path={file.name} />
+            <TileName name={file.name} />
+        </button>
+    )
+}
 
 const tileFor = (mediaType: string) =>
     mediaType.startsWith("image/")
@@ -197,29 +209,32 @@ const OverflowTile = ({
     count: number
     first: AttachmentStripFile
     onOpen?: () => void
-}) => (
-    <div className={TILE}>
-        {first.src && first.mediaType.startsWith("image/") ? (
-            <img
-                src={first.src}
-                alt=""
-                draggable={false}
-                loading="lazy"
-                decoding="async"
-                className="absolute inset-0 h-full w-full object-cover"
-            />
-        ) : null}
-        <button
-            type="button"
-            aria-label={`View ${count} more files`}
-            disabled={!onOpen}
-            onClick={onOpen}
-            className={`${OPEN_BUTTON} bg-black/50 text-sm font-semibold text-white`}
-        >
-            +{count}
-        </button>
-    </div>
-)
+}) => {
+    const t = useT(chatAttachmentStripCatalog)
+    return (
+        <div className={TILE}>
+            {first.src && first.mediaType.startsWith("image/") ? (
+                <img
+                    src={first.src}
+                    alt=""
+                    draggable={false}
+                    loading="lazy"
+                    decoding="async"
+                    className="absolute inset-0 h-full w-full object-cover"
+                />
+            ) : null}
+            <button
+                type="button"
+                aria-label={t("chat.attachmentStrip.viewMore", {count})}
+                disabled={!onOpen}
+                onClick={onOpen}
+                className={cn(OPEN_BUTTON, "bg-black/50 text-sm font-semibold text-white")}
+            >
+                +{count}
+            </button>
+        </div>
+    )
+}
 
 /** A message's files as tiles that open the app viewer; past `maxTiles` the last reads "+N". */
 export const AttachmentStrip = ({files, align = "end", maxTiles = 4}: AttachmentStripProps) => {

@@ -24,6 +24,7 @@ import pytest
 from oss.src.core.shared.exceptions import EntityCreationConflict
 from sqlalchemy.dialects.postgresql.asyncpg import AsyncAdapt_asyncpg_dbapi
 from sqlalchemy.exc import IntegrityError
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 class _UniqueViolation(AsyncAdapt_asyncpg_dbapi.IntegrityError):
@@ -177,10 +178,15 @@ async def test_duplicate_slug_conflict_reaches_the_tools_boundary_as_409(monkeyp
     variant_id = uuid4()
 
     class _ConflictingWorkflowsService:
+        async def fetch_workflow_variant(self, **_kwargs):
+            # The tools route checks the agent the variant belongs to; none here.
+            return None
+
         async def commit_workflow_revision_checked(self, **_kwargs):
             raise EntityCreationConflict(conflict={"slug": "taken-slug"})
 
     router = ToolsRouter(
+        run_admission=NoopRunAdmission(),
         tools_service=SimpleNamespace(),
         workflows_service=_ConflictingWorkflowsService(),
         tracing_service=SimpleNamespace(),

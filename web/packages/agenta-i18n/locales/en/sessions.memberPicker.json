@@ -1,0 +1,9 @@
+{
+    "error": "Couldn't load project members.",
+    "footer": "You can only add members of this project.",
+    "hasAccess": "Has access",
+    "heading": "Members of {{project}}",
+    "noMatch": "No members of this project match \"{{text}}\".",
+    "placeholder": "Add people by name or email",
+    "remove": "Remove {{name}}"
+}

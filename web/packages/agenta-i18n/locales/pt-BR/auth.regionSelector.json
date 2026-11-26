@@ -1,0 +1,9 @@
+{
+    "dataResidency": "Residência de dados",
+    "dataResidencyRegion": "Região de residência de dados",
+    "learnMore": "Saiba mais",
+    "multipleRegions": "Você pode ter contas em várias regiões. Cada uma exige um cadastro separado.",
+    "regionLabel": "Região {{region}}",
+    "regionsIntro": "O Agenta Cloud está disponível em duas regiões:",
+    "regionsIsolated": "As regiões são totalmente isoladas. Nenhum dado é compartilhado entre elas. Escolha uma região de acordo com os requisitos de residência de dados e as necessidades de latência."
+}

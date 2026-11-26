@@ -22,6 +22,11 @@
  */
 import type { ResolvedToolSpec, RunContext } from "../protocol.ts";
 import { TOOL_CALL_TIMEOUT_MS } from "./callback.ts";
+import {
+  RunCredentialExpiredError,
+  isExpiredSignatureResponse,
+} from "./run-credential.ts";
+import { headCut } from "../text-cut.ts";
 
 /** The resolved `call` descriptor (see `ResolvedToolSpec.call`). */
 export type DirectCall = NonNullable<ResolvedToolSpec["call"]>;
@@ -579,7 +584,7 @@ export function agentaErrorDetail(bodyText: string): string | undefined {
   const text = typeof detail === "string" ? detail : JSON.stringify(detail);
   if (!text) return undefined;
   return text.length > MAX_ERROR_DETAIL_CHARS
-    ? `${text.slice(0, MAX_ERROR_DETAIL_CHARS)} (truncated)`
+    ? `${headCut(text, MAX_ERROR_DETAIL_CHARS)} (truncated)`
     : text;
 }
 
@@ -647,6 +652,9 @@ export async function callDirect(
     console.error(
       `direct tool call ${method} ${url} returned HTTP ${response.status}: ${bodyText.slice(0, 500)}`,
     );
+    if (isExpiredSignatureResponse(response.status, bodyText)) {
+      throw new RunCredentialExpiredError();
+    }
     const detail = agentaErrorDetail(bodyText);
     throw new Error(
       detail === undefined

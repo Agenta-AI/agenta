@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+from oss.src.core.secrets.dtos import SecretOwner
 from oss.src.core.gateway.connections.dtos import (
     Connection,
     ConnectionCreate,
@@ -19,26 +20,32 @@ class ConnectionsDAOInterface(ABC):
     async def create_connection(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID],
         user_id: UUID,
         #
         connection_create: ConnectionCreate,
+        owner: Optional[SecretOwner] = None,
     ) -> Optional[Connection]: ...
+
+    # Every method that takes `owner` addresses a person's own rows when it is set (then
+    # `project_id` is not read), and the project's rows otherwise.
 
     @abstractmethod
     async def get_connection(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID],
         connection_id: UUID,
+        owner: Optional[SecretOwner] = None,
     ) -> Optional[Connection]: ...
 
     @abstractmethod
     async def update_connection(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID],
         connection_id: UUID,
+        owner: Optional[SecretOwner] = None,
         #
         is_valid: Optional[bool] = None,
         is_active: Optional[bool] = None,
@@ -50,19 +57,21 @@ class ConnectionsDAOInterface(ABC):
     async def delete_connection(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID],
         connection_id: UUID,
+        owner: Optional[SecretOwner] = None,
     ) -> bool: ...
 
     @abstractmethod
     async def query_connections(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID],
         #
         provider_key: Optional[str] = None,
         integration_key: Optional[str] = None,
         is_active: Optional[bool] = True,
+        owner: Optional[SecretOwner] = None,
     ) -> List[Connection]: ...
 
     @abstractmethod
@@ -77,8 +86,19 @@ class ConnectionsDAOInterface(ABC):
     async def activate_connection_by_provider_id(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID],
         provider_connection_id: str,
+        owner: Optional[SecretOwner] = None,
+    ) -> Optional[Connection]: ...
+
+    # -- a person's own connections: always by the person AND the organization.
+
+    @abstractmethod
+    async def delete_personal_connections(self, *, owner: SecretOwner) -> int: ...
+
+    @abstractmethod
+    async def make_default(
+        self, *, owner: SecretOwner, connection_id: UUID
     ) -> Optional[Connection]: ...
 
 

@@ -2,6 +2,8 @@
 import {useCallback, useState} from "react"
 
 import {getScheduleMessagePreview} from "@agenta/entities/gatewayTrigger"
+import {createT} from "@agenta/i18n"
+import triggersCatalog from "@agenta/i18n/catalogs/entityUi.triggers"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {message} from "@agenta/ui"
 import {useSetAtom} from "jotai"
@@ -11,6 +13,8 @@ import {
     waitForNewDelivery,
 } from "../../../gatewayTrigger/drawers/shared/deliveries"
 import type {SampledEvent} from "../../../gatewayTrigger/drawers/shared/EventSourcePicker"
+
+const t = createT(triggersCatalog)
 
 /**
  * Sources a real event for a subscription and replays it in the playground — the data half of
@@ -35,7 +39,7 @@ export function useSubscriptionRun({
         try {
             setRecent(await loadRecentSamples(subscriptionId, label))
         } catch {
-            message.error("Couldn't load recent events")
+            message.error(t("entityUi.triggers.couldNotLoadEvents"))
         }
     }, [subscriptionId, label])
 
@@ -44,11 +48,11 @@ export function useSubscriptionRun({
         try {
             result = await waitForNewDelivery(subscriptionId, label)
         } catch {
-            message.error("Couldn't check for new events")
+            message.error(t("entityUi.triggers.couldNotCheckEvents"))
             return null
         }
         if (!result) {
-            message.info("No event arrived yet — trigger it from the app, then try again.")
+            message.info(t("entityUi.triggers.noEventYet"))
             return null
         }
         setRecent(result.recent)
@@ -58,7 +62,7 @@ export function useSubscriptionRun({
     const run = useCallback(
         (event: SampledEvent) => {
             if (!playgroundEntityId) {
-                message.info("Open this agent in the playground first")
+                message.info(t("entityUi.triggers.openInPlaygroundFirst"))
                 return
             }
             const inputs =
@@ -74,7 +78,7 @@ export function useSubscriptionRun({
                       2,
                   )}\n\`\`\``
             setPendingRun({text, nonce: Date.now(), newSession: true})
-            message.success("Starting run")
+            message.success(t("entityUi.triggers.startingRun"))
         },
         [playgroundEntityId, setPendingRun, label, eventKey],
     )

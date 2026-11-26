@@ -1,0 +1,50 @@
+---
+title: "Credit-based plans and reliability fixes"
+slug: credit-plans-and-reliability-fixes
+date: 2026-10-12
+tags: [v0.122.5]
+fixes:
+  - area: Analytics
+    text: "A 30-day range that takes too long shows an error instead of empty charts"
+  - area: Analytics
+    text: "Agent runs show in the model charts and the model filter again"
+  - area: Chat
+    text: "Replies in a project other than your default one stream while the model writes"
+  - area: Models
+    text: "Gemini models from a Vertex AI connection run on the pi_core harness"
+  - area: Triggers
+    text: "Triggers added from an agent's config panel bind to the agent by its slug"
+description: "Agenta Cloud plans now use credits, with daily free credits on every plan. Version 0.122.5 also fixes analytics, live replies and Gemini on Vertex AI, and changes defaults for self-hosters."
+---
+
+{/* NOTE: Do NOT add an H1 heading here. The frontmatter title is automatically rendered as H1 by Docusaurus. */}
+
+<Summary>
+
+Agenta Cloud plans now use credits. The Pro plan is renamed Starter, every public plan gets 75 free credits a day (on up to 10 days a month), and new organizations start on Hobby with a 500-credit signup bonus. Version 0.122.5 also fixes analytics errors, live reply streaming in other projects, and Gemini on Vertex AI. Self-hosters should read the upgrade notes below.
+
+</Summary>
+
+{/* truncate */}
+
+## Credit-based plans
+
+Usage on Agenta Cloud is now counted in credits. The plan cards, the billing page and the [Plans and credits](/administration/billing/plans-and-credits) page show what each plan includes.
+
+- **Starter** is the former Pro plan. It keeps the same price and the same 2,900 credits a month, so existing Pro customers see a new name and no other change.
+- **Business** now includes 32,000 credits a month.
+- **Daily free credits** (75 a day, on up to 10 days a month) now go to Hobby, Starter and Business organizations. You can see them as "Daily free credits" in Settings > Credits.
+- **New organizations** start on Hobby with no trial, and receive a one-time 500-credit "Signup bonus". Existing organizations do not receive the bonus.
+- **Concurrent tasks** are 2 on Hobby, 20 on Starter and 50 on Business. A Hobby organization can have one project.
+
+When an organization has no credits left, a new task does not start and is not charged. The chat shows "You're out of credits" and tells you the next step for your plan. Tasks that are already running finish.
+
+## For self-hosters
+
+Upgrade notes for version 0.122.5. The [configuration reference](/self-host/configuration) lists every variable named here.
+
+- **Span and trace queries return one page.** `POST /spans/query`, `POST /traces/query` and the legacy `POST /tracing/spans/query` now return 100 rows when the request sets no `windowing.limit`, and at most 1000 rows. When more rows match, the response has a `windowing` object. Send it back as `windowing` to read the next page. A client that expected every row in one response must follow this cursor. You can change the limits with `AGENTA_API_TRACING_QUERY_DEFAULT_LIMIT` and `AGENTA_API_TRACING_QUERY_MAX_LIMIT`. See the [query pattern guide](/reference/api-guide/query-pattern).
+- **Custom workflow URLs are checked.** The API now applies the gateway outbound rules to the URL of a custom workflow or evaluator, and service calls no longer follow redirects. A custom workflow on a private network or on plain HTTP needs `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED=true`, or its host in `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST`. The Docker Compose env templates already set the flag. The Helm chart and the Railway templates leave it unset. A custom workflow that answers with a redirect now fails, so point its URL at the final address.
+- **Longer gunicorn keep-alive.** The Helm chart and the Docker Compose gh stacks now run gunicorn with `--keep-alive 620`, which is longer than the idle timeout of the common load balancers. This removes occasional 502 errors on a reused idle connection. In the Helm chart you can set it with `api.gunicorn.keepAlive` and `services.gunicorn.keepAlive`.
+- **Smaller, configurable Postgres pools.** Each process now sizes its pools from `POSTGRES_POOL_SIZE`, `POSTGRES_MAX_OVERFLOW`, `POSTGRES_WORKER_POOL_SIZE` and `POSTGRES_WORKER_MAX_OVERFLOW`. At peak, an api process uses up to 30 connections and a worker process uses up to 20. Set `max_connections` on your database for all of your processes together.
+- **Daytona sandbox snapshot.** If you use Daytona, build the snapshot `agenta-agent-sandbox-v3` before you upgrade the runner. Until the snapshot exists, new sandboxes fail to start. If you pin `AGENTA_RUNNER_DAYTONA_SNAPSHOT`, do not pin it to `agenta-agent-sandbox-v2`.

@@ -2,12 +2,21 @@ import asyncio
 import base64
 import hashlib
 import hmac
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
 from uuid import UUID
 
 from croniter import croniter
 
+from agenta.sdk.decorators.running import WorkflowServiceRequest
+
+from oss.src.core.access.dtos import PrincipalRef, RunContext, RunEnvelope, RunOrigin
+from oss.src.core.account_choices.items import run_person_id
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.principals import stored_work_envelope
+from oss.src.core.access.service import get_access_service
+from oss.src.core.access.types import AccessDenied, MissingPrincipal
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.env import env
 from oss.src.utils.caching import get_cache, set_cache
@@ -15,6 +24,8 @@ from oss.src.dbs.redis.shared.engine import get_cache_engine
 
 from oss.src.core.gateway.catalog.service import CatalogService
 from oss.src.core.gateway.connections.service import ConnectionsService
+from oss.src.core.sessions.executions.dtos import SessionExecutionSettlement
+from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
 from oss.src.core.git.types import RetrieveRefsInconsistent, RetrieveRefsInsufficient
 from oss.src.core.triggers.dtos import (
     DiscoveredTriggerAlternative,
@@ -43,7 +54,9 @@ from oss.src.core.triggers.dtos import (
     TriggerScheduleCreate,
     TriggerScheduleData,
     TriggerScheduleEdit,
+    TriggerScheduleFlags,
     TriggerScheduleQuery,
+    TriggerScheduleSessionInput,
     TriggerSubscription,
     TriggerSubscriptionCreate,
     TriggerSubscriptionEdit,
@@ -59,15 +72,36 @@ from oss.src.core.triggers.exceptions import (
 )
 from oss.src.core.triggers.interfaces import TriggersDAOInterface
 from oss.src.core.triggers.registry import TriggersGatewayRegistry
-from oss.src.core.triggers.utils import WebhookSecretResolver
+from oss.src.core.triggers.utils import (
+    WebhookSecretResolver,
+    purge_hidden_schedule,
+    log_hidden_schedule_purged,
+)
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.shared.exceptions import EntityCreationConflict
+from oss.src.core.workflows.dtos import AGENT_REFERENCE_KEYS
 from oss.src.core.workflows.service import WorkflowsService
 
 
 log = get_module_logger(__name__)
 
 _ENQUEUE_TIMEOUT_SECONDS = 5.0
+
+# The `run_at` part of a one-time event id, `<schedule id>:<run_at>`: ISO form in UTC
+# to the second. `TriggersDAO.fetch_due_one_time_schedules` renders the same text in
+# SQL to find fired schedules, so the two formats must stay equal.
+_ONE_TIME_RUN_AT_FORMAT = "%Y-%m-%dT%H:%M:%S+00:00"
+
+
+# A hidden schedule whose first fire attempt is older than this is removed with its
+# deliveries. It caps the retries of a fire that keeps failing with a retryable error,
+# and removes a schedule whose fire enqueued its input but stopped before the delete.
+_HIDDEN_SCHEDULE_FIRE_WINDOW = timedelta(hours=1)
+
+
+def _one_time_run_at_text(run_at: datetime) -> str:
+    return run_at.astimezone(timezone.utc).strftime(_ONE_TIME_RUN_AT_FORMAT)
+
 
 # Seconds /subscriptions/test long-polls for a captured event before teardown.
 _TEST_TIMEOUT_SECONDS = 300
@@ -296,6 +330,92 @@ def _has_primary_evidence(
     return exact_phrase or matched_terms >= _DISCOVERY_MIN_PRIMARY_TERMS
 
 
+async def recheck_trigger_principal(
+    *, project_id: UUID, trigger, origin: RunOrigin
+) -> RunEnvelope:
+    """A trigger that is started again must still have a principal that may run it.
+    Raises `MissingPrincipal` or `AccessDenied`, so a resume of a trigger whose key or
+    creator is gone is refused at once instead of at its next tick. Returns the
+    envelope its runs carry."""
+
+    if trigger.principal is None:
+        raise MissingPrincipal()
+    access = get_access_service()
+    organization_id = await access.project_organization_id(project_id=project_id)
+    if organization_id is None:
+        raise MissingPrincipal("The trigger's project has no organization")
+    envelope = stored_work_envelope(
+        principal=trigger.principal,
+        organization_id=organization_id,
+        project_id=project_id,
+        origin=origin,
+        origin_id=str(trigger.id),
+        created_by_id=trigger.created_by_id,
+    )
+    try:
+        await access.require(envelope=envelope, action=Permission.RUN_WORKFLOWS)
+    except AccessDenied as denied:
+        # The router names the principal kind in the refusal.
+        denied.principal_kind = trigger.principal.kind
+        raise
+    return envelope
+
+
+def _resumed_meta(meta):
+    """The trigger's meta without the reason of its last automatic pause."""
+
+    if not meta or "paused_reason" not in meta:
+        return meta
+    return {key: value for key, value in dict(meta).items() if key != "paused_reason"}
+
+
+# How a settled detached run reads on its delivery. "continued" is not here on purpose: the
+# run went on in a continuation, so the delivery is not finished yet. "not_running" is a Stop
+# that reached the runner after the run was gone; it reads like "stopped".
+_RUN_OUTCOME_STATUS: Dict[str, str] = {
+    "completed": "success",
+    "failed": "failed",
+    "stopped": "failed",
+    "not_running": "failed",
+    "lost": "failed",
+}
+
+# Outcomes after which a child execution may carry the run on.
+_HANDED_ON = ("continued", "lost")
+
+
+def _successor(
+    execution: SessionExecutionSettlement,
+    candidates: List[SessionExecutionSettlement],
+    seen: Set[str],
+) -> Optional[SessionExecutionSettlement]:
+    """The child that carries the run on, or None when the run ended here.
+
+    After "continued", only the continuation a person's answer started counts (it names its
+    interaction); a queued message does not. After "lost", only a lost continuation attempt
+    is carried on, by its replacement; a lost first run stays failed, even when a queued
+    message starts after it. Among the children that count: one still going, else one that
+    ended the run (the last settled), else the last one handed on.
+    """
+    if execution.terminal_outcome == "continued":
+        candidates = [c for c in candidates if c.source_interaction_id is not None]
+    elif execution.parent_execution_id is None:
+        return None
+    candidates = [c for c in candidates if c.execution_id not in seen]
+    if not candidates:
+        return None
+    going = [c for c in candidates if c.terminal_outcome is None]
+    if going:
+        return going[0]
+    return max(
+        candidates,
+        key=lambda c: (
+            c.terminal_outcome not in _HANDED_ON,
+            c.settled_at or datetime.min.replace(tzinfo=timezone.utc),
+        ),
+    )
+
+
 class TriggersService:
     """Triggers domain orchestration.
 
@@ -313,15 +433,21 @@ class TriggersService:
         triggers_dao: TriggersDAOInterface,
         connections_service: ConnectionsService,
         workflows_service: WorkflowsService,
+        # Reads how a detached run ended, so its delivery stops reading "dispatched".
+        # None in test compositions that do not read deliveries.
+        executions_dao: Optional[SessionExecutionsDAOInterface] = None,
         # Assigned post-construction in the composition root (worker wiring); guarded at use.
         schedule_dispatch_task: Optional[Any] = None,
     ):
         self.adapter_registry = adapter_registry
+        self.executions_dao = executions_dao
         self.catalog_service = catalog_service
         self.dao = triggers_dao
         self.connections_service = connections_service
         self.workflows_service = workflows_service
         self.schedule_dispatch_task = schedule_dispatch_task
+        # Refuses a turn-on while the agent's model needs setup. Set at wiring.
+        self.needs_setup_guard: Optional[Any] = None
         self.webhook_secret_resolver = WebhookSecretResolver(
             adapter_registry=adapter_registry,
         )
@@ -850,8 +976,11 @@ class TriggersService:
         *,
         project_id: UUID,
         references: Optional[dict],
-    ) -> None:
+    ) -> Optional[UUID]:
         """Assert the bound reference family resolves — without pinning it.
+
+        Returns the target agent (the artifact id) of a direct reference, and None for
+        an environment reference, whose target is resolved at each dispatch.
 
         The FE sends a partial family under the proper prefix (``application`` /
         ``evaluator``, or ``environment`` + ``application``). We delegate to
@@ -865,7 +994,7 @@ class TriggersService:
         ``_ensure_request_revision``), so latest-tracking is preserved.
         """
         if not references or not self.workflows_service:
-            return
+            return None
 
         def _ref(value):
             if value is None:
@@ -882,7 +1011,7 @@ class TriggersService:
         )
         environment_ref = _ref(references.get("environment"))
         if prefix is None and environment_ref is None:
-            return
+            return None
 
         key = None
         if environment_ref is not None:
@@ -911,6 +1040,11 @@ class TriggersService:
             raise TriggerReferenceInvalid(
                 "Bound workflow reference could not be resolved to a runnable revision."
             )
+        if environment_ref is not None or any(
+            key.startswith("environment") for key in references
+        ):
+            return None
+        return revision.workflow_id or revision.artifact_id
 
     async def create_subscription(
         self,
@@ -919,14 +1053,18 @@ class TriggersService:
         user_id: UUID,
         #
         subscription: TriggerSubscriptionCreate,
+        principal: PrincipalRef,
     ) -> TriggerSubscription:
-        """Mint the provider-side ``ti_*`` on a shared connection, then persist."""
+        """Mint the provider-side ``ti_*`` on a shared connection, then persist.
+
+        `principal` is the creating request's principal: the subscription runs as it."""
         # A test subscription captures events without a bound workflow, so the
         # reference requirement is relaxed; it is also always "on".
+        artifact_id = None
         if subscription.flags.is_test:
             subscription.flags.is_active = True
         else:
-            await self._validate_references(
+            artifact_id = await self._validate_references(
                 project_id=project_id,
                 references=subscription.data.references,
             )
@@ -973,6 +1111,8 @@ class TriggersService:
             subscription=subscription,
             #
             trigger_id=trigger_id,
+            principal=principal,
+            artifact_id=artifact_id,
         )
 
     async def fetch_subscription(
@@ -1042,6 +1182,48 @@ class TriggersService:
             enabled=is_active and is_valid,
         )
 
+    async def _upsert_provider_trigger(
+        self,
+        *,
+        project_id: UUID,
+        subscription: TriggerSubscriptionEdit,
+    ) -> str:
+        """Upsert the edited connection, event and filters; return the ``ti_*`` id.
+
+        Composio's upsert may update the stored instance or mint a new one.
+        """
+        connection = await self._require_connection(
+            project_id=project_id,
+            connection_id=subscription.connection_id,
+        )
+        adapter = self.adapter_registry.get(connection.provider_key.value)
+        trigger_id = await adapter.create_subscription(
+            project_id=project_id,
+            event_key=subscription.data.event_key,
+            connected_account_id=connection.provider_connection_id,
+            trigger_config=subscription.data.trigger_config or {},
+        )
+        return trigger_id
+
+    async def _discard_provider_trigger(
+        self,
+        *,
+        project_id: UUID,
+        subscription: TriggerSubscription,
+    ) -> None:
+        try:
+            await self._delete_provider_subscription(
+                project_id=project_id,
+                subscription=subscription,
+            )
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            log.warning(
+                "Failed to delete provider trigger %s for subscription %s: %s",
+                subscription.trigger_id,
+                subscription.id,
+                e,
+            )
+
     async def edit_subscription(
         self,
         *,
@@ -1049,8 +1231,11 @@ class TriggersService:
         user_id: UUID,
         #
         subscription: TriggerSubscriptionEdit,
+        principal: PrincipalRef,
     ) -> Optional[TriggerSubscription]:
-        """Full-PUT edit. Reflects the combined is_active/is_valid onto ``ti_*``."""
+        """Full-PUT edit. Reflects the connection, event, trigger_config and the
+        combined is_active/is_valid onto the provider ``ti_*``. The editor
+        (`principal`) becomes the executing principal in the same write."""
         existing = await self.dao.fetch_subscription(
             project_id=project_id,
             subscription_id=subscription.id,
@@ -1061,27 +1246,105 @@ class TriggersService:
         # Test subscriptions skip the bound-workflow requirement and stay "on".
         # Turning test OFF (test → prod) re-imposes it: references must resolve,
         # else the edit is rejected and the user must supply a valid binding.
+        artifact_id = None
         if subscription.flags.is_test:
             subscription.flags.is_active = True
         else:
-            await self._validate_references(
+            artifact_id = await self._validate_references(
                 project_id=project_id,
                 references=subscription.data.references,
             )
 
-        if subscription.flags.is_active != existing.flags.is_active:
+        target_changed = (
+            subscription.connection_id != existing.connection_id
+            or subscription.data.event_key != existing.data.event_key
+        )
+        config_changed = (subscription.data.trigger_config or {}) != (
+            existing.data.trigger_config or {}
+        )
+
+        if existing.trigger_id is None or not (target_changed or config_changed):
+            if subscription.flags.is_active != existing.flags.is_active:
+                await self._sync_provider_enabled(
+                    project_id=project_id,
+                    subscription=existing,
+                    is_active=subscription.flags.is_active,
+                    is_valid=existing.flags.is_valid,
+                )
+
+            # The target agent follows the edited references.
+            return await self.dao.edit_subscription(
+                project_id=project_id,
+                user_id=user_id,
+                subscription=subscription,
+                artifact_id=artifact_id,
+                principal=principal,
+            )
+
+        if target_changed:
+            # The upsert would return another subscription's ti_* for its
+            # (connection, event); conflict locally before touching the provider.
+            others = await self.dao.query_subscriptions(
+                project_id=project_id,
+                subscription=TriggerSubscriptionQuery(
+                    connection_id=subscription.connection_id,
+                    event_key=subscription.data.event_key,
+                ),
+                windowing=Windowing(limit=1),
+            )
+            if others and others[0].id != existing.id:
+                raise EntityCreationConflict(
+                    entity="Trigger subscription",
+                    message="A subscription for this connection and event already exists.",
+                    conflict={
+                        "subscription_id": str(others[0].id),
+                        "trigger_id": others[0].trigger_id,
+                    },
+                )
+
+        trigger_id = await self._upsert_provider_trigger(
+            project_id=project_id,
+            subscription=subscription,
+        )
+        target = existing.model_copy(
+            update={
+                "trigger_id": trigger_id,
+                "connection_id": subscription.connection_id,
+            }
+        )
+        replacement = target if trigger_id != existing.trigger_id else None
+
+        try:
+            # The upsert re-enables a disabled instance, so re-apply the desired state.
             await self._sync_provider_enabled(
                 project_id=project_id,
-                subscription=existing,
+                subscription=target,
                 is_active=subscription.flags.is_active,
                 is_valid=existing.flags.is_valid,
             )
+            edited = await self.dao.edit_subscription(
+                project_id=project_id,
+                user_id=user_id,
+                subscription=subscription,
+                artifact_id=artifact_id,
+                trigger_id=trigger_id,
+                principal=principal,
+            )
+        except Exception:
+            if replacement is not None:
+                await self._discard_provider_trigger(
+                    project_id=project_id,
+                    subscription=replacement,
+                )
+            raise
 
-        return await self.dao.edit_subscription(
-            project_id=project_id,
-            user_id=user_id,
-            subscription=subscription,
-        )
+        if replacement is not None:
+            # A row deleted mid-edit keeps nothing; otherwise the old ti_* is stale.
+            await self._discard_provider_trigger(
+                project_id=project_id,
+                subscription=existing if edited is not None else replacement,
+            )
+        return edited
 
     async def delete_subscription(
         self,
@@ -1227,6 +1490,34 @@ class TriggersService:
             is_valid=False,
         )
 
+    async def _check_needs_setup(
+        self, *, project_id: UUID, trigger: Any, envelope: RunEnvelope
+    ) -> None:
+        """Refuse turning on a trigger whose agent's model needs setup, for the person
+        its runs use (`envelope` is the one its runs carry)."""
+        if self.needs_setup_guard is None:
+            return
+        data = getattr(trigger, "data", None)
+        references = getattr(data, "references", None)
+        selector = getattr(data, "selector", None)
+        await self.needs_setup_guard.check(
+            project_id=project_id,
+            references=(
+                {
+                    key: ref.model_dump(mode="json", exclude_none=True)
+                    for key, ref in references.items()
+                }
+                if references
+                else None
+            ),
+            selector=(
+                selector.model_dump(mode="json", exclude_none=True)
+                if selector is not None
+                else None
+            ),
+            run_person_id=run_person_id(envelope),
+        )
+
     async def set_subscription_active(
         self,
         *,
@@ -1253,13 +1544,21 @@ class TriggersService:
         if existing is None:
             raise SubscriptionNotFoundError(subscription_id=str(subscription_id))
 
+        if is_active:
+            envelope = await recheck_trigger_principal(
+                project_id=project_id, trigger=existing, origin=RunOrigin.SUBSCRIPTION
+            )
+            await self._check_needs_setup(
+                project_id=project_id, trigger=existing, envelope=envelope
+            )
+
         edit = TriggerSubscriptionEdit(
             id=existing.id,
             connection_id=existing.connection_id,
             name=existing.name,
             description=existing.description,
             tags=existing.tags,
-            meta=existing.meta,
+            meta=_resumed_meta(existing.meta) if is_active else existing.meta,
             data=existing.data,
             flags=existing.flags.model_copy(update={"is_active": is_active}),
         )
@@ -1311,6 +1610,7 @@ class TriggersService:
         user_id: UUID,
         #
         subscription: TriggerSubscriptionCreate,
+        principal: PrincipalRef,
     ) -> Optional[TriggerDelivery]:
         """One-shot test: capture the first delivery for this (connection, event),
         then tear down.
@@ -1328,6 +1628,7 @@ class TriggersService:
                 project_id=project_id,
                 user_id=user_id,
                 subscription=subscription,
+                principal=principal,
             )
         except EntityCreationConflict as err:
             # Capture against the exact colliding subscription (project-scoped, non-deleted),
@@ -1533,6 +1834,24 @@ class TriggersService:
                 reason="empty window",
             )
 
+    @classmethod
+    def _normalize_timing(cls, data: TriggerScheduleData) -> None:
+        """Validate a cron schedule and its window, or round a one-time `run_at` up
+        to the whole minute in UTC. Ticks are whole minutes, so the first tick at or
+        after `run_at` does not change, and the one-time event id has no seconds."""
+        if data.run_at is None:
+            cls._validate_schedule(data.schedule)
+            cls._normalize_window(data)
+            return
+        run_at = data.run_at
+        if run_at.tzinfo is None:
+            run_at = run_at.replace(tzinfo=timezone.utc)
+        # Compare in UTC: Python's equality across zones is false for a time in a
+        # repeated daylight saving hour, even for the same instant.
+        run_at = run_at.astimezone(timezone.utc)
+        floored = cls._align_to_minute_utc(run_at)
+        data.run_at = floored if floored == run_at else floored + timedelta(minutes=1)
+
     async def create_schedule(
         self,
         *,
@@ -1540,11 +1859,12 @@ class TriggersService:
         user_id: UUID,
         #
         schedule: TriggerScheduleCreate,
+        principal: PrincipalRef,
     ) -> TriggerSchedule:
-        self._validate_schedule(schedule.data.schedule)
-        self._normalize_window(schedule.data)
+        """`principal` is the creating request's principal: the schedule runs as it."""
+        self._normalize_timing(schedule.data)
 
-        await self._validate_references(
+        artifact_id = await self._validate_references(
             project_id=project_id,
             references=schedule.data.references,
         )
@@ -1554,6 +1874,8 @@ class TriggersService:
             user_id=user_id,
             #
             schedule=schedule,
+            principal=principal,
+            artifact_id=artifact_id,
         )
 
     async def fetch_schedule(
@@ -1602,8 +1924,10 @@ class TriggersService:
         user_id: UUID,
         #
         schedule: TriggerScheduleEdit,
+        principal: PrincipalRef,
     ) -> Optional[TriggerSchedule]:
-        """Full-PUT edit (load the current row, override owned fields)."""
+        """Full-PUT edit (load the current row, override owned fields). The editor
+        (`principal`) becomes the executing principal in the same write."""
         existing = await self.dao.fetch_schedule(
             project_id=project_id,
             schedule_id=schedule.id,
@@ -1611,18 +1935,20 @@ class TriggersService:
         if existing is None:
             return None
 
-        self._validate_schedule(schedule.data.schedule)
-        self._normalize_window(schedule.data)
+        self._normalize_timing(schedule.data)
 
-        await self._validate_references(
+        artifact_id = await self._validate_references(
             project_id=project_id,
             references=schedule.data.references,
         )
 
+        # The target agent follows the edited references.
         return await self.dao.edit_schedule(
             project_id=project_id,
             user_id=user_id,
             schedule=schedule,
+            artifact_id=artifact_id,
+            principal=principal,
         )
 
     async def delete_schedule(
@@ -1636,6 +1962,86 @@ class TriggersService:
         return await self.dao.delete_schedule(
             project_id=project_id,
             user_id=user_id,
+            schedule_id=schedule_id,
+        )
+
+    async def create_session_schedule(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        schedule_id: UUID,
+        event_key: str,
+        run_at: datetime,
+        session_id: str,
+        session_input: TriggerScheduleSessionInput,
+        run_envelope: RunEnvelope,
+    ) -> TriggerSchedule:
+        """Create a hidden one-time schedule that sends `session_input` into the
+        existing session `session_id` at `run_at` (rounded up to the minute), with the
+        given id. Server code only: no route reaches it.
+
+        It runs with `run_envelope`: its authority and sender, with origin `schedule`,
+        `origin_id` = the schedule id, and no `parent_run_id`, `run_id` or
+        `approved_by`. `principal_kind` and `principal_id` come from its authority. A
+        repeat with the same id creates nothing and returns the first schedule.
+
+        `session_input.content` is the turn's invoke request on `session_id`, and its
+        references must name the agent, so the fire checks `RUN_WORKFLOWS` on it."""
+        if run_envelope.authority.project_id != project_id:
+            raise ValueError("The run envelope belongs to another project.")
+        request = WorkflowServiceRequest.model_validate(deepcopy(session_input.content))
+        if request.session_id != session_id:
+            raise ValueError("The session input's request names another session.")
+        if not AGENT_REFERENCE_KEYS.intersection(request.references or {}):
+            raise ValueError("The session input's request must name its agent.")
+        if request.on_busy is not None:
+            raise ValueError("The session input's request must not carry on_busy.")
+
+        envelope = run_envelope.model_copy(
+            update={
+                "context": RunContext(
+                    origin=RunOrigin.SCHEDULE, origin_id=str(schedule_id)
+                ),
+                "approved_by": None,
+            }
+        )
+        data = TriggerScheduleData(
+            event_key=event_key,
+            run_at=run_at,
+            session_id=session_id,
+            session_input=session_input,
+        )
+        self._normalize_timing(data)
+
+        schedule = await self.dao.create_hidden_schedule(
+            project_id=project_id,
+            user_id=user_id,
+            schedule_id=schedule_id,
+            schedule=TriggerScheduleCreate(
+                data=data,
+                flags=TriggerScheduleFlags(is_active=True, is_hidden=True),
+            ),
+            principal=envelope.authority.principal,
+            run_envelope=envelope,
+        )
+        if schedule is None:
+            raise ValueError("The schedule id names a schedule that is not hidden.")
+        return schedule
+
+    async def purge_session_schedule(
+        self,
+        *,
+        project_id: UUID,
+        #
+        schedule_id: UUID,
+    ) -> bool:
+        """Remove a hidden schedule and its deliveries from the table, by id. A
+        schedule that is gone is left as it is (False)."""
+        return await purge_hidden_schedule(
+            dao=self.dao,
+            project_id=project_id,
             schedule_id=schedule_id,
         )
 
@@ -1664,12 +2070,20 @@ class TriggersService:
                 reason="window ended",
             )
 
+        if is_active:
+            envelope = await recheck_trigger_principal(
+                project_id=project_id, trigger=existing, origin=RunOrigin.SCHEDULE
+            )
+            await self._check_needs_setup(
+                project_id=project_id, trigger=existing, envelope=envelope
+            )
+
         edit = TriggerScheduleEdit(
             id=existing.id,
             name=existing.name,
             description=existing.description,
             tags=existing.tags,
-            meta=existing.meta,
+            meta=_resumed_meta(existing.meta) if is_active else existing.meta,
             data=existing.data,
             flags=existing.flags.model_copy(update={"is_active": is_active}),
         )
@@ -1689,7 +2103,8 @@ class TriggersService:
         timestamp: datetime,
         interval: int,
     ) -> bool:
-        """Fire every active schedule whose cron matches this tick.
+        """Fire every active schedule whose cron matches this tick, then every due
+        one-time schedule (`_refresh_one_time_schedules`).
 
         Mirrors live-eval ``refresh_runs``: point-in-time ``croniter.match`` gate,
         deterministic ``event_id`` per (schedule, tick) for dedup, enqueue onto the
@@ -1703,7 +2118,7 @@ class TriggersService:
             return False
 
         try:
-            schedules = await self.dao.fetch_active_schedules_with_project()
+            schedules = await self.dao.fetch_active_recurring_schedules_with_project()
         except Exception as e:  # pylint: disable=broad-exception-caught
             log.error(f"[SCHEDULE] Error fetching active schedules: {e}", exc_info=True)
             return False
@@ -1744,14 +2159,6 @@ class TriggersService:
                 if already_seen:
                     continue
 
-                event = {
-                    "metadata": {
-                        "trigger_slug": schedule.data.event_key,
-                        "id": event_id,
-                    },
-                    "payload": {"timestamp": timestamp.isoformat()},
-                }
-
                 log.info(
                     "[SCHEDULE] Dispatching...",
                     project_id=project_id,
@@ -1759,14 +2166,11 @@ class TriggersService:
                     timestamp=timestamp,
                 )
 
-                await asyncio.wait_for(
-                    self.schedule_dispatch_task.kiq(
-                        project_id=str(project_id),
-                        event_id=event_id,
-                        event=event,
-                        schedule_id=str(schedule.id),
-                    ),
-                    timeout=_ENQUEUE_TIMEOUT_SECONDS,
+                await self._enqueue_schedule_event(
+                    project_id=project_id,
+                    schedule=schedule,
+                    event_id=event_id,
+                    timestamp=timestamp.isoformat(),
                 )
 
                 log.info(
@@ -1782,8 +2186,113 @@ class TriggersService:
                     exc_info=True,
                 )
 
+        one_time_ok = await self._refresh_one_time_schedules(timestamp=timestamp)
+
         # Report failure if any schedule dropped, so the cron/admin caller can
         # surface a non-200 instead of seeing a false success.
+        return failures == 0 and one_time_ok
+
+    async def _enqueue_schedule_event(
+        self,
+        *,
+        project_id: UUID,
+        schedule: TriggerSchedule,
+        event_id: str,
+        timestamp: str,
+    ) -> None:
+        """Queue one schedule fire on the schedule dispatch task."""
+        event = {
+            "metadata": {
+                "trigger_slug": schedule.data.event_key,
+                "id": event_id,
+            },
+            "payload": {"timestamp": timestamp},
+        }
+        await asyncio.wait_for(
+            self.schedule_dispatch_task.kiq(
+                project_id=str(project_id),
+                event_id=event_id,
+                event=event,
+                schedule_id=str(schedule.id),
+            ),
+            timeout=_ENQUEUE_TIMEOUT_SECONDS,
+        )
+
+    async def _refresh_one_time_schedules(self, *, timestamp: datetime) -> bool:
+        """Fire every due one-time schedule once: late rather than never.
+
+        Due means `run_at` at or before the earlier of the tick and the server's own
+        time, so a tick sent far ahead fires nothing early. The DAO leaves out
+        schedules that already have a delivery for their event id
+        `<schedule id>:<run_at in ISO form>`, unless that delivery is retryable. A
+        schedule still waiting in the task queue has no delivery yet, so a later tick
+        queues it again; if two tasks carry the same event id, the dispatcher's
+        delivery claim lets one fire.
+
+        First it removes the hidden schedules whose first fire attempt is older than
+        `_HIDDEN_SCHEDULE_FIRE_WINDOW`: a fire that keeps failing with a retryable
+        error stops, and a fire that stopped after its enqueue and before its delete
+        leaves no row behind. A hidden schedule that never fired stays.
+        """
+        due_by = min(
+            self._align_to_minute_utc(timestamp),
+            self._align_to_minute_utc(datetime.now(timezone.utc)),
+        )
+
+        limit = env.triggers.one_time_schedules_max_per_tick
+        failures = 0
+        try:
+            stale = await self.dao.purge_stale_hidden_schedules(
+                first_fired_before=datetime.now(timezone.utc)
+                - _HIDDEN_SCHEDULE_FIRE_WINDOW,
+                limit=limit,
+            )
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            failures += 1
+            stale = []
+            log.error(
+                f"[SCHEDULE] Error removing stale hidden schedules: {e}", exc_info=True
+            )
+        for project_id, schedule in stale:
+            log_hidden_schedule_purged(project_id=project_id, schedule=schedule)
+
+        try:
+            schedules = await self.dao.fetch_due_one_time_schedules(
+                due_by=due_by,
+                limit=limit,
+            )
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            log.error(
+                f"[SCHEDULE] Error fetching due one-time schedules: {e}", exc_info=True
+            )
+            return False
+
+        for project_id, schedule in schedules:
+            try:
+                run_at = _one_time_run_at_text(schedule.data.run_at)
+                event_id = f"{schedule.id}:{run_at}"
+
+                log.info(
+                    "[SCHEDULE] Dispatching one-time schedule...",
+                    project_id=project_id,
+                    schedule_id=schedule.id,
+                    run_at=run_at,
+                )
+
+                await self._enqueue_schedule_event(
+                    project_id=project_id,
+                    schedule=schedule,
+                    event_id=event_id,
+                    timestamp=run_at,
+                )
+
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                failures += 1
+                log.error(
+                    f"[SCHEDULE] Error refreshing one-time schedule {schedule.id}: {e}",
+                    exc_info=True,
+                )
+
         return failures == 0
 
     # -----------------------------------------------------------------------
@@ -1797,10 +2306,16 @@ class TriggersService:
         #
         delivery_id: UUID,
     ) -> Optional[TriggerDelivery]:
-        return await self.dao.fetch_delivery(
+        delivery = await self.dao.fetch_delivery(
             project_id=project_id,
             delivery_id=delivery_id,
         )
+        if delivery is None:
+            return None
+        resolved = await self._with_run_outcomes(
+            project_id=project_id, deliveries=[delivery]
+        )
+        return resolved[0]
 
     async def query_deliveries(
         self,
@@ -1811,11 +2326,97 @@ class TriggersService:
         #
         windowing: Optional[Windowing] = None,
     ) -> List[TriggerDelivery]:
-        return await self.dao.query_deliveries(
+        deliveries = await self.dao.query_deliveries(
             project_id=project_id,
             delivery=delivery,
             windowing=windowing,
         )
+        return await self._with_run_outcomes(
+            project_id=project_id, deliveries=deliveries
+        )
+
+    async def _with_run_outcomes(
+        self,
+        *,
+        project_id: UUID,
+        deliveries: List[TriggerDelivery],
+    ) -> List[TriggerDelivery]:
+        """Show how a detached run ended on its "dispatched" delivery.
+
+        The dispatcher writes `202 dispatched` when the runner accepts a detached run. It has
+        no callback for the end of the run, so the stored row never changes after that. The
+        end of the run is in `session_executions`: the run id is the first execution id, and a
+        run that waited for a person goes on in a child execution (`parent_execution_id`).
+        One read of the sessions' executions finds the last one of each run. A settled run
+        reads `success` or `failed`; a run that still goes on keeps `dispatched`. The stored
+        row does not change.
+
+        Not every child carries the run on: a message queued in the session also starts as a
+        child of the execution that just ended. See `_successor` for which children count.
+        """
+        if self.executions_dao is None:
+            return deliveries
+
+        runs: Dict[UUID, Tuple[str, str]] = {}
+        for delivery in deliveries:
+            if delivery.id is None or delivery.status.message != "dispatched":
+                continue
+            data = delivery.data
+            run_id = (data.result or {}).get("run_id") if data else None
+            if data and data.session_id and run_id:
+                runs[delivery.id] = (data.session_id, str(run_id))
+        if not runs:
+            return deliveries
+
+        executions = await self.executions_dao.query_session_executions(
+            project_id=project_id,
+            session_ids=[session_id for session_id, _ in runs.values()],
+        )
+        by_id = {(e.session_id, e.execution_id): e for e in executions}
+        children: Dict[Tuple[str, str], List[SessionExecutionSettlement]] = {}
+        for e in executions:
+            if e.parent_execution_id:
+                children.setdefault((e.session_id, e.parent_execution_id), []).append(e)
+
+        resolved: List[TriggerDelivery] = []
+        for delivery in deliveries:
+            run = runs.get(delivery.id) if delivery.id else None
+            execution = by_id.get(run) if run else None
+            # Follow the run into the execution that carries it on: the continuation after a
+            # person answered ("continued"), or the replacement of a lost attempt ("lost").
+            # `seen` stops a malformed cycle.
+            seen = set()
+            while (
+                execution is not None
+                and execution.terminal_outcome in _HANDED_ON
+                and execution.execution_id not in seen
+            ):
+                seen.add(execution.execution_id)
+                successor = _successor(
+                    execution,
+                    children.get((execution.session_id, execution.execution_id), []),
+                    seen,
+                )
+                if successor is None:
+                    break
+                execution = successor
+            message = (
+                _RUN_OUTCOME_STATUS.get(execution.terminal_outcome or "")
+                if execution
+                else None
+            )
+            if execution is None or message is None:
+                resolved.append(delivery)
+                continue
+            status_update: Dict[str, Any] = {"message": message}
+            if execution.settled_at:
+                status_update["timestamp"] = execution.settled_at
+            resolved.append(
+                delivery.model_copy(
+                    update={"status": delivery.status.model_copy(update=status_update)}
+                )
+            )
+        return resolved
 
     async def write_delivery(
         self,
@@ -1852,6 +2453,7 @@ class TriggersService:
     async def ensure_webhook_registered(self) -> None:
         """Ensure Composio's delivery webhook exists (startup, herd-safe)."""
         await self.webhook_secret_resolver.resolve()
+        await self.webhook_secret_resolver.report_webhook_url()
 
     @staticmethod
     def _is_fresh(timestamp: str) -> bool:

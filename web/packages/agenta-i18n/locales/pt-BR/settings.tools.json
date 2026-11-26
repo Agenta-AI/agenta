@@ -1,0 +1,16 @@
+{
+    "connectionDeleted": "Conexão excluída",
+    "connectionRevoked": "Conexão revogada",
+    "default": "Padrão",
+    "deleteConnectionFailed": "Falha ao excluir a conexão",
+    "deleteConnectionMessage": "Tem certeza de que deseja excluir esta conexão? Esta ação é irreversível.",
+    "deleteConnectionTitle": "Excluir conexão",
+    "loadConnectionsFailed": "Não foi possível carregar suas conexões.",
+    "makeDefault": "Definir como padrão",
+    "makeDefaultFailed": "Não foi possível defini-la como padrão. Tente novamente.",
+    "revokeConnectionFailed": "Falha ao revogar a conexão",
+    "revokeConnectionMessage": "Isto marca a conexão como inválida. Você pode atualizá-la depois para reativá-la.",
+    "revokeConnectionTitle": "Revogar conexão",
+    "runTool": "Executar ferramenta",
+    "searchTools": "Pesquisar ferramentas"
+}

@@ -9,6 +9,7 @@ from pydantic import (
     model_validator,
 )
 
+from oss.src.core.sharing.dtos import Visibility
 from oss.src.core.agent_templates.dtos import (
     TemplateLoadCommand,
     TemplateSource,
@@ -69,6 +70,8 @@ class TemplateLoadRequest(_StrictRequestModel):
         default_factory=list,
         max_length=64,
     )
+    # Requested visibility of the new agent (see `WorkflowCreate.visibility`).
+    visibility: Visibility | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -94,7 +97,9 @@ class TemplateLoadRequest(_StrictRequestModel):
     def to_domain(self, *, request_key: str) -> TemplateLoadCommand:
         return TemplateLoadCommand.model_validate(
             {
-                **self.model_dump(mode="json"),
+                # Visibility goes to the ownership rule, not into the command (and
+                # not into the idempotency fingerprint).
+                **self.model_dump(mode="json", exclude={"visibility"}),
                 "request_key": request_key,
             }
         )

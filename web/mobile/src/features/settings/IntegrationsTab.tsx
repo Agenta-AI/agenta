@@ -1,15 +1,38 @@
+import {useMemo} from "react"
+
+import {useT} from "@agenta/i18n"
+import settingsIntegrationsCatalog from "@agenta/i18n/catalogs/settings.integrations"
 import {GatewayToolsSection} from "@agenta/settings-ui"
 
-import {INTEGRATIONS_SECTION_COPY} from "@/lib/integrationsCopy"
+import {useProjectPermission} from "../context/useProjectPermission"
 
+import type {SettingsTabProps} from "./settingsTabProps"
 import {useConfirmModal} from "./useConfirmModal"
+import {useSettingsProjectGroup} from "./useSettingsProjectGroup"
 
-/** Settings > Integrations: the shared tools section with this app's confirm dialog. */
-export const IntegrationsTab = () => {
+/** Settings > Integrations; `edit_tools` decides whether connect asks "Who can use it". */
+export const IntegrationsTab = ({workspaceId, projectId}: SettingsTabProps) => {
     const {confirm, modal} = useConfirmModal()
+    const {projectSwitch, projectCount} = useSettingsProjectGroup(workspaceId, projectId)
+    const canEdit = useProjectPermission(projectId, "edit_tools")
+    const t = useT(settingsIntegrationsCatalog)
+    // The shared section's defaults still say "tool" for oss/ee.
+    const copy = useMemo(
+        () => ({
+            run: t("settings.integrations.run"),
+            searchPlaceholder: t("settings.integrations.searchPlaceholder"),
+        }),
+        [t],
+    )
     return (
         <>
-            <GatewayToolsSection confirm={confirm} copy={INTEGRATIONS_SECTION_COPY} />
+            <GatewayToolsSection
+                confirm={confirm}
+                copy={copy}
+                projectSwitch={projectSwitch}
+                projectCount={projectCount}
+                canEdit={canEdit}
+            />
             {modal}
         </>
     )

@@ -1,0 +1,105 @@
+import {useEffect, useMemo, useRef} from "react"
+
+import {
+    forgetSessionCreatedHere,
+    isSessionCreatedHere,
+    isSessionFresh,
+} from "@agenta/entities/session"
+import {textVersionAtom} from "@agenta/i18n"
+import {useAtomValue} from "jotai"
+
+import {sharingCopy} from "@/lib/sharingCopy"
+
+import {
+    sessionAccessKnown,
+    sessionReadOnlyReason,
+    sessionReadOnlyText,
+    type SessionReadOnly,
+} from "./sessionReadOnly"
+import {useSessionSharing} from "./useSessionSharing"
+
+/**
+ * What the chat screen may show for this session. Controls wait while the sharing state of a
+ * session that exists is loading, and a revoked grant or lowered role applies within the 60 s
+ * re-read; during a re-read the last answer holds.
+ */
+export const useChatAccess = ({
+    sessionId,
+    projectId,
+    routeAgentId,
+    agentHidden,
+}: {
+    sessionId: string
+    projectId: string
+    routeAgentId?: string | null
+    agentHidden: boolean
+}) => {
+    // The session row the screen already reads carries the reader's sharing state: one read,
+    // re-read every 60 s and on focus (see `useSessionHeader`).
+    const {query, sharing, ownerName} = useSessionSharing(sessionId, projectId)
+    // The session this screen last read with access: the screen stays mounted across a
+    // session switch, so "had access" belongs to one session id.
+    const accessSessionRef = useRef<string | null>(null)
+    // The row is not readable: a private chat, an unknown id, or one whose access was removed.
+    const notFound = query.isSuccess && !query.data
+    const readable = Boolean(sharing) && !notFound
+    useEffect(() => {
+        if (!readable) return
+        accessSessionRef.current = sessionId
+        // The chat has a row now, and the row decides from here on: a chat whose access is later
+        // removed must not read as an empty chat of our own after a reload.
+        forgetSessionCreatedHere(sessionId)
+    }, [readable, sessionId])
+    const hadAccess = accessSessionRef.current === sessionId
+
+    const fresh = isSessionFresh(sessionId)
+    // A chat with no turns has no row, and the fresh marker does not survive a reload. A chat this
+    // tab created, on its agent's route, is then that empty chat: it may send. The route's agent
+    // alone does not decide this, because another person's private chat also has no row.
+    const emptyChat =
+        notFound && !hadAccess && Boolean(routeAgentId) && isSessionCreatedHere(sessionId)
+    let blocked: "not_found" | "removed" | null = null
+    if (notFound) {
+        if (hadAccess) blocked = "removed"
+        else if (!fresh && !routeAgentId) blocked = "not_found"
+    }
+
+    const failed = query.isError
+    const known = sessionAccessKnown({fresh: fresh || emptyChat, loaded: Boolean(sharing), failed})
+    // The row read says whether the chat's agent is hidden from this reader (it polls, so an
+    // agent made private while the chat is open is seen within the recheck bound). Null when
+    // the row names no workflow: the agent's own revision read decides then.
+    const rowAgentHidden = sharing?.agent_hidden ?? null
+    const effectiveAgentHidden = agentHidden || rowAgentHidden === true
+    const sharingReason = sessionReadOnlyReason({
+        sharing: failed ? null : sharing,
+        agentHidden: effectiveAgentHidden,
+    })
+    // A failed read says so in the composer's place; a session whose row is not readable yet
+    // waits like a load.
+    const reason = sharingReason ?? (!fresh && failed && !blocked ? "access_unknown" : null)
+    const owner = ownerName || sharingCopy.ownerFallback
+    // Subscribed so the notice is read again when the language or a catalog load changes it.
+    useAtomValue(textVersionAtom)
+    const notice = reason ? sessionReadOnlyText(reason, owner) : null
+    const approvalNote =
+        reason && reason !== "access_unknown" ? sharingCopy.approvalWaiting(owner) : null
+    const readOnly = useMemo<SessionReadOnly | null>(
+        () => (reason && notice ? {reason, notice, approvalNote} : null),
+        [reason, notice, approvalNote],
+    )
+    const canSend = !blocked && !readOnly && known
+    // The row read has not answered yet. "No row" is an answer: a chat with no turns has none.
+    const accessPending = !fresh && query.isPending
+    // The recheck's clock: the agent's visibility is re-read on the same beat.
+    const checkedAt = Math.max(query.dataUpdatedAt ?? 0, query.errorUpdatedAt ?? 0)
+    return {
+        blocked,
+        readOnly,
+        canSend,
+        accessPending,
+        checkedAt,
+        agentHidden: effectiveAgentHidden,
+        rowAgentHidden,
+    }
+}

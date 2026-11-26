@@ -182,23 +182,15 @@ def scope_from(
             organization_id=auth_scope.organization_id,
         )
 
-    if scope == Scope.WORKSPACE:
-        return MeterScope(
-            organization_id=auth_scope.organization_id,
-            workspace_id=auth_scope.workspace_id,
-        )
-
     if scope == Scope.PROJECT:
         return MeterScope(
             organization_id=auth_scope.organization_id,
-            workspace_id=auth_scope.workspace_id,
             project_id=auth_scope.project_id,
         )
 
     if scope == Scope.USER:
         return MeterScope(
             organization_id=auth_scope.organization_id,
-            workspace_id=auth_scope.workspace_id,
             project_id=auth_scope.project_id,
             user_id=auth_scope.user_id,
         )
@@ -547,7 +539,6 @@ async def _check_entitlements(
 
     meter = MeterDTO(
         organization_id=_scope.organization_id,
-        workspace_id=_scope.workspace_id,
         project_id=_scope.project_id,
         user_id=_scope.user_id,
         #

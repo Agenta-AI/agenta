@@ -14,6 +14,7 @@ window is also covered.
 
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
+from types import SimpleNamespace
 from typing import List, Optional, Sequence, Set, Tuple
 from uuid import UUID
 
@@ -24,9 +25,9 @@ from oss.src.core.sessions.records.dtos import (
     SETTLED_BY_WATCHDOG,
     SessionRecordEvent,
 )
+from oss.src.core.sessions.records.dtos import EXECUTION_LOST_ERROR_CODE
 from oss.src.dbs.redis.sessions.locks import is_turn_superseded
 from oss.src.tasks.asyncio.sessions.orphan_sweep import (
-    LOST_ERROR_CODE,
     LOST_ERROR_MESSAGE,
     ORPHAN_THRESHOLD_SECONDS,
     IDLE_THRESHOLD_SECONDS,
@@ -346,8 +347,8 @@ class _FakeRecordsService:
         self.queries.append(list(keys))
         return {key for key in keys if key in self.settled}
 
-    async def runner_completed_turns(self, *, project_id, keys):
-        return set()
+    async def runner_ended_turns(self, *, project_id, keys):
+        return {}
 
 
 @pytest.mark.anyio
@@ -406,13 +407,18 @@ class _Publisher:
 
 
 class _CommandsService:
-    def __init__(self):
+    def __init__(self, admission=None):
         self.execution_lost_calls = []
+        self.admission = admission
+        self.delivered = []
 
     async def settle_execution_lost(self, **kwargs):
         assert kwargs["transaction"] is not None
         self.execution_lost_calls.append(kwargs)
-        return True
+        return SimpleNamespace(settled=True, admission=self.admission)
+
+    async def deliver_input_admission(self, admission):
+        self.delivered.append(admission)
 
     async def settle_abandoned_commands(self, *, now):
         return 0
@@ -471,7 +477,7 @@ async def test_a_lost_turn_gets_an_error_then_a_done(anyio_backend):
     assert error_event.attributes == {
         "type": "error",
         "message": LOST_ERROR_MESSAGE,
-        "code": LOST_ERROR_CODE,
+        "code": EXECUTION_LOST_ERROR_CODE,
         RECORD_SETTLED_BY_ATTRIBUTE: SETTLED_BY_WATCHDOG,
     }
     assert done_event.attributes == {
@@ -1087,7 +1093,7 @@ async def test_completion_lookup_failure_defers_settlement_and_cleanup(
     anyio_backend, monkeypatch
 ):
     class _FailingCompletionLookup(_FakeRecordsService):
-        async def runner_completed_turns(self, *, project_id, keys):
+        async def runner_ended_turns(self, *, project_id, keys):
             raise RuntimeError("tracing db unreachable")
 
     stream = _stale_running_row(
@@ -1210,3 +1216,65 @@ async def test_a_swept_turn_is_tombstoned_even_when_it_holds_no_redis_keys(
         session_id=stream.session_id,
         turn_id="turn-gone",
     )
+
+
+@pytest.mark.anyio
+async def test_a_lost_turn_delivers_the_queued_input_it_promoted(anyio_backend):
+    stream = _stale_running_row(session_id="sess-lost-queue", turn_id="turn-lost")
+    engine = _FakeTransactionsEngine([stream])
+    redis = _FakeRedis()
+    running_key = f"running:{stream.project_id}:session:{stream.session_id}"
+    redis._store[running_key] = b"turn-lost"
+    admission = object()
+
+    class _ReleaseObservingCommands(_CommandsService):
+        async def deliver_input_admission(self, admission):
+            assert engine.committed, "delivered before the lost turn committed"
+            assert running_key not in redis._store, (
+                "delivered while the lost turn still owned running"
+            )
+            await super().deliver_input_admission(admission)
+
+    commands = _ReleaseObservingCommands(admission=admission)
+
+    await run_orphan_sweep(
+        engine,
+        redis,
+        records_service=_FakeRecordsService(),
+        commands_service=commands,
+        publish=_Publisher(),
+    )
+
+    assert commands.delivered == [admission]
+
+
+@pytest.mark.anyio
+async def test_a_lost_turn_that_beat_again_keeps_its_queued_input(anyio_backend):
+    ended = _FakeRow(
+        session_id="sess-lost-beat-again",
+        turn_id="turn-lost",
+        is_running=False,
+        age_seconds=ORPHAN_THRESHOLD_SECONDS + 30,
+    )
+    running = _FakeRow(
+        session_id=ended.session_id,
+        turn_id="turn-lost",
+        is_running=True,
+        age_seconds=0,
+    )
+
+    def beat_again():
+        running.updated_at = datetime.now(timezone.utc)
+
+    commands = _CommandsService(admission=object())
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([ended, running], before_stream_update=beat_again),
+        _FakeRedis(),
+        records_service=_FakeRecordsService(),
+        commands_service=commands,
+        publish=_Publisher(),
+    )
+
+    assert len(commands.execution_lost_calls) == 1
+    assert commands.delivered == []

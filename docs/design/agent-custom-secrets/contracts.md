@@ -63,7 +63,7 @@ The request can contain plaintext inside the protected SDK-to-runner transport. 
 
 ## `request_secret`
 
-The reserved client tool uses `client:tool:request_secret:v0`. All input fields are required and additional fields are rejected:
+The reserved client tool uses `client:tool:request_secret:v0`. `name`, `env_var`, and `reason` are required, `rejected` is optional, and unknown fields are refused:
 
 ```json
 {
@@ -73,7 +73,7 @@ The reserved client tool uses `client:tool:request_secret:v0`. All input fields 
 }
 ```
 
-`name` and `reason` are display text. `env_var` is the requested binding suggestion. The authenticated paused interaction supplies project, agent, session, and tool-call identity.
+`name` and `reason` are display text. `env_var` is the requested binding suggestion. `rejected: true` means a service refused the saved value, so the dock asks for a new value first and does not offer to resend the old one. The authenticated paused interaction supplies project, agent, session, and tool-call identity.
 
 A successful transaction creates or selects a vault secret, commits the binding to a variant revision, adopts that revision in the host, then settles the tool:
 
@@ -92,6 +92,6 @@ The host adopts the committed revision before auto-resume. A resume failure rema
 
 ## Shared UI and guidance
 
-The Secret form controller is shared by Settings and `request_secret`. The attachment drawer is shared by the **Advanced** configuration flow and the request dock. It receives bindings, requested metadata, edit identity, permission state, and a `commitBinding` callback. Agent settings render the section inside the existing **Advanced** drawer.
+The Secret form controller is shared by Settings and `request_secret`. The request dock takes the value inline: it saves the secret and attaches it without opening a dialog, shows **Continue** when a saved secret fits, and lets the person edit the variable name. The attachment drawer is the **Advanced** configuration flow and the dock's **More options**. It receives bindings, requested metadata, edit identity, permission state, and a `commitBinding` callback. Agent settings render the section inside the existing **Advanced** drawer.
 
 The `request_secret` tool description carries its own usage rules: open the secret setup flow when a needed credential is missing, never ask the user to paste a credential into chat, never inspect or print a configured value, and stop the affected operation if the user cancels. The playground build kit embeds the tool for every agent, so the rules reach only agents that hold it. `request_connection` remains for integration connections.

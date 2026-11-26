@@ -164,6 +164,7 @@ Spans carry an OTel `attributes` dict. Agenta owns the `ag` subtree.
 | `ag.flags`, `ag.tags`, `ag.meta` | Filtering and labelling dicts. |
 | `ag.exception` | Structured exception payload. |
 | `ag.session.id`, `ag.user.id` | Optional session and user identifiers. |
+| `ag.turn.id` | Optional id of the session turn that made the span. When an agent run belongs to a session, Agenta's agent runner writes it, with `ag.session.id`, on every span of the run. |
 
 Query responses return the namespace as a nested object:
 
@@ -199,6 +200,18 @@ Both accept the same filter and windowing parameters. See [Windowing](/reference
 
 The legacy `/tracing/traces/query` and `/tracing/spans/query` paths are deprecated; use the paths above.
 
+Each span stores its own `ag.session.id` and `ag.turn.id` in the columns `session_id` and `turn_id`. To get every span of one turn, across traces, send `POST /spans/query` with a condition on `turn_id`:
+
+```json
+{
+  "filtering": {"conditions": [{"field": "turn_id", "operator": "is", "value": "<turn id>"}]}
+}
+```
+
+Use the field `session_id` in the same way to get every span of one session. A run that resumes after a person approves a tool call in Agenta keeps the turn id of the paused run, so the query returns the spans of both runs. Two cases do not keep the turn id yet, and their resumed spans get a new one: an approval given through a channel, such as a chat app, and a second approval after Agenta recovered a lost delivery of the first resume.
+
+Spans stored before this column existed have no `turn_id`, and only their root span has `session_id`. A query on these columns does not return the child spans of older traces.
+
 ## Examples
 
 ### Ingest spans from your runtime
@@ -229,3 +242,53 @@ curl -X POST "$AGENTA_HOST/api/simple/traces/" \
 ```
 
 The response returns the created trace with a server-generated `trace_id` and `span_id`. Use those IDs with `GET`, `PATCH`, or `DELETE` on `/simple/traces/{trace_id}`.
+
+Agenta adds general fields to every annotation written through `POST /simple/traces/` or `POST /annotations/`. They are stored on the annotation's span, and you read them with `POST /spans/query`:
+
+| Attribute | Meaning |
+| --- | --- |
+| `ag.annotation.scope` | What the annotation judges: `span`, `trace`, `turn` or `session`. The default is `span` when the request has a link. |
+| `ag.annotation.author` | Who wrote the annotation: `{type, user_id}`, taken from the credential of the request. |
+| `ag.annotation.actor` | Who made the judgment. Today it is always the same as the author. |
+| `ag.session.id`, `ag.turn.id` | The session and the turn of the span that the annotation links to, copied from that span. They also fill the `session_id` and `turn_id` columns, so you can filter annotations by session or turn. |
+
+When the run that the linked span belongs to names an application or a workflow, Agenta also copies those references into the annotation as `application`, `application_variant` and `application_revision`, unless the request names them.
+
+### Annotate a turn or a whole session
+
+To annotate a turn or a session without naming a span, give the scope and the ids, and send no links. Agenta links the annotation to the span that the turn started from. For a session, it uses the latest turn at the time of the annotation, and it leaves the turn of the annotation empty.
+
+```bash
+curl -X POST "$AGENTA_HOST/api/simple/traces/" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "trace": {
+      "origin": "human",
+      "data": {"outputs": {"note": "The agent asks for the address twice."}},
+      "references": {"evaluator": {"slug": "session-notes"}},
+      "scope": "session",
+      "session_id": "s-40",
+      "links": []
+    }
+  }'
+```
+
+For a turn, send `"scope": "turn"` and also `"turn_id"`. The turn id is the id that the spans of the turn carry as `ag.turn.id`.
+
+To find every annotation about a session, query the spans that have both the session id and the `ag.annotation` attribute:
+
+```bash
+curl -X POST "$AGENTA_HOST/api/spans/query" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "filtering": {
+      "operator": "and",
+      "conditions": [
+        {"field": "session_id", "operator": "is", "value": "s-40"},
+        {"field": "attributes", "key": "ag.annotation", "operator": "exists"}
+      ]
+    }
+  }'
+```

@@ -1,5 +1,9 @@
 import {type TriggerDelivery} from "@agenta/entities/gatewayTrigger"
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
+import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
 
+import {deliveryOutcome} from "./automationModel"
 import {FOCUS_RING} from "./lib/interactive"
 import {cn} from "./lib/utils"
 import {runDotClass, runLabel, runOutcomeLabel, runTimeOfDay} from "./runModel"
@@ -18,22 +22,34 @@ export const AutomationRunRow = ({
     delivery,
     selected,
     onSelect,
+    phone = false,
 }: {
     delivery: TriggerDelivery
     selected: boolean
     onSelect: () => void
+    /** Phone: the row is at least 44 px high. */
+    phone?: boolean
 }) => {
+    const t = useT(automationsEditorCatalog, automationsModelCatalog)
     const label = runLabel(delivery)
+    const outcome = runOutcomeLabel(delivery)
     const time = runTimeOfDay(delivery)
+    // A skipped run says why on the row: the dot alone reads as one more run in flight.
+    const skipped = deliveryOutcome(delivery) === "skipped"
 
     return (
         <button
             type="button"
             onClick={onSelect}
             aria-current={selected ? "true" : undefined}
-            aria-label={`${label} — ${runOutcomeLabel(delivery)}${time ? `, ${time}` : ""}`}
+            aria-label={
+                time
+                    ? t("automations.editor.runRowAriaTime", {label, outcome, time})
+                    : t("automations.editor.runRowAria", {label, outcome})
+            }
             className={cn(
                 "flex w-full items-center gap-[9px] rounded-md border-0 bg-transparent px-2.5 py-1.5 text-left",
+                phone && "min-h-11",
                 "cursor-pointer transition-colors",
                 selected ? "bg-accent" : "hover:bg-accent/60 active:bg-accent/60",
                 FOCUS_RING,
@@ -43,7 +59,12 @@ export const AutomationRunRow = ({
                 aria-hidden
                 className={cn("size-2 shrink-0 rounded-full", runDotClass(delivery))}
             />
-            <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">{label}</span>
+            <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-[13px] text-foreground">{label}</span>
+                {skipped ? (
+                    <span className="truncate text-xs text-muted-foreground">{outcome}</span>
+                ) : null}
+            </span>
             {time ? <span className="shrink-0 text-xs text-muted-foreground">{time}</span> : null}
         </button>
     )

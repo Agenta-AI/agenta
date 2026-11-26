@@ -1,0 +1,19 @@
+{
+    "chooseMember": "Choisissez un membre",
+    "createFailed": "Impossible de la créer",
+    "deleteBody": "Supprime définitivement {{name}}, avec tous ses espaces de travail, projets et agents.",
+    "deleteFailed": "Impossible de supprimer cette organisation",
+    "deleteTitle": "Supprimer l’organisation",
+    "inviteFirst": "Invitez d’abord quelqu’un dans cette organisation ; la propriété ne peut être transférée qu’à un membre.",
+    "namePlaceholder": "Nom de l’organisation",
+    "newDescription": "Une organisation regroupe vos espaces de travail, vos projets et les personnes qui y travaillent.",
+    "newTitle": "Nouvelle organisation",
+    "noProjectYet": "{{name}} n’a pas encore de projet à ouvrir",
+    "renameFailed": "Impossible de renommer cette organisation",
+    "thisOrganization": "cette organisation",
+    "thisOrganizationCapital": "Cette organisation",
+    "transfer": "Transférer",
+    "transferDescription": "Le nouveau propriétaire obtient le contrôle total de {{name}}. Vous restez membre.",
+    "transferFailed": "Impossible de transférer la propriété",
+    "transferTitle": "Transférer la propriété"
+}

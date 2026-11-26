@@ -196,6 +196,7 @@ export function getTestcaseColumnValue(
 export function getTestcaseRootItems(
     value: Record<string, unknown>,
     columns?: TestcaseDataEditorColumn[],
+    fieldOrder: "sorted" | "data" = "sorted",
 ): TestcaseDataEditorRootItem[] {
     if (columns?.length) {
         const projected = buildProjectedTestcaseValue(value, columns, {includeEmpty: true})
@@ -224,14 +225,13 @@ export function getTestcaseRootItems(
         return Array.from(rootItems.values())
     }
 
-    return Object.keys(value)
-        .sort()
-        .map((key) => ({
-            key,
-            name: key,
-            value: value[key],
-            isColumn: false,
-        }))
+    const keys = Object.keys(value)
+    return (fieldOrder === "data" ? keys : keys.sort()).map((key) => ({
+        key,
+        name: key,
+        value: value[key],
+        isColumn: false,
+    }))
 }
 
 export function setTestcaseColumnValue(

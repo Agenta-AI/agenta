@@ -38,6 +38,7 @@ import {
     type CreateSecretDto,
     type ProviderVaultRow,
     type SecretManagementPolicy,
+    type SecretOwnerScope,
 } from "./types"
 
 // ---------------------------------------------------------------------------
@@ -80,9 +81,33 @@ export interface ProviderConnection {
      * absence is what tells every other surface this is an ordinary key connection.
      */
     subscription?: SubscriptionLoginFacts
+    /**
+     * Whose connection this is. `organization` is an organization connection: an agent names it
+     * by scope and slug, and only an organization owner or admin may change it. Absent is the
+     * project's own connection.
+     */
+    scope?: SecretOwnerScope
+    /** An organization connection read by its admin: who may use it. */
+    availability?: "all_projects" | "selected_projects"
+    /** An organization connection limited to selected projects: their ids. */
+    selectedProjectIds?: string[]
     /** The row this was derived from — the mutations round-trip it. */
     source: LlmProvider
 }
+
+/** Whether a connection belongs to the organization rather than to the project. */
+export const isOrganizationConnection = (connection: ProviderConnection): boolean =>
+    connection.scope === "organization"
+
+/** The owner facts a connection carries over from its row. */
+const ownerFacts = (row: ProviderVaultRow) =>
+    row.ownerKind === "organization"
+        ? {
+              scope: "organization" as const,
+              ...(row.availability ? {availability: row.availability} : {}),
+              ...(row.selectedProjectIds ? {selectedProjectIds: row.selectedProjectIds} : {}),
+          }
+        : {}
 
 /** Whether a connection is a hosted subscription rather than a stored key. */
 export const isSubscriptionConnection = (connection: ProviderConnection): boolean =>
@@ -137,6 +162,7 @@ export const toProviderConnections = (rows: ProviderVaultRow[]): ProviderConnect
                 hasStoredCredential: row.subscription.loginState !== "pending_login",
                 managementPolicy: row.managementPolicy as SecretManagementPolicy | undefined,
                 subscription: row.subscription,
+                ...ownerFacts(row),
                 source: row,
             })
             return acc
@@ -176,6 +202,7 @@ export const toProviderConnections = (rows: ProviderVaultRow[]): ProviderConnect
                 row.hasKey ?? SECRET_VALUE_FIELDS.some((field) => !!(row[field] ?? "").trim()),
             keyPreview: row.keyPreview,
             managementPolicy: row.managementPolicy as SecretManagementPolicy | undefined,
+            ...ownerFacts(row),
             source: row,
         })
         return acc
@@ -230,6 +257,21 @@ export const storedCredentialFields = (
         ...carriedCredentialKeys(connection.kind),
     ]
     return keys.filter((key) => (SECRET_VALUE_FIELDS as readonly string[]).includes(key))
+}
+
+/**
+ * Whether a saved AWS connection signs in with access keys rather than a Bedrock API key.
+ *
+ * A write-only record returns no values, so the key names the vault reports are what tell. A row
+ * saved before a switch dropped the other way can hold both; the gateway then uses the API key,
+ * so the form opens on it too.
+ */
+export const storesAwsAccessKeys = (connection: ProviderConnection | null | undefined): boolean => {
+    const source = connection?.source
+    const stored = (name: string) =>
+        !!source?.storedCredentialKeys?.some((key) => key.toLowerCase() === name)
+    if (source?.bearerToken || stored("aws_bearer_token_bedrock")) return false
+    return !!source?.accessKeyId || stored("aws_access_key_id")
 }
 
 /** The probe request body: a credential to spend, or the vault row to spend one from. */
@@ -294,7 +336,7 @@ export const probeRequestFor = (
 }
 
 /** The HTTP status of a failed request, when it carried one. */
-const statusOf = (error: unknown): number | null => {
+export const httpStatusOf = (error: unknown): number | null => {
     const statusCode = (error as {statusCode?: unknown})?.statusCode
     if (typeof statusCode === "number") return statusCode
 
@@ -317,16 +359,19 @@ const bodyOf = (error: unknown): unknown => {
  * transport failure and false of everything the API rejects on its own — a 404 means the stored
  * connection is gone, not that the provider is down. So a 4xx speaks with the server's own words
  * where it gave any, and only a 5xx or a dead connection falls back to the reach-the-provider line.
+ * The UI passes both lines in the active language.
  */
-// TODO(copy: owner)
-export const probeFailureMessage = (error: unknown, title: string): string => {
-    const status = statusOf(error)
-    if (status === 404) return "This connection no longer exists. Reload and try again."
+export const probeFailureMessage = (
+    error: unknown,
+    text: {gone: string; unreachable: string},
+): string => {
+    const status = httpStatusOf(error)
+    if (status === 404) return text.gone
     if (status && status >= 400 && status < 500) {
         const message = extractApiErrorMessage(bodyOf(error) ?? error)
         if (message && message !== String(error)) return message
     }
-    return `Agenta could not reach ${title} to test this credential.`
+    return text.unreachable
 }
 
 /**
@@ -392,16 +437,19 @@ export const maskSecret = (value: string): string =>
 
 /**
  * The Credential column: the masked key when the connection has one, otherwise the field that
- * identifies it (endpoint host, AWS region, Vertex project).
+ * identifies it (endpoint host, AWS region, Vertex project). `keyConfigured` is the text for a
+ * stored key the API does not show, in the active language.
  */
-export const credentialSummary = (connection: ProviderConnection): string => {
+export const credentialSummary = (
+    connection: ProviderConnection,
+    keyConfigured: string,
+): string => {
     const {source} = connection
     // A write-only record masks its own key server-side; only a readable one is masked here.
     if (connection.keyPreview) return connection.keyPreview
     const key = source.key || source.apiKey || source.bearerToken || source.accessKeyId
     if (key) return maskSecret(key)
-    // TODO(copy: owner)
-    if (connection.hasStoredCredential) return "Key configured"
+    if (connection.hasStoredCredential) return keyConfigured
 
     if (source.apiBaseUrl) {
         try {
@@ -760,8 +808,12 @@ export type CredentialStatus = "valid" | "invalid" | "unknown"
 
 export interface DoneState {
     enabled: boolean
-    /** One line under the footer explaining the state; empty when there is nothing to say. */
-    note: string
+    /**
+     * Which line goes under the footer to explain the state; null when there is nothing to say.
+     * `savedUntested`: the provider offers no free check, so the key saves untested.
+     * `testFirst`: a new credential must be tested before it is saved.
+     */
+    note: "savedUntested" | "testFirst" | null
 }
 
 /**
@@ -789,20 +841,12 @@ export const doneState = ({
     storedCredentialUnchanged?: boolean
     transportFailed?: boolean
 }): DoneState => {
-    if (!credentialFilled) return {enabled: false, note: ""}
-    if (status === "invalid") return {enabled: false, note: ""}
-    if (status === "valid") return {enabled: true, note: ""}
-    if (status === "unknown") {
-        return {
-            enabled: true,
-            note: "This provider offers no free credential check, so the key is saved untested.",
-        }
-    }
-    if (storedCredentialUnchanged) return {enabled: true, note: ""}
-    return {
-        enabled: false,
-        note: transportFailed ? "" : "Test this credential before saving it.",
-    }
+    if (!credentialFilled) return {enabled: false, note: null}
+    if (status === "invalid") return {enabled: false, note: null}
+    if (status === "valid") return {enabled: true, note: null}
+    if (status === "unknown") return {enabled: true, note: "savedUntested"}
+    if (storedCredentialUnchanged) return {enabled: true, note: null}
+    return {enabled: false, note: transportFailed ? null : "testFirst"}
 }
 
 // ---------------------------------------------------------------------------

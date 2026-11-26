@@ -1,3 +1,5 @@
+import type {Visibility} from "@agenta/entities/sharing"
+import type {CommitDeployOption} from "@agenta/entity-ui/modals"
 import type {EnhancedModalProps as ModalProps} from "@agenta/ui"
 import type {EnhancedButtonProps as ButtonProps} from "@agenta/ui/components/presentational"
 
@@ -9,12 +11,27 @@ export interface CommitHostAdapter {
      */
     appId?: string | null
     /**
+     * The app's slug. "Commit and deploy" names the deployment after it. A host that has not
+     * loaded the list of apps passes it, or the deployment cannot be named.
+     */
+    appSlug?: string | null
+    /**
      * Refresh whatever list caches the host keeps outside the entities layer (the desktop's
      * variant registry and evaluator tables). Called after every successful commit.
      */
     onAfterCommit?: () => void
     /** Analytics/onboarding hook — the desktop records a widget event here. */
     onCommitted?: () => void
+    /**
+     * The visibility a create from an ephemeral entity asks for. Omitted: the server default
+     * (private for an agent that has an owner). A host without sharing controls passes "project".
+     */
+    createVisibility?: Visibility
+    /**
+     * The environments "Commit and deploy" offers, by slug. Omitted: the three fixed ones. A host
+     * whose project has other environments passes its own list.
+     */
+    commitDeployOptions?: CommitDeployOption[]
 }
 
 export interface CommitVariantChangesModalProps extends ModalProps, CommitHostAdapter {

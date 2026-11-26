@@ -82,12 +82,25 @@ def main() -> int:
 
     @subscription.handle()
     def _on_event(data) -> None:  # noqa: ANN001
-        md = dict(data.get("metadata") or {})
-        trigger_id = md.get("trigger_id") or md.get("id") or data.get("id")
+        # The SDK hands us its normalized TriggerEvent; rebuild the V3 webhook
+        # envelope so local dev exercises the same ingress mapping as production.
+        md = data.get("metadata") or {}
+        connected_account = md.get("connected_account") or {}
+        trigger_id = data.get("id")
         event_id = f"evt_{uuid.uuid4().hex}"
-        md["trigger_id"] = trigger_id
-        md["id"] = event_id
-        envelope = {**data, "metadata": md}
+        envelope = {
+            "id": event_id,
+            "type": "composio.trigger.message",
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "metadata": {
+                "trigger_id": trigger_id,
+                "trigger_slug": data.get("trigger_slug"),
+                "user_id": data.get("user_id"),
+                "connected_account_id": connected_account.get("id"),
+                "auth_config_id": connected_account.get("auth_config_id"),
+            },
+            "data": data.get("payload") or {},
+        }
 
         print(f"[bridge] event {trigger_id} {event_id}:")
         print(json.dumps(envelope, default=str, indent=2))

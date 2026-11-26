@@ -1,5 +1,7 @@
 import {memo} from "react"
 
+import {useT} from "@agenta/i18n"
+import sessionFilterCatalog from "@agenta/i18n/catalogs/shell.sessionFilter"
 import {sidebarSessionSearchOpenAtom} from "@agenta/navigation"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {MagnifyingGlass} from "@phosphor-icons/react"
@@ -10,10 +12,11 @@ import {useSetAtom} from "jotai"
  *
  * It sits beside the filter menu because the two answer the same question at different scales:
  * the filter narrows what the rail lists, this reaches past it. Same control as the filter's
- * trigger — a 22px ghost square — so the pair reads as one set of buttons.
+ * trigger (a 24 px ghost square, radius 6, 14 px glyph in the secondary ink; 18 px on a phone),
+ * 4 px apart, so the pair reads as one set of buttons.
  */
 const SessionSearchButton = ({
-    label = "Search sessions",
+    label,
     shortcut,
 }: {
     /** What the button is called — the tooltip and the accessible name. A host whose search
@@ -23,16 +26,18 @@ const SessionSearchButton = ({
      * its `aria-keyshortcuts` form. Absent when the host binds none. */
     shortcut?: {faces: string[]; aria?: string}
 }) => {
+    const t = useT(sessionFilterCatalog)
     const setOpen = useSetAtom(sidebarSessionSearchOpenAtom)
+    const name = label ?? t("shell.sessionFilter.searchSessions")
     return (
-        <SimpleTooltip title={label} shortcut={shortcut?.faces}>
+        <SimpleTooltip title={name} shortcut={shortcut?.faces}>
             <Button
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                aria-label={label}
+                aria-label={name}
                 aria-keyshortcuts={shortcut?.aria}
-                className="size-[22px] p-0 text-colorTextTertiary hover:text-colorText"
+                className="mr-0.5 size-6 rounded-[6px] p-0 text-colorTextSecondary hover:text-colorText"
                 onClick={(event) => {
                     // Off the group row's stretched link anchor, as the filter trigger keeps its own.
                     event.preventDefault()
@@ -40,7 +45,7 @@ const SessionSearchButton = ({
                     setOpen(true)
                 }}
             >
-                <MagnifyingGlass size={12} />
+                <MagnifyingGlass className="size-3.5 max-md:size-[18px]" />
             </Button>
         </SimpleTooltip>
     )

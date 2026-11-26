@@ -22,6 +22,7 @@ import {
     type CSSProperties,
     type DragEvent,
     type MouseEvent,
+    type ReactNode,
     type RefObject,
     useCallback,
     useEffect,
@@ -31,6 +32,8 @@ import {
     useState,
 } from "react"
 
+import {useT} from "@agenta/i18n"
+import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {
     EditorProvider,
     MarkdownToolbar,
@@ -78,6 +81,8 @@ export interface MarkdownEditorProps {
     defaultView?: MarkdownView
     /** Controlled view. When set, the toggle calls `onViewChange` instead of local state. */
     view?: MarkdownView
+    /** Skeleton shown while the editor configuration loads. */
+    loadingSkeleton?: ReactNode
     onViewChange?: (view: MarkdownView) => void
     /** Fires once the Lexical editor has taken the requested view (the first paint may precede it). */
     onViewApplied?: () => void
@@ -233,7 +238,9 @@ export function MarkdownEditor({
     grow = false,
     maxHeight,
     onLinkClick,
+    loadingSkeleton,
 }: MarkdownEditorProps) {
+    const t = useT(schemaControlsCatalog)
     // Stable id shared by the provider and the editor so they target one composer. Colons from
     // useId() are dropped to keep it id/atom-key safe.
     const reactId = useId()
@@ -319,7 +326,9 @@ export function MarkdownEditor({
             disabled={disabled}
             className="shrink-0 cursor-pointer border-0 bg-transparent px-1 text-xs text-[var(--ag-zinc-5)] transition-colors hover:text-[var(--ag-c-586673)] disabled:cursor-not-allowed disabled:opacity-50"
         >
-            {markdownView ? "Rich text" : "Source"}
+            {markdownView
+                ? t("entityUi.schemaControls.richText")
+                : t("entityUi.schemaControls.source")}
         </button>
     ) : null
 
@@ -462,6 +471,7 @@ export function MarkdownEditor({
             enableTokens={false}
             showToolbar={false}
             disabled={editorDisabled}
+            loadingSkeleton={loadingSkeleton}
             // `!`: the provider hardcodes a `min-h-[70px]` floor that would block shrinking.
             className={grow ? "!min-h-0 flex-1" : undefined}
         >
@@ -476,7 +486,7 @@ export function MarkdownEditor({
                     {dragOver ? (
                         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-md border-2 border-dashed border-[var(--ant-color-primary)] bg-[var(--ant-color-primary-bg,rgba(22,119,255,0.08))]">
                             <span className="rounded-md bg-[var(--ant-color-bg-elevated,#fff)] px-3 py-1.5 text-xs font-medium text-[var(--ag-c-586673)] shadow-sm">
-                                Drop a Markdown file to replace the content
+                                {t("entityUi.schemaControls.dropMarkdown")}
                             </span>
                         </div>
                     ) : null}

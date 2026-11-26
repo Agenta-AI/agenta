@@ -33,6 +33,20 @@ describe("buildTraceQueryParams", () => {
         ])
     })
 
+    it("sends a typed Input Key row on the traces page as the input attribute", () => {
+        const filters = [
+            {
+                field: "input_keys",
+                key: "attributes.ag.data.inputs.country",
+                operator: "is",
+                value: "Japan",
+            },
+        ] as unknown as Filter[]
+        expect(conditionsOf(buildTraceQueryParams(filters, undefined, "trace").params)).toEqual([
+            {field: "attributes", key: "ag.data.inputs.country", operator: "is", value: "Japan"},
+        ])
+    })
+
     it("inverts STATUS_CODE_OK into a negated error match", () => {
         const ok = [{field: "status_code", operator: "is", value: "STATUS_CODE_OK"}] as Filter[]
         expect(conditionsOf(buildTraceQueryParams(ok, undefined, "trace").params)).toEqual([

@@ -13,6 +13,7 @@ import {useCallback, useEffect, useMemo, useRef} from "react"
 
 import {atom, useAtom} from "jotai"
 
+import {tSelection} from "../../text"
 import type {
     EntitySelectionAdapter,
     EntitySelectionResult,
@@ -186,7 +187,7 @@ function useCascadingLevelWithData(
     // Get labels and placeholder
     const label = getLevelLabel(levelConfig)
     const placeholder = query.isPending
-        ? "Loading..."
+        ? tSelection("entityUi.selection.loading")
         : getLevelPlaceholder(levelConfig, actuallyEnabled, prevLevelLabel)
 
     return {

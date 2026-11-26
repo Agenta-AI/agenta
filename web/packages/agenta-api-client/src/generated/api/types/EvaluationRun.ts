@@ -18,4 +18,5 @@ export interface EvaluationRun {
     version?: (string | null) | undefined;
     status?: (AgentaApi.EvaluationStatus | null) | undefined;
     data?: (AgentaApi.EvaluationRunDataOutput | null) | undefined;
+    principal?: (AgentaApi.PrincipalRef | null) | undefined;
 }

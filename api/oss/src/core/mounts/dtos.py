@@ -13,8 +13,8 @@ from oss.src.core.shared.dtos import (
 
 
 class MountData(BaseModel):
-    # Storage location is derived server-side (bucket from env, key = project_id/mount_id),
-    # never caller-supplied. Kept as an (empty) model for forward-compatible mount metadata.
+    # The storage location is the row's `storage_prefix`, written by the server, never
+    # caller-supplied. Kept as an (empty) model for forward-compatible mount metadata.
     pass
 
 
@@ -24,6 +24,8 @@ class MountFlags(BaseModel):
 
 class Mount(Identifier, Slug, Header, Lifecycle):
     project_id: UUID
+    # Namespace-relative object-key prefix, written once at insert. Internal: not serialized.
+    storage_prefix: str = Field(exclude=True)
     session_id: Optional[str] = None
     agent_id: Optional[str] = None
     purpose: Optional[str] = None
@@ -51,9 +53,18 @@ class MountEdit(Identifier, Header):
     meta: Optional[Dict[str, Any]] = None
 
 
+class MountScope(BaseModel):
+    """Which mount a check names: by `id`, or (for a mount not created yet) by the
+    session it will belong to."""
+
+    id: Optional[UUID] = None
+    session_id: Optional[str] = None
+
+
 class MountQuery(BaseModel):
     session_id: Optional[str] = None
     agent_id: Optional[str] = None
+    slugs: Optional[List[str]] = None
     include_archived: bool = False
 
 
@@ -103,6 +114,8 @@ class MountFileContent(BaseModel):
     path: str
     content: str
     etag: Optional[str] = None
+    # False when the bytes are not valid UTF-8; `content` then holds U+FFFD for each bad byte.
+    is_utf8: bool = True
 
 
 class MountFileSeed(BaseModel):
@@ -138,14 +151,14 @@ class MountCredentials(BaseModel):
     """Short-lived, prefix-scoped credentials for a single mount.
 
     Signed API-side from the store's STS endpoint; the master key never leaves the
-    API. Scoped to `<bucket>/<project_id>/<mount_id>/*` and expires within minutes,
+    API. Scoped to `[<namespace>/]<storage_prefix>/*` and expires within minutes,
     so a leak grants only this mount's prefix for a short window.
     """
 
     endpoint: Optional[str] = None
     region: str = "us-east-1"
     bucket: str
-    # geesefs key suffix: `<project_id>/<mount_id>` (mount prefix, slug-independent).
+    # geesefs key suffix: `[<namespace>/]<storage_prefix>` (slug-independent).
     prefix: str
     access_key: str
     secret_key: str

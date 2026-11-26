@@ -1,0 +1,12 @@
+{
+    "title": "テンプレート",
+    "subtitle": "実績のあるエージェントから始めましょう。動作を確認し、必要なものを接続して、Playground を開きます。",
+    "searchPlaceholder": "テンプレートを検索…",
+    "all": "すべて",
+    "loadError": "テンプレートを読み込めませんでした",
+    "sectionCount_other": "{{count}} 件のテンプレート",
+    "noMatch": "「{{query}}」に一致するテンプレートはありません。",
+    "noneInCategory": "{{category}} にテンプレートはありません。",
+    "clearSearch": "検索をクリア",
+    "showAll": "すべてのテンプレートを表示"
+}

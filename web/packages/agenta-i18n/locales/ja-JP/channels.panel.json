@@ -1,0 +1,17 @@
+{
+    "addDiscordBot": "Discord ボットを追加",
+    "addSlackWorkspace": "Slack ワークスペースを追加",
+    "addTeamsBot": "Teams ボットを追加",
+    "addTelegramBot": "Telegram ボットを追加",
+    "addWhatsAppNumber": "WhatsApp の番号を追加",
+    "agent": "エージェント",
+    "agentLive_other": "{{name}} · {{count}} 件稼働中",
+    "chooseAgent": "応答するエージェントを選択",
+    "connectChannel": "チャネルを接続",
+    "connectPlatform": "{{platform}} を接続",
+    "embed": "埋め込み",
+    "noIdYet": "この接続にはまだ ID がありません。",
+    "publish": "公開",
+    "yourAgent": "あなたのエージェント",
+    "yourWorkspace": "あなたのワークスペース"
+}

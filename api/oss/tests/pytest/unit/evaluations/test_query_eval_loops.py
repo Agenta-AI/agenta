@@ -24,6 +24,7 @@ from oss.src.core.evaluations.types import (
     SimpleQueueData,
 )
 from oss.src.core.evaluations.service import SimpleQueuesService
+from oss.tests.pytest.utils.principals import any_principal
 from oss.src.core.evaluations.runtime.sources import SourceResolution
 from oss.src.core.evaluations.tasks import run as run_module
 
@@ -64,6 +65,7 @@ async def test_simple_queue_create_dispatches_each_query_source_with_step_key():
 
     run = EvaluationRun(
         id=run_id,
+        principal=any_principal(),
         flags=EvaluationRunFlags(is_queue=True, has_queries=True, has_evaluators=True),
         status=EvaluationStatus.RUNNING,
         data=run_data,
@@ -107,6 +109,7 @@ async def test_simple_queue_create_dispatches_each_query_source_with_step_key():
     created_queue = await service.create(
         project_id=project_id,
         user_id=user_id,
+        principal=any_principal(),
         queue=SimpleQueueCreate(
             name="query-backed-queue",
             data=SimpleQueueData(
@@ -149,6 +152,7 @@ async def test_run_query_source_marks_human_steps_pending(monkeypatch):
 
     run = EvaluationRun(
         id=run_id,
+        principal=any_principal(),
         flags=EvaluationRunFlags(is_live=True, has_queries=True, has_human=True),
         status=EvaluationStatus.RUNNING,
         data=EvaluationRunData(
@@ -297,6 +301,7 @@ async def test_run_query_source_skips_empty_query_results(monkeypatch):
     evaluator_revision_id = uuid4()
     run = EvaluationRun(
         id=run_id,
+        principal=any_principal(),
         flags=EvaluationRunFlags(has_queries=True, has_evaluators=True),
         status=EvaluationStatus.RUNNING,
         data=EvaluationRunData(
@@ -362,6 +367,7 @@ async def test_run_query_source_finalizes_batch_run_on_pre_slice_error(
     project_id, user_id, run_id = uuid4(), uuid4(), uuid4()
     run = EvaluationRun(
         id=run_id,
+        principal=any_principal(),
         flags=EvaluationRunFlags(has_queries=True, has_evaluators=True, is_active=True),
         status=EvaluationStatus.RUNNING,
         data=EvaluationRunData(
@@ -417,6 +423,7 @@ async def test_run_query_source_live_run_not_finalized_on_error(monkeypatch):
     project_id, user_id, run_id = uuid4(), uuid4(), uuid4()
     run = EvaluationRun(
         id=run_id,
+        principal=any_principal(),
         flags=EvaluationRunFlags(
             has_queries=True, has_evaluators=True, is_live=True, is_active=True
         ),
@@ -462,3 +469,198 @@ async def test_run_query_source_live_run_not_finalized_on_error(monkeypatch):
 
     # live runs are never finalized on error — the scheduler keeps polling.
     edit_run.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_query_source_items_carry_root_span_inputs_and_outputs():
+    """A live query trace feeds the evaluator its outputs and an invocation link.
+
+    Without the outputs the code evaluator fails with "Invalid outputs". Without
+    the span id the evaluator trace has no links, so it is typed `invocation`
+    and the live query (`trace_type is invocation`) reads it back.
+    """
+    from agenta.sdk.models.tracing import SpansNode, Trace
+    from oss.src.core.evaluations.tasks.processor import _seed_context_from_source
+
+    query_revision_id = uuid4()
+    trace_id = "a" * 32
+    span_id = "b" * 16
+    trace = Trace(
+        trace_id=trace_id,
+        spans={
+            "capital": SpansNode(
+                trace_id=trace_id,
+                span_id=span_id,
+                attributes={
+                    "ag": {
+                        "data": {
+                            "inputs": {"country": "Peru"},
+                            "outputs": "Lima",
+                        }
+                    }
+                },
+            )
+        },
+    )
+    run = EvaluationRun(
+        id=uuid4(),
+        principal=any_principal(),
+        flags=EvaluationRunFlags(is_live=True, has_queries=True),
+        data=EvaluationRunData(
+            steps=[
+                EvaluationRunDataStep(
+                    key="query-live",
+                    type="input",
+                    origin="custom",
+                    references={"query_revision": Reference(id=query_revision_id)},
+                ),
+            ],
+            repeats=1,
+        ),
+    )
+    query_traces = AsyncMock(return_value=[trace])
+    sources = SourceResolution(
+        queries_service=SimpleNamespace(
+            fetch_query_revision=AsyncMock(
+                return_value=SimpleNamespace(
+                    id=query_revision_id,
+                    slug="query-live",
+                    data=SimpleNamespace(filtering=None, windowing=None),
+                )
+            )
+        ),
+        tracing_service=SimpleNamespace(query_traces=query_traces),
+    )
+
+    items = await sources.resolve_query_source_items(
+        project_id=uuid4(),
+        run=run,
+    )
+
+    [item] = items["query-live"]
+    assert item.trace_id == trace_id
+    assert item.span_id == span_id
+    assert item.inputs == {"country": "Peru"}
+    assert item.outputs == "Lima"
+
+    context = _seed_context_from_source(source_item=item, repeats=1)
+    assert context[0]["outputs"] == "Lima"
+    assert context[0]["span_id"] == span_id
+
+
+class _RecordingTracingService:
+    def __init__(self):
+        self.query = None
+
+    async def query_traces(self, *, project_id, query):
+        self.query = query
+        return []
+
+
+def _revision_with_filtering(filtering):
+    return SimpleNamespace(data=SimpleNamespace(filtering=filtering, windowing=None))
+
+
+@pytest.mark.asyncio
+async def test_live_query_wraps_the_user_filter_in_an_outer_and_on_invocations():
+    """An OR in the user's filter cannot re-read the run's own evaluator traces."""
+    from oss.src.core.tracing.dtos import (
+        Condition,
+        Filtering,
+        LogicalOperator,
+    )
+
+    user_filtering = Filtering(
+        operator=LogicalOperator.OR,
+        conditions=[
+            Condition(field="trace_type", operator="is", value="invocation"),
+            Condition(field="trace_type", operator="is", value="annotation"),
+        ],
+    )
+    tracing_service = _RecordingTracingService()
+
+    await SourceResolution(tracing_service=tracing_service).resolve_live_query_traces(
+        project_id=uuid4(),
+        query_revisions={"query-live": _revision_with_filtering(user_filtering)},
+    )
+
+    filtering = tracing_service.query.filtering
+    assert filtering.operator == LogicalOperator.AND
+    invocations, nested = filtering.conditions
+    assert (invocations.field, invocations.operator, invocations.value) == (
+        "trace_type",
+        "is",
+        "invocation",
+    )
+    assert nested is user_filtering
+
+
+@pytest.mark.asyncio
+async def test_batch_query_keeps_the_user_filter_as_saved():
+    from oss.src.core.tracing.dtos import Condition, Filtering
+
+    user_filtering = Filtering(
+        conditions=[Condition(field="trace_type", operator="is", value="invocation")]
+    )
+    tracing_service = _RecordingTracingService()
+
+    await SourceResolution(tracing_service=tracing_service).resolve_live_query_traces(
+        project_id=uuid4(),
+        query_revisions={"query-batch": _revision_with_filtering(user_filtering)},
+        use_windowing=True,
+    )
+
+    assert tracing_service.query.filtering is user_filtering
+
+
+@pytest.mark.asyncio
+async def test_query_source_item_links_a_root_that_shares_its_name_with_another():
+    """Same-name sibling roots arrive as a list. The evaluator still gets a span to
+    link, so its trace is typed `annotation` and the next tick does not read it."""
+    from agenta.sdk.models.tracing import SpansNode, Trace
+
+    trace_id = "c" * 32
+    first_root, second_root = "d" * 16, "e" * 16
+    trace = Trace(
+        trace_id=trace_id,
+        spans={
+            "chat": [
+                SpansNode(trace_id=trace_id, span_id=first_root),
+                SpansNode(trace_id=trace_id, span_id=second_root),
+            ]
+        },
+    )
+    query_revision_id = uuid4()
+    run = EvaluationRun(
+        id=uuid4(),
+        principal=any_principal(),
+        flags=EvaluationRunFlags(is_live=True, has_queries=True),
+        data=EvaluationRunData(
+            steps=[
+                EvaluationRunDataStep(
+                    key="query-live",
+                    type="input",
+                    origin="custom",
+                    references={"query_revision": Reference(id=query_revision_id)},
+                ),
+            ],
+            repeats=1,
+        ),
+    )
+    sources = SourceResolution(
+        queries_service=SimpleNamespace(
+            fetch_query_revision=AsyncMock(
+                return_value=SimpleNamespace(
+                    id=query_revision_id,
+                    slug="query-live",
+                    data=SimpleNamespace(filtering=None, windowing=None),
+                )
+            )
+        ),
+        tracing_service=SimpleNamespace(query_traces=AsyncMock(return_value=[trace])),
+    )
+
+    items = await sources.resolve_query_source_items(project_id=uuid4(), run=run)
+
+    [item] = items["query-live"]
+    assert item.span_id == first_root

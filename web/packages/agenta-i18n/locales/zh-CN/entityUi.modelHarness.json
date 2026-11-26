@@ -1,0 +1,19 @@
+{
+    "policySummary": "策略 · {{policy}}",
+    "unsavedGroupChanges": "此组中有未保存的更改。",
+    "selectModel": "选择模型…",
+    "sandboxSummary": "沙箱：{{kind}}",
+    "sandbox": "沙箱",
+    "policy": "策略",
+    "attachedCount_other": "已附加 {{count}} 个",
+    "noneAttached": "未附加",
+    "executionEnvironment": "执行环境",
+    "executionCaptionShort": "Agent 的工具和代码运行的位置。",
+    "customSecrets": "自定义密钥",
+    "execution": "执行",
+    "executionCaption": "Agent 的工具和代码运行的位置，以及该沙箱可以访问的内容。",
+    "secretsCaption": "此 Agent 工作时可以使用的凭据。{{summary}}。",
+    "agentaTools": "Agenta 工具",
+    "buildKit": "构建工具包",
+    "advanced": "高级"
+}

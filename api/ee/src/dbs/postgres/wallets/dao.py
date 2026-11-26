@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import FrozenSet, List, Optional
 from uuid import UUID
 
 import uuid_utils.compat as uuid_utils
@@ -346,6 +346,60 @@ class WalletsDAO(WalletsDAOInterface):
                 raise WalletGeneralBalanceNotFoundError(organization_id)
 
             return balance_dbe_to_dto(balance)
+
+    async def hold_credits(
+        self,
+        *,
+        organization_id: UUID,
+        keep_credit_kinds: FrozenSet[str],
+        now: datetime,
+    ) -> int:
+        async with self.engine.session() as session:
+            # Serializes with settlement, awards and a concurrent hold, which lock the
+            # same row first.
+            await self._lock_general_balance(
+                session=session,
+                organization_id=organization_id,
+            )
+
+            live_stmt = (
+                select(WalletCreditDBE)
+                .where(
+                    WalletCreditDBE.organization_id == organization_id,
+                    WalletCreditDBE.deleted_at.is_(None),
+                    WalletCreditDBE.credit_kind.notin_(keep_credit_kinds),
+                    or_(
+                        WalletCreditDBE.end_time.is_(None),
+                        WalletCreditDBE.end_time > now,
+                    ),
+                )
+                .with_for_update()
+            )
+            credits = (await session.execute(live_stmt)).scalars().all()
+            expired = 0
+            for credit in credits:
+                data = dict(credit.data or {})
+                # A credit an earlier hold already expired keeps that hold's snapshot:
+                # it holds the real original end time.
+                if "revoked" in data:
+                    continue
+                data["revoked"] = {
+                    "previous_end_time": (
+                        credit.end_time.isoformat() if credit.end_time else None
+                    ),
+                    "at": now.isoformat(),
+                }
+                credit.data = data
+                credit.end_time = now
+                expired += 1
+            await session.flush()
+
+            log.info(
+                "[WALLETS] Held an organization's wallet",
+                organization_id=str(organization_id),
+                credits_expired=expired,
+            )
+            return expired
 
     async def get_awarded_credit(
         self,

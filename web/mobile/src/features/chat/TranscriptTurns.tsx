@@ -1,13 +1,18 @@
+import type {ReactNode, RefObject} from "react"
+
+import type {ChildUpdate} from "@agenta/chat/assets"
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import type {TurnViewModel} from "@agenta/chat/model"
 
 import {PendingTurn} from "./PendingTurn"
 import {TurnRow} from "./TurnRow"
-import {runIdFor} from "./turnStatus"
+import {runIdFor, runStartedAtFor} from "./turnStatus"
+import {useTranscriptWindow} from "./useTranscriptWindow"
 
 /** The transcript's turns, and the placeholder turn while a run has nothing to show yet. */
 export const TranscriptTurns = ({
     turns,
+    scrollerRef,
     sessionId,
     remoteRunning,
     waitingOnUser,
@@ -15,8 +20,11 @@ export const TranscriptTurns = ({
     pending,
     onClientToolOutput,
     onRewind,
+    renderChildSession,
 }: {
     turns: TurnViewModel[]
+    /** The element these turns scroll in; scrolling it up is what renders older turns. */
+    scrollerRef: RefObject<HTMLDivElement | null>
     sessionId: string
     remoteRunning: boolean
     waitingOnUser: boolean
@@ -26,23 +34,30 @@ export const TranscriptTurns = ({
     pending: boolean
     onClientToolOutput?: ClientToolOutputHandler
     onRewind?: (turn: TurnViewModel) => void
-}) => (
-    <>
-        {turns.map((turn, i) => (
-            <TurnRow
-                key={turn.message.id}
-                turn={turn}
-                onClientToolOutput={onClientToolOutput}
-                onRewind={onRewind}
-                sessionId={sessionId}
-                remoteRunning={remoteRunning}
-                waitingOnUser={waitingOnUser}
-                resuming={resuming}
-                runId={runIdFor(turns, i)}
-            />
-        ))}
-        {pending ? (
-            <PendingTurn sessionId={sessionId} runId={runIdFor(turns, turns.length)} />
-        ) : null}
-    </>
-)
+    /** Names and links the child session of a child update row. */
+    renderChildSession?: (update: ChildUpdate) => ReactNode
+}) => {
+    const start = useTranscriptWindow(turns.length, scrollerRef, sessionId)
+    return (
+        <>
+            {turns.slice(start).map((turn, offset) => (
+                <TurnRow
+                    key={turn.message.id}
+                    turn={turn}
+                    onClientToolOutput={onClientToolOutput}
+                    onRewind={onRewind}
+                    sessionId={sessionId}
+                    remoteRunning={remoteRunning}
+                    waitingOnUser={waitingOnUser}
+                    resuming={resuming}
+                    runId={runIdFor(turns, start + offset)}
+                    runStartedAt={runStartedAtFor(turns, start + offset)}
+                    renderChildSession={renderChildSession}
+                />
+            ))}
+            {pending ? (
+                <PendingTurn sessionId={sessionId} runId={runIdFor(turns, turns.length)} />
+            ) : null}
+        </>
+    )
+}

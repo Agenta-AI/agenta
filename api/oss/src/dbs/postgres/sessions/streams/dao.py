@@ -4,18 +4,24 @@ from uuid import UUID
 
 import uuid_utils.compat as uuid
 from sqlalchemy import (
+    any_,
     case,
     cast,
     delete as sa_delete,
+    exists,
+    false,
     func,
     literal,
     or_,
     select,
+    text,
     update as sa_update,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID, insert
+from sqlalchemy import column as sa_column, table as sa_table
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID as PG_UUID, insert
 from sqlalchemy.exc import IntegrityError
 
+from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.sessions.dtos import (
     SessionOrigin,
     SessionReference,
@@ -37,9 +43,14 @@ from oss.src.core.sessions.streams.interfaces import (
     TriggerSessionClaimsDAOInterface,
 )
 from oss.src.core.sessions.streams.naming import refuse_name_change
-from oss.src.core.sessions.streams.types import SessionStreamAlreadyExists
+from oss.src.core.sessions.streams.types import (
+    SessionIdTombstoned,
+    SessionStreamAlreadyExists,
+)
+from oss.src.dbs.postgres.sharing.dao import copy_calling_session_grants
+from oss.src.dbs.postgres.sharing.dbes import SessionTraceTombstoneDBE
 from oss.src.core.shared.dtos import Status, Windowing
-from oss.src.core.triggers.dtos import TRIGGER_DELIVERY_RETRYABLE_STATUS_CODE
+from oss.src.core.sharing.dtos import AccessPolicy, SessionReadScope, Visibility
 
 from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
@@ -53,10 +64,12 @@ from oss.src.dbs.postgres.sessions.references import (
 from oss.src.dbs.postgres.sessions.executions.dbes import SessionExecutionDBE
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 from oss.src.dbs.postgres.sessions.streams.mappings import (
+    SESSION_CALLING_SESSION_AGENT_ID_TAG_KEY,
+    SESSION_CALLING_SESSION_ID_TAG_KEY,
     SESSION_ORIGIN_TAG_KEY,
     SESSION_TRIGGER_ID_TAG_KEY,
     SESSION_TRIGGER_KIND_TAG_KEY,
-    trigger_attribution_tags,
+    session_origin_tags,
     map_stream_dbe_to_dto,
     map_stream_query_result,
     map_stream_dto_to_dbe_create,
@@ -78,7 +91,7 @@ from oss.src.dbs.postgres.triggers.dbes import (
     TriggerSubscriptionDBE,
 )
 from oss.src.dbs.postgres.triggers.upsert_utils import (
-    build_trigger_delivery_conflict,
+    build_trigger_delivery_claim,
     build_trigger_delivery_values,
 )
 
@@ -92,6 +105,28 @@ _UUID_PATTERN = (
 # internal callers that build a `Windowing` directly — never let one of those
 # reach Postgres with an unbounded or negative `LIMIT`.
 MAX_SESSION_QUERY_LIMIT = 200
+
+
+# Serializes the create and the delete of one session id (both take it first, in their
+# transaction): a create that waited for a delete reads the tombstone that delete wrote.
+_SESSION_ID_LOCK_SQL = (
+    "SELECT pg_advisory_xact_lock(hashtextextended(CAST(:lock_key AS text), 0))"
+)
+
+_HARD_DELETE_WITH_TOMBSTONE_SQL = """
+WITH gone AS (
+    DELETE FROM session_streams
+    WHERE project_id = :project_id AND session_id = :session_id
+    RETURNING project_id, session_id, visibility, owner_user_id
+), tombstone AS (
+    INSERT INTO session_trace_tombstones (project_id, session_id, owner_user_id)
+    SELECT project_id, session_id, owner_user_id FROM gone
+    WHERE visibility = 'private'
+    ON CONFLICT (project_id, session_id) DO UPDATE
+        SET owner_user_id = EXCLUDED.owner_user_id, deleted_at = CURRENT_TIMESTAMP
+)
+SELECT count(*) FROM gone
+"""
 
 
 class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInterface):
@@ -142,23 +177,106 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         project_id: UUID,
         user_id: Optional[UUID],
         stream: SessionStreamCreate,
+        grants_from_session_id: Optional[str] = None,
     ) -> SessionStream:
         dbe = map_stream_dto_to_dbe_create(
             project_id=project_id,
             user_id=user_id,
             stream=stream,
         )
+        # One statement, and none over a tombstone: the id of a deleted private session
+        # stays its former owner's (its records stay with tracing retention), so no row
+        # is ever created with it again. The row comes back with its server defaults.
+        table = SessionStreamDBE.__table__
+        values = {
+            column.name: getattr(dbe, column.key)
+            for column in table.columns
+            if getattr(dbe, column.key, None) is not None
+        }
+        values.setdefault("id", uuid.uuid7())
+        values.setdefault("owner_user_id", None)
+        names = list(values)
+        # A channel thread that names the session id makes it a channel session, and
+        # only that thread's own binding creates it (its run), with the channel policy it
+        # computed (private to the agent's owner for a private agent). Any other creator,
+        # another binding included, inserts nothing: the id is reserved, like a
+        # tombstone's. The same statement says whether a thread names the id, so the
+        # row's cache entry needs no extra read.
+        threads = sa_table(
+            "channel_threads",
+            sa_column("project_id", PG_UUID(as_uuid=True)),
+            sa_column("session_id", table.c.session_id.type),
+            sa_column("agent_id", PG_UUID(as_uuid=True)),
+        )
+        in_channel = exists().where(
+            threads.c.project_id == project_id,
+            threads.c.session_id == stream.session_id,
+        )
+
+        tombstone = SessionTraceTombstoneDBE.__table__
+        source = select(
+            *(literal(values[name], type_=table.c[name].type) for name in names)
+        ).where(
+            ~exists().where(
+                tombstone.c.project_id == project_id,
+                tombstone.c.session_id == stream.session_id,
+            )
+        )
+        if stream.channel_binding_id is None:
+            source = source.where(~in_channel)
+        else:
+            source = source.where(
+                ~exists().where(
+                    threads.c.project_id == project_id,
+                    threads.c.session_id == stream.session_id,
+                    threads.c.agent_id != stream.channel_binding_id,
+                )
+            )
+        has_channel_thread = in_channel.label("has_channel_thread")
+        statement = (
+            insert(table)
+            .from_select(names, source, include_defaults=False)
+            .returning(*table.columns, has_channel_thread)
+        )
         try:
             async with self.engine.session() as session:
-                session.add(dbe)
+                # After the lock, the insert's snapshot sees a tombstone that a concurrent
+                # delete of the same id committed.
+                await session.execute(
+                    text(_SESSION_ID_LOCK_SQL),
+                    {"lock_key": f"{project_id}:{stream.session_id}"},
+                )
+                row = (await session.execute(statement)).first()
+                # The row and its copied grants commit together: a failed copy leaves
+                # no row, so a retry with the same key creates both.
+                grants = (
+                    await copy_calling_session_grants(
+                        session,
+                        project_id=project_id,
+                        calling_session_id=grants_from_session_id,
+                        stream_id=row._mapping["id"],
+                        expected=stream.access,
+                        user_id=user_id,
+                    )
+                    if row is not None and grants_from_session_id is not None
+                    else []
+                )
                 await session.commit()
-                await session.refresh(dbe)
         except IntegrityError as e:
             error_str = str(e.orig) if e.orig else str(e)
             if "uq_session_streams_project_session_id" in error_str:
                 raise SessionStreamAlreadyExists(session_id=stream.session_id) from e
             raise
-        return map_stream_dbe_to_dto(stream_dbe=dbe)
+        if row is None:
+            raise SessionIdTombstoned(session_id=stream.session_id)
+        created = map_stream_dbe_to_dto(
+            stream_dbe=SessionStreamDBE(
+                **{column.key: row._mapping[column.name] for column in table.columns}
+            )
+        )
+        created._has_channel_thread = bool(row._mapping["has_channel_thread"])
+        created._created_grants = grants
+        return created
 
     async def claim_trigger_delivery(
         self,
@@ -168,6 +286,8 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         event_id: str,
         session_id: str,
         attribution: SessionTriggerAttribution,
+        access: AccessPolicy,
+        envelope: Optional[RunEnvelope],
     ) -> bool:
         by_schedule = attribution.kind == SessionTriggerKind.schedule
         claim_status = Status(code="102", message="claimed")
@@ -181,10 +301,9 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
             "status": claim_status.model_dump(mode="json", exclude_none=True),
             "data": {"session_id": session_id},
         }
-        # Normalize/filter columns to the real table and reuse the shared conflict
-        # target builder so all call sites stay in parity.
+        # Normalize/filter columns to the real table; the claim itself comes from the
+        # shared builder, so all claims keep one conflict target and one retry rule.
         delivery_values = build_trigger_delivery_values(delivery_values)
-        index_elements, index_where = build_trigger_delivery_conflict(by_schedule)
         parent_dbe = TriggerScheduleDBE if by_schedule else TriggerSubscriptionDBE
         active_flags = (
             {"is_active": True}
@@ -202,60 +321,43 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
             .with_for_update()
             .cte("live_trigger_configuration")
         )
-        delivery_columns = list(delivery_values)
-        delivery_insert = insert(TriggerDeliveryDBE).from_select(
-            delivery_columns,
-            select(
-                *(
-                    literal(
-                        delivery_values[column],
-                        type_=TriggerDeliveryDBE.__table__.c[column].type,
-                    )
-                    for column in delivery_columns
-                )
-            ).select_from(live_parent),
-        )
         claimed_delivery = (
-            delivery_insert.on_conflict_do_update(
-                index_elements=index_elements,
-                index_where=index_where,
-                # Retry re-claim (P1-8): a delivery stuck in the one retryable
-                # terminal state (500 — the runner was unreachable, not a
-                # permanent rejection) can be re-claimed by a fresh attempt.
-                # Any other existing row (still claimed, or a terminal
-                # non-retryable status) fails this WHERE and the row is left
-                # untouched — the same outcome DO NOTHING gave for every case
-                # except this one. `dedup_seen` gates on the identical status
-                # check so a retry actually reaches this claim instead of
-                # short-circuiting before it.
-                where=TriggerDeliveryDBE.status["code"].astext
-                == TRIGGER_DELIVERY_RETRYABLE_STATUS_CODE,
-                set_={
-                    "id": delivery_insert.excluded.id,
-                    "created_by_id": delivery_insert.excluded.created_by_id,
-                    "status": delivery_insert.excluded.status,
-                    "data": delivery_insert.excluded.data,
-                    "updated_at": datetime.now(timezone.utc),
-                },
+            build_trigger_delivery_claim(
+                delivery_values, by_schedule=by_schedule, live_parent=live_parent
             )
             .returning(TriggerDeliveryDBE.id)
             .cte("claimed_trigger_delivery")
         )
 
-        tags = trigger_attribution_tags(attribution)
+        tags = session_origin_tags(envelope, attribution)
         stream_insert = insert(SessionStreamDBE).from_select(
-            ["id", "project_id", "created_by_id", "session_id", "tags"],
+            [
+                "id",
+                "project_id",
+                "created_by_id",
+                "session_id",
+                "tags",
+                "visibility",
+                "owner_user_id",
+            ],
             select(
                 literal(uuid.uuid7()),
                 literal(project_id),
                 literal(user_id),
                 literal(session_id),
                 cast(tags, JSONB),
+                literal(access.visibility.value),
+                literal(
+                    access.owner_user_id,
+                    type_=SessionStreamDBE.__table__.c["owner_user_id"].type,
+                ),
             ).select_from(claimed_delivery),
         )
         merged_tags = func.coalesce(SessionStreamDBE.tags, cast({}, JSONB)).op("||")(
             stream_insert.excluded.tags
         )
+        # The conflict arm merges the attribution tags only: an existing row keeps its
+        # sharing policy.
         statement = stream_insert.on_conflict_do_update(
             index_elements=["project_id", "session_id"],
             set_={"tags": merged_tags},
@@ -306,16 +408,19 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         *,
         project_id: UUID,
         session_id: str,
+        transaction: Optional[Any] = None,
     ) -> Optional[SessionStream]:
         """Like `get_by_session_id`, but also returns a soft-archived row — the
         confirmation read for `archive`/`unarchive` (S7/F2, WP5)."""
-        async with self.engine.session() as session:
-            stmt = select(SessionStreamDBE).where(
-                SessionStreamDBE.project_id == project_id,
-                SessionStreamDBE.session_id == session_id,
-            )
-            result = await session.execute(stmt)
-            dbe = result.scalar_one_or_none()
+        stmt = select(SessionStreamDBE).where(
+            SessionStreamDBE.project_id == project_id,
+            SessionStreamDBE.session_id == session_id,
+        )
+        if transaction is not None:
+            dbe = (await transaction.execute(stmt)).scalar_one_or_none()
+        else:
+            async with self.engine.session() as session:
+                dbe = (await session.execute(stmt)).scalar_one_or_none()
         if dbe is None:
             return None
         return map_stream_dbe_to_dto(stream_dbe=dbe)
@@ -339,10 +444,39 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         return map_stream_dbe_to_dto(stream_dbe=dbe)
 
     @staticmethod
+    def _apply_read_scope(stmt, *, read_scope: SessionReadScope):
+        """The sessions the scope may list (technical design 4.3): project-visible and
+        legacy rows (`visibility NULL`), the scope owner's own rows, and the granted
+        rows. An empty grant list adds no `ANY` term."""
+        terms = []
+        if read_scope.include_project:
+            terms.append(
+                or_(
+                    SessionStreamDBE.visibility == Visibility.PROJECT.value,
+                    SessionStreamDBE.visibility.is_(None),
+                )
+            )
+        if read_scope.owner_user_id is not None:
+            terms.append(SessionStreamDBE.owner_user_id == read_scope.owner_user_id)
+        if read_scope.granted_stream_ids:
+            terms.append(
+                SessionStreamDBE.id
+                == any_(
+                    literal(
+                        list(read_scope.granted_stream_ids),
+                        ARRAY(PG_UUID(as_uuid=True)),
+                    )
+                )
+            )
+        return stmt.where(or_(*terms) if terms else false())
+
+    @classmethod
     def _apply_filters(
+        cls,
         stmt,
         *,
         project_id: UUID,
+        read_scope: SessionReadScope,
         filter: SessionStreamQuery,
         session_ids: Optional[List[str]] = None,
         exclude_session_ids: Optional[List[str]] = None,
@@ -350,6 +484,7 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         """Shared row predicate for `query` and `count` — one definition, so a filtered
         page and its total can never disagree."""
         stmt = stmt.where(SessionStreamDBE.project_id == project_id)
+        stmt = cls._apply_read_scope(stmt, read_scope=read_scope)
         if not filter.include_ended:
             stmt = stmt.where(SessionStreamDBE.deleted_at.is_(None))
         if filter.archived_only:
@@ -373,12 +508,11 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         if filter.origins is not None:
             origin_values = [value.value for value in filter.origins]
             if SessionOrigin.manual.value in origin_values:
-                # Nothing has ever stamped "manual" — every human session has a NULL
-                # origin (only `trigger_attribution_tags` writes the tag, and only
-                # ever "trigger"). Admit NULL when "manual" is requested, or
-                # `origins: ["manual"]` matches zero rows and
-                # `origins: ["manual", "trigger"]` silently drops every human
-                # session (P1-1).
+                # Nothing ever stamps "manual": every human session has a NULL
+                # origin (`session_origin_tags` writes no tag for one). Admit NULL
+                # when "manual" is requested, or `origins: ["manual"]` matches zero
+                # rows and `origins: ["manual", "trigger"]` silently drops every
+                # human session (P1-1).
                 stmt = stmt.where(or_(origin.in_(origin_values), origin.is_(None)))
             else:
                 stmt = stmt.where(origin.in_(origin_values))
@@ -389,6 +523,23 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
                     origin.not_in([value.value for value in filter.exclude_origins]),
                 )
             )
+        calling_session = filter.calling_session
+        if calling_session is not None and calling_session.ids is not None:
+            stmt = stmt.where(
+                SessionStreamDBE.tags[SESSION_CALLING_SESSION_ID_TAG_KEY].astext.in_(
+                    calling_session.ids
+                )
+            )
+        if calling_session is not None and calling_session.agent_ids is not None:
+            stmt = stmt.where(
+                SessionStreamDBE.tags[
+                    SESSION_CALLING_SESSION_AGENT_ID_TAG_KEY
+                ].astext.in_([str(agent_id) for agent_id in calling_session.agent_ids])
+            )
+        if filter.created_after is not None:
+            stmt = stmt.where(SessionStreamDBE.created_at > filter.created_after)
+        if filter.created_before is not None:
+            stmt = stmt.where(SessionStreamDBE.created_at < filter.created_before)
         term = filter.search.strip() if filter.search else ""
         if term:
             # Escape LIKE metacharacters so a literal `%`/`_` in the search term
@@ -401,6 +552,7 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         self,
         *,
         project_id: UUID,
+        read_scope: SessionReadScope,
         filter: SessionStreamQuery,
         session_ids: Optional[List[str]] = None,
         exclude_session_ids: Optional[List[str]] = None,
@@ -412,6 +564,7 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
             stmt = self._apply_filters(
                 select(func.count()).select_from(SessionStreamDBE),
                 project_id=project_id,
+                read_scope=read_scope,
                 filter=filter,
                 session_ids=session_ids,
                 exclude_session_ids=exclude_session_ids,
@@ -423,6 +576,7 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         self,
         *,
         project_id: UUID,
+        read_scope: SessionReadScope,
         filter: SessionStreamQuery,
         windowing: Optional[Windowing] = None,
         session_ids: Optional[List[str]] = None,
@@ -435,6 +589,7 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
             stmt = self._apply_filters(
                 stmt,
                 project_id=project_id,
+                read_scope=read_scope,
                 filter=filter,
                 session_ids=session_ids,
                 exclude_session_ids=exclude_session_ids,
@@ -845,12 +1000,41 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         """Hard delete the merged stream row — `kill`/`delete_by_session_id` only
         soft-delete; this is new plumbing for the session-scoped hard-delete
         fan-out (S7/F1, WP5)."""
+        # One statement: the delete, and for a private session its tombstone (the former
+        # owner), so the deleted id stays hidden from everyone else while tracing
+        # retention keeps its records. A tombstone left by an earlier delete of the same
+        # id is replaced.
+        params = {"project_id": project_id, "session_id": session_id}
         async with self.engine.session() as session:
-            stmt = sa_delete(SessionStreamDBE).where(
-                SessionStreamDBE.project_id == project_id,
-                SessionStreamDBE.session_id == session_id,
+            await session.execute(
+                text(_SESSION_ID_LOCK_SQL), {"lock_key": f"{project_id}:{session_id}"}
             )
-            result = await session.execute(stmt)
+            result = await session.execute(
+                text(_HARD_DELETE_WITH_TOMBSTONE_SQL), params
+            )
+            deleted = int(result.scalar_one() or 0)
+            await session.commit()
+            return bool(deleted)
+
+    async def delete_row_if_unchanged(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        stream_id: UUID,
+        turn_id: Optional[str],
+    ) -> bool:
+        """Delete the row only while it is the row `stream_id` names and still holds
+        `turn_id`: a row another turn adopted since is kept."""
+        async with self.engine.session() as session:
+            result = await session.execute(
+                sa_delete(SessionStreamDBE).where(
+                    SessionStreamDBE.project_id == project_id,
+                    SessionStreamDBE.session_id == session_id,
+                    SessionStreamDBE.id == stream_id,
+                    SessionStreamDBE.turn_id.is_not_distinct_from(turn_id),
+                )
+            )
             await session.commit()
             return bool(result.rowcount)
 

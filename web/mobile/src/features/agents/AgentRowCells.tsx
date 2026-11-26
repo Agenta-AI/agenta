@@ -1,8 +1,12 @@
 import {AgentActionsMenu, AgentChip} from "@agenta/entity-ui/agent"
+import {useT} from "@agenta/i18n"
+import agentsList from "@agenta/i18n/catalogs/agents.list"
 import {InlineRenameInput} from "@agenta/sessions-ui"
 
-import {lastActiveLabel, NO_DESCRIPTION, type AgentListRow} from "./agentListView"
+import {lastActiveLabel, type AgentListRow} from "./agentListView"
+import {AgentPrivateMarker} from "./AgentPrivateMarker"
 import {AGENT_RENAME_INPUT_CLASS, useAgentInlineRename} from "./useAgentInlineRename"
+import {agentMenuProps, type AgentRowActions} from "./useAgentRowActions"
 
 /**
  * One agent's cells, in column order.
@@ -14,13 +18,16 @@ export const AgentRowCells = ({
     row,
     narrow,
     onOpen,
+    actions,
 }: {
     row: AgentListRow
-    /** A phone has no Created by column; the cell is dropped, not hidden. */
+    /** A phone has no Owner column; the cell is dropped, not hidden. */
     narrow: boolean
     /** The row's own click already does this; the menu offers it in words. */
     onOpen: (row: AgentListRow) => void
+    actions: AgentRowActions
 }) => {
+    const t = useT(agentsList)
     const {rename, startFromMenu, handleCloseAutoFocus} = useAgentInlineRename(row)
 
     return (
@@ -40,7 +47,7 @@ export const AgentRowCells = ({
                         >
                             <InlineRenameInput
                                 rename={rename}
-                                ariaLabel="Agent name"
+                                ariaLabel={t("agents.list.agentName")}
                                 className={AGENT_RENAME_INPUT_CLASS}
                             />
                         </span>
@@ -56,14 +63,15 @@ export const AgentRowCells = ({
                             >
                                 {row.name}
                             </span>
+                            {row.isPrivate ? <AgentPrivateMarker /> : null}
                             {/* The same badge a card carries: without it the Status facet
                                 narrows the list to rows that say nothing about why. */}
                             {row.waiting > 0 ? (
                                 <span
-                                    title={`${row.waiting} waiting on you`}
+                                    title={t("agents.list.waitingOnYou", {n: row.waiting})}
                                     className="shrink-0 rounded bg-colorWarningBg px-1.5 py-0.5 text-[11px] leading-none text-colorWarningText"
                                 >
-                                    {row.waiting} waiting
+                                    {t("agents.list.waitingBadge", {n: row.waiting})}
                                 </span>
                             ) : null}
                         </span>
@@ -76,7 +84,7 @@ export const AgentRowCells = ({
                         }`}
                         title={row.description || undefined}
                     >
-                        {row.description || NO_DESCRIPTION}
+                        {row.description || t("agents.list.noDescription")}
                     </span>
                 </span>
             </span>
@@ -101,9 +109,12 @@ export const AgentRowCells = ({
                 <AgentActionsMenu
                     agent={{id: row.id, name: row.name}}
                     align="end"
+                    // The row's 24 px kebab (canvas A03), as the sessions table draws it.
+                    className="md:size-6"
                     onOpen={() => onOpen(row)}
                     onRename={startFromMenu}
                     onCloseAutoFocus={handleCloseAutoFocus}
+                    {...agentMenuProps(row, actions)}
                 />
             </span>
         </>

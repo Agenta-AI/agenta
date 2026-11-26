@@ -635,7 +635,8 @@ const PlaygroundMainView = ({
                             <section
                                 ref={setGenerationPanelRef}
                                 className={clsx([
-                                    "playground-generation",
+                                    // isolate: keeps the sticky cells' z-[99] under modals (z-50).
+                                    "playground-generation isolate",
                                     {
                                         "ag-scroll-quiet grow w-full h-full overflow-y-auto overflow-x-hidden":
                                             !isComparisonView,

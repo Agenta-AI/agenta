@@ -26,6 +26,7 @@ export {
     default as ProviderConnectionCard,
     type ProviderCardSaveState,
     type ProviderConnectionCardProps,
+    type ProviderOwnerChoice,
 } from "./ProviderConnectionCard"
 export {default as ActiveModelsSection, type ActiveModelsSectionProps} from "./ActiveModelsSection"
 export {
@@ -43,14 +44,18 @@ export {
     type SubscriptionConnectionCardProps,
 } from "./SubscriptionConnectionCard"
 export {
-    default as SubscriptionSignInDialog,
-    type SubscriptionSignInDialogProps,
-} from "./SubscriptionSignInDialog"
-export {
     default as SubscriptionTokenCard,
     type SubscriptionTokenCardProps,
 } from "./SubscriptionTokenCard"
 export {default as ScrollScrim, type ScrollScrimProps} from "./ScrollScrim"
+export {
+    default as OrganizationProjectsSection,
+    type OrganizationConnectionScope,
+    type OrganizationProjectChoice,
+    type OrganizationProjectOption,
+    type OrganizationProjectsSectionProps,
+} from "./OrganizationProjectsSection"
+export {organizationRefusal, organizationSaveError} from "./useOrganizationProjectsDraft"
 
 /**
  * The "Configure provider" drawer and the drill-in `llmProviderConfig` bridge that opens it —
@@ -63,6 +68,9 @@ export {
 } from "./ConfigureProviderDrawer"
 export {useLLMProviderConfig, type LLMProviderConfig} from "./useLLMProviderConfig"
 
+/** The automatic key check of the key forms: one probe at a time, with Stop. */
+export {useKeyCheck, type KeyCheck, type KeyCheckRequest, type KeyCheckState} from "./useKeyCheck"
+
 /** Saving one API key without the drawer, for inline add-key forms. */
 export {
     KEY_PROVIDERS,
@@ -70,3 +78,38 @@ export {
     newProviderKeyDraft,
     useSaveProviderKey,
 } from "./useSaveProviderKey"
+
+/** Provider and subscription text in the active language, for the Settings rows. */
+export {credentialSummaryText} from "./providerCardText"
+export {subscriptionStatusLine} from "./subscriptionText"
+/**
+ * The model providers views (target `project`): the list, "Add a provider or subscription", one
+ * connection's form, the built-in models card and the subscription sign-ins. `ProviderListBody`
+ * is the list for a host that shows it as its root (Settings › AI providers).
+ */
+export {
+    builtinModelsView,
+    providerAddView,
+    providerConnectionView,
+    providerListView,
+    type BuiltinModelsViewParams,
+    type ProviderAddViewParams,
+    type ProviderConnectionViewParams,
+    type ProviderListViewParams,
+} from "./views/providerViews"
+export {ProviderListBody, type ProviderListBodyProps} from "./views/ProviderListBody"
+export {
+    SubscriptionOwnerContext,
+    subscriptionSignInView,
+    subscriptionTokenView,
+    subscriptionViewFor,
+    subscriptionViewOf,
+    type SubscriptionOwner,
+    type SubscriptionViewParams,
+} from "./views/subscriptionViews"
+export {
+    SubscriptionSignInCard,
+    type SubscriptionSignInCardProps,
+    type SubscriptionSignInPhase,
+} from "./views/SubscriptionSignInCard"
+export {ProviderOwnerChoiceContext} from "./views/providerOwnerChoice"

@@ -1,0 +1,76 @@
+import {useState} from "react"
+
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsInvitedLinkDialogCatalog from "@agenta/i18n/catalogs/settings.invitedLinkDialog"
+import {
+    Button,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@agenta/ui/ui"
+import {copyToClipboard} from "@agenta/ui/utils"
+import {Check, Copy} from "@phosphor-icons/react"
+
+export interface InvitedLink {
+    email: string
+    url: string
+}
+
+/** With no email service the API returns the invite link, so the inviter shares it by hand. */
+export const InvitedLinkDialog = ({
+    invited,
+    onClose,
+}: {
+    invited: InvitedLink | null
+    onClose: () => void
+}) => {
+    const t = useT(commonCatalog, settingsInvitedLinkDialogCatalog)
+    const [copied, setCopied] = useState(false)
+    const close = () => {
+        setCopied(false)
+        onClose()
+    }
+
+    return (
+        <Dialog open={Boolean(invited)} onOpenChange={(next) => (next ? undefined : close())}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>{t("settings.invitedLinkDialog.title")}</DialogTitle>
+                    <DialogDescription>
+                        {t("settings.invitedLinkDialog.description")}
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="flex min-w-0 flex-col gap-3 text-sm">
+                    <div className="flex flex-col gap-1">
+                        <span className="font-medium">
+                            {t("settings.invitedLinkDialog.memberName")}
+                        </span>
+                        <span className="break-all">{invited?.email}</span>
+                    </div>
+                    <div className="bg-muted flex flex-col gap-1 rounded-md px-3 py-2">
+                        <span className="font-medium">
+                            {t("settings.invitedLinkDialog.invitedLink")}
+                        </span>
+                        {/* Selectable: the clipboard is refused on a plain HTTP deployment. */}
+                        <span className="break-all select-all">{invited?.url}</span>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button
+                        variant="outline"
+                        onClick={async () => {
+                            if (invited) setCopied(await copyToClipboard(invited.url))
+                        }}
+                    >
+                        {copied ? <Check size={14} /> : <Copy size={14} />}
+                        {copied ? t("common.copied") : t("common.copy")}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}

@@ -11,6 +11,7 @@ from enum import Enum
 from typing import Any, Dict, Optional
 from uuid import UUID
 
+from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.sessions.inputs.service import SessionInputsService
 from oss.src.core.sessions.inputs.types import (
     SessionInputBusy,
@@ -36,6 +37,7 @@ class ChannelSessionQueue:
         session_id: str,
         request: Dict[str, Any],
         idempotency_key: str,
+        envelope: RunEnvelope,
     ) -> ChannelQueueDecision:
         """`request` is the invoke request exactly as the turn would send it:
         the promoted input is replayed from it verbatim.
@@ -53,6 +55,7 @@ class ChannelSessionQueue:
                 content=request,
                 policy="queue",
                 idempotency_key=idempotency_key,
+                envelope=envelope,
             )
         except SessionInputBusy:
             return ChannelQueueDecision.UNAVAILABLE

@@ -229,9 +229,8 @@ export interface BoundRevision {
 /**
  * The revision a binding ACTUALLY runs — the one rule, in one place.
  *
- * Three surfaces need this (the composer's agent shape, the version label, the drift tag) and
- * each had its own copy; the pinned branches had already drifted apart, so the drift tag could
- * name a different version than the label beside it.
+ * The composer's agent shape and the version label both read it, so they always name the same
+ * revision.
  *
  * Both lookups are needed. The variant's revision list is the normal source, but a STORED pinned
  * reference names the revision without its variant (`parseStoredBinding`), leaving the list empty

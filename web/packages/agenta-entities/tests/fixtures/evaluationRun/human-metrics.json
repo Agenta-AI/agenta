@@ -1,0 +1,148 @@
+{
+    "run": {
+        "id": "01a20000-0000-7000-8000-00000000b001",
+        "name": "",
+        "status": "running",
+        "flags": {
+            "is_live": false,
+            "is_active": true,
+            "is_closed": false,
+            "has_human": true,
+            "has_testsets": true
+        },
+        "data": {
+            "steps": [
+                {
+                    "key": "testset-91fe",
+                    "type": "input",
+                    "origin": "custom",
+                    "references": {
+                        "testset": {
+                            "id": "01a20000-0000-7000-8000-00000000t001",
+                            "slug": "tickets"
+                        },
+                        "testset_revision": {
+                            "id": "01a20000-0000-7000-8000-00000000t002",
+                            "version": "3"
+                        }
+                    }
+                },
+                {
+                    "key": "application-3b8c",
+                    "type": "invocation",
+                    "origin": "custom",
+                    "references": {
+                        "application": {
+                            "id": "01a20000-0000-7000-8000-00000000p001",
+                            "slug": "support-bot"
+                        },
+                        "application_variant": {
+                            "id": "01a20000-0000-7000-8000-00000000p002"
+                        },
+                        "application_revision": {
+                            "id": "01a20000-0000-7000-8000-00000000p003",
+                            "version": "4"
+                        }
+                    }
+                },
+                {
+                    "key": "evaluator-4d0a",
+                    "type": "annotation",
+                    "origin": "human",
+                    "references": {
+                        "evaluator": {
+                            "id": "01a20000-0000-7000-8000-00000000h001",
+                            "slug": "tone"
+                        },
+                        "evaluator_revision": {
+                            "id": "01a20000-0000-7000-8000-00000000h002",
+                            "version": "1"
+                        }
+                    }
+                }
+            ],
+            "mappings": []
+        },
+        "meta": null,
+        "created_at": "2026-10-29T12:00:00+00:00",
+        "updated_at": "2026-10-29T12:05:00+00:00",
+        "created_by_id": "00000000-0000-4000-8000-000000000002"
+    },
+    "response": {
+        "count": 1,
+        "metrics": [
+            {
+                "id": "01a20000-0000-7000-8000-00000000hm01",
+                "run_id": "01a20000-0000-7000-8000-00000000b001",
+                "scenario_id": null,
+                "status": "success",
+                "timestamp": null,
+                "interval": null,
+                "data": {
+                    "application-3b8c": {
+                        "attributes.ag.metrics.costs.cumulative.total": {
+                            "type": "numeric/continuous",
+                            "count": 6,
+                            "max": 0.0009,
+                            "min": 0.0001,
+                            "sum": 0.0025,
+                            "mean": 0.00042,
+                            "range": 0.0008
+                        },
+                        "attributes.ag.metrics.duration.cumulative": {
+                            "type": "numeric/continuous",
+                            "count": 6,
+                            "max": 3.2,
+                            "min": 0.9,
+                            "sum": 11.04,
+                            "mean": 1.84,
+                            "range": 2.3
+                        },
+                        "attributes.ag.metrics.tokens.cumulative.total": {
+                            "type": "numeric/continuous",
+                            "count": 6,
+                            "max": 2100,
+                            "min": 600,
+                            "sum": 7500,
+                            "mean": 1250,
+                            "range": 1500
+                        },
+                        "attributes.ag.metrics.errors.cumulative": {
+                            "type": "numeric/discrete",
+                            "count": 6,
+                            "sum": 1,
+                            "mean": 0.1667,
+                            "max": 1,
+                            "min": 0
+                        }
+                    },
+                    "evaluator-4d0a": {
+                        "attributes.ag.data.outputs.tone": {
+                            "type": "categorical/single",
+                            "count": 6,
+                            "freq": [
+                                {
+                                    "value": "friendly",
+                                    "count": 3
+                                },
+                                {
+                                    "value": "neutral",
+                                    "count": 2
+                                },
+                                {
+                                    "value": "curt",
+                                    "count": 1
+                                }
+                            ],
+                            "uniq": ["friendly", "neutral", "curt"]
+                        },
+                        "attributes.ag.data.outputs.comment": {
+                            "type": "string",
+                            "count": 6
+                        }
+                    }
+                }
+            }
+        ]
+    }
+}

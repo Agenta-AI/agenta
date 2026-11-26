@@ -1,7 +1,9 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {FolderOpenOutlined, FileOutlined} from "@ant-design/icons"
-import {ArrowCounterClockwise} from "@phosphor-icons/react"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiTableCatalog from "@agenta/i18n/catalogs/ui.table"
+import {ArrowCounterClockwise, File as FileIcon, FolderOpen} from "@phosphor-icons/react"
 import {LOW_PRIORITY, useSetAtomWithSchedule} from "jotai-scheduler"
 
 import {Button} from "../../../components/ui/button"
@@ -29,6 +31,12 @@ export interface ColumnVisibilityPopoverContentProps<RowType extends object> {
 
 type VisibilityTreeNode = CheckboxTreeNode & {searchLabel: string; children?: VisibilityTreeNode[]}
 
+/** The box antd's `.anticon` gave these icons: 1em wide, inline-block, 0.125em below the baseline. */
+const ANTD_ICON_BOX = {
+    size: "1em",
+    style: {display: "inline-block", verticalAlign: "-0.125em"},
+} as const
+
 const ColumnVisibilityPopoverContent = <RowType extends object>({
     onClose,
     controls,
@@ -38,6 +46,7 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
     isExporting,
     additionalContent,
 }: ColumnVisibilityPopoverContentProps<RowType>) => {
+    const t = useT(uiTableCatalog, commonCatalog)
     const fallbackControls = useColumnVisibilityControls<RowType>()
     const visibilityControls = controls ?? fallbackControls
     const {columnTree, leafKeys, toggleColumn, toggleTree, reset, setHiddenKeys} =
@@ -127,7 +136,11 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
                         label
                     ),
                 searchValues: [typeof label === "string" ? label : undefined, key],
-                icon: hasChildren ? <FolderOpenOutlined /> : <FileOutlined />,
+                icon: hasChildren ? (
+                    <FolderOpen {...ANTD_ICON_BOX} />
+                ) : (
+                    <FileIcon {...ANTD_ICON_BOX} />
+                ),
             }
         },
         [],
@@ -145,7 +158,11 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
                 const icon =
                     meta.icon ??
                     defaultMeta.icon ??
-                    (hasChildren ? <FolderOpenOutlined /> : <FileOutlined />)
+                    (hasChildren ? (
+                        <FolderOpen {...ANTD_ICON_BOX} />
+                    ) : (
+                        <FileIcon {...ANTD_ICON_BOX} />
+                    ))
                 const searchValues = meta.searchValues ??
                     defaultMeta.searchValues ?? [
                         node.label ?? undefined,
@@ -248,25 +265,27 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
 
             <InputAffix
                 allowClear
-                placeholder="Search columns"
+                placeholder={t("ui.table.searchColumns")}
                 value={search}
                 onValueChange={setSearch}
             />
 
             <div className="flex flex-col gap-1">
-                <span className="text-xs font-medium uppercase text-zinc-6">Visibility</span>
+                <span className="text-xs font-medium uppercase text-zinc-6">
+                    {t("ui.table.visibility")}
+                </span>
                 <div className="flex flex-wrap gap-1.5">
                     <Button variant="outline" size="sm" onClick={handleExpandAll}>
-                        Expand all
+                        {t("ui.table.expandAll")}
                     </Button>
                     <Button variant="outline" size="sm" onClick={handleCollapseAll}>
-                        Collapse all
+                        {t("ui.table.collapseAll")}
                     </Button>
                     <Button variant="outline" size="sm" onClick={handleShowAll}>
-                        Show all
+                        {t("ui.table.showAll")}
                     </Button>
                     <Button variant="outline" size="sm" onClick={handleHideAll}>
-                        Hide all
+                        {t("ui.table.hideAll")}
                     </Button>
                 </div>
             </div>
@@ -290,10 +309,10 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
             <div className="flex justify-between items-center pt-1">
                 <Button size="sm" variant="ghost" onClick={handleResetLayout}>
                     {<ArrowCounterClockwise size={14} weight="bold" />}
-                    Reset layout
+                    {t("ui.table.resetLayout")}
                 </Button>
                 <Button size="sm" variant="ghost" onClick={onClose}>
-                    Close
+                    {t("common.close")}
                 </Button>
             </div>
         </div>

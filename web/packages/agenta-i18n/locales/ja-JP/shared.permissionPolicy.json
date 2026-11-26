@@ -1,0 +1,10 @@
+{
+    "allowAll": "すべて許可",
+    "allowAllHelp": "すべてのツールを確認なしで実行",
+    "allowReads": "読み取りを許可",
+    "allowReadsHelp": "読み取りは実行、書き込みは確認",
+    "ask": "確認する",
+    "askHelp": "すべてのツールコールを人が承認",
+    "denyAll": "すべて拒否",
+    "denyAllHelp": "すべてのツールコールを拒否"
+}

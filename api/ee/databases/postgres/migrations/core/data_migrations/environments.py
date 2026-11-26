@@ -11,7 +11,9 @@ from sqlalchemy import func
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
-from oss.src.models.db_models import ProjectDB as ProjectDBE
+from ee.databases.postgres.migrations.core.deprecated_models import (
+    DeprecatedProjectDB as ProjectDBE,
+)
 from oss.databases.postgres.migrations.core.deprecated_models import (
     AppDB,
     AppVariantDB,
@@ -36,7 +38,11 @@ from oss.src.core.environments.dtos import (
     EnvironmentRevisionData,
 )
 from oss.src.core.shared.dtos import Reference
-from oss.src.models.db_models import WorkspaceMemberDB as WorkspaceMemberDBE
+
+# Frozen legacy schema: the runtime models no longer map workspaces.
+from ee.databases.postgres.migrations.core.deprecated_models import (
+    DeprecatedWorkspaceMemberDB as WorkspaceMemberDBE,
+)
 
 
 # Define constants

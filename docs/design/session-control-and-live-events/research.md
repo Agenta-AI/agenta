@@ -50,7 +50,7 @@ refetches durable records. It does not relay raw tokens and cannot replay missed
 
 ## Existing design decision that must be revisited
 
-`docs/designs/sessions/records/specs.md` states:
+`docs/design/sessions/records/specs.md` states:
 
 > Ordering = uuid7 `id`, no stored `seq`.
 
@@ -104,8 +104,8 @@ replica holds the live sandbox, unless the runner service provides its own owner
 - `docs/design/agent-workflows/projects/sessions-takeover/opencode-comparison.md`
 - `docs/design/agenta-mobile/plans/2026-07-27-m3-live-relay.md`
 - `docs/design/agenta-mobile/plans/2026-07-27-mobile-approvals-steering.md`
-- `docs/designs/sessions/records/specs.md`
-- `docs/designs/sessions/interactions/specs.md`
+- `docs/design/sessions/records/specs.md`
+- `docs/design/sessions/interactions/specs.md`
 
 ## Public API comparison
 

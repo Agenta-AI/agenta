@@ -1,0 +1,21 @@
+{
+    "chatMessage": "チャットメッセージ",
+    "commands": "コマンド",
+    "dismiss": "閉じる",
+    "enterInsert": "挿入",
+    "enterOpen": "開く",
+    "enterRun": "実行",
+    "enterSend": "送信",
+    "navigate": "移動",
+    "newline": "改行",
+    "noCommand": "「{{query}}」に一致するコマンドやスキルはありません",
+    "noMatchFor": "「{{query}}」に一致するものはありません",
+    "openItem": "{{item}}を開く",
+    "pasteBlocked": "貼り付けをブロックしました。上限の {{max}} 文字を {{over}} 文字超えます（合計 {{total}} 文字）。貼り付ける内容を減らして、もう一度お試しください。",
+    "pastingLarge": "大きな内容を貼り付け中…",
+    "send": "送信",
+    "sending": "送信中",
+    "stop": "停止",
+    "stopping": "停止中",
+    "typeMessage": "メッセージを入力…"
+}

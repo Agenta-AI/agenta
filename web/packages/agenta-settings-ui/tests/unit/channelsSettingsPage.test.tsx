@@ -9,6 +9,7 @@ vi.mock("@agenta/ui/ui", () => {
     return {
         Alert: ({message}: {message: string}) => <div role="alert">{message}</div>,
         cn: (...classes: unknown[]) => classes.filter(Boolean).join(" "),
+        PHONE_TOUCH_TARGET_CLASS: "",
         SheetFooter: ({children}: {children?: React.ReactNode}) => <div>{children}</div>,
         Button: ({children, onClick, disabled, ...props}: React.ComponentProps<"button">) => (
             <button disabled={disabled} onClick={onClick} data-testid={props["data-testid"]}>
@@ -162,6 +163,20 @@ describe("ChannelsSettingsPage", () => {
         expect(onAgentChange).not.toHaveBeenCalled()
         expect(byTestId("channels-agent-picker")).not.toBeNull()
         expect(byTestId("manage-s-orphan")).toBeNull()
+    })
+
+    it("does not open a connection whose agent this member cannot see", async () => {
+        const hidden = connection({
+            connectionId: "s-private",
+            workspaceName: "Gamma",
+            agent: {id: "a-private", name: ""},
+        })
+        const onAgentChange = vi.fn()
+        await act(async () => root.render(<Host rows={[hidden]} onAgentChange={onAgentChange} />))
+        await clickTestId("channels-card-s-private")
+        expect(onAgentChange).not.toHaveBeenCalled()
+        expect(byTestId("channels-agent-picker")).toBeNull()
+        expect(byTestId("manage-s-private")).toBeNull()
     })
 
     it("opens a pending link on its linking step, past the hub", async () => {

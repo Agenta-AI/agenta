@@ -1,0 +1,11 @@
+{
+    "copyError": "Couldn't copy — select the key above and copy it",
+    "copyKey": "Copy key",
+    "createError": "Could not create the key",
+    "deleteBody": "Requests signed with this key stop working immediately.",
+    "deleteError": "Could not delete the key",
+    "deleteTitle": "Delete API key",
+    "revealDescription": "Shown once. It cannot be retrieved again after you close this.",
+    "revealTitle": "Save your API key",
+    "workspacePending": "Your workspace is still loading. Try again in a moment."
+}

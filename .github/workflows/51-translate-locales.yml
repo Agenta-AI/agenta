@@ -1,0 +1,95 @@
+name: "51 - translate locales"
+
+# When an English catalog changes on main or a release branch, translate the new and
+# changed keys into the other languages and open a PR with the result.
+#
+# Needs the repository secret ANTHROPIC_API_KEY. Without it the job skips with a notice
+# and does not fail, so forks and new setups stay green.
+#
+# A PR opened with the default GITHUB_TOKEN does not start other workflows. Close and
+# reopen the PR to run the checks on it.
+
+on:
+  push:
+    branches:
+      - main
+      - "release/**"
+    paths:
+      - "web/packages/agenta-i18n/locales/en/**"
+  workflow_dispatch:
+    inputs:
+      language:
+        description: "Language to translate, for example zh-CN. Leave empty for all languages."
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: translate-locales-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  translate:
+    name: Translate catalogs
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      LANGUAGE: ${{ inputs.language }}
+      TARGET_BRANCH: ${{ github.ref_name }}
+    steps:
+      - name: Check the API key
+        id: key
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::notice title=Translation skipped::The repository secret ANTHROPIC_API_KEY is not set. Add it in Settings > Secrets and variables > Actions, then run this workflow again."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out the branch
+        if: steps.key.outputs.present == 'true'
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Node.js
+        if: steps.key.outputs.present == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+
+      # translate.ts uses only Node built-ins, so no dependency install is needed.
+      - name: Translate
+        if: steps.key.outputs.present == 'true'
+        working-directory: web/packages/agenta-i18n
+        run: |
+          args=()
+          if [ -n "$LANGUAGE" ]; then
+            args+=(--lang "$LANGUAGE")
+          fi
+          node scripts/translate.ts "${args[@]}"
+
+      - name: Check the catalogs
+        if: steps.key.outputs.present == 'true'
+        working-directory: web/packages/agenta-i18n
+        run: node scripts/check.ts
+
+      - name: Open a pull request
+        if: steps.key.outputs.present == 'true'
+        uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v6
+        with:
+          add-paths: web/packages/agenta-i18n/locales
+          branch: i18n/translate-${{ github.ref_name }}
+          base: ${{ github.ref_name }}
+          commit-message: "chore(frontend): translate new and changed UI strings"
+          title: "chore(frontend): Translate new and changed UI strings"
+          body: |
+            Translates the keys that are new or changed in `web/packages/agenta-i18n/locales/en`
+            into the other supported languages, using `web/packages/agenta-i18n/scripts/translate.ts`.
+
+            Review the new strings before you merge. The commit changes only files under
+            `web/packages/agenta-i18n/locales`.
+          delete-branch: true

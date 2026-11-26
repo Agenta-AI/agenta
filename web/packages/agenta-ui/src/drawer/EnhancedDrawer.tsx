@@ -114,6 +114,13 @@ export interface EnhancedDrawerProps extends DrawerProps {
     children?: React.ReactNode
     /** The panel element — what a confirm scoped to the drawer portals into. */
     panelRef?: React.Ref<HTMLDivElement>
+    /** Body shown until the panel has painted; `children` mount after it. */
+    bodyFallback?: React.ReactNode
+    /**
+     * Escape while the drawer is the top layer (an open menu inside takes its own Escape first).
+     * With `keyboard={false}` the drawer stays open and the host decides what Escape does.
+     */
+    onEscapeKeyDown?: (event: KeyboardEvent) => void
 }
 
 interface DrawerStyles {
@@ -128,6 +135,8 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
     const {
         children,
         panelRef,
+        bodyFallback,
+        onEscapeKeyDown,
         open,
         onClose,
         title,
@@ -152,11 +161,30 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
     } = props
 
     const [shouldRender, setShouldRender] = useState(!!open)
+    const defersBody = bodyFallback !== undefined
+    const [bodyReady, setBodyReady] = useState(false)
     const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     useEffect(() => {
         if (open) setShouldRender(true)
     }, [open])
+
+    // Two frames: the first lets the fallback commit, the second runs after it has painted.
+    useEffect(() => {
+        if (!shouldRender) {
+            setBodyReady(false)
+            return
+        }
+        if (!defersBody || bodyReady) return
+        let second = 0
+        const first = requestAnimationFrame(() => {
+            second = requestAnimationFrame(() => setBodyReady(true))
+        })
+        return () => {
+            cancelAnimationFrame(first)
+            cancelAnimationFrame(second)
+        }
+    }, [shouldRender, defersBody, bodyReady])
 
     // Radix has no `afterOpenChange`; approximate it (open immediately; close after the slide ~300ms).
     useEffect(() => {
@@ -251,6 +279,7 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
                 }}
                 onEscapeKeyDown={(e) => {
                     if (!keyboard) e.preventDefault()
+                    onEscapeKeyDown?.(e)
                 }}
                 onPointerDownOutside={(e) => {
                     if (!dismissOnOutside) e.preventDefault()
@@ -291,7 +320,7 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
                     )}
                     style={styles?.body}
                 >
-                    {children}
+                    {defersBody && !bodyReady ? bodyFallback : children}
                 </div>
                 {footer != null ? (
                     <SheetFooter style={styles?.footer} className={slotClassNames?.footer}>

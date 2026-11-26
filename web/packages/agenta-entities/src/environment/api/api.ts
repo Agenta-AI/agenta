@@ -95,6 +95,7 @@ export async function fetchEnvironmentRevisionsList({
     environmentId,
     applicationId,
     message,
+    next,
 }: EnvironmentRevisionListParams): Promise<EnvironmentRevisionsResponse> {
     const hasRevisionQuery = !!message
     const response = await axios.post(
@@ -103,7 +104,7 @@ export async function fetchEnvironmentRevisionsList({
             environment_refs: [{id: environmentId}],
             ...(applicationId ? {references: [{id: applicationId}]} : {}),
             ...(hasRevisionQuery ? {environment_revision: {message}} : {}),
-            windowing: {limit: 100, order: "descending"},
+            windowing: {limit: 100, order: "descending", ...(next ? {next} : {})},
         },
         {params: {project_id: projectId}},
     )

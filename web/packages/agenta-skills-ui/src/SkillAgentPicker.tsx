@@ -7,6 +7,8 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {AgentPickerPanel} from "@agenta/entity-ui/agent"
+import {createT} from "@agenta/i18n"
+import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {
     addSkillToAgents,
     buildSkillEmbedEntry,
@@ -19,6 +21,8 @@ import {useQuery} from "@tanstack/react-query"
 
 import type {SkillListItem} from "./types"
 
+const tNow = createT(skillsGalleryCatalog)
+
 /** The usage query's key — the detail drawer reads the same one for its header count. */
 export const skillUsageQueryKey = (projectId: string, workflowId: string) =>
     ["skills", "usage", projectId, workflowId] as const
@@ -28,8 +32,10 @@ export function SkillAgentPicker({
     skill,
 }: {
     projectId: string
-    skill: Pick<SkillListItem, "id" | "slug" | "name" | "description">
+    skill: Pick<SkillListItem, "id" | "slug" | "workflowSlug" | "name" | "description">
 }) {
+    // Embeds store the workflow slug, as the agent's skill picker does; `slug` is the SKILL.md name.
+    const embedSlug = skill.workflowSlug ?? skill.slug
     const usageQuery = useQuery({
         queryKey: skillUsageQueryKey(projectId, skill.id),
         queryFn: () => querySkillReferencedBy({projectId, workflowId: skill.id}),
@@ -58,14 +64,15 @@ export function SkillAgentPicker({
                     ? await removeSkillFromAgents({
                           projectId,
                           agentWorkflowIds: [agentWorkflowId],
-                          slug: skill.slug,
+                          slug: embedSlug,
+                          skillWorkflowId: skill.id,
                           message: `Remove skill ${skill.slug}`,
                       })
                     : await addSkillToAgents({
                           projectId,
                           agentWorkflowIds: [agentWorkflowId],
                           entry: buildSkillEmbedEntry({
-                              slug: skill.slug,
+                              slug: embedSlug,
                               workflowId: skill.id,
                               name: skill.name,
                               description: skill.description,
@@ -77,17 +84,20 @@ export function SkillAgentPicker({
                 await usageQuery.refetch()
                 invalidateSkillsListCache()
             } catch (err) {
-                const verb = remove ? "remove from" : "add to"
                 message.error(
                     err instanceof Error && err.message
-                        ? `Couldn't ${verb} that agent: ${err.message}`
-                        : `Couldn't ${verb} that agent`,
+                        ? remove
+                            ? tNow("skills.gallery.couldntRemoveDetail", {error: err.message})
+                            : tNow("skills.gallery.couldntAddDetail", {error: err.message})
+                        : remove
+                          ? tNow("skills.gallery.couldntRemove")
+                          : tNow("skills.gallery.couldntAdd"),
                 )
             } finally {
                 setPendingId(null)
             }
         },
-        [pendingId, projectId, skill, usageQuery, usedByIds],
+        [embedSlug, pendingId, projectId, skill, usageQuery, usedByIds],
     )
 
     return (

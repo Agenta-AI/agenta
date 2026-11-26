@@ -1,5 +1,7 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {ArrowLeft, RotateCcw as ArrowCounterClockwise, Search} from "lucide-react"
 
 import {cn} from "../components/ui/utils"
@@ -70,10 +72,10 @@ export const ResetRow = ({
 export const FilterMenuPanel = ({
     sections,
     searchable = true,
-    searchPlaceholder = "Search filters, sort, group…",
+    searchPlaceholder: searchPlaceholderProp,
     defaultSearch = "",
     onReset,
-    resetLabel = "Reset to defaults",
+    resetLabel: resetLabelProp,
     resetDisabled,
     flyoutSide,
     flyoutAlign,
@@ -90,6 +92,9 @@ export const FilterMenuPanel = ({
     resetDisabled?: boolean
     className?: string
 } & Pick<FilterMenuPlacementProps, "flyoutSide" | "flyoutAlign" | "flyoutSideOffset">) => {
+    const t = useT(uiControlsCatalog)
+    const searchPlaceholder = searchPlaceholderProp ?? t("ui.controls.searchFilters")
+    const resetLabel = resetLabelProp ?? t("ui.controls.resetToDefaults")
     const [query, setQuery] = useState(defaultSearch)
     const [openKey, setOpenKey] = useState<string | null>(null)
     // Below this there is no room beside the panel for a flyout, and one opened there covers the
@@ -238,7 +243,7 @@ export const FilterMenuPanel = ({
                     <button
                         type="button"
                         onClick={back}
-                        aria-label={`Back to filters`}
+                        aria-label={t("ui.controls.backToFilters")}
                         className={cn(
                             "box-border cursor-pointer appearance-none border-0 bg-transparent font-[inherit]",
                             "flex min-w-0 flex-1 items-center gap-2 rounded-control-sm px-2 py-1.5 text-left",
@@ -298,20 +303,20 @@ export const FilterMenuPanel = ({
 
             {/* The rows sit off the search field's rule rather than starting against it — the
                 gap belongs to the panel, not to whichever block happens to be first. */}
-            {searchable ? <div aria-hidden className="h-1.5 shrink-0" /> : null}
+            {searchable ? <div aria-hidden className="h-1 shrink-0" /> : null}
 
             {order.length === 0 ? (
                 <p className="m-0 px-3 py-8 text-center text-[12px] text-muted-foreground">
-                    Nothing matches “{query.trim()}”.
+                    {t("ui.controls.nothingMatches", {term: query.trim()})}
                 </p>
             ) : (
-                blocks.map((block) => (
+                blocks.map((block, index) => (
                     <div
                         key={block.key}
-                        // No rule between the blocks: the sort and group rows are the same kind
-                        // of thing as the filters above them, and a line there read as a break
-                        // in a list that has none.
-                        className="flex flex-col gap-px p-1 pt-0"
+                        // No rule and no gap between the blocks: the sort and group rows are the
+                        // same kind of thing as the filters above them, so the rows run on at a
+                        // 32 px pitch (A10). Only the last block keeps the panel's 4 px foot.
+                        className={cn("flex flex-col px-1", index === blocks.length - 1 && "pb-1")}
                     >
                         {block.entries.map((entry) =>
                             isFilterMenuToggle(entry.section) ? (

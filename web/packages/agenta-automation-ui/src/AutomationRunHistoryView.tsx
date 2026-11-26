@@ -1,13 +1,18 @@
 import {useCallback, useMemo, useState, type ReactNode} from "react"
 
 import {type TriggerDelivery} from "@agenta/entities/gatewayTrigger"
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
+import automationsRunHistoryCatalog from "@agenta/i18n/catalogs/automations.runHistory"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
+import {ArrowSquareOut} from "@phosphor-icons/react"
 
 import {type Automation} from "./automationModel"
 import {AutomationRunFilterMenu} from "./AutomationRunFilterMenu"
 import {AutomationRunList} from "./AutomationRunList"
 import {AutomationRunPane} from "./AutomationRunPane"
-import {useMediaQuery} from "./lib/useMediaQuery"
+import {ICON_LINK} from "./lib/interactive"
+import {useElementWidth} from "./lib/useElementWidth"
 import {cn} from "./lib/utils"
 import {
     DEFAULT_RUN_LIST_VIEW,
@@ -15,7 +20,10 @@ import {
     isRunListFiltered,
     type RunListView,
 } from "./runListView"
-import {useAutomationRuns} from "./useAutomationRuns"
+import {useAutomationRunPages, useRecentAutomationRuns} from "./useAutomationRuns"
+
+/** From this width of the VIEW (not the window) the list and the open run sit side by side. */
+export const RUN_HISTORY_SPLIT_WIDTH = 700
 
 /**
  * What this automation actually did — the runs, and the conversation each one had.
@@ -24,7 +32,8 @@ import {useAutomationRuns} from "./useAutomationRuns"
  * you are already looking at, so the URL stays put and `header` carries the way back. A route
  * would make "did it work?" a place you navigate to and lose your edits getting to.
  *
- * Two layouts, one tree: from `SPLIT` up the list narrows to a full-height column beside the run,
+ * Two layouts, one tree: from `RUN_HISTORY_SPLIT_WIDTH` of the view's own width up (a widened
+ * panel, a page; never the window, which a 440px panel shares) the list narrows to a full-height column beside the run,
  * divided from it by a single rule; below it the run REPLACES the list, because a 240px list plus
  * a transcript on a phone is two unusable halves. The pane owns the way back in that case.
  *
@@ -36,6 +45,11 @@ export const AutomationRunHistoryView = ({
     header,
     renderConversation,
     frame = "page",
+    runHistoryHref,
+    sessionHref,
+    runNow,
+    initialRunId,
+    phone = false,
 }: {
     automation: Automation | null
     /** The way back to the automation — rendered above the list, on its own grid. */
@@ -43,12 +57,37 @@ export const AutomationRunHistoryView = ({
     /** The run's transcript, given its session — the host's chat surface. */
     renderConversation: (sessionId: string) => ReactNode
     /**
-     * Where it sits. A page centres the single-column list on the page's 760px line; a drawer
-     * already is the column, so the list fills it edge to edge on the drawer's own gutters.
+     * Where it sits. A page centres the single-column list on the page's 760px line. The panel
+     * already is the column, and it has no filter menu: the full page keeps the filters.
      */
-    frame?: "page" | "drawer"
+    frame?: "page" | "panel"
+    /** The full run history page. Given, the panel shows an icon that opens it in a new tab. */
+    runHistoryHref?: string
+    /** A run's session page. Given, an open run shows an icon that opens it in a new tab. */
+    sessionHref?: (sessionId: string) => string
+    /** The "Run now" control of the empty history; the host owns how a run starts. */
+    runNow?: ReactNode
+    /** Open this run first (the automation view's "Last run"). */
+    initialRunId?: string | null
+    /**
+     * Phone: rows, the back arrow and the icons have a 44 px hit area. The view is narrower than
+     * the split width on a phone, so it already shows the list or one run, never both.
+     */
+    phone?: boolean
 }) => {
-    const {runs: allRuns, caption, isLoading, error, refetch} = useAutomationRuns(automation)
+    const t = useT(automationsEditorCatalog, automationsRunHistoryCatalog)
+    // The count line reads the capped recent query (shared with the card); the list pages.
+    const {caption} = useRecentAutomationRuns(automation)
+    const {
+        runs: allRuns,
+        isLoading,
+        error,
+        retry,
+        hasMore,
+        loadingMore,
+        loadMore,
+    } = useAutomationRunPages(automation)
+    const showFilters = frame !== "panel"
 
     // Same split as the automations list: how the runs are cut is remembered, what they are
     // narrowed to is not.
@@ -57,14 +96,16 @@ export const AutomationRunHistoryView = ({
         fallback: DEFAULT_RUN_LIST_VIEW,
         persist: ["group"],
     })
-    const runs = useMemo(() => deriveRunList(allRuns, view), [allRuns, view])
-    const filtered = isRunListFiltered(view)
+    const listView = showFilters ? view : DEFAULT_RUN_LIST_VIEW
+    const runs = useMemo(() => deriveRunList(allRuns, listView), [allRuns, listView])
+    const filtered = isRunListFiltered(listView)
 
-    const [selectedId, setSelectedId] = useState<string | null>(null)
+    const [selectedId, setSelectedId] = useState<string | null>(initialRunId ?? null)
     // The newest run answers "did it work?", which is the question that opened this, so the view
     // opens on that run rather than on a list waiting to be clicked. A pick the user has made
     // wins; only an unresolved selection falls through to the newest.
-    const canSplit = useMediaQuery("(min-width: 700px)")
+    const [rootRef, width] = useElementWidth<HTMLDivElement>()
+    const canSplit = width >= RUN_HISTORY_SPLIT_WIDTH
     // Narrow layout only: going back has to mean "no run", which the fallback would otherwise
     // undo on the next render by re-selecting the newest.
     const [dismissed, setDismissed] = useState(false)
@@ -83,11 +124,16 @@ export const AutomationRunHistoryView = ({
     }, [])
     const onBack = useCallback(() => setDismissed(true), [])
 
+    // The panel's empty history is the heading and the empty text only (F05 f9): no count line
+    // and no link to a full page with nothing on it.
+    const panelEmpty = frame === "panel" && !isLoading && !error && allRuns.length === 0
     const showPane = Boolean(selected)
     const showList = !showPane || canSplit
 
     return (
         <div
+            ref={rootRef}
+            data-layout={canSplit ? "split" : "single"}
             className={cn(
                 "flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden",
                 // With no run open the view is a single column, so it sits on the page's centre
@@ -95,11 +141,18 @@ export const AutomationRunHistoryView = ({
                 // 30px as the heading below. The split layout stays full-bleed: its rule divides
                 // the window, not a column.
                 frame === "page" && !showPane && "mx-auto max-w-[760px]",
-                frame === "drawer" && "pt-3",
+                frame !== "page" && "pt-3",
             )}
         >
             {header}
-            <div className="flex min-h-0 w-full min-w-0 flex-1 overflow-hidden">
+            {/* On a phone page the clip starts 8px higher (into the header's own bottom padding),
+                so the filter in the first row keeps its 44px tap area. Nothing moves. */}
+            <div
+                className={cn(
+                    "flex min-h-0 w-full min-w-0 flex-1 overflow-hidden",
+                    phone && frame === "page" && "-mt-2 pt-2",
+                )}
+            >
                 {showList ? (
                     <div
                         className={cn(
@@ -108,32 +161,57 @@ export const AutomationRunHistoryView = ({
                                 ? "min-w-[240px] max-w-[380px] flex-[1_1_240px] border-0 border-r border-solid border-border pb-6 pr-4"
                                 : "w-full min-w-0 flex-1 pb-6 pr-5",
                             // The heading's own 10px inset makes up the rest: 30px on a page's
-                            // grid, the drawer header's 16px in a drawer.
-                            frame === "drawer" ? "pl-1.5" : "pl-5",
+                            // grid, the panel's own gutter in a panel.
+                            frame === "page" ? "pl-5" : "pl-1.5",
                             frame === "page" && !showPane && "max-w-[760px]",
                         )}
                     >
                         <div className="flex shrink-0 items-center gap-2 pl-2.5">
                             <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold text-foreground">
-                                Run history
+                                {t("automations.editor.runHistory")}
                             </h1>
-                            <AutomationRunFilterMenu view={view} onChange={setView} />
+                            {showFilters ? (
+                                <AutomationRunFilterMenu view={view} onChange={setView} />
+                            ) : runHistoryHref && !panelEmpty ? (
+                                <a
+                                    href={runHistoryHref}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    aria-label={t("automations.runHistory.openInNewTab")}
+                                    title={t("automations.runHistory.openInNewTab")}
+                                    className={cn(
+                                        "flex shrink-0 items-center justify-center p-1 text-muted-foreground",
+                                        phone && "size-11",
+                                        ICON_LINK,
+                                    )}
+                                >
+                                    <ArrowSquareOut aria-hidden size={15} />
+                                </a>
+                            ) : null}
                         </div>
                         {/* Empty until the deliveries land — the hook withholds the caption
                             rather than claiming "0 runs" off a query that has not run. The line
                             keeps its height so the list does not jump. */}
-                        <p className="m-0 mb-2.5 mt-1 min-h-[18px] pl-2.5 text-[13px] text-muted-foreground">
-                            {caption}
-                        </p>
+                        {panelEmpty ? null : (
+                            <p className="m-0 mb-2.5 mt-1 min-h-[18px] pl-2.5 text-[13px] text-muted-foreground">
+                                {caption}
+                            </p>
+                        )}
                         <AutomationRunList
                             runs={runs}
-                            grouping={view.group}
+                            grouping={listView.group}
                             filtered={filtered}
                             selectedId={selected?.id ?? null}
                             isLoading={isLoading}
                             error={error}
                             onSelect={onSelect}
-                            onRetry={refetch}
+                            onRetry={retry}
+                            hasMore={hasMore}
+                            loadingMore={loadingMore}
+                            onEndReached={loadMore}
+                            emptyAction={runNow}
+                            plainEmpty={frame === "panel"}
+                            phone={phone}
                         />
                     </div>
                 ) : null}
@@ -145,7 +223,9 @@ export const AutomationRunHistoryView = ({
                             key={selected.id ?? selected.event_id}
                             delivery={selected}
                             renderConversation={renderConversation}
+                            sessionHref={sessionHref}
                             onBack={canSplit ? undefined : onBack}
+                            phone={phone}
                         />
                     </div>
                 ) : null}

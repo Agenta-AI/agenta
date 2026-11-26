@@ -1,0 +1,16 @@
+{
+    "loadError": "Impossible de charger ce modèle",
+    "notFound": "Modèle introuvable",
+    "allTemplates": "Tous les modèles",
+    "use": "Utiliser ce modèle",
+    "slotOr": "{{first}} ou {{second}}",
+    "connectionsUsed": "Connexions utilisées",
+    "optionalConnections": "Connexions facultatives",
+    "alsoIncluded": "Également inclus",
+    "trigger": "Déclencheur",
+    "exampleSession": "Exemple de session",
+    "exampleSteps": "{{name}} · {{total}} étapes",
+    "exampleNote": "Un exemple de fonctionnement de ce modèle, et non une session enregistrée.",
+    "instructions": "Instructions · AGENTS.md",
+    "tools": "Outils qu'il peut appeler"
+}

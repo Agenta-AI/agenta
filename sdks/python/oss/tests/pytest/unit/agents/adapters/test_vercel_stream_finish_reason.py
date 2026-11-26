@@ -218,3 +218,70 @@ async def test_raw_exception_mid_stream_still_emits_finish() -> None:
     error = next(p for p in parts if p["type"] == "error")
     assert "/internal/adapter/module.py" not in error["errorText"]
     assert error["errorText"]
+
+
+# --- a failed run: the plain stream ends with an error event ------------------
+
+
+def _failed_records() -> List[Dict[str, Any]]:
+    return [
+        {"kind": "event", "event": {"type": "status", "message": "starting"}},
+        {
+            "kind": "result",
+            "result": {"ok": False, "error": "model authentication failed"},
+        },
+    ]
+
+
+@pytest.mark.asyncio
+async def test_plain_stream_ends_with_error_event_when_run_fails() -> None:
+    harness = _FakeHarness(_failed_records())
+    out = [event async for event in agent_event_stream(harness, object(), [])]
+
+    assert out[-1]["type"] == "error"
+    assert out[-1]["data"]["message"] == "Agent run failed: model authentication failed"
+    assert out[-1]["data"]["code"] == "agent_run_failed"
+    assert out[-1]["data"]["detail"] is None
+    assert [e["type"] for e in out].count("error") == 1
+    assert harness.cleaned_up is True
+
+
+@pytest.mark.asyncio
+async def test_vercel_stream_emits_one_error_frame_when_run_fails() -> None:
+    harness = _FakeHarness(_failed_records())
+    parts = [
+        part
+        async for part in agent_stream_to_vercel_stream(
+            agent_event_stream(harness, object(), [])
+        )
+    ]
+
+    types = [p["type"] for p in parts]
+    assert types.count("error") == 1
+    assert types.count("data-agent-error") == 1
+    assert parts[types.index("data-agent-error")]["data"]["code"] == "agent_run_failed"
+    assert parts[-1]["type"] == "finish"
+    assert not any("no output" in str(p).lower() for p in parts)
+
+
+@pytest.mark.asyncio
+async def test_failed_run_after_live_error_event_adds_no_second_error() -> None:
+    records = _failed_records()
+    records.insert(
+        1,
+        {
+            "kind": "event",
+            "event": {"type": "error", "message": "model authentication failed"},
+        },
+    )
+    out = [e async for e in agent_event_stream(_FakeHarness(records), object(), [])]
+    assert [e["type"] for e in out].count("error") == 1
+
+    parts = [
+        p
+        async for p in agent_stream_to_vercel_stream(
+            agent_event_stream(_FakeHarness(records), object(), [])
+        )
+    ]
+    assert [p["type"] for p in parts].count("error") == 1
+    assert parts[-1]["type"] == "finish"

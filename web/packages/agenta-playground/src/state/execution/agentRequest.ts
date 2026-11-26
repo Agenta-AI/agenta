@@ -21,8 +21,8 @@
  *    merged draft + server) so unsaved left-panel edits apply to the agent run.
  *  - the execution sections (`harness`/`runner`/`sandbox`) are nested in the agent template at
  *    `parameters.agent`, defaulted but never overriding a value the resolved config carries.
- *  - `project_id` / `application_id` ride the URL QUERY (never the body), and
- *    `project_id` only travels alongside auth — mirroring `executionItems.ts`.
+ *  - `project_id` / `application_id` ride the URL QUERY (never the body). `project_id` is
+ *    always sent: a cookie session names its project the same way a Bearer one does.
  */
 import {
     workflowAgentTemplateOverlayAtomFamily,
@@ -426,8 +426,9 @@ export async function buildAgentRequest(
     const appId = fullReferences?.application?.id
     const url = withQuery(invocationUrl, {
         application_id: appId,
-        // Mirror executionItems.ts: project_id only travels alongside auth.
-        project_id: headers.Authorization ? projectId : undefined,
+        // Always: without it the run resolves against the caller's DEFAULT project. A tab whose
+        // session lives only in cookies (no readable access token) sent none and ran there.
+        project_id: projectId,
     })
 
     // Strip answer-less assistant turns so a "no response" turn can't poison the next request.

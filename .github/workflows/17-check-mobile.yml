@@ -15,7 +15,6 @@ on:
       - 'web/pnpm-lock.yaml'
       - 'web/pnpm-workspace.yaml'
       - 'web/turbo.json'
-      - 'web/patches/**'
       - '.github/workflows/17-check-mobile.yml'
   # Dispatch builds an ad-hoc image (a preview, a one-off test). It is NOT the release
   # path: `43 - Release to GHCR` in agenta_cloud publishes agenta-web-mobile:vX.Y.Z and
@@ -225,6 +224,20 @@ jobs:
           # basePath /m owns the prefix, so the bare root belongs to nothing.
           expect_status / 404
           docker rm -f mobile-smoke
+
+      - name: Check first-load JavaScript budget (/m must not get heavier)
+        # One architecture is enough: the JavaScript is the same for both. The script reads the
+        # build manifest and the static chunks out of the image the previous step built.
+        if: matrix.arch == 'amd64'
+        run: |
+          IMAGE="ghcr.io/agenta-ai/agenta-web-mobile:${{ needs.prepare.outputs.image_tag }}-${{ matrix.arch }}"
+          docker create --name mobile-speed "$IMAGE" >/dev/null
+          # Copy only what the script reads. The whole folder holds dangling symlinks that `docker cp` rejects.
+          mkdir -p "$RUNNER_TEMP/mobile-next"
+          docker cp mobile-speed:/app/mobile/.next/build-manifest.json "$RUNNER_TEMP/mobile-next/"
+          docker cp mobile-speed:/app/mobile/.next/static "$RUNNER_TEMP/mobile-next/static"
+          docker rm mobile-speed >/dev/null
+          node web/mobile/scripts/speed/check.mjs --dir="$RUNNER_TEMP/mobile-next"
 
       - name: Verify image runs as non-root
         run: |

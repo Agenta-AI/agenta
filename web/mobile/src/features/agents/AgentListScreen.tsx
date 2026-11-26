@@ -4,20 +4,23 @@ import {
     agentRosterSearchAtom,
     agentWorkflowsListQueryStateAtom,
     matchesAgentQuery,
-    type Workflow,
 } from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import agentsList from "@agenta/i18n/catalogs/agents.list"
 import {useWaitingByAgent} from "@agenta/sessions/state"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
+import {userAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
+import {Button, PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtom, useAtomValue} from "jotai"
-import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
+import {openAgentFromList} from "../agent-pages/openAgentFromList"
+import {startBlankSession} from "../chat/useStartBlankSession"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {FeatureOnboarding} from "../education/FeatureOnboarding"
 import {HowThisWorksButton} from "../education/HowThisWorksButton"
@@ -30,29 +33,19 @@ import {
     DEFAULT_AGENT_LIST_VIEW,
     deriveAgentList,
     isDefaultAgentFilters,
+    toAgentListRow,
     type AgentListRow,
     type AgentListView,
 } from "./agentListView"
 import {NewAgentAction} from "./NewAgentAction"
 import {AgentsNoMatch} from "./states/AgentsNoMatch"
 import {useAgentOwners} from "./useAgentOwners"
+import {useAgentRowActions} from "./useAgentRowActions"
 import {useArchivedAgents} from "./useArchivedAgents"
 import {useNewAgentAction} from "./useNewAgentAction"
 
-/** The page column, shared with sessions and automations, so the nav entries line up. */
-const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
-
-/** The one place a workflow becomes a row: both views read what this resolves, never the raw
- *  workflow and never the lookup maps behind it. */
-const toRow = (workflow: Workflow, ownerName: string, waiting: number): AgentListRow => ({
-    id: workflow.id,
-    name: workflow.name || workflow.slug || "Untitled agent",
-    description: workflow.description ?? null,
-    updatedAt: workflow.updated_at ?? workflow.created_at ?? null,
-    ownerName,
-    createdById: workflow.created_by_id ?? null,
-    waiting,
-})
+/** The page column: centered, 960 px wide with 24 px gutters on a desktop (A03). */
+const PAGE_FRAME = "mx-auto box-border w-full max-w-[960px] px-4 md:px-6"
 
 /**
  * The full agent roster — where the nav's Agents entry lands.
@@ -71,10 +64,11 @@ export const AgentListScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    const t = useT(agentsList)
     useBindProjectContext(projectId)
-    const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
     const newAgent = useNewAgentAction(base)
+    const rowActions = useAgentRowActions(base, projectId)
     const query = useAtomValue(agentWorkflowsListQueryStateAtom)
     const [search, setSearch] = useAtom(agentRosterSearchAtom)
     const waitingByAgent = useWaitingByAgent()
@@ -89,10 +83,17 @@ export const AgentListScreen = ({
     })
 
     const showArchived = view.type === "archived"
-    const archived = useArchivedAgents({projectId, enabled: showArchived})
-    // One cached request, shared with the settings screen: the Created by column and the facet
-    // both name creators, and neither can from an id alone.
-    const {owners, ownerNames} = useAgentOwners({workspaceId, projectId})
+    // Nothing is active and nothing is searched: the project may still hold archived agents, and
+    // the first-run page has no filter bar to reach them with, so they are looked up here too.
+    const noActiveAgents = !query.isPending && !query.isError && (query.data ?? []).length === 0
+    const archived = useArchivedAgents({
+        projectId,
+        enabled: showArchived || (noActiveAgents && !search.trim()),
+    })
+    // The project's member roster: the Owner column and the facet both name owners, and neither
+    // can from an id alone. An id outside it is a former member.
+    const {owners, ownerNames} = useAgentOwners()
+    const me = useAtomValue(userAtom)
 
     // This list is already resolved client-side, so the term filters it in place — no refetch.
     // Matched on the WORKFLOW, not on the row: the shared rule reads the slug too, and the row
@@ -103,15 +104,15 @@ export const AgentListScreen = ({
         return source
             .filter((workflow) => matchesAgentQuery(workflow, search))
             .map((workflow) =>
-                toRow(
-                    workflow,
-                    ownerNames.get(workflow.created_by_id ?? "")?.trim() ?? "",
-                    waitingByAgent.get(workflow.id) ?? 0,
-                ),
+                toAgentListRow(workflow, {
+                    currentUserId: me?.id,
+                    ownerNames,
+                    waiting: waitingByAgent.get(workflow.id) ?? 0,
+                }),
             )
-    }, [archived.agents, ownerNames, query.data, search, showArchived, waitingByAgent])
+    }, [archived.agents, me?.id, ownerNames, query.data, search, showArchived, t, waitingByAgent])
 
-    const groups = useMemo(() => deriveAgentList(rows, view), [rows, view])
+    const groups = useMemo(() => deriveAgentList(rows, view), [rows, view, t])
     const term = search.trim()
     // The archived fetch must not blank rows already on screen: a skeleton over a list that was
     // showing nine agents reads as "they went away". It only owns the skeleton when there is
@@ -121,8 +122,13 @@ export const AgentListScreen = ({
     // the unnarrowed list — a search that matches nothing empties this one too.
     const projectHasAgents = (query.data ?? []).length > 0
     const openRow = useCallback(
-        (row: AgentListRow) => void router.push(`${base}/agents/${row.id}`),
-        [base, router],
+        (row: AgentListRow) => {
+            // An archived agent has no agent sidebar (the sidebar shows only listed agents): it
+            // opens a new session, as before.
+            if (row.archived) startBlankSession(base, row.id)
+            else void openAgentFromList({queryClient, base, projectId, agentId: row.id})
+        },
+        [base, projectId, queryClient],
     )
     const failed = showArchived ? archived.isError : query.isError
     const refetchArchived = archived.refetch
@@ -158,32 +164,31 @@ export const AgentListScreen = ({
     const body = failed ? (
         // A failed fetch must not read as an empty project, so the error replaces the results
         // rather than sitting under a header row that is no longer describing anything.
-        <LoadError framed title="Could not load agents" onRetry={retry} />
+        <LoadError framed title={t("agents.list.loadError")} onRetry={retry} />
     ) : (
         <AgentListTable
             groups={groups}
             view={view.mode}
             isLoading={isLoading}
             onOpen={openRow}
+            actions={rowActions}
             empty={emptyState}
         />
     )
 
     return (
         <>
-            <PageTitle title="Agents" />
+            <PageTitle title={t("agents.list.pageTitle")} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
-                        <div
-                            className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${PAGE_FRAME}`}
-                        >
+                        <div className={`shrink-0 pb-3 pt-3 md:pt-10 ${PAGE_FRAME}`}>
                             <div className="flex min-w-0 items-center gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                                 {/* From `sm`, 24px is the desktop page-title rung; on a phone it
                                     eats the row, so the title drops to the 16px body ramp. */}
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
-                                    Agents
+                                <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-8">
+                                    {t("agents.list.pageTitle")}
                                 </h1>
                                 {projectEmpty ? null : (
                                     <HowThisWorksButton guide="agents" className="max-sm:hidden" />
@@ -192,15 +197,30 @@ export const AgentListScreen = ({
                                     newAgent={newAgent}
                                     base={base}
                                     align="end"
-                                    className="h-control-sm rounded-control-sm px-btn-sm text-btn-sm sm:h-control sm:rounded-control sm:px-btn sm:text-btn-md"
+                                    // The canvas size (A03): 28 px high, radius 6, 13 px; a 44 px
+                                    // tap area on a phone.
+                                    className={`h-control-sm rounded-[6px] px-btn-sm text-btn-sm ${PHONE_TOUCH_TARGET_CLASS}`}
                                 />
                             </div>
                         </div>
                     }
                 >
-                    <div className={`min-w-0 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>
+                    <div className={`min-w-0 pb-12 pt-3 md:pt-0 ${PAGE_FRAME}`}>
                         {projectEmpty ? (
-                            <FeatureOnboarding guideKey="agents" base={base} />
+                            <>
+                                <FeatureOnboarding guideKey="agents" base={base} />
+                                {archived.agents.length > 0 ? (
+                                    <div className="mt-6 flex justify-center">
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => setView({...view, type: "archived"})}
+                                        >
+                                            {t("agents.list.viewArchived")}
+                                        </Button>
+                                    </div>
+                                ) : null}
+                            </>
                         ) : (
                             <>
                                 {/* Search belongs to the list, not to the page: it sits on the
@@ -210,9 +230,12 @@ export const AgentListScreen = ({
                                     the far edge, where it changes how the results are drawn rather
                                     than which ones are. */}
                                 <ListTableToolbar
+                                    // A 300 x 30 field with a light border, 10 px above the
+                                    // table (A03).
+                                    className="mb-2.5 md:[&_[data-slot=input-group]]:h-[30px] md:[&_[data-slot=input-group]]:max-w-[300px] md:[&_[data-slot=input-group]]:rounded-[6px] md:[&_[data-slot=input-group]]:border-colorBorderSecondary"
                                     search={search}
                                     onSearchChange={setSearch}
-                                    searchPlaceholder="Search agents by name…"
+                                    searchPlaceholder={t("agents.list.searchPlaceholder")}
                                     actions={
                                         <>
                                             <AgentFilterMenu

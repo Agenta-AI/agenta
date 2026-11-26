@@ -1,5 +1,7 @@
 import fnmatch
+from unittest.mock import AsyncMock
 
+from oss.src.utils import caching
 from oss.src.utils.caching import _pack
 
 
@@ -68,3 +70,30 @@ def test_pack_omitted_user_id_with_pattern_false_still_pads_with_dashes():
     # only the pattern=True (invalidation scan) path should wildcard it.
     packed = _pack(namespace="check_action_access", project_id="abc123", pattern=False)
     assert ":u:------------:" in packed
+
+
+async def test_miss_lock_lives_lock_ttl_seconds(monkeypatch):
+    engine = AsyncMock()
+    engine.set.return_value = True
+    monkeypatch.setattr(caching, "_cache_engine", engine)
+
+    result = await caching._maybe_retry_get(
+        namespace="ns",
+        key="k",
+        project_id="p",
+        lock_ttl=2,
+        backoff_base=0.1,
+        attempts_idx=0,
+        attempts_max=3,
+        jitter_spread=0.0,
+        leakage_p=0.0,
+    )
+
+    assert result is None
+    engine.set.assert_awaited_once()
+    args, kwargs = engine.set.await_args
+    assert args[0].startswith("lock::")
+    assert kwargs["nx"] is True
+    # The lock must live `lock_ttl` seconds, whichever unit Redis is given.
+    assert "ex" not in kwargs
+    assert kwargs["px"] == 2000

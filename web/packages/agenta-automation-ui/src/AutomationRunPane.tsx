@@ -1,7 +1,11 @@
 import {type ReactNode} from "react"
 
 import {type TriggerDelivery} from "@agenta/entities/gatewayTrigger"
-import {ArrowLeft} from "@phosphor-icons/react"
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
+import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
+import automationsRunHistoryCatalog from "@agenta/i18n/catalogs/automations.runHistory"
+import {ArrowSquareOut, CaretLeft} from "@phosphor-icons/react"
 
 import {ICON_LINK} from "./lib/interactive"
 import {cn} from "./lib/utils"
@@ -31,14 +35,21 @@ import {AutomationRunNoConversation} from "./states/AutomationRunStates"
 export const AutomationRunPane = ({
     delivery,
     renderConversation,
+    sessionHref,
     onBack,
+    phone = false,
 }: {
     delivery: TriggerDelivery
     /** The run's transcript, given its session — the host's chat surface. */
     renderConversation: (sessionId: string) => ReactNode
+    /** The run's session page; given, an icon opens it in a new tab. */
+    sessionHref?: (sessionId: string) => string
     /** Narrow layout only — the list is off screen, so the pane owns the way back to it. */
     onBack?: () => void
+    /** Phone: the back arrow and the new-tab icon have a 44 px hit area. */
+    phone?: boolean
 }) => {
+    const t = useT(automationsEditorCatalog, automationsModelCatalog, automationsRunHistoryCatalog)
     const sessionId = runSessionId(delivery)
     const label = runLabel(delivery)
     // The same day-and-time vocabulary the rows speak, so the header names the row you picked.
@@ -46,22 +57,26 @@ export const AutomationRunPane = ({
     // No duration field on a delivery — see `runDuration`. When it cannot be derived the clause
     // is dropped rather than printed as zero.
     const took = runDuration(delivery)
-    const meta = [when, took ? `took ${took}` : ""].filter(Boolean).join(" · ")
+    const meta = [when, took ? t("automations.editor.took", {duration: took}) : ""]
+        .filter(Boolean)
+        .join(" · ")
 
     return (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="flex shrink-0 items-center gap-2.5 px-3.5 py-3">
+            {/* The run line, with a hairline under it that sets the transcript apart. */}
+            <div className="flex shrink-0 items-center gap-2.5 border-0 border-b border-solid border-colorSplit px-3.5 py-3">
                 {onBack ? (
                     <button
                         type="button"
                         onClick={onBack}
-                        aria-label="Back to the run list"
+                        aria-label={t("automations.editor.backToRunList")}
                         className={cn(
-                            "-ml-1 flex shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-1 text-muted-foreground",
+                            "flex shrink-0 cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent p-1.5 text-muted-foreground",
+                            phone && "-my-2 -ml-3 size-11",
                             ICON_LINK,
                         )}
                     >
-                        <ArrowLeft aria-hidden size={15} />
+                        <CaretLeft aria-hidden size={16} />
                     </button>
                 ) : null}
                 <span
@@ -76,11 +91,27 @@ export const AutomationRunPane = ({
                         <span className="sr-only"> — {runOutcomeLabel(delivery)}</span>
                     </span>
                     {meta ? (
-                        <span className="min-w-0 truncate text-xs text-muted-foreground">
+                        <span className="min-w-0 truncate text-[12px] leading-4 text-muted-foreground">
                             {meta}
                         </span>
                     ) : null}
                 </span>
+                {sessionId && sessionHref ? (
+                    <a
+                        href={sessionHref(sessionId)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={t("automations.runHistory.openRunInNewTab")}
+                        title={t("automations.runHistory.openRunInNewTab")}
+                        className={cn(
+                            "flex shrink-0 items-center justify-center rounded-[6px] p-1.5 text-muted-foreground",
+                            phone && "-my-2 -mr-2 size-11",
+                            ICON_LINK,
+                        )}
+                    >
+                        <ArrowSquareOut aria-hidden size={16} />
+                    </a>
+                ) : null}
             </div>
             <div className="flex min-h-0 flex-1 flex-col">
                 {sessionId ? (

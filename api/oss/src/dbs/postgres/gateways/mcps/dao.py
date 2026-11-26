@@ -464,4 +464,17 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
             result = await session.execute(stmt)
             dbes = result.scalars().all()
 
-            return [map_mcp_endpoint_dbe_to_dto(dbe=dbe) for dbe in dbes]
+            endpoints = []
+            for dbe in dbes:
+                try:
+                    endpoints.append(map_mcp_endpoint_dbe_to_dto(dbe=dbe))
+                except Exception as e:
+                    # Validation errors can include credentials from the stored input.
+                    log.warning(
+                        "Skipping MCP endpoint that could not be mapped",
+                        project_id=str(project_id),
+                        endpoint_id=str(dbe.id),
+                        error_type=type(e).__name__,
+                    )
+
+            return endpoints

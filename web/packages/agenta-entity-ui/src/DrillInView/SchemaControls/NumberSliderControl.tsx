@@ -11,6 +11,8 @@
 import {memo, useCallback, useEffect, useId, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
+import {useT} from "@agenta/i18n"
+import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {cn, flexLayouts, gapClasses, textColors} from "@agenta/ui/styles"
 import {
     Button,
@@ -97,12 +99,14 @@ export const NumberSliderControl = memo(function NumberSliderControl({
     disabled = false,
     disabledReason,
     allowClear = true,
+    // An unset value runs with the model's default: say so instead of an empty box.
     placeholder,
     className,
     min: overrideMin,
     max: overrideMax,
     step: overrideStep,
 }: NumberSliderControlProps) {
+    const t = useT(schemaControlsCatalog)
     // Extract constraints from schema, with overrides
     const constraints = getNumericConstraints(schema)
     const min = overrideMin ?? constraints.min
@@ -149,7 +153,7 @@ export const NumberSliderControl = memo(function NumberSliderControl({
                         disabled={disabled}
                         aria-labelledby={labelId}
                         className="w-[70px]"
-                        placeholder={placeholder}
+                        placeholder={placeholder ?? t("entityUi.schemaControls.defaultValue")}
                     />
                     {allowClear && localValue !== null && (
                         <Button
@@ -157,7 +161,7 @@ export const NumberSliderControl = memo(function NumberSliderControl({
                             size="icon-sm"
                             onClick={() => handleValueChange(null)}
                             disabled={disabled}
-                            aria-label={`Reset ${label}`}
+                            aria-label={t("entityUi.schemaControls.resetField", {field: label})}
                         >
                             <X size={14} />
                         </Button>
@@ -173,7 +177,8 @@ export const NumberSliderControl = memo(function NumberSliderControl({
                 onValueChange={(next) => handleValueChange(next[0])}
                 disabled={disabled}
                 aria-labelledby={labelId}
-                className="my-0"
+                // Unset: the thumb rests at the start, dimmed, so it does not read as a set 0.
+                className={cn("my-0", localValue === null && "opacity-40")}
             />
         </div>
     )

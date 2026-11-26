@@ -123,10 +123,12 @@ class SubscriptionLoginRunnerClient:
         self,
         *,
         provider: str,
-        project_id: str,
+        project_id: Optional[str],
         secret_id: str,
+        organization_id: Optional[str] = None,
     ) -> RunnerLoginAttempt:
-        """Start an attempt. The ids tell the runner where to report the outcome."""
+        """Start an attempt. The ids tell the runner where to report the outcome: a
+        project's row (`project_id`), or an organization's row (`organization_id`, M5)."""
         url = self._url("/subscription-login/attempts")
         try:
             async with httpx.AsyncClient(timeout=_START_TIMEOUT_SECONDS) as client:
@@ -134,7 +136,11 @@ class SubscriptionLoginRunnerClient:
                     url,
                     json={
                         "provider": provider,
-                        "projectId": project_id,
+                        **(
+                            {"organizationId": organization_id}
+                            if organization_id is not None
+                            else {"projectId": project_id}
+                        ),
                         "secretId": secret_id,
                     },
                     headers=self._headers(),

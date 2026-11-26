@@ -7,9 +7,11 @@
     "types": "./src/index.ts",
     "scripts": {
         "build": "tsc --noEmit",
+        "generate:releases": "node scripts/build-releases.mjs",
+        "check:releases": "node scripts/build-releases.mjs --check",
         "types:check": "tsc --noEmit",
         "lint": "eslint --config ./eslint.config.mjs src/",
-        "check": "pnpm run types:check && pnpm run lint",
+        "check": "pnpm run types:check && pnpm run lint && pnpm run check:releases",
         "test": "pnpm run test:unit",
         "test:unit": "vitest run",
         "test:watch": "vitest",

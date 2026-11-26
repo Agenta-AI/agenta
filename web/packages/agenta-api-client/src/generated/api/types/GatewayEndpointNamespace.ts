@@ -5,5 +5,6 @@ export const GatewayEndpointNamespace = {
     Builtin: "builtin",
     Standard: "standard",
     Custom: "custom",
+    Organization: "organization",
 } as const;
 export type GatewayEndpointNamespace = (typeof GatewayEndpointNamespace)[keyof typeof GatewayEndpointNamespace];

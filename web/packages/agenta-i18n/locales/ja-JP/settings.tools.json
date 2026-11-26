@@ -1,0 +1,16 @@
+{
+    "connectionDeleted": "接続を削除しました",
+    "connectionRevoked": "接続を取り消しました",
+    "default": "デフォルト",
+    "deleteConnectionFailed": "接続を削除できませんでした",
+    "deleteConnectionMessage": "この接続を削除してもよろしいですか？この操作は元に戻せません。",
+    "deleteConnectionTitle": "接続を削除",
+    "loadConnectionsFailed": "接続を読み込めませんでした。",
+    "makeDefault": "デフォルトにする",
+    "makeDefaultFailed": "デフォルトに設定できませんでした。もう一度お試しください。",
+    "revokeConnectionFailed": "接続を取り消せませんでした",
+    "revokeConnectionMessage": "この接続を無効としてマークします。後で更新すると再び有効にできます。",
+    "revokeConnectionTitle": "接続を取り消す",
+    "runTool": "ツールを実行",
+    "searchTools": "ツールを検索"
+}

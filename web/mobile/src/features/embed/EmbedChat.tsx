@@ -69,6 +69,7 @@ export const EmbedChat = ({
                 running={chat.running}
                 waitingForReply={chat.waitingForReply}
                 waitingOnUser={chat.pendingApprovals.length > 0}
+                resuming={chat.approvalResponding || chat.approvalAnswered}
                 fileBlob={chat.fileBlob}
                 greeting={
                     empty ? (

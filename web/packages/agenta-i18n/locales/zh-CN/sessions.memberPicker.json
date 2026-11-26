@@ -1,0 +1,9 @@
+{
+    "error": "无法加载项目成员。",
+    "footer": "只能添加此项目的成员。",
+    "hasAccess": "已有访问权限",
+    "heading": "{{project}} 的成员",
+    "noMatch": "此项目中没有与“{{text}}”匹配的成员。",
+    "placeholder": "按姓名或邮箱添加人员",
+    "remove": "移除 {{name}}"
+}

@@ -24,6 +24,7 @@ from oss.src.core.sessions.interactions.service import (
     SessionInteractionsService,
     _watch_interaction_state,
 )
+from oss.tests.pytest.utils.principals import make_envelope
 
 
 _PROJECT = uuid4()
@@ -77,6 +78,7 @@ async def test_create_publishes_pending():
             token="tok-1",
             kind=SessionInteractionKind.user_approval,
         ),
+        envelope=make_envelope(),
     )
 
     assert publisher.interaction_calls == [

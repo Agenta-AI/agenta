@@ -1,6 +1,8 @@
 import {useCallback} from "react"
 
 import {useRenameAgent} from "@agenta/entity-ui/agent"
+import {createT} from "@agenta/i18n"
+import agentsList from "@agenta/i18n/catalogs/agents.list"
 import {useDeferredMenuSelect, useInlineRename} from "@agenta/sessions-ui"
 
 import type {AgentListRow} from "./agentListView"
@@ -17,13 +19,15 @@ export const AGENT_RENAME_INPUT_CLASS =
  * The editor must not mount inside the menu's focus trap — Radix would restore focus to the
  * trigger as the menu closes, and a blur commits — so the verb runs from the close instead.
  */
+const tNow = createT(agentsList)
+
 export const useAgentInlineRename = (row: AgentListRow) => {
     const renameAgent = useRenameAgent()
     const onCommit = useCallback((name: string) => renameAgent(row.id, name), [renameAgent, row.id])
     const rename = useInlineRename({
         current: row.name,
         onCommit,
-        errorText: "Couldn't rename this agent",
+        errorText: tNow("agents.list.renameFailed"),
     })
     const {handleSelect, handleCloseAutoFocus} = useDeferredMenuSelect((key) => {
         if (key === "rename") return () => rename.start()

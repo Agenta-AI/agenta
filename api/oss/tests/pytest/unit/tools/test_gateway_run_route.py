@@ -38,6 +38,7 @@ from oss.src.core.tools.exceptions import (
     ConnectionNotFoundError,
 )
 from oss.src.core.tools.service import ToolsService
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 GITHUB_CATALOG = [
@@ -140,6 +141,8 @@ def _router(
         return SimpleNamespace(
             provider_connection_id="acc_1",
             data={"project_id": "proj-1"},
+            user_id=None,
+            organization_id=None,
         )
 
     monkeypatch.setattr(service, "resolve_connection_by_slug", _connection)
@@ -160,7 +163,7 @@ def _router(
         "oss.src.apis.fastapi.tools.router.check_action_access", _access
     )
 
-    return ToolsRouter(tools_service=service)
+    return ToolsRouter(run_admission=NoopRunAdmission(), tools_service=service)
 
 
 def _request():

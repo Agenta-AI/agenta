@@ -8,6 +8,10 @@ from oss.src.core.sessions.commands.dtos import (
     SessionCommandOutcome,
     SessionCommandState,
 )
+from oss.src.dbs.postgres.access.mappings import (
+    map_envelope_column,
+    map_envelope_to_column,
+)
 from oss.src.dbs.postgres.sessions.commands.dbes import SessionCommandDBE
 
 
@@ -36,6 +40,7 @@ def map_command_dto_to_dbe_create(
         idempotency_key=command.idempotency_key,
         #
         data=command.data,
+        run_envelope=map_envelope_to_column(envelope=command.run_envelope),
     )
 
 
@@ -69,4 +74,6 @@ def map_command_dbe_to_dto(dbe: SessionCommandDBE) -> SessionCommand:
         #
         tags=dbe.tags,
         meta=dbe.meta,
+        #
+        run_envelope=map_envelope_column(data=dbe.run_envelope),
     )

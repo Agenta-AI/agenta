@@ -27,6 +27,8 @@
 
 import React, {useMemo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 import {filterItems} from "@agenta/shared/utils"
 
 import {EmptyState} from "../ui/empty-state"
@@ -168,19 +170,24 @@ export function SearchablePopoverList<T>({
     getItemLabel,
     getItemLabelNode,
     disabledIds,
-    disabledTooltip = "Already selected",
+    disabledTooltip: disabledTooltipProp,
     isLoading = false,
     searchPlaceholder,
     searchThreshold = 5,
     maxHeight = 300,
     minWidth = 220,
     maxWidth = 320,
-    loadingMessage = "Loading...",
-    noMatchesMessage = "No matches",
-    emptyMessage = "No items",
+    loadingMessage: loadingMessageProp,
+    noMatchesMessage: noMatchesMessageProp,
+    emptyMessage: emptyMessageProp,
     className,
     itemClassName,
 }: SearchablePopoverListProps<T>) {
+    const t = useT(listControlsCatalog)
+    const disabledTooltip = disabledTooltipProp ?? t("ui.listControls.alreadySelected")
+    const loadingMessage = loadingMessageProp ?? t("ui.listControls.loadingDots")
+    const noMatchesMessage = noMatchesMessageProp ?? t("ui.listControls.noMatches")
+    const emptyMessage = emptyMessageProp ?? t("ui.listControls.noItems")
     const [searchTerm, setSearchTerm] = useState("")
 
     // Filter items by search

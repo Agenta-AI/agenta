@@ -1,5 +1,7 @@
 import {useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import type {
     SidebarScope,
     SidebarSection,
@@ -16,6 +18,7 @@ import {
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
+import {isProjectPath, projectSwitchUrl} from "@/lib/context"
 import {withMobileSettingsLabels} from "@/lib/integrationsCopy"
 
 import {DrawerProjectSwitcher} from "../nav/DrawerProjectSwitcher"
@@ -49,9 +52,12 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
             selectedKey: activeTab,
             onSelect: (key) => {
                 if (!isSettingsTabKey(key)) return
-                void router.replace({query: {...router.query, tab: key}}, undefined, {
-                    shallow: true,
-                })
+                // The route pattern takes the path params, so they stay out of the query string.
+                void router.replace(
+                    {pathname: router.pathname, query: {...router.query, tab: key}},
+                    undefined,
+                    {shallow: true},
+                )
             },
         }
     }
@@ -59,6 +65,7 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
     const useSections = (): SidebarSection[] => {
         const access = useMobileSettingsAccess()
         const bottomItems = useMobileBottomNavItems(projectURL, {includeSettingsLink: false})
+        const t = useT(navigationCatalog)
 
         return useMemo(
             () => [
@@ -67,6 +74,7 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
                         getSettingsSidebarTabs(access).filter((tab) =>
                             AVAILABLE_SETTINGS_TABS.includes(tab.key),
                         ),
+                        t,
                     ),
                     // A real href per tab: the drawer closes on link clicks, and the controlled
                     // selection intercepts the navigation before it happens.
@@ -79,7 +87,7 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
                     mode: "vertical",
                 },
             ],
-            [access, bottomItems],
+            [access, bottomItems, t],
         )
     }
 
@@ -100,7 +108,15 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
             >
                 <SidebarBackButton
                     collapsed={collapsed}
-                    onBack={() => void router.push(lastPath ?? `${projectURL}/apps`)}
+                    onBack={() =>
+                        void router.push(
+                            !lastPath
+                                ? `${projectURL}/apps`
+                                : isProjectPath(lastPath)
+                                  ? projectSwitchUrl(lastPath, {workspaceId, projectId})
+                                  : lastPath,
+                        )
+                    }
                 />
                 <SidebarToggleButton onDismiss={onDismiss} />
             </div>

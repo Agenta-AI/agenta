@@ -117,6 +117,9 @@ function trackingRun(open: string[]) {
       openToolCallIds() {
         return [...openIds];
       },
+      wasForceSettled(toolCallId: string) {
+        return settlements.some((entry) => entry.id === toolCallId);
+      },
       traceId() {
         return "trace-1";
       },

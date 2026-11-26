@@ -9,9 +9,20 @@ from functools import wraps
 
 from fastapi import HTTPException
 
-from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
+from oss.src.apis.fastapi.sharing.utils import agent_creation_failed_exception
+from oss.src.core.embeds.exceptions import (
+    EmbedError,
+    NonEmbeddableWorkflowReferenceError,
+)
+from oss.src.core.sharing.types import AgentCreationFailed
 from oss.src.core.workflows.types import (
+    AgentDriveError,
+    InvalidAgentConfigurationError,
+    InvalidAgentConnectionError,
+    InvalidAgentHarnessError,
     InvalidAgentInstructionsError,
+    StaticFieldNotEditableError,
+    StaticWorkflowReadOnly,
     StaticWorkflowSlug,
 )
 
@@ -24,6 +35,13 @@ class StaticWorkflowSlugException(HTTPException):
         super().__init__(status_code=400, detail=message)
 
 
+class StaticWorkflowCodedException(HTTPException):
+    """A static workflow refusal that carries the canonical envelope."""
+
+    def __init__(self, error: StaticFieldNotEditableError | StaticWorkflowReadOnly):
+        super().__init__(status_code=400, detail=error.to_detail())
+
+
 class NonEmbeddableWorkflowReferenceException(HTTPException):
     def __init__(
         self,
@@ -32,10 +50,31 @@ class NonEmbeddableWorkflowReferenceException(HTTPException):
         super().__init__(status_code=400, detail=message)
 
 
-class InvalidAgentInstructionsException(HTTPException):
-    # 422, like the harness refusal on the commit route: the request is well-formed, the
-    # configuration in it is not.
-    def __init__(self, error: InvalidAgentInstructionsError):
+class EmbedException(HTTPException):
+    # Every embed resolution error (cycle, depth or count limit, missing or unsupported
+    # reference, mixed families, bad path) comes from the request's configuration.
+    def __init__(self, message: str = "The embedded references could not be resolved."):
+        super().__init__(status_code=400, detail=message)
+
+
+class InvalidAgentConfigurationException(HTTPException):
+    # 422: the request is well-formed, the agent configuration in it cannot run.
+    def __init__(
+        self,
+        error: InvalidAgentConfigurationError
+        | InvalidAgentHarnessError
+        | InvalidAgentInstructionsError,
+    ):
+        super().__init__(status_code=422, detail=error.to_detail())
+
+
+class InvalidAgentConnectionException(HTTPException):
+    def __init__(self, error: InvalidAgentConnectionError):
+        super().__init__(status_code=422, detail=error.to_detail())
+
+
+class AgentDriveException(HTTPException):
+    def __init__(self, error: AgentDriveError):
         super().__init__(status_code=422, detail=error.to_detail())
 
 
@@ -45,12 +84,26 @@ def handle_workflow_exceptions():
         async def wrapper(*args, **kwargs):
             try:
                 return await func(*args, **kwargs)
+            except (StaticWorkflowReadOnly, StaticFieldNotEditableError) as e:
+                raise StaticWorkflowCodedException(e) from e
             except StaticWorkflowSlug as e:
                 raise StaticWorkflowSlugException(message=e.message) from e
             except NonEmbeddableWorkflowReferenceError as e:
                 raise NonEmbeddableWorkflowReferenceException(message=str(e)) from e
-            except InvalidAgentInstructionsError as e:
-                raise InvalidAgentInstructionsException(e) from e
+            except EmbedError as e:
+                raise EmbedException(message=str(e)) from e
+            except (
+                InvalidAgentConfigurationError,
+                InvalidAgentHarnessError,
+                InvalidAgentInstructionsError,
+            ) as e:
+                raise InvalidAgentConfigurationException(e) from e
+            except InvalidAgentConnectionError as e:
+                raise InvalidAgentConnectionException(e) from e
+            except AgentDriveError as e:
+                raise AgentDriveException(e) from e
+            except AgentCreationFailed as e:
+                raise agent_creation_failed_exception(e) from e
 
         return wrapper
 

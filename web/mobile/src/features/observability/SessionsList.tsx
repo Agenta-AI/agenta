@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import screenCatalog from "@agenta/i18n/catalogs/observability.screen"
 import {useSessions} from "@agenta/observability"
 import {
     EndTimeCell,
@@ -10,6 +12,7 @@ import {
     TracesCountCell,
 } from "@agenta/observability-ui"
 
+import {openOnKey} from "./openOnKey"
 import {
     ObservabilityEmpty,
     ObservabilityFiltered,
@@ -27,8 +30,20 @@ import {
  * Note this is NOT the agent-session entity from `@agenta/sessions`. This is spans grouped by
  * session id, so `SessionCardList` cannot render it.
  */
-const SessionRow = ({sessionId}: {sessionId: string}) => (
-    <div className="flex flex-col gap-1.5 border-0 border-b border-solid border-border px-4 py-3">
+const SessionRow = ({
+    sessionId,
+    onOpen,
+}: {
+    sessionId: string
+    onOpen: (sessionId: string) => void
+}) => (
+    <div
+        role="button"
+        tabIndex={0}
+        className="flex cursor-pointer flex-col gap-1.5 border-0 border-b border-solid border-border px-4 py-3"
+        onClick={() => onOpen(sessionId)}
+        onKeyDown={openOnKey(() => onOpen(sessionId))}
+    >
         <div className="flex items-center justify-between gap-2">
             <SessionIdCell sessionId={sessionId} />
             <span className="text-xs text-muted-foreground">
@@ -51,7 +66,8 @@ const SessionRow = ({sessionId}: {sessionId: string}) => (
     </div>
 )
 
-export const SessionsList = () => {
+export const SessionsList = ({onOpenSession}: {onOpenSession: (sessionId: string) => void}) => {
+    const t = useT(screenCatalog)
     const {
         sessionIds,
         isLoading,
@@ -66,7 +82,7 @@ export const SessionsList = () => {
         <ObservabilityList
             items={sessionIds}
             keyOf={(sessionId) => sessionId}
-            renderItem={(sessionId) => <SessionRow sessionId={sessionId} />}
+            renderItem={(sessionId) => <SessionRow sessionId={sessionId} onOpen={onOpenSession} />}
             isLoading={isLoading}
             isLoadingMore={isFetchingMore}
             hasMore={hasMoreSessions}
@@ -78,8 +94,8 @@ export const SessionsList = () => {
                     <ObservabilityFiltered onClear={() => setFilters([])} />
                 ) : (
                     <ObservabilityEmpty
-                        title="No sessions yet"
-                        hint="Sessions appear here once your app groups traces by session id."
+                        title={t("observability.screen.noSessionsTitle")}
+                        hint={t("observability.screen.noSessionsHint")}
                     />
                 )
             }

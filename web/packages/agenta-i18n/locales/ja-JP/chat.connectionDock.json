@@ -1,0 +1,14 @@
+{
+    "agentWaiting": "エージェントが待っています",
+    "cancel": "キャンセル",
+    "checkingHow": "このツールキットの接続方法を確認中…",
+    "connect": "接続",
+    "connectFirst": "先に {{label}} を接続してください",
+    "connectPrompt": "<name>{{name}}</name> に接続して、エージェントがそのツールを使えるようにします",
+    "connecting": "{{name}} に接続中…ポップアップウィンドウでサインインを完了してください。",
+    "connectionFailed": "接続に失敗しました。",
+    "connectionPosition": "接続 {{position}} / {{total}}",
+    "dismissFailed": "接続リクエストを閉じられませんでした。",
+    "notNow": "今はしない",
+    "retry": "再試行"
+}

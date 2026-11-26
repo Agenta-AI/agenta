@@ -12,5 +12,6 @@ export interface ChannelCapabilities {
     rendering?: AgentaApi.ChannelRendering | undefined;
     identity?: AgentaApi.ChannelIdentity | undefined;
     setup?: AgentaApi.ChannelSetup | undefined;
+    people?: AgentaApi.ChannelPeopleSupport | undefined;
     commands?: string[] | undefined;
 }

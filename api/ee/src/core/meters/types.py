@@ -35,14 +35,13 @@ class Meters(str, Enum):
 class MeterScope(BaseModel):
     """Scope dimensions for a meter row.
 
-    `organization_id` is the tenant root — when set, every finer dimension
-    (`workspace -> project -> user`) requires the next one above it.
-    `None` on any dimension means "this dimension does not apply" — never
-    "default".
+    `organization_id` is the tenant root. A user requires a project and a project
+    requires the organization. `None` on any dimension means "this dimension does not
+    apply" — never "default". (Workspace removal step 2 dropped the workspace
+    dimension; rows that still carry one are legacy and never read as current.)
     """
 
     organization_id: Optional[UUID] = None
-    workspace_id: Optional[UUID] = None
     project_id: Optional[UUID] = None
     user_id: Optional[UUID] = None
 
@@ -50,10 +49,8 @@ class MeterScope(BaseModel):
     def _validate_hierarchy(self) -> "MeterScope":
         if self.user_id is not None and self.project_id is None:
             raise ValueError("user_id requires project_id")
-        if self.project_id is not None and self.workspace_id is None:
-            raise ValueError("project_id requires workspace_id")
-        if self.workspace_id is not None and self.organization_id is None:
-            raise ValueError("workspace_id requires organization_id")
+        if self.project_id is not None and self.organization_id is None:
+            raise ValueError("project_id requires organization_id")
 
         return self
 
@@ -123,8 +120,6 @@ def compute_meter_id(
     }
     if scope.organization_id is not None:
         parts["org"] = str(scope.organization_id).lower()
-    if scope.workspace_id is not None:
-        parts["wrk"] = str(scope.workspace_id).lower()
     if scope.project_id is not None:
         parts["prj"] = str(scope.project_id).lower()
     if scope.user_id is not None:
@@ -144,7 +139,6 @@ def compute_meter_id(
 class MeterDTO(BaseModel):
     # Scope dimensions
     organization_id: Optional[UUID] = None
-    workspace_id: Optional[UUID] = None
     project_id: Optional[UUID] = None
     user_id: Optional[UUID] = None
 
@@ -171,7 +165,6 @@ class MeterDTO(BaseModel):
         # by constructing them — they raise on invalid input.
         scope = MeterScope(
             organization_id=self.organization_id,
-            workspace_id=self.workspace_id,
             project_id=self.project_id,
             user_id=self.user_id,
         )

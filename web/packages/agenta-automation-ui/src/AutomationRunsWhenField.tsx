@@ -1,27 +1,40 @@
 import {useMemo, useState} from "react"
 
 import {ScheduleBuilderPanel, useScheduleBuilder} from "@agenta/entity-ui/gatewayTrigger"
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
+import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
 import {Button, selectTriggerVariants} from "@agenta/ui/ui"
-import {CalendarBlank, Lightning} from "@phosphor-icons/react"
-import {ChevronDown, ChevronRight} from "lucide-react"
+import {CalendarBlank, CaretUpDown, Lightning} from "@phosphor-icons/react"
+import {ChevronRight} from "lucide-react"
 
 import {AutomationField} from "./AutomationField"
 import {runsWhenLabel, type Automation, type AutomationKind} from "./automationModel"
 import {cn} from "./lib/utils"
-import {EventPickerPanel, type EventSelection} from "./pickers/EventPickerPanel"
+import {EventInlineCard, EventPickerPanel, type EventSelection} from "./pickers/EventPickerPanel"
 import {PickerOverlay, usePickerIsWide} from "./pickers/PickerOverlay"
 
 /** The two things an automation can run on, in the order the design shows them. */
-const KINDS: {
+const KINDS = [
+    {
+        value: "schedule",
+        label: "automations.editor.kindSchedule",
+        /** A phone's half-width chip has room for two words, not four. */
+        shortLabel: "automations.editor.kindScheduleShort",
+        icon: CalendarBlank,
+    },
+    {
+        value: "event",
+        label: "automations.editor.kindEvent",
+        shortLabel: "automations.editor.kindEventShort",
+        icon: Lightning,
+    },
+] as const satisfies readonly {
     value: AutomationKind
     label: string
-    /** A phone's half-width chip has room for two words, not four. */
     shortLabel: string
     icon: typeof CalendarBlank
-}[] = [
-    {value: "schedule", label: "On a schedule", shortLabel: "Schedule", icon: CalendarBlank},
-    {value: "event", label: "When something happens", shortLabel: "Event", icon: Lightning},
-]
+}[]
 
 /**
  * When the automation runs — ONE control, not two.
@@ -38,6 +51,7 @@ export const AutomationRunsWhenField = ({
     onChangeKind,
     onSelectEvent,
     error,
+    inline = false,
 }: {
     automation: Automation
     onChangeCron: (cron: string) => void
@@ -47,7 +61,14 @@ export const AutomationRunsWhenField = ({
     onSelectEvent: (selection: EventSelection) => void
     /** Set after a blocked create: this field is what is missing, and says so in red. */
     error?: string
+    /**
+     * The form of a new automation whose kind was chosen in "Add automation" (F05 f3, f4): the
+     * schedule editor or the event card open in place, under "Schedule" or "Event", with no
+     * popover and no switch between the two kinds.
+     */
+    inline?: boolean
 }) => {
+    const t = useT(automationsEditorCatalog, automationsModelCatalog)
     const [open, setOpen] = useState(false)
     const isWide = usePickerIsWide()
     const schedule = useScheduleBuilder(automation.cron ?? "", onChangeCron)
@@ -60,41 +81,57 @@ export const AutomationRunsWhenField = ({
     // outranks both: the drawer's own `Field` says so and this line is the only place left to.
     const helper = useMemo(() => {
         if (isSchedule && !schedule.validation.valid) return schedule.validation.error
-        if (!automation.isActive) return "Paused — it won't run until you switch it on."
-        return isSchedule ? "" : "Runs each time this event arrives."
-    }, [automation.isActive, isSchedule, schedule.validation])
+        if (!automation.isActive) return t("automations.editor.helperPaused")
+        return isSchedule ? "" : t("automations.editor.helperEvent")
+    }, [automation.isActive, isSchedule, schedule.validation, t])
 
-    const Icon = isSchedule ? CalendarBlank : Lightning
+    if (inline) {
+        return (
+            <AutomationField
+                label={
+                    isSchedule ? t("automations.editor.schedule") : t("automations.editor.event")
+                }
+                helper={isSchedule && !schedule.validation.valid ? schedule.validation.error : ""}
+                error={error}
+            >
+                <div className="flex flex-col rounded-lg border border-solid border-colorBorderSecondary bg-[var(--ag-colorBgContainer)] p-3">
+                    {isSchedule ? (
+                        <ScheduleBuilderPanel value={automation.cron ?? ""} controls={schedule} />
+                    ) : (
+                        <EventInlineCard automation={automation} onSelectEvent={onSelectEvent} />
+                    )}
+                </div>
+            </AutomationField>
+        )
+    }
+
     // While the popover is open the summary tracks the builder, not the saved row: a cron typed
     // in the Cron editor is not yet a saved `automation.cron`.
     const label = isSchedule ? schedule.summary : runsWhenLabel(automation)
 
     return (
-        <AutomationField label="Runs when" helper={helper} error={error}>
+        <AutomationField label={t("automations.editor.runsWhen")} helper={helper} error={error}>
             <PickerOverlay
                 open={open}
                 onOpenChange={setOpen}
-                title="Runs when"
+                title={t("automations.editor.runsWhen")}
                 trigger={
                     // The same geometry `AutomationAgentField`'s SelectTrigger has, so the two
                     // controls read as one stack rather than two sizes of field.
                     <button
                         type="button"
                         aria-invalid={error ? true : undefined}
-                        className={cn(selectTriggerVariants(), "h-auto py-input-y")}
+                        className={cn(selectTriggerVariants({size: "compact"}), "max-md:h-11")}
                     >
-                        <span className="flex min-w-0 flex-1 items-center gap-2">
-                            <Icon
+                        <span className="min-w-0 flex-1 truncate text-left">{label}</span>
+                        {/* Up and down for a popover that drops from the field; right for the
+                            sheet that slides in from the side, so the glyph says what opens. */}
+                        {isWide ? (
+                            <CaretUpDown
                                 aria-hidden
                                 size={14}
-                                className="text-muted-foreground shrink-0"
+                                className="shrink-0 text-colorTextTertiary"
                             />
-                            <span className="min-w-0 truncate">{label}</span>
-                        </span>
-                        {/* Down for a popover that drops from the field; right for the sheet
-                            that slides in from the side, so the glyph says what opens. */}
-                        {isWide ? (
-                            <ChevronDown className="text-placeholder size-3 shrink-0" />
                         ) : (
                             <ChevronRight className="text-placeholder size-3 shrink-0" />
                         )}
@@ -103,38 +140,34 @@ export const AutomationRunsWhenField = ({
             >
                 {/* `flex-1` so the sheet's fixed height reaches the panel's own scroller. */}
                 <div className="flex min-h-0 flex-1 flex-col">
-                    <div className="flex shrink-0 gap-1 p-2">
-                        {KINDS.map(({value, label: kindLabel, shortLabel, icon: KindIcon}) => {
-                            const active = value === automation.kind
-                            return (
-                                <Button
-                                    key={value}
-                                    type="button"
-                                    size="sm"
-                                    variant={active ? "default" : "outline"}
-                                    aria-pressed={active}
-                                    // A saved automation's kind is its entity type — two
-                                    // endpoints, not a field — so only a draft can still switch.
-                                    disabled={!onChangeKind && !active}
-                                    title={
-                                        onChangeKind
-                                            ? undefined
-                                            : "An automation's trigger type is fixed once it's created."
-                                    }
-                                    onClick={() => onChangeKind?.(value)}
-                                    // The two modes are the picker's first choice, not a
-                                    // toolbar's: a taller target reads as a decision rather
-                                    // than a control tucked above the panel.
-                                    className="h-8 min-w-0 flex-1 font-normal"
-                                >
-                                    <KindIcon aria-hidden size={14} />
-                                    <span className="min-w-0 truncate">
-                                        {isWide ? kindLabel : shortLabel}
-                                    </span>
-                                </Button>
-                            )
-                        })}
-                    </div>
+                    {/* The kind is a choice only in a draft that still has it open; a saved
+                        automation's kind is fixed, so the chips do not show (F05 f4). */}
+                    {onChangeKind ? (
+                        <div className="flex shrink-0 gap-1 p-2">
+                            {KINDS.map(({value, label: kindLabel, shortLabel, icon: KindIcon}) => {
+                                const active = value === automation.kind
+                                return (
+                                    <Button
+                                        key={value}
+                                        type="button"
+                                        size="sm"
+                                        variant={active ? "default" : "outline"}
+                                        aria-pressed={active}
+                                        onClick={() => onChangeKind(value)}
+                                        // The two modes are the picker's first choice, not a
+                                        // toolbar's: a taller target reads as a decision rather
+                                        // than a control tucked above the panel.
+                                        className="h-8 min-w-0 flex-1 font-normal"
+                                    >
+                                        <KindIcon aria-hidden size={14} />
+                                        <span className="min-w-0 truncate">
+                                            {isWide ? t(kindLabel) : t(shortLabel)}
+                                        </span>
+                                    </Button>
+                                )
+                            })}
+                        </div>
+                    ) : null}
 
                     {isSchedule ? (
                         <div className="min-h-0 overflow-y-auto p-4">

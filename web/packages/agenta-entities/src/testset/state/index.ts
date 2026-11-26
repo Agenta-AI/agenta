@@ -54,6 +54,7 @@ export {
 // Revision table state (for unified table component)
 export {
     revisionTableState,
+    applyColumnOps,
     pendingColumnOpsAtomFamily,
     pendingRowOpsAtomFamily,
     hasPendingChangesAtomFamily,
@@ -73,6 +74,16 @@ export {
     type PendingRowOps,
     type ColumnRenameOp,
 } from "./revisionTableState"
+
+// Header metadata for a revision view
+export {
+    testsetRevisionHeaderAtomFamily,
+    type TestsetRevisionHeader,
+    type TestsetRevisionHeaderState,
+} from "./metadata"
+
+// Readable commit preview
+export {commitPreviewAtom, type CommitPreview, type CommitPreviewEntry} from "./commitPreview"
 
 // Mutation atoms (save, clear, track changes)
 export {

@@ -1,3 +1,5 @@
+import type {CatalogKey, TranslationValues} from "@agenta/i18n"
+import type walletUsageCatalog from "@agenta/i18n/catalogs/wallet.usage"
 import {
     OTHER_KEY,
     rankKeys,
@@ -15,39 +17,67 @@ export type CreditsUsageRange = (typeof CREDITS_USAGE_RANGES)[number]
 
 export type CreditsUsageGroup = "none" | "category" | "agent" | "user" | "session"
 
+/** A `t` that holds the usage catalog. */
+export type UsageT = (
+    key: CatalogKey<typeof walletUsageCatalog>,
+    values?: TranslationValues,
+) => string
+
+/**
+ * The keys that stand for "nothing there" in a group. They name a series, so they stay these
+ * words in every language; the chart shows them through `seriesLabel`.
+ */
+const NO_SESSION = "No session"
+const NO_AGENT = "No agent"
+const NO_USER = "Automations (no user)"
+
 const sessionId = (session: WalletUsageSession) =>
-    session.session_id ? `#${session.session_id.slice(0, 4)}` : "No session"
+    session.session_id ? `#${session.session_id.slice(0, 4)}` : NO_SESSION
 
 /** What each group-by reads: the day totals per category, or every charge keyed by its session. */
 const GROUPS: Record<
     CreditsUsageGroup,
-    {label: string; from: "days" | "charges"; key?: (session: WalletUsageSession) => string}
+    {
+        label: CatalogKey<typeof walletUsageCatalog>
+        from: "days" | "charges"
+        key?: (session: WalletUsageSession) => string
+    }
 > = {
-    none: {label: "None (per day)", from: "days"},
-    category: {label: "Category", from: "days"},
+    none: {label: "wallet.usage.groupNone", from: "days"},
+    category: {label: "wallet.usage.groupCategory", from: "days"},
     agent: {
-        label: "Agent",
+        label: "wallet.usage.groupAgent",
         from: "charges",
-        key: (s) => s.agent_name ?? s.agent_id ?? "No agent",
+        key: (s) => s.agent_name ?? s.agent_id ?? NO_AGENT,
     },
     user: {
-        label: "User",
+        label: "wallet.usage.groupUser",
         from: "charges",
-        key: (s) => s.user_email ?? s.user_id ?? "Automations (no user)",
+        key: (s) => s.user_email ?? s.user_id ?? NO_USER,
     },
     session: {
-        label: "Session",
+        label: "wallet.usage.groupSession",
         from: "charges",
         key: (s) => (s.agent_name ? `${s.agent_name} · ${sessionId(s)}` : sessionId(s)),
     },
 }
 
-export const CREDITS_USAGE_GROUPS = (Object.keys(GROUPS) as CreditsUsageGroup[]).map((key) => ({
-    value: key,
-    label: GROUPS[key].label,
-}))
+export const creditsUsageGroups = (t: UsageT) =>
+    (Object.keys(GROUPS) as CreditsUsageGroup[]).map((key) => ({
+        value: key,
+        label: t(GROUPS[key].label),
+    }))
 
-export const groupLabel = (group: CreditsUsageGroup) => GROUPS[group].label
+export const groupLabel = (group: CreditsUsageGroup, t: UsageT) => t(GROUPS[group].label)
+
+/** What a series reads as: the "nothing there" keys are translated, every other key is data. */
+const seriesLabel = (key: string, group: CreditsUsageGroup, t: UsageT) => {
+    if (group === "none") return t("wallet.usage.creditsUsed")
+    if (group === "agent" && key === NO_AGENT) return t("wallet.usage.noAgent")
+    if (group === "user" && key === NO_USER) return t("wallet.usage.noUser")
+    if (group === "session" && key === NO_SESSION) return t("wallet.usage.noSession")
+    return key
+}
 
 /** The range's UTC days, oldest first, ending today. */
 export const rangeDays = (range: number, now = Date.now()): string[] =>
@@ -71,6 +101,7 @@ export const creditsUsageChart = (
     usage: WalletUsage,
     group: CreditsUsageGroup,
     days: string[],
+    t: UsageT,
 ): CreditsUsageChart => {
     const index = new Map(days.map((day, i) => [day, i]))
     const keyed: KeyedSeries = {}
@@ -102,11 +133,9 @@ export const creditsUsageChart = (
         label:
             s.key === OTHER_KEY
                 ? restCount
-                    ? `Other (${restCount})`
-                    : "Unattributed"
-                : group === "none"
-                  ? "Credits used"
-                  : s.key,
+                    ? t("wallet.usage.otherSeries", {count: restCount})
+                    : t("wallet.usage.unattributed")
+                : seriesLabel(s.key, group, t),
         color: analyticsColor(s.key === OTHER_KEY ? "other" : SERIES_COLORS[i]),
         values: s.values,
     }))

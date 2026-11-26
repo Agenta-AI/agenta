@@ -1,4 +1,5 @@
 export * from "./navigation"
+export * from "./tabDetails"
 export {
     buildSettingsSidebarSections,
     getSettingsSidebarIcon,

@@ -19,6 +19,7 @@ import {
   hydrateHarnessSessionFromDurable,
   readLatestSessionTurn,
   SessionTurnIndexTaken,
+  turnUsageBody,
 } from "../../src/engines/sandbox_agent/session-continuity-durable.ts";
 import {
   SessionContinuityStore,
@@ -727,6 +728,58 @@ describe("completeSessionTurn", () => {
   });
 });
 
+describe("completeSessionTurn usage", () => {
+  const bodyOf = async (usage?: Parameters<typeof turnUsageBody>[0]) => {
+    const calls: Array<Record<string, unknown>> = [];
+    await completeSessionTurn(
+      "sess-1",
+      3,
+      { endTime: "2026-07-21T10:02:00.000Z", ...(usage ? { usage } : {}) },
+      {
+        apiBase: "http://api:8000",
+        authorization: "ApiKey abc",
+        fetchImpl: (async (_url: string, init?: RequestInit) => {
+          calls.push(JSON.parse(init!.body as string));
+          return okResponse({ turn: {} });
+        }) as unknown as typeof fetch,
+        log: SILENT,
+      },
+    );
+    return calls[0];
+  };
+
+  it("sends the turn's tokens and cost in the completion call", async () => {
+    const body = await bodyOf({ input: 10, output: 5, total: 15, cost: 0.0021 });
+    assert.deepEqual(body["usage"], {
+      input_tokens: 10,
+      output_tokens: 5,
+      total_tokens: 15,
+      cost: 0.0021,
+    });
+  });
+
+  it("omits an unknown cost, and keeps a measured zero cost", async () => {
+    assert.deepEqual((await bodyOf({ input: 1, output: 2, total: 3 }))["usage"], {
+      input_tokens: 1,
+      output_tokens: 2,
+      total_tokens: 3,
+    });
+    assert.deepEqual(
+      (await bodyOf({ input: 1, output: 2, total: 3, cost: 0 }))["usage"],
+      { input_tokens: 1, output_tokens: 2, total_tokens: 3, cost: 0 },
+    );
+  });
+
+  it("sends no tokens for a cost-only reading and no usage when nothing is known", async () => {
+    assert.deepEqual(
+      (await bodyOf({ input: 0, output: 0, total: 0, cost: 0.5 }))["usage"],
+      { cost: 0.5 },
+    );
+    assert.equal("usage" in (await bodyOf({ input: 0, output: 0, total: 0 })), false);
+    assert.equal("usage" in (await bodyOf()), false);
+  });
+});
+
 describe("two turns append cleanly (no RMW race)", () => {
   it("appending turn N+1 does not read or depend on turn N's row", async () => {
     // The defining behavioral change: unlike the old GET-then-PUT, two sequential appends never
@@ -764,5 +817,63 @@ describe("two turns append cleanly (no RMW race)", () => {
     assert.equal(posts[0]["turn_index"], 0);
     assert.equal(posts[1]["turn_index"], 1);
     assert.equal(posts[1]["agent_session_id"], "agent-b");
+  });
+});
+
+describe("turn ledger writes carry the runner token", () => {
+  async function headersFor(base: string): Promise<Headers[]> {
+    const seen: Headers[] = [];
+    const deps = {
+      apiBase: base,
+      authorization: "Secret caller",
+      fetchImpl: (async (_url: string, init?: RequestInit) => {
+        seen.push(new Headers(init?.headers));
+        return okResponse({ turn: {} });
+      }) as unknown as typeof fetch,
+      log: SILENT,
+    };
+    await appendSessionTurn(
+      "sess-1",
+      "claude",
+      0,
+      { streamId: "stream-1", sandboxId: "daytona/sbx-1", agentSessionId: "agent-1" },
+      deps,
+    );
+    await completeSessionTurn(
+      "sess-1",
+      0,
+      { agentSessionId: "agent-1", endTime: "2026-10-24T00:00:00Z" },
+      deps,
+    );
+    return seen;
+  }
+
+  it("sends the token to the trusted API base on append and complete", async () => {
+    vi.stubEnv("AGENTA_API_INTERNAL_URL", "http://api:8000");
+    vi.stubEnv("AGENTA_RUNNER_TOKEN", "runner-token");
+    try {
+      const seen = await headersFor("http://api:8000");
+      assert.equal(seen.length, 2);
+      for (const headers of seen) {
+        assert.equal(headers.get("x-agenta-runner-token"), "runner-token");
+        assert.equal(headers.get("authorization"), "Secret caller");
+      }
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("never sends the token to another base", async () => {
+    vi.stubEnv("AGENTA_API_INTERNAL_URL", "http://api:8000");
+    vi.stubEnv("AGENTA_RUNNER_TOKEN", "runner-token");
+    try {
+      const seen = await headersFor("https://elsewhere.test/api");
+      assert.equal(seen.length, 2);
+      for (const headers of seen) {
+        assert.equal(headers.get("x-agenta-runner-token"), null);
+      }
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

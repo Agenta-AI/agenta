@@ -1,0 +1,11 @@
+{
+    "copyError": "Impossible de copier. Sélectionnez la clé ci-dessus et copiez-la",
+    "copyKey": "Copier la clé",
+    "createError": "Impossible de créer la clé",
+    "deleteBody": "Les requêtes signées avec cette clé cessent de fonctionner immédiatement.",
+    "deleteError": "Impossible de supprimer la clé",
+    "deleteTitle": "Supprimer la clé API",
+    "revealDescription": "Affichée une seule fois. Elle ne pourra plus être récupérée après la fermeture de cette fenêtre.",
+    "revealTitle": "Enregistrez votre clé API",
+    "workspacePending": "Votre espace de travail est encore en cours de chargement. Réessayez dans un instant."
+}

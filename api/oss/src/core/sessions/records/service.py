@@ -12,9 +12,17 @@ from oss.src.core.sessions.records.dtos import (
     SessionRecordEvent,
     SessionRecordsPage,
     SessionRecordsReadState,
+    RunnerEnding,
+    runner_ending,
+)
+from oss.src.core.sessions.child_updates.dtos import (
+    CHILD_UPDATE_PART_KEY,
+    stored_child_update_part,
 )
 from oss.src.core.sessions.executions.dtos import SessionExecutionSettlement
 from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
+from oss.src.core.sessions.inputs.dtos import PendingInputKind
+from oss.src.core.sessions.inputs.interfaces import SessionInputsDAOInterface
 from oss.src.core.sessions.records.events import durable_events_from_records
 from oss.src.core.sessions.records.interfaces import RecordsDAOInterface
 from oss.src.utils.env import env
@@ -40,9 +48,11 @@ class RecordsService:
         self,
         records_dao: RecordsDAOInterface,
         executions_dao: Optional[SessionExecutionsDAOInterface] = None,
+        inputs_dao: Optional[SessionInputsDAOInterface] = None,
     ):
         self.records_dao = records_dao
         self.executions_dao = executions_dao
+        self.inputs_dao = inputs_dao
 
     async def append(
         self,
@@ -79,10 +89,63 @@ class RecordsService:
             return []
 
         guarded = await self._handle_late_events(events=events)
+        guarded = await self._child_update_parts(events=guarded)
         records = await self.records_dao.append_many(events=guarded)
-        await self._settle_completed_continuations(records=records)
+        await self._settle_ended_continuations(records=records)
         await self._mark_endings_written(events=guarded)
         return records
+
+    async def _child_update_parts(
+        self,
+        *,
+        events: List[SessionRecordEvent],
+    ) -> List[SessionRecordEvent]:
+        """The user `message` record of a turn that a `child_update` row started keeps
+        the row's structured part at `attributes.child_update`, so the transcript can show
+        the update as an update. The part comes only from the server-written row (by the
+        record's execution id); a `child_update` key that a producer sent is dropped from
+        every record.
+
+        A failed row lookup appends the record without the part: the text is still there."""
+        result: List[SessionRecordEvent] = []
+        for event in events:
+            attributes = event.attributes
+            if attributes and CHILD_UPDATE_PART_KEY in attributes:
+                attributes = {
+                    key: value
+                    for key, value in attributes.items()
+                    if key != CHILD_UPDATE_PART_KEY
+                }
+            part = None
+            if (
+                self.inputs_dao is not None
+                and event.record_type == "message"
+                and event.record_source == "user"
+                and event.turn_id
+            ):
+                try:
+                    row = await self.inputs_dao.fetch_by_execution_id(
+                        project_id=event.project_id,
+                        session_id=event.session_id,
+                        execution_id=event.turn_id,
+                    )
+                except Exception:
+                    log.warning(
+                        "[RECORDS] Child update row lookup failed; the record keeps its text only",
+                        project_id=str(event.project_id),
+                        session_id=event.session_id,
+                        turn_id=event.turn_id,
+                        exc_info=True,
+                    )
+                    row = None
+                if row is not None and row.kind == PendingInputKind.child_update:
+                    part = stored_child_update_part(row.content)
+            if part is not None:
+                attributes = {**(attributes or {}), CHILD_UPDATE_PART_KEY: part}
+            if attributes is not event.attributes:
+                event = event.model_copy(update={"attributes": attributes})
+            result.append(event)
+        return result
 
     async def _mark_endings_written(
         self,
@@ -117,7 +180,7 @@ class RecordsService:
                     exc_info=True,
                 )
 
-    async def _settle_completed_continuations(
+    async def _settle_ended_continuations(
         self,
         *,
         records: List[SessionRecord],
@@ -127,8 +190,9 @@ class RecordsService:
         The runner flushes its terminal record before releasing its heartbeat. Without this
         bridge, an admitted continuation remained ``running`` forever; once its heartbeat went
         stale, recovery could replay work that had already completed. Only an effective runner
-        ending qualifies: paused turns remain continuable, watchdog endings are not successful
-        completion, and quarantined late endings already lost the Stop/watchdog race.
+        ending qualifies: paused turns remain continuable, a cancel is settled by its Stop command,
+        watchdog endings are not the runner's, and quarantined late endings already lost the
+        Stop/watchdog race. An `error` ending settles as failed.
 
         Record persistence is the source of truth and happened immediately above. Settlement is
         best effort here because records and executions use different database engines; the
@@ -138,17 +202,16 @@ class RecordsService:
             return
 
         candidates = {
-            (record.project_id, record.session_id, record.turn_id)
+            (record.project_id, record.session_id, record.turn_id): ending
             for record in records
             if record.record_type == TERMINAL_RECORD_TYPE
             and record.turn_id
             and record.quarantined_at is None
             and (record.attributes or {}).get(RECORD_SETTLED_BY_ATTRIBUTE)
             != SETTLED_BY_WATCHDOG
-            and (record.attributes or {}).get("stopReason")
-            not in ("paused", "cancelled", "error")
+            and (ending := runner_ending((record.attributes or {}).get("stopReason")))
         }
-        for project_id, session_id, execution_id in candidates:
+        for (project_id, session_id, execution_id), ending in candidates.items():
             try:
                 execution = await self.executions_dao.fetch_execution(
                     project_id=project_id,
@@ -168,12 +231,13 @@ class RecordsService:
                     project_id=project_id,
                     session_id=session_id,
                     execution_id=execution_id,
-                    terminal_outcome="completed",
+                    terminal_outcome=ending,
                     settled_by="runner",
+                    defer_to_stop=ending == "failed",
                 )
             except Exception:
                 log.warning(
-                    "[RECORDS] Continuation completion settlement failed",
+                    "[RECORDS] Continuation ending settlement failed",
                     project_id=str(project_id),
                     session_id=session_id,
                     turn_id=execution_id,
@@ -354,6 +418,47 @@ class RecordsService:
             session_id=session_id,
         )
 
+    async def get_execution_records(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_ids: List[str],
+    ) -> List[SessionRecord]:
+        return await self.records_dao.get_execution_records(
+            project_id=project_id,
+            session_id=session_id,
+            execution_ids=execution_ids,
+        )
+
+    async def get_ending_records(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> List[SessionRecord]:
+        """The `done` and `error` records of every execution of the session, in send
+        order: what a turn's status, stop reason and error are read from."""
+        return await self.records_dao.get_ending_records(
+            project_id=project_id,
+            session_id=session_id,
+        )
+
+    async def get_ending_records_of_executions(
+        self,
+        *,
+        project_id: UUID,
+        session_ids: List[str],
+        execution_ids: List[str],
+    ) -> List[SessionRecord]:
+        """The `done` and `error` records of these executions (record `turn_id`s), in
+        send order: one read for the newest ending of every session of a list page."""
+        return await self.records_dao.get_ending_records_of_executions(
+            project_id=project_id,
+            session_ids=session_ids,
+            execution_ids=execution_ids,
+        )
+
     async def get_event(
         self,
         *,
@@ -402,13 +507,18 @@ class RecordsService:
         offset: int,
         limit: int,
         through_sequence: int,
+        after_sequence: int = 0,
     ) -> SessionRecordsPage:
+        """A page in send order of the records committed in the sequence window
+        (`after_sequence`, `through_sequence`]. Unsequenced legacy rows come with the
+        first window only (`after_sequence` 0)."""
         return await self.records_dao.get_records_page(
             project_id=project_id,
             session_id=session_id,
             offset=offset,
             limit=limit,
             through_sequence=through_sequence,
+            after_sequence=after_sequence,
         )
 
     async def get_read_state(
@@ -475,13 +585,13 @@ class RecordsService:
             settled_by=settled_by,
         )
 
-    async def runner_completed_turns(
+    async def runner_ended_turns(
         self,
         *,
         project_id: UUID,
         keys: Sequence[Tuple[str, str]],
-    ) -> Set[Tuple[str, str]]:
-        return await self.records_dao.runner_completed_turns(
+    ) -> Dict[Tuple[str, str], RunnerEnding]:
+        return await self.records_dao.runner_ended_turns(
             project_id=project_id,
             keys=keys,
         )

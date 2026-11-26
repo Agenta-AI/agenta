@@ -1,4 +1,8 @@
+import {useT} from "@agenta/i18n"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {SkeletonBlock} from "@agenta/ui/ui"
+
+import {useSectionListLayout} from "./sectionListLayout"
 
 /**
  * Loading placeholder for the agent config panel's Configuration section, mirroring its
@@ -54,21 +58,52 @@ const ROWS: {title: number; value: number; withAdd?: boolean}[] = [
     {title: 100, value: 110}, // Advanced
 ]
 
-const AgentConfigSkeleton = () => (
-    // No padding of its own: the surrounding field/fallback wrapper provides the 16px inset.
-    // `role="status"`: a bare div is role=generic, which may not carry `aria-label`
-    // (axe aria-prohibited-attr) — the live region is also what makes the label useful.
-    <div className="flex flex-col" role="status" aria-busy aria-label="Loading agent configuration">
+/** The Configuration page's shape (canvas A04): a title and its action over one card per section. */
+const PageSkeleton = () => (
+    <div className="flex flex-col gap-7">
         {ROWS.map((row, i) => (
-            <SkeletonSectionRow
-                key={i}
-                title={row.title}
-                value={row.value}
-                withAdd={row.withAdd}
-                divider={i < ROWS.length - 1}
-            />
+            <div key={i} className="flex flex-col gap-2">
+                <div className="flex min-h-7 items-center justify-between">
+                    <SkeletonBlock active style={{width: row.title, height: 16}} />
+                    <SkeletonBlock active className="h-7 w-14" />
+                </div>
+                <div className="flex h-14 items-center gap-3 rounded-[10px] border border-solid border-colorBorderSecondary px-3.5">
+                    <SkeletonBlock active shape="square" className="h-7 w-7" />
+                    <SkeletonBlock active style={{width: row.value + 80, height: 14}} />
+                </div>
+            </div>
         ))}
     </div>
 )
+
+const AgentConfigSkeleton = () => {
+    const t = useT(configItemsCatalog)
+    const page = useSectionListLayout() === "page"
+    return (
+        // No padding of its own: the surrounding field/fallback wrapper provides the 16px inset.
+        // `role="status"`: a bare div is role=generic, which may not carry `aria-label`
+        // (axe aria-prohibited-attr) — the live region is also what makes the label useful.
+        <div
+            className="flex flex-col"
+            role="status"
+            aria-busy
+            aria-label={t("entityUi.configItems.loadingAgentConfig")}
+        >
+            {page ? (
+                <PageSkeleton />
+            ) : (
+                ROWS.map((row, i) => (
+                    <SkeletonSectionRow
+                        key={i}
+                        title={row.title}
+                        value={row.value}
+                        withAdd={row.withAdd}
+                        divider={i < ROWS.length - 1}
+                    />
+                ))
+            )}
+        </div>
+    )
+}
 
 export default AgentConfigSkeleton

@@ -1,0 +1,9 @@
+{
+    "attachTooltip": "Joindre au message",
+    "delete": "Supprimer l’enregistrement",
+    "deleteTooltip": "Supprimer l’enregistrement (Échap)",
+    "sendTooltip": "Envoyer le message vocal",
+    "stopAndAttach": "Arrêter l’enregistrement et le joindre au message",
+    "stopAndSend": "Arrêter l’enregistrement et envoyer le message vocal",
+    "timeLeft": "{{time}} restantes"
+}

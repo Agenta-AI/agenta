@@ -1,5 +1,7 @@
 import {useMemo} from "react"
 
+import {useT, type CatalogKey} from "@agenta/i18n"
+import drawerCatalog from "@agenta/i18n/catalogs/observabilityUi.traceDrawer"
 import {useEvaluatorNavigation} from "@agenta/observability/traceDrawer"
 import {linksAndReferencesAtom, traceDrawerProjectURLAtom} from "@agenta/observability/traceDrawer"
 import {projectIdAtom} from "@agenta/shared/state"
@@ -12,12 +14,14 @@ const titleClass = "text-sm leading-[1.5714285714285714] font-medium"
 // The side panel hugs the right edge of the screen, so hovercards open leftward.
 const HOVERCARD_PLACEMENT = "bottomRight" as const
 
-const labelMap: Record<string, string> = {
-    evaluator: "Evaluators",
-    application: "Applications",
-    application_variant: "Variants",
-    environment: "Environments",
-    testset: "Test sets",
+const LABEL_KEYS: Record<string, CatalogKey<typeof drawerCatalog>> = {
+    evaluator: "observabilityUi.traceDrawer.refEvaluators",
+    application: "observabilityUi.traceDrawer.refApplications",
+    application_variant: "observabilityUi.traceDrawer.refVariants",
+    workflow: "observabilityUi.traceDrawer.refApplications",
+    workflow_variant: "observabilityUi.traceDrawer.refVariants",
+    environment: "observabilityUi.traceDrawer.refEnvironments",
+    testset: "observabilityUi.traceDrawer.refTestSets",
 }
 
 interface ReferenceEntry extends Record<string, unknown> {
@@ -27,6 +31,7 @@ interface ReferenceEntry extends Record<string, unknown> {
 }
 
 const TraceReferences = () => {
+    const t = useT(drawerCatalog)
     const {
         ApplicationReferenceLabel,
         EnvironmentReferenceLabel,
@@ -45,7 +50,9 @@ const TraceReferences = () => {
     const references = (linksAndReferences?.references ?? []) as ReferenceEntry[]
 
     const applicationReference = useMemo(
-        () => references.find((ref) => ref?.key === "application"),
+        () =>
+            references.find((ref) => ref?.key === "application") ??
+            references.find((ref) => ref?.key === "workflow"),
         [references],
     )
 
@@ -60,15 +67,21 @@ const TraceReferences = () => {
     // Traces store both application_variant (with variant ID) and application_revision (with revision ID).
     // The workflowMolecule resolves by revision ID, so we need the revision reference.
     const applicationRevisionReference = useMemo(
-        () => references.find((ref) => ref?.key === "application_revision"),
+        () =>
+            references.find((ref) => ref?.key === "application_revision") ??
+            references.find((ref) => ref?.key === "workflow_revision"),
         [references],
     )
 
     const groupedReferences = useMemo(() => {
-        const validReferences = references?.filter((reference) => reference?.id || reference?.slug)
+        // Only kinds this panel can show, so a trace with none of them gets the empty state.
+        const validReferences = references?.filter(
+            (reference) =>
+                (reference?.id || reference?.slug) && LABEL_KEYS[reference?.key || "other"],
+        )
 
         return validReferences?.reduce<Record<string, ReferenceEntry[]>>((acc, reference) => {
-            const key = reference?.key || "other"
+            const key = LABEL_KEYS[reference?.key || "other"]
             if (!acc[key]) acc[key] = []
             acc[key].push(reference)
             return acc
@@ -78,6 +91,7 @@ const TraceReferences = () => {
     const renderReferenceTag = ({key, id, slug}: {key: string; id?: string; slug?: string}) => {
         switch (key) {
             case "application":
+            case "workflow":
                 return (
                     <ApplicationReferenceLabel
                         applicationId={id ?? null}
@@ -124,7 +138,8 @@ const TraceReferences = () => {
                         hovercardPlacement={HOVERCARD_PLACEMENT}
                     />
                 )
-            case "application_variant": {
+            case "application_variant":
+            case "workflow_variant": {
                 const applicationId = applicationReference?.id || applicationReference?.slug
                 // Use the revision ID from application_revision reference for molecule lookup.
                 // The variant reference stores a variant ID, but the molecule resolves by revision ID.
@@ -153,18 +168,22 @@ const TraceReferences = () => {
         }
     }
 
-    if (!references.length) {
-        return <span className="text-colorTextSecondary">No references found.</span>
+    if (!Object.keys(groupedReferences ?? {}).length) {
+        return (
+            <span className="text-colorTextSecondary">
+                {t("observabilityUi.traceDrawer.noReferences")}
+            </span>
+        )
     }
 
     return (
         <div className="flex flex-col gap-3 items-start w-full">
-            {Object.entries(groupedReferences || {}).map(([key, refs]) => {
-                const displayLabel = labelMap[key]
-                if (!displayLabel) return null
+            {Object.entries(groupedReferences || {}).map(([labelKey, refs]) => {
                 return (
-                    <div key={key} className="flex flex-col gap-1.5 items-start w-full">
-                        <span className={titleClass}>{displayLabel}</span>
+                    <div key={labelKey} className="flex flex-col gap-1.5 items-start w-full">
+                        <span className={titleClass}>
+                            {t(labelKey as CatalogKey<typeof drawerCatalog>)}
+                        </span>
                         <div className="flex flex-col gap-1">
                             {refs?.map((ref, index) => {
                                 const tag = renderReferenceTag({

@@ -314,34 +314,3 @@ export const getSuggestedColumnName = (path: string): string => {
     const columnName = getColumnNameFromPath(path)
     return COLUMN_NAME_MAPPINGS[columnName] || columnName
 }
-
-/**
- * Match suggested columns with existing testset columns
- * Returns mappings with matched or suggested column names
- */
-export const matchColumnsWithSuggestions = (
-    suggestions: {data: string; suggestedColumn: string}[],
-    existingColumns: string[],
-): {data: string; column: string; isNew: boolean}[] => {
-    const existingColumnsLower = new Set(existingColumns.map((c) => c.toLowerCase()))
-
-    return suggestions.map(({data, suggestedColumn}) => {
-        const suggestedLower = suggestedColumn.toLowerCase()
-
-        // Find exact case match in existing columns
-        const matchedColumn = existingColumns.find((col) => col.toLowerCase() === suggestedLower)
-
-        if (matchedColumn) {
-            return {data, column: matchedColumn, isNew: false}
-        }
-
-        // Check if suggested column already exists (case-insensitive)
-        if (existingColumnsLower.has(suggestedLower)) {
-            const existing = existingColumns.find((c) => c.toLowerCase() === suggestedLower)
-            return {data, column: existing || suggestedColumn, isNew: false}
-        }
-
-        // New column
-        return {data, column: suggestedColumn, isNew: true}
-    })
-}

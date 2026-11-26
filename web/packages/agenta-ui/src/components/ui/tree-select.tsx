@@ -1,8 +1,13 @@
 import * as React from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 import {X} from "@phosphor-icons/react"
-import {ChevronDown, ChevronRight, LoaderCircle} from "lucide-react"
+import {ChevronDown, LoaderCircle} from "lucide-react"
 
+import {CollapseCaret} from "./collapse-caret"
 import {Popover, PopoverAnchor, PopoverContent} from "./popover"
 import {selectTriggerVariants, type SelectTriggerProps} from "./select"
 import {cn} from "./utils"
@@ -156,8 +161,8 @@ export function TreeSelect({
     defaultExpandAll = false,
     expandedKeys,
     onExpandedKeysChange,
-    placeholder = "Select",
-    emptyText = "No data",
+    placeholder: placeholderProp,
+    emptyText: emptyTextProp,
     allowClear = false,
     disabled = false,
     loading = false,
@@ -178,6 +183,9 @@ export function TreeSelect({
     "aria-label": ariaLabel,
     "aria-labelledby": ariaLabelledby,
 }: TreeSelectProps) {
+    const t = useT(uiControlsCatalog, listControlsCatalog, commonCatalog)
+    const placeholder = placeholderProp ?? t("ui.listControls.select")
+    const emptyText = emptyTextProp ?? t("ui.controls.noData")
     const [open, setOpen] = React.useState(defaultOpen)
     const [query, setQuery] = React.useState("")
     const [focus, setFocus] = React.useState(0)
@@ -521,7 +529,7 @@ export function TreeSelect({
                                     type="button"
                                     data-tree-select-clear
                                     tabIndex={-1}
-                                    aria-label="Clear selection"
+                                    aria-label={t("common.clearSelection")}
                                     className={cn(
                                         "absolute inset-0 flex cursor-pointer items-center justify-center border-0 bg-transparent p-0 opacity-0 transition-opacity hover:text-foreground",
                                         "group-hover:opacity-100 group-focus-within:opacity-100",
@@ -555,7 +563,7 @@ export function TreeSelect({
                     id={treeId}
                     ref={panelRef}
                     role="tree"
-                    aria-label={ariaLabel ?? "Options"}
+                    aria-label={ariaLabel ?? t("ui.controls.options")}
                     style={{maxHeight: panelMaxHeight}}
                     className="overflow-auto p-1"
                 >
@@ -614,7 +622,11 @@ export function TreeSelect({
                                             <button
                                                 type="button"
                                                 tabIndex={-1}
-                                                aria-label={row.expanded ? "Collapse" : "Expand"}
+                                                aria-label={
+                                                    row.expanded
+                                                        ? t("common.collapse")
+                                                        : t("common.expand")
+                                                }
                                                 className="flex cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-placeholder"
                                                 onMouseDown={(e) => e.preventDefault()}
                                                 onClick={(e) => {
@@ -622,12 +634,7 @@ export function TreeSelect({
                                                     toggle(option)
                                                 }}
                                             >
-                                                <ChevronRight
-                                                    className={cn(
-                                                        "size-3 transition-transform",
-                                                        row.expanded && "rotate-90",
-                                                    )}
-                                                />
+                                                <CollapseCaret open={row.expanded} size={12} />
                                             </button>
                                         ) : null}
                                     </span>

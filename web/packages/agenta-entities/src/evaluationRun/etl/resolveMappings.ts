@@ -285,6 +285,9 @@ function walkSpan(span: unknown, path: string): unknown {
     return undefined
 }
 
+const MESSAGES_INPUT_PATH = "data.inputs.messages"
+const MESSAGES_COLUMN_PATH = "data.messages"
+
 /**
  * Resolver for `input`-type steps. Reads from the joined testcase.
  *
@@ -294,7 +297,12 @@ function walkSpan(span: unknown, path: string): unknown {
  */
 export const resolveFromTestcase: StepResolver = ({row, path}) => {
     if (!row.testcase) return null
-    const value = getAtPath(row.testcase, path)
+    // A test case holds chat messages at `data.messages` or at `data.inputs.messages`.
+    // The top-level column wins when both exist.
+    const value =
+        path === MESSAGES_INPUT_PATH
+            ? (getAtPath(row.testcase, MESSAGES_COLUMN_PATH) ?? getAtPath(row.testcase, path))
+            : getAtPath(row.testcase, path)
     if (value === undefined) return null
     return {value, source: "testcase"}
 }

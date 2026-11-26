@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import agentOverviewCatalog from "@agenta/i18n/catalogs/entityUi.agentOverview"
 import {PanelSection} from "@agenta/ui/components/presentational"
 import {SkeletonBlock} from "@agenta/ui/ui"
 import {LightningIcon} from "@phosphor-icons/react"
@@ -10,22 +12,26 @@ export type NextTriggersSectionProps = UseUpcomingTriggersArgs
 
 /** What is going to fire, soonest first — the rows `useUpcomingTriggers` derives, in the rail's panel chrome. */
 export const NextTriggersSection = ({agentId, agentNames}: NextTriggersSectionProps = {}) => {
+    const t = useT(agentOverviewCatalog)
     const {rows, isLoading, hasError, retry} = useUpcomingTriggers({agentId, agentNames})
 
     return (
-        <PanelSection title="Automations">
+        <PanelSection title={t("entityUi.agentOverview.automations")}>
             {isLoading ? (
                 <div className="flex flex-col gap-2 px-2 py-2">
                     <SkeletonBlock active className="h-4 w-3/4" />
                     <SkeletonBlock active className="h-4 w-1/2" />
                 </div>
             ) : hasError ? (
-                <SectionLoadError message="Couldn't load automations." onRetry={retry} />
+                <SectionLoadError
+                    message={t("entityUi.agentOverview.couldNotLoadAutomations")}
+                    onRetry={retry}
+                />
             ) : rows.length === 0 ? (
                 <p className="m-0 px-2 py-3 text-xs text-colorTextTertiary">
                     {agentId
-                        ? "No automations bound to this agent yet."
-                        : "Nothing scheduled. Give an agent an automation and its next run shows up here."}
+                        ? t("entityUi.agentOverview.noAutomationsForAgent")
+                        : t("entityUi.agentOverview.nothingScheduled")}
                 </p>
             ) : (
                 rows.map((row) => (

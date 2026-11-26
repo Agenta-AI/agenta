@@ -72,6 +72,21 @@
         },
         "args_into": "data.inputs"
       }
+    },
+    {
+      "name": "start_session",
+      "description": "Start a session with another agent.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "permission": "ask",
+      "kind": "callback",
+      "callRef": "tools.agenta.start_session",
+      "configuredPermission": "allow",
+      "targetPermissions": {
+        "email-writer": "ask"
+      }
     }
   ],
   "toolCallback": {
@@ -161,5 +176,21 @@
       }
     }
   },
-  "turnContext": "## This session\n\nThis session is named \"Q3 notes\"."
+  "turnContext": "## This session\n\nThis session is named \"Q3 notes\".",
+  "drives": [
+    {
+      "slug": "quote-agent-files",
+      "access": "read-write"
+    },
+    {
+      "slug": "price-lists",
+      "access": "read"
+    },
+    {
+      "slug": "team-notes",
+      "access": "read-write"
+    }
+  ],
+  "homeDrive": "quote-agent-files",
+  "hasSessionDrive": true
 }

@@ -10,6 +10,7 @@ export {
     fetchToolIntegrationDetail,
     fetchToolIntegrations,
     fetchToolProviders,
+    makeDefaultToolConnection,
     queryToolConnections,
     refreshToolConnection,
     revokeToolConnection,

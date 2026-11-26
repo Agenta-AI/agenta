@@ -19,9 +19,11 @@ export {
 export {AccountPage, type AccountPageProps} from "./AccountPage"
 export {ApiKeysPage, type ApiKeysPageProps} from "./ApiKeysPage"
 export {NamedSecretTable, type NamedSecretTableProps} from "./secrets/NamedSecretTable"
+export {addAccountOwners, showsYours} from "./shared/accountOwners"
 export {
     AIProvidersPage,
     SUBSCRIPTION_DOCS_URL,
+    type AIProvidersOrganization,
     type AIProvidersPageProps,
     type ProviderRemovalState,
 } from "./providers/AIProvidersPage"
@@ -127,6 +129,8 @@ export {useToolsConnections, type CreateConnectionInput} from "@agenta/entities/
 // hosts (web/oss, /m) wire to the generated channels client.
 export {
     ChannelsPage,
+    AgentChannelsView,
+    type AgentChannelsViewProps,
     ChannelsPanelSheet,
     useChannelPanel,
     ChannelsHubView,
@@ -138,6 +142,8 @@ export {
     isLiveForAgent,
     ChannelConnectFlow,
     ChannelManagePanel,
+    ChannelAgentPicker,
+    channelSharingCopy,
     EMPTY_CONNECTIONS,
     NOOP_ACTIONS,
     buildAgentChannelsActions,
@@ -161,6 +167,7 @@ export {
     type ChannelsSettingsPageProps,
     type ChannelConnectFlowProps,
     type ChannelManagePanelProps,
+    type ChannelAgentPickerProps,
     type ChannelRowSummary,
 } from "./channels"
 export type {
@@ -187,7 +194,20 @@ export {
     AGENT_INVOKE_DOCS_URL,
     agentHostFromApiUrl,
     buildAgentSnippets,
+    CodeBlock,
+    buildAppEndpointParams,
+    buildFetchConfigSnippets,
+    buildFetchVariantConfigSnippets,
+    buildInvokeAppSnippets,
+    buildTestsetJsonSnippets,
+    buildTestsetUploadSnippets,
+    TESTSET_CREATE_DOCS_URL,
+    type TestsetCreateSnippetInput,
     type AgentApiPanelProps,
+    type AppEndpointLang,
+    type AppEndpointVariant,
+    type AppEndpointSnippets,
+    type CodeBlockProps,
     type AgentEmbedPanelProps,
     type AgentPublishProps,
     type AgentSnippetLang,

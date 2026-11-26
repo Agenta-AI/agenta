@@ -1,0 +1,12 @@
+{
+    "title": "用量",
+    "requests": "请求数",
+    "latency": "延迟",
+    "totalCost": "总成本",
+    "avgCost": "平均成本",
+    "totalTokens": "总 Token 数",
+    "avgTokens": "平均 Token 数",
+    "failureRate": "失败率",
+    "collapse": "收起",
+    "expand": "展开"
+}

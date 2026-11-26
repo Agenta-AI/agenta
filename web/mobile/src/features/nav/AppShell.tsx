@@ -2,16 +2,20 @@ import type {ReactNode} from "react"
 
 import type {SidebarScope} from "@agenta/navigation"
 
+import {useAgentSidebarSync} from "../agent-sidebar/useAgentSidebarSync"
+import {useCanonicalProjectRoute} from "../context/useCanonicalProjectRoute"
+
 import {useTrackLastNonSettingsPath} from "./lastNonSettingsPath"
 import {MobileCommandPalette} from "./MobileCommandPalette"
 import {NavRail} from "./NavRail"
+import {useTrackLastMainRailPath} from "./railScope"
 
 /**
  * The viewport-aware app frame: a persistent sidebar at lg+ beside the screen, nothing below
  * lg (where screens carry the NavDrawer hamburger in their own headers). Screens wrap their
  * ScreenScaffold in this — the scaffold's `h-dvh` column becomes the flex-1 main pane.
  *
- * `scope` replaces the main nav for screens that take the rail over (settings).
+ * `scope` replaces the main nav (settings); inside an app `useRailScope` picks the app menu.
  */
 export const AppShell = ({
     workspaceId,
@@ -25,6 +29,10 @@ export const AppShell = ({
     children: ReactNode
 }) => {
     useTrackLastNonSettingsPath()
+    useTrackLastMainRailPath()
+    // Here, not per rail mount: the drawer and the docked rail share one choice.
+    useAgentSidebarSync(projectId)
+    useCanonicalProjectRoute()
 
     return (
         <div className="flex h-[calc(var(--ag-viewport-height,100dvh)-var(--ag-top-bars-h,0px))]">

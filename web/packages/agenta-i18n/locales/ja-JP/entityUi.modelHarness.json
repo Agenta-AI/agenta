@@ -1,0 +1,19 @@
+{
+    "policySummary": "ポリシー · {{policy}}",
+    "unsavedGroupChanges": "このグループには未保存の変更があります。",
+    "selectModel": "モデルを選択…",
+    "sandboxSummary": "サンドボックス: {{kind}}",
+    "sandbox": "サンドボックス",
+    "policy": "ポリシー",
+    "attachedCount_other": "{{count}} 件添付済み",
+    "noneAttached": "添付なし",
+    "executionEnvironment": "実行環境",
+    "executionCaptionShort": "エージェントのツールとコードが実行される場所です。",
+    "customSecrets": "カスタムシークレット",
+    "execution": "実行",
+    "executionCaption": "エージェントのツールとコードが実行される場所と、そのサンドボックスがアクセスできる範囲です。",
+    "secretsCaption": "このエージェントが作業中に使える認証情報です。{{summary}}。",
+    "agentaTools": "Agenta ツール",
+    "buildKit": "ビルドキット",
+    "advanced": "詳細設定"
+}

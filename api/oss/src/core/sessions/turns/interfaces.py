@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.shared.dtos import RunUsage
 from oss.src.core.sessions.turns.dtos import (
     HarnessKind,
     SessionTurn,
@@ -33,6 +34,24 @@ class SessionTurnsDAOInterface(ABC):
     ) -> Optional[SessionTurn]: ...
 
     @abstractmethod
+    async def set_turn_usage_from_trace(
+        self,
+        *,
+        project_id: UUID,
+        trace_id: UUID,
+        usage: RunUsage,
+    ) -> int:
+        """Ingest's write-back, and the one statement of the two writers' rule.
+
+        The trace's priced root usage goes to the one turn with that trace id, with
+        source `trace`. Each figure the trace reports replaces the runner's. A figure
+        it does not report keeps the turn's value. The runner, on completion, fills
+        only fields that have no value, so the order of the two writes does not
+        matter. A trace that several turns share writes nothing: its total is no one
+        turn's usage. Returns the number of turns written."""
+        ...
+
+    @abstractmethod
     async def fetch_turn(
         self,
         *,
@@ -49,6 +68,7 @@ class SessionTurnsDAOInterface(ABC):
         #
         query: Optional[SessionTurnQuery] = None,
         windowing: Optional[Windowing] = None,
+        transaction: Optional[Any] = None,
     ) -> List[SessionTurn]: ...
 
     @abstractmethod
@@ -72,6 +92,17 @@ class SessionTurnsDAOInterface(ABC):
         *,
         project_id: UUID,
         session_id: str,
+    ) -> Optional[SessionTurn]: ...
+
+    @abstractmethod
+    async def find_turn(
+        self,
+        *,
+        project_id: UUID,
+        session_id: Optional[str] = None,
+        turn_id: Optional[UUID] = None,
+        trace_id: Optional[UUID] = None,
+        transaction: Optional[Any] = None,
     ) -> Optional[SessionTurn]: ...
 
     @abstractmethod

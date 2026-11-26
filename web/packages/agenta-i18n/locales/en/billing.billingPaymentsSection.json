@@ -1,0 +1,8 @@
+{
+    "invoices": "Invoices and receipts",
+    "invoicesHint": "Every subscription and credit pack payment, with its PDF invoice.",
+    "opening": "Opening…",
+    "portalHint": "Payment method, tax IDs and billing address are managed in the billing portal too.",
+    "title": "Payment history",
+    "viewPortal": "View in billing portal"
+}

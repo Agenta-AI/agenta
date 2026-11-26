@@ -139,8 +139,8 @@ function InputGroupInput({className, ...props}: InputProps) {
             data-slot="input-group-control"
             className={cn(
                 "flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent",
-                // No focus chrome of its own: the group rings instead.
-                "focus-within:border-0 focus-within:shadow-none focus-visible:shadow-none",
+                // No focus or error chrome of its own: the group rings instead.
+                "focus-within:border-0 focus-within:shadow-none focus-visible:shadow-none aria-[invalid=true]:ring-0",
                 className,
             )}
             {...props}

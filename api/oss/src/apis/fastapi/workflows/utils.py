@@ -385,6 +385,7 @@ def parse_workflow_revision_query_request_from_params(
     meta: Optional[str] = Query(None),
     #
     include_archived: Optional[bool] = Query(None),
+    include_data: Optional[bool] = Query(None),
     #
     next: Optional[UUID] = Query(None),  # pylint disable=redefined-builtin
     newest: Optional[datetime] = Query(None),
@@ -506,6 +507,7 @@ def parse_workflow_revision_query_request_from_params(
         workflow_revision_refs=workflow_revision_refs,
         #
         include_archived=include_archived,
+        include_data=include_data,
         #
         windowing=windowing,
     )
@@ -519,6 +521,7 @@ def parse_workflow_revision_query_request_from_body(
     workflow_revision_refs: Optional[List[Reference]] = None,
     #
     include_archived: Optional[bool] = None,
+    include_data: Optional[bool] = None,
     #
     grouping: Optional[RevisionGrouping] = None,
     #
@@ -530,6 +533,7 @@ def parse_workflow_revision_query_request_from_body(
         workflow_variant_refs=workflow_variant_refs,
         workflow_revision_refs=workflow_revision_refs,
         include_archived=include_archived,
+        include_data=include_data,
         grouping=grouping,
         windowing=windowing,
     )
@@ -561,6 +565,11 @@ def merge_workflow_revision_query_requests(
                 query_request_body.include_archived
                 if query_request_body.include_archived is not None
                 else query_request_params.include_archived
+            ),
+            include_data=(
+                query_request_body.include_data
+                if query_request_body.include_data is not None
+                else query_request_params.include_data
             ),
             #
             grouping=query_request_body.grouping or query_request_params.grouping,

@@ -1,0 +1,16 @@
+{
+    "rateLimitReached": "Ratenlimit erreicht",
+    "quotaReached": "Sie haben Ihr monatliches Kontingent erreicht. Bitte versuchen Sie es später erneut oder wechseln Sie zu einem höheren Tarif.",
+    "noTracesFound": "Keine Traces gefunden",
+    "adjustTraces": "Passen Sie die Filter oder den Zeitraum an, um Traces anzuzeigen.",
+    "demoAlt": "Observability-Demo mit Trace-Visualisierung",
+    "noTracesYet": "Noch keine Traces",
+    "onboardingDescription": "Fügen Sie ein paar Zeilen Code hinzu, um Traces aus Ihrer LLM-Anwendung zu erfassen. Überwachen Sie Latenz und Token-Nutzung und beheben Sie Probleme mit detaillierten Einblicken.",
+    "setUpTracing": "Tracing einrichten",
+    "learnMore": "Mehr erfahren",
+    "noSessionsFound": "Keine Sitzungen gefunden",
+    "adjustSessions": "Passen Sie die Filter oder den Zeitraum an, um Sitzungen anzuzeigen.",
+    "noSessionsObserved": "Keine Sitzungen beobachtet",
+    "sessionsDescription": "Mit Sitzungen verfolgen Sie Unterhaltungen mit mehreren Runden in Ihrer LLM-Anwendung, einschließlich der Zwischenschritte.",
+    "gettingStartedSessions": "Erste Schritte mit Sitzungen"
+}

@@ -1,0 +1,377 @@
+{
+    "run": {
+        "id": "01a17f3b-9be1-7d91-9262-018afc78c49c",
+        "name": "Capitals check",
+        "status": "success",
+        "flags": {
+            "is_live": false,
+            "has_auto": true,
+            "is_queue": false,
+            "is_split": false,
+            "has_human": false,
+            "is_active": false,
+            "is_cached": false,
+            "is_closed": false,
+            "has_custom": false,
+            "has_traces": false,
+            "has_queries": false,
+            "has_testsets": true,
+            "has_testcases": false,
+            "has_evaluators": true
+        },
+        "data": {
+            "steps": [
+                {
+                    "key": "testset-c5430c913543",
+                    "type": "input",
+                    "origin": "custom",
+                    "references": {
+                        "testset": {
+                            "version": null,
+                            "slug": "testset-eb910a16ccab448b908e205972f7b980",
+                            "id": "01a17f3b-938d-7720-b11f-7d0af50acbbf"
+                        },
+                        "testset_variant": {
+                            "version": null,
+                            "slug": "2e39a510cecf",
+                            "id": "01a17f3b-93ea-7231-b919-e5476c92c19e"
+                        },
+                        "testset_revision": {
+                            "version": "1",
+                            "slug": "c5430c913543",
+                            "id": "01a17f3b-94da-7260-8088-a3ccd4fea0b5"
+                        }
+                    },
+                    "inputs": null
+                },
+                {
+                    "key": "application-58b454a0668b",
+                    "type": "invocation",
+                    "origin": "custom",
+                    "references": {
+                        "application": {
+                            "version": null,
+                            "slug": "application-7bb4d4c4d444486bb1e03627a40eea86",
+                            "id": "01a17f3b-96b6-7493-b0f5-6dd5edbcee11"
+                        },
+                        "application_variant": {
+                            "version": null,
+                            "slug": "2ba6fb32fbc5",
+                            "id": "01a17f3b-9714-73d1-b255-ca67fc91dd8b"
+                        },
+                        "application_revision": {
+                            "version": "1",
+                            "slug": "58b454a0668b",
+                            "id": "01a17f3b-97fb-7371-a9e3-2750ab060cf3"
+                        }
+                    },
+                    "inputs": [
+                        {
+                            "key": "__all_inputs__"
+                        }
+                    ]
+                },
+                {
+                    "key": "evaluator-129eebd77337",
+                    "type": "annotation",
+                    "origin": "auto",
+                    "references": {
+                        "evaluator": {
+                            "version": null,
+                            "slug": "evaluator-b0e9fe82aef345e18d0d41bfec2d9dec",
+                            "id": "01a17f3b-8d7f-7b73-a83c-6a4c6d3eaf7f"
+                        },
+                        "evaluator_variant": {
+                            "version": null,
+                            "slug": "9e8d9809974c",
+                            "id": "01a17f3b-8e24-73e1-b9f4-5f1447493a52"
+                        },
+                        "evaluator_revision": {
+                            "version": "1",
+                            "slug": "129eebd77337",
+                            "id": "01a17f3b-8f7c-7212-9b44-e90ee26a235d"
+                        }
+                    },
+                    "inputs": [
+                        {
+                            "key": "__all_invocations__"
+                        },
+                        {
+                            "key": "__all_inputs__"
+                        }
+                    ]
+                },
+                {
+                    "key": "evaluator-c4ef7ea123cf",
+                    "type": "annotation",
+                    "origin": "auto",
+                    "references": {
+                        "evaluator": {
+                            "version": null,
+                            "slug": "evaluator-35c166f94c3d49c9913b370a9cef5acf",
+                            "id": "01a17f3b-90b3-7101-b5b0-1fe1a715a5d2"
+                        },
+                        "evaluator_variant": {
+                            "version": null,
+                            "slug": "817dc5d87767",
+                            "id": "01a17f3b-912a-72c2-9b9c-05aa397efe45"
+                        },
+                        "evaluator_revision": {
+                            "version": "1",
+                            "slug": "c4ef7ea123cf",
+                            "id": "01a17f3b-9249-7862-972f-906ad33127df"
+                        }
+                    },
+                    "inputs": [
+                        {
+                            "key": "__all_invocations__"
+                        },
+                        {
+                            "key": "__all_inputs__"
+                        }
+                    ]
+                }
+            ],
+            "repeats": 1,
+            "concurrency": null,
+            "mappings": [
+                {
+                    "column": {
+                        "kind": "testset",
+                        "name": "input"
+                    },
+                    "step": {
+                        "key": "testset-c5430c913543",
+                        "path": "data.input"
+                    }
+                },
+                {
+                    "column": {
+                        "kind": "testset",
+                        "name": "expected"
+                    },
+                    "step": {
+                        "key": "testset-c5430c913543",
+                        "path": "data.expected"
+                    }
+                },
+                {
+                    "column": {
+                        "kind": "testset",
+                        "name": "testcase_dedup_id"
+                    },
+                    "step": {
+                        "key": "testset-c5430c913543",
+                        "path": "data.testcase_dedup_id"
+                    }
+                },
+                {
+                    "column": {
+                        "kind": "invocation",
+                        "name": "outputs"
+                    },
+                    "step": {
+                        "key": "application-58b454a0668b",
+                        "path": "attributes.ag.data.outputs"
+                    }
+                },
+                {
+                    "column": {
+                        "kind": "annotation",
+                        "name": "score"
+                    },
+                    "step": {
+                        "key": "evaluator-129eebd77337",
+                        "path": "attributes.ag.data.outputs.score"
+                    }
+                },
+                {
+                    "column": {
+                        "kind": "annotation",
+                        "name": "success"
+                    },
+                    "step": {
+                        "key": "evaluator-129eebd77337",
+                        "path": "attributes.ag.data.outputs.success"
+                    }
+                },
+                {
+                    "column": {
+                        "kind": "annotation",
+                        "name": "score"
+                    },
+                    "step": {
+                        "key": "evaluator-c4ef7ea123cf",
+                        "path": "attributes.ag.data.outputs.score"
+                    }
+                },
+                {
+                    "column": {
+                        "kind": "annotation",
+                        "name": "success"
+                    },
+                    "step": {
+                        "key": "evaluator-c4ef7ea123cf",
+                        "path": "attributes.ag.data.outputs.success"
+                    }
+                }
+            ]
+        },
+        "meta": null,
+        "created_at": "2026-10-27T21:19:35.38395+00:00",
+        "updated_at": "2026-10-27T21:19:58.949506+00:00",
+        "created_by_id": "00000000-0000-4000-8000-000000000001"
+    },
+    "response": {
+        "count": 1,
+        "metrics": [
+            {
+                "id": "01a17f3b-f7cd-7ed2-b05f-bbf1aef0ba09",
+                "run_id": "01a17f3b-9be1-7d91-9262-018afc78c49c",
+                "scenario_id": null,
+                "status": "success",
+                "timestamp": null,
+                "interval": null,
+                "data": {
+                    "evaluator-129eebd77337": {
+                        "attributes.ag.data.outputs.score": {
+                            "type": "numeric/continuous",
+                            "count": 2,
+                            "max": 1.0,
+                            "min": 1.0,
+                            "sum": 2.0,
+                            "mean": 1.0,
+                            "range": 0.0,
+                            "hist": [
+                                {
+                                    "bin": 1,
+                                    "count": 2,
+                                    "interval": [1.0, 1.0],
+                                    "density": 1.0
+                                }
+                            ]
+                        },
+                        "attributes.ag.metrics.duration.cumulative": {
+                            "type": "numeric/continuous",
+                            "count": 2,
+                            "max": 1.763,
+                            "min": 1.657,
+                            "sum": 3.42,
+                            "mean": 1.71,
+                            "range": 0.10599999999999987,
+                            "hist": [
+                                {
+                                    "bin": 1,
+                                    "count": 1,
+                                    "interval": [1.657, 1.71],
+                                    "density": 0.5
+                                },
+                                {
+                                    "bin": 2,
+                                    "count": 1,
+                                    "interval": [1.71, 1.763],
+                                    "density": 0.5
+                                }
+                            ]
+                        },
+                        "attributes.ag.data.outputs.success": {
+                            "type": "binary",
+                            "count": 2,
+                            "freq": [
+                                {
+                                    "value": true,
+                                    "count": 2,
+                                    "density": 1.0
+                                },
+                                {
+                                    "value": false,
+                                    "count": 0,
+                                    "density": 0.0
+                                }
+                            ],
+                            "uniq": [true, false]
+                        }
+                    },
+                    "application-58b454a0668b": {
+                        "attributes.ag.metrics.duration.cumulative": {
+                            "type": "numeric/continuous",
+                            "count": 2,
+                            "max": 0.921,
+                            "min": 0.745,
+                            "sum": 1.666,
+                            "mean": 0.833,
+                            "range": 0.17600000000000005,
+                            "hist": [
+                                {
+                                    "bin": 1,
+                                    "count": 1,
+                                    "interval": [0.745, 0.833],
+                                    "density": 0.5
+                                },
+                                {
+                                    "bin": 2,
+                                    "count": 1,
+                                    "interval": [0.833, 0.921],
+                                    "density": 0.5
+                                }
+                            ]
+                        }
+                    },
+                    "evaluator-c4ef7ea123cf": {
+                        "attributes.ag.data.outputs.score": {
+                            "type": "numeric/continuous",
+                            "count": 1,
+                            "max": 0.5,
+                            "min": 0.5,
+                            "sum": 0.5,
+                            "mean": 0.5,
+                            "range": 0.0,
+                            "hist": [
+                                {
+                                    "bin": 1,
+                                    "count": 1,
+                                    "interval": [0.5, 0.5],
+                                    "density": 1.0
+                                }
+                            ]
+                        },
+                        "attributes.ag.metrics.duration.cumulative": {
+                            "type": "numeric/continuous",
+                            "count": 1,
+                            "max": 1.526,
+                            "min": 1.526,
+                            "sum": 1.526,
+                            "mean": 1.526,
+                            "range": 0.0,
+                            "hist": [
+                                {
+                                    "bin": 1,
+                                    "count": 1,
+                                    "interval": [1.526, 1.526],
+                                    "density": 1.0
+                                }
+                            ]
+                        },
+                        "attributes.ag.data.outputs.success": {
+                            "type": "binary",
+                            "count": 1,
+                            "freq": [
+                                {
+                                    "value": true,
+                                    "count": 1,
+                                    "density": 1.0
+                                },
+                                {
+                                    "value": false,
+                                    "count": 0,
+                                    "density": 0.0
+                                }
+                            ],
+                            "uniq": [true, false]
+                        }
+                    }
+                }
+            }
+        ]
+    }
+}

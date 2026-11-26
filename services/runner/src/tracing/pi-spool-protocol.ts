@@ -1,6 +1,6 @@
 /** Bundle-safe protocol shared by the Pi extension and the runner-side spool consumer. */
 
-export const PI_TRACE_CONTROL_VERSION = 1 as const;
+export const PI_TRACE_CONTROL_VERSION = 2 as const;
 export const PI_TRACE_CONTROL_FILE = "current.control.json";
 export const PI_TRACE_CONTROL_ENV = "AGENTA_AGENT_TELEMETRY_CONTROL_PATH";
 export const PI_TRACE_MAX_CONTROL_BYTES = 256 * 1024;
@@ -10,13 +10,16 @@ export const PI_TRACE_MAX_BATCH_BYTES = 8 * 1024 * 1024;
  *  Normal chunks hold about 80 MB per turn; the reader may keep up to 16 x 8 MB in memory. */
 export const PI_TRACE_MAX_FILES = 16;
 export const PI_TRACE_FILE_SUFFIX = ".otlp.pb";
+/** Pi writes this empty marker after the turn's last batch, so the runner can stop waiting. */
+export const PI_TRACE_DONE_SUFFIX = ".done";
 
 const CHANNEL_ID_RE = /^[0-9a-f]{32}$/;
 
 export interface PiTurnTraceControl {
   version: typeof PI_TRACE_CONTROL_VERSION;
   channelId: string;
-  turnId?: string;
+  /** The session turn, written as `ag.turn.id` on every Pi span. */
+  sessionTurnId?: string;
   sessionId?: string;
   propagation?: {
     traceparent?: string;
@@ -43,11 +46,14 @@ export function piTraceFileName(channelId: string, sequence: number): string {
   return `${channelId}.${sequence}${PI_TRACE_FILE_SUFFIX}`;
 }
 
+export function piTraceDoneFileName(channelId: string): string {
+  return `${channelId}${PI_TRACE_DONE_SUFFIX}`;
+}
+
 export function isPiTraceSpoolFileName(name: string): boolean {
   if (name === PI_TRACE_CONTROL_FILE) return true;
   if (name.includes(`${PI_TRACE_FILE_SUFFIX}.tmp.`)) return true;
-  const match = /^([0-9a-f]{32})\.(\d+)\.otlp\.pb$/.exec(name);
-  return !!match;
+  return /^[0-9a-f]{32}(\.\d+\.otlp\.pb|\.done)$/.test(name);
 }
 
 function optionalString(value: unknown): string | undefined {
@@ -96,7 +102,7 @@ export function parsePiTurnTraceControl(value: unknown): PiTurnTraceControl {
   return {
     version: PI_TRACE_CONTROL_VERSION,
     channelId: raw.channelId,
-    turnId: optionalString(raw.turnId),
+    sessionTurnId: optionalString(raw.sessionTurnId),
     sessionId: optionalString(raw.sessionId),
     propagation: propagation
       ? {

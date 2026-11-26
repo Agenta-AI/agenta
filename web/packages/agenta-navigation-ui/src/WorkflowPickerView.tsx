@@ -1,5 +1,7 @@
 import type {MouseEvent, ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -36,17 +38,19 @@ export const WorkflowPickerView = ({
     triggerContent,
     entries,
     onSelect,
-    ariaLabel = "Switch workflow",
+    ariaLabel,
 }: WorkflowPickerViewProps) => {
-    // Plain left clicks stay on the SPA path (the item's onSelect); modified clicks
-    // fall through to the anchor so the browser opens a tab.
-    const handleLinkClick = (event: MouseEvent) => {
+    const t = useT(navigationCatalog)
+    // Pick here: the prevented default also stops Radix from calling the item's onSelect.
+    const handleLinkClick = (event: MouseEvent, key: string) => {
         if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
             event.stopPropagation()
             onOpenChange(false)
             return
         }
         event.preventDefault()
+        onOpenChange(false)
+        onSelect(key)
     }
 
     return (
@@ -54,7 +58,7 @@ export const WorkflowPickerView = ({
             <DropdownMenuTrigger asChild>
                 <button
                     type="button"
-                    aria-label={ariaLabel}
+                    aria-label={ariaLabel ?? t("navigation.items.switchWorkflow")}
                     className={clsx(
                         "flex cursor-pointer items-center justify-between overflow-hidden rounded-md border-0 bg-transparent text-colorText transition-[width,height,padding,gap,border-color] duration-300 ease-in-out hover:bg-colorFillTertiary",
                         // No border when expanded: the header row it sits in is already
@@ -87,13 +91,18 @@ export const WorkflowPickerView = ({
                         key={entry.key}
                         className="px-2"
                         asChild={Boolean(entry.href)}
-                        onSelect={() => onSelect(entry.key)}
+                        // A link entry picks in its own click handler; a modified click opens a tab.
+                        onSelect={
+                            entry.href
+                                ? (event) => event.preventDefault()
+                                : () => onSelect(entry.key)
+                        }
                     >
                         {entry.href ? (
                             <Link
                                 className="block w-full !text-inherit no-underline hover:!text-inherit"
                                 href={entry.href}
-                                onClick={handleLinkClick}
+                                onClick={(event) => handleLinkClick(event, entry.key)}
                             >
                                 {entry.content}
                             </Link>

@@ -15,9 +15,8 @@
  * "Anything else" includes a real DIRECTORY, which is the shape this path takes most often in
  * practice. Delete the link mid-turn and the harness's very next write recreates it as a
  * directory, because that is what an ordinary `mkdir -p` of the parent does. `unlink(2)` never
- * removes a directory, so the repair failed on every later turn and every file the agent believed
- * it was writing to its durable drive landed in the session workspace instead. A caller that
- * knows what the directory holds supplies `recoverDirectory` to rescue the contents first.
+ * removes a directory, so an empty one is removed with `rmdir`; a directory with content is left
+ * where it is and the call reports `failed`.
  *
  * It never throws: a link that cannot be established is logged, and the caller's own failure path
  * takes it from there.
@@ -31,15 +30,6 @@ export interface EnsureDurableSymlinkDeps {
   symlink?: typeof symlink;
   unlink?: typeof unlink;
   rmdir?: typeof rmdir;
-  /**
-   * Empty the directory sitting on the link path, moving whatever it holds somewhere the user can
-   * still reach it, so that the directory can then be removed and the link restored.
-   *
-   * Without it a NON-empty directory is left exactly where it is and the call reports `failed`:
-   * the link matters, but not enough to delete files someone's agent wrote. Throwing has the same
-   * effect, which is the right answer when the rescue destination is itself unavailable.
-   */
-  recoverDirectory?: (linkPath: string, target: string) => Promise<void>;
   log?: (msg: string) => void;
 }
 
@@ -86,11 +76,8 @@ export async function ensureDurableSymlink(
     }
   }
   if (replaceExisting && replaceDirectory) {
-    // Rescue first, remove second, and let either failure abort both. `rmdir` only ever succeeds
-    // on an empty directory, so a rescue that silently dropped an entry could not go on to delete
-    // the rest: the removal fails and the files stay put.
+    // `rmdir` only ever succeeds on an empty directory, so files stay put.
     try {
-      if (deps.recoverDirectory) await deps.recoverDirectory(linkPath, target);
       await removeDirectory(linkPath);
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== "ENOENT") {

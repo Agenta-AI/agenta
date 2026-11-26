@@ -151,6 +151,14 @@ export {
     matchColumnsWithSuggestions,
     // Span-tree traversal
     getNodeById,
+    // Spans to test set rows
+    suggestTraceMappings,
+    getTraceMappingPathOptions,
+    buildTestsetRowsFromTraces,
+    findDuplicateMappingColumns,
+    newColumnsOf,
+    hasDifferentStructure,
+    type TraceMapping,
 } from "./utils"
 
 // ============================================================================

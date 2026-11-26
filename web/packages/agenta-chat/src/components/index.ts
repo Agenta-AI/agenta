@@ -36,6 +36,7 @@ export {
     type AttachmentDropOverlayProps,
 } from "./AttachmentDropOverlay"
 export {default as RevealCollapse} from "./RevealCollapse"
+export {ModelSetupBanner, type ModelSetupBannerProps} from "./ModelSetupBanner"
 export {
     CollapsibleMessageBody,
     COLLAPSED_MESSAGE_MAX_PX,
@@ -57,6 +58,7 @@ export {ConnectionDock, type ConnectionDockProps} from "./ConnectionDock"
 export {ElicitationDock, type ElicitationDockProps} from "./ElicitationDock"
 export {ConnectionFocusProvider, type ConnectionFocusProviderProps} from "./ConnectionFocusProvider"
 export {default as QueuedMessagesDock, type QueuedMessagesDockProps} from "./QueuedMessagesDock"
+export {ChildUpdateNotice} from "./ChildUpdateNotice"
 export {
     default as ChatMarkdown,
     CHAT_MARKDOWN_STRUCTURAL_CLASS,
@@ -65,4 +67,16 @@ export {
     type UseChatMarkdownLinkResolver,
 } from "./ChatMarkdown"
 export {PermissionsPickerPanel, useRovingList, type RovingListOptions} from "./SlashCommand"
-export {ActivityTimeline, type ActivityTimelineProps, ActivityNode} from "./activity"
+export {
+    type ActivityFailure,
+    ActivityTimeline,
+    type ActivityTimelineProps,
+    ActivityNode,
+} from "./activity"
+export {
+    ChangeResultRow,
+    ChangeResultRows,
+    type ChangeResultActions,
+    type ChangeResultRowProps,
+    type ChangeVersionRef,
+} from "./ChangeResultRow"

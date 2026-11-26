@@ -6,6 +6,8 @@ PUT/POST /sessions/streams/header is the rename edit, a full-PUT of {name, descr
 
 import uuid
 
+import pytest
+
 
 class TestSessionStreamHeaderBasics:
     """GET /sessions/streams/ + PUT/POST /sessions/streams/header — happy paths."""
@@ -149,3 +151,33 @@ class TestSessionStreamHeaderBasics:
         )
         assert response.status_code == 200
         assert response.json()["stream"]["name"] == ""
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {},
+            {"header": {"name": "Should Not Apply"}},
+        ],
+    )
+    def test_noop_header_bodies_are_rejected(self, authed_api, payload):
+        session_id = str(uuid.uuid4())
+        authed_api(
+            "PUT",
+            "/sessions/streams/header",
+            params={"session_id": session_id},
+            json={"name": "Keep Me"},
+        )
+
+        response = authed_api(
+            "PUT",
+            "/sessions/streams/header",
+            params={"session_id": session_id},
+            json=payload,
+        )
+        assert response.status_code == 422
+
+        get_response = authed_api(
+            "GET", "/sessions/streams/", params={"session_id": session_id}
+        )
+        assert get_response.status_code == 200
+        assert get_response.json()["stream"]["name"] == "Keep Me"

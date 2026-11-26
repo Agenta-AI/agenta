@@ -789,7 +789,7 @@ it goes in `api/oss/databases/postgres/migrations/core_oss/versions/`.
 | shared tracing | `api/oss/databases/postgres/migrations/tracing_oss/` | `alembic_version_oss` | OSS and EE |
 
 Version tables are set in each chain's `env.py:23`. The design is described in
-`docs/designs/oss-ee-convergence/migration-chains-and-edition-switch.md`.
+`docs/design/oss-ee-convergence/migration-chains-and-edition-switch.md`.
 
 Current heads: `core_oss` is `oss000000028`
 (`.../core_oss/versions/oss000000028_add_session_pending_inputs.py`), `core_ee` is `ee0000000003`,

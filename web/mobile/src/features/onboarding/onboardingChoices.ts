@@ -6,9 +6,12 @@ export const CHOICE_KEYS = "ABCDEFGHIJKL"
 
 export interface OnboardingChoice {
     label: string
-    icon: Icon
+    /** A glyph on the chip; size chips go without one. */
+    icon?: Icon
     /** The catalog category this answer puts first under Recommended. */
     category?: string
+    /** Picking this choice asks for a line of text, stored as "`label`: the line". */
+    text?: boolean
 }
 
 export const RECOMMENDED = "recommended"
@@ -75,11 +78,6 @@ const TEMPLATE_GLYPH: Record<string, string> = {
 export const templateGlyph = (template: AgentStarterTemplate) =>
     TEMPLATE_GLYPH[template.key] ?? CATEGORY_GLYPH[template.category] ?? "robot"
 
-/** The catalog's category names, as the gallery chips say them. */
-const CATEGORY_LABEL: Record<string, string> = {Ops: "Operations"}
-
-export const categoryLabel = (category: string) => CATEGORY_LABEL[category] ?? category
-
 /** The glyphs a blank agent can wear, in the design's order (catalog names). */
 export const ICON_CHOICES = [
     "robot",
@@ -124,13 +122,7 @@ export const FIRST_MESSAGE_STARTERS = [
     "Summarize my unread email from today",
     "Draft a weekly update for my team",
     "Plan my week from my calendar",
-    "Research a company and write a one-page brief",
-    "Turn my meeting notes into action items",
     "Review my open pull requests",
-    "Draft replies to my support inbox",
-    "Find time for a 30-minute meeting next week",
-    "Summarize this week's Slack threads",
-    "Write release notes from merged PRs",
 ]
 
 /** The template catalog as the flow reads it; `templates` is empty until it succeeds. */

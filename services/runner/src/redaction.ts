@@ -3,7 +3,7 @@
  * `sdks/python/agenta/sdk/redaction/redactor.py` (+ env seeding in
  * `sdks/python/agenta/sdk/redaction/seed.py`).
  *
- * Slice 1 (docs/designs/online-redaction): exact-match against a per-run deny-set of known live
+ * Slice 1 (docs/design/online-redaction): exact-match against a per-run deny-set of known live
  * secrets, wired at every sink (errors, records, spans, logs). Shape/entropy passes (Slice 2)
  * are declared as no-op extension points (`shapePass` / `entropyPass`) so activating them later
  * is a wiring change, not a redesign.
@@ -510,17 +510,23 @@ export interface SandboxVisibleSecretSource {
     secretKey?: string | null;
     sessionToken?: string | null;
   } | null;
-  agentMountCreds?: {
-    accessKey?: string | null;
-    secretKey?: string | null;
-    sessionToken?: string | null;
-  } | null;
+  /** Each attached drive holds its own credentials. */
+  drives?: ReadonlyArray<{
+    credentials?: {
+      accessKey?: string | null;
+      secretKey?: string | null;
+      sessionToken?: string | null;
+    } | null;
+  }>;
 }
 
 export function sandboxVisibleSecretValues(
   source: SandboxVisibleSecretSource,
 ): Array<string | null | undefined> {
-  return [source.mountCreds, source.agentMountCreds].flatMap((credential) => [
+  return [
+    source.mountCreds,
+    ...(source.drives ?? []).map((drive) => drive.credentials),
+  ].flatMap((credential) => [
     credential?.accessKey,
     credential?.secretKey,
     credential?.sessionToken,

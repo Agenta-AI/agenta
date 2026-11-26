@@ -142,7 +142,7 @@ describe("turn ledger credential rotation", () => {
         fake.rotate("Secret fresh-at-completion");
         return ending;
       });
-      const result = await runSandboxAgent(fake.request, undefined, fake.signal, fake.deps, { credential: fake.credential });
+      const result = await runSandboxAgent(fake.request, undefined, fake.signal, fake.deps, { credentialLease: { credential: fake.credential, seed: INITIAL } });
       assert.equal(result.ok, ending !== "failed");
       if (ending === "cancelled") assert.equal(result.cancelSettled, true);
       assert.deepEqual(fake.requests, [
@@ -166,7 +166,7 @@ describe("turn ledger credential rotation", () => {
       return ledger.complete!(id, index, turn, deps);
     };
     fake.deps.appendSessionTurn = watched;
-    await runSandboxAgent(fake.request, undefined, fake.signal, fake.deps, { credential: fake.credential });
+    await runSandboxAgent(fake.request, undefined, fake.signal, fake.deps, { credentialLease: { credential: fake.credential, seed: INITIAL } });
     // A Stop must not cut the completion: a settled cancel is a resume point.
     assert.deepEqual(seen, [fake.signal, undefined]);
   });
@@ -174,14 +174,14 @@ describe("turn ledger credential rotation", () => {
   it("uses an already-refreshed credential when appending the start row", async () => {
     const fake = fakeTurn(async () => "completed");
     fake.rotate("Secret fresh-before-start");
-    await runSandboxAgent(fake.request, undefined, undefined, fake.deps, { credential: fake.credential });
+    await runSandboxAgent(fake.request, undefined, undefined, fake.deps, { credentialLease: { credential: fake.credential, seed: INITIAL } });
     assert.equal(fake.requests.length, 2);
     assert.ok(fake.requests.every((request) => request.authorization === "Secret fresh-before-start" && request.status === 200));
   });
 
   it("preserves a non-rotating credential", async () => {
     const fake = fakeTurn(async () => "completed");
-    const result = await runSandboxAgent(fake.request, undefined, undefined, fake.deps, { credential: fake.credential });
+    const result = await runSandboxAgent(fake.request, undefined, undefined, fake.deps, { credentialLease: { credential: fake.credential, seed: INITIAL } });
     assert.equal(result.ok, true);
     assert.equal(fake.requests.length, 2);
     assert.ok(fake.requests.every((request) => request.authorization === INITIAL && request.status === 200));
@@ -226,7 +226,7 @@ describe("turn ledger credential rotation", () => {
       },
     });
     try {
-      const result = await runSandboxAgent(fake.request, undefined, undefined, fake.deps, { credential: lease.credential });
+      const result = await runSandboxAgent(fake.request, undefined, undefined, fake.deps, { credentialLease: lease });
       assert.equal(result.ok, true);
       assert.equal(rotations, 20);
       assert.equal(fake.requests.at(-1)?.authorization, "Secret rotation-20");
@@ -260,7 +260,7 @@ describe("one-turn engine teardown when another runner wrote the turn", () => {
     ledger.complete = async () => {};
     fake.deps.appendSessionTurn = ledger;
 
-    const result = await runSandboxAgent(fake.request, undefined, undefined, fake.deps, { credential: fake.credential });
+    const result = await runSandboxAgent(fake.request, undefined, undefined, fake.deps, { credentialLease: { credential: fake.credential, seed: INITIAL } });
 
     assert.equal(result.ok, false);
     assert.equal(isTurnIndexTaken(result), true);
@@ -271,7 +271,7 @@ describe("one-turn engine teardown when another runner wrote the turn", () => {
     const fake = fakeTurn(async () => "failed");
     const teardown = watchSandbox(fake);
 
-    const result = await runSandboxAgent(fake.request, undefined, undefined, fake.deps, { credential: fake.credential });
+    const result = await runSandboxAgent(fake.request, undefined, undefined, fake.deps, { credentialLease: { credential: fake.credential, seed: INITIAL } });
 
     assert.equal(result.ok, false);
     assert.equal(isTurnIndexTaken(result), false);

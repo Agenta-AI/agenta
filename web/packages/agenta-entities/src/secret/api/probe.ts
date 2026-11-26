@@ -16,6 +16,7 @@ import {AgentaApi} from "@agentaai/api-client"
 import {z} from "zod"
 
 import {safeParseWithLogging} from "../../shared"
+import type {SecretOwnerScope} from "../core/types"
 
 import {getSecretsClient, projectScopedRequest} from "./client"
 
@@ -69,20 +70,27 @@ export const probeProvider = async ({
     kind,
     provider,
     secretId,
+    secretScope,
+    signal,
 }: {
     projectId: string
     /** Omitted when `secretId` is given: the stored row names its own kind. */
     kind?: string
     provider: ProbeProviderCredentials
     secretId?: string
+    /** `organization` tests a stored organization connection this project may use. */
+    secretScope?: SecretOwnerScope
+    /** Aborts the request, for the form's "Stop". The server finishes its one read anyway. */
+    signal?: AbortSignal
 }): Promise<ProbeProviderResponse | null> => {
     const response = await getSecretsClient().probeProvider(
         {
             ...(kind ? {kind} : {}),
             provider,
             ...(secretId ? {secret_id: secretId} : {}),
+            ...(secretId && secretScope ? {secret_scope: secretScope} : {}),
         },
-        projectScopedRequest(projectId),
+        {...projectScopedRequest(projectId), ...(signal ? {abortSignal: signal} : {})},
     )
 
     return safeParseWithLogging(probeResponseSchema, response, "[probeProvider]")

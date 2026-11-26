@@ -1,5 +1,7 @@
 import {useRef, useState, type ElementType} from "react"
 
+import {useT} from "@agenta/i18n"
+import agentActionsCatalog from "@agenta/i18n/catalogs/entityUi.agentActions"
 import {Input} from "@agenta/ui/ui"
 import {PencilSimple} from "@phosphor-icons/react"
 
@@ -59,7 +61,9 @@ export const AgentNameInline = ({
 
     const [editing, setEditing] = useState(false)
     const [draft, setDraft] = useState(name)
-    const [error, setError] = useState<string | null>(null)
+    const t = useT(agentActionsCatalog)
+    // A flag, not the message: the text is translated where it renders.
+    const [nameTaken, setNameTaken] = useState(false)
     /** Escape must win the race with the blur that unmounting the field fires. */
     const cancelled = useRef(false)
     /** Enter then blur both commit; two in flight can resolve out of order and undo the later name. */
@@ -67,7 +71,7 @@ export const AgentNameInline = ({
 
     const startEditing = () => {
         setDraft(name)
-        setError(null)
+        setNameTaken(false)
         cancelled.current = false
         setEditing(true)
     }
@@ -80,7 +84,7 @@ export const AgentNameInline = ({
             return
         }
         if (isDuplicateName?.(next, workflowId)) {
-            setError("An agent with this name already exists")
+            setNameTaken(true)
             return
         }
         committing.current = true
@@ -98,12 +102,12 @@ export const AgentNameInline = ({
             <div className="flex min-w-0 flex-col">
                 <Input
                     autoFocus
-                    aria-label="Agent name"
+                    aria-label={t("entityUi.agentActions.agentName")}
                     value={draft}
-                    aria-invalid={error ? true : undefined}
+                    aria-invalid={nameTaken ? true : undefined}
                     onChange={(e) => {
                         setDraft(e.target.value)
-                        if (error) setError(null)
+                        if (nameTaken) setNameTaken(false)
                     }}
                     onBlur={commit}
                     onKeyDown={(e) => {
@@ -118,7 +122,11 @@ export const AgentNameInline = ({
                     onFocus={(e) => e.target.select()}
                     className={NAME_SIZE[size].input}
                 />
-                {error && <span className="mt-0.5 text-xs text-colorError">{error}</span>}
+                {nameTaken && (
+                    <span className="mt-0.5 text-xs text-colorError">
+                        {t("entityUi.agentActions.nameTaken")}
+                    </span>
+                )}
             </div>
         )
     }
@@ -130,9 +138,9 @@ export const AgentNameInline = ({
             <Label
                 className={`${agentNameLabelClass(size)} cursor-pointer`}
                 onDoubleClick={startEditing}
-                title="Double-click to rename"
+                title={t("entityUi.agentActions.doubleClickToRename")}
             >
-                {name || "Agent"}
+                {name || t("entityUi.agentActions.agent")}
             </Label>
 
             {/* A real button, so the rename is reachable without a double-click. Hidden until hover
@@ -140,7 +148,7 @@ export const AgentNameInline = ({
             {/* Transparent ::after hit extender: a ~31px touch target around the 13px glyph. */}
             <button
                 type="button"
-                aria-label="Rename agent"
+                aria-label={t("entityUi.agentActions.renameAgent")}
                 className={`relative shrink-0 cursor-pointer items-center max-md:hidden md:flex border-0 bg-transparent p-0 opacity-60 transition-opacity after:absolute after:inset-[-9px] after:content-[''] hover:opacity-100 focus-visible:opacity-100 group-hover/name:opacity-100 [@media(hover:hover)]:opacity-0 ${AGENT_FOCUS_RING}`}
                 onClick={(e) => {
                     e.stopPropagation()

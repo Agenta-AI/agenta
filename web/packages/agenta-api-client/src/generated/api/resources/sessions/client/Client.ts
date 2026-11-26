@@ -169,6 +169,10 @@ export class SessionsClient {
     }
 
     /**
+     * Send a turn to a session, steer the running turn, or attach to it.
+     *
+     * **Deprecated:** a call with no non-empty `data.inputs` and with `force` false or omitted stops the running turn. This stop mode is deprecated and will be removed in a later release. To stop a turn, call `POST /sessions/{session_id}/cancel`.
+     *
      * @param {AgentaApi.SessionStreamCommandRequest} request
      * @param {SessionsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -547,6 +551,12 @@ export class SessionsClient {
      * alternative is a rename that silently claims a person made it. Delete this parameter
      * once no such session can still be alive.
      *
+     * `visibility` is the visibility a header call that creates the session asks for. It
+     * is ignored on an existing session, and a `private` without an owner is dropped.
+     * A call with a `visibility` may carry no header field: it only creates the session
+     * (the /w pre-create of a new chat) and changes nothing on an existing one. Without
+     * a `visibility`, a body with no header field (an empty or wrapped body) is refused.
+     *
      * @param {AgentaApi.SetSessionStreamHeaderRequest} request
      * @param {SessionsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -569,10 +579,11 @@ export class SessionsClient {
         request: AgentaApi.SetSessionStreamHeaderRequest,
         requestOptions?: SessionsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.SessionStreamResponse>> {
-        const { session_id: sessionId, name_source: nameSource, body: _body } = request;
+        const { session_id: sessionId, name_source: nameSource, visibility, body: _body } = request;
         const _queryParams: Record<string, unknown> = {
             session_id: sessionId,
             name_source: nameSource !== undefined ? nameSource : undefined,
+            visibility: visibility !== undefined ? visibility : undefined,
         };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
@@ -796,6 +807,9 @@ export class SessionsClient {
 
     /**
      * Relay low-frequency entity changes for the authorized project.
+     *
+     * An event that names a session or an agent reaches only a watcher who may view
+     * it, so a private item's id never reaches another member.
      *
      * A caller with only one required view permission cannot open this stream and falls back to
      * the lists' polling behavior.
@@ -1771,6 +1785,7 @@ export class SessionsClient {
      * @param {AgentaApi.BodyUploadSessionCwdFile} request
      * @param {SessionsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
+     * @throws {@link AgentaApi.BadRequestError}
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
@@ -1831,6 +1846,8 @@ export class SessionsClient {
 
         if (_response.error.reason === "status-code") {
             switch (_response.error.statusCode) {
+                case 400:
+                    throw new AgentaApi.BadRequestError(_response.error.body as unknown, _response.rawResponse);
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
                         _response.error.body as unknown,

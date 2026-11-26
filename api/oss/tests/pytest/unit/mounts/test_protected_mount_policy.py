@@ -48,9 +48,11 @@ def _mount(
     session_id: str = _SESSION_ID,
     archived: bool = False,
 ) -> Mount:
+    mount_id = uuid4()
     return Mount(
-        id=uuid4(),
+        id=mount_id,
         project_id=_PROJECT_ID,
+        storage_prefix=f"mounts/{_PROJECT_ID}/{mount_id}",
         slug=mint_session_slug(session_id=session_id, name=name),
         name=name,
         session_id=session_id,
@@ -125,9 +127,11 @@ class _MountsDAO:
         )
         if existing:
             return existing
+        mount_id = uuid4()
         mount = Mount(
-            id=uuid4(),
+            id=mount_id,
             project_id=project_id,
+            storage_prefix=f"mounts/{project_id}/{mount_id}",
             slug=mount_create.slug,
             name=mount_create.name,
             session_id=mount_create.session_id,
@@ -233,7 +237,9 @@ class _ObjectStore:
             del self.objects[key]
         return len(keys)
 
-    async def sign_temp_credentials(self, *, bucket, prefix, duration_seconds):
+    async def sign_temp_credentials(
+        self, *, bucket, prefix, duration_seconds, read_only=False
+    ):
         assert bucket == _BUCKET
         assert prefix
         assert duration_seconds > 0

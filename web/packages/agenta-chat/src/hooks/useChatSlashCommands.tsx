@@ -3,7 +3,7 @@ import {useCallback, useMemo, useState} from "react"
 import {agentModelCandidatesAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {
     buildConnectionPickerRows,
-    buildPickerGroupsWithSections,
+    listPickerGroups,
     pickerSelectionFrom,
     selectedModelRowKey,
     describeMcp,
@@ -33,25 +33,34 @@ import {
     type PermissionPolicy,
 } from "@agenta/entity-ui/drill-in"
 import {parseGatewayTool} from "@agenta/entity-ui/tool-utils"
+import {createT, useT} from "@agenta/i18n"
+import chatSlashCommandsCatalog from "@agenta/i18n/catalogs/chat.slashCommands"
+import providerListCatalog from "@agenta/i18n/catalogs/entityUi.providerList"
 import {CLIENT_TOOL_NAMES} from "@agenta/shared/clientTools"
 import {draftConfigChangeSignalAtom} from "@agenta/shared/state"
+import {skillDisplayName} from "@agenta/shared/utils"
 import type {SlashCommandSection} from "@agenta/ui/rich-chat-input"
 // Same icons the config panel gives these sections (AgentTemplateControl / itemKinds).
-import {ChatCircleDots, Cpu, GraduationCap, Plugs, ShieldCheck, Wrench} from "@phosphor-icons/react"
+import {ChatCircleDots, Cpu, Compass, HardDrives, ShieldCheck, Wrench} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 /** Which picker the palette drilled into, or null when the palette is just a list. */
 export type SlashPicker = "model" | "permissions" | null
 
+/** What opened the picker: its `/` command, or a control outside the palette (the model button). */
+export type SlashPickerOrigin = "command" | "direct"
+
 /**
  * The `/` palette for the agent chat composer.
  *
- * `/model` drills into a picker whose apply writes the DRAFT agent config through
- * `updateConfiguration` — the same write-through `useAlwaysAllowTool` uses, so the change takes
- * effect on the next send with no commit. Tools and skills insert their name as plain text: the
- * request carries text and file parts only, so an inserted name is a hint the agent usually
- * follows, never a dispatch. Nothing in the UI may claim otherwise.
+ * `/model` (and the composer's model button) drills into a picker whose apply writes the agent
+ * config through `updateConfiguration`, the draft write the Configuration Model section makes too.
+ * Auto-save (`agentAutoCommit`) commits that write as a new version. Tools and skills insert
+ * their name as plain text: the request carries text and file parts only, so an inserted name is
+ * a hint the agent usually follows, never a dispatch. Nothing in the UI may claim otherwise.
  */
+const tNow = createT(chatSlashCommandsCatalog)
+
 export function useChatSlashCommands({
     entityId,
     /** Onboarding runs on an uncommitted agent with a different Enter — no palette there. */
@@ -69,6 +78,11 @@ export function useChatSlashCommands({
     newSessionLocked?: boolean
     onNewSession?: () => void
 }) {
+    const t = useT(chatSlashCommandsCatalog)
+    const tProviders = useT(providerListCatalog)
+    // Strings, not `t`: a language change makes new ones, and the groups follow.
+    const builtinLabel = tProviders("entityUi.providerList.agenta")
+    const builtinTag = tProviders("entityUi.providerList.builtIn")
     const config = useAtomValue(
         useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
     )
@@ -81,6 +95,7 @@ export function useChatSlashCommands({
     const raiseDraftSignal = useSetAtom(draftConfigChangeSignalAtom)
 
     const [picker, setPicker] = useState<SlashPicker>(null)
+    const [pickerOrigin, setPickerOrigin] = useState<SlashPickerOrigin>("command")
 
     /**
      * Clear the command, then open the picker a frame later. Clearing schedules a Lexical
@@ -88,9 +103,12 @@ export function useChatSlashCommands({
      * autofocused itself, reads that as focus leaving, and dismisses immediately.
      */
     const openPicker = useCallback(
-        (which: Exclude<SlashPicker, null>) => {
+        (which: Exclude<SlashPicker, null>, origin: SlashPickerOrigin = "command") => {
             onPickerOpen?.()
-            requestAnimationFrame(() => setPicker(which))
+            requestAnimationFrame(() => {
+                setPickerOrigin(origin)
+                setPicker(which)
+            })
         },
         [onPickerOpen],
     )
@@ -102,7 +120,8 @@ export function useChatSlashCommands({
     const currentHarness = readHarnessKind(config)
     const currentPermission = readRunnerPermission(config)
     const currentPermissionLabel =
-        permissionPolicyLabel(currentPermission ?? DEFAULT_PERMISSION_POLICY) ?? "Allow reads"
+        permissionPolicyLabel(currentPermission ?? DEFAULT_PERMISSION_POLICY) ??
+        t("chat.slashCommands.allowReads")
     const currentModelLabel = modelDisplayName(capabilities, currentHarness, currentModel)
 
     /**
@@ -145,7 +164,9 @@ export function useChatSlashCommands({
             mode: currentConnectionMode,
             harness: currentHarness,
         })
-        return {modelGroups: buildPickerGroupsWithSections(rows), currentModelKey}
+        // The same grouped list as the Model view: built-in models first, named "Agenta".
+        const modelGroups = listPickerGroups(rows, {label: builtinLabel, tag: builtinTag})
+        return {modelGroups, currentModelKey}
     }, [
         candidateState,
         capabilities,
@@ -154,6 +175,8 @@ export function useChatSlashCommands({
         currentConnectionSlug,
         currentConnectionNamespace,
         currentConnectionMode,
+        builtinLabel,
+        builtinTag,
     ])
     // With neither source the drawer falls back to a schema-driven picker, which this palette does
     // not host — so offer no `/model` at all rather than a command that opens an empty panel.
@@ -218,8 +241,11 @@ export function useChatSlashCommands({
                     namespace: selection.namespace,
                 }),
                 selection.harness && selection.harness !== currentHarness
-                    ? `Model set to ${label} · ${harnessMetaFor(selection.harness).label}`
-                    : `Model set to ${label}`,
+                    ? tNow("chat.slashCommands.modelSetToHarness", {
+                          label,
+                          harness: harnessMetaFor(selection.harness).label,
+                      })
+                    : tNow("chat.slashCommands.modelSetTo", {label}),
             )
             setPicker(null)
         },
@@ -229,9 +255,11 @@ export function useChatSlashCommands({
     const applyPermission = useCallback(
         (policy: PermissionPolicy) => {
             const label = permissionPolicyLabel(policy) ?? policy
-            write(withRunnerPermission(config, policy), `Permissions set to ${label}`, [
-                "permissions",
-            ])
+            write(
+                withRunnerPermission(config, policy),
+                tNow("chat.slashCommands.permissionsSetTo", {label}),
+                ["permissions"],
+            )
             setPicker(null)
         },
         [config, write],
@@ -257,19 +285,21 @@ export function useChatSlashCommands({
             return {
                 key: `${prefix}-${token}-${index}`,
                 label: `/${token}`,
-                // The descriptor's prose name is worth showing when it differs from the token.
+                // The descriptor's prose name is worth showing when it says more than the token.
                 description:
                     descriptor.description ??
-                    (descriptor.name === token ? undefined : descriptor.name),
+                    (descriptor.name === token || descriptor.name === skillDisplayName(token)
+                        ? undefined
+                        : descriptor.name),
                 tail:
                     typeof descriptor.tags[0] === "string"
                         ? descriptor.tags[0]
                         : descriptor.tags[0]?.label,
                 icon:
                     prefix === "skill" ? (
-                        <GraduationCap size={14} />
+                        <Compass size={14} />
                     ) : prefix === "mcp" ? (
-                        <Plugs size={14} />
+                        <HardDrives size={14} />
                     ) : (
                         <Wrench size={14} />
                     ),
@@ -314,7 +344,7 @@ export function useChatSlashCommands({
                 ? {
                       key: "model",
                       label: "/model",
-                      description: "Switch the model for this agent",
+                      description: t("chat.slashCommands.modelDescription"),
                       tail: currentModelLabel ? `${currentModelLabel} ›` : "›",
                       icon: <Cpu size={14} />,
                       kind: "open" as const,
@@ -325,7 +355,7 @@ export function useChatSlashCommands({
                 ? {
                       key: "permissions",
                       label: "/permissions",
-                      description: "Set what the agent may do before it must ask",
+                      description: t("chat.slashCommands.permissionsDescription"),
                       tail: `${currentPermissionLabel} ›`,
                       icon: <ShieldCheck size={14} />,
                       kind: "open" as const,
@@ -338,7 +368,7 @@ export function useChatSlashCommands({
                 ? {
                       key: "new",
                       label: "/new",
-                      description: "Start a fresh session with this agent",
+                      description: t("chat.slashCommands.newDescription"),
                       icon: <ChatCircleDots size={14} />,
                       kind: "action" as const,
                       onSelect: () => onNewSession(),
@@ -372,9 +402,11 @@ export function useChatSlashCommands({
         ])
 
         return [
-            {key: "commands", title: "Commands", items: commandItems},
-            {key: "skills", title: "Skills", items: skillItems},
-            ...(SHOW_TOOLS ? [{key: "tools", title: "Tools", items: toolItems}] : []),
+            {key: "commands", title: t("chat.slashCommands.commands"), items: commandItems},
+            {key: "skills", title: t("chat.slashCommands.skills"), items: skillItems},
+            ...(SHOW_TOOLS
+                ? [{key: "tools", title: t("chat.slashCommands.tools"), items: toolItems}]
+                : []),
         ].filter((section) => section.items.length > 0)
     }, [
         config,
@@ -387,12 +419,15 @@ export function useChatSlashCommands({
         openPicker,
         permissionsAvailable,
         suspended,
+        t,
     ])
 
     return {
         sections,
         picker,
+        pickerOrigin,
         closePicker: useCallback(() => setPicker(null), []),
+        openModelPicker: useCallback(() => openPicker("model", "direct"), [openPicker]),
         modelGroups,
         currentModel,
         currentModelKey,

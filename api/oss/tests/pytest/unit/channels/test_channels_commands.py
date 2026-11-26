@@ -1,6 +1,6 @@
 """Unit tests for `core/channels/commands.py` — the `!command[:arg]` grammar
-and its dispatch onto `ChannelsService` / `SessionStreamsService`. No DB, no
-broker, no HTTP: `ChannelsService` and `SessionStreamsService` are faked with
+and its dispatch onto `ChannelsService` / `SessionCommandsService`. No DB, no
+broker, no HTTP: `ChannelsService` and `SessionCommandsService` are faked with
 `MagicMock`/`AsyncMock`, and `ChannelCapabilities` is built directly so the
 sigil and command list are both varied under test.
 """
@@ -32,10 +32,6 @@ from oss.src.core.channels.dtos import (
     ChannelThreadFlags,
 )
 from oss.src.core.channels.types import ChannelThreadNotFound
-from oss.src.core.sessions.streams.dtos import (
-    CommandMode,
-    SessionStreamCommandResponse,
-)
 
 
 def _capabilities(*, sigil="!", commands=None):
@@ -338,41 +334,30 @@ class TestDispatchNew:
 
 
 class TestDispatchStop:
-    async def test_calls_existing_cancel_entry_point(self):
-        """`!stop` goes through `SessionStreamsService.command()` — the
-        runtime's existing mechanism — with no `data` and no `force`, which
-        is exactly the shape that resolves to CommandMode.cancel inside that
-        service. No new cancellation code is exercised by this call."""
+    async def test_sends_the_durable_cancel_command(self):
+        """`!stop` goes through `SessionCommandsService.request_cancel()`, the
+        same entry point as `POST /sessions/{session_id}/cancel`, and not the
+        deprecated stop mode of `POST /sessions/streams/`."""
 
         thread = _make_thread(session_id="sess-123")
-        streams_service = MagicMock()
-        streams_service.command = AsyncMock(
-            return_value=SessionStreamCommandResponse(
-                mode=CommandMode.cancel,
-                session_id=thread.session_id,
-                detached=True,
-            )
-        )
+        commands_service = _make_commands_service()
 
         project_id = uuid4()
         user_id = uuid4()
 
         result = await dispatch_stop(
-            streams_service=streams_service,
+            commands_service=commands_service,
             project_id=project_id,
             user_id=user_id,
             thread=thread,
         )
 
-        assert result.mode == CommandMode.cancel
-        streams_service.command.assert_awaited_once()
-        _, kwargs = streams_service.command.call_args
-        assert kwargs["project_id"] == project_id
-        assert kwargs["user_id"] == user_id
-        request = kwargs["request"]
-        assert request.session_id == "sess-123"
-        assert request.data is None
-        assert request.force is False
+        assert result is commands_service.request_cancel.return_value
+        commands_service.request_cancel.assert_awaited_once_with(
+            project_id=project_id,
+            user_id=user_id,
+            session_id="sess-123",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -435,14 +420,9 @@ def _make_channels_service(*, threads=None, closed_thread=None):
     return service
 
 
-def _make_streams_service(*, response=None):
+def _make_commands_service():
     service = MagicMock()
-    service.command = AsyncMock(
-        return_value=response
-        or SessionStreamCommandResponse(
-            mode=CommandMode.cancel, session_id="s", detached=True
-        )
-    )
+    service.request_cancel = AsyncMock(return_value=MagicMock())
     return service
 
 
@@ -450,11 +430,11 @@ class TestDispatchCommand:
     async def test_sessions_dispatches_to_query_threads(self):
         thread = _make_thread()
         channels_service = _make_channels_service(threads=[thread])
-        streams_service = _make_streams_service()
+        commands_service = _make_commands_service()
 
         result = await dispatch_command(
             channels_service=channels_service,
-            streams_service=streams_service,
+            commands_service=commands_service,
             project_id=uuid4(),
             user_id=uuid4(),
             thread=thread,
@@ -463,16 +443,16 @@ class TestDispatchCommand:
         )
 
         assert result == [thread]
-        streams_service.command.assert_not_called()
+        commands_service.request_cancel.assert_not_called()
 
     async def test_new_dispatches_to_close_thread(self):
         thread = _make_thread()
         channels_service = _make_channels_service(closed_thread=thread)
-        streams_service = _make_streams_service()
+        commands_service = _make_commands_service()
 
         await dispatch_command(
             channels_service=channels_service,
-            streams_service=streams_service,
+            commands_service=commands_service,
             project_id=uuid4(),
             user_id=uuid4(),
             thread=thread,
@@ -481,16 +461,16 @@ class TestDispatchCommand:
         )
 
         channels_service.close_thread.assert_awaited_once()
-        streams_service.command.assert_not_called()
+        commands_service.request_cancel.assert_not_called()
 
-    async def test_stop_dispatches_to_streams_service_only(self):
+    async def test_stop_dispatches_to_commands_service_only(self):
         thread = _make_thread()
         channels_service = _make_channels_service()
-        streams_service = _make_streams_service()
+        commands_service = _make_commands_service()
 
         await dispatch_command(
             channels_service=channels_service,
-            streams_service=streams_service,
+            commands_service=commands_service,
             project_id=uuid4(),
             user_id=uuid4(),
             thread=thread,
@@ -498,7 +478,7 @@ class TestDispatchCommand:
             parsed=ParsedCommand(command=COMMAND_STOP, arg=None),
         )
 
-        streams_service.command.assert_awaited_once()
+        commands_service.request_cancel.assert_awaited_once()
         channels_service.close_thread.assert_not_called()
         channels_service.query_threads.assert_not_called()
 
@@ -510,11 +490,11 @@ class TestDispatchCommand:
             external_key=thread.external_key,
         )
         channels_service = _make_channels_service(threads=[thread, target])
-        streams_service = _make_streams_service()
+        commands_service = _make_commands_service()
 
         result = await dispatch_command(
             channels_service=channels_service,
-            streams_service=streams_service,
+            commands_service=commands_service,
             project_id=uuid4(),
             user_id=uuid4(),
             thread=thread,
@@ -532,12 +512,12 @@ class TestDispatchCommand:
 
         thread = _make_thread()
         channels_service = _make_channels_service()
-        streams_service = _make_streams_service()
+        commands_service = _make_commands_service()
 
         with pytest.raises(CommandArgumentInvalid):
             await dispatch_command(
                 channels_service=channels_service,
-                streams_service=streams_service,
+                commands_service=commands_service,
                 project_id=uuid4(),
                 user_id=uuid4(),
                 thread=thread,
@@ -548,12 +528,12 @@ class TestDispatchCommand:
     async def test_use_with_malformed_id_raises(self):
         thread = _make_thread()
         channels_service = _make_channels_service()
-        streams_service = _make_streams_service()
+        commands_service = _make_commands_service()
 
         with pytest.raises(CommandArgumentInvalid):
             await dispatch_command(
                 channels_service=channels_service,
-                streams_service=streams_service,
+                commands_service=commands_service,
                 project_id=uuid4(),
                 user_id=uuid4(),
                 thread=thread,
@@ -569,13 +549,13 @@ class TestDispatchCommand:
 
         thread = _make_thread()
         channels_service = _make_channels_service()
-        streams_service = _make_streams_service()
+        commands_service = _make_commands_service()
         caps = _capabilities(commands=["new", "sessions"])
 
         with pytest.raises(CommandNotOffered):
             await dispatch_command(
                 channels_service=channels_service,
-                streams_service=streams_service,
+                commands_service=commands_service,
                 project_id=uuid4(),
                 user_id=uuid4(),
                 thread=thread,
@@ -605,11 +585,11 @@ class TestDispatchCommand:
 
         channels_service_a = _make_channels_service(threads=[thread])
         channels_service_b = _make_channels_service(threads=[thread])
-        streams_service = _make_streams_service()
+        commands_service = _make_commands_service()
 
         result_text = await dispatch_command(
             channels_service=channels_service_a,
-            streams_service=streams_service,
+            commands_service=commands_service,
             project_id=uuid4(),
             user_id=uuid4(),
             thread=thread,
@@ -618,7 +598,7 @@ class TestDispatchCommand:
         )
         result_native = await dispatch_command(
             channels_service=channels_service_b,
-            streams_service=streams_service,
+            commands_service=commands_service,
             project_id=uuid4(),
             user_id=uuid4(),
             thread=thread,

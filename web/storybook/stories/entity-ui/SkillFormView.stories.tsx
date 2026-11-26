@@ -3,22 +3,8 @@ import {useState} from "react"
 import {SkillFormView} from "@agenta/entity-ui/drill-in"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
-// SkillFormView — the folder-shaped inline-skill editor: a Files rail (SKILL.md pinned, the
-// bundled files, the SkillUploadZone) beside the skill-level fields, the selected file's
-// editor and the two behaviour toggles.
-//
-// antd swaps in THIS file: `App.useApp().message` → the antd-free `message` service from
-// `@agenta/ui/app-message` (the same singleton the migrated modals use);
-// `Input`/`Input.TextArea autoSize` → `@agenta/ui` `Input`/`AutosizeTextarea`;
-// `Switch onChange` → `Switch onCheckedChange` (+ an `aria-label`, since the tooltip is no
-// longer the accessible name); `Tooltip title` → Radix Tooltip; `Typography.Text` → span +
-// semantic token classes.
-//
-// NO `AntdVsAgenta` pair here, deliberately: the right pane hosts `MarkdownEditor` /
-// `CodeEditor` (lexical, not exported and not part of this chunk), so an antd replay could
-// not hold them constant across the two halves. The migrated leaves have their own parity
-// grids — `DrillIn/SkillUploadZone` here, plus the wave-1 `@agenta/ui` Input/Switch/Field
-// grids. These stories are the inventory + state coverage.
+// SkillFormView — the skill editor: a file button that opens the file menu (SKILL.md first,
+// the bundled files in folders), then the open file's fields and editor, and Advanced.
 const meta = {
     title: "@agenta/entity-ui/DrillIn/SkillFormView",
     component: SkillFormView,
@@ -53,11 +39,24 @@ const SKILL_WITH_FILES = {
     ],
 }
 
-function Frame({value, disabled}: {value: Record<string, unknown>; disabled?: boolean}) {
+function Frame({
+    value,
+    disabled,
+    downloadable,
+}: {
+    value: Record<string, unknown>
+    disabled?: boolean
+    downloadable?: boolean
+}) {
     const [current, setCurrent] = useState(value)
     return (
         <div className="h-[560px] w-[860px] overflow-hidden rounded-lg border border-solid border-colorBorderSecondary p-3">
-            <SkillFormView value={current} onChange={setCurrent} disabled={disabled} />
+            <SkillFormView
+                value={current}
+                onChange={setCurrent}
+                disabled={disabled}
+                downloadable={downloadable}
+            />
         </div>
     )
 }
@@ -78,4 +77,16 @@ export const WithFiles: Story = {
 export const Disabled: Story = {
     args: {value: SKILL_WITH_FILES, onChange: noop, disabled: true},
     render: () => <Frame value={SKILL_WITH_FILES} disabled />,
+}
+
+/** Saved skill: the rail header offers a download, as `<name>.zip` here since it bundles files. */
+export const Downloadable: Story = {
+    args: {value: SKILL_WITH_FILES, onChange: noop, downloadable: true},
+    render: () => <Frame value={SKILL_WITH_FILES} downloadable />,
+}
+
+/** Read-only and downloadable: an archived or built-in skill can still be taken out. */
+export const DownloadableReadOnly: Story = {
+    args: {value: SKILL, onChange: noop, disabled: true, downloadable: true},
+    render: () => <Frame value={SKILL} disabled downloadable />,
 }

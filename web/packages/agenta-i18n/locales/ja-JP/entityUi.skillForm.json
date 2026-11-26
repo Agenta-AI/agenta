@@ -1,0 +1,22 @@
+{
+    "maxCharacters": "最大 {{count}} 文字です。",
+    "filledFromPaste": "貼り付けたスキルから入力しました",
+    "downloadZip": ".zip としてダウンロード",
+    "downloadSkillMd": "SKILL.md をダウンロード",
+    "addAFile": "ファイルを追加",
+    "untitled": "無題",
+    "name": "名前",
+    "nameTooltip": "小文字、数字、ハイフンのみ使用できます。",
+    "useSuggestion": "「{{name}}」を使用",
+    "description": "説明",
+    "descriptionTooltip": "このスキルをいつ使うかをエージェントに伝えます。",
+    "descriptionPlaceholder": "エージェントがこのスキルを使うべきタイミング",
+    "bodyPlaceholder": "# マイスキル\n\nエージェントが従う手順ごとの指示…",
+    "markExecutable": "実行可能にする",
+    "fileContent": "ファイルの内容",
+    "advanced": "詳細設定",
+    "hideFromPrompt": "プロンプトから隠す",
+    "hideFromPromptHint": "エージェントはこのスキルを自分では選びません。/skill:{{name}} で自分で実行します。",
+    "allowExecutable": "実行可能ファイルを許可",
+    "allowExecutableHint": "このスキル内のファイルをプログラムとして実行できるようにします。サンドボックスの設定でも許可されている必要があります。"
+}

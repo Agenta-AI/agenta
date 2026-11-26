@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import screenCatalog from "@agenta/i18n/catalogs/home.screen"
 import {SkeletonBlock} from "@agenta/ui/ui"
 
 import {ScreenScaffold} from "@/components/ScreenScaffold"
@@ -19,21 +21,28 @@ import {HomeSkeleton} from "./HomeSkeleton"
  * No nav shell: this renders before there is a workspace or project to build one from, and a rail
  * that appears and then re-renders with real entries is worse than one that arrives whole.
  */
-export const HomePageSkeleton = () => (
-    <ScreenScaffold
-        header={
-            // The real header's own box: the drawer button and the project name, at their sizes.
+export const HomePageSkeleton = () => {
+    const t = useT(screenCatalog)
+    return (
+        <ScreenScaffold
+            header={
+                // The real header's own box: the drawer button and the project name, at their sizes.
+                <div
+                    className="border-border flex shrink-0 items-center gap-2 border-b px-4 pb-3 pt-2 lg:hidden"
+                    aria-hidden
+                >
+                    <SkeletonBlock active className="size-8 shrink-0 rounded-md" />
+                    <SkeletonBlock active className="h-4 w-24" />
+                </div>
+            }
+        >
             <div
-                className="border-border flex shrink-0 items-center gap-2 border-b px-4 pb-3 pt-2 lg:hidden"
-                aria-hidden
+                className="flex flex-1 flex-col"
+                aria-busy="true"
+                aria-label={t("home.screen.loading")}
             >
-                <SkeletonBlock active className="size-8 shrink-0 rounded-md" />
-                <SkeletonBlock active className="h-4 w-24" />
+                <HomeSkeleton className={HOME_PAGE_FRAME} />
             </div>
-        }
-    >
-        <div className="flex flex-1 flex-col" aria-busy="true" aria-label="Loading home">
-            <HomeSkeleton className={HOME_PAGE_FRAME} />
-        </div>
-    </ScreenScaffold>
-)
+        </ScreenScaffold>
+    )
+}

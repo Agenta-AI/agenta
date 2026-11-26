@@ -1,0 +1,22 @@
+{
+    "searchProviderTools": "Search {{provider}} tools",
+    "noToolsFound": "No tools found",
+    "failedToLoadSchema": "Failed to load tool action schema",
+    "searchActions": "Search actions",
+    "actionCount_one": "{{count}} actions",
+    "actionCount_other": "{{count}} actions",
+    "noActionsFound": "No actions found",
+    "searchIntegrations": "Search integrations",
+    "builtInTools": "Built-in tools",
+    "noBuiltInMatches": "No built-in matches",
+    "thirdPartyTools": "Third-party tools",
+    "browseThirdParty": "Browse third-party tools",
+    "noConnectedTools": "No connected tools",
+    "customTools": "Custom tools",
+    "createInlineTool": "Create in-line function tool",
+    "referenceWorkflow": "Reference a workflow",
+    "runWorkflowAsTool": "Run a workflow as a tool",
+    "hoverToBrowse": "Hover a provider or connected integration to browse tools.",
+    "tool": "Tool",
+    "addTool": "Add a tool"
+}

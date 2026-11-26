@@ -8,6 +8,7 @@ from oss.src.core.channels.dtos import (
     ChannelConnectionCreate,
     ChannelHistoryPage,
     ChannelInboundEvent,
+    ChannelPerson,
     ChannelRequestContext,
     ChannelSetupDoc,
     ChannelSetupIdentity,
@@ -126,7 +127,9 @@ class ChannelAdapterInterface(ABC):
     ) -> str:
         """Prove the caller may speak for this connection, and return the id
         it speaks for. Verification and identification are one act — the
-        caller maps that id to a connection. Raises ChannelSignatureInvalid.
+        caller maps that id to a connection. Raises ChannelSignatureInvalid,
+        or ChannelSignatureUnavailable when the check cannot run now because
+        a key source on our side failed.
 
         Not intrinsically HMAC: an API key validated against its owner
         satisfies this the same way a signing secret does.
@@ -206,16 +209,35 @@ class ChannelAdapterInterface(ABC):
         """Edit in place — the indicator becoming the answer. Offered only
         where the declaration says `rendering.controls.update`."""
 
+    async def post_ephemeral(
+        self,
+        *,
+        connection: ChannelConnection,
+        locator: Dict[str, Any],
+        recipient_id: str,
+        content: List[Dict[str, Any]],
+    ) -> bool:
+        """Show a message to one person inside a shared place, unseen by the
+        others (Slack's ephemeral message). False where the platform has no such
+        message (a Telegram group), so the caller sends nothing. Not stored by
+        the platform and never edited, so it returns no receipt."""
+
+        return False
+
     async def dismiss_choices(
         self,
         *,
         connection: ChannelConnection,
         external_locator: Dict[str, Any],
         content: Optional[List[Dict[str, Any]]] = None,
+        approved: Optional[bool] = None,
+        answered_by: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Remove resolved message controls without changing the message text.
-        `content` is the message as it was posted, for platforms (Slack) that
-        can only drop buttons by re-sending the rest of the message."""
+        """Remove resolved message controls. `content` is the message as it
+        was posted, for platforms (Slack) that can only drop buttons by
+        re-sending the rest of the message. `approved` is the decision and
+        `answered_by` the platform sender who made it, for a platform that
+        also shows the outcome on the card (Discord)."""
         return None
 
     async def set_message_status(
@@ -294,6 +316,26 @@ class ChannelAdapterInterface(ABC):
         be discovered has nothing to join."""
 
         return None
+
+    # --- people ---
+
+    async def list_people(
+        self, *, connection: ChannelConnection
+    ) -> List[ChannelPerson]:
+        """Every person in the workspace, for the settings screen's people
+        picker, where the declaration says `people.directory`. Settings time
+        only, never on the message path. Raises ChannelNotSupported where bots
+        cannot list people (Telegram)."""
+
+        raise ChannelNotSupported(channel=self.channel)
+
+    async def find_person_by_email(
+        self, *, connection: ChannelConnection, email: str
+    ) -> Optional[ChannelPerson]:
+        """The workspace member with this exact email, or None. Raises
+        ChannelNotSupported where the platform has no emails (Telegram)."""
+
+        raise ChannelNotSupported(channel=self.channel)
 
     # --- history ---
 

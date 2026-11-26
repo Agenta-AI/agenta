@@ -1,5 +1,3 @@
-from contextlib import nullcontext
-
 import pytest
 
 from agenta.sdk.engines.running.handlers import (
@@ -434,11 +432,6 @@ async def test_prompt_handlers_accept_provider_model_list_wire_shapes(
         ensure_secrets,
     )
     monkeypatch.setattr(running_handlers.mockllm, "acompletion", acompletion)
-    monkeypatch.setattr(
-        running_handlers.mockllm,
-        "user_aws_credentials_from",
-        lambda _settings: nullcontext(),
-    )
 
     parameters = {
         "prompt": {
@@ -467,10 +460,6 @@ async def test_retry_runner_retries_explicit_transient_provider_errors(monkeypat
     monkeypatch.setattr(
         "agenta.sdk.engines.running.handlers.SecretsManager.get_provider_settings_from_workflow",
         lambda model, connection=None: {"model": model},
-    )
-    monkeypatch.setattr(
-        "agenta.sdk.engines.running.handlers.mockllm.user_aws_credentials_from",
-        lambda provider_settings: nullcontext(),
     )
 
     async def fake_completion(**kwargs):
@@ -689,10 +678,6 @@ async def test_retry_exhaustion_raises_after_max_attempts(monkeypatch):
         "agenta.sdk.engines.running.handlers.SecretsManager.get_provider_settings_from_workflow",
         lambda model, connection=None: {"model": model},
     )
-    monkeypatch.setattr(
-        "agenta.sdk.engines.running.handlers.mockllm.user_aws_credentials_from",
-        lambda provider_settings: nullcontext(),
-    )
 
     async def fake_completion(**kwargs):
         calls.append(kwargs["model"])
@@ -855,3 +840,58 @@ def test_mustache_unresolved_jsonpath_error_names_mustache_not_curly():
         prompt.format()
     assert "mustache template" in str(exc.value)
     assert "curly template" not in str(exc.value)
+
+
+def _json_schema_template(json_schema):
+    return PromptTemplate(
+        messages=[{"role": "user", "content": "hi"}],
+        llm_config=ModelConfig(
+            model="gpt-4o-mini",
+            response_format={"type": "json_schema", "json_schema": json_schema},
+        ),
+    )
+
+
+def test_to_openai_kwargs_omits_unset_response_format_fields():
+    template = _json_schema_template(
+        {
+            "name": "answer_schema",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": {"answer": {"type": "string", "default": None}},
+            },
+        }
+    )
+
+    response_format = template.to_openai_kwargs()["response_format"]
+
+    assert response_format == {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "answer_schema",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": {"answer": {"type": "string", "default": None}},
+            },
+        },
+    }
+
+
+def test_to_openai_kwargs_keeps_response_format_description_when_set():
+    template = _json_schema_template(
+        {
+            "name": "answer_schema",
+            "description": "The answer",
+            "schema": {"type": "object"},
+        }
+    )
+
+    json_schema = template.to_openai_kwargs()["response_format"]["json_schema"]
+
+    assert json_schema == {
+        "name": "answer_schema",
+        "description": "The answer",
+        "schema": {"type": "object"},
+    }

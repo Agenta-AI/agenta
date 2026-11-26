@@ -1,0 +1,23 @@
+{
+    "formatBoolean": "Booleano (verdadeiro/falso)",
+    "formatContinuous": "Contínuo (intervalo numérico)",
+    "formatCategorical": "Categórico (opções predefinidas)",
+    "enterJsonSchema": "Digite o schema JSON...",
+    "responseFormat": "Formato da resposta",
+    "responseFormatTooltip": "Escolha o formato dos resultados da avaliação",
+    "booleanInfo": "O avaliador fornecerá uma resposta verdadeira (1) ou falsa (0) com base nos critérios de feedback.",
+    "minimum": "Mínimo",
+    "minimumTooltip": "O valor mínimo do intervalo de pontuação numérica",
+    "maximum": "Máximo",
+    "maximumTooltip": "O valor máximo do intervalo de pontuação numérica",
+    "categories": "Categorias",
+    "categoriesTooltip": "Defina os valores de categoria possíveis para a avaliação",
+    "add": "Adicionar",
+    "name": "Nome",
+    "categoryName": "Nome da categoria {{number}}",
+    "description": "Descrição",
+    "categoryDescription": "Descrição da categoria {{number}}",
+    "removeCategory": "Remover categoria {{number}}",
+    "includeReasoning": "Incluir justificativa",
+    "includeReasoningTooltip": "Quando ativado, o avaliador também fornecerá um comentário explicando a pontuação"
+}

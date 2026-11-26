@@ -36,6 +36,7 @@ from oss.src.core.tools.providers.composio.catalog import (
 )
 from oss.src.core.tools.service import ToolsService
 from oss.src.utils.env import env
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 # --- fakes ------------------------------------------------------------------ #
@@ -255,7 +256,9 @@ async def test_legacy_five_segment_call_resolves_the_same_id(monkeypatch):
 
     monkeypatch.setattr("oss.src.apis.fastapi.tools.router.check_action_access", _allow)
 
-    await ToolsRouter(tools_service=service).call_tool(
+    await ToolsRouter(
+        run_admission=NoopRunAdmission(), tools_service=service
+    ).call_tool(
         SimpleNamespace(
             state=SimpleNamespace(project_id=str(uuid4()), user_id=str(uuid4())),
             headers={},

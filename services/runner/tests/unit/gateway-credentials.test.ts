@@ -22,6 +22,7 @@ import {
 import { buildPiModelConfigPlan } from "../../src/engines/sandbox_agent/pi-model-config.ts";
 
 const GOLDEN = loadGolden("model_connection.gateway.json") as ModelConnection;
+const GEMINI_GOLDEN = loadGolden("model_connection.gateway_gemini.json") as ModelConnection;
 
 function request(connection: ModelConnection): AgentRunRequest {
   return { modelConnection: connection } as AgentRunRequest;
@@ -324,3 +325,24 @@ describe("gateway credentials over plain http", () => {
     });
   });
 });
+
+describe("the native Gemini route on the wire", () => {
+  it("arrives from the shared golden with its protocol, and Pi drives it with its Google client", () => {
+    assert.equal(GEMINI_GOLDEN.protocol, "gemini");
+    const plan = buildPiModelConfigPlan(
+      {
+        harness: "pi_core",
+        connection: { mode: "agenta", slug: "agenta" },
+        model: "openai/google/gemini-3.8-flash",
+        modelConnection: GEMINI_GOLDEN,
+      } as AgentRunRequest,
+      {},
+    );
+    assert.equal(plan?.api, "google-generative-ai");
+    assert.equal(
+      (plan as { baseUrl: string }).baseUrl,
+      "https://gateway.example.com/gateways/llms/builtin/agenta/v1beta",
+    );
+  });
+});
+

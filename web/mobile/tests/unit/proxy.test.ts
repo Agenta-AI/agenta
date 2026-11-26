@@ -1,7 +1,7 @@
 import {NextRequest} from "next/server"
 import {afterEach, beforeEach, describe, expect, it} from "vitest"
 
-import {proxy} from "../../src/proxy"
+import {config, proxy} from "../../src/proxy"
 
 const MOBILE_UA =
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
@@ -104,5 +104,49 @@ describe("mobile reverse gate proxy", () => {
     it("never bounces an OAuth callback landing off /m", () => {
         const res = proxy(req("/m/auth/callback/google?code=abc", doc(DESKTOP_UA, CLASSIC_ON)))
         expect(res.headers.get("location")).toBeNull()
+    })
+})
+
+describe("mobile reverse gate proxy with an invite", () => {
+    it("keeps a Classic mode user on /m", () => {
+        const invite =
+            "/m/auth?token=t&email=a%40b.c&organization_id=o1&workspace_id=w1&project_id=p1"
+        for (const path of [invite, "/m/invite"]) {
+            expect(proxy(req(path, doc(DESKTOP_UA, CLASSIC_ON))).headers.get("location")).toBeNull()
+        }
+    })
+})
+
+describe("mobile reverse gate proxy at /__gate", () => {
+    const gate = (to: string) => `/m/__gate?to=${encodeURIComponent(to)}`
+
+    it("matches entry routes only, so client navigations skip the middleware", () => {
+        expect(config.matcher).toEqual(["/", "/auth/:path*", "/invite", "/__gate"])
+    })
+
+    it("returns a Classic-mode-on user to the desktop equivalent of the page", () => {
+        const res = proxy(req(gate("/w/ws1/p/pr1/sessions/abc"), doc(DESKTOP_UA, CLASSIC_ON)))
+        expect(res.status).toBe(307)
+        expect(res.headers.get("location")).toBe(
+            "http://localhost:3000/w/ws1/p/pr1/observability?session=abc",
+        )
+    })
+
+    it("?view=mobile sets the opt-in cookie and returns to the page without the param", () => {
+        const res = proxy(req(gate("/w/ws1/p/pr1/apps?view=mobile&x=1"), doc(DESKTOP_UA)))
+        expect(res.headers.get("location")).toBe("http://localhost:3000/m/w/ws1/p/pr1/apps?x=1")
+        expect(res.headers.get("set-cookie") ?? "").toContain("agenta-mobile-optin=1")
+    })
+
+    it("returns to the page when the gate lets it through", () => {
+        const res = proxy(req(gate("/w/ws1/p/pr1/apps?x=1"), doc(DESKTOP_UA)))
+        expect(res.headers.get("location")).toBe("http://localhost:3000/m/w/ws1/p/pr1/apps?x=1")
+    })
+
+    it("never redirects off-site", () => {
+        for (const to of ["//evil.example/x", "https://evil.example/x"]) {
+            const location = proxy(req(gate(to), doc(DESKTOP_UA))).headers.get("location")
+            expect(new URL(location ?? "").origin).toBe("http://localhost:3000")
+        }
     })
 })

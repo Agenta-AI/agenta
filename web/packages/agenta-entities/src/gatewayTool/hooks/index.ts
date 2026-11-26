@@ -24,6 +24,10 @@ export {invalidateToolConnections, useToolConnectionActions} from "./useToolConn
 export {toolConnectionQueryAtomFamily, useToolConnectionQuery} from "./useToolConnectionQuery"
 export {toolConnectionsQueryAtom, useToolConnectionsQuery} from "./useToolConnectionsQuery"
 export {
+    personalToolConnectionsQueryAtom,
+    usePersonalToolConnections,
+} from "./usePersonalToolConnections"
+export {
     toolIntegrationConnectionsAtomFamily,
     useToolIntegrationConnections,
 } from "./useToolIntegrationConnections"

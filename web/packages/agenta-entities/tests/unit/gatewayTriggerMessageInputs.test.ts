@@ -11,6 +11,7 @@ import {describe, expect, it} from "vitest"
 import {
     getScheduleMessage,
     getScheduleMessagePreview,
+    misplacedMessageShape,
     parseInputsFields,
     remapMessageShape,
     setScheduleMessage,
@@ -203,6 +204,62 @@ describe("remapMessageShape", () => {
         const before = JSON.stringify({message: "x"})
         expect(JSON.parse(remapMessageShape(before, completion, completion))).toEqual({
             message: "x",
+        })
+    })
+})
+
+// #7936: a schedule saved before the agent's revision loaded stores its message under the
+// fallback "message" key, which a chat agent never reads.
+describe("misplacedMessageShape", () => {
+    const chat = {isChat: true, primaryKey: "messages"}
+    const fallback = {isChat: false, primaryKey: "message"}
+
+    it("finds a message under the fallback key for a chat agent", () => {
+        const json = JSON.stringify({message: "post the digest"})
+        expect(misplacedMessageShape(json, chat, ["messages"], getScheduleMessage)).toEqual(
+            fallback,
+        )
+    })
+
+    it("finds it for a completion agent whose string input has another name", () => {
+        const json = JSON.stringify({message: "summarize"})
+        const shape = {isChat: false, primaryKey: "query"}
+        expect(misplacedMessageShape(json, shape, ["query"], getScheduleMessage)).toEqual(fallback)
+    })
+
+    it("leaves a message the agent already reads", () => {
+        const json = JSON.stringify({messages: [{role: "user", content: "hi"}]})
+        expect(misplacedMessageShape(json, chat, ["messages"], getScheduleMessage)).toBeNull()
+    })
+
+    it("leaves the fallback key when the agent takes it", () => {
+        const json = JSON.stringify({message: "hi"})
+        const shape = {isChat: false, primaryKey: "query"}
+        expect(
+            misplacedMessageShape(json, shape, ["query", "message"], getScheduleMessage),
+        ).toBeNull()
+    })
+
+    it("keeps a value the agent's own key already holds, even one the composer cannot read", () => {
+        const json = JSON.stringify({
+            message: "old",
+            messages: [
+                {role: "user", content: "a"},
+                {role: "user", content: "b"},
+            ],
+        })
+        expect(misplacedMessageShape(json, chat, ["messages"], getScheduleMessage)).toBeNull()
+    })
+
+    it("has nothing to move in an empty mapping", () => {
+        expect(misplacedMessageShape("{}", chat, ["messages"], getScheduleMessage)).toBeNull()
+    })
+
+    it("moves into the chat shape with remapMessageShape", () => {
+        const json = JSON.stringify({message: "post the digest"})
+        const from = misplacedMessageShape(json, chat, ["messages"], getScheduleMessage)
+        expect(JSON.parse(remapMessageShape(json, from!, chat))).toEqual({
+            messages: [{role: "user", content: "post the digest"}],
         })
     })
 })

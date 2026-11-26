@@ -4,7 +4,7 @@ from oss.src.dbs.postgres.shared.base import Base
 from oss.src.dbs.postgres.tracing.dbas import SpanDBA
 from oss.src.dbs.postgres.shared.dbas import ProjectScopeDBA, LifecycleDBA
 
-# TODO: Add OrganizationScopeDBA, WorkspaceScopeDBA, and UserScopeDBA
+# TODO: Add OrganizationScopeDBA and UserScopeDBA
 
 
 class SpanDBE(
@@ -44,7 +44,13 @@ class SpanDBE(
             "ix_spans_project_id_session_id",
             "project_id",
             "session_id",
-        ),  # for session filtering (root-only column)
+        ),  # for session filtering
+        Index(
+            "ix_spans_project_id_turn_id",
+            "project_id",
+            "turn_id",
+            postgresql_where=text("turn_id IS NOT NULL"),
+        ),  # for turn filtering
         Index(
             "ix_spans_project_id_trace_type",
             "project_id",

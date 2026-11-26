@@ -4,25 +4,34 @@
  * The probe only suggests a mode. A server that publishes OAuth metadata may also take a
  * personal token, and one that answered without a key may give higher limits with one, so the
  * probe's answer is marked "Detected" and the person can pick another.
+ *
+ * Drawn as pill chips in the order OAuth, API key, None, the picked chip filled (canvas F03 f5).
  */
-import type {MCPAuthMode} from "@agenta/entities/mcpEndpoint"
-import {Badge, Segmented} from "@agenta/ui/ui"
+import {useRef, type KeyboardEvent} from "react"
 
-export const MCP_AUTH_MODE_LABEL: Record<MCPAuthMode, string> = {
-    none: "None",
-    api_key: "API key",
-    oauth: "OAuth",
+import type {MCPAuthMode} from "@agenta/entities/mcpEndpoint"
+import {useT, type CatalogKey} from "@agenta/i18n"
+import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
+import {cn} from "@agenta/ui/ui"
+
+type McpConnectKey = CatalogKey<typeof mcpConnectCatalog>
+
+/** Catalog keys; translate with the `entityUi.mcpConnect` catalog where the label renders. */
+export const MCP_AUTH_MODE_LABEL: Record<MCPAuthMode, McpConnectKey> = {
+    none: "entityUi.mcpConnect.authNone",
+    api_key: "entityUi.mcpConnect.authApiKey",
+    oauth: "entityUi.mcpConnect.authOauth",
 }
 
-const ORDER: MCPAuthMode[] = ["none", "api_key", "oauth"]
+const ORDER: MCPAuthMode[] = ["oauth", "api_key", "none"]
 
 /** Said when the choice moves away from what the probe found, to say why one might. */
-const AWAY_FROM_DETECTED: Partial<Record<MCPAuthMode, string>> = {
-    oauth: "The probe found OAuth. Pick API key if this server also accepts a key you already have.",
-    none: "The server answered without a key. Add one if your plan gives you a key for higher limits.",
+const AWAY_FROM_DETECTED: Partial<Record<MCPAuthMode, McpConnectKey>> = {
+    oauth: "entityUi.mcpConnect.awayFromOauth",
+    none: "entityUi.mcpConnect.awayFromNone",
 }
 
-const OAUTH_UNAVAILABLE = "OAuth is available when the server offers OAuth sign-in."
+const OAUTH_UNAVAILABLE: McpConnectKey = "entityUi.mcpConnect.oauthUnavailable"
 
 export interface AuthModeSelectorProps {
     value: MCPAuthMode
@@ -41,34 +50,82 @@ export const AuthModeSelector = ({
     disabled,
     onChange,
 }: AuthModeSelectorProps) => {
+    const t = useT(mcpConnectCatalog)
+    const refs = useRef<(HTMLButtonElement | null)[]>([])
     const hints = [
         detected && value !== detected ? AWAY_FROM_DETECTED[detected] : null,
         oauthSelectable ? null : OAUTH_UNAVAILABLE,
-    ].filter(Boolean)
+    ].filter((key): key is McpConnectKey => Boolean(key))
+    const enabled = ORDER.filter((mode) => mode !== "oauth" || oauthSelectable)
+
+    // Arrow keys move the choice and the focus together, as in a radio group.
+    const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+        if (disabled) return
+        const step =
+            event.key === "ArrowRight" || event.key === "ArrowDown"
+                ? 1
+                : event.key === "ArrowLeft" || event.key === "ArrowUp"
+                  ? -1
+                  : 0
+        if (!step) return
+        event.preventDefault()
+        const at = Math.max(0, enabled.indexOf(value))
+        const next = enabled[(at + step + enabled.length) % enabled.length]
+        onChange(next)
+        refs.current[ORDER.indexOf(next)]?.focus()
+    }
 
     return (
-        <div className="flex flex-col gap-1.5" data-testid="mcp-auth-mode">
-            <span className="text-xs font-medium text-colorText">Authentication</span>
-            <Segmented
-                block
-                aria-label="Authentication"
-                value={value}
-                disabled={disabled}
-                onChange={(mode) => onChange(mode as MCPAuthMode)}
-                options={ORDER.map((mode) => ({
-                    value: mode,
-                    disabled: mode === "oauth" && !oauthSelectable,
-                    label: (
-                        <>
-                            {MCP_AUTH_MODE_LABEL[mode]}
-                            {mode === detected ? <Badge>Detected</Badge> : null}
-                        </>
-                    ),
-                }))}
-            />
+        <div className="flex flex-col gap-1" data-testid="mcp-auth-mode">
+            <span className="text-[12px] font-medium leading-4 text-colorTextSecondary">
+                {t("entityUi.mcpConnect.authentication")}
+            </span>
+            <div
+                role="radiogroup"
+                aria-label={t("entityUi.mcpConnect.authentication")}
+                className="flex flex-wrap items-center gap-2"
+                onKeyDown={onKeyDown}
+            >
+                {ORDER.map((mode, index) => {
+                    const selected = mode === value
+                    return (
+                        <button
+                            key={mode}
+                            ref={(node) => {
+                                refs.current[index] = node
+                            }}
+                            type="button"
+                            role="radio"
+                            aria-checked={selected}
+                            tabIndex={selected ? 0 : -1}
+                            disabled={disabled || (mode === "oauth" && !oauthSelectable)}
+                            onClick={() => {
+                                if (!selected) onChange(mode)
+                            }}
+                            className={cn(
+                                // 26px on the canvas; a 44px target on a phone.
+                                "flex h-[26px] cursor-pointer items-center gap-1.5 rounded-full border border-solid py-0 pl-2.5 font-[inherit] text-[12px] leading-5 outline-none transition-colors max-md:h-11",
+                                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-ring",
+                                "disabled:cursor-not-allowed disabled:opacity-50",
+                                mode === detected ? "pr-0.5" : "pr-2.5",
+                                selected
+                                    ? "border-colorText bg-colorText text-colorBgContainer"
+                                    : "border-colorBorder bg-colorBgContainer text-colorText enabled:hover:bg-colorFillQuaternary",
+                            )}
+                        >
+                            {t(MCP_AUTH_MODE_LABEL[mode])}
+                            {mode === detected ? (
+                                <span className="rounded-full bg-colorBgContainer px-2 text-[12px] leading-4 text-colorTextSecondary">
+                                    {t("entityUi.mcpConnect.detected")}
+                                </span>
+                            ) : null}
+                        </button>
+                    )
+                })}
+            </div>
             {hints.length ? (
-                <p className="m-0 text-xs leading-normal text-colorTextTertiary">
-                    {hints.join(" ")}
+                <p className="m-0 text-[12px] leading-4 text-colorTextTertiary">
+                    {hints.map((key) => t(key)).join(" ")}
                 </p>
             ) : null}
         </div>

@@ -47,17 +47,30 @@ export const deleteAccount = async (): Promise<void> => {
     await getUsersClient().deleteUserAccount()
 }
 
-/** The backend answers with the bare link, so the schema is the string itself. */
-const resetPasswordLinkSchema = z.string()
+/**
+ * The backend answers with the bare link, or with null when it emailed the link to the member
+ * instead (a deployment with email enabled).
+ */
+const resetPasswordLinkSchema = z.string().nullable()
 
 /**
- * Mint a password reset link for another member of the organization — an admin action, gated
+ * Ask for a password reset for another member of the organization — an admin action, gated
  * server-side by the RESET_PASSWORD permission and refused outright for the organization owner.
- * The link is shown once and never returned again, so the caller must surface it immediately.
+ * Resolves to the one-time link, shown once and never returned again, or to null when the
+ * backend emailed the link instead. A caller that gets null must say the email was sent.
  */
-export const resetPassword = async (userId: string): Promise<string> => {
+export const requestPasswordReset = async (userId: string): Promise<string | null> => {
     const data = await getUsersClient().resetUserPassword({user_id: userId})
-    const link = safeParseWithLogging(resetPasswordLinkSchema, data, "[resetPassword]")
+    const parsed = safeParseWithLogging(resetPasswordLinkSchema, data, "[requestPasswordReset]")
+    if (parsed === null && data !== null) {
+        throw new Error("Received an unexpected response while generating the reset link.")
+    }
+    return parsed
+}
+
+/** Mint a reset link for another member. Throws when the backend sent no link (it emailed it). */
+export const resetPassword = async (userId: string): Promise<string> => {
+    const link = await requestPasswordReset(userId)
     if (link === null) {
         throw new Error("Received an unexpected response while generating the reset link.")
     }

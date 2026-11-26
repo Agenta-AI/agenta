@@ -8,15 +8,18 @@
  * https://github.com/facebook/lexical
  */
 
+import {useT} from "@agenta/i18n"
+import uiEditorCatalog from "@agenta/i18n/catalogs/ui.editor"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {TreeView} from "@lexical/react/LexicalTreeView"
 
 export const DebugPlugin = () => {
     const [editor] = useLexicalComposerContext()
+    const t = useT(uiEditorCatalog)
 
     return (
         <div className="border-0 border-t border-solid p-4">
-            <h3 className="text-sm font-semibold mb-2">Debug View</h3>
+            <h3 className="text-sm font-semibold mb-2">{t("ui.editor.debugView")}</h3>
             <TreeView
                 viewClassName="tree-view-output"
                 treeTypeButtonClassName="debug-treetype-button"

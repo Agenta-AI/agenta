@@ -12,6 +12,7 @@ from uuid import uuid4
 
 import pytest
 
+from oss.src.core.sharing.dtos import AgentReadScope
 from oss.src.core.skills.exceptions import SkillOriginMissingError
 from oss.src.core.skills.fetcher import FetchedSource
 from oss.src.core.skills.import_service import (
@@ -64,8 +65,10 @@ class _StubWorkflowsService:
         self.conflict_next_commit = False
 
     async def query_workflow_head_revisions(
-        self, *, project_id, workflow_revision_query
+        self, *, project_id, read_scope, workflow_revision_query
     ):
+        # Not a person's list: every private agent is hidden.
+        assert read_scope == AgentReadScope(owner_user_id=None)
         return [
             SimpleNamespace(artifact_id=w.id, artifact_slug=w.slug)
             for w in self.store.values()
@@ -244,6 +247,12 @@ async def test_import_creates_workflows_with_provenance_meta(fixture_tree):
     assert {s.path_in_repo for s in result.skipped} == {"skills/broken"}
 
     alpha = _workflow_named(simple, "alpha")
+    imported_alpha = next(i for i in result.imported if i.name == "alpha")
+    # The caller adds the skill to an agent by its slug, with no registry lookup after.
+    assert imported_alpha.workflow_id == str(alpha.id)
+    assert imported_alpha.workflow_slug == alpha.slug
+    assert imported_alpha.workflow_slug.startswith("alpha-")
+    assert imported_alpha.description == "A test skill named alpha."
     origin = read_origin(alpha.meta)
     assert origin["kind"] == "catalog"
     assert origin["provider"] == "github"

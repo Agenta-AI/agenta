@@ -34,6 +34,11 @@ describe("authRedirectTarget", () => {
         expect(authRedirectTarget("ok", "/auth/callback")).toBeNull()
         expect(authRedirectTarget("unauthenticated", "/auth/callback")).toBeNull()
     })
+
+    it("keeps anyone on the reset-password page, signed in or not", () => {
+        expect(authRedirectTarget("ok", "/auth/reset-password")).toBeNull()
+        expect(authRedirectTarget("unauthenticated", "/auth/reset-password")).toBeNull()
+    })
 })
 
 describe("shouldCheckSession", () => {

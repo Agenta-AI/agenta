@@ -41,6 +41,7 @@ import {
     type TriggerConnectionsResponse,
     type TriggerDeliveriesResponse,
     type TriggerDeliveryQuery,
+    type TriggerDeliveryWindowing,
     type TriggerDeliveryResponse,
     type TriggerScheduleCreate,
     type TriggerScheduleEdit,
@@ -539,10 +540,11 @@ export const stopTriggerSchedule = async (scheduleId: string): Promise<TriggerSc
 
 export const queryTriggerDeliveries = async (
     delivery?: TriggerDeliveryQuery,
+    windowing?: TriggerDeliveryWindowing,
 ): Promise<TriggerDeliveriesResponse> => {
     const {data} = await axios.post(
         `${triggersBaseUrl()}/deliveries/query`,
-        {delivery: delivery ?? null},
+        {delivery: delivery ?? null, ...(windowing ? {windowing} : {})},
         projectScopedParams(),
     )
     return (

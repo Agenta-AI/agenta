@@ -1,0 +1,9 @@
+{
+    "dataResidency": "Residencia de datos",
+    "dataResidencyRegion": "Región de residencia de datos",
+    "learnMore": "Más información",
+    "multipleRegions": "Puedes tener cuentas en varias regiones. Cada una requiere un registro independiente.",
+    "regionLabel": "Región {{region}}",
+    "regionsIntro": "Agenta Cloud está disponible en dos regiones:",
+    "regionsIsolated": "Las regiones están completamente aisladas. No se comparten datos entre regiones. Elige una región según tus requisitos de residencia de datos y tus necesidades de latencia."
+}

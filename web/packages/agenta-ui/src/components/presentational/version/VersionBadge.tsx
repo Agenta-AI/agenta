@@ -21,6 +21,9 @@
 
 import React from "react"
 
+import {useT} from "@agenta/i18n"
+import uiStatusCatalog from "@agenta/i18n/catalogs/ui.status"
+
 import {cn, sizeClasses, flexLayouts, bgColors, type SizeVariant} from "../../../utils/styles"
 
 // ============================================================================
@@ -67,6 +70,7 @@ export function VersionBadge({
     size = "default",
     className,
 }: VersionBadgeProps) {
+    const t = useT(uiStatusCatalog)
     const variantClasses = {
         text: "",
         bold: "font-medium",
@@ -81,9 +85,9 @@ export function VersionBadge({
     return (
         <span
             className={cn(sizeClasses[size], variantClasses[variant], className)}
-            title={`Version ${version}`}
+            title={t("ui.status.versionTitle", {version})}
         >
-            v{version}
+            {t("ui.status.versionShort", {version})}
         </span>
     )
 }

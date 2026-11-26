@@ -15,6 +15,8 @@ export {
     configPanelCollapsedViewportPreferenceAtom,
     phoneViewportAtom,
     revealConfigPaneAtom,
+    configPaneRevealRequestAtom,
+    CONFIG_REVEAL_TTL_MS,
     resolveConfigPanelCollapsed,
     PHONE_VIEWPORT_QUERY,
     rightPanelWidthAtom,
@@ -30,3 +32,4 @@ export {
 } from "./panelLayout"
 
 export {sessionLocalSettledAtAtomFamily} from "./sessionMessages"
+export * from "./sessionTurnsRefresh"

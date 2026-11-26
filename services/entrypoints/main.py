@@ -18,6 +18,7 @@ from agenta.sdk.decorators.routing import (
     create_app,
     apply_invoke_prelude,
     admit_session_input,
+    record_inband_approval_answers,
     handle_invoke_success,
     handle_invoke_failure,
     handle_inspect_success,
@@ -28,6 +29,11 @@ from agenta.sdk.models.workflows import WorkflowInvokeRequest, WorkflowInspectRe
 from agenta.sdk.contexts.routing import RoutingContext, routing_context_manager
 from agenta.sdk.engines.tracing.server import instrument_fastapi, setup_server_tracing
 from agenta.sdk.litellm.mocks import MOCKS
+from agenta.sdk.middlewares.running.vault import (
+    drop_host_aws_credentials,
+    env_provider_keys_enabled,
+    hold_env_provider_keys,
+)
 from oss.src.managed import (
     builtin_auto_ai_critique_app,
     builtin_auto_contains_all_app,
@@ -75,6 +81,27 @@ if AGENTA_LOG_FORMAT == "json":
             handler.setFormatter(JsonFormatter(GOOGLE_CLOUD_PROJECT))
     capture_warnings_as_json(GOOGLE_CLOUD_PROJECT)
 
+# A call that carries no provider key of its own must not pick one up from this process's
+# environment. The keys stay available to requests only where the vault allows them.
+_held_env_provider_keys = hold_env_provider_keys()
+if _held_env_provider_keys and not env_provider_keys_enabled():
+    log.warning(
+        "Provider keys in the services environment are not used: requests run on the "
+        "project's own keys. Set AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED=true to let "
+        "every project use them.",
+        names=_held_env_provider_keys,
+    )
+
+_dropped_host_aws_credentials = drop_host_aws_credentials()
+if _dropped_host_aws_credentials:
+    log.warning(
+        "AWS credentials in the services environment are not used: Bedrock and "
+        "SageMaker calls run on the connection's own credentials. Set "
+        "AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED=true to let connections without "
+        "keys use them.",
+        names=_dropped_host_aws_credentials,
+    )
+
 
 # ---------------------------------------------------------------------------
 # MockMiddleware — honors ?mock=<name> for credit-free uptime probes
@@ -109,9 +136,10 @@ async def services_invoke(req: Request, request: WorkflowInvokeRequest):
     credentials = req.state.auth.get("credentials")
     apply_invoke_prelude(req, request)
     try:
-        admission_response = await admit_session_input(req, request, credentials)
-        if admission_response is not None:
-            return admission_response
+        if not await record_inband_approval_answers(req, request):
+            admission_response = await admit_session_input(req, request, credentials)
+            if admission_response is not None:
+                return admission_response
         response = await invoke_workflow(request=request, credentials=credentials)
         return await handle_invoke_success(req, response)
     except Exception as exception:

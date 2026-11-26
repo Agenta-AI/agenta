@@ -393,6 +393,9 @@ services:
         depends_on:
             postgres:
                 condition: service_healthy
+            # ee0000000007 takes the usage report lock in the volatile Redis.
+            redis-volatile:
+                condition: service_healthy
 
     services:
         # === IMAGE ================================================ #

@@ -39,12 +39,14 @@ async def test_rejects_reserved_environment_names(name):
         await resolve_sandbox_credentials([credential(name=name)], resolver=AsyncMock())
 
 
-async def test_resolution_is_all_or_nothing():
+async def test_a_missing_secret_is_left_out_of_the_run():
+    """Needs setup: only a model item blocks a run, so a missing custom secret is left
+    out and the bindings that resolve still reach the sandbox."""
     resolver = AsyncMock(return_value={"one": "value"})
-    with pytest.raises(SandboxCredentialError, match="1 configured"):
-        await resolve_sandbox_credentials(
-            [credential("one", "ONE"), credential("two", "TWO")], resolver=resolver
-        )
+    resolved = await resolve_sandbox_credentials(
+        [credential("one", "ONE"), credential("two", "TWO")], resolver=resolver
+    )
+    assert [(item.binding.name, item.value) for item in resolved] == [("ONE", "value")]
 
 
 async def test_rejects_duplicate_bindings_before_vault_read():

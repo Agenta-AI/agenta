@@ -1,0 +1,13 @@
+{
+    "pageTitle": "Loslegen",
+    "preparing": "Ihr Arbeitsbereich wird vorbereitet",
+    "mintError": "Ihr Agent konnte nicht eingerichtet werden.",
+    "stepCounter": "Schritt {{current}} von {{total}}",
+    "skip": "Vorerst überspringen",
+    "dotCredits": "Credits",
+    "dotTemplates": "Erster Agent",
+    "keyHint": "{{key}} drücken",
+    "continue": "Weiter",
+    "writeIn": "Erzählen Sie uns mehr",
+    "writeInPlaceholder": "Eine Zeile genügt"
+}

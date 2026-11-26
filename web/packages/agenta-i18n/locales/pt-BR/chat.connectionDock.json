@@ -1,0 +1,14 @@
+{
+    "agentWaiting": "O agente está esperando por você",
+    "cancel": "Cancelar",
+    "checkingHow": "Verificando como este conjunto de ferramentas se conecta…",
+    "connect": "Conectar",
+    "connectFirst": "Conecte {{label}} primeiro",
+    "connectPrompt": "Conecte-se a <name>{{name}}</name> para dar ao seu agente acesso às ferramentas dele",
+    "connecting": "Conectando {{name}}… conclua o login na janela pop-up.",
+    "connectionFailed": "Falha na conexão.",
+    "connectionPosition": "Conexão {{position}} de {{total}}",
+    "dismissFailed": "Não foi possível dispensar a solicitação de conexão.",
+    "notNow": "Agora não",
+    "retry": "Tentar de novo"
+}

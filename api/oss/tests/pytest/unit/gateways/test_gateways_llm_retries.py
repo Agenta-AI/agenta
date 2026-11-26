@@ -51,7 +51,7 @@ def sleeps(monkeypatch) -> List[float]:
     return waited
 
 
-def _row(timeout_seconds=None) -> LLMEndpoint:
+def _row(timeout_seconds=None, response_headers_timeout_seconds=None) -> LLMEndpoint:
     return LLMEndpoint(
         id=uuid4(),
         slug="acme",
@@ -62,14 +62,19 @@ def _row(timeout_seconds=None) -> LLMEndpoint:
         data=LLMEndpointData(
             route=LLMEndpointRoute(base_url="https://upstream.example/v1"),
             models=LLMModelFilter(allowlist=["gpt-4o"]),
-            settings=LLMEndpointSettings(timeout_seconds=timeout_seconds),
+            settings=LLMEndpointSettings(
+                timeout_seconds=timeout_seconds,
+                response_headers_timeout_seconds=response_headers_timeout_seconds,
+            ),
         ),
     )
 
 
-def _service(adapter, *, policy=None, timeout_seconds=None) -> LLMGatewayService:
+def _service(
+    adapter, *, policy=None, timeout_seconds=None, response_headers_timeout_seconds=None
+) -> LLMGatewayService:
     dao = _MockLlmEndpointsDAO()
-    dao.rows_by_slug["acme"] = _row(timeout_seconds)
+    dao.rows_by_slug["acme"] = _row(timeout_seconds, response_headers_timeout_seconds)
     return LLMGatewayService(
         llm_endpoints_dao=dao,
         policy=policy or _MockPolicy(),
@@ -390,3 +395,111 @@ async def test_a_wait_that_the_read_of_the_discarded_answer_pushed_past_the_dead
 
     assert len(adapter.calls) == 1
     assert sleeps == []
+
+
+# --- stalled streams ---------------------------------------------------------- #
+
+
+class _StallsFirst(_MockAdapter):
+    """Sends nothing for the first `stalls` attempts, then answers."""
+
+    def __init__(self, *, stalls: int, delay: float = 0.0):
+        super().__init__(
+            result=LLMRelayResult(status_code=200, headers={}, body=_frames())
+        )
+        self.stalls = stalls
+        self.delay = delay
+        self.cancelled = 0
+
+    async def relay_chat_completion(self, **kwargs):
+        self.calls.append(kwargs)
+        if len(self.calls) <= self.stalls:
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                self.cancelled += 1
+                raise
+        await asyncio.sleep(self.delay)
+        return self.result
+
+
+async def _frames() -> AsyncIterator[bytes]:
+    yield b"data: {}\n\n"
+
+
+@pytest.mark.asyncio
+async def test_a_stalled_stream_is_cut_at_the_headers_limit_and_sent_again():
+    adapter = _StallsFirst(stalls=1)
+
+    result = await _relay(
+        _service(adapter, timeout_seconds=5, response_headers_timeout_seconds=0.05),
+        stream=True,
+    )
+
+    assert result.status_code == 200
+    assert len(adapter.calls) == 2
+    # The stalled attempt was cancelled, which closes its upstream connection.
+    assert adapter.cancelled == 1
+    # The same body went out both times.
+    assert adapter.calls[0]["body"] == adapter.calls[1]["body"]
+
+
+@pytest.mark.asyncio
+async def test_a_stream_that_stalls_on_every_attempt_is_a_timeout_after_two_retries():
+    adapter = _StallsFirst(stalls=UPSTREAM_MAX_RETRIES + 1)
+
+    with pytest.raises(LLMUpstreamTimeoutError):
+        await _relay(
+            _service(adapter, timeout_seconds=5, response_headers_timeout_seconds=0.02),
+            stream=True,
+        )
+
+    assert len(adapter.calls) == UPSTREAM_MAX_RETRIES + 1
+
+
+@pytest.mark.asyncio
+async def test_a_stall_retry_never_runs_past_the_routes_deadline():
+    adapter = _StallsFirst(stalls=2)
+
+    with pytest.raises(LLMUpstreamTimeoutError):
+        await _relay(
+            _service(
+                adapter, timeout_seconds=0.15, response_headers_timeout_seconds=0.1
+            ),
+            stream=True,
+        )
+
+    # The second attempt gets only what is left of the deadline, and that is not a stall.
+    assert len(adapter.calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_a_non_streaming_call_is_not_cut_at_the_headers_limit():
+    adapter = _StallsFirst(stalls=0, delay=0.1)
+
+    result = await _relay(
+        _service(adapter, timeout_seconds=5, response_headers_timeout_seconds=0.02)
+    )
+
+    assert result.status_code == 200
+    assert len(adapter.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_stall_and_a_5xx_share_one_retry_budget(sleeps):
+    class _StallThen503(_StallsFirst):
+        async def relay_chat_completion(self, **kwargs):
+            if len(self.calls) == 0:
+                return await super().relay_chat_completion(**kwargs)
+            self.calls.append(kwargs)
+            return LLMRelayResult(status_code=502, headers={}, body=_frames())
+
+    adapter = _StallThen503(stalls=1)
+
+    result = await _relay(
+        _service(adapter, timeout_seconds=5, response_headers_timeout_seconds=0.02),
+        stream=True,
+    )
+
+    assert len(adapter.calls) == UPSTREAM_MAX_RETRIES + 1
+    assert result.status_code == 502

@@ -21,6 +21,7 @@ from pydantic import (
     Field,
 )
 
+from agenta.sdk.redaction.redactor import strip_echoed_key_fragments
 from agenta.sdk.models.shared import (
     TraceID,
     SpanID,
@@ -233,6 +234,9 @@ class WorkflowServiceStatus(Status):
     # temporary and the server can say how long. It also rides the response's `Retry-After`
     # header. Set only when the raised exception names one.
     retry_after: Optional[int] = None
+    # Structured facts about the failure that a client acts on, for a failure class that
+    # has them (``agent_needs_setup`` carries its ``requirements`` here). Never a secret.
+    details: Optional[Dict[str, Any]] = None
 
 
 def failure_code_of(exception: BaseException) -> Optional[str]:
@@ -247,6 +251,16 @@ def failure_code_of(exception: BaseException) -> Optional[str]:
     """
     code = getattr(exception, "failure_code", None)
     return code if isinstance(code, str) and code else None
+
+
+def details_of(exception: BaseException) -> Optional[Dict[str, Any]]:
+    """The structured failure facts an exception declares, or ``None``.
+
+    Read by the same two sites as :func:`failure_code_of`, for the same reason. Only a
+    non-empty dict counts.
+    """
+    details = getattr(exception, "failure_details", None)
+    return details if isinstance(details, dict) and details else None
 
 
 def retry_after_of(exception: BaseException) -> Optional[int]:
@@ -289,7 +303,18 @@ def returns_stacktrace() -> bool:
 
 def returned_stacktrace(stacktrace: Optional[Any]) -> Optional[Any]:
     """The traceback to put on an error body, which is normally none of it."""
-    return stacktrace if returns_stacktrace() else None
+    if not returns_stacktrace():
+        return None
+
+    # The traceback repeats the exception text, so it carries whatever the message did.
+    if isinstance(stacktrace, str):
+        return strip_echoed_key_fragments(stacktrace)
+    if isinstance(stacktrace, list):
+        return [
+            strip_echoed_key_fragments(line) if isinstance(line, str) else line
+            for line in stacktrace
+        ]
+    return stacktrace
 
 
 class WorkflowRequestData(BaseModel):

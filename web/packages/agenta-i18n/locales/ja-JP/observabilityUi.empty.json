@@ -1,0 +1,16 @@
+{
+    "rateLimitReached": "レート制限に達しました",
+    "quotaReached": "月間のクォータ上限に達しました。しばらくしてからもう一度お試しいただくか、プランをアップグレードしてください。",
+    "noTracesFound": "トレースが見つかりません",
+    "adjustTraces": "フィルターまたは時間範囲を調整して、トレースを表示してください。",
+    "demoAlt": "トレースの可視化を示すオブザーバビリティのデモ",
+    "noTracesYet": "トレースはまだありません",
+    "onboardingDescription": "数行のコードを追加するだけで、LLM アプリケーションからトレースの取得を始められます。レイテンシやトークン使用量を監視し、詳細なインサイトで問題をデバッグできます。",
+    "setUpTracing": "トレースを設定",
+    "learnMore": "詳細を見る",
+    "noSessionsFound": "セッションが見つかりません",
+    "adjustSessions": "フィルターまたは時間範囲を調整して、セッションを表示してください。",
+    "noSessionsObserved": "観測されたセッションはありません",
+    "sessionsDescription": "セッションを使うと、LLM アプリケーションとの複数ターンの会話を、中間ステップも含めて追跡できます。",
+    "gettingStartedSessions": "セッションを使い始める"
+}

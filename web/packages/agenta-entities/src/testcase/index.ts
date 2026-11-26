@@ -47,6 +47,7 @@ export {
     // Constants
     SYSTEM_FIELDS,
     isSystemField,
+    isInternalDataField,
     // Column extraction utilities
     COLUMN_EXTRACTION_MAX_DEPTH,
     DEFAULT_SAMPLE_SIZE,
@@ -121,7 +122,7 @@ export {testcasePaginatedStore} from "./state"
  * const columns = useAtomValue(testcaseDataController.selectors.columns(config))
  * ```
  */
-export {testcaseDataController} from "./state"
+export {loadMoreTestcasesAtom, testcaseDataController} from "./state"
 
 export type {TestcaseTableRow, TestcasePaginatedMeta, TestcaseDataConfig} from "./state"
 

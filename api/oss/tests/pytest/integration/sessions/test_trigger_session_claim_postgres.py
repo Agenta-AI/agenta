@@ -20,6 +20,7 @@ from oss.src.core.triggers.dtos import TriggerDeliveryData
 from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.src.dbs.postgres.triggers.dao import TriggersDAO
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
 
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
@@ -265,11 +266,13 @@ async def test_claim_atomically_merges_tags_flags_and_delivery_data(trigger_proj
 
     try:
         claimed = await streams_dao.claim_trigger_delivery(
+            envelope=None,
             project_id=project_id,
             user_id=user_id,
             event_id="event-1",
             session_id=session_id,
             attribution=attribution,
+            access=OWNERLESS_PROJECT_POLICY,
         )
     finally:
         paused_engine.resume.set()
@@ -369,11 +372,13 @@ async def test_duplicate_claims_race_as_separate_operations(trigger_project):
 
     async def claim(session_id, attribution):
         return await claims_dao.claim_trigger_delivery(
+            envelope=None,
             project_id=project_id,
             user_id=user_id,
             event_id="duplicate-event",
             session_id=session_id,
             attribution=attribution,
+            access=OWNERLESS_PROJECT_POLICY,
         )
 
     results = await asyncio.gather(
@@ -436,11 +441,13 @@ async def test_different_events_create_distinct_delivery_session_pairs(trigger_p
 
     async def claim(event_id, session_id, attribution):
         return await claims_dao.claim_trigger_delivery(
+            envelope=None,
             project_id=project_id,
             user_id=user_id,
             event_id=event_id,
             session_id=session_id,
             attribution=attribution,
+            access=OWNERLESS_PROJECT_POLICY,
         )
 
     results = await asyncio.gather(
@@ -481,11 +488,13 @@ async def test_attribution_failure_rolls_back_claim_and_allows_retry(trigger_pro
 
     with pytest.raises(IntegrityError):
         await streams_dao.claim_trigger_delivery(
+            envelope=None,
             project_id=project_id,
             user_id=trigger_project["user_id"],
             event_id="retryable-event",
             session_id=None,
             attribution=attribution,
+            access=OWNERLESS_PROJECT_POLICY,
         )
 
     async with engine.session() as session:
@@ -499,11 +508,13 @@ async def test_attribution_failure_rolls_back_claim_and_allows_retry(trigger_pro
     assert delivery_count == 0
 
     retried = await streams_dao.claim_trigger_delivery(
+        envelope=None,
         project_id=project_id,
         user_id=trigger_project["user_id"],
         event_id="retryable-event",
         session_id=uuid.uuid4().hex,
         attribution=attribution,
+        access=OWNERLESS_PROJECT_POLICY,
     )
     assert retried is True
 
@@ -575,11 +586,13 @@ async def test_retryable_failed_delivery_can_be_reclaimed_exactly_once(trigger_p
     retry_session_id = uuid.uuid4().hex
 
     reclaimed = await streams_dao.claim_trigger_delivery(
+        envelope=None,
         project_id=project_id,
         user_id=user_id,
         event_id=event_id,
         session_id=retry_session_id,
         attribution=retry_attribution,
+        access=OWNERLESS_PROJECT_POLICY,
     )
     assert reclaimed is True
 
@@ -611,6 +624,7 @@ async def test_retryable_failed_delivery_can_be_reclaimed_exactly_once(trigger_p
     # is "102 claimed", not "500", so the retryable WHERE no longer matches —
     # exactly the DO-NOTHING outcome a fresh duplicate claim always got.
     second_claim = await streams_dao.claim_trigger_delivery(
+        envelope=None,
         project_id=project_id,
         user_id=user_id,
         event_id=event_id,
@@ -620,6 +634,7 @@ async def test_retryable_failed_delivery_can_be_reclaimed_exactly_once(trigger_p
             kind=SessionTriggerKind.schedule,
             delivery_id=uuid.uuid4(),
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
     assert second_claim is False
 
@@ -650,6 +665,7 @@ async def test_non_retryable_delivery_cannot_be_reclaimed(trigger_project, statu
     )
 
     claimed = await streams_dao.claim_trigger_delivery(
+        envelope=None,
         project_id=project_id,
         user_id=user_id,
         event_id=event_id,
@@ -659,6 +675,7 @@ async def test_non_retryable_delivery_cannot_be_reclaimed(trigger_project, statu
             kind=SessionTriggerKind.schedule,
             delivery_id=uuid.uuid4(),
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
     assert claimed is False
 
@@ -743,6 +760,7 @@ async def test_abandon_claimed_session_soft_deletes_the_phantom_row(trigger_proj
     session_id = uuid.uuid4().hex
 
     claimed = await streams_dao.claim_trigger_delivery(
+        envelope=None,
         project_id=project_id,
         user_id=user_id,
         event_id="phantom-event",
@@ -752,6 +770,7 @@ async def test_abandon_claimed_session_soft_deletes_the_phantom_row(trigger_proj
             kind=SessionTriggerKind.schedule,
             delivery_id=uuid.uuid4(),
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
     assert claimed is True
 

@@ -1,5 +1,7 @@
 import {useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import filtersCatalog from "@agenta/i18n/catalogs/observabilityUi.filters"
 import type {Filter, FilterValue} from "@agenta/observability"
 import {
     collapseAnnotationAnyEvaluatorRowsFromProps,
@@ -12,7 +14,6 @@ import {
     mapFilterData,
     planInputs,
     sanitizeFilterItems,
-    selectSendableRows,
     toUIValue,
     validateFilterRow,
     valueShapeFor,
@@ -32,7 +33,10 @@ export interface FilterDialogProps {
     /** Field menu tree — build it with `getFilterColumns(attributeKeyOptions, icons)`. */
     columns: FilterMenuNode[]
     onApplyFilter: (filters: Filter[]) => void
-    onClearFilter: (filters: Filter[]) => void
+    /** @deprecated Unused; Clear resets the draft and Apply sends it. Kept for web/oss callers. */
+    onClearFilter?: (filters: Filter[]) => void
+    /** Filter keys the count badge skips, e.g. one a separate control already shows. */
+    uncountedKeys?: string[]
     /**
      * Display-only projection of the local rows (observability flips the references row's
      * label as `trace_type` changes). MUST preserve array length and per-index order — the
@@ -86,7 +90,7 @@ export function FilterDialog({
     filterData,
     columns,
     onApplyFilter,
-    onClearFilter,
+    uncountedKeys,
     reconcileFilterRows,
     icons,
     annotationRow,
@@ -94,6 +98,7 @@ export function FilterDialog({
     trigger,
     className,
 }: FilterDialogProps) {
+    const t = useT(filtersCatalog)
     const fieldMap = useMemo(() => fieldConfigByOptionKey(columns), [columns])
     const getField = (uiKey?: string) => (uiKey ? fieldMap.get(uiKey) : undefined)
 
@@ -126,11 +131,26 @@ export function FilterDialog({
     )
     const isApplyDisabled = rowValidations.some(({isValid}) => !isValid)
 
-    const sanitizedFilters = useMemo(
-        () => sanitizeFilterItems(selectSendableRows(filter), fieldMap),
-        [filter, fieldMap],
+    // The badge counts what is applied, not the draft in the dialog.
+    const appliedCount = useMemo(
+        () =>
+            (filterData ?? []).filter(
+                (item) =>
+                    item.field &&
+                    item.operator &&
+                    !uncountedKeys?.includes(String(item.key || item.field)),
+            ).length,
+        [filterData, uncountedKeys],
     )
-    const appliedCount = sanitizedFilters.filter(({field, operator}) => field && operator).length
+
+    // The draft as the applied filters describe it; opening the dialog starts from here.
+    const draftFromApplied = () =>
+        filterData?.length
+            ? collapseAnnotationAnyEvaluatorRowsFromProps(
+                  mapFilterData(filterData, fieldMap),
+                  getField,
+              )
+            : [createEmptyFilter()]
 
     const nonPermanentFilterCount = useMemo(
         () => filter.filter((f) => !f.isPermanent).length,
@@ -261,12 +281,11 @@ export function FilterDialog({
     const onDeleteFilter = (index: number) =>
         setFilter((prev) => prev.filter((_, idx) => idx !== index))
 
+    // Clears the draft only; Apply sends it, Cancel keeps the applied filters.
     const clearFilter = () => {
         const kept = filter.filter((f) => f.isPermanent)
-        const sanitizedKept = sanitizeFilterItems(kept, fieldMap)
-        if (!filtersEqual(sanitizedKept, filterData)) onClearFilter(sanitizedKept)
         setActiveFieldDropdown(null)
-        setFilter(kept.length ? kept : [])
+        setFilter(kept)
     }
 
     const applyFilter = () => {
@@ -284,7 +303,7 @@ export function FilterDialog({
     const defaultTrigger = (
         <EnhancedButton
             className="flex items-center gap-2 px-2"
-            aria-label="Filter"
+            aria-label={t("observabilityUi.filters.filter")}
             {...buttonProps}
         >
             <span className="flex min-w-[18px] items-center gap-1">
@@ -300,6 +319,7 @@ export function FilterDialog({
         <Popover
             open={isFilterOpen}
             onOpenChange={(open) => {
+                if (open) setFilter(draftFromApplied())
                 setIsFilterOpen(open)
                 if (!open) setActiveFieldDropdown(null)
             }}
@@ -313,7 +333,7 @@ export function FilterDialog({
                 <section className="flex max-h-[min(70vh,640px)] flex-col">
                     <div className="flex items-center justify-between gap-3 py-2 pl-4 pr-2">
                         <span className="text-sm font-medium leading-[1.5714285714285714] text-colorText">
-                            Filter
+                            {t("observabilityUi.filters.filter")}
                         </span>
                     </div>
                     <Divider className="m-0" />
@@ -368,7 +388,7 @@ export function FilterDialog({
                             className="mt-2 self-start"
                             onClick={() => setFilter((prev) => [...prev, createEmptyFilter()])}
                         >
-                            Add
+                            {t("observabilityUi.filters.add")}
                         </EnhancedButton>
                     </div>
 
@@ -380,11 +400,11 @@ export function FilterDialog({
                             icon={<ArrowClockwiseIcon size={14} className="mt-0.5" />}
                             onClick={clearFilter}
                         >
-                            Clear
+                            {t("observabilityUi.filters.clear")}
                         </EnhancedButton>
                         <div className="flex items-center gap-2">
                             <EnhancedButton size="small" onClick={closeDialog}>
-                                Cancel
+                                {t("observabilityUi.filters.cancel")}
                             </EnhancedButton>
                             <EnhancedButton
                                 size="small"
@@ -392,7 +412,7 @@ export function FilterDialog({
                                 disabled={isApplyDisabled}
                                 onClick={applyFilter}
                             >
-                                Apply
+                                {t("observabilityUi.filters.apply")}
                             </EnhancedButton>
                         </div>
                     </div>

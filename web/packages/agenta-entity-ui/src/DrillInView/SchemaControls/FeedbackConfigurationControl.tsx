@@ -10,6 +10,8 @@
 
 import {memo, useCallback, useEffect, useId, useMemo, useRef, useState} from "react"
 
+import {useT, type CatalogKey} from "@agenta/i18n"
+import feedbackConfigCatalog from "@agenta/i18n/catalogs/entityUi.feedbackConfig"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {
     Alert,
@@ -51,10 +53,13 @@ export const feedbackConfigModeAtomFamily = atomFamily((_entityId: string) =>
 
 export type ResponseFormatType = "continuous" | "boolean" | "categorical"
 
-const RESPONSE_FORMAT_OPTIONS: {value: ResponseFormatType; label: string}[] = [
-    {value: "boolean", label: "Boolean (True/False)"},
-    {value: "continuous", label: "Continuous (Numeric Range)"},
-    {value: "categorical", label: "Categorical (Predefined Options)"},
+const RESPONSE_FORMAT_OPTIONS: {
+    value: ResponseFormatType
+    label: CatalogKey<typeof feedbackConfigCatalog>
+}[] = [
+    {value: "boolean", label: "entityUi.feedbackConfig.formatBoolean"},
+    {value: "continuous", label: "entityUi.feedbackConfig.formatContinuous"},
+    {value: "categorical", label: "entityUi.feedbackConfig.formatCategorical"},
 ]
 
 export interface CategoricalOption {
@@ -236,6 +241,7 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
     originalValue,
     entityId,
 }: FeedbackConfigurationControlProps) {
+    const t = useT(feedbackConfigCatalog)
     // Names the reasoning Switch from its adjacent visible text (axe button-name).
     const reasoningLabelId = useId()
 
@@ -509,7 +515,7 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                 <div className="border border-solid border-gray-200 rounded overflow-hidden">
                     <SharedEditor
                         editorType="border"
-                        placeholder="Enter JSON schema..."
+                        placeholder={t("entityUi.feedbackConfig.enterJsonSchema")}
                         initialValue={rawSchema}
                         value={rawSchema}
                         handleChange={handleRawSchemaChange}
@@ -531,8 +537,8 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
             {/* Response Format */}
             <div className="mb-4">
                 <Field
-                    label="Response Format"
-                    tooltip="Choose the format for your evaluation results"
+                    label={t("entityUi.feedbackConfig.responseFormat")}
+                    tooltip={t("entityUi.feedbackConfig.responseFormatTooltip")}
                 >
                     <Select
                         value={responseFormat}
@@ -540,13 +546,17 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                         disabled={disabled}
                     >
                         {/* Field's htmlFor lands on the Radix Root, not this button. */}
-                        <SelectTrigger size="sm" className="w-full" aria-label="Response Format">
+                        <SelectTrigger
+                            size="sm"
+                            className="w-full"
+                            aria-label={t("entityUi.feedbackConfig.responseFormat")}
+                        >
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                             {RESPONSE_FORMAT_OPTIONS.map((o) => (
                                 <SelectItem key={o.value} value={o.value}>
-                                    {o.label}
+                                    {t(o.label)}
                                 </SelectItem>
                             ))}
                         </SelectContent>
@@ -557,7 +567,7 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
             {/* Boolean info */}
             {responseFormat === "boolean" && (
                 <Alert
-                    message="The evaluator will provide a true (1) or false (0) response based on the feedback criteria."
+                    message={t("entityUi.feedbackConfig.booleanInfo")}
                     type="info"
                     showIcon
                     className="mb-4"
@@ -567,7 +577,10 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
             {/* Continuous fields */}
             {responseFormat === "continuous" && (
                 <div className="mb-4 flex flex-col gap-3">
-                    <Field label="Minimum" tooltip="The minimum value for the numeric score range">
+                    <Field
+                        label={t("entityUi.feedbackConfig.minimum")}
+                        tooltip={t("entityUi.feedbackConfig.minimumTooltip")}
+                    >
                         <InputNumber
                             className="w-full"
                             value={minimum}
@@ -575,7 +588,10 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                             disabled={disabled}
                         />
                     </Field>
-                    <Field label="Maximum" tooltip="The maximum value for the numeric score range">
+                    <Field
+                        label={t("entityUi.feedbackConfig.maximum")}
+                        tooltip={t("entityUi.feedbackConfig.maximumTooltip")}
+                    >
                         <InputNumber
                             className="w-full"
                             value={maximum}
@@ -591,14 +607,16 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                 <div className="mb-4">
                     <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-1">
-                            <span className="text-xs font-medium">Categories</span>
+                            <span className="text-xs font-medium">
+                                {t("entityUi.feedbackConfig.categories")}
+                            </span>
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <Info size={12} className="cursor-help text-gray-400" />
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                        Define the possible category values for the evaluation
+                                        {t("entityUi.feedbackConfig.categoriesTooltip")}
                                     </TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
@@ -610,23 +628,27 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                             disabled={disabled}
                         >
                             <Plus size={14} />
-                            Add
+                            {t("entityUi.feedbackConfig.add")}
                         </Button>
                     </div>
                     <div className="flex flex-col gap-2">
                         {categories.map((cat, index) => (
                             <div key={index} className="flex gap-2 items-start">
                                 <Input
-                                    placeholder="Name"
-                                    aria-label={`Category ${index + 1} name`}
+                                    placeholder={t("entityUi.feedbackConfig.name")}
+                                    aria-label={t("entityUi.feedbackConfig.categoryName", {
+                                        number: index + 1,
+                                    })}
                                     value={cat.name}
                                     onChange={(e) => updateCategory(index, "name", e.target.value)}
                                     disabled={disabled}
                                     className="flex-1"
                                 />
                                 <Input
-                                    placeholder="Description"
-                                    aria-label={`Category ${index + 1} description`}
+                                    placeholder={t("entityUi.feedbackConfig.description")}
+                                    aria-label={t("entityUi.feedbackConfig.categoryDescription", {
+                                        number: index + 1,
+                                    })}
                                     value={cat.description}
                                     onChange={(e) =>
                                         updateCategory(index, "description", e.target.value)
@@ -639,7 +661,9 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                                 <Button
                                     variant="ghost"
                                     size="icon"
-                                    aria-label={`Remove category ${index + 1}`}
+                                    aria-label={t("entityUi.feedbackConfig.removeCategory", {
+                                        number: index + 1,
+                                    })}
                                     className="text-error hover:bg-error-bg hover:text-error-hover"
                                     onClick={() => removeCategory(index)}
                                     disabled={disabled || categories.length <= 1}
@@ -656,7 +680,7 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
             <div className="flex items-center justify-between gap-3 mb-4">
                 <div className="flex items-center gap-1">
                     <span className="text-xs font-medium" id={reasoningLabelId}>
-                        Include reasoning
+                        {t("entityUi.feedbackConfig.includeReasoning")}
                     </span>
                     <TooltipProvider>
                         <Tooltip>
@@ -664,8 +688,7 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                                 <Info size={12} className="cursor-help text-gray-400" />
                             </TooltipTrigger>
                             <TooltipContent>
-                                When enabled, the evaluator will also provide a comment explaining
-                                the score
+                                {t("entityUi.feedbackConfig.includeReasoningTooltip")}
                             </TooltipContent>
                         </Tooltip>
                     </TooltipProvider>

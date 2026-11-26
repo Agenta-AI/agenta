@@ -2,6 +2,8 @@ import {useCallback, useMemo} from "react"
 
 import {revealConfigPaneAtom} from "@agenta/chat/state"
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import agentsOverview from "@agenta/i18n/catalogs/agents.overview"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -18,6 +20,8 @@ import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 import {AgentChannelsCard} from "./AgentChannelsCard"
 import {AgentOverviewBody} from "./AgentOverviewBody"
 import {AgentOverviewTitle} from "./AgentOverviewTitle"
+import {AgentNotFound} from "./states/AgentNotFound"
+import {useAgentOverviewAccess} from "./useAgentOverviewAccess"
 import {useAgentPublishPanel} from "./useAgentPublishPanel"
 
 /** One agent's overview: who it is, a composer, its activity in tabs, and its own state in a rail. */
@@ -30,12 +34,13 @@ export const AgentOverviewScreen = ({
     projectId: string
     agentId: string
 }) => {
+    const t = useT(agentsOverview)
     useBindProjectContext(projectId)
     const base = `/w/${workspaceId}/p/${projectId}`
 
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
     const agents = useMemo<Workflow[]>(() => agentsQuery.data ?? [], [agentsQuery.data])
-    const agent = agents.find((candidate) => candidate.id === agentId)
+    const {agent, notFound} = useAgentOverviewAccess({agentId, projectId})
     const name = agent?.name || agent?.slug || "Agent"
     const description = agent?.description?.trim() || null
     const agentNames = useMemo(
@@ -80,9 +85,20 @@ export const AgentOverviewScreen = ({
         startBlank(agentId)
     }, [agentId, revealConfigPane, startBlank])
 
+    if (notFound) {
+        return (
+            <>
+                <PageTitle title={t("agents.overview.pageTitle")} />
+                <AppShell workspaceId={workspaceId} projectId={projectId}>
+                    <AgentNotFound agentsHref={`${base}/agents`} />
+                </AppShell>
+            </>
+        )
+    }
+
     return (
         <>
-            <PageTitle title="Agents" context={name} />
+            <PageTitle title={t("agents.overview.pageTitle")} context={name} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     fill
@@ -92,7 +108,9 @@ export const AgentOverviewScreen = ({
                         // the header's left edge stays on the body's.
                         <div className="border-border shrink-0 border-b pb-3 pt-2 lg:border-b-0 lg:pb-5 lg:pt-14">
                             <div
-                                className={`${pageContentWidthClass} flex items-start gap-2 px-4 lg:px-16`}
+                                // 10px on a phone: the agent icon's 44px tap area reaches 10px
+                                // past its 24px chip, and must not cover the sidebar button.
+                                className={`${pageContentWidthClass} flex items-start gap-2 px-4 max-md:gap-2.5 lg:px-16`}
                             >
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                                 <AgentOverviewTitle
@@ -136,7 +154,7 @@ export const AgentOverviewScreen = ({
             </AppShell>
             {publish.panel}
             {/* Mounted at screen level so a drawer survives its row unmounting underneath it. */}
-            <SessionAutomationDrawers base={base} workspaceId={workspaceId} projectId={projectId} />
+            <SessionAutomationDrawers base={base} />
         </>
     )
 }

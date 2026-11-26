@@ -7,6 +7,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from oss.src.core.secrets.enums import SecretOwnerKind
+
 
 class MCPOAuthDiscovery(BaseModel):
     """Feeds `MCPEndpointData.oauth` (`resource`, `authorization_server`,
@@ -71,6 +73,10 @@ class MCPOAuthAttemptCreate(BaseModel):
     # the same one.
     client_id: Optional[str] = None
     expires_at: datetime
+    # Whose grant the callback writes: the project's, or the own sign-in of the person
+    # `user_id` names. Stored at `begin()` and never inferred by the callback, so a
+    # project admin who signs in for themselves never creates a project grant.
+    owner_kind: SecretOwnerKind = SecretOwnerKind.PROJECT
 
 
 class MCPOAuthAttemptStatus(str, Enum):
@@ -107,3 +113,15 @@ class MCPOAuthAttemptOutcome(BaseModel):
     id: UUID
     status: MCPOAuthAttemptStatus
     error: Optional[str] = None
+
+
+class MCPUserSignIn(BaseModel):
+    """A person's own sign-in to a server, as that person reads it.
+
+    `is_ready` has the meaning of `ItemAccount.is_ready`. `account_name` is the account
+    the person signed in as, when an OAuth server named it at sign-in; a token sign-in
+    has none. It is not `ItemAccount.name`, which is the stored row's own label.
+    """
+
+    is_ready: bool
+    account_name: Optional[str] = None

@@ -1,0 +1,22 @@
+{
+    "maxCharacters": "Maximal {{count}} Zeichen.",
+    "filledFromPaste": "Aus dem eingefügten Skill ausgefüllt",
+    "downloadZip": "Als .zip herunterladen",
+    "downloadSkillMd": "SKILL.md herunterladen",
+    "addAFile": "Datei hinzufügen",
+    "untitled": "unbenannt",
+    "name": "Name",
+    "nameTooltip": "Nur Kleinbuchstaben, Ziffern und Bindestriche.",
+    "useSuggestion": "„{{name}}“ verwenden",
+    "description": "Beschreibung",
+    "descriptionTooltip": "Teilt dem Agent mit, wann dieser Skill verwendet wird.",
+    "descriptionPlaceholder": "Wann der Agent diesen Skill einsetzen soll",
+    "bodyPlaceholder": "# Mein Skill\n\nSchritt-für-Schritt-Anweisungen, denen der Agent folgt …",
+    "markExecutable": "Als ausführbar markieren",
+    "fileContent": "Dateiinhalt",
+    "advanced": "Erweitert",
+    "hideFromPrompt": "Aus dem Prompt ausblenden",
+    "hideFromPromptHint": "Der Agent wählt diesen Skill nicht von sich aus. Sie führen ihn selbst mit /skill:{{name}} aus.",
+    "allowExecutable": "Ausführbare Dateien zulassen",
+    "allowExecutableHint": "Erlaubt, die Dateien dieses Skills als Programme auszuführen. Ihre Sandbox-Einstellungen müssen dies ebenfalls zulassen."
+}

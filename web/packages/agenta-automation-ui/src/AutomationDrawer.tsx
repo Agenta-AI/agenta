@@ -5,6 +5,8 @@ import {
     triggerSubscriptionDrawerAtom,
 } from "@agenta/entities/gatewayTrigger"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Button, LoadingButton} from "@agenta/ui/ui"
 import {useAtom, useAtomValue} from "jotai"
@@ -82,6 +84,7 @@ export const AutomationDrawer = () => {
             playgroundEntityId={rendered.playgroundEntityId}
             defaultAgentName={rendered.defaultBoundLabel}
             defaultReferences={rendered.defaultReferences}
+            fixedKind={rendered.fixedKind}
         />
     )
 }
@@ -135,8 +138,9 @@ const AutomationDrawerShell = ({
         >
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-4">{children}</div>
             {/* The event picker's "Connect another app" opens the catalog by atom, so the
-                catalog has to be mounted wherever this drawer is — the screens mount their own,
-                and this shell renders nothing when closed, so the two never collide. */}
+                catalog has to be mounted wherever this drawer is. The screens mount their own and
+                this shell renders nothing when closed; the panel's Automations tab drops its copy
+                while a drawer atom is set. */}
             <AutomationTriggerDrawers />
         </EnhancedDrawer>
     )
@@ -156,6 +160,7 @@ const AutomationEditDrawer = ({
     onAfterOpenChange: (isOpen: boolean) => void
     playgroundEntityId?: string
 }) => {
+    const t = useT(automationsEditorCatalog)
     const editor = useAutomationEditor(automationId)
 
     return (
@@ -164,7 +169,7 @@ const AutomationEditDrawer = ({
             onClose={onClose}
             onAfterOpenChange={onAfterOpenChange}
             playgroundEntityId={playgroundEntityId}
-            title="Automation"
+            title={t("automations.editor.drawerTitle")}
             // The bar stands whether or not there is an edit, disabled until there is — a footer
             // that appears mid-edit moves the ground under the cursor.
             footer={
@@ -181,7 +186,7 @@ const AutomationEditDrawer = ({
                 <AutomationDetailSkeleton />
             ) : !editor.automation || !editor.preview ? (
                 <p className="m-0 py-16 text-center text-[13px] text-muted-foreground">
-                    This automation no longer exists.
+                    {t("automations.editor.noLongerExists")}
                 </p>
             ) : (
                 <AutomationDetailBody
@@ -203,6 +208,8 @@ const AutomationEditDrawer = ({
                     onChangeCron={editor.setCron}
                     onSelectEvent={editor.setEvent}
                     onChangeInputs={editor.setInputs}
+                    includeEvent={editor.draft.includeEvent}
+                    onChangeIncludeEvent={editor.setIncludeEvent}
                     onToggle={editor.onToggle}
                     onDiscard={editor.discard}
                     onSave={() => void editor.save()}
@@ -221,6 +228,7 @@ const AutomationCreateDrawer = ({
     playgroundEntityId,
     defaultAgentName,
     defaultReferences,
+    fixedKind,
 }: {
     kind: AutomationKind
     open: boolean
@@ -229,10 +237,15 @@ const AutomationCreateDrawer = ({
     playgroundEntityId?: string
     defaultAgentName?: string
     defaultReferences?: Record<string, {id?: string; slug?: string}>
+    fixedKind?: boolean
 }) => {
+    const t = useT(automationsEditorCatalog)
     const state = useAutomationCreate({
         defaultKind: kind,
-        defaultAgentId: playgroundEntityId ?? null,
+        // The agent panel knows the agent by its REVISION id. The draft needs the agent's own
+        // id, as the automations screen passes it: the latest-revision read that decides the
+        // instruction's key finds nothing for a revision id, and create stays blocked.
+        defaultAgentId: defaultReferences?.application?.id ?? playgroundEntityId ?? null,
         defaultAgentName,
         defaultReferences,
     })
@@ -243,7 +256,7 @@ const AutomationCreateDrawer = ({
             onClose={onClose}
             onAfterOpenChange={onAfterOpenChange}
             playgroundEntityId={playgroundEntityId}
-            title="New automation"
+            title={t("automations.editor.newAutomation")}
             footer={
                 <div className="flex items-center justify-end gap-2.5">
                     <Button
@@ -252,7 +265,7 @@ const AutomationCreateDrawer = ({
                         className="font-normal"
                         onClick={onClose}
                     >
-                        Cancel
+                        {t("automations.editor.cancel")}
                     </Button>
                     {/* Always pressable. A press with something missing does not create; it
                         turns the missing fields red, which is how the reader learns what to do. */}
@@ -262,7 +275,7 @@ const AutomationCreateDrawer = ({
                         loading={state.saving}
                         onClick={() => void state.create().then((made) => made && onClose())}
                     >
-                        Create automation
+                        {t("automations.editor.createAutomation")}
                     </LoadingButton>
                 </div>
             }
@@ -272,6 +285,7 @@ const AutomationCreateDrawer = ({
                 // The agent is the panel this drawer opened from — offering to change it here
                 // would let the reader move an automation off the agent they are looking at.
                 showAgentField={!playgroundEntityId}
+                fixedKind={fixedKind}
             />
         </AutomationDrawerShell>
     )

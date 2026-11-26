@@ -25,11 +25,14 @@
         "./mode-switch": "./src/components/PlaygroundModeSwitch.tsx",
         "./agent-config-header": "./src/components/AgentConfigHeader.tsx",
         "./agent-page-header": "./src/components/AgentPageHeader/index.ts",
-        "./agent-version-history": "./src/components/AgentVersionHistory/index.ts"
+        "./agent-version-history": "./src/components/AgentVersionHistory/index.ts",
+        "./agent-version-history/store": "./src/components/AgentVersionHistory/store.ts",
+        "./panels/*": "./src/panels/*/index.ts"
     },
     "dependencies": {
         "@agenta/chat": "workspace:../agenta-chat",
         "@agenta/entities": "workspace:../agenta-entities",
+        "@agenta/i18n": "workspace:../agenta-i18n",
         "@agenta/entity-ui": "workspace:../agenta-entity-ui",
         "@agenta/playground": "workspace:../agenta-playground",
         "@agenta/shared": "workspace:../agenta-shared",

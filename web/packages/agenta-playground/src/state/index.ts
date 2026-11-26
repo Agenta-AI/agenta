@@ -327,6 +327,7 @@ export {
     pendingHydrations,
     pendingHydrationsAtom,
     playgroundController,
+    evaluatorChainController,
     playgroundSnapshotController,
     setOnSelectionChangeCallback,
     setRunnableTypeResolver,
@@ -397,6 +398,7 @@ export {
     buildRevertMessage,
     revertAgentRevisionAtom,
     REVERT_MESSAGE_PREFIX,
+    requestLatestVersionCheck,
     watchLatestVersion,
 } from "./execution"
 export type {AgentVersionRow, LatestVersion, RevertAgentRevisionParams} from "./execution"

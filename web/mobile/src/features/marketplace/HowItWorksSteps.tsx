@@ -2,7 +2,7 @@ import {IconTile} from "@agenta/ui/ui"
 import {LightningIcon} from "@phosphor-icons/react"
 
 import {AppTile} from "./AppTile"
-import {howStepKicker, type HowStep} from "./marketplaceView"
+import {howStepKicker, howStepText, type HowStep} from "./marketplaceView"
 
 /** The template's flow as a timeline: when it runs, then what it does with each app. */
 export const HowItWorksSteps = ({steps}: {steps: HowStep[]}) => (
@@ -31,9 +31,7 @@ export const HowItWorksSteps = ({steps}: {steps: HowStep[]}) => (
                     <span className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wide">
                         {howStepKicker(step)}
                     </span>
-                    <span className="text-sm text-foreground">
-                        {step.kind === "trigger" ? step.text : `${step.role}.`}
-                    </span>
+                    <span className="text-sm text-foreground">{howStepText(step)}</span>
                     {step.kind === "connection" && step.scope ? (
                         <code className="text-muted-foreground rounded bg-colorFillTertiary px-1.5 py-0.5 font-mono text-xs">
                             {step.scope}

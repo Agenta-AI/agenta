@@ -7,6 +7,7 @@ import {
     isDefaultAgentFilters,
     isDefaultAgentListView,
     lastActiveLabel,
+    toAgentListRow,
     type AgentListRow,
     type AgentListView,
 } from "../../src/features/agents/agentListView"
@@ -18,16 +19,26 @@ const row = (
     id: string,
     {
         updatedAt = daysAgo(1),
-        createdById = "u1",
+        ownerId = "u1",
         ownerName = "You",
         waiting = 0,
     }: {
         updatedAt?: string | null
-        createdById?: string | null
+        ownerId?: string | null
         ownerName?: string
         waiting?: number
     } = {},
-): AgentListRow => ({id, name: id, description: null, updatedAt, ownerName, createdById, waiting})
+): AgentListRow => ({
+    id,
+    name: id,
+    description: null,
+    updatedAt,
+    ownerName,
+    ownerId,
+    isPrivate: false,
+    archived: false,
+    waiting,
+})
 
 const view = (patch: Partial<AgentListView> = {}): AgentListView => ({
     ...DEFAULT_AGENT_LIST_VIEW,
@@ -54,7 +65,7 @@ describe("isDefaultAgentListView", () => {
 describe("deriveAgentList — filtering", () => {
     // `type` is not a predicate here: the screen fetches ONE roster, so every row already
     // matches it by the time it arrives.
-    const rows = [row("mine", {createdById: "u1"}), row("theirs", {createdById: "u2"})]
+    const rows = [row("mine", {ownerId: "u1"}), row("theirs", {ownerId: "u2"})]
 
     it("narrows to one creator, and `all` keeps everyone", () => {
         expect(ids(deriveAgentList(rows, view({owner: "u1"}), NOW))).toEqual(["mine"])
@@ -113,5 +124,21 @@ describe("deriveAgentList — grouping", () => {
 describe("lastActiveLabel", () => {
     it("reads as an em dash when an agent has no timestamp", () => {
         expect(lastActiveLabel(null)).toBe("—")
+    })
+})
+
+describe("toAgentListRow archived", () => {
+    const context = {currentUserId: "u1", ownerNames: new Map<string, string>(), waiting: 0}
+    const workflow = (patch: Record<string, unknown>) =>
+        ({id: "wf-1", name: "Support", ...patch}) as Parameters<typeof toAgentListRow>[0]
+
+    it("An archived workflow becomes an archived row", () => {
+        const archived = toAgentListRow(workflow({deleted_at: "2026-10-01T00:00:00Z"}), context)
+        expect(archived.archived).toBe(true)
+    })
+
+    it("A live workflow is not archived", () => {
+        expect(toAgentListRow(workflow({deleted_at: null}), context).archived).toBe(false)
+        expect(toAgentListRow(workflow({}), context).archived).toBe(false)
     })
 })

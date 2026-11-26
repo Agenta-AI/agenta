@@ -19,6 +19,8 @@ import {
     useConnectFlow,
     useIntegrationIdentity,
 } from "@agenta/entity-ui/clientTools"
+import {richText, useT} from "@agenta/i18n"
+import chatConnectionDockCatalog from "@agenta/i18n/catalogs/chat.connectionDock"
 import {isOverlayOpen} from "@agenta/shared/utils"
 import {Button} from "@agenta/ui/ui"
 import {Spinner} from "@phosphor-icons/react"
@@ -187,8 +189,9 @@ const PeekCard = ({
     onEnter: (toolCallId: string | null) => void
     onBringForward: (toolCallId: string) => void
 }) => {
+    const t = useT(chatConnectionDockCatalog)
     const {label, logo} = useIntegrationIdentity(connectIntegrationKey(meta))
-    const title = `Connect ${label} first`
+    const title = t("chat.connectionDock.connectFirst", {label})
 
     const [dealt, setDealt] = useState(false)
     // Read once at mount: the stagger belongs to this card's arrival, and re-running it as the
@@ -279,12 +282,13 @@ const ConnectDots = ({
     total: number
     onBringForward: (toolCallId: string) => void
 }) => {
+    const t = useT(chatConnectionDockCatalog)
     const activeIndex = batch.findIndex((meta) => meta.toolCallId === frontId)
     return (
         <div
             className="relative ml-auto flex items-center"
             role="group"
-            aria-label={`Connection ${position} of ${total}`}
+            aria-label={t("chat.connectionDock.connectionPosition", {position, total})}
         >
             {activeIndex >= 0 ? <ConnectPill activeIndex={activeIndex} /> : null}
             {batch.map((meta) => (
@@ -358,9 +362,10 @@ const Dot = ({
     current: boolean
     onBringForward: (toolCallId: string) => void
 }) => {
+    const t = useT(chatConnectionDockCatalog)
     const {label} = useIntegrationIdentity(connectIntegrationKey(meta))
     const pickable = !meta.settled && !current
-    const title = pickable ? `Connect ${label} first` : undefined
+    const title = pickable ? t("chat.connectionDock.connectFirst", {label}) : undefined
     return (
         <button
             type="button"
@@ -413,6 +418,7 @@ const ConnectCard = ({
     active: boolean
     shortcutsEnabled: boolean
 }) => {
+    const t = useT(chatConnectionDockCatalog)
     // Identity only — the header needs a name and a logo, not the OAuth flow.
     const {label, logo} = useIntegrationIdentity(connectIntegrationKey(meta))
 
@@ -423,7 +429,7 @@ const ConnectCard = ({
             <div className="flex items-center gap-2">
                 <IntegrationTile label={label} logo={logo} size={20} />
                 <span className="text-xs font-medium text-colorText">
-                    The agent is waiting for you
+                    {t("chat.connectionDock.agentWaiting")}
                 </span>
                 {total > 1 ? (
                     <ConnectDots
@@ -484,6 +490,7 @@ const ConnectBody = ({
         },
         [onOutput, meta.toolName, meta.toolCallId],
     )
+    const t = useT(chatConnectionDockCatalog)
     const {label, phase, errorText, modeResolving, runConnect, cancel, decline} = useConnectFlow(
         meta,
         settle,
@@ -500,13 +507,13 @@ const ConnectBody = ({
     useEffect(() => {
         if (!active || !shortcutsEnabled) return
         const onKeyDown = (event: KeyboardEvent) => {
+            const commit = (event.metaKey || event.ctrlKey) && event.key === "Enter"
+            const back = event.key === "Escape" && !event.metaKey && !event.ctrlKey
+            if (!commit && !back) return
             // Something on top owns the keyboard. Both halves are load-bearing: Radix cancels
             // Escape for a dialog, menu or popover but still lets it reach us, and it never
             // touches Cmd+Enter, which only the overlay check catches.
             if (event.defaultPrevented || isOverlayOpen()) return
-            const commit = (event.metaKey || event.ctrlKey) && event.key === "Enter"
-            const back = event.key === "Escape" && !event.metaKey && !event.ctrlKey
-            if (!commit && !back) return
             const target = event.target as HTMLElement | null
             const typing =
                 !!target &&
@@ -534,17 +541,18 @@ const ConnectBody = ({
                 <div className="flex items-center gap-2">
                     <Spinner size={13} className="shrink-0 animate-spin text-colorPrimary" />
                     <span className="text-xs text-colorTextSecondary">
-                        Connecting {name}… finish signing in from the popup window.
+                        {t("chat.connectionDock.connecting", {name})}
                     </span>
                 </div>
             ) : phase === "error" || errorText ? (
                 <span className="text-xs text-colorError" title={errorText ?? undefined}>
-                    {errorText ?? "Connection failed."}
+                    {errorText ?? t("chat.connectionDock.connectionFailed")}
                 </span>
             ) : (
                 <span className="text-xs text-colorTextSecondary">
-                    Connect to <span className="font-medium text-colorText">{name}</span> to give
-                    your agent access to its tools
+                    {richText(t("chat.connectionDock.connectPrompt", {name}), {
+                        name: (text) => <span className="font-medium text-colorText">{text}</span>,
+                    })}
                 </span>
             )}
 
@@ -552,7 +560,7 @@ const ConnectBody = ({
             <div className="-mt-1 flex items-center justify-end gap-1.5">
                 {phase === "connecting" ? (
                     <Button variant="outline" className={touchCls} onClick={cancel}>
-                        Cancel
+                        {t("chat.connectionDock.cancel")}
                     </Button>
                 ) : (
                     <>
@@ -562,19 +570,19 @@ const ConnectBody = ({
                             onClick={decline}
                             disabled={Boolean(errorText)}
                         >
-                            Not now
+                            {t("chat.connectionDock.notNow")}
                         </Button>
                         {/* Disabled, not spinning: `modeResolving` is true on every mount while the
                             catalog lookup runs, and a spinner there reads as "already connecting". */}
                         <Button
                             disabled={modeResolving}
                             className={touchCls}
-                            title={
-                                modeResolving ? "Checking how this toolkit connects…" : undefined
-                            }
+                            title={modeResolving ? t("chat.connectionDock.checkingHow") : undefined}
                             onClick={() => runConnect(true)}
                         >
-                            {phase === "error" || errorText ? "Retry" : "Connect"}
+                            {phase === "error" || errorText
+                                ? t("chat.connectionDock.retry")
+                                : t("chat.connectionDock.connect")}
                         </Button>
                     </>
                 )}

@@ -64,6 +64,7 @@ import {DriveFileLinkProvider} from "@/oss/components/Drives/DriveFileLinkProvid
 import {useSessionFilesPane} from "@/oss/components/Drives/SessionFilesPane"
 import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/constants"
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
+import {projectIdAtom} from "@/oss/state/project"
 
 import {answerThenSteer} from "./assets/answerThenSteer"
 import {CONTENT_VISIBILITY_ENABLED} from "./assets/conversationLayout"
@@ -95,6 +96,7 @@ import {
     autoTitleSessionAtomFamily,
     bumpSessionActivityAtomFamily,
     firstUserText,
+    precreateThenInvoke,
 } from "./state/sessions"
 import {focusComposerRequestAtom, matchesSessionRequest} from "./state/uiRequests"
 
@@ -387,6 +389,20 @@ const AgentConversation = ({
         isSharedReaderReady: () => readerReady,
         onExecuted: revalidate,
     })
+    // The composer's send goes through this server admission, not through the chat transport, so
+    // it gets the same pre-create: a new chat exists as a project-visible session before its first
+    // run.
+    const projectId = useAtomValue(projectIdAtom)
+    const queueServer = useMemo(
+        () => ({
+            ...serverInputs,
+            submit: (...args: Parameters<typeof serverInputs.submit>) =>
+                precreateThenInvoke({sessionId, projectId, messages: messagesRef.current}, () =>
+                    serverInputs.submit(...args),
+                ),
+        }),
+        [serverInputs, sessionId, projectId, messagesRef],
+    )
 
     const previousServerInputsStatusRef = useRef(status)
     useEffect(() => {
@@ -449,11 +465,12 @@ const AgentConversation = ({
         commitEdit,
         pendingSendRows,
     } = useAgentChatQueue({
+        sessionId,
         messages,
         stopped,
         continuationExecutionId,
         restoreRefusedSend: restoreLateRefusedSend,
-        server: serverInputs,
+        server: queueServer,
     })
 
     // Declared after the queue because it renders the queue's echoes.
@@ -881,7 +898,7 @@ const AgentConversation = ({
                 precededByEmptyAssistant={
                     index > 0 && isEmptyAssistantTurn(transcriptMessages[index - 1])
                 }
-                // A user turn borrows its paired assistant trace so the timestamp reflects the run.
+                // A user turn borrows its paired assistant trace id to find its session turn's time.
                 turnTraceId={
                     message.role === "user" && transcriptMessages[index + 1]
                         ? getMessageTraceId(transcriptMessages[index + 1])

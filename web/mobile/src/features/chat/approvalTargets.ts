@@ -1,4 +1,8 @@
 import type {SessionInteraction} from "@agenta/entities/session"
+import {createT} from "@agenta/i18n"
+import chatMobileApprovalCatalog from "@agenta/i18n/catalogs/chat.mobileApproval"
+
+const tNow = createT(chatMobileApprovalCatalog)
 
 /** Which pending gates a tap answers: one gate (by transcript approval id) or every gate. */
 export type ApprovalTarget = {all: true} | {all?: false; approvalId: string}
@@ -35,7 +39,7 @@ export const selectApprovalTargets = (
     if (target.all) {
         const executionIds = new Set(pending.map((row) => row.turn_id ?? null))
         if (executionIds.size > 1) {
-            throw new Error("Approve all can only answer approvals from one execution.")
+            throw new Error(tNow("chat.mobileApproval.oneExecutionOnly"))
         }
         return pending
     }

@@ -1,6 +1,9 @@
 import type {ReactNode} from "react"
 import {useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+
 import {cn} from "../../utils/styles"
 
 /**
@@ -52,6 +55,7 @@ export function Pagination({
     size = "default",
     className,
 }: PaginationProps) {
+    const t = useT(uiControlsCatalog)
     const totalPages = Math.max(1, Math.ceil(total / Math.max(1, pageSize)))
     const page = Math.min(Math.max(1, current), totalPages)
     const items = useMemo(() => getPageItems(page, totalPages), [page, totalPages])
@@ -68,7 +72,7 @@ export function Pagination({
 
     return (
         <nav
-            aria-label="Pagination"
+            aria-label={t("ui.controls.pagination")}
             className={cn("flex items-center gap-2 text-colorText", className)}
         >
             {showTotal ? (
@@ -77,7 +81,7 @@ export function Pagination({
 
             <button
                 type="button"
-                aria-label="Previous page"
+                aria-label={t("ui.controls.previousPage")}
                 disabled={page <= 1}
                 onClick={step(page - 1)}
                 className={cn(
@@ -99,7 +103,7 @@ export function Pagination({
                     <button
                         key={item}
                         type="button"
-                        aria-label={`Page ${item}`}
+                        aria-label={t("ui.controls.page", {page: item})}
                         aria-current={item === page ? "page" : undefined}
                         onClick={step(item)}
                         className={cn(
@@ -117,7 +121,7 @@ export function Pagination({
 
             <button
                 type="button"
-                aria-label="Next page"
+                aria-label={t("ui.controls.nextPage")}
                 disabled={page >= totalPages}
                 onClick={step(page + 1)}
                 className={cn(

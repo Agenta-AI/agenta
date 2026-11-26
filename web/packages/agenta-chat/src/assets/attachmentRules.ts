@@ -1,6 +1,11 @@
 // Canonical since the desktop re-plumb: the OSS copy (assets/attachments.ts) is deleted and
 // both apps import this. Named attachmentRules.ts because src/model/attachments.ts already
 // holds the `PendingAttachment` staged-file type.
+import {createT, formatLocale} from "@agenta/i18n"
+import chatMessagesCatalog from "@agenta/i18n/catalogs/chat.messages"
+
+const tNow = createT(chatMessagesCatalog)
+
 /** Attachment guardrails for files staged in the agent composer (uploads or inline sends). */
 
 export type AttachmentKind = "image" | "audio" | "document" | "other"
@@ -21,12 +26,14 @@ const KIND_ACCEPT_ATTR: Record<AttachmentKind, string> = {
     other: "",
 }
 
-const KIND_NOUN: Record<AttachmentKind, string> = {
-    image: "images",
-    audio: "audio",
-    document: "documents",
-    other: "other files",
-}
+const kindNoun = (kind: AttachmentKind): string =>
+    kind === "image"
+        ? tNow("chat.messages.kindImages")
+        : kind === "audio"
+          ? tNow("chat.messages.kindAudio")
+          : kind === "document"
+            ? tNow("chat.messages.kindDocuments")
+            : tNow("chat.messages.kindOther")
 
 export interface AttachmentLimits {
     /** Max files per message, across all kinds. */
@@ -75,16 +82,14 @@ export const acceptAttrFor = (limits: AttachmentLimits): string =>
 
 /** Human summary of what is accepted, e.g. "Images, audio, and documents". */
 export const describeAccepted = (limits: AttachmentLimits): string => {
-    const nouns = limits.kinds.map((k) => KIND_NOUN[k])
-    if (nouns.length === 0) return "No attachments"
-    // Two items take a bare "and"; the serial comma only belongs to lists of three or more.
+    const nouns = limits.kinds.map(kindNoun)
+    if (nouns.length === 0) return tNow("chat.messages.noAttachments")
+    // The list joiner follows the active language ("a and b", "a, b, and c" in English).
     // (This is user-visible — the composer's empty state renders it.)
-    const sentence =
-        nouns.length === 1
-            ? nouns[0]
-            : nouns.length === 2
-              ? `${nouns[0]} and ${nouns[1]}`
-              : `${nouns.slice(0, -1).join(", ")}, and ${nouns[nouns.length - 1]}`
+    const sentence = new Intl.ListFormat(formatLocale() ?? "en-US", {
+        style: "long",
+        type: "conjunction",
+    }).format(nouns)
     return sentence.charAt(0).toUpperCase() + sentence.slice(1)
 }
 
@@ -132,19 +137,22 @@ export const validateIncoming = (
         const kind = kindForType(type)
 
         if (!limits.kinds.includes(kind)) {
-            rejections.push({name: file.name, reason: "isn't a supported file type"})
+            rejections.push({name: file.name, reason: tNow("chat.messages.unsupportedType")})
             continue
         }
         const maxBytes = limits.maxBytes[kind]
         if (file.size > maxBytes && !allowOversized) {
             rejections.push({
                 name: file.name,
-                reason: `is too large, max ${formatBytes(maxBytes)} supported`,
+                reason: tNow("chat.messages.tooLargeMax", {size: formatBytes(maxBytes)}),
             })
             continue
         }
         if (remaining <= 0) {
-            rejections.push({name: file.name, reason: `exceeds the ${limits.maxCount}-file limit`})
+            rejections.push({
+                name: file.name,
+                reason: tNow("chat.messages.exceedsFileLimit", {count: limits.maxCount}),
+            })
             continue
         }
         accepted.push(file)
@@ -159,30 +167,6 @@ export const exceedsAttachmentLimit = (
     file: Pick<File, "size" | "type">,
     limits: AttachmentLimits = DEFAULT_ATTACHMENT_LIMITS,
 ): boolean => file.size > limits.maxBytes[kindForType(file.type || "application/octet-stream")]
-
-/** Extensions worth spelling out on a card tile; anything else falls back to the real extension. */
-const BADGE_BY_TYPE: Record<string, string> = {
-    "application/pdf": "pdf",
-    "application/json": "json",
-    "text/csv": "csv",
-    "text/markdown": "md",
-    "text/plain": "txt",
-}
-
-/**
- * Short lowercase label for a document tile ("csv", "pdf"). Prefers the media type, because a
- * download can arrive with a generic name, and falls back to the filename's extension so an
- * `application/octet-stream` still reads as something. Capped at four characters — the tile is a
- * 32px square, and a longer string renders as a smear.
- */
-export const typeBadgeFor = (mediaType: string, name?: string): string => {
-    const known = BADGE_BY_TYPE[mediaType]
-    if (known) return known
-    const ext = name?.includes(".") ? name.split(".").pop()?.toLowerCase() : undefined
-    if (ext && ext.length <= 4 && /^[a-z0-9]+$/.test(ext)) return ext
-    const subtype = mediaType.split("/")[1]
-    return subtype && subtype.length <= 4 ? subtype : "file"
-}
 
 /** A file kind the Files drawer can preview; audio is excluded because it plays in its card. */
 export const isViewable = (mediaType: string): boolean =>

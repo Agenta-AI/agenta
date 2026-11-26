@@ -26,6 +26,7 @@ from oss.src.core.workflows.service import WorkflowsService
 from oss.src.dbs.redis.sessions.contract import project_watch_channel, watch_channel
 from oss.src.dbs.redis.sessions.watch import SessionsWatchPublisher
 from oss.src.tasks.asyncio.sessions.records_worker import RecordsWorker
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
 
 
 def _payload(*, project_id, session_id, record_index=0):
@@ -290,10 +291,12 @@ async def test_set_header_publishes_session_change_with_explicit_project_id():
     )
 
     result = await service.set_header(
+        envelope=None,
         project_id=project_id,
         user_id=uuid4(),
         session_id="session-1",
         header=SessionStreamHeaderEdit(name="Renamed"),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert result is updated
@@ -349,10 +352,12 @@ async def test_change_publisher_failure_does_not_fail_either_write(monkeypatch):
         watch_publisher=publisher,
     )
     session_result = await streams_service.set_header(
+        envelope=None,
         project_id=project_id,
         user_id=uuid4(),
         session_id="session-1",
         header=SessionStreamHeaderEdit(name="Renamed"),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     workflow_id = uuid4()

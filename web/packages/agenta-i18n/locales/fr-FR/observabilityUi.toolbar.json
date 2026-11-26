@@ -1,0 +1,20 @@
+{
+    "tabRoot": "Racine",
+    "tabLlm": "LLM",
+    "tabAll": "Tout",
+    "traceProjection": "Projection des traces",
+    "allActivity": "Toute l’activité",
+    "latestActivity": "Activité la plus récente",
+    "sessionOrdering": "Tri de l’activité des sessions",
+    "autoRefreshAria": "Actualisation automatique",
+    "autoRefreshLabel": "actualisation automatique",
+    "refreshData": "Actualiser les données",
+    "cancelExport": "Annuler l’exportation",
+    "exportTraces": "Exporter les traces",
+    "export": "Exporter",
+    "selectToDelete": "Sélectionnez les traces à supprimer",
+    "deleteSelected": "Supprimer les traces sélectionnées",
+    "delete": "Supprimer",
+    "searchData": "Rechercher dans les données d’observabilité",
+    "search": "Rechercher"
+}

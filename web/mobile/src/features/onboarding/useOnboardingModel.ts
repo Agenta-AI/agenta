@@ -5,6 +5,7 @@ import {
     firstAgentModelForConnection,
     providerConnectionsAtom,
     resolveAgentModelSelection,
+    isOrganizationConnection,
     subscriptionConnectionFor,
     useVaultSecret,
     type AgentModelCandidate,
@@ -24,7 +25,6 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {useWalletSummary} from "../wallet/useWalletSummary"
 
 import {draftConfigurationAtom} from "./onboardingConfig"
-import {ONBOARDING_COPY} from "./onboardingCopy"
 import {
     useOnboardingSubscription,
     type OnboardingSubscription,
@@ -131,23 +131,27 @@ export const useOnboardingModel = (entityId: string | null, projectId: string): 
         select(pick)
     }, [candidates.candidates, select])
 
-    const chatgptConnection = subscriptionConnectionFor(candidates.connections, "chatgpt")
+    // The project's own connections: onboarding signs in and saves keys for the project only.
+    const projectConnections = candidates.connections.filter(
+        (item) => !isOrganizationConnection(item),
+    )
+    const chatgptConnection = subscriptionConnectionFor(projectConnections, "chatgpt")
     const chatgpt = useOnboardingSubscription({
         connection: chatgptConnection,
         available: Boolean(chatgptConnection || candidates.capabilities?.codex),
         status: candidates.status,
         selected,
         arm,
-        connectedMessage: ONBOARDING_COPY.model.chatgptConnected,
+        connected: "chatgpt",
     })
-    const claudeConnection = subscriptionConnectionFor(candidates.connections, "claude")
+    const claudeConnection = subscriptionConnectionFor(projectConnections, "claude")
     const claude = useOnboardingSubscription({
         connection: claudeConnection,
         available: Boolean(claudeConnection || candidates.capabilities?.claude),
         status: candidates.status,
         selected,
         arm,
-        connectedMessage: ONBOARDING_COPY.model.claudeConnected,
+        connected: "claude",
     })
 
     // A save lands before the vault refetch does, so it arms a switch the new list fires.
@@ -160,7 +164,7 @@ export const useOnboardingModel = (entityId: string | null, projectId: string): 
         [arm, refreshVault],
     )
 
-    const keyConnections = candidates.connections.filter((item) => !item.subscription)
+    const keyConnections = projectConnections.filter((item) => !item.subscription)
     const walletBalance =
         wallet?.mode === "enforce" && wallet.spendable_musd !== null
             ? Math.max(0, wallet.spendable_musd)

@@ -1,0 +1,9 @@
+{
+    "changes": "変更",
+    "whatsChanging": "変更内容",
+    "changeCount_other": "{{count}} 件の変更",
+    "viewAsJson": "JSON で表示",
+    "instructions": "指示",
+    "description": "説明",
+    "parameters": "パラメータ"
+}

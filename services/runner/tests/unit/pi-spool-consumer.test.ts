@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   PI_TRACE_CONTROL_FILE,
+  piTraceDoneFileName,
   piTraceFileName,
 } from "../../src/tracing/pi-spool-protocol.ts";
 import {
@@ -332,6 +333,110 @@ describe("createPiTraceSpoolConsumer", () => {
     expect(
       logs.filter((line) => line === "stage=pi_trace_control unread=true"),
     ).toHaveLength(1);
+  });
+
+  it("stops at the done marker without waiting for the deadline and exports every batch", async () => {
+    const memory = memoryHost();
+    const sequences: number[] = [];
+    let clock = 0;
+    let polls = 0;
+    const consumer = createPiTraceSpoolConsumer({
+      host: memory.host,
+      dir: DIR,
+      channelId: CHANNEL,
+      drainTimeoutMs: 750,
+      pollMs: 50,
+      now: () => clock,
+      sleep: async (ms) => {
+        clock += ms;
+        polls += 1;
+        // An early flush is already on disk. Pi publishes the final batch and the marker later,
+        // as a stopped or failed turn does when it settles.
+        if (polls === 2) {
+          memory.files.set(spoolPath(CHANNEL, 1), bytes(8));
+          memory.files.set(join(DIR, piTraceDoneFileName(CHANNEL)), bytes());
+        }
+      },
+      onBatch: async (batch) => {
+        sequences.push(batch.sequence);
+      },
+    });
+    await consumer.ready;
+    memory.files.set(spoolPath(CHANNEL, 0), bytes(7));
+
+    const result = await consumer.teardown();
+
+    expect(sequences.sort()).toEqual([0, 1]);
+    expect(result.exported).toBe(2);
+    expect(clock).toBe(100);
+    // The teardown sweep removes the marker with the rest of the channel's files.
+    expect(memory.files.has(join(DIR, piTraceDoneFileName(CHANNEL)))).toBe(
+      false,
+    );
+  });
+
+  it.each(["statSize", "readBytes"] as const)(
+    "keeps polling past the done marker while %s fails for a batch",
+    async (step) => {
+      const memory = memoryHost();
+      const sequences: number[] = [];
+      let clock = 0;
+      const consumer = createPiTraceSpoolConsumer({
+        host: memory.host,
+        dir: DIR,
+        channelId: CHANNEL,
+        drainTimeoutMs: 750,
+        pollMs: 50,
+        now: () => clock,
+        sleep: async (ms) => {
+          clock += ms;
+        },
+        onBatch: async (batch) => {
+          sequences.push(batch.sequence);
+        },
+      });
+      await consumer.ready;
+      memory.files.set(spoolPath(CHANNEL, 0), bytes(7));
+      memory.files.set(join(DIR, piTraceDoneFileName(CHANNEL)), bytes());
+      // The first call fails, so the first poll must not end the drain.
+      const original = memory.host[step] as (...args: any[]) => Promise<any>;
+      let calls = 0;
+      memory.host[step] = (async (...args: any[]) => {
+        calls += 1;
+        if (calls > 1) return original(...args);
+        if (step === "statSize") return undefined;
+        throw new Error("transient read failure");
+      }) as any;
+
+      const result = await consumer.drain();
+
+      expect(sequences).toEqual([0]);
+      expect(result.exported).toBe(1);
+      expect(clock).toBe(50);
+    },
+  );
+
+  it("ignores another channel's done marker", async () => {
+    const memory = memoryHost();
+    let clock = 0;
+    const consumer = createPiTraceSpoolConsumer({
+      host: memory.host,
+      dir: DIR,
+      channelId: CHANNEL,
+      drainTimeoutMs: 100,
+      pollMs: 25,
+      now: () => clock,
+      sleep: async (ms) => {
+        clock += ms;
+      },
+      onBatch: async () => {},
+    });
+    await consumer.ready;
+    memory.files.set(join(DIR, piTraceDoneFileName(OTHER_CHANNEL)), bytes());
+
+    await consumer.drain();
+
+    expect(clock).toBe(100);
   });
 
   it("teardown sweeps late telemetry residue, preserves unrelated files, and logs leftovers", async () => {

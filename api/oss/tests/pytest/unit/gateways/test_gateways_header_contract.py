@@ -123,7 +123,7 @@ def _llm_secret(key: str = _PROVIDER_KEY) -> ResolvedSecret:
             ),
             header=Header(name="openai"),
         ),
-        owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
+        owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=uuid4()),
         origin=SecretOrigin.VAULT,
     )
 
@@ -213,7 +213,7 @@ def _standard_composio_auth() -> MCPDirectAuth:
                     provider=StandardProviderSettingsDTO(key="synthetic-composio-key"),
                 ),
             ),
-            owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
+            owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=uuid4()),
             origin=SecretOrigin.VAULT,
         )
     )

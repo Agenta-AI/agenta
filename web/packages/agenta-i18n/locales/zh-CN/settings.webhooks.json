@@ -1,0 +1,13 @@
+{
+    "emptyDescription": "订阅一个端点，以签名 HTTP 请求的形式接收工作流事件。",
+    "emptyTitle": "还没有 Webhook",
+    "events": "事件",
+    "paused": "Webhook 已暂停",
+    "pausedStatus": "已暂停",
+    "resumed": "Webhook 已恢复",
+    "subscribe": "订阅",
+    "target": "目标",
+    "test": "测试",
+    "updateFailed": "更新 Webhook 失败",
+    "webhookActions": "Webhook 操作"
+}

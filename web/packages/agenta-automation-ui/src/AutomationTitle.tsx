@@ -1,9 +1,13 @@
 import {useEffect, useRef} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {useInlineRename} from "@agenta/sessions-ui"
 import {message} from "@agenta/ui/app-message"
-import {Input} from "@agenta/ui/ui"
+import {Input, PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {PencilSimple} from "@phosphor-icons/react"
+
+const tNow = createT(automationsEditorCatalog)
 
 /**
  * The automation's identity: its name, renamed in place, and the description under it.
@@ -19,6 +23,7 @@ export const AutomationTitle = ({
     autoEdit = false,
     placeholder,
     fallback,
+    compact = false,
 }: {
     name: string
     description: string
@@ -29,7 +34,13 @@ export const AutomationTitle = ({
     placeholder?: string
     /** Shown as the heading while the name is empty — the name this would be saved under. */
     fallback?: string
+    /**
+     * The panel's title (F05 f3 to f5): 16 px, and while renaming a field with no border, so the
+     * name keeps the look of a heading.
+     */
+    compact?: boolean
 }) => {
+    const t = useT(automationsEditorCatalog)
     const rename = useInlineRename({
         current: name,
         // Errors are surfaced here so the hook's own fallback (which says "session") never fires.
@@ -38,9 +49,9 @@ export const AutomationTitle = ({
         onCommit: async (next) => {
             try {
                 const ok = await onRename(next)
-                if (!ok) message.error("Couldn't rename this automation")
+                if (!ok) message.error(tNow("automations.editor.renameFailed"))
             } catch {
-                message.error("Couldn't rename this automation")
+                message.error(tNow("automations.editor.renameFailed"))
             }
             return true
         },
@@ -61,7 +72,7 @@ export const AutomationTitle = ({
             {rename.renaming ? (
                 <Input
                     autoFocus
-                    aria-label="Automation name"
+                    aria-label={t("automations.editor.namePlaceholder")}
                     placeholder={placeholder}
                     value={rename.draft}
                     onChange={(event) => rename.setDraft(event.target.value)}
@@ -72,21 +83,29 @@ export const AutomationTitle = ({
                     }}
                     // A notch under the heading while editing, and a medium placeholder: a bold
                     // hint reads as a name already typed.
-                    className="text-[16px] font-semibold placeholder:font-medium placeholder:text-muted-foreground focus-visible:border-input focus-visible:ring-0 md:text-[16px]"
+                    className={
+                        compact
+                            ? "h-auto border-transparent bg-transparent px-0 py-0.5 text-[16px] font-semibold shadow-none placeholder:font-semibold placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:ring-0 md:text-[16px]"
+                            : "text-[16px] font-semibold placeholder:font-medium placeholder:text-muted-foreground focus-visible:border-input focus-visible:ring-0 max-md:h-11 md:text-[16px]"
+                    }
                 />
             ) : (
                 <button
                     type="button"
                     onClick={rename.start}
-                    title="Rename"
+                    title={t("automations.editor.rename")}
                     // No focus ring: the shared FOCUS_RING draws a hard near-black outline and
                     // the softer ring still glowed around the title. Hover carries the affordance.
-                    className="group -ml-2 flex min-w-0 cursor-pointer items-center rounded-lg border-0 bg-transparent px-2 py-1 text-left text-foreground outline-none hover:bg-accent focus-visible:bg-accent"
+                    className={`group flex min-w-0 cursor-pointer items-center rounded-lg border-0 bg-transparent text-left text-foreground outline-none hover:bg-accent focus-visible:bg-accent ${
+                        compact ? "-mx-1 px-1 py-0.5" : "-ml-2 px-2 py-1"
+                    } ${PHONE_TOUCH_TARGET_CLASS}`}
                 >
                     <h1
-                        className={`m-0 min-w-0 truncate text-[18px] font-semibold leading-[1.25] tracking-[-0.02em] ${
-                            name ? "" : "text-muted-foreground"
-                        }`}
+                        className={`m-0 min-w-0 truncate font-semibold ${
+                            compact
+                                ? "text-[16px] leading-6"
+                                : "text-[18px] leading-[1.25] tracking-[-0.02em]"
+                        } ${name ? "" : "text-muted-foreground"}`}
                     >
                         {name || fallback || placeholder}
                     </h1>

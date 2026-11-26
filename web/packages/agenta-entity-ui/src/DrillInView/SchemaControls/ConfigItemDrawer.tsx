@@ -22,8 +22,12 @@
  */
 import {type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Badge, type BadgeProps, Button} from "@agenta/ui/ui"
+
+import {FormDrawerSkeleton} from "./DrawerSkeletons"
 
 // The badge `color` is an antd preset hue name supplied by the item-kind descriptors
 // (`typeColor: "cyan" | "blue" | …`), which type it as a plain string — so resolve it to a Badge
@@ -90,6 +94,8 @@ export interface ConfigItemDrawerProps {
      * The JSON view keeps its padding regardless. @default false
      */
     contentFlush?: boolean
+    /** Body shown while the drawer opens, before `form` mounts. */
+    loadingBody?: ReactNode
 }
 
 export function ConfigItemDrawer({
@@ -111,7 +117,9 @@ export function ConfigItemDrawer({
     width = 600,
     disabled = false,
     contentFlush = false,
+    loadingBody = <FormDrawerSkeleton />,
 }: ConfigItemDrawerProps) {
+    const t = useT(configItemsCatalog)
     // Flush layout only helps the form; keep the JSON editor padded and independently scrollable.
     const flushForm = contentFlush && !jsonOnly
 
@@ -125,6 +133,7 @@ export function ConfigItemDrawer({
             // Lazy content: children aren't mounted until first open and are torn down on close,
             // so the content component's logic only runs while the drawer is open.
             destroyOnClose
+            bodyFallback={<div className={flushForm ? "h-full p-4" : "h-full"}>{loadingBody}</div>}
             title={
                 // One line: title · subtitle. Stacked, the subtitle doubled the header height for
                 // a few muted words, and the leading icon repeated the row the drawer opened from.
@@ -165,14 +174,18 @@ export function ConfigItemDrawer({
                     {/* ml-auto keeps the actions right-aligned when there is no footer note. */}
                     <div className="ml-auto flex shrink-0 items-center gap-2">
                         <Button variant="outline" onClick={onCancel}>
-                            Cancel
+                            {t("entityUi.configItems.cancel")}
                         </Button>
                         <Button
                             variant="default"
                             onClick={onSave}
                             disabled={disabled || saveDisabled || saving}
                         >
-                            {saving ? "Saving…" : mode === "create" ? "Create" : "Save"}
+                            {saving
+                                ? t("entityUi.configItems.saving")
+                                : mode === "create"
+                                  ? t("entityUi.configItems.create")
+                                  : t("entityUi.configItems.save")}
                         </Button>
                     </div>
                 </div>

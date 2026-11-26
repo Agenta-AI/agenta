@@ -1,6 +1,7 @@
 """MCP endpoint DBEs."""
 
 from sqlalchemy import (
+    CheckConstraint,
     ForeignKeyConstraint,
     Index,
     PrimaryKeyConstraint,
@@ -44,6 +45,10 @@ class MCPOAuthAttemptDBE(Base, MCPOAuthAttemptDBA):
         PrimaryKeyConstraint("id"),
         ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         UniqueConstraint("state", name="uq_mcps_oauth_attempts_state"),
+        CheckConstraint(
+            "owner_kind IN ('project', 'user')",
+            name="ck_mcps_oauth_attempts_owner_kind",
+        ),
         # The sweep scans by expiry.
         Index("ix_mcps_oauth_attempts_expires_at", "expires_at"),
     )

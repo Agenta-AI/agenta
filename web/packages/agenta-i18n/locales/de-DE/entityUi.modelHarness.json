@@ -1,0 +1,20 @@
+{
+    "policySummary": "Richtlinie · {{policy}}",
+    "unsavedGroupChanges": "Diese Gruppe enthält nicht gespeicherte Änderungen.",
+    "selectModel": "Modell auswählen…",
+    "sandboxSummary": "Sandbox: {{kind}}",
+    "sandbox": "Sandbox",
+    "policy": "Richtlinie",
+    "attachedCount_one": "{{count}} zugeordnet",
+    "attachedCount_other": "{{count}} zugeordnet",
+    "noneAttached": "Keine zugeordnet",
+    "executionEnvironment": "Ausführungsumgebung",
+    "executionCaptionShort": "Wo die Werkzeuge und der Code des Agents ausgeführt werden.",
+    "customSecrets": "Benutzerdefinierte Secrets",
+    "execution": "Ausführung",
+    "executionCaption": "Wo die Werkzeuge und der Code des Agents laufen und worauf diese Sandbox zugreifen darf.",
+    "secretsCaption": "Zugangsdaten, die dieser Agent bei der Arbeit verwenden kann. {{summary}}.",
+    "agentaTools": "Agenta-Werkzeuge",
+    "buildKit": "Build-Kit",
+    "advanced": "Erweitert"
+}

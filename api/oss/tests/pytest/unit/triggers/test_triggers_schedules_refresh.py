@@ -15,6 +15,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from oss.tests.pytest.utils.principals import any_principal
+
 from oss.src.core.triggers.dtos import (
     TriggerSchedule,
     TriggerScheduleData,
@@ -32,6 +34,7 @@ def _make_schedule(*, expr="* * * * *", is_active=True, start_time=None, end_tim
     return TriggerSchedule(
         id=uuid4(),
         created_by_id=uuid4(),
+        principal=any_principal(),
         flags=TriggerScheduleFlags(is_active=is_active),
         data=TriggerScheduleData(
             event_key="report.daily",
@@ -44,10 +47,12 @@ def _make_schedule(*, expr="* * * * *", is_active=True, start_time=None, end_tim
 
 def _service(*, schedules=None, seen=False, with_task=True):
     dao = MagicMock()
-    dao.fetch_active_schedules_with_project = AsyncMock(
+    dao.fetch_active_recurring_schedules_with_project = AsyncMock(
         return_value=[(uuid4(), s) for s in (schedules or [])]
     )
     dao.dedup_seen_schedule = AsyncMock(return_value=seen)
+    dao.fetch_due_one_time_schedules = AsyncMock(return_value=[])
+    dao.purge_stale_hidden_schedules = AsyncMock(return_value=[])
     service = TriggersService(
         adapter_registry=MagicMock(),
         catalog_service=MagicMock(),

@@ -1,3 +1,4 @@
+import {canViewSpansAtom} from "@agenta/entities/access"
 import {attachAnnotationsToTraces} from "@agenta/entities/annotation/dto"
 import {transformApiData} from "@agenta/entities/annotation/dto"
 import {AnnotationDto} from "@agenta/entities/annotation/dto"
@@ -175,7 +176,7 @@ export const traceDrawerQueryAtom = atomWithQuery((get) => {
 
     return {
         queryKey: ["trace-drawer", traceId ?? "none", projectId ?? "none"],
-        enabled: Boolean(traceId),
+        enabled: Boolean(traceId) && get(canViewSpansAtom),
         refetchOnWindowFocus: false,
         queryFn: async () => {
             if (!traceId) return null
@@ -254,15 +255,12 @@ export const traceDrawerAnnotationLinksAtom = atom<{trace_id: string; span_id: s
 // Queries annotations for spans displayed in the drawer.
 export const traceDrawerAnnotationsQueryAtom = atomWithQuery((get) => {
     const links = get(traceDrawerAnnotationLinksAtom)
-    // Was `getOrgValues().selectedOrg.default_workspace.members` in the app; the package's own
-    // annotations query already reads the same list from this atom.
-    const members = get(workspaceMembersAtom)
     const projectId = get(projectIdAtom)
 
     return {
         // Same reason as the list query: the request is project-scoped, so the key is too.
         queryKey: ["trace-drawer-annotations", projectId, links],
-        enabled: Array.isArray(links) && links.length > 0,
+        enabled: Array.isArray(links) && links.length > 0 && get(canViewSpansAtom),
         refetchOnWindowFocus: false,
         queryFn: async () => {
             if (!Array.isArray(links) || !links.length) return [] as AnnotationDto[]
@@ -270,18 +268,20 @@ export const traceDrawerAnnotationsQueryAtom = atomWithQuery((get) => {
                 projectId: projectId ?? undefined,
                 queries: {annotation: {links}},
             })
-            return (
-                res.annotations?.map((a) => transformApiData<AnnotationDto>({data: a, members})) ||
-                []
-            )
+            return res.annotations ?? []
         },
     }
 })
 
-// Resolved annotations list for the drawer traces.
+// Resolved annotations list for the drawer traces. Authors are named here, not in the query, so
+// a member list that arrives after the annotations still names them.
 export const traceDrawerAnnotationsAtom = atom((get) => {
     const query = get(traceDrawerAnnotationsQueryAtom)
-    return (query.data as AnnotationDto[]) ?? []
+    // Was `getOrgValues().selectedOrg.default_workspace.members` in the app; the package's own
+    // annotations query already reads the same list from this atom.
+    const members = get(workspaceMembersAtom)
+    const annotations = (query.data as AnnotationDto[] | undefined) ?? []
+    return annotations.map((a) => transformApiData<AnnotationDto>({data: a, members}))
 })
 
 // Base traces with annotations attached when available.
@@ -351,7 +351,7 @@ export const annotationLinkTracesQueryAtom = atomWithQuery<Record<string, Traces
 
         return {
             queryKey: ["trace-drawer-annotation-links", targets, projectId ?? "none"],
-            enabled: Array.isArray(targets) && targets.length > 0,
+            enabled: Array.isArray(targets) && targets.length > 0 && get(canViewSpansAtom),
             refetchOnWindowFocus: false,
             queryFn: async () => {
                 const uniqueTraceIds = Array.from(new Set(targets.map((t) => t.trace_id)))
@@ -449,7 +449,7 @@ export const linkedSpanTracesQueryAtom = atomWithQuery<Record<string, TracesWith
 
         return {
             queryKey: ["trace-drawer-linked-spans", targets, projectId ?? "none"],
-            enabled: Array.isArray(targets) && targets.length > 0,
+            enabled: Array.isArray(targets) && targets.length > 0 && get(canViewSpansAtom),
             refetchOnWindowFocus: false,
             queryFn: async () => {
                 const providedTraceIds = targets

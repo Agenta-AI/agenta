@@ -10,6 +10,9 @@ import {
     useState,
 } from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiTableCatalog from "@agenta/i18n/catalogs/ui.table"
 import type {
     ColumnSizingState,
     OnChangeFn,
@@ -20,6 +23,7 @@ import type {
 import {flexRender, useTable} from "@tanstack/react-table"
 import {useVirtualizer} from "@tanstack/react-virtual"
 
+import {CollapseCaret} from "../../components/ui/collapse-caret"
 import {Spinner} from "../../components/ui/spinner"
 import {cn} from "../../utils/styles"
 import type {ColumnDef, ColumnDefs, ColumnRenderResult, RenderedColumnCell} from "../columnDef"
@@ -233,6 +237,7 @@ export const VirtualTable = <RecordType extends object>({
     leadingCellProps,
     renderLeadingHeader,
 }: VirtualTableProps<RecordType>) => {
+    const t = useT(uiTableCatalog, commonCatalog)
     const bodyRef = useRef<HTMLDivElement | null>(null)
     const headerScrollRef = useRef<HTMLDivElement | null>(null)
     const containerRef = useRef<HTMLDivElement | null>(null)
@@ -411,6 +416,8 @@ export const VirtualTable = <RecordType extends object>({
     )
 
     const headerGroups = table.getHeaderGroups()
+    // An ungrouped column's header spans the rows down from its first placeholder.
+    const spannedHeaderColumns = new Set<string>()
 
     return (
         <div
@@ -479,18 +486,39 @@ export const VirtualTable = <RecordType extends object>({
                                     />
                                 ) : null}
                                 {headerGroup.headers.map((header) => {
+                                    if (spannedHeaderColumns.has(header.column.id)) return null
+                                    const spanRows = header.isPlaceholder
+                                        ? headerGroups.length - groupIndex
+                                        : 1
+                                    if (spanRows > 1) spannedHeaderColumns.add(header.column.id)
                                     const source = sourceOf<RecordType>(
                                         header.column.columnDef.meta,
                                     )
-                                    const props =
+                                    const cellProps =
                                         source && source.onHeaderCell
                                             ? (source.onHeaderCell(source, header.index) ?? {})
                                             : {}
+                                    // Strip antd resize props; a <th> must not receive them.
+                                    const {
+                                        width: _width,
+                                        minWidth: _minWidth,
+                                        onResize: _onResize,
+                                        onResizeStart: _onResizeStart,
+                                        onResizeStop: _onResizeStop,
+                                        ...props
+                                    } = cellProps as typeof cellProps & {
+                                        width?: unknown
+                                        minWidth?: unknown
+                                        onResize?: unknown
+                                        onResizeStart?: unknown
+                                        onResizeStop?: unknown
+                                    }
                                     return (
                                         <th
                                             {...props}
                                             key={header.id}
                                             colSpan={header.colSpan}
+                                            rowSpan={spanRows > 1 ? spanRows : undefined}
                                             data-column-key={header.column.id}
                                             className={cn(
                                                 AVT.headerCell,
@@ -511,7 +539,7 @@ export const VirtualTable = <RecordType extends object>({
                                             {/* flexRender returns an UNKEYED element, and these
                                                 siblings form a child array React validates, so
                                                 the wrapper carries the key. */}
-                                            {header.isPlaceholder ? null : (
+                                            {header.isPlaceholder && spanRows === 1 ? null : (
                                                 <Fragment key="content">
                                                     {flexRender(
                                                         header.column.columnDef.header,
@@ -525,7 +553,9 @@ export const VirtualTable = <RecordType extends object>({
                                                     key="resize"
                                                     role="separator"
                                                     aria-orientation="vertical"
-                                                    aria-label={`Resize ${header.column.id}`}
+                                                    aria-label={t("ui.table.resizeColumn", {
+                                                        column: header.column.id,
+                                                    })}
                                                     data-resize-handle={header.column.id}
                                                     className={cn(
                                                         AVT.resizeHandle,
@@ -654,8 +684,8 @@ export const VirtualTable = <RecordType extends object>({
                                                             type="button"
                                                             aria-label={
                                                                 expanded
-                                                                    ? "Collapse row"
-                                                                    : "Expand row"
+                                                                    ? t("ui.table.collapseRow")
+                                                                    : t("ui.table.expandRow")
                                                             }
                                                             aria-expanded={expanded}
                                                             data-expand-toggle={row.id}
@@ -666,14 +696,10 @@ export const VirtualTable = <RecordType extends object>({
                                                                 row.toggleExpanded()
                                                             }}
                                                         >
-                                                            <span
-                                                                className={cn(
-                                                                    "transition-transform",
-                                                                    expanded && "rotate-90",
-                                                                )}
-                                                            >
-                                                                ›
-                                                            </span>
+                                                            <CollapseCaret
+                                                                open={expanded}
+                                                                size={12}
+                                                            />
                                                         </button>
                                                     ) : null}
                                                 </td>

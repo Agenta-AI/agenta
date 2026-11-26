@@ -2,16 +2,27 @@ import {useCallback, useMemo, type MouseEvent as ReactMouseEvent} from "react"
 import type {ReactNode} from "react"
 
 import {AgentChip} from "@agenta/entity-ui/agent"
+import {useT} from "@agenta/i18n"
+import sessionsMobileListCatalog from "@agenta/i18n/catalogs/sessions.mobileList"
 import type {SessionRowStatusMeta, SessionRowVm} from "@agenta/sessions/row"
 import {
     InlineRenameInput,
     SessionAgentName,
+    sessionMenuAccess,
     useInlineRename,
     type SessionMenuEntry,
 } from "@agenta/sessions-ui"
+import {userAtom} from "@agenta/shared/state"
 import {timeAgo} from "@agenta/shared/utils"
-import {Button} from "@agenta/ui/ui"
-import {ChatCircle, Lightning, PencilSimple, PushPin} from "@phosphor-icons/react"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {
+    ArrowBendDownRight,
+    ChatCircle,
+    Lightning,
+    PencilSimple,
+    PushPin,
+} from "@phosphor-icons/react"
+import {useAtomValue} from "jotai"
 
 import {cn} from "@/lib/utils"
 
@@ -63,15 +74,21 @@ const StatusDot = ({status}: {status: SessionRowStatusMeta}) => {
  * ring at this size), takes the Status column's hue, and pulses while live.
  */
 const KindIcon = ({vm}: {vm: SessionRowVm}) => {
+    const t = useT(sessionsMobileListCatalog)
     const Glyph = vm.isAutomation ? Lightning : ChatCircle
     return (
         <span
             role="img"
-            aria-label={`${vm.isAutomation ? "Automation run" : "Chat session"}, ${vm.status.label}`}
+            aria-label={t(
+                vm.isAutomation
+                    ? "sessions.mobileList.kindAutomation"
+                    : "sessions.mobileList.kindChat",
+                {status: vm.status.label},
+            )}
             title={vm.status.label}
             className="relative flex shrink-0 text-muted-foreground"
         >
-            <Glyph size={15} aria-hidden />
+            <Glyph size={14} aria-hidden />
             <span
                 aria-hidden
                 className={cn(
@@ -92,6 +109,7 @@ const KindIcon = ({vm}: {vm: SessionRowVm}) => {
 export const SessionRowCells = ({
     vm,
     narrow,
+    hideAgent = false,
     entries,
     onMenuSelect,
     onRenameRow,
@@ -100,12 +118,15 @@ export const SessionRowCells = ({
     vm: SessionRowVm
     /** Below `sm` the table drops the Status and Agent columns — see `SessionListTable`. */
     narrow: boolean
+    /** The Sessions page of one agent has no Agent column. */
+    hideAgent?: boolean
     /** The shared verbs for this row, from `useSessionRowMenu`. */
     entries: SessionMenuEntry[]
     onMenuSelect: (vm: SessionRowVm, key: string) => void
     onRenameRow: (vm: SessionRowVm, name: string) => Promise<boolean>
     onTogglePin: (sessionId: string) => void
 }) => {
+    const t = useT(sessionsMobileListCatalog)
     const onCommit = useCallback((name: string) => onRenameRow(vm, name), [onRenameRow, vm])
     const rename = useInlineRename({current: vm.title, onCommit})
 
@@ -123,6 +144,9 @@ export const SessionRowCells = ({
 
     // `useSessionActions` drops rename and pin for an archived row; the inline pair follows it.
     const archived = Boolean(vm.stream.archived_at)
+    const me = useAtomValue(userAtom)
+    const notOwner =
+        sessionMenuAccess({ownerUserId: vm.stream.owner_user_id ?? null}, me?.id) === "member"
     const updated = useMemo(
         () => (vm.activityAt ? timeAgo(Date.parse(vm.activityAt)) : "—"),
         [vm.activityAt],
@@ -149,6 +173,17 @@ export const SessionRowCells = ({
                         >
                             {vm.title}
                         </span>
+                        {vm.isChildSession ? (
+                            <SimpleTooltip title={t("sessions.mobileList.childSessionMark")}>
+                                <span
+                                    role="img"
+                                    aria-label={t("sessions.mobileList.childSessionMark")}
+                                    className="flex shrink-0 text-muted-foreground"
+                                >
+                                    <ArrowBendDownRight size={12} aria-hidden />
+                                </span>
+                            </SimpleTooltip>
+                        ) : null}
                         {archived ? null : (
                             <span
                                 // Revealed on the ROW's hover, and gone below `sm` where the pair
@@ -159,15 +194,25 @@ export const SessionRowCells = ({
                             >
                                 {/* The reveal is the wrapper's, not each button's. */}
                                 <RowActionButton
-                                    label={vm.isPinned ? "Unpin session" : "Pin session"}
+                                    label={
+                                        vm.isPinned
+                                            ? t("sessions.mobileList.unpinSession")
+                                            : t("sessions.mobileList.pinSession")
+                                    }
                                     onClick={() => onTogglePin(vm.id)}
                                 >
                                     {/* One control: a pinned row keeps the same pin, filled. */}
                                     <PushPin size={14} weight={vm.isPinned ? "fill" : "regular"} />
                                 </RowActionButton>
-                                <RowActionButton label="Rename session" onClick={rename.start}>
-                                    <PencilSimple size={14} />
-                                </RowActionButton>
+                                {/* Renaming an owned chat is its owner's verb. */}
+                                {notOwner ? null : (
+                                    <RowActionButton
+                                        label={t("sessions.mobileList.renameSession")}
+                                        onClick={rename.start}
+                                    >
+                                        <PencilSimple size={14} />
+                                    </RowActionButton>
+                                )}
                             </span>
                         )}
                     </>
@@ -185,7 +230,7 @@ export const SessionRowCells = ({
                 </span>
             )}
 
-            {narrow ? null : vm.agentId ? (
+            {narrow || hideAgent ? null : vm.agentId ? (
                 <span className={cn("flex min-w-0 items-center gap-1.5", archived && FADED)}>
                     {/* The agent's own mark, not a generic robot — the same tile the automations
                         table and the agent picker draw. */}
@@ -209,7 +254,7 @@ export const SessionRowCells = ({
                 <SessionRowMenu
                     entries={entries}
                     onSelect={onSelect}
-                    label={vm.title || "Untitled session"}
+                    label={vm.title || t("sessions.mobileList.untitledSession")}
                 />
             </span>
         </>

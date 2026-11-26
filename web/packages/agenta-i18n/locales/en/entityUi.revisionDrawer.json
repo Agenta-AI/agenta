@@ -1,0 +1,19 @@
+{
+    "noParameters": "No parameters to display",
+    "viewForm": "Form",
+    "variant": "Variant",
+    "type": "Type",
+    "slug": "Slug",
+    "deployment": "Deployment",
+    "details": "Details",
+    "dateCreated": "Date created",
+    "createdBy": "Created by",
+    "note": "Note",
+    "loadError": "Could not load this revision",
+    "notAvailable": "This revision is no longer available.",
+    "titleRevision": "Revision",
+    "titleDeployment": "Deployment",
+    "titleEvaluator": "Evaluator",
+    "previousRevision": "Previous revision",
+    "nextRevision": "Next revision"
+}

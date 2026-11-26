@@ -16,6 +16,7 @@ export {default as AuthSideBanner} from "./AuthSideBanner"
 export {AuthShell, type AuthShellProps} from "./AuthShell"
 export {AgentaMark, AgentaWordmark} from "./AgentaBrand"
 export {
+    FIELD_CLASS,
     HEADLINE_CLASS,
     KEYCAP_CLASS,
     STATUS_TEXT_CLASS,
@@ -42,5 +43,6 @@ export {PasswordlessRequestForm, type PasswordlessRequestFormProps} from "./Pass
 export {EmailPasswordForm, type EmailPasswordFormProps} from "./EmailPasswordForm"
 export {TurnstileWidget, type TurnstileWidgetHandle} from "./TurnstileWidget"
 export {useTurnstileSecurity} from "./useTurnstileSecurity"
+export {useAuthFailureText} from "./useAuthFailureText"
 export {RegionSelector, RegionInfoText, type RegionSelectorProps} from "./RegionSelector"
 export {useRegionSelector} from "./useRegionSelector"

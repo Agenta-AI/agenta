@@ -45,6 +45,11 @@ class FakeSlackWorkspace:
         # messages[channel_id][ts] = message dict; insertion order is post order.
         self.messages: Dict[str, Dict[str, Dict[str, Any]]] = {}
         self._next_ts = ts_seed
+        # workspace members, as users.list returns them; channel members by channel id
+        self.members: List[Dict[str, Any]] = []
+        self.channel_members: Dict[str, List[str]] = {}
+        # ephemeral messages shown: (channel, user, text, thread_ts)
+        self.ephemerals: List[Dict[str, Any]] = []
 
     def add_channel(self, *, id: str, name: str, **extra: Any) -> None:
         self.channels[id] = {"id": id, "name": name, **extra}
@@ -151,6 +156,8 @@ class FakeSlackWorkspace:
 
 
 _READ_METHODS = {
+    "users.list",
+    "users.lookupByEmail",
     "users.conversations",
     "conversations.list",
     "conversations.history",
@@ -344,8 +351,46 @@ class FakeSlackTransport(httpx.AsyncBaseTransport):
         entry["is_member"] = True
         return _ok_response({"channel": dict(entry)})
 
+    def _chat_post_ephemeral(self, payload: Dict[str, Any]) -> httpx.Response:
+        channel = payload.get("channel")
+        user = payload.get("user")
+        if not channel or channel not in self.workspace.channels:
+            return _error_response("channel_not_found")
+        members = self.workspace.channel_members.get(channel)
+        if members is not None and user not in members:
+            return _error_response("user_not_in_channel")
+        self.workspace.ephemerals.append(
+            {
+                "channel": channel,
+                "user": user,
+                "text": payload.get("text") or "",
+                "thread_ts": payload.get("thread_ts"),
+            }
+        )
+        return _ok_response({"message_ts": self.workspace._mint_ts()})
+
+    def _users_list(self, payload: Dict[str, Any]) -> httpx.Response:
+        limit = int(payload.get("limit") or 100)
+        start = int(payload.get("cursor") or 0)
+        page = self.workspace.members[start : start + limit]
+        following = start + limit
+        next_cursor = str(following) if following < len(self.workspace.members) else ""
+        return _ok_response(
+            {"members": page, "response_metadata": {"next_cursor": next_cursor}}
+        )
+
+    def _users_lookup_by_email(self, payload: Dict[str, Any]) -> httpx.Response:
+        email = (payload.get("email") or "").lower()
+        for member in self.workspace.members:
+            if (member.get("profile") or {}).get("email", "").lower() == email:
+                return _ok_response({"user": member})
+        return _error_response("users_not_found")
+
     _ROUTES = {
         "auth.test": _auth_test,
+        "chat.postEphemeral": _chat_post_ephemeral,
+        "users.list": _users_list,
+        "users.lookupByEmail": _users_lookup_by_email,
         "chat.postMessage": _chat_post_message,
         "chat.update": _chat_update,
         "users.conversations": _users_conversations,

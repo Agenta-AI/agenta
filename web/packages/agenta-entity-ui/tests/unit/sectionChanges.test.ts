@@ -12,6 +12,7 @@
 import {classifyAgentChanges} from "@agenta/entities/workflow/commitDiff"
 import {describe, expect, it} from "vitest"
 
+import {commitDiffTextNow} from "../../src/changes/commitDiffText"
 import {
     revertPathsTo,
     SECTION_ID_TO_PANEL_KEY,
@@ -30,7 +31,7 @@ const template = (overrides: Record<string, unknown> = {}) => ({
 })
 
 const changesFor = (local: Record<string, unknown>, remote: Record<string, unknown>) =>
-    toSectionChanges(classifyAgentChanges(local, remote))
+    toSectionChanges(classifyAgentChanges(local, remote, commitDiffTextNow()))
 
 describe("SECTION_ID_TO_PANEL_KEY", () => {
     it("maps every classifier section id to a panel key", () => {

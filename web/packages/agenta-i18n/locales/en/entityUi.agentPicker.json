@@ -1,0 +1,14 @@
+{
+    "untitledAgent": "Untitled agent",
+    "noDescription": "No description",
+    "searchAgents": "Search agents",
+    "newAgent": "New agent",
+    "noAgentsYet": "No agents yet",
+    "noAgentsYetBody": "An agent is what does the work. Make one and it shows up here.",
+    "noAgentsMatch": "No agents match “{{query}}”",
+    "searchCovers": "The search covers each agent's name and what it does.",
+    "clearSearch": "Clear search",
+    "pickAnAgent": "Pick an agent",
+    "agent": "Agent",
+    "startBlank": "start blank"
+}

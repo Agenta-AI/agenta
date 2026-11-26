@@ -17,6 +17,12 @@ MAX_LIVE_FRAME_BYTES = 64 * 1024
 # the ingest worker, which read the same marker off their own layers.
 TERMINAL_RECORD_TYPE = "done"
 
+# The error code of an execution that no runner closed: the orphan sweep writes it, and the
+# session tools read it as the status `lost`. One of the `RunErrorCode` values in
+# services/runner/src/engines/sandbox_agent/errors.ts; the client reads it to offer a retry
+# rather than parsing the message.
+EXECUTION_LOST_ERROR_CODE = "execution_lost"
+
 # Who wrote a terminal record, stamped into `attributes` by the writer.
 #
 # Only the platform ever sets it: the ingest route builds `SessionRecordEvent` field by field
@@ -26,6 +32,19 @@ TERMINAL_RECORD_TYPE = "done"
 # wordings — and the late-record guard has to tell them apart.
 RECORD_SETTLED_BY_ATTRIBUTE = "settled_by"
 SETTLED_BY_WATCHDOG = "watchdog"
+
+# Terminal records that do not end their execution: a paused turn stays continuable, and a
+# cancel is settled by its Stop command.
+NON_ENDING_STOP_REASONS = ("paused", "cancelled")
+
+RunnerEnding = Literal["completed", "failed"]
+
+
+def runner_ending(stop_reason: Optional[str]) -> Optional[RunnerEnding]:
+    """The execution outcome a runner terminal record carries, or None when it ends nothing."""
+    if stop_reason in NON_ENDING_STOP_REASONS:
+        return None
+    return "failed" if stop_reason == "error" else "completed"
 
 
 class SessionRecordEvent(BaseModel):

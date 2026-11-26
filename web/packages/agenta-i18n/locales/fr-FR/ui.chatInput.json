@@ -1,0 +1,21 @@
+{
+    "chatMessage": "Message de chat",
+    "commands": "Commandes",
+    "dismiss": "fermer",
+    "enterInsert": "insérer",
+    "enterOpen": "ouvrir",
+    "enterRun": "exécuter",
+    "enterSend": "envoyer",
+    "navigate": "naviguer",
+    "newline": "Retour à la ligne",
+    "noCommand": "Aucune commande ni aucun skill ne correspond à « {{query}} »",
+    "noMatchFor": "Aucun résultat pour « {{query}} »",
+    "openItem": "Ouvrir {{item}}",
+    "pasteBlocked": "Collage bloqué. Cela dépasserait la limite de {{max}} caractères de {{over}} caractères ({{total}} au total). Réduisez le contenu collé et réessayez.",
+    "pastingLarge": "Collage d’un contenu volumineux…",
+    "send": "Envoyer",
+    "sending": "Envoi en cours",
+    "stop": "Arrêter",
+    "stopping": "Arrêt en cours",
+    "typeMessage": "Saisissez un message…"
+}

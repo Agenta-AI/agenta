@@ -8,6 +8,8 @@
 import {memo, useId} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
+import {useT} from "@agenta/i18n"
+import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {cn, textColors} from "@agenta/ui/styles"
 import {Switch, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {Info} from "@phosphor-icons/react"
@@ -48,6 +50,7 @@ export const BooleanToggleControl = memo(function BooleanToggleControl({
     disabled = false,
     className,
 }: BooleanToggleControlProps) {
+    const t = useT(schemaControlsCatalog)
     // Get description from schema or prop
     const tooltipText = description ?? (schema?.description as string | undefined) ?? ""
 
@@ -82,7 +85,7 @@ export const BooleanToggleControl = memo(function BooleanToggleControl({
                 onCheckedChange={onChange}
                 size="sm"
                 aria-labelledby={label ? labelId : undefined}
-                aria-label={label ? undefined : "Toggle"}
+                aria-label={label ? undefined : t("entityUi.schemaControls.toggle")}
                 className="flex-shrink-0"
             />
         </div>

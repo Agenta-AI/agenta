@@ -40,7 +40,8 @@ const PAPER_SOFT = "#f0efed" // soft hairline, row dividers, list selection
 const HAIRLINE = "#e5e5e3" // strong hairline: card/section borders
 const CONTROL_BORDER = "#d7d7d7" // input/segmented/control borders
 const INK_FAINT = "#a3a19f" // disabled / faint labels
-const INK_TERTIARY = "#848b8c" // tertiary text + icons
+const INK_TERTIARY = "#6e7475" // tertiary text, descriptions + icons (the canvas t3 step)
+const INK_PLACEHOLDER = "#848b8c" // composer placeholder: one step lighter than tertiary text
 const INK_SECONDARY = "#676770" // secondary/body text
 const INK_HOVER = "#413f3f" // primary-button hover, strong tag text
 const INK = "#242424" // primary text, primary button
@@ -160,6 +161,9 @@ export const semantic = {
     infoBorderHover: {light: "#7fa0b5", dark: "#15325b"},
     primaryBorder: {light: HAIRLINE, dark: "#57572a"}, // antd colorPrimaryBorder (focus ring); ≠ infoBorder in dark
     primaryBorderHover: {light: INK_FAINT, dark: "#787834"}, // antd colorPrimaryBorderHover (slider track hover)
+    // Preview comments: the hover outline, selected cells and pins share this one blue (antd blue-6).
+    selection: {light: "#1677ff", dark: "#4096ff"},
+    selectionBg: {light: "rgba(22, 119, 255, 0.08)", dark: "rgba(64, 150, 255, 0.16)"},
 } satisfies Record<string, Pair>
 
 // Overlay/elevation shadows. Dark is the hand-tuned override (a 1px light ring +
@@ -457,15 +461,14 @@ export const chartSeries = [
 ] satisfies Pair[]
 
 /**
- * Chart chrome. THEME-BLIND on purpose: each half carries the literal the chart components
- * rendered inline before tokenization, in both modes, so this is a pure move of where the value
- * lives. That freezes a known defect — grid/axis/tick are navy-on-navy in dark, i.e. barely
- * visible — which is a separate, deliberate fix (see the palette notes in the migration report).
+ * Chart chrome. The light halves are the literals the chart components rendered inline before
+ * tokenization. The dark halves are light ink on the dark surface: the old navy literals were
+ * barely visible there, and the axis text keeps at least 4.5:1 contrast on the dark container.
  */
 export const chart = {
-    grid: {light: "#05172933", dark: "#05172933"}, // cartesian/polar grid lines
-    axisLine: {light: "#05172933", dark: "#05172933"}, // axis + tick lines
-    axisText: {light: "#666666", dark: "#666666"}, // tick labels
+    grid: {light: "#05172933", dark: "#FFFFFF1F"}, // cartesian/polar grid lines
+    axisLine: {light: "#05172933", dark: "#FFFFFF33"}, // axis + tick lines
+    axisText: {light: "#666666", dark: "#A6A6A6"}, // tick labels
     reference: {light: "#94A3B8", dark: "#94A3B8"}, // threshold / reference lines
     // Unfilled remainder of a stacked bar — the part with no series.
     track: {light: "#E5E5E3", dark: "#333333"},
@@ -564,7 +567,7 @@ export const composer = {
     // ink — the faint step is the DISABLED tone (backwards for a focused field) and the
     // tertiary step both sits at the bare 3:1 border floor and matches the placeholder.
     focus: {light: INK_SECONDARY, dark: "rgba(194, 213, 74, 0.45)"},
-    placeholder: {light: INK_TERTIARY, dark: "#7e828a"},
+    placeholder: {light: INK_PLACEHOLDER, dark: "#7e828a"},
     sendDisabledBg: {light: PAPER_SOFT, dark: "#26282c"},
     sendDisabledFg: {light: INK_FAINT, dark: "#6e7176"},
     // Quiet warm bubble on the white chat canvas — the fill is nearly white, so the
@@ -605,6 +608,17 @@ export const status = {
     warningBg: {light: "#fbf3d9", dark: "#2b2111"},
     warningBorder: {light: "#d9c898", dark: "#594214"},
     warningText: {light: "#8a6400", dark: "#ebc96a"},
+} satisfies Record<string, Pair>
+
+/**
+ * Builder-layout canvas tones with no older role. Light values are the canvas colors.
+ * `scheduleTile` is a fill under a white glyph, so it stays the same in dark. The two text
+ * tones take the existing dark steps of the same hue (the blue tag text, the error text).
+ */
+export const canvasTone = {
+    scheduleTile: {light: "#5b5bd6", dark: "#5b5bd6"}, // schedule automation tile (canvas F05, A05, M10)
+    latestText: {light: "#1c6fa8", dark: TAG_SLOT.blue.text.dark as string}, // "Latest" tag (canvas .ltag)
+    dangerText: {light: "#a01e1e", dark: status.errorText.dark as string}, // quiet danger action (canvas .neg)
 } satisfies Record<string, Pair>
 
 /** Evaluations "Application" cell tones. */
@@ -928,6 +942,7 @@ export const palette = {
     composer,
     drawerDark,
     status,
+    canvasTone,
     appVariantCell,
     templateStrip,
     tintedSurface,

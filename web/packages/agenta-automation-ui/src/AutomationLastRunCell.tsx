@@ -1,12 +1,15 @@
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {timeAgo} from "@agenta/shared/utils"
 import {SkeletonBlock} from "@agenta/ui/ui"
 
 import {type Automation} from "./automationModel"
-import {useAutomationRuns} from "./useAutomationRuns"
+import {useRecentAutomationRuns} from "./useAutomationRuns"
 
 /** When an automation last ran and how often — Status says it is on, this says it is doing anything. */
 export const AutomationLastRunCell = ({automation}: {automation: Automation}) => {
-    const {runs, recentCount, counted, isLoading} = useAutomationRuns(automation)
+    const t = useT(automationsEditorCatalog)
+    const {runs, caption, isLoading} = useRecentAutomationRuns(automation)
     const newest = runs[0]
 
     if (isLoading) {
@@ -19,7 +22,11 @@ export const AutomationLastRunCell = ({automation}: {automation: Automation}) =>
     }
 
     if (!newest) {
-        return <span className="text-[13px] text-muted-foreground">Never</span>
+        return (
+            <span className="text-[13px] text-muted-foreground">
+                {t("automations.editor.never")}
+            </span>
+        )
     }
 
     const at = Date.parse(newest.created_at ?? "")
@@ -33,10 +40,8 @@ export const AutomationLastRunCell = ({automation}: {automation: Automation}) =>
             >
                 {when}
             </span>
-            {counted ? (
-                <span className="truncate text-[12px] text-muted-foreground">
-                    {recentCount === 1 ? "1 run" : `${recentCount} runs`} in 30 days
-                </span>
+            {caption ? (
+                <span className="truncate text-[12px] text-muted-foreground">{caption}</span>
             ) : null}
         </span>
     )

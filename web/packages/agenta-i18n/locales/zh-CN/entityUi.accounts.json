@@ -1,0 +1,22 @@
+{
+    "label": "账号",
+    "eachPersonSignIn": "每个人自己的登录",
+    "projectSignIn": "项目的登录",
+    "connectAnother": "连接另一个 {{name}} 账号",
+    "signOut": "退出登录",
+    "signInExpired": "你运行时使用：你的登录已过期",
+    "tokenPlaceholder": "你的 Token",
+    "saveToken": "保存",
+    "choiceFailed": "无法保存你的选择。请重试。",
+    "createNewSecret": "创建新密钥",
+    "addOne": "添加一个",
+    "addAnotherSecret": "添加另一个密钥",
+    "addYourSecret": "添加你的密钥",
+    "whoCanUseIt": "谁可以使用",
+    "onlyMe": "仅我自己",
+    "onlyMeSecretNote": "当 Agent 需要你自己的值时，你可以选择它。",
+    "everyoneInProject": "{{project}} 中的所有人",
+    "everyoneInThisProject": "此项目中的所有人",
+    "everyoneSecretNote": "构建者可以将它附加到此项目中的 Agent。",
+    "userSecretRow": "每个人自己的密钥"
+}

@@ -36,6 +36,8 @@ from typing import Any, ClassVar, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .dtos import AgentDriveAccess
+
 
 class _WireModel(BaseModel):
     """Base for every wire model: camelCase aliases, accept-by-name, allow extra.
@@ -91,6 +93,9 @@ class WireConnection(_WireModel):
 
     mode: Literal["agenta", "self_managed"] = "agenta"
     slug: Optional[str] = None
+    # Whose connection `slug` names (M5); omitted for the project's. Routing does not
+    # depend on it: the resolved route already points at the organization namespace.
+    scope: Optional[Literal["project", "organization"]] = None
 
 
 class WireCredentialBinding(_WireModel):
@@ -151,6 +156,16 @@ class WireSubscription(_WireModel):
     login: WireSubscriptionLogin
 
 
+class WireSubscriptionFence(_WireModel):
+    """The marker sent in ``subscription`` beside an organization subscription login (M5).
+
+    A runner older than M5 does not read ``organizationSubscription``; it reads this marker
+    as an unusable subscription and refuses the run instead of using an operator login.
+    """
+
+    fence: Literal["organization"]
+
+
 class WireModelConnection(_WireModel):
     """Resolved model routing, non-secret environment, and credentials for one run."""
 
@@ -162,7 +177,14 @@ class WireModelConnection(_WireModel):
     )
     environment: Optional[Dict[str, str]] = None
     credentials: List[WireCredential] = Field(default_factory=list)
-    subscription: Optional[WireSubscription] = None
+    subscription: Optional[Union[WireSubscription, WireSubscriptionFence]] = None
+    # An organization's subscription login (M5). The runner uses it like a project login;
+    # `subscription` then holds the fence.
+    organization_subscription: Optional[WireSubscription] = Field(
+        default=None, alias="organizationSubscription"
+    )
+    # "gemini" when the gateway route also serves Google's native protocol; omitted otherwise.
+    protocol: Optional[str] = None
 
 
 class WireModelCapabilities(_WireModel):
@@ -364,6 +386,13 @@ class WireResolvedToolSpec(_WireModel):
     render: Optional[WireRenderHint] = None
     read_only: Optional[bool] = Field(default=None, alias="readOnly")
     permission: Optional[str] = None
+    # Session writes only: what the runner forwards to `resolve_gate`.
+    configured_permission: Optional[str] = Field(
+        default=None, alias="configuredPermission"
+    )
+    target_permissions: Optional[Dict[str, str]] = Field(
+        default=None, alias="targetPermissions"
+    )
 
 
 class WireGatewayTool(_WireModel):
@@ -481,6 +510,13 @@ class WireSandboxPermission(_WireModel):
     enforcement: Literal["strict", "best_effort"] = "strict"
 
 
+class WireAgentDrive(_WireModel):
+    """One configured drive entry (mirrors ``AgentDrive.to_wire``), ``access`` filled in."""
+
+    slug: str
+    access: AgentDriveAccess
+
+
 class WireHarnessFile(_WireModel):
     """One file the active harness's config renders into the session cwd before a run."""
 
@@ -559,6 +595,9 @@ class WireRunRequest(_WireModel):
     # Session-owned (detached) turn identity: the runner uses these to own the alive lock and
     # persist the transcript independently of any client connection. Omitted on ad-hoc runs.
     turn_id: Optional[str] = Field(default=None, alias="turnId")
+    # turn_id above is the execution id. session_turn_id is the session turn that execution
+    # belongs to; it differs from turn_id only on an approval resume. Omitted otherwise.
+    session_turn_id: Optional[str] = Field(default=None, alias="sessionTurnId")
     project_id: Optional[str] = Field(default=None, alias="projectId")
     # Stable id of the durable continuation command that caused this run. The runner admits one
     # execution per id even when delivery is retried.
@@ -626,6 +665,12 @@ class WireRunRequest(_WireModel):
     harness_files: Optional[List[WireHarnessFile]] = Field(
         default=None, alias="harnessFiles"
     )
+    # The drives the configuration names, its home drive, and whether the session keeps its
+    # working folder in the store. A request without ``drives`` is a legacy configuration or
+    # comes from an older service.
+    drives: Optional[List[WireAgentDrive]] = None
+    home_drive: Optional[str] = Field(default=None, alias="homeDrive")
+    has_session_drive: Optional[bool] = Field(default=None, alias="hasSessionDrive")
     # The post-hydration config this turn runs, opaque to the runner: it echoes the blob onto
     # the interaction row of any HITL gate the turn parks, so the answering client can replay
     # the exact config instead of re-hydrating references. Session runs only.

@@ -25,7 +25,7 @@ import {atom} from "jotai"
 
 type EvaluatorDrawerMode = "create" | "view"
 
-interface OpenDrawerParams {
+export interface OpenDrawerParams {
     entityId: string
     mode: EvaluatorDrawerMode
     /** List of entity IDs for prev/next navigation */

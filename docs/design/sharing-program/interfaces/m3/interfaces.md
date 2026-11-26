@@ -1,0 +1,721 @@
+# M3 `agent-session-sharing`: interfaces
+
+Status: built. Round 3, aligned with the implementation plan, then synced with the M3 code as built (plan Task 22). Code read on `main` at `42ffe80bfe`; M2 names checked against the M2 branch. Paths are relative to `api/` unless they start with `web/`. "NEW" marks a new file.
+
+Normative names come from `docs/design/sharing-program/CONTRACT.md` (v3) and the M1 and M2 designs. This file adds only M3 names. Where this file and CONTRACT.md disagree, CONTRACT.md wins. CONTRACT.md v3 already holds the M3 contract changes (`technical-design.md` section 13).
+
+Owner decisions applied (2026-10-22):
+
+- One release (decision 7, CONTRACT.md section 7). There is no rollout flag. An omitted visibility means `private` when the ownership rule gives an owner.
+- Ownership (decision 8, option 1). Only a human owns. Every API key creates ownerless, project-visible items.
+- Owner leaves (decision 9). Private items lock. Project-visible agents become ownerless, and an admin can take ownership.
+- `/w` (decision 10). `/w` always creates project-visible chats and agents, until it is retired.
+- Installations (decisions 3 and 6, CONTRACT.md section 4). Installations keep today's authority. M3 adds no installation restriction. For resource policy an `installation` principal is like every other non-human principal: it never owns, and it sees only project-visible items, with two exceptions (2026-10-26, rules A2 and S3): a binding that the agent's owner created runs (only runs) that private agent on its own channel turn, and acts in the private channel sessions of that binding.
+
+Names reused from M1 and M2 without change: `MembershipsService.is_member`, `MembershipsDAOInterface`, `bootstrap_access()` (`entrypoints/access.py`, M1), `AccessService.decide`, `AccessService.check_request` (`project_id` required), `Decision`, `DecisionReason`, `Action` (= `Permission | RoleRequirement`), `AccessDenied`, `AccessError`; from `core/access/dtos.py` (M2 DTOs): `PrincipalKind`, `PrincipalRef`, `RunAuthority`, `RunOrigin`, `RunContext`, `RunSender`, `RunEnvelope`, `ResourceKind`, `ResourceRef`, `RequestCredentialKind`; `PrincipalsDAOInterface.invalidate_principal(*, principal)` (`core/access/interfaces.py`, M2), which clears one cached principal record; from `core/workflows/dtos.py` (M2): `ResolvedTarget(artifact_id, revision_id, archived: bool = False)`; `WorkflowsService.resolve_request_target(*, project_id, request) -> Optional[ResolvedTarget]` (M2), after which `_prepare_invoke` does not resolve again; from `core/access/context.py`: `RequestAccess`, `get_request_access()`; the router helper `request_run_envelope(request) -> Optional[RunEnvelope]` (`middlewares/auth.py`); `request.state.principal`, `request.state.authority`, `request.state.credential_kind`, `request.state.run_envelope`; `SessionCommandsService._settle_refused_continuation` (`core/sessions/commands/service.py`, M2), which settles a continuation that may not run. The M2 failure code for a deny at a run boundary is `access_denied` (M2 interfaces section 7), built by `access_denied_error` (`core/access/principals.py`).
+
+Interface decisions of the implementation plan (2026-10-22), applied in this file: the user grants cache (3.2); typed write results for agent and session sharing writes (3.2); `ensure_first_agent_access` only on `WorkflowsDAOInterface` (3.6); disclosure built outside `SharingService` (3.1, 4); `admit_turn`, `admit_request` and `AdmissionDenied` (3.4); the heartbeat `admission_envelope` and the Redis admission record (3.5); a required read scope on every agent query caller (3.6, 3.7); `OWNERLESS_PROJECT_POLICY` (2.1); `can_send` set by the router (3.1); the sharing service registry (3.1); the route check helper `check_resource` (4); the Fern tag `Sharing` (4); killed and archived sessions keep their policy (3.2); uncached sharing state reads (3.2); `AGENT_REFERENCE_KEYS` and `channel_agent_references` (3.4); channel activation locks the artifact (3.8); `RESOURCE_DENIED` lands with the sharing contracts (2.3). Where deviations 2 and 14 disagree on the return type of `set_agent_policy`, deviation 14 (`AgentPolicyWriteResult`) applies. The approved UI design adds three points (technical-design.md section 14): "Copy share link", a one-sentence disclosure without the trace readers statement, and agent privacy in the playground top bar.
+
+---
+
+## 1. Data
+
+All in one `core_oss` chain. Nothing in `core_ee`. Owner columns have no foreign key, like every `created_by_id` column today: a deleted user is "not an active member", so the item locks (owner decision 9).
+
+### 1.1 `agent_access` (NEW table, `AgentAccessDBE` in NEW `oss/src/dbs/postgres/sharing/dbes.py`)
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `project_id` | uuid | NOT NULL | | PK part |
+| `artifact_id` | uuid | NOT NULL | | PK part |
+| `visibility` | varchar | NOT NULL | | check `visibility IN ('private','project')` |
+| `owner_user_id` | uuid | NOT NULL | | no FK |
+| `created_at`, `updated_at`, `deleted_at` | timestamptz | NULL | `created_at`: `current_timestamp` | `LifecycleDBA`; `deleted_at` unused |
+| `created_by_id`, `updated_by_id`, `deleted_by_id` | uuid | NULL | | `LifecycleDBA` |
+
+- PK `(project_id, artifact_id)`. FK `(project_id, artifact_id)` -> `workflow_artifacts (project_id, id)` ON DELETE CASCADE. FK `project_id` -> `projects.id` ON DELETE CASCADE.
+- Index `ix_agent_access_project_id_owner_user_id (project_id, owner_user_id)`. Check `ck_agent_access_visibility`.
+- Invariant (CONTRACT.md section 7): no row = project-visible and ownerless. An ownerless agent never gets a row.
+
+### 1.2 `session_streams` (MODIFIED, `SessionStreamDBE` in `oss/src/dbs/postgres/sessions/streams/dbes.py`)
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `visibility` | varchar | NULL | none | `NULL` = written by pre-M3 code, policy not assigned yet (the legacy marker) |
+| `owner_user_id` | uuid | NULL | none | no FK |
+
+- Check `ck_session_streams_visibility_owner`: `(visibility IS NULL OR visibility IN ('private','project')) AND (visibility IS DISTINCT FROM 'private' OR owner_user_id IS NOT NULL)`. Added `NOT VALID`, then `VALIDATE CONSTRAINT` in the same revision.
+- Index `ix_session_streams_project_id_owner_user_id (project_id, owner_user_id)`, `CREATE INDEX CONCURRENTLY`.
+- The legacy marker is `visibility IS NULL`, never `owner_user_id IS NULL`. New code always writes a non-null `visibility`, also for ownerless rows. Only pre-M3 code (old pods during the rolling deploy) writes `NULL`.
+- Writers: the four insert arms (section 3.5), `SharingDAO.set_session_sharing`, and `SharingDAO.assign_legacy_session_access` (section 3.2). `SessionStreamEdit`, `SessionStreamHeaderEdit` and `fill_missing` never carry these columns.
+
+### 1.3 `session_grants` (NEW table, `SessionGrantDBE` in NEW `oss/src/dbs/postgres/sharing/dbes.py`)
+
+| Column | Type | Null | Default |
+| --- | --- | --- | --- |
+| `project_id`, `stream_id`, `user_id` | uuid | NOT NULL | |
+| `role` | varchar | NOT NULL | check `role IN ('viewer','participant')` |
+| `created_at` | timestamptz | NULL | `current_timestamp` |
+| `created_by_id` | uuid | NULL | |
+
+- PK `(project_id, stream_id, user_id)`. FK `(project_id, stream_id)` -> `session_streams (project_id, id)` ON DELETE CASCADE. FK `user_id` -> `users.id` ON DELETE CASCADE (removing a grant only removes access).
+- Index `ix_session_grants_project_id_user_id (project_id, user_id)`. The owner is never a grant (enforced in `SharingService`).
+
+#### `session_trace_tombstones` (NEW, defined by the session-trace-privacy design, written from M3)
+
+| Column | Type | Null | Default / check |
+| --- | --- | --- | --- |
+| `project_id` | uuid | NOT NULL | |
+| `session_id` | varchar | NOT NULL | |
+| `owner_user_id` | uuid | NULL | the former owner |
+| `deleted_at` | timestamptz | NULL | `current_timestamp` |
+
+- PK `(project_id, session_id)`. FK `project_id` -> `projects.id` ON DELETE CASCADE. No foreign key to `session_streams`: the tombstone outlives the row.
+- Written by the session delete for a `private` session, in the one statement that deletes the stream row (`DELETE ... RETURNING` then `INSERT ... ON CONFLICT DO UPDATE`). A project session leaves none. Session deletion leaves the session's records to tracing retention, so without the tombstone the deleted id would read as an unknown session, which the rules allow.
+- No retention flush in M3: the EE flush of tombstones older than the plan's retention plus one day comes with M9.
+
+### 1.4 Alembic revisions (`oss/databases/postgres/migrations/core_oss/versions/`)
+
+Revision ids are allocated centrally: M1 is `044` and `045`, M2 is `046` and `047`, M3 is `048` and `049`, M4a is `050`. `core_oss/env.py` runs with `transaction_per_migration=True`, so R-A commits before R-B starts.
+
+**R-A `oss000000048_add_agent_session_sharing.py`** (NEW, schema, `down_revision = "oss000000047"`)
+
+```python
+def upgrade() -> None:
+    op.execute("SET LOCAL lock_timeout = '5s'")   # a timeout fails the hook; the rerun is safe
+    op.create_table("agent_access", ...)          # 1.1, with its index (new table, IF NOT EXISTS)
+    op.create_table("session_grants", ...)        # 1.3, with its index
+    op.execute("ALTER TABLE session_streams ADD COLUMN IF NOT EXISTS visibility varchar")
+    op.execute("ALTER TABLE session_streams ADD COLUMN IF NOT EXISTS owner_user_id uuid")
+    op.execute("ALTER TABLE session_streams ADD CONSTRAINT ck_session_streams_visibility_owner CHECK ("
+               "(visibility IS NULL OR visibility IN ('private','project')) AND "
+               "(visibility IS DISTINCT FROM 'private' OR owner_user_id IS NOT NULL)) NOT VALID")
+                                                  # guarded: skipped when the constraint exists
+    with op.get_context().autocommit_block():     # the ACCESS EXCLUSIVE phase above has committed
+        op.execute("ALTER TABLE session_streams VALIDATE CONSTRAINT ck_session_streams_visibility_owner")
+        op.execute("CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_session_streams_project_id_owner_user_id "
+                   "ON session_streams (project_id, owner_user_id)")
+        # same indisvalid check as oss000000040
+```
+
+Migration gate (`uv run api/scripts/migration_gate.py <file>`): passes with no label. Two nullable columns; every statement is `IF NOT EXISTS` or guarded, so a rerun after a lock timeout is safe.
+
+**R-B `oss000000049_backfill_agent_session_sharing.py`** (NEW, data, runs once, `down_revision = "oss000000048"`)
+
+- Agents: one `project` row per artifact that has an `is_agent` revision and a non-null `created_by_id`, `ON CONFLICT DO NOTHING`.
+- Sessions: keyset batches of 5,000 by `(project_id, id)` over `visibility IS NULL` rows, with the owner rule of technical-design.md section 5.
+- R-B runs only in autocommit batches, so it holds no schema lock during the backfill.
+- The Helm hook runs R-B before any new pod starts, so every row it reads was written by pre-M3 code. It is never rerun. There is no post-rollout script.
+
+Migration gate: passes (`INSERT` and `UPDATE` are not flagged).
+
+### 1.5 Mixed versions
+
+| Work type | Old pod on new schema (rolling deploy) | New pod on rows written by old pods |
+| --- | --- | --- |
+| Session insert (all four paths) | Writes `visibility NULL`, owner NULL. | Lists show the row as project-visible. The first direct access assigns its policy with the R-B rule (`assign_legacy_session_access`). |
+| Agent create | No `agent_access` row. | Project-visible and ownerless (accepted, technical-design.md section 5.3). |
+| Sharing writes | Not possible: old pods have no routes. | New pods write private rows from the first minute. |
+| Reads | Old pods ignore the columns and show new private items to their project. Accepted risk (decision 7). | New pods enforce. |
+| M2 durable work (schedules, subscriptions, queued inputs, approvals) | Unchanged. | Admission checks apply at dispatch and resume (section 3.4). |
+
+---
+
+## 2. Core types
+
+### 2.1 NEW `oss/src/core/sharing/dtos.py`
+
+```python
+class Visibility(str, Enum):
+    PRIVATE = "private"
+    PROJECT = "project"
+
+class SessionRole(str, Enum):
+    VIEWER = "viewer"
+    PARTICIPANT = "participant"
+
+class SharedItemKind(str, Enum):        # input to initial_policy
+    AGENT = "agent"
+    SESSION = "session"
+    CHANNEL_SESSION = "channel_session"
+
+class EffectiveRole(str, Enum):         # computed, never stored
+    OWNER = "owner"
+    PARTICIPANT = "participant"
+    VIEWER = "viewer"
+    NONE = "none"
+
+class AccessPolicy(BaseModel):
+    visibility: Visibility
+    owner_user_id: Optional[UUID] = None    # validator: PRIVATE requires an owner
+
+OWNERLESS_PROJECT_POLICY = AccessPolicy(visibility=Visibility.PROJECT, owner_user_id=None)
+# initial_policy returns it for every ownerless case; core/channels/commands.py passes it,
+# so channel code needs no SharingService.
+
+class SessionGrant(BaseModel):
+    stream_id: UUID
+    user_id: UUID
+    role: SessionRole
+    created_at: Optional[datetime] = None
+    created_by_id: Optional[UUID] = None
+
+class UserSessionGrant(BaseModel):      # list_user_grants row
+    stream_id: UUID
+    owner_user_id: Optional[UUID] = None
+
+class SessionPolicyState(BaseModel):    # one read of the session row, whatever deleted_at and archived_at hold
+    stream_id: UUID
+    session_id: str
+    policy: AccessPolicy
+    is_channel: bool                    # a channel_threads row names this session
+    references_agent: bool              # session_streams.references names a workflow
+
+class SessionGrantInput(BaseModel):
+    user_id: UUID
+    role: SessionRole
+
+class SessionSharingChange(BaseModel):  # a delta, applied under the row lock
+    visibility: Optional[Visibility] = None
+    upsert_grants: List[SessionGrantInput] = []
+    remove_user_ids: List[UUID] = []
+    remove_all_grants: bool = False     # "Only me" = PRIVATE + remove_all_grants
+
+class SessionSharingWriteResult(BaseModel):   # set_session_sharing result
+    state: SessionPolicyState
+    before: AccessPolicy
+    grants: List[SessionGrant]                # every grant after the write
+    upserted: List[SessionGrantInput]         # grants added or changed
+    removed_user_ids: List[UUID]              # grants removed
+    # Lets the service invalidate the right user entries and publish the grant delta
+    # without a second read.
+
+class AgentPolicyWriteResult(BaseModel):      # set_agent_policy result
+    policy: AccessPolicy
+
+class AgentReadScope(BaseModel):
+    owner_user_id: Optional[UUID]       # principal.id for a human, else None
+
+class SessionReadScope(BaseModel):
+    owner_user_id: Optional[UUID]       # principal.id for a human, else None
+    include_project: bool               # True for every principal kind in M3
+    granted_stream_ids: List[UUID]      # grants whose owner is an active member
+
+class DisclosedConnection(BaseModel):
+    provider: str
+    integration: str
+    connection: str                     # connection slug from the revision's parameters["tools"]
+
+class ShareDisclosure(BaseModel):
+    connections: List[DisclosedConnection]
+    turns_use_run_credentials: bool = True      # three fixed statements; the UI owns the text
+                                                # (one sentence; it ignores trace_readers_can_read)
+    files_and_tool_results_shared: bool = True
+    trace_readers_can_read: bool = True
+
+class AgentSharingState(BaseModel):
+    policy: AccessPolicy
+    owner_is_active: bool
+    my_role: EffectiveRole              # OWNER, VIEWER or NONE for agents
+    can_take_ownership: bool
+
+class SessionSharingState(BaseModel):
+    policy: AccessPolicy
+    owner_is_active: bool
+    grants: List[SessionGrant]          # returned to the owner only; empty for others
+    my_role: EffectiveRole
+    can_send: bool
+    shareable: bool                     # False for channel, ownerless and non-agent sessions
+```
+
+### 2.2 NEW `oss/src/core/sharing/types.py` (domain exceptions)
+
+```python
+class SharingError(Exception):              # code, message, details
+class SharingConflict(SharingError):        # "sharing_conflict"; current: Optional[AccessPolicy]
+class InvalidGrantee(SharingError):         # "invalid_grantee"; details.user_id, details.reason
+class SessionNotShareable(SharingError):    # "session_not_shareable"; details.reason: channel | ownerless | no_agent
+                                            # (no_agent also until the first heartbeat fills references)
+class OwnerStillActive(SharingError):       # "owner_active"
+class InvalidTransferTarget(SharingError):  # "invalid_transfer_target"
+class SharedItemNotFound(SharingError):     # "not_found"
+class AgentCreationFailed(SharingError):    # "agent_creation_failed"; the transaction rolled back
+class SharingServiceNotRegistered(Exception):   # get_sharing_service() before bootstrap_access()
+
+class AdmissionDenied(AccessDenied):        # RunAdmission refusal (3.4)
+    readable: bool                          # True when the caller may read the session but not act
+```
+
+`AgentReferenceUnresolved` lives in `core/workflows/types.py` (3.4).
+
+### 2.3 MODIFIED DTOs
+
+- `oss/src/core/access/dtos.py` (M2 DTOs): `DecisionReason.RESOURCE_DENIED = "resource_denied"`. M2 does not add it; it lands with the sharing contracts, before the resource rules that return it. It is an internal reason; HTTP exposes `not_found` or `access_denied` (section 5).
+- `oss/src/core/access/permissions/types.py`: `Permission.MANAGE_AGENT_OWNERSHIP = "manage_agent_ownership"`, in `ADMIN_PERMISSIONS` (the owner role has every permission already).
+- `oss/src/core/sessions/streams/dtos.py`: `SessionStream` gets `visibility: Visibility = Visibility.PROJECT` (a stored `NULL` maps to `PROJECT`) and `owner_user_id: Optional[UUID] = None` (read only). `SessionStreamCreate` gets a required `access: AccessPolicy`. `SessionStreamEdit` and `SessionStreamHeaderEdit` do not change.
+- `oss/src/core/workflows/dtos.py`: `Workflow.access` and `SimpleWorkflow.access: Optional[AccessPolicy] = None` (filled for agents on reads; the applied policy on create). `WorkflowCreate.visibility` and `SimpleWorkflowCreate.visibility: Optional[Visibility] = None`.
+- `oss/src/core/sessions/dtos.py` `SessionListItem` carries `SessionStream`, so it gets both fields.
+- `oss/src/core/memberships/dtos.py` (M1 file): NEW `ProjectMemberProfile(user_id: UUID, email: str, name: Optional[str] = None, role: Optional[str] = None)`. `name` is the username. `role` is the organization role (OSS) or the project role (EE); it is `None` for an EE project row with a null role.
+- `oss/src/core/events/types.py`: `EventType.AGENTS_SHARING_CHANGED = "agents.sharing.changed"`, `EventType.SESSIONS_SHARING_CHANGED = "sessions.sharing.changed"`.
+
+---
+
+## 3. Core interfaces
+
+### 3.1 `SharingService` (NEW `oss/src/core/sharing/service.py`)
+
+Dependencies: `sharing_dao: SharingDAOInterface`, `memberships_service: MembershipsService` (M1), `principals_dao: PrincipalsDAOInterface` (M2, for the principal-cache invalidation after a make-private). It implements `ResourcePolicyInterface` (3.3). `bootstrap_access()` (M1) builds it before `WorkflowsService` exists, so `SharingService` never reads revisions and never calls `AccessService` (it is the resource policy of `AccessService`).
+
+Registry, in the same file, as M1 does for memberships: `register_sharing_service(*, sharing_service: SharingService) -> None`, called by `bootstrap_access()`, and `get_sharing_service() -> SharingService`, which raises `SharingServiceNotRegistered` before registration.
+
+```python
+class SharingService(ResourcePolicyInterface):
+
+    def initial_policy(
+        self,
+        *,
+        principal: PrincipalRef,
+        origin: RunOrigin,                    # RunContext.origin; web (Bearer) or api (ApiKey) for a request
+        sender_user_id: Optional[UUID],       # RunSender.user_id of the turn, for a run
+        #
+        kind: SharedItemKind,
+        requested: Optional[Visibility] = None,
+    ) -> AccessPolicy: ...                    # pure, never raises
+
+    async def evaluate(                       # ResourcePolicyInterface, step 4 of decide
+        self,
+        *,
+        principal: PrincipalRef,
+        action: Action,
+        project_id: UUID,
+        resource: ResourceRef,
+    ) -> Optional[DecisionReason]: ...        # None = allow; RESOURCE_DENIED = deny
+
+    async def agent_read_scope(self, *, principal: PrincipalRef) -> AgentReadScope: ...
+    async def session_read_scope(
+        self, *, project_id: UUID, principal: PrincipalRef,
+    ) -> SessionReadScope: ...
+
+    async def list_session_grants(
+        self, *, project_id: UUID, stream_id: UUID,
+    ) -> List[SessionGrant]: ...              # uncached; the session delete reads the grantees
+
+    async def fetch_agent_sharing(
+        self, *, project_id: UUID, principal: PrincipalRef, artifact_id: UUID,
+    ) -> AgentSharingState: ...
+    async def set_agent_visibility(
+        self, *, organization_id: UUID, project_id: UUID, access: RequestAccess,
+        #
+        artifact_id: UUID, visibility: Visibility,
+    ) -> AgentSharingState: ...
+    async def transfer_agent(
+        self, *, organization_id: UUID, project_id: UUID, access: RequestAccess,
+        #
+        artifact_id: UUID, new_owner_user_id: UUID,
+    ) -> AgentSharingState: ...
+    async def take_agent_ownership(
+        self, *, organization_id: UUID, project_id: UUID, access: RequestAccess,
+        #
+        artifact_id: UUID,
+    ) -> AgentSharingState: ...
+    # Raise SharedItemNotFound, AccessDenied (RESOURCE_DENIED), OwnerStillActive,
+    # InvalidTransferTarget, SharingConflict (after one re-decide).
+
+    async def fetch_session_sharing(
+        self, *, project_id: UUID, principal: PrincipalRef, session_id: str,
+    ) -> SessionSharingState: ...
+    async def set_session_sharing(
+        self, *, organization_id: UUID, project_id: UUID, access: RequestAccess,
+        #
+        session_id: str, change: SessionSharingChange,
+    ) -> SessionSharingState: ...
+    # Raise SharedItemNotFound, AccessDenied (RESOURCE_DENIED), SessionNotShareable,
+    # InvalidGrantee, SharingConflict (after one re-decide).
+```
+
+- Reads take `principal`. Writes take `organization_id` and `access: RequestAccess` (from `get_request_access()`), because the audit event needs the organization, the credential kind and the acting user. The router takes `organization_id` from `request.state`, else from `AccessService.project_organization_id`.
+- A non-owner write on an item the caller can read raises `AccessDenied` with `RESOURCE_DENIED` (403 `access_denied`); a write on an item the caller cannot read raises `SharedItemNotFound` (404). A write that changes nothing commits nothing and publishes no event.
+- `fetch_agent_sharing` expects the router to have checked that the artifact is an agent (`WorkflowsService.is_agent_artifact`): no access row reads as project-visible and ownerless, so an unknown id must not reach it.
+- `AgentSharingState.my_role` is `OWNER`, else `VIEWER` for a project-visible agent, else `NONE`. `can_take_ownership` is true for a human caller on a project-visible agent with no active owner; the router ANDs it with `MANAGE_AGENT_OWNERSHIP`.
+
+- `fetch_session_sharing` fills `can_send` from rule S2 only. The router ANDs it with `decide(RUN_SESSIONS, resource=session)` through `model_copy`, because `SharingService` cannot call `AccessService`.
+- The sharing state reads (`fetch_*_sharing` and every write) read the policy, `is_channel` and `references_agent` from the DAO, uncached. `references` is filled once by a later heartbeat, so a cached `shareable` would be stale. Only `evaluate` and the read scopes use the caches.
+- Disclosure is not a `SharingService` method. NEW pure `oss/src/core/sharing/disclosure.py::build_share_disclosure(*, parameters: Optional[dict]) -> ShareDisclosure` parses the revision's `parameters["tools"]`. The sharing router reads the agent's head revision through `WorkflowsService` and calls it.
+- A make-private changes no channel agent (changed 2026-10-26: a private agent may answer in channels), so it clears no installation principal.
+
+`initial_policy` (CONTRACT.md section 7):
+
+```python
+owner = (
+    None if kind is SharedItemKind.CHANNEL_SESSION or origin is RunOrigin.INSTALLATION
+    else sender_user_id if sender_user_id is not None and origin in (RunOrigin.WEB, RunOrigin.API)
+    else principal.id if principal.kind is PrincipalKind.HUMAN and origin in (RunOrigin.WEB, RunOrigin.SCHEDULE)
+    else None                     # api_key, installation, subscription, child, evaluation
+)
+if owner is None:
+    return OWNERLESS_PROJECT_POLICY           # a requested PRIVATE is dropped
+return AccessPolicy(visibility=requested or Visibility.PRIVATE, owner_user_id=owner)
+```
+
+`evaluate` rules. Only `ResourceKind.AGENT` and `ResourceKind.SESSION` are evaluated; another kind returns `None`. "Owner active" = `MembershipsService.is_member(project_id=..., user_id=owner_user_id)`. A missing row returns `None` (the caller's not-found path answers).
+
+| Id | Resource | Action | Allow when |
+| --- | --- | --- | --- |
+| A1 | agent | any | no row, or `visibility = project` |
+| A2 | agent | any | `private`, principal is `human`, `principal.id = owner_user_id`; or, for `RUN_WORKFLOWS` only, principal is `installation` on its own channel turn (the decision's run context has origin `installation`; a child run of the turn does not) and the binding's creator (its principal record's acting user, from the request memo) is the agent's owner |
+| S1 | session | `VIEW_SESSIONS`, `USE_MOUNTS`, `VIEW_MOUNTS` | `project`; or `private`, owner active, and principal is the human owner or has a grant |
+| S2 | session | `RUN_SESSIONS` (send, steer, cancel, answer an approval) | `project`, a channel session included: any principal (the project capability is step 3; a send also checks the agent); `private`: owner active and principal is the human owner or a `participant` |
+| S3 | session | any of S1, S2, S4 | a private channel session and principal is the session's own channel binding (`channel_binding_id`, the binding of its newest thread, read in the same policy statement) whose creator is the session's owner: allow (the owner's binding acts in its private agent's channel sessions). A project-visible channel session needs no rule: S1, S2 and S4 let any binding act there. Changed 2026-10-26: S3 no longer makes people read-only in channel sessions |
+| S4 | session | `EDIT_SESSIONS` (rename, archive, unarchive, delete) | owner set: principal is the active human owner; owner NULL: any principal (today's behavior) |
+
+`fetch_session_policy` assigns the policy of a legacy row (`visibility IS NULL`) before `evaluate` reads it, so the rules never see `NULL`.
+
+A session with no row and a tombstone is a deleted private session: its former owner may read it (S1 actions) and nobody may write to it (S2, S4: no session is created over a tombstone); everyone else gets the hidden answer. The session decision reads the row and the tombstone in one statement (`fetch_session_policy_or_tombstone`), so a session with no row costs the same one read as before. Neither "no row" nor a tombstone is cached.
+
+### 3.2 `SharingDAOInterface` (NEW `oss/src/core/sharing/interfaces.py`)
+
+Every method is `@abstractmethod` and returns DTOs from 2.1.
+
+```python
+class SharingDAOInterface(ABC):
+    # agents
+    @abstractmethod
+    async def fetch_agent_policy(self, *, project_id: UUID, artifact_id: UUID) -> Optional[AccessPolicy]: ...
+    @abstractmethod
+    async def set_agent_policy(
+        self, *, project_id: UUID, artifact_id: UUID,
+        #
+        expected: Optional[AccessPolicy],       # None = "no row"
+        policy: AccessPolicy,
+        #
+        user_id: UUID,
+    ) -> AgentPolicyWriteResult: ...
+    # Locks workflow_artifacts (project_id, id) FOR UPDATE for an artifact with an is_agent
+    # revision (else SharedItemNotFound), compares agent_access with expected,
+    # raises SharingConflict(current) on mismatch, upserts. Channel agents are not touched
+    # (2026-10-26: a private agent may answer in channels).
+    # ensure_first_agent_access is not here: it lives only on WorkflowsDAOInterface (3.6).
+
+    # sessions
+    @abstractmethod
+    async def fetch_session_policy(self, *, project_id: UUID, session_id: str) -> Optional[SessionPolicyState]: ...
+    # A legacy row (visibility NULL) first goes through assign_legacy_session_access.
+    # Reads the row whatever deleted_at and archived_at hold: deleted_at marks a killed session
+    # that is still listed and resumable, so killed and archived sessions keep their policy.
+    # Only a hard delete makes the session unknown (None).
+    @abstractmethod
+    async def assign_legacy_session_access(self, *, project_id: UUID, session_id: str) -> None: ...
+    # One UPDATE ... WHERE visibility IS NULL with the R-B owner rule. Idempotent.
+    @abstractmethod
+    async def list_session_grants(self, *, project_id: UUID, stream_id: UUID) -> List[SessionGrant]: ...
+    @abstractmethod
+    async def list_user_grants(self, *, project_id: UUID, user_id: UUID) -> List[UserSessionGrant]: ...
+    @abstractmethod
+    async def set_session_sharing(
+        self, *, project_id: UUID, session_id: str,
+        #
+        expected: AccessPolicy,
+        change: SessionSharingChange,
+        #
+        user_id: UUID,
+    ) -> SessionSharingWriteResult: ...
+    # Locks the session_streams row FOR UPDATE, compares (visibility, owner) with expected,
+    # raises SharingConflict(current) on mismatch, applies the delta in one transaction.
+```
+
+Implementation: NEW `oss/src/dbs/postgres/sharing/dao.py` `SharingDAO(SharingDAOInterface)`, NEW `mappings.py` (`map_agent_access_dbe_to_dto`, `map_session_grant_dbe_to_dto`). The same file holds NEW `lock_agent_policy(session, *, project_id: UUID, artifact_id: UUID) -> Optional[AccessPolicy]` (`SELECT ... FROM workflow_artifacts ... FOR UPDATE`, then `agent_access`, uncached), which the channels DAO calls inside its write transaction (3.8).
+
+**Policy read caches.** `evaluate` adds no uncached read to a request. `SharingService` reads agent and session policy through Redis (`get_cache`, `set_cache`, `invalidate_cache` from `oss/src/utils/caching.py`, TTL `AGENTA_CACHE_TTL`), as M2 does for membership. The DAO stays uncached. Cache entries are DTOs in `core/sharing/dtos.py`, never returned to callers:
+
+```python
+class CachedAgentAccess(BaseModel):     # namespace "sharing_agent_access", key (project_id, artifact_id)
+    policy: Optional[AccessPolicy] = None   # None = "no agent_access row" (A1 allows); a hit, not a miss
+
+class CachedSessionAccess(BaseModel):   # namespace "sharing_session_access", key (project_id, session_id)
+    stream_id: UUID
+    policy: AccessPolicy                    # never NULL: a legacy row is assigned before the write
+    grants: List[SessionGrant]              # every grant of the session; [] when none
+
+class CachedUserGrants(BaseModel):      # namespace "sharing_user_grants", key (project_id, user_id)
+    grants: List[UserSessionGrant]          # written also when empty
+```
+
+- Every entry survives the real serializer. `utils/caching.py::_serialize` dumps with `exclude_none=True`, so every nullable field of a cached model has an explicit `= None` default (`AccessPolicy.owner_user_id`, `CachedAgentAccess.policy`, `SessionGrant.created_at`, `SessionGrant.created_by_id`, `UserSessionGrant.owner_user_id`). A unit test round-trips each entry type through the real `_serialize` and `_deserialize`.
+- User grants: `session_read_scope` reads `list_user_grants` through `sharing_user_grants`, so a warm human session list adds no Postgres read.
+- Agent: a miss calls `fetch_agent_policy` and stores `CachedAgentAccess`, also for "no row", because most agents have no row. A warm agent decision reads no Postgres row.
+- Session: a miss calls `fetch_session_policy` and `list_session_grants` and stores one `CachedSessionAccess`. Grant lookups read the cached list, so `fetch_session_grant` is deleted from the DAO. A missing session row is not cached: the caller answers 404, and the next request reads Postgres. So no insertion path (P1 to P4) needs an invalidation.
+- "Owner active" uses `MembershipsService.is_member`, which reads the M2 membership cache (membership or absence). An owner who leaves is seen through M1's membership invalidation; the sharing caches do not change.
+- Invalidation: one helper, `invalidate_sharing_caches(*, project_id, artifact_ids=(), session_ids=(), grant_user_ids=())` in `core/sharing/service.py`, awaited after each commit: `SharingService` after `set_agent_policy` (visibility, transfer, take ownership) and `set_session_sharing` (visibility, grants, "Only me"; `grant_user_ids` holds every user whose grant was added, changed or removed, from `SessionSharingWriteResult`); `WorkflowsService` after `create_agent_artifact` and `ensure_first_agent_access`; `SessionStreamsService` after a session delete (`grant_user_ids` holds the deleted session's grantees). `assign_legacy_session_access` needs none, because a `NULL` policy is never cached. A failure logs `[sharing] cache invalidation failed` (warning) and does not fail the writer.
+- Sharing state reads for the sharing routes are uncached (3.1).
+- Known limit, as for membership: a read that started before a sharing write committed can refill the old entry after the invalidation; it lives at most `AGENTA_CACHE_TTL`.
+- Sharing writes read the current policy from the DAO under the row lock, never from the cache, so `expected` is always the committed value.
+
+### 3.3 `ResourcePolicyInterface` (`oss/src/core/access/interfaces.py`, the M1 file)
+
+```python
+class ResourcePolicyInterface(ABC):
+    @abstractmethod
+    async def evaluate(
+        self, *, principal: PrincipalRef, action: Action, project_id: UUID, resource: ResourceRef,
+    ) -> Optional[DecisionReason]: ...
+```
+
+- `AccessService.__init__` gains a required `resource_policy: ResourcePolicyInterface`, with no default. M1's `bootstrap_access()` (`entrypoints/access.py`) is the only composition helper; `entrypoints/routers.py`, `entrypoints/worker_queues.py` and `entrypoints/worker_streams.py` call it. It builds `SharingDAO` and `SharingService`, passes `resource_policy=sharing_service`, and calls `register_sharing_service`. A missing argument fails at startup with `TypeError`. A test builds each root (technical-design.md section 8).
+- `decide` calls it as step 4, only when `resource` is given and steps 1 to 3 allowed. The EE no-RBAC, organization-owner and project-owner shortcuts stay in step 3, so they cannot open a private item.
+
+### 3.4 Execution admission (NEW `oss/src/core/sharing/admission.py`)
+
+One class checks the session and the resolved agent at every point where work starts or resumes.
+
+```python
+class RunAdmission:
+    def __init__(self, *, access_service: AccessService, workflows_service: WorkflowsService): ...
+
+    async def admit(
+        self,
+        *,
+        envelope: RunEnvelope,
+        session_id: Optional[str],            # None: no existing session to check
+        agent_artifact_id: Optional[UUID],    # the execution target of THIS turn; None = draft run
+        boundary: str,                        # for the refusal log line (heartbeat, queued_dispatch, ...)
+    ) -> None: ...
+    # 1. session_id set: decide(envelope.authority, principal, RUN_SESSIONS, resource=session(session_id)).
+    # 2. agent_artifact_id set: decide(..., RUN_WORKFLOWS, resource=agent(agent_artifact_id)).
+    # Any deny raises AdmissionDenied(decision, readable=...). admit never reads session_streams.references.
+    # readable comes from a VIEW_SESSIONS decision on the refusal path only; an agent refusal is never readable.
+
+    async def session_readable(self, *, envelope: RunEnvelope, session_id: str) -> bool: ...
+    # Rule S1 for the envelope's principal; a refusal path uses it to answer a hidden session
+    # like an unknown one.
+
+    async def admit_turn(                     # heartbeat
+        self,
+        *,
+        envelope: RunEnvelope,
+        session_id: Optional[str],
+        project_id: UUID,
+        references: Optional[List[SessionReference]],
+    ) -> None: ...
+    # resolve_agent_artifact_id(references), then admit.
+
+    async def admit_request(                  # server paths
+        self,
+        *,
+        envelope: RunEnvelope,
+        session_id: Optional[str],
+        project_id: UUID,
+        request: WorkflowServiceRequest,
+        boundary: str,
+    ) -> None: ...
+    # resolve_request_target (M2) when the request has a reference, then admit with
+    # ResolvedTarget.artifact_id. _prepare_invoke does not resolve again. When no target
+    # resolves (an inline data.revision, or references that resolve to nothing) but the
+    # references name an AGENT_REFERENCE_KEYS key, the agent is resolved on its own (one
+    # indexed read); an agent reference that resolves to nothing raises AdmissionDenied
+    # (readable False).
+```
+
+`AdmissionDenied(AccessDenied)` (`core/sharing/types.py`) carries `readable: bool`: True when the caller may read the session but not act. The heartbeat route answers 403 or 404 from it without a second check.
+
+Callers pass the execution target, never the session's stored references (technical-design.md section 2):
+
+- Server paths (queued dispatch, approval resume, channel turn, child invocation, template start): `admit_request` resolves the target once (M2 `resolve_request_target`) and admits `ResolvedTarget.artifact_id`; a request with no agent reference admits `None` (the session only). An agent reference that resolves to nothing is refused at admission. The services-layer `api_invoke` has no API route and is not wired (the heartbeat admits those turns). Evaluation runs are not admitted (evaluators keep project visibility). A template start admits before anything is claimed. A refused queued dispatch or resume is settled by M2's `_settle_refused_continuation` (command `obsolete` with outcome `failed`, execution settled `failed` with `access_denied`).
+- Trigger dispatch: M2 F6 `resolve_request_target` on every tick, then `admit` with `ResolvedTarget.artifact_id`. The stored `trigger_*.artifact_id` is never passed.
+- Heartbeat (every beat without verified continuity, section 3.5 P4): `admit_turn(references=request.references)`, the beat's references for the current turn.
+
+- NEW `WorkflowsService.resolve_agent_artifact_id(*, project_id: UUID, references: Optional[List[SessionReference]]) -> Optional[UUID]`: resolves the most specific reference of `AGENT_REFERENCE_KEYS` to its artifact id, by id or slug, without a read scope (an internal lookup, one indexed read). It returns `None` only when `references` holds none of these keys (a draft run). When such a reference is present and nothing resolves (unknown, deleted, archived, or in another project), it raises NEW `AgentReferenceUnresolved` (`core/workflows/types.py`), which the heartbeat route answers as 404 `not_found`. It never returns `None` for an unresolved reference. The result is not cached, because an archived or deleted target must be denied at once. The most specific present key wins; an unusable one raises, with no fallback. An `environment` reference resolves through `EnvironmentsService` (each deployed reference most specific first, with project, artifact, deleted and archived checks; an archived environment is rejected) and raises when it leads to zero or more than one agent.
+- NEW `AGENT_REFERENCE_KEYS` (`core/workflows/dtos.py`): the `workflow` and `application` families, each with `_variant` and `_revision`, and `environment`, which resolves to its current revision. It is a superset of `RESOLVABLE_AGENT_REFERENCE_KEYS` (`core/channels/dtos.py`). `resolve_agent_artifact_id`, `admit_request` and `references_agent` use it.
+- Channel bindings use the adapter NEW `core/channels/dtos.py::channel_agent_references(references: Dict[str, Reference]) -> List[SessionReference]`. A binding whose references contain no agent key is refused, never treated as "no agent".
+- Call sites (technical-design.md section 2): the heartbeat (every beat without verified continuity), queued dispatch (M2 F5), approval resume (M2 F7, which also cancels the turn's interactions on a refusal), channel turn (M2 F8), trigger dispatch (M2 F6, agent only, the target is resolved before the check), child invocation (M2 F10, agent only), and template start (`start_once`).
+
+### 3.5 Session insertion paths (MODIFIED)
+
+`SessionStreamsDAOInterface.create(*, project_id, user_id, stream: SessionStreamCreate)` keeps its signature; `stream.access` is required and `map_stream_dto_to_dbe_create` writes it.
+
+| Path | Symbol | Change |
+| --- | --- | --- |
+| P1 turn start | `SessionStreamsService._start_turn` (`core/sessions/streams/service.py` ~1131) and `command(...)` | new required kwarg `access: AccessPolicy`. Callers: router `set_session_stream`, `core/channels/commands.py` (channel session, passes `OWNERLESS_PROJECT_POLICY`). |
+| P2 rename before the first turn | `SessionStreamsService.set_header` create arm (~978) | new required kwarg `access: AccessPolicy`, used only in the create arm. The `SessionStreamAlreadyExists` arm writes no access field. A header call with a `visibility` and no header field only creates the session (the /w pre-create of a new chat; an existing row is returned unchanged). Without a `visibility`, a body with no header field is refused with 422, as before. |
+| P3 trigger claim | `SessionStreamsDAO.claim_trigger_delivery` (`dbs/postgres/sessions/streams/dao.py` ~163) and `TriggerSessionClaimsDAOInterface.claim_trigger_delivery` | new required kwarg `access: AccessPolicy`; the `from_select` column list adds both columns. `on_conflict_do_update` stays tags-only. Caller `TriggersDispatcher._run` passes `initial_policy(principal=<trigger principal>, origin=schedule or subscription, sender_user_id=None, kind=SESSION)`. |
+| P4 heartbeat | `SessionStreamsService.heartbeat(*, project_id, request, runner_verified=False, envelope)` (M2) and `_heartbeat_locked` | new required kwargs `access: AccessPolicy` (used only in the `prior_stream is None` create), `run_admission: RunAdmission`, `admission_envelope: RunEnvelope`, next to M2's `envelope` (which is `None` for Bearer and ApiKey). `_heartbeat_locked` reads `prior_stream` once, at the top, before the supersession check (its branch reuses the row). Then it authorizes: row absent → `admit_turn(session_id=None)`, then insert the row (initial flags, `turn_id`, `access`) before any liveness lock; on `SessionStreamAlreadyExists` read the winning row and authorize it as below before any lock, update or response; row present and verified continuity (`request.is_running`, `request.turn_id == prior_stream.turn_id`, and `get_turn_admission(...)` equals `admission_envelope.authority.principal`; `get_turn_admission` is one `EVAL` of `CURRENT_TURN_ADMISSION_LUA`, which returns and renews the record only while the session's `running` key equals the turn; a Redis error counts as no record) → no check; otherwise → `admit_turn(session_id=request.session_id)` for a running beat, `admit(session_id, agent_artifact_id=None)` for any other beat. After a successful check of a running beat with a `turn_id`, for the row actually used, `record_turn_admission(...)` (a write error is logged; the next beat is checked again) (Redis, NEW `record_turn_admission` and `get_turn_admission` in `dbs/redis/sessions/locks.py` next to `bind_turn`; key per project, session and turn; value the admitted `PrincipalRef`; same TTL as the binding; written only after create-or-conflict is resolved and the used row passed). NEW `forget_turn_admissions(engine, *, project_id, session_id, turn_ids)` deletes the records on the end beat, on displacement (cancel, steer, kill), on handover and on stop; a refused end beat (not running, with a `turn_id`) whose record names the same principal deletes that record too, so a replay of an ended turn is fully checked. A refusal raises before any lock, row write or response. A heartbeat with no envelope answers the canonical 404 before any row read. Router `heartbeat_session_stream` computes `access` and `admission_envelope = request_run_envelope(request)`; it reads no session row. |
+
+Channel threads first (release QA, 2026-10-25; changed 2026-10-26). The channel inbox writes a `channel_threads` row before its session's first heartbeat. `SessionStreamsDAO.create` asks, in its one insert statement (index `ix_channel_threads_project_id_session_id`, added in `oss000000048`), whether a thread names the session id, and returns `has_channel_thread`. Only the run of the thread's own binding (`SessionStreamCreate.channel_binding_id`, origin and principal `installation`) inserts such a row, with the channel policy it computed (`channel_session_policy`: private to the agent's owner for a private agent, else project-visible and ownerless); the created row's cache entry records a channel session. Any other creator inserts nothing: the id is reserved like a tombstone's (`SessionIdTombstoned`, answered as a hidden session), and a turn that took its locks hands them back. Before 2026-10-26 the insert wrote the ownerless project policy for any creator and kept a refused creator's row (`release_refused_turn`, now removed).
+
+### 3.6 Workflows (MODIFIED and NEW)
+
+```python
+class WorkflowsDAOInterface(GitDAOInterface):          # oss/src/core/workflows/interfaces.py
+    @abstractmethod
+    async def create_agent_artifact(
+        self, *, project_id: UUID, user_id: UUID,
+        #
+        artifact_create: ArtifactCreate,
+        access: AccessPolicy,                  # has an owner; ownerless agents use create_artifact
+        #
+        artifact_id: Optional[UUID] = None,
+        platform_meta: bool = False,
+    ) -> Artifact: ...                         # raises EntityCreationConflict or AgentCreationFailed
+    @abstractmethod
+    async def ensure_first_agent_access(       # only here; the commit path owns it
+        self, *, project_id: UUID, artifact_id: UUID, revision_id: UUID, owner_user_id: UUID,
+    ) -> bool: ...
+    # One statement: lock workflow_artifacts FOR UPDATE first, then insert a project row only
+    # when no agent revision is earlier than revision_id by (created_at, id), so the earliest
+    # agent revision's committer owns it whatever the call order (technical-design.md 4.2).
+    # True when it inserted.
+    @abstractmethod
+    async def is_agent_artifact(self, *, project_id: UUID, artifact_id: UUID) -> bool: ...
+    # The artifact exists in the project (archived included) and one of its revisions carries
+    # flags.is_agent. One indexed read, uncached. WorkflowsService.is_agent_artifact wraps it;
+    # the agent sharing routes call it first.
+    # query_artifacts, query_variants, query_revisions, query_head_revisions: the existing
+    # GitDAO keyword arguments plus a required read_scope: AgentReadScope.
+```
+
+- `GitDAO.create_artifact` (`dbs/postgres/git/dao.py` ~101): extract `_insert_artifact(self, *, session, project_id, user_id, artifact_create, artifact_id, platform_meta) -> Artifact` (adds and flushes, never commits). `create_artifact` calls it, then commits. No behavior change.
+- NEW `oss/src/dbs/postgres/workflows/dao.py` `WorkflowsDAO(GitDAO, WorkflowsDAOInterface)`. `create_agent_artifact` opens one transaction, calls `_insert_artifact`, inserts `AgentAccessDBE`, commits once. It has no `@suppress_exceptions`: `EntityCreationConflict` passes through, and any other database error becomes `AgentCreationFailed` after the rollback. The four query overrides add the agent predicate (technical-design.md section 4.3) before windowing.
+- `WorkflowsService.__init__` takes `workflows_dao: WorkflowsDAOInterface`. `create_workflow(..., access: Optional[AccessPolicy] = None)` calls `create_agent_artifact` when the request declares an agent (`flags.is_agent`) and `access.owner_user_id` is set, else `create_artifact`, and sets `Workflow.access`. `commit_workflow_revision(..., first_agent_owner_user_id: Optional[UUID] = None)` calls `ensure_first_agent_access` after a committed `is_agent` revision when the owner is given; `commit_workflow_revision_checked` forwards `first_agent_owner_user_id` the same way. Both writes call `invalidate_sharing_caches` after the commit.
+- Read scope on every query caller. `read_scope: AgentReadScope` is required on the four query methods (`query_workflows`, `query_workflow_variants`, `query_workflow_revisions`, `query_workflow_head_revisions`) and on `SimpleWorkflowsService.query`. The query methods of `core/applications/service.py` and `core/evaluators/service.py` take a required `read_scope` too, and their query routes pass the caller's scope (`agent_read_scope_for_request`). Only the skills callers (`core/skills/service.py`, `core/skills/import_service.py`), which do not list agents for a person, pass `AgentReadScope(owner_user_id=None)`, which hides every private agent (fail closed). There is no unrestricted scope.
+- `SimpleWorkflowsService.create` and `create_idempotent` forward `access` and `first_agent_owner_user_id`. `core/agent_templates/loader.py` forwards both from the route.
+- Every commit path that can make a workflow an agent passes `first_agent_owner_user_id` (the owner from the ownership rule): the workflow revision create and commit routes, `SimpleWorkflowsService.edit` (the simple workflow edit route), the application and evaluator revision create and commit routes and their simple create and edit routes, and the builder tool commit (`core/tools/platform_handlers.py`, through the `needs_agent_owner` flag on its registration).
+
+### 3.7 Session lists (MODIFIED)
+
+- `SessionStreamsDAOInterface.query` and `count`, `SessionStreamsDAO._apply_filters`, `SessionStreamsService.query_streams` and `count_streams`, `SessionsService.query_sessions_page` (`core/sessions/service.py` ~115) and its wrapper `SessionsService.query_sessions`: new required kwarg `read_scope: SessionReadScope`, applied in SQL before ordering, count and windowing.
+- `session_read_scope` reads the user's grants from `sharing_user_grants` (3.2), so a warm human list adds no Postgres read.
+- A legacy row (`visibility IS NULL`) matches the project branch of the predicate.
+
+### 3.8 Channels (MODIFIED)
+
+- `ChannelsService.create_agent` and `edit_agent` (`core/channels/service.py` ~1238, ~1273): when the result is active, resolve `channel_agent_references(data.references)` with `resolve_agent_artifact_id`, then pass `guard_artifact_id` to the channels DAO write.
+- `ChannelsDAOInterface.create_agent` and `edit_agent` (`core/channels/interfaces.py`) gain `guard_artifact_id: Optional[UUID] = None`. When it is set, the write transaction first calls `dbs/postgres/sharing/dao.py::lock_agent_policy(session, *, project_id, artifact_id)` (lock `workflow_artifacts` `FOR UPDATE`, then read `agent_access` uncached) and raises `SharedItemNotFound` for a private agent that the writer does not own (changed 2026-10-26; before, for every private agent), before it writes the binding. This is the same lock order as `set_agent_policy`. A reference that raises `AgentReferenceUnresolved` is refused with `SharedItemNotFound` too.
+- `SharingDAO.set_agent_policy` does not touch channel agents (changed 2026-10-26; before, a make-private deactivated every channel agent that named the artifact).
+
+### 3.9 Project members for the picker (MODIFIED, M1 domain)
+
+```python
+# oss/src/core/memberships/interfaces.py (M1)
+@abstractmethod
+async def query_project_member_profiles(
+    self, *, project_id: UUID, policy: MembershipPolicy,
+    #
+    search: Optional[str] = None,           # case-insensitive prefix on email or username (LIKE, escaped)
+    windowing: Optional[Windowing] = None,  # core/shared/dtos.py; cursor = user_id, order by email, id
+) -> List[ProjectMemberProfile]: ...
+
+# oss/src/core/memberships/service.py (M1)
+async def query_project_members(
+    self, *, project_id: UUID, search: Optional[str] = None, windowing: Optional[Windowing] = None,
+) -> List[ProjectMemberProfile]: ...
+```
+
+It applies the M1 resolver policy: OSS lists the organization members with their organization role; EE lists the `project_members` rows whose user has an organization row, with the project role (which can be `NULL`). It never reads workspace members. The route always sends a limit (50 when the request gives none) and returns `windowing.next` = the last `user_id` when the page is full.
+
+### 3.10 Sharing audit (NEW `oss/src/core/sharing/audit.py`)
+
+```python
+async def publish_sharing_event(
+    *, organization_id: UUID, project_id: UUID, access: RequestAccess,
+    #
+    resource: ResourceRef, before: Optional[AccessPolicy], after: AccessPolicy,
+    grants_added: List[SessionGrantInput] = [], grants_removed: List[UUID] = [],
+) -> None: ...   # never raises; follows core/gateways/policy/audit.py
+```
+
+---
+
+## 4. API surface
+
+NEW router `oss/src/apis/fastapi/sharing/router.py` `SharingRouter`, models in NEW `models.py`, mounted with no prefix in `entrypoints/routers.py`. Every route carries `tags=["Sharing"]`, so Fern generates `@agentaai/api-client/resources/sharing`. All routes use `@intercept_exceptions()` and `handle_sharing_exceptions()`, which maps every `SharingError` by name before the generic catch. Every route calls `AccessService.decide` with `request.state.principal`, `request.state.authority` and the resource. Responses carry `count` (1 for a singleton) and a named payload.
+
+Route check helper, NEW in `oss/src/apis/fastapi/sharing/utils.py`:
+
+```python
+class ResourceCheck(str, Enum):
+    ALLOWED = "allowed"
+    HIDDEN = "hidden"              # the caller fails S1, A1 or A2
+    FORBIDDEN = "forbidden"        # the caller can read the item but not take the action
+    NO_CAPABILITY = "no_capability"
+
+async def check_resource(request, *, action: Action, resource: ResourceRef) -> ResourceCheck: ...
+
+NOT_FOUND_ERROR = AgentError(code="not_found", message="Not found.", retryable=False)
+```
+
+- `check_resource` calls `check_request` with `project_id=UUID(request.state.project_id)`, because a Bearer request has `authority=None`.
+- Each route maps `HIDDEN` to its own unknown-id response, `FORBIDDEN` to 403 `access_denied`, and `NO_CAPABILITY` to today's `FORBIDDEN_EXCEPTION`. New sharing routes and the heartbeat answer `NOT_FOUND_ERROR` for every hiding refusal.
+- The router fills `disclosure` with `build_share_disclosure(parameters=...)` from the agent's head revision, read through `WorkflowsService`. It reads `parameters.agent.tools`, or the bare `parameters.tools`, and lists both gateway tool entry types. A session's `disclosure` is `None` when the session is not shareable, names no agent, its agent does not resolve, or the caller may not see the agent (a private agent's connections stay with its owner).
+- The four agent routes first call `WorkflowsService.is_agent_artifact` and answer the canonical 404 for an unknown id, a prompt or an evaluator, before `SharingService` (no access row would read as project-visible and ownerless). This adds one statement to these routes, which are not a hot path.
+- Responses use `response_model_exclude_none=True`, so `disclosure`, member `name` and member `role` can be absent.
+- Hidden equals unknown on every route: the nine resource routes answer the same canonical 404 for a hidden item and an unknown id, for an editor and for an admin.
+- Other routers use the helpers `allow_resource`, `allow_agent`, `allow_mount` and `allow_session_write` in the same file. `allow_session_write(request, *, session_id, turn_id)` allows a runner write whose body names a turn whose admission record holds the request envelope's principal (one Redis `EVAL`, no decision); else it runs `allow_resource(RUN_SESSIONS)`. Each route's hidden answer is listed in `entry-points.md`.
+- The router sets `SessionSharingState.can_send` to `can_send AND decide(RUN_SESSIONS, resource=session)` through `model_copy`.
+
+| Method, path | `operation_id` | Request | Response | Permission (step 3), policy (step 4) |
+| --- | --- | --- | --- | --- |
+| `GET /workflows/{workflow_id}/sharing` | `fetch_agent_sharing` | | `AgentSharingResponse {count, sharing: AgentSharingState, disclosure: ShareDisclosure}` | `VIEW_WORKFLOWS`; A1/A2 |
+| `POST /workflows/{workflow_id}/sharing/visibility` | `set_agent_visibility` | `AgentVisibilityRequest {visibility}` | `AgentSharingResponse` | `EDIT_WORKFLOWS`; caller is the active owner |
+| `POST /workflows/{workflow_id}/sharing/transfer` | `transfer_agent` | `AgentTransferRequest {user_id}` | `AgentSharingResponse` | `EDIT_WORKFLOWS`; caller is the owner; target is an active human member |
+| `POST /workflows/{workflow_id}/sharing/take-ownership` | `take_agent_ownership` | | `AgentSharingResponse` | `MANAGE_AGENT_OWNERSHIP`; human caller, project-visible, no active owner |
+| `GET /sessions/{session_id}/sharing` | `fetch_session_sharing` | | `SessionSharingResponse {count, sharing: SessionSharingState, disclosure: Optional[ShareDisclosure]}` | `VIEW_SESSIONS`; S1 |
+| `POST /sessions/{session_id}/sharing/grants` | `upsert_session_grant` | `SessionGrantRequest {user_id, role}` | `SessionSharingResponse` | `EDIT_SESSIONS`; caller is the active owner |
+| `DELETE /sessions/{session_id}/sharing/grants/{user_id}` | `revoke_session_grant` | | `SessionSharingResponse` | same |
+| `POST /sessions/{session_id}/sharing/visibility` | `set_session_visibility` | `SessionVisibilityRequest {visibility}` | `SessionSharingResponse` | same |
+| `POST /sessions/{session_id}/sharing/only-me` | `restrict_session_to_owner` | | `SessionSharingResponse` | same; private and every grant removed in one transaction |
+| `POST /sharing/members/query` | `query_sharing_members` | `SharingMembersQueryRequest {search?, windowing?}`, merged with query params `search`, `limit`, `next` | `SharingMembersResponse {count, members: List[ProjectMemberProfile], windowing?}` | `VIEW_SESSIONS`; no resource |
+
+`/workflows/{workflow_id}/sharing` sits beside `WorkflowsRouter` (`prefix="/workflows"`), and `/sessions/{session_id}/sharing` beside `SessionsRouter.root`. No path collides.
+
+Changed routes:
+
+| Route | Change |
+| --- | --- |
+| `POST /workflows/` (`create_workflow`), `POST /simple/workflows/` (`create_simple_workflow`), `POST /agent-templates/load` | body accepts `workflow.visibility` (the template load: a top-level `visibility`, because its body has no workflow object); the router computes `initial_policy(kind=AGENT)`; response `workflow.access` is the applied policy. Reads leave `Workflow.access` unset. The template load also computes the first session's policy with the same requested visibility, and `start_once` creates that session row before the invoke. |
+| `POST /workflows/revisions/commit` and every commit route | pass `first_agent_owner_user_id = initial_policy(kind=AGENT).owner_user_id`. |
+| `POST /workflows/query`, `/workflows/variants/query`, `/workflows/revisions/query`, `/simple/workflows/query`, and `/applications` queries that read `workflow_artifacts` | pass `read_scope=await sharing.agent_read_scope(principal=request.state.principal)`. |
+| `GET /workflows/{id}`, `/workflows/variants/{id}`, `/workflows/revisions/{id}`, `/workflows/revisions/retrieve`, `/simple/workflows/{id}`, invoke, inspect | `decide(..., resource=agent)`. |
+| `POST /sessions/query`, `POST /sessions/streams/query` | pass `read_scope`; rows include `visibility`, `owner_user_id`. |
+| `GET /sessions/{session_id}`, `GET /sessions/streams/`, watch routes and `session_events` `authorized()`, records, turns, interactions, attachments, mounts (including `sign_session_mount_credentials`) | `decide(<route permission>, resource=session)`. The live recheck (`env.sessions.live_auth_recheck_seconds`) reuses `authorized()`. `GET /sessions/watch` filters each event: a session event by `VIEW_SESSIONS`, a workflow event by `VIEW_WORKFLOWS`, each decision kept per connection for at most 60 s; a refused or failed check drops the frame. Runner writes use `allow_session_write`. |
+| `POST /sessions/streams/` (`set_session_stream`), queued input routes, `POST /sessions/interactions/{id}/respond` | `decide(RUN_SESSIONS, resource=session)` (S2, S3). The send path also checks the agent for the sender (M2). |
+| `PUT /sessions/streams/header` (`set_session_stream_header`) | `decide(EDIT_SESSIONS, resource=session)` on an existing row (S4). NEW query parameter `visibility: Optional[Visibility]`, read only by the create arm as `requested`. On an existing row it is ignored: sharing routes own changes. It is a query parameter for the same reason as `name_source`: the `rename_session` tool fills only the body. |
+| `/sessions/archive`, `/sessions/unarchive`, `DELETE /sessions/` | `decide(EDIT_SESSIONS, resource=session)` (S4). |
+| `POST /sessions/streams/heartbeat` | computes `access` and `admission_envelope` for P4 and passes `run_admission`; the service authorizes every beat that lacks verified continuity before any lock, write or response (section 3.5). A hiding refusal (`AdmissionDenied` with `readable` false, or `AgentReferenceUnresolved`) answers the one canonical body `NOT_FOUND_ERROR` (404, `{code: "not_found", message: "Not found.", retryable: false}`, defined once in `apis/fastapi/sharing/utils.py`); a readable refusal answers 403 `access_denied`. Without a run credential (Bearer, ApiKey), an unknown session answers 403 `session_requires_run_credential`, so a refused beat on an existing session the caller cannot read answers the same. |
+| Embedded references (`core/embeds/utils.py::create_universal_resolver`) | each embedded workflow, application or evaluator revision: rules A1 and A2 for the request principal (`embedded_agent_visible`); hidden = the same `EmbedNotFoundError` as an unknown reference; no request principal = hidden. |
+| `/channels/agents/` create and edit | an active result: resolve the binding's references through `channel_agent_references` and `resolve_agent_artifact_id`, then in the channel-agent write transaction lock `workflow_artifacts (project_id, id) FOR UPDATE`, read `agent_access` uncached, refuse a private agent, write the binding, commit (same lock order as `set_agent_policy`). |
+
+Auth middleware and `request.state`: no change beyond M2. Runner and SDK: no change. The runner already treats a 4xx on the first beat as a refused admission (`admissionRejectedStatus`, `services/runner/src/sessions/alive.ts`). Env: none.
+
+---
+
+## 5. Error codes
+
+Envelope `{code, message, retryable, next_step?, details?}` (api/AGENTS.md). `resource_denied` stays an internal `DecisionReason`; it appears only in `details.reason`.
+
+| Code | HTTP | Retryable | Raised by | When |
+| --- | --- | --- | --- | --- |
+| `not_found` | 404 | no | `SharedItemNotFound`; a `resource_denied` decision when the caller fails S1 or A1/A2; `AdmissionDenied` with `readable` false; `AgentReferenceUnresolved` | no row, or a private item the caller cannot read. New routes and the heartbeat answer one canonical body `NOT_FOUND_ERROR`; existing routes answer exactly what they answer for an unknown id |
+| `access_denied` | 403 | no; `next_step`: "Ask a project admin for access." (M2 `access_denied_error`) | a `resource_denied` decision on an item the caller can read; `AdmissionDenied` with `readable` true | a Viewer sends; a non-owner changes sharing; `details.reason = "resource_denied"` |
+| `sharing_conflict` | 409 | yes; `next_step`: "Reload the sharing state and retry." | `SharingConflict` after one re-decide | the policy changed under the lock |
+| `invalid_grantee` | 422 | no | `InvalidGrantee` | not an active human member, the owner, or a duplicate |
+| `session_not_shareable` | 409 | no | `SessionNotShareable` | channel, ownerless, or no agent reference |
+| `owner_active` | 409 | no | `OwnerStillActive` | take-ownership while the owner is a member |
+| `invalid_transfer_target` | 422 | no | `InvalidTransferTarget` | target is not an active human member |
+| `agent_creation_failed` | 500 | yes; `next_step`: "Send the same request again." | `AgentCreationFailed` | the artifact and access insert rolled back |
+| `missing_capability`, `not_member`, `principal_inactive` | 403 / 401 | no | M1, M2 | unchanged |
+
+M3 produces no `restricted_by_authority` (no installation restriction) and no rollout-flag code. `AdmissionDenied`, `AgentReferenceUnresolved`, `AgentCreationFailed` and every `SharingError` are mapped by name at the route (before `@intercept_exceptions()` turns them into 500) and at each worker boundary (before a generic `except Exception` turns them into a transport retry).
+
+---
+
+## 6. Web contract
+
+- Fern: regenerate the client after the API lands (`bash ./clients/scripts/generate.sh --language typescript`, from an EE spec), then `pnpm --filter @agentaai/api-client build`. Add `getSharingClient()` to `web/packages/agenta-sdk/src/resources.ts`; it wraps the generated `SharingClient` (the `Sharing` tag). The new `header` query parameter and the session row fields arrive through the same regeneration.
+- `@agenta/entities`: NEW subpath export `"./sharing": "./src/sharing/index.ts"` in `package.json`. `sharing/api.ts` calls only `getSharingClient()` and validates with zod schemas in `sharing/core/schema.ts`.
+- Query keys are project-scoped: `["sharing", "agent", workflowId, projectId]`, `["sharing", "session", sessionId, projectId]`, `["sharing", "members", projectId, search]`.
+- Mutations update through `getHostQueryClient()` (`@agenta/shared/api`): set the sharing key from the response, then invalidate the session list (NEW `invalidateProjectSessionListQueries(projectId)` in `@agenta/entities/session`) and the workflow list keys of the same project.
+- zod: `disclosure`, member `name` and member `role` are nullable and optional, because the router excludes `None`.
+- `visibility` is optional on `WorkflowCreateFromEphemeralParams` and `LoadAgentTemplateFromEphemeralParams`; `@agenta/home-ui` `useCreateAgent` takes an optional `visibility` (omitted: the server default, the `/m` behavior).
+- UI components live in `@agenta/entity-ui` and `@agenta/sessions-ui`, built against the approved UI design (technical-design.md section 14), with all user-facing strings in one copy module per package. Roles show as "Can view" and "Can send". The share dialog has "Copy share link"; the disclosure is one sentence and ignores `trace_readers_can_read`; agent privacy sits in the playground top bar. Each new component has a Storybook story in `web/storybook/stories/entity-ui/`, covering empty grants, read-only (Viewer), locked (owner left), conflict error and Slack notice states.
+- The UI shows Share as unavailable while `shareable` is false (a new chat before its first message).
+- Package tests live under each package's `tests/unit/`.
+- `/w` (`web/oss`): an explicit exception to `web/AGENTS.md`, which forbids edits there. The only edits are those that keep `/w` chats and agents project-visible (owner decision 10). They are listed in technical-design.md section 1.4.

@@ -17,6 +17,8 @@ from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
 import pytest
+
+from oss.tests.pytest.utils.principals import HumanCheckFromWrapper
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -116,6 +118,10 @@ def _start_consent(monkeypatch):
     monkeypatch.setattr(
         "oss.src.apis.fastapi.gateways.mcps.router.check_action_access",
         _check_action_access,
+    )
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.gateways.mcps.router.get_access_service",
+        lambda: HumanCheckFromWrapper(_check_action_access),
     )
 
     async def _session_user(_request):

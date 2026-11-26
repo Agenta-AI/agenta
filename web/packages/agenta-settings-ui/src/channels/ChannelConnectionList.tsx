@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import channelsListCatalog from "@agenta/i18n/catalogs/channels.list"
 import {Button} from "@agenta/ui/ui"
 import {CaretRight, Plus} from "@phosphor-icons/react"
 
@@ -21,16 +23,21 @@ export const ChannelConnectionList = ({
     onSelect,
     onAdd,
 }: ChannelConnectionListProps) => {
+    const t = useT(channelsListCatalog)
     const isSlack = platform === "slack"
     const hostedHere = connections.some((c) => c.kind === "hosted")
     return (
         <div className="flex flex-col gap-2.5" data-testid="channels-connection-list">
             <div className="flex items-baseline justify-between px-0.5">
                 <span className="text-[13px] font-semibold text-foreground">
-                    {isSlack ? "Workspaces" : platform === "whatsapp" ? "Numbers" : "Bots"}
+                    {isSlack
+                        ? t("channels.list.workspaces")
+                        : platform === "whatsapp"
+                          ? t("channels.list.numbers")
+                          : t("channels.list.bots")}
                 </span>
                 <span className="text-[12.5px] text-muted-foreground">
-                    {connections.length} connected
+                    {t("channels.list.connectedCount", {count: connections.length})}
                 </span>
             </div>
             <div className="flex flex-col">
@@ -79,12 +86,12 @@ export const ChannelConnectionList = ({
                     </span>
                     <span className="text-sm">
                         {isSlack
-                            ? "Add another workspace"
+                            ? t("channels.list.addWorkspace")
                             : platform === "whatsapp"
-                              ? "Add another number"
+                              ? t("channels.list.addNumber")
                               : hostedHere
-                                ? "Add your own bot"
-                                : "Add a bot"}
+                                ? t("channels.list.addOwnBot")
+                                : t("channels.list.addBot")}
                     </span>
                 </Button>
             </div>

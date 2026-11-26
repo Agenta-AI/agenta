@@ -1,5 +1,7 @@
 import * as React from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import {X} from "lucide-react"
 
@@ -11,8 +13,45 @@ import {cn} from "./utils"
  * antd Modal mapping: onCancel→onOpenChange(false), getContainer→container, closable→showCloseButton.
  */
 
+// Lets a contained DialogContent close its own Root when the host panel closes.
+const DialogRootContext = React.createContext<{
+    open?: boolean
+    onOpenChange?: (open: boolean) => void
+}>({})
+
 function Dialog(props: React.ComponentProps<typeof DialogPrimitive.Root>) {
-    return <DialogPrimitive.Root data-slot="dialog" {...props} />
+    const {open, onOpenChange} = props
+    const root = React.useMemo(() => ({open, onOpenChange}), [open, onOpenChange])
+    return (
+        <DialogRootContext.Provider value={root}>
+            <DialogPrimitive.Root data-slot="dialog" {...props} />
+        </DialogRootContext.Provider>
+    )
+}
+
+// A contained dialog lives in its host panel (a drawer), so it closes when the panel does.
+function useCloseWithContainer(container: HTMLElement | null | undefined, enabled: boolean) {
+    const root = React.useContext(DialogRootContext)
+    const rootRef = React.useRef(root)
+    React.useLayoutEffect(() => {
+        rootRef.current = root
+    })
+    // Layout effect: the swap-out case must close before paint, not flash a page-level modal.
+    React.useLayoutEffect(() => {
+        if (!enabled || !container) return
+        const closeIfHostClosed = () => {
+            const {open, onOpenChange} = rootRef.current
+            if (open && container.getAttribute("data-state") === "closed") onOpenChange?.(false)
+        }
+        closeIfHostClosed()
+        const observer = new MutationObserver(closeIfHostClosed)
+        observer.observe(container, {attributes: true, attributeFilter: ["data-state"]})
+        return () => {
+            observer.disconnect()
+            // Callers can swap the container out in the same render that closes it.
+            closeIfHostClosed()
+        }
+    }, [container, enabled])
 }
 
 function DialogTrigger(props: React.ComponentProps<typeof DialogPrimitive.Trigger>) {
@@ -71,6 +110,8 @@ function DialogContent({
     /** Extra backdrop classes, e.g. a darker mask for a media lightbox. */
     overlayClassName?: string
 }) {
+    const t = useT(commonCatalog)
+    useCloseWithContainer(container, contained)
     return (
         <DialogPortal container={container}>
             <DialogOverlay className={overlayClassName} />
@@ -127,7 +168,7 @@ function DialogContent({
                                 variant="ghost"
                                 size="icon-sm"
                                 className="absolute right-2 top-2"
-                                aria-label="Close"
+                                aria-label={t("common.close")}
                             >
                                 {closeIcon ?? <X />}
                             </Button>
@@ -158,6 +199,7 @@ function DialogFooter({
     /** Appends an outline "Close" button that dismisses the dialog. */
     showCloseButton?: boolean
 }) {
+    const t = useT(commonCatalog)
     return (
         <div
             data-slot="dialog-footer"
@@ -174,7 +216,7 @@ function DialogFooter({
             {children}
             {showCloseButton && (
                 <DialogPrimitive.Close asChild>
-                    <Button variant="outline">Close</Button>
+                    <Button variant="outline">{t("common.close")}</Button>
                 </DialogPrimitive.Close>
             )}
         </div>

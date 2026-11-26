@@ -1,5 +1,15 @@
-import React, {type CSSProperties, memo, useCallback, useEffect, useMemo, useRef} from "react"
+import React, {
+    type CSSProperties,
+    memo,
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useRef,
+} from "react"
 
+import {useT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {
     filterVisibleSections,
     SIDEBAR_COLLAPSED_WIDTH,
@@ -16,6 +26,7 @@ import clsx from "clsx"
 import {useAtom, useSetAtom} from "jotai"
 
 import {NavMenu} from "./NavMenu"
+import {SidebarLayoutContext} from "./sidebarLayout"
 
 class SidebarErrorBoundary extends React.Component<React.PropsWithChildren, {hasError: boolean}> {
     state = {hasError: false}
@@ -162,12 +173,32 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     className,
     onNavigate,
     onDismiss,
+    enterFrom,
 }) => {
+    const t = useT(navigationCatalog)
     // Only a drawer can dismiss the rail, so this is also how the shell knows it is in a sheet.
     const isOverlay = Boolean(onDismiss)
-    const [collapsed] = useAtom(collapsedAtom)
+    // The phone sheet sets its own width; the rail fills it.
+    const phone = useContext(SidebarLayoutContext) === "phone"
+    const [collapsed, setCollapsed] = useAtom(collapsedAtom)
     const railRef = useRef<HTMLDivElement>(null)
-    const {width, handleProps} = useSidebarResize({railRef, disabled: collapsed})
+    const contentRef = useRef<HTMLDivElement>(null)
+    const {width, handleProps} = useSidebarResize({railRef, contentRef, collapsed, setCollapsed})
+    // A scope change the person asked for (focus on one agent, or back) slides the new rail's
+    // content in from that side, 0.2 s. Only on mount: the host remounts the shell per scope.
+    useEffect(() => {
+        const content = contentRef.current
+        if (!enterFrom || !content?.animate) return
+        if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return
+        content.animate(
+            [
+                {transform: `translateX(${enterFrom === "end" ? 16 : -16}px)`, opacity: 0},
+                {transform: "none", opacity: 1},
+            ],
+            {duration: 200, easing: "cubic-bezier(.2,.8,.2,1)"},
+        )
+        // Mount only: the host remounts the shell per scope.
+    }, [])
     const openGroupsAtom = useMemo(
         () => openGroupsAtomFamily(scope.id),
         [openGroupsAtomFamily, scope.id],
@@ -298,7 +329,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
         <div
             ref={railRef}
             // Width lives in --ag-sidebar-w so a drag can repaint it without a React render;
-            // data-resizing kills the collapse transition so the rail tracks the pointer 1:1.
+            // data-resizing kills CSS transitions while the drag's own rAF loop paints the width.
             className={[
                 "group/rail relative border-0 border-r border-solid border-[var(--ag-shell-line)] [&[data-resizing=true]_*]:!transition-none",
                 // Claim the sheet's height; left to its content the frame collapses to the column.
@@ -310,7 +341,9 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                 .trim()}
             style={
                 {
-                    "--ag-sidebar-w": `${collapsed ? SIDEBAR_COLLAPSED_WIDTH : width}px`,
+                    "--ag-sidebar-w": phone
+                        ? "100%"
+                        : `${collapsed ? SIDEBAR_COLLAPSED_WIDTH : width}px`,
                 } as CSSProperties
             }
             onClick={handleFrameClick}
@@ -325,12 +358,14 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                         ? "h-full w-[var(--ag-sidebar-w)] overflow-hidden rounded-[inherit] bg-[var(--ag-sidebar-bg)] transition-all duration-300"
                         : // --ag-top-bars-h: the app's fixed top bars would cover the brand row on
                           // document-scrolling routes; 0px everywhere else.
-                          "sticky top-[var(--ag-top-bars-h,0px)] bottom-0 h-[calc(100vh-var(--ag-top-bars-h,0px))] w-[var(--ag-sidebar-w)] bg-[var(--ag-sidebar-bg)] transition-all duration-300",
+                          "sticky top-[var(--ag-top-bars-h,0px)] bottom-0 h-[calc(100vh-var(--ag-top-bars-h,0px))] w-[var(--ag-sidebar-w)] bg-[var(--ag-sidebar-bg)] transition-all duration-300 group-data-[snap]/rail:overflow-hidden",
                 ].join(" ")}
             >
                 <div
+                    ref={contentRef}
                     className={clsx(
-                        "flex flex-col w-[var(--ag-sidebar-w)] transition-all duration-300",
+                        // A drag-collapse pins the column (--ag-snap-w) so the gliding rail clips it.
+                        "flex flex-col w-[var(--ag-sidebar-w)] transition-all duration-300 group-data-[snap]/rail:w-[var(--ag-snap-w)]",
                         // `vh` is a phone's toolbars-HIDDEN height; the var also narrows for a keyboard.
                         // Capped at the sheet's height: the sheet floats 8px in from the top and
                         // bottom, so a viewport-tall column ran the workspace row off its bottom.
@@ -343,11 +378,9 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                             <div
                                 className={clsx(
                                     "w-full min-h-0 flex-1",
-                                    // A group that scrolls its own rows owns the scrolling: the
-                                    // rail must NOT scroll too, or the entries after that group
-                                    // still leave the screen. Every other scope is unchanged.
+                                    // The scrolling group owns the spare height; the rail scrolls only on a short window.
                                     scrollsWithinAGroup
-                                        ? "flex flex-col overflow-hidden"
+                                        ? "flex flex-col overflow-y-auto"
                                         : "overflow-y-auto",
                                 )}
                             >
@@ -370,14 +403,15 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
             </aside>
             {/* No resizer in an overlay mount: the sheet is a fixed width, so the handle would
                 drag the rail out of alignment with the sheet that frames it. */}
-            {!collapsed && !onDismiss && (
+            {!onDismiss && (
                 <div
                     // Invisible 9px grab strip straddling the hairline; the ::after IS the
-                    // hairline, tinted only while hovering or dragging.
+                    // hairline, tinted only while hovering or dragging. Also on the icon rail: dragging
+                    // it out opens the rail.
                     className="absolute inset-y-0 -right-1 z-10 w-[9px] cursor-col-resize touch-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-transparent after:transition-colors hover:after:bg-colorBorder group-data-[resizing=true]/rail:after:bg-colorPrimary"
                     role="separator"
                     aria-orientation="vertical"
-                    aria-label="Resize sidebar"
+                    aria-label={t("navigation.chrome.resizeSidebar")}
                     {...handleProps}
                 />
             )}

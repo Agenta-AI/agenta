@@ -5,10 +5,11 @@
  * These are pure functions with no Jotai dependencies.
  */
 
+import {getEvaluationsClient, getTestsetsClient} from "@agenta/sdk/resources"
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {slugifyName, validateUUID} from "@agenta/shared/utils"
 
-import type {TestsetRevisionDelta} from "../core"
+import type {TestsetFileType, TestsetRevisionDelta} from "../core"
 
 // ============================================================================
 // TESTSET CRUD
@@ -387,4 +388,83 @@ export async function fetchSimpleTestset(params: {projectId: string; testsetId: 
     })
 
     return response.data?.testset
+}
+
+// ============================================================================
+// FILE UPLOAD
+// ============================================================================
+
+/**
+ * Upload a CSV or JSON file as a new Testset.
+ * The server parses the file and creates the Testset, variant and first revision.
+ */
+export async function uploadTestsetFile(params: {
+    projectId: string
+    file: File
+    fileType: TestsetFileType
+    testsetName?: string
+}): Promise<{testsetId: string; revisionId: string | null}> {
+    const {projectId, file, fileType, testsetName} = params
+
+    const response = await getTestsetsClient().createSimpleTestsetFromFile(
+        {file, file_type: fileType, ...(testsetName ? {testset_name: testsetName} : {})},
+        {queryParams: {project_id: projectId}},
+    )
+
+    const testset = response.testset
+    if (!testset?.id) throw new Error("The upload did not return a Testset")
+    return {testsetId: testset.id, revisionId: testset.revision_id ?? null}
+}
+
+/**
+ * Upload a CSV or JSON file to an existing Testset. The server creates a new revision.
+ */
+export async function uploadTestsetRevisionFile(params: {
+    projectId: string
+    testsetId: string
+    file: File
+    fileType: TestsetFileType
+}): Promise<{revisionId: string | null}> {
+    const {projectId, testsetId, file, fileType} = params
+
+    const response = await getTestsetsClient().editSimpleTestsetFromFile(
+        {testset_id: testsetId, file, file_type: fileType},
+        {queryParams: {project_id: projectId}},
+    )
+
+    if (!response.testset) throw new Error("The upload did not return a Testset")
+    return {revisionId: response.testset.revision_id ?? null}
+}
+
+// ============================================================================
+// EVALUATION RUNS THAT USE A TESTSET
+// ============================================================================
+
+/**
+ * Return the ids of the evaluation runs that reference any of the given Testsets.
+ *
+ * The API matches references with AND semantics, so one request per Testset id is needed.
+ */
+export async function fetchEvaluationRunIdsUsingTestsets(params: {
+    projectId: string
+    testsetIds: string[]
+}): Promise<string[]> {
+    const {projectId, testsetIds} = params
+
+    const responses = await Promise.all(
+        testsetIds.map((id) =>
+            getEvaluationsClient().queryRuns(
+                {run: {references: [{testset: {id}}]}},
+                {queryParams: {project_id: projectId}},
+            ),
+        ),
+    )
+
+    const runIds = new Set<string>()
+    for (const response of responses) {
+        for (const run of response.runs ?? []) {
+            if (run.id) runIds.add(run.id)
+        }
+    }
+    return Array.from(runIds)
 }

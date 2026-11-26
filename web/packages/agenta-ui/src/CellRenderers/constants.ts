@@ -23,5 +23,14 @@ export const ROLE_COLOR_CLASSES: Record<string, string> = {
     tool: "text-magenta-6", // magenta semantic
 }
 
+// The same roles on the theme status tokens. Opt-in through `RoleColorClassesProvider`: /m has no
+// antd color scale, and the old app keeps the map above.
+export const THEME_ROLE_COLOR_CLASSES: Record<string, string> = {
+    ...ROLE_COLOR_CLASSES,
+    user: "text-colorInfo",
+    assistant: "text-colorSuccess",
+    system: "text-colorWarning",
+}
+
 // Default role color class for unknown roles
 export const DEFAULT_ROLE_COLOR_CLASS = "text-inherit"

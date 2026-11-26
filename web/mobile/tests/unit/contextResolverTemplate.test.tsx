@@ -26,6 +26,7 @@ vi.mock("@/features/home/states/HomePageSkeleton", () => ({HomePageSkeleton: () 
 vi.mock("@/components/ScreenScaffold", () => ({ScreenScaffold: () => null}))
 
 import {ContextResolver} from "@/features/context/ContextResolver"
+import {forgetInvite, rememberInvite} from "@/features/invite/pendingInvite"
 import {LAST_CONTEXT_KEY, peekTemplateKey, rememberTemplateKey} from "@/lib/context"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
@@ -94,5 +95,40 @@ describe("the /m root after a sign-up that carried a template", () => {
         await render()
 
         expect(replace).toHaveBeenLastCalledWith("/w/ws1/p/p1/apps")
+    })
+})
+
+describe("the /m root after a sign-in that carried an invite", () => {
+    const INVITE = {
+        token: "t",
+        email: "a@b.c",
+        organization_id: "o1",
+        workspace_id: "w1",
+        project_id: "p1",
+    }
+
+    afterEach(() => forgetInvite())
+
+    it("opens the accept screen and never the remembered project", async () => {
+        rememberInvite(INVITE)
+        queryState.data = {
+            kind: "ok",
+            projects: [{project_id: "p1", project_name: "Default", workspace_id: "ws1"}],
+        }
+
+        await render()
+
+        const targets = replace.mock.calls.map(([url]) => url as string)
+        expect(targets.length).toBeGreaterThan(0)
+        expect(targets.every((url) => url === "/invite")).toBe(true)
+    })
+
+    it("opens the accept screen for a person with no project yet", async () => {
+        rememberInvite(INVITE)
+        queryState.data = {kind: "ok", projects: []}
+
+        await render()
+
+        expect(replace).toHaveBeenCalledWith("/invite")
     })
 })

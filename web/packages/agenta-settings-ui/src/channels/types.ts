@@ -6,7 +6,7 @@
  * api-client themselves, so the same UI runs on desktop, on /m, and in Storybook.
  */
 
-export type ChannelPlatform = "slack" | "telegram" | "whatsapp"
+export type ChannelPlatform = "slack" | "telegram" | "whatsapp" | "discord" | "teams"
 
 /** hosted = Agenta-owned app/bot (one click, the default); custom = the customer's own app/bot. */
 export type ChannelInstallMode = "hosted" | "custom"
@@ -84,16 +84,51 @@ export interface ChannelReadableChannel {
 }
 
 /**
- * The two behavior switches, as the agent's kind-level grants express them.
+ * Where the agent answers: the two behavior switches and the Advanced "Channels it answers
+ * in" choice, as the agent's grants express them.
  *
- * An agent with no grant at all answers everywhere; once any grant exists, a kind nobody
- * named is denied. Both switches on therefore means "no kind-level grants".
+ * An agent with no grant at all answers everywhere; once any grant exists, a place no rule
+ * names is refused, and any deny wins. Both switches on with every channel is "no grant".
  */
 export interface ChannelBehaviorState {
     /** The agent answers a direct message. */
     dm: boolean
     /** The agent answers in a group chat (and, on Slack, in a channel). */
     group: boolean
+    /** The channels it answers in: null for every channel the bot is in, else the space ids
+     *  it answers in ([] answers in none). Group DMs count as channels. */
+    spaceIds: string[] | null
+}
+
+/** One person on the agent's "Who can message it" list. The name and email are only for
+ *  display; the bot compares the platform user id. */
+export interface ChannelAudiencePerson {
+    id: string
+    name: string | null
+    email: string | null
+}
+
+/** A person the people picker found. */
+export interface ChannelPerson extends ChannelAudiencePerson {
+    username: string | null
+    isGuest: boolean
+    isBot: boolean
+    isDeleted: boolean
+    /** Where the picker found them: they wrote to the bot, the workspace list, or an email. */
+    source: "recent_senders" | "directory" | "email_lookup" | null
+}
+
+/** The cached workspace people list behind the picker (Slack only). */
+export interface ChannelPeopleDirectory {
+    /** "failed": the platform refused the last load (an app installed without the scope). */
+    state: "ready" | "loading" | "failed" | "unavailable"
+    /** When the cached list was loaded, ISO 8601. */
+    updatedAt: string | null
+}
+
+export interface ChannelPeopleResult {
+    people: ChannelPerson[]
+    directory: ChannelPeopleDirectory
 }
 
 /** The agent a connection answers as. `name` is null when the host could not resolve it. */
@@ -119,6 +154,9 @@ export interface ChannelConnection {
     chats: ChannelChat[]
     /** Which agent answers on this connection. Undefined when the host has not resolved it. */
     agent?: ChannelAnsweringAgent | null
+    /** True when the binding that answers on this connection is turned off. The connection
+     *  itself stays connected. */
+    agentOff?: boolean
     /** When the connection was made, ISO 8601. */
     connectedAt?: string | null
     /** The bot/app handle this connection uses, e.g. "@newagentabot"; null when unknown. */
@@ -127,6 +165,10 @@ export interface ChannelConnection {
     workspaceName?: string | null
     /** The Slack app's id (A0…); tells two apps apart when neither stored a bot name. */
     appId?: string | null
+    /** Where the answering agent answers, when the host read it. */
+    behavior?: ChannelBehaviorState
+    /** How many people the answering agent answers; 0 is everyone. */
+    audienceCount?: number
     /** WhatsApp only: the callback URL and verify token to paste into Meta's App Dashboard. */
     webhookUrl?: string | null
     webhookVerifyToken?: string | null
@@ -135,7 +177,7 @@ export interface ChannelConnection {
 /**
  * The project's connections, one per platform. `null` means "not connected".
  *
- * `slack` / `telegram` / `whatsapp` hold the connection each entry point summarizes. An agent may answer
+ * `slack` / `telegram` / `whatsapp` / `discord` / `teams` hold the connection each entry point summarizes. An agent may answer
  * through more than one connection on a platform (two Slack workspaces, two Telegram bots);
  * `agentConnections` lists every one of them, the summarized one included, so the manage
  * panel can show and disconnect each separately. Absent when the host did not resolve it.
@@ -144,6 +186,8 @@ export interface ChannelConnections {
     slack: ChannelConnection | null
     telegram: ChannelConnection | null
     whatsapp: ChannelConnection | null
+    discord: ChannelConnection | null
+    teams: ChannelConnection | null
     agentConnections?: Record<ChannelPlatform, ChannelConnection[]>
     /** Every connection in the project, whichever agent it answers as. */
     allConnections?: ChannelConnection[]
@@ -183,6 +227,14 @@ export interface ChannelSetupIdentity {
     handle?: string
 }
 
+/** A setup document the backend builds for a platform. A `zip` document carries base64 bytes. */
+export interface ChannelSetupDocument {
+    format: string | null
+    content: string | null
+    filename: string | null
+    link: string | null
+}
+
 /** What the backend declares for connecting a custom app/bot on a platform. */
 export interface ChannelSetupInfo {
     /** The manifest (Slack) or null when the platform has none. */
@@ -213,6 +265,12 @@ export interface ChannelsActions {
     /** The hosted Slack install URL (a browser redirect into Slack's OAuth), or null when
      * this deployment has no hosted Slack app. */
     hostedSlackInstallUrl: () => Promise<string | null>
+    /** The link that adds a Discord bot to a server, from the connection's setup document;
+     * null when the backend sends none. */
+    discordInviteUrl: (connectionId: string) => Promise<string | null>
+    /** The Teams app package of a connection, from its setup document; null when the backend
+     * sends none. */
+    teamsAppPackage: (connectionId: string) => Promise<ChannelSetupDocument | null>
     /** Create a custom-app connection from the declared field values, then point it at the
      * current agent. Resolves to the created connection, or null when the host has none. */
     connectCustom: (
@@ -223,24 +281,35 @@ export interface ChannelsActions {
     connectHere: (platform: ChannelPlatform, connectionId: string) => Promise<void>
     /** Disconnect (archive) a connection. */
     disconnect: (platform: ChannelPlatform, connectionId: string) => Promise<void>
+    /** Turn the binding that answers on this connection back on. */
+    turnOn: (platform: ChannelPlatform, connectionId: string) => Promise<void>
     /** The places this connection already answers in. */
     listSpaces: (connectionId: string) => Promise<ChannelSpace[]>
     /** The places the connected app can see, for the "Add channel" picker. */
     discoverSpaces: (connectionId: string) => Promise<ChannelSpaceCandidate[]>
     /** Turn a discovered candidate into a space the agent answers in. */
     addSpace: (connectionId: string, candidate: ChannelSpaceCandidate) => Promise<void>
-    /** Read the two behavior switches from this agent's kind-level grants. */
+    /** Read where the agent answers from its grants. */
     readBehavior: (platform: ChannelPlatform, connectionId: string) => Promise<ChannelBehaviorState>
-    /** Write the two behavior switches back as kind-level grants. */
+    /** Write where the agent answers back as one rule set. */
     writeBehavior: (
         platform: ChannelPlatform,
         connectionId: string,
         next: ChannelBehaviorState,
     ) => Promise<void>
-    /** The Telegram accounts allowed to message the bot; empty means everyone. */
-    readAllowedUsers: (connectionId: string) => Promise<string[]>
-    /** Replace the allowed Telegram accounts; an empty list opens the bot to everyone. */
-    writeAllowedUsers: (connectionId: string, ids: string[]) => Promise<void>
+    /** The people the agent answers on this connection; empty means everyone. */
+    readAudience: (connectionId: string) => Promise<ChannelAudiencePerson[]>
+    /** Replace the people the agent answers; an empty list answers everyone. */
+    writeAudience: (connectionId: string, people: ChannelAudiencePerson[]) => Promise<void>
+    /** Search people for "Who can message it": people who wrote to the bot, the workspace
+     *  list, and a full email. */
+    queryPeople: (
+        connectionId: string,
+        text: string,
+        ids?: string[],
+    ) => Promise<ChannelPeopleResult>
+    /** Reload the cached workspace people list. */
+    refreshPeople: (connectionId: string) => Promise<ChannelPeopleDirectory>
     /** Replace the secrets of a custom app/bot (a rotated Telegram token, a new Slack pair). */
     updateCredentials: (connectionId: string, credentials: Record<string, string>) => Promise<void>
     /** Read the channel tool settings of the bot answering on this connection. */

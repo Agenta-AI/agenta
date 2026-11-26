@@ -11,9 +11,11 @@ import {
     skillsSummaryDetail,
     toolsCopyFor,
 } from "@agenta/entity-ui/agent"
+import {useT} from "@agenta/i18n"
+import agentsOverview from "@agenta/i18n/catalogs/agents.overview"
 import {humanizeActionKey} from "@agenta/shared/utils"
 import {LogoMarks} from "@agenta/ui/components/presentational"
-import {Cpu, FileText, GraduationCap, Plugs, ShieldCheck, Wrench} from "@phosphor-icons/react"
+import {Cpu, FileText, Compass, HardDrives, ShieldCheck, Wrench} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {AgentOverviewCard} from "./AgentOverviewCard"
@@ -42,6 +44,7 @@ export const AgentConfigCard = ({
     onEdit: () => void
 }) => {
     // Configuration lives on a revision, not on the artifact.
+    const t = useT(agentsOverview)
     const revisionAtom = useMemo(() => agentLatestRevisionAtomFamily(agentId), [agentId])
     const revision = useAtomValue(revisionAtom)
     const summary = useMemo(
@@ -67,12 +70,16 @@ export const AgentConfigCard = ({
             : skillsSummaryDetail(summary.skills, {canEdit: true})
 
     return (
-        <AgentOverviewCard title="Configuration" action="Edit" onAction={onEdit}>
+        <AgentOverviewCard
+            title={t("agents.overview.configTitle")}
+            action={t("agents.overview.edit")}
+            onAction={onEdit}
+        >
             {revision.isPending ? (
                 <AgentOverviewCardSkeleton rows={6} />
             ) : revision.isError ? (
                 <AgentOverviewCardError
-                    message="Couldn't load this agent's configuration."
+                    message={t("agents.overview.configLoadError")}
                     onRetry={() => void revision.refetch()}
                 />
             ) : (
@@ -80,7 +87,11 @@ export const AgentConfigCard = ({
                     <AgentOverviewCardRow
                         icon={<Cpu size={ICON} />}
                         label={AGENT_CONFIG_ROW_TITLES.model}
-                        detail={summary.model ? modelName(summary.model) : "Choose a model"}
+                        detail={
+                            summary.model
+                                ? modelName(summary.model)
+                                : t("agents.overview.chooseModel")
+                        }
                         title={summary.model ?? undefined}
                         onClick={onEdit}
                     />
@@ -119,7 +130,7 @@ export const AgentConfigCard = ({
                         server" was missing on exactly the agents that have none — and the two
                         cards disagreed about which rows an agent has. */}
                     <AgentOverviewCardRow
-                        icon={<Plugs size={ICON} />}
+                        icon={<HardDrives size={ICON} />}
                         label={AGENT_CONFIG_ROW_TITLES.mcps}
                         // The shared card's rule, not this fork's own wording: it said
                         // "connected", which claims an authorized state no summary card
@@ -128,7 +139,7 @@ export const AgentConfigCard = ({
                         onClick={onEdit}
                     />
                     <AgentOverviewCardRow
-                        icon={<GraduationCap size={ICON} />}
+                        icon={<Compass size={ICON} />}
                         label={AGENT_CONFIG_ROW_TITLES.skills}
                         detail={skills}
                         title={summary.skillNames.join(", ") || undefined}

@@ -4,6 +4,7 @@ import {useCallback} from "react"
 import {cn} from "../../utils/styles"
 
 import {Checkbox} from "./checkbox"
+import {CollapseCaret} from "./collapse-caret"
 
 /**
  * antd's checkable `Tree`, minus antd — the last antd import in this package.
@@ -76,9 +77,7 @@ const Node = ({
                         onClick={() => onToggleExpand(key)}
                         className="flex size-4 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-colorTextSecondary"
                     >
-                        <span className={cn("transition-transform", expanded && "rotate-90")}>
-                            ›
-                        </span>
+                        <CollapseCaret open={expanded} size={12} />
                     </button>
                 ) : (
                     <span className="size-4 shrink-0" />

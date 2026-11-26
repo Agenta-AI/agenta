@@ -7,6 +7,7 @@ from uuid import uuid4
 
 import pytest
 
+from oss.src.core.access.types import AccessDenied
 from oss.src.core.sessions.commands.dtos import (
     SessionCommand,
     SessionCommandKind,
@@ -29,6 +30,7 @@ from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionStatus,
 )
 from oss.src.core.sessions.inputs.dtos import PendingInput, PendingInputState
+from oss.tests.pytest.utils.principals import any_approval, make_envelope
 
 
 class _Commands:
@@ -60,6 +62,7 @@ class _Commands:
             data=command.data,
             state=command.state,
             idempotency_key=command.idempotency_key,
+            run_envelope=command.run_envelope,
             created_at=datetime.now(timezone.utc),
         )
         return self.command
@@ -197,7 +200,10 @@ class _Executions:
             if kwargs["execution_id"] == self.source.execution_id
             else self.continuation
         )
-        if current.terminal_outcome is not None:
+        if current.terminal_outcome is not None or (
+            kwargs.get("defer_to_stop")
+            and current.state == SessionExecutionState.stopping
+        ):
             return SessionExecutionSettlementResult(settlement=current, won=False)
         settled = current.model_copy(
             update={
@@ -291,6 +297,7 @@ async def test_delivery_failure_keeps_answer_and_continuation_recoverable():
     user_id = uuid4()
     interaction_id = uuid4()
     interaction = SessionInteraction(
+        run_envelope=make_envelope(),
         id=interaction_id,
         project_id=project_id,
         session_id="session-1",
@@ -321,6 +328,7 @@ async def test_delivery_failure_keeps_answer_and_continuation_recoverable():
         answer={"approved": True},
         expected_execution_id="source-1",
         idempotency_key="response-1",
+        approved_by=any_approval(),
     )
 
     assert admission.interaction.status == SessionInteractionStatus.responded
@@ -329,8 +337,10 @@ async def test_delivery_failure_keeps_answer_and_continuation_recoverable():
         "interaction_id": str(interaction_id),
         "interaction_ids": [str(interaction_id)],
         "continuation_execution_id": admission.execution_id,
+        "session_turn_id": "source-1",
     }
     assert delivery.delivered[0].data["answer"] == {"approved": True}
+    assert delivery.delivered[0].data["session_turn_id"] == "source-1"
     assert executions.source.terminal_outcome == "continued"
     assert executions.states[-1][1] == SessionExecutionState.recoverable
     assert interactions.published[0]["interactions"][0].data.resolution == {
@@ -347,6 +357,7 @@ async def test_delivery_failure_keeps_answer_and_continuation_recoverable():
         answer={"approved": True},
         expected_execution_id="source-1",
         idempotency_key="response-1",
+        approved_by=any_approval(),
     )
     assert retry.command.id == admission.command.id
     assert retry.execution_id == "continuation-retry"
@@ -359,6 +370,7 @@ async def test_delivery_failure_keeps_answer_and_continuation_recoverable():
             answer={"approved": False},
             expected_execution_id="source-1",
             idempotency_key="response-1",
+            approved_by=any_approval(),
         )
 
 
@@ -369,6 +381,7 @@ async def test_parallel_answers_wait_then_share_one_continuation():
     second_id = uuid4()
     interactions = _Interactions(
         SessionInteraction(
+            run_envelope=make_envelope(),
             id=first_id,
             project_id=project_id,
             session_id="session-1",
@@ -380,6 +393,7 @@ async def test_parallel_answers_wait_then_share_one_continuation():
     )
     interactions.interactions.append(
         SessionInteraction(
+            run_envelope=make_envelope(),
             id=second_id,
             project_id=project_id,
             session_id="session-1",
@@ -410,6 +424,7 @@ async def test_parallel_answers_wait_then_share_one_continuation():
         answer={"approved": True},
         expected_execution_id="source-1",
         idempotency_key="response-1",
+        approved_by=any_approval(),
     )
 
     assert first.command is None
@@ -426,6 +441,7 @@ async def test_parallel_answers_wait_then_share_one_continuation():
         answer={"approved": False},
         expected_execution_id="source-1",
         idempotency_key="response-2",
+        approved_by=any_approval(),
     )
 
     assert second.command is not None
@@ -443,6 +459,7 @@ async def test_parallel_answers_wait_then_share_one_continuation():
         answer={"approved": True},
         expected_execution_id="source-1",
         idempotency_key="response-1-retry",
+        approved_by=any_approval(),
     )
 
     assert retry.interaction.id == first_id
@@ -458,6 +475,7 @@ async def test_approve_all_commits_one_continuation_for_the_batch():
     second_id = uuid4()
     interactions = _Interactions(
         SessionInteraction(
+            run_envelope=make_envelope(),
             id=first_id,
             project_id=project_id,
             session_id="session-1",
@@ -469,6 +487,7 @@ async def test_approve_all_commits_one_continuation_for_the_batch():
     )
     interactions.interactions.append(
         SessionInteraction(
+            run_envelope=make_envelope(),
             id=second_id,
             project_id=project_id,
             session_id="session-1",
@@ -501,6 +520,7 @@ async def test_approve_all_commits_one_continuation_for_the_batch():
         ],
         expected_execution_id="source-1",
         idempotency_key="approve-all",
+        approved_by=any_approval(),
     )
 
     assert admission.command is not None
@@ -518,6 +538,7 @@ async def test_post_commit_failures_do_not_reject_an_accepted_answer():
     project_id = uuid4()
     interaction_id = uuid4()
     interaction = SessionInteraction(
+        run_envelope=make_envelope(),
         id=interaction_id,
         project_id=project_id,
         session_id="session-1",
@@ -556,6 +577,7 @@ async def test_post_commit_failures_do_not_reject_an_accepted_answer():
         answer={"approved": True},
         expected_execution_id="source-1",
         idempotency_key="response-1",
+        approved_by=any_approval(),
     )
 
     assert admission.interaction.status == SessionInteractionStatus.responded
@@ -585,6 +607,7 @@ async def test_sweep_redelivers_continuation_without_a_heartbeat():
     project_id = uuid4()
     interaction_id = uuid4()
     interaction = SessionInteraction(
+        run_envelope=make_envelope(),
         id=interaction_id,
         project_id=project_id,
         session_id="session-1",
@@ -620,6 +643,7 @@ async def test_next_send_resumes_the_same_open_continuation():
     project_id = uuid4()
     interaction_id = uuid4()
     interaction = SessionInteraction(
+        run_envelope=make_envelope(),
         id=interaction_id,
         project_id=project_id,
         session_id="session-1",
@@ -671,6 +695,7 @@ async def test_exhausted_continuation_stays_recoverable(monkeypatch):
         streams_service=None,
         interactions_service=_Interactions(
             SessionInteraction(
+                run_envelope=make_envelope(),
                 id=interaction_id,
                 project_id=project_id,
                 session_id="session-1",
@@ -718,6 +743,7 @@ async def test_only_the_winning_started_outcome_is_admitted():
         streams_service=None,
         interactions_service=_Interactions(
             SessionInteraction(
+                run_envelope=make_envelope(),
                 id=interaction_id,
                 project_id=project_id,
                 session_id="session-1",
@@ -817,6 +843,7 @@ async def test_parked_running_continuation_does_not_own_send_preflight():
         streams_service=streams,
         interactions_service=_Interactions(
             SessionInteraction(
+                run_envelope=make_envelope(),
                 id=interaction_id,
                 project_id=project_id,
                 session_id="session-1",
@@ -872,6 +899,7 @@ async def test_stale_heartbeat_never_replays_an_admitted_continuation():
         streams_service=streams,
         interactions_service=_Interactions(
             SessionInteraction(
+                run_envelope=make_envelope(),
                 id=interaction_id,
                 project_id=project_id,
                 session_id="session-1",
@@ -913,6 +941,7 @@ async def test_stop_winner_blocks_continuation_admission():
         streams_service=None,
         interactions_service=_Interactions(
             SessionInteraction(
+                run_envelope=make_envelope(),
                 id=interaction_id,
                 project_id=project_id,
                 session_id="session-1",
@@ -959,14 +988,123 @@ async def test_watchdog_keeps_lost_continuation_recoverable():
         executions_dao=executions,
     )
 
-    assert not await service.settle_execution_lost(
+    settlement = await service.settle_execution_lost(
         project_id=project_id,
         session_id="session-1",
         execution_id="continuation-1",
         settled_at=datetime.now(timezone.utc),
     )
+    assert settlement.settled is False
     assert executions.continuation.state == SessionExecutionState.recoverable
     assert executions.continuation.terminal_outcome is None
+
+
+@pytest.mark.asyncio
+async def test_a_lost_turn_promotes_the_next_queued_input():
+    project_id = uuid4()
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    items = _Inputs(
+        [
+            _pending_input(project_id, policy="queue", position=1),
+            _pending_input(project_id, policy="queue", position=2),
+        ]
+    )
+    commands = _Commands()
+    delivery = _Unreachable()
+    service = SessionCommandsService(
+        commands_dao=commands,
+        streams_service=None,
+        interactions_service=None,
+        lock_engine=None,
+        delivery=delivery,
+        executions_dao=executions,
+        inputs_dao=items,
+    )
+
+    settlement = await service.settle_execution_lost(
+        project_id=project_id,
+        session_id="session-1",
+        execution_id="source-1",
+        settled_at=datetime.now(timezone.utc),
+    )
+
+    assert settlement.settled is True
+    assert executions.source.terminal_outcome == "lost"
+    assert items.items[0].state == PendingInputState.promoted
+    assert items.items[1].state == PendingInputState.pending
+    assert commands.command.kind == SessionCommandKind.continue_input
+    assert commands.command.expected_turn_id == "source-1"
+    assert delivery.delivered == []
+
+    await service.deliver_input_admission(settlement.admission)
+
+    assert delivery.delivered == [commands.command]
+
+
+@pytest.mark.asyncio
+async def test_a_raised_delivery_leaves_the_promoted_input_recoverable():
+    project_id = uuid4()
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+
+    class _Raising(_Unreachable):
+        async def deliver(self, **kwargs):
+            raise RuntimeError("refusal settlement failed")
+
+    service = SessionCommandsService(
+        commands_dao=_Commands(),
+        streams_service=None,
+        interactions_service=None,
+        lock_engine=None,
+        delivery=_Raising(),
+        executions_dao=executions,
+        inputs_dao=_Inputs([_pending_input(project_id, policy="queue", position=1)]),
+    )
+    settlement = await service.settle_execution_lost(
+        project_id=project_id,
+        session_id="session-1",
+        execution_id="source-1",
+        settled_at=datetime.now(timezone.utc),
+    )
+
+    await service.deliver_input_admission(settlement.admission)
+
+    assert executions.continuation.state == SessionExecutionState.recoverable
+
+
+@pytest.mark.asyncio
+async def test_a_lost_turn_that_was_stopping_leaves_the_queue_parked():
+    project_id = uuid4()
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    executions.source = executions.source.model_copy(
+        update={"state": SessionExecutionState.stopping}
+    )
+    items = _Inputs([_pending_input(project_id, policy="queue", position=1)])
+    service = SessionCommandsService(
+        commands_dao=_Commands(),
+        streams_service=None,
+        interactions_service=None,
+        lock_engine=None,
+        delivery=_Unreachable(),
+        executions_dao=executions,
+        inputs_dao=items,
+    )
+
+    settlement = await service.settle_execution_lost(
+        project_id=project_id,
+        session_id="session-1",
+        execution_id="source-1",
+        settled_at=datetime.now(timezone.utc),
+    )
+
+    assert settlement.settled is True
+    assert settlement.admission is None
+    assert items.items[0].state == PendingInputState.pending
 
 
 @pytest.mark.asyncio
@@ -987,7 +1125,7 @@ async def test_persisted_completion_terminalizes_continuation_before_recovery():
         executions_dao=executions,
     )
 
-    assert await service.settle_execution_completed(
+    assert await service.settle_execution_ended(
         project_id=project_id,
         session_id="session-1",
         execution_id="continuation-1",
@@ -995,6 +1133,67 @@ async def test_persisted_completion_terminalizes_continuation_before_recovery():
     assert executions.continuation.state == SessionExecutionState.terminal
     assert executions.continuation.terminal_outcome == "completed"
     assert executions.continuation.settled_by == "runner"
+
+
+@pytest.mark.asyncio
+async def test_persisted_error_ending_terminalizes_continuation_as_failed():
+    # Production EU, 2026-10-06: a continuation that ended with a provider error stayed
+    # `running`, and the next Send found the session busy with a turn that was over.
+    project_id = uuid4()
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    executions.continuation = executions.continuation.model_copy(
+        update={"state": SessionExecutionState.running}
+    )
+    service = SessionCommandsService(
+        commands_dao=_Commands(),
+        streams_service=None,
+        interactions_service=None,
+        lock_engine=None,
+        delivery=_Unreachable(),
+        executions_dao=executions,
+    )
+
+    assert await service.settle_execution_ended(
+        project_id=project_id,
+        session_id="session-1",
+        execution_id="continuation-1",
+        terminal_outcome="failed",
+    )
+    assert executions.continuation.state == SessionExecutionState.terminal
+    assert executions.continuation.terminal_outcome == "failed"
+    assert executions.continuation.settled_by == "runner"
+
+
+@pytest.mark.asyncio
+async def test_error_ending_leaves_a_stopping_continuation_to_its_stop():
+    project_id = uuid4()
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    executions.continuation = executions.continuation.model_copy(
+        update={"state": SessionExecutionState.stopping}
+    )
+    service = SessionCommandsService(
+        commands_dao=_Commands(),
+        streams_service=None,
+        interactions_service=None,
+        lock_engine=None,
+        delivery=_Unreachable(),
+        executions_dao=executions,
+    )
+
+    # Reconciled: the Stop command owns the ending, so the watchdog must not keep retrying it
+    # (a False here would hold back the sweep's abandoned-command settlement).
+    assert await service.settle_execution_ended(
+        project_id=project_id,
+        session_id="session-1",
+        execution_id="continuation-1",
+        terminal_outcome="failed",
+    )
+    assert executions.continuation.state == SessionExecutionState.stopping
+    assert executions.continuation.terminal_outcome is None
 
 
 @pytest.mark.asyncio
@@ -1045,7 +1244,7 @@ async def test_completion_promotes_exactly_one_pending_input_once(monkeypatch):
     )
     service._reconcile_stopped_redis = AsyncMock()
 
-    assert await service.settle_execution_completed(
+    assert await service.settle_execution_ended(
         project_id=project_id,
         session_id="session-1",
         execution_id="source-1",
@@ -1058,7 +1257,7 @@ async def test_completion_promotes_exactly_one_pending_input_once(monkeypatch):
     )
     assert len(delivery.delivered) == 1
 
-    assert await service.settle_execution_completed(
+    assert await service.settle_execution_ended(
         project_id=project_id,
         session_id="session-1",
         execution_id="source-1",
@@ -1107,7 +1306,7 @@ async def test_done_record_admits_promoted_input_within_one_second(monkeypatch):
     service._reconcile_stopped_redis = AsyncMock(side_effect=reconcile_source)
     done_record_at = monotonic()
 
-    assert await service.settle_execution_completed(
+    assert await service.settle_execution_ended(
         project_id=project_id,
         session_id="session-1",
         execution_id="source-1",
@@ -1143,7 +1342,7 @@ async def test_completion_handles_a_lost_input_delivery_reservation(monkeypatch)
     )
     service._reconcile_stopped_redis = AsyncMock()
 
-    assert await service.settle_execution_completed(
+    assert await service.settle_execution_ended(
         project_id=project_id,
         session_id="session-1",
         execution_id="source-1",
@@ -1190,6 +1389,7 @@ async def test_a_late_delivery_failure_does_not_demote_a_running_continuation():
     project_id = uuid4()
     interaction_id = uuid4()
     interaction = SessionInteraction(
+        run_envelope=make_envelope(),
         id=interaction_id,
         project_id=project_id,
         session_id="session-1",
@@ -1238,6 +1438,7 @@ async def test_a_send_after_the_budget_is_spent_reopens_the_continuation(monkeyp
     project_id = uuid4()
     interaction_id = uuid4()
     interaction = SessionInteraction(
+        run_envelope=make_envelope(),
         id=interaction_id,
         project_id=project_id,
         session_id="session-1",
@@ -1409,3 +1610,461 @@ async def test_steer_handles_a_lost_input_delivery_reservation(monkeypatch):
     assert settled is not None
     assert inputs.items[0].state == PendingInputState.promoted
     assert service._executions.continuation.state == SessionExecutionState.recoverable
+
+
+class _ChainExecutions(_Executions):
+    """An execution store that also holds the earlier executions of the paused turn."""
+
+    def __init__(self, *, project_id, session_id, source, earlier):
+        super().__init__(
+            project_id=project_id,
+            session_id=session_id,
+            source_id=source.execution_id,
+        )
+        self.source = source
+        self.earlier = {execution.execution_id: execution for execution in earlier}
+
+    async def fetch_execution(self, **kwargs):
+        if kwargs["execution_id"] in self.earlier:
+            return self.earlier[kwargs["execution_id"]]
+        return await super().fetch_execution(**kwargs)
+
+
+async def _answer_paused(*, source, earlier):
+    project_id = source.project_id
+    interaction_id = uuid4()
+    interaction = SessionInteraction(
+        run_envelope=make_envelope(),
+        id=interaction_id,
+        project_id=project_id,
+        session_id=source.session_id,
+        turn_id=source.execution_id,
+        token="approval-1",
+        kind=SessionInteractionKind.user_approval,
+        status=SessionInteractionStatus.pending,
+    )
+    commands = _Commands()
+    executions = _ChainExecutions(
+        project_id=project_id,
+        session_id=source.session_id,
+        source=source,
+        earlier=earlier,
+    )
+    service = SessionCommandsService(
+        commands_dao=commands,
+        streams_service=None,
+        interactions_service=_Interactions(interaction),
+        lock_engine=None,
+        delivery=_Unreachable(),
+        executions_dao=executions,
+    )
+    await service.respond_interaction(
+        project_id=project_id,
+        user_id=uuid4(),
+        interaction_id=interaction_id,
+        answer={"approved": True},
+        expected_execution_id=source.execution_id,
+        idempotency_key="response-chain",
+        approved_by=any_approval(),
+    )
+    return commands.command
+
+
+def _execution(project_id, execution_id, *, parent=None):
+    return SessionExecutionSettlement(
+        project_id=project_id,
+        session_id="session-1",
+        execution_id=execution_id,
+        state=SessionExecutionState.active,
+        parent_execution_id=parent,
+        source_interaction_id=uuid4() if parent is not None else None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_second_approval_in_a_turn_keeps_the_first_execution_as_turn():
+    project_id = uuid4()
+    first = _execution(project_id, "turn-start")
+    resumed = _execution(project_id, "resume-1", parent="turn-start")
+    paused = _execution(project_id, "resume-2", parent="resume-1")
+
+    command = await _answer_paused(source=paused, earlier=[first, resumed])
+
+    assert command.data["session_turn_id"] == "turn-start"
+    assert command.data["continuation_execution_id"] == command.target_turn_id
+
+
+@pytest.mark.asyncio
+async def test_a_queued_input_execution_starts_its_own_turn():
+    """A promoted input has a parent (the turn before it) but no source interaction:
+    the walk stops there, because the input starts a new turn."""
+    project_id = uuid4()
+    paused = SessionExecutionSettlement(
+        project_id=project_id,
+        session_id="session-1",
+        execution_id="input-turn",
+        state=SessionExecutionState.active,
+        parent_execution_id="previous-turn",
+    )
+
+    command = await _answer_paused(
+        source=paused, earlier=[_execution(project_id, "previous-turn")]
+    )
+
+    assert command.data["session_turn_id"] == "input-turn"
+
+
+@pytest.mark.asyncio
+async def test_a_broken_execution_chain_sends_no_session_turn_id():
+    project_id = uuid4()
+    paused = _execution(project_id, "resume-1", parent="missing")
+
+    command = await _answer_paused(source=paused, earlier=[])
+
+    assert "session_turn_id" not in command.data
+
+
+@pytest.mark.asyncio
+async def test_a_cycle_in_the_execution_chain_sends_no_session_turn_id():
+    project_id = uuid4()
+    first = _execution(project_id, "resume-1", parent="resume-2")
+    paused = _execution(project_id, "resume-2", parent="resume-1")
+
+    command = await _answer_paused(source=paused, earlier=[first, paused])
+
+    assert "session_turn_id" not in command.data
+
+
+@pytest.mark.asyncio
+async def test_a_long_approval_chain_keeps_the_first_execution_as_turn():
+    project_id = uuid4()
+    chain = [_execution(project_id, "turn-start")]
+    for index in range(1, 41):
+        chain.append(
+            _execution(project_id, f"resume-{index}", parent=chain[-1].execution_id)
+        )
+
+    command = await _answer_paused(source=chain[-1], earlier=chain[:-1])
+
+    assert command.data["session_turn_id"] == "turn-start"
+
+
+@pytest.mark.asyncio
+async def test_delivery_passes_the_session_turn_id_to_respond_many(monkeypatch):
+    from oss.src.core.sessions.commands import delivery
+
+    envelope = make_envelope()
+    monkeypatch.setattr(delivery, "get_access_service", lambda: None)
+    monkeypatch.setattr(
+        delivery, "deliverable_envelope", AsyncMock(return_value=envelope)
+    )
+    dispatcher = SimpleNamespace(respond_many=AsyncMock())
+    interaction_id = uuid4()
+    command = _continuation_command(uuid4(), interaction_id).model_copy(
+        update={
+            "data": {
+                "answers": [{"interaction_id": str(interaction_id), "answer": True}],
+                "session_turn_id": "turn-start",
+            }
+        }
+    )
+
+    await delivery.deliver_continue_interaction(
+        command=command, interactions_dispatcher=dispatcher
+    )
+    kwargs = dispatcher.respond_many.await_args.kwargs
+    assert kwargs["session_turn_id"] == "turn-start"
+    assert kwargs["continuation_execution_id"] == "continuation-1"
+
+    without = command.model_copy(update={"data": {"answers": command.data["answers"]}})
+    await delivery.deliver_continue_interaction(
+        command=without, interactions_dispatcher=dispatcher
+    )
+    assert dispatcher.respond_many.await_args.kwargs["session_turn_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_an_in_band_answer_links_a_continuation_that_the_caller_runs(
+    monkeypatch,
+):
+    """An in-band answer (the agent service records it before its own run) continues
+    the paused execution as an answer in the app does: the source settles `continued`
+    and a continuation with the source as parent is stored. The server does not deliver
+    it, because the caller's request runs it."""
+    monkeypatch.setattr(
+        "oss.src.core.sessions.commands.service.get_access_service",
+        lambda: _Access(allowed=True),
+    )
+    project_id = uuid4()
+    interaction_id = uuid4()
+    interactions = _Interactions(
+        SessionInteraction(
+            run_envelope=make_envelope(),
+            id=interaction_id,
+            project_id=project_id,
+            session_id="session-1",
+            turn_id="source-1",
+            token="approval-1",
+            kind=SessionInteractionKind.user_approval,
+            status=SessionInteractionStatus.pending,
+        )
+    )
+    commands = _Commands()
+    delivery = _Unreachable()
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    service = SessionCommandsService(
+        commands_dao=commands,
+        streams_service=None,
+        interactions_service=interactions,
+        lock_engine=None,
+        delivery=delivery,
+        executions_dao=executions,
+    )
+
+    admission = await service.respond_interaction(
+        project_id=project_id,
+        user_id=uuid4(),
+        interaction_id=interaction_id,
+        answer={"approved": True, "tool_call_id": "call-1"},
+        expected_execution_id="source-1",
+        idempotency_key="inband-approval:source-1:digest",
+        approved_by=any_approval(),
+        deliver=False,
+    )
+
+    assert delivery.delivered == []
+    assert admission.command is not None
+    assert admission.command.state == SessionCommandState.pending
+    assert admission.command.target_turn_id == admission.execution_id
+    assert admission.command.data["session_turn_id"] == "source-1"
+    assert executions.source.terminal_outcome == "continued"
+    assert executions.continuation.execution_id == admission.execution_id
+    assert executions.continuation.parent_execution_id == "source-1"
+    assert executions.continuation.source_interaction_id == interaction_id
+    assert executions.continuation.state == SessionExecutionState.pending_delivery
+
+
+def _approval_row(project_id, interaction_id, token, status, resolution=None):
+    return SessionInteraction(
+        run_envelope=make_envelope(),
+        id=interaction_id,
+        project_id=project_id,
+        session_id="session-1",
+        turn_id="source-1",
+        token=token,
+        kind=SessionInteractionKind.user_approval,
+        status=status,
+        data=(
+            SessionInteractionData(resolution=resolution)
+            if resolution is not None
+            else None
+        ),
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_replayed_consumed_answer_does_not_block_a_pending_answer(
+    monkeypatch,
+):
+    """A client resends every answer of the paused message. An answer that a run
+    already consumed (`resolved`) is a replay, and the fresh answer in the same batch
+    still commits and continues the turn."""
+    monkeypatch.setattr(
+        "oss.src.core.sessions.commands.service.get_access_service",
+        lambda: _Access(allowed=True),
+    )
+    project_id = uuid4()
+    first_id = uuid4()
+    second_id = uuid4()
+    denied = {"approved": False, "tool_call_id": "call-1"}
+    approved = {"approved": True, "tool_call_id": "call-2"}
+    interactions = _Interactions(
+        _approval_row(
+            project_id,
+            first_id,
+            "approval-1",
+            SessionInteractionStatus.resolved,
+            resolution=denied,
+        )
+    )
+    interactions.interactions.append(
+        _approval_row(
+            project_id, second_id, "approval-2", SessionInteractionStatus.pending
+        )
+    )
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    service = SessionCommandsService(
+        commands_dao=_Commands(),
+        streams_service=None,
+        interactions_service=interactions,
+        lock_engine=None,
+        delivery=_Unreachable(),
+        executions_dao=executions,
+    )
+
+    admission = await service.respond_interactions(
+        project_id=project_id,
+        user_id=uuid4(),
+        interaction_answers=[(first_id, denied), (second_id, approved)],
+        expected_execution_id="source-1",
+        idempotency_key="inband-approval:source-1:digest",
+        approved_by=any_approval(),
+        deliver=False,
+    )
+
+    assert interactions.interactions[1].status == SessionInteractionStatus.responded
+    assert admission.command is not None
+    assert admission.command.data["interaction_ids"] == [str(second_id)]
+    assert executions.source.terminal_outcome == "continued"
+
+    # A different answer for the consumed row is still a conflict.
+    with pytest.raises(Exception) as error:
+        await service.respond_interactions(
+            project_id=project_id,
+            user_id=uuid4(),
+            interaction_answers=[(first_id, approved)],
+            expected_execution_id="source-1",
+            idempotency_key="other",
+            approved_by=any_approval(),
+        )
+    assert getattr(error.value, "code", None) == "execution_terminal"
+
+
+@pytest.mark.asyncio
+async def test_a_batch_of_consumed_answers_continues_nothing():
+    project_id = uuid4()
+    interaction_id = uuid4()
+    answer = {"approved": True, "tool_call_id": "call-1"}
+    interactions = _Interactions(
+        _approval_row(
+            project_id,
+            interaction_id,
+            "approval-1",
+            SessionInteractionStatus.resolved,
+            resolution=answer,
+        )
+    )
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    commands = _Commands()
+    service = SessionCommandsService(
+        commands_dao=commands,
+        streams_service=None,
+        interactions_service=interactions,
+        lock_engine=None,
+        delivery=_Unreachable(),
+        executions_dao=executions,
+    )
+
+    admission = await service.respond_interactions(
+        project_id=project_id,
+        user_id=uuid4(),
+        interaction_answers=[(interaction_id, answer)],
+        expected_execution_id="source-1",
+        idempotency_key="inband-approval:source-1:digest",
+        approved_by=any_approval(),
+        deliver=False,
+    )
+
+    assert admission.command is None
+    assert commands.command is None
+    assert executions.source.terminal_outcome is None
+
+
+class _Access:
+    def __init__(self, *, allowed):
+        self.allowed = allowed
+        self.checked = []
+
+    async def require(self, *, envelope, action):
+        self.checked.append(envelope)
+        if not self.allowed:
+            raise AccessDenied(decision=SimpleNamespace(reason="no_role"))
+
+
+def _caller_service(project_id, interaction_id):
+    interactions = _Interactions(
+        _approval_row(
+            project_id, interaction_id, "approval-1", SessionInteractionStatus.pending
+        )
+    )
+    commands = _Commands()
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    service = SessionCommandsService(
+        commands_dao=commands,
+        streams_service=None,
+        interactions_service=interactions,
+        lock_engine=None,
+        delivery=_Unreachable(),
+        executions_dao=executions,
+    )
+    return service, commands, executions
+
+
+@pytest.mark.asyncio
+async def test_a_caller_continuation_is_refused_when_the_run_lost_access(monkeypatch):
+    """The caller runs the continuation itself, so the paused run's access is rechecked
+    as delivery rechecks it. A refused continuation reaches the caller settled."""
+    project_id = uuid4()
+    interaction_id = uuid4()
+    service, commands, executions = _caller_service(project_id, interaction_id)
+    access = _Access(allowed=False)
+    monkeypatch.setattr(
+        "oss.src.core.sessions.commands.service.get_access_service", lambda: access
+    )
+    monkeypatch.setattr(
+        service, "_mirror_refused_turn_end", AsyncMock(return_value=None)
+    )
+    monkeypatch.setattr(
+        "oss.src.core.sessions.commands.service.access_denied_error",
+        lambda **_kwargs: SimpleNamespace(
+            code="access_denied", model_dump=lambda **_k: {"code": "access_denied"}
+        ),
+    )
+
+    admission = await service.respond_interactions(
+        project_id=project_id,
+        user_id=uuid4(),
+        interaction_answers=[(interaction_id, {"approved": True})],
+        expected_execution_id="source-1",
+        idempotency_key="inband-approval:source-1:digest",
+        approved_by=any_approval(),
+        deliver=False,
+    )
+
+    assert len(access.checked) == 1
+    assert admission.command is not None
+    assert admission.command.state == SessionCommandState.obsolete
+    assert commands.command.state == SessionCommandState.obsolete
+    assert admission.execution_state == SessionExecutionState.terminal
+
+
+@pytest.mark.asyncio
+async def test_a_caller_continuation_with_access_stays_pending(monkeypatch):
+    project_id = uuid4()
+    interaction_id = uuid4()
+    service, commands, _executions = _caller_service(project_id, interaction_id)
+    access = _Access(allowed=True)
+    monkeypatch.setattr(
+        "oss.src.core.sessions.commands.service.get_access_service", lambda: access
+    )
+
+    admission = await service.respond_interactions(
+        project_id=project_id,
+        user_id=uuid4(),
+        interaction_answers=[(interaction_id, {"approved": True})],
+        expected_execution_id="source-1",
+        idempotency_key="inband-approval:source-1:digest",
+        approved_by=any_approval(),
+        deliver=False,
+    )
+
+    assert len(access.checked) == 1
+    assert admission.command.state == SessionCommandState.pending

@@ -5,7 +5,7 @@ description: "Select an agent sandbox and declare its network, filesystem, and e
 sidebar_position: 17
 ---
 
-The sandbox is where an agent reads and writes files, runs commands, and loads skill assets. Agenta supports `local` and `daytona`; a deployment can restrict either provider.
+The sandbox is where an agent reads and writes files, runs commands, and loads skill assets. Agenta supports `local` and `daytona`; a deployment can restrict either provider. Agenta Cloud runs agents in `daytona` only. A request for `local` there returns `403` with the message `sandbox 'local' is not enabled on this deployment (add it to AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS to enable)`.
 
 ```json
 {

@@ -1,0 +1,15 @@
+{
+    "noProject": "No se puede eliminar: no hay ningún proyecto seleccionado.",
+    "failedMany": "No se pudieron eliminar las trazas.",
+    "failedOne": "No se pudo eliminar la traza.",
+    "confirmOne": "¿Seguro que quieres eliminar?",
+    "confirmMany": "¿Seguro que quieres eliminar {{count}} trazas?",
+    "notReversible": "Esta acción no se puede deshacer.",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "descriptionOne": "Esta traza y todos sus spans se eliminan de forma permanente. No se puede deshacer.",
+    "descriptionMany": "Estas trazas y todos sus spans se eliminan de forma permanente. No se puede deshacer.",
+    "deleting": "Eliminando…",
+    "deletedOne": "Traza eliminada",
+    "deletedMany": "{{count}} trazas eliminadas"
+}

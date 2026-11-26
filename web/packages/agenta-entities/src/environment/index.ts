@@ -78,6 +78,10 @@ export {
     // Normalization
     normalizeEnvironment,
     normalizeEnvironmentRevision,
+    // App deployment history
+    buildAppDeploymentHistory,
+    type AppDeploymentApp,
+    type AppDeploymentRow,
 } from "./core"
 
 export type {

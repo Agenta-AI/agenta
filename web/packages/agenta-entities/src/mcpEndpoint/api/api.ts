@@ -1,7 +1,15 @@
-// This domain uses the shared Axios client the host configures.
+// This domain uses the shared Axios client the host configures. The person's own sign-in calls
+// (`owner_kind=user`) and the gateway credential use the generated client.
+import {getGatewayClient, getGatewayMcpClient} from "@agenta/sdk/resources"
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 
+import {USER_ACCOUNT_SOURCE, userItemKey, type AccountSource} from "../../accountChoice/items"
+import {safeParseWithLogging} from "../../shared"
 import type {McpToolSummary} from "../core/connectJourney"
+import {
+    personalMcpConnectResponseSchema,
+    type MCPPersonalConnectResponse,
+} from "../core/connectResponse"
 import {
     jsonRpcErrorMessage,
     jsonRpcResult,
@@ -158,6 +166,49 @@ export const beginMcpConnect = async (
     return response.data
 }
 
+const projectScopedRequest = (projectId?: string) =>
+    projectId ? {queryParams: {project_id: projectId}} : undefined
+
+/**
+ * The caller starts their own OAuth sign-in (`owner_kind=user`). It reuses the discovery a
+ * project admin stored; with none, the route refuses with `server_not_discovered`.
+ */
+export const beginPersonalMcpSignIn = async (
+    endpointId: string,
+    scopes: string[],
+    projectId?: string,
+): Promise<MCPPersonalConnectResponse | null> => {
+    const response = await getGatewayMcpClient().connectMcpEndpoint(
+        {endpoint_id: endpointId, owner_kind: "user", scopes},
+        projectScopedRequest(projectId),
+    )
+    return safeParseWithLogging(
+        personalMcpConnectResponseSchema,
+        response,
+        "[beginPersonalMcpSignIn]",
+    )
+}
+
+/** The caller signs in to a token server with their own token. Nothing redirects. */
+export const signInPersonalMcpWithToken = async (
+    endpointId: string,
+    token: string,
+    projectId?: string,
+): Promise<void> => {
+    await getGatewayMcpClient().connectMcpEndpoint(
+        {endpoint_id: endpointId, owner_kind: "user", token},
+        projectScopedRequest(projectId),
+    )
+}
+
+/** The caller signs out of their own sign-in. The project's sign-in stays. */
+export const signOutPersonalMcp = async (endpointId: string, projectId?: string): Promise<void> => {
+    await getGatewayMcpClient().disconnectMcpEndpoint(
+        {endpoint_id: endpointId, owner_kind: "user"},
+        projectScopedRequest(projectId),
+    )
+}
+
 /** How one consent attempt stands, for when the callback's message never arrives. */
 export const fetchMcpConnectAttempt = async (
     endpointId: string,
@@ -243,11 +294,23 @@ const relayFailure = (error: unknown, method: string): McpProtocolError => {
  * conversation that broke are different answers, and only the first is safe to show as a
  * connected server with nothing to restrict.
  */
-export const listMcpTools = async (slug: string, projectId?: string): Promise<McpToolSummary[]> => {
+export const listMcpTools = async (
+    slug: string,
+    projectId?: string,
+    {accountSource = "agent"}: {accountSource?: AccountSource} = {},
+): Promise<McpToolSummary[]> => {
     const params = projectId ? {project_id: projectId} : undefined
-    const minted = await axios.post(`${getAgentaApiUrl()}/gateways/credentials`, {}, {params})
-    const credentials = minted.data?.credentials
+    // "user": the viewer's own sign-in to the server, as a run of that person uses it. The
+    // credential names the item, the server resolves the viewer's own account for it, and the
+    // relay is asked for the person's sign-in rather than the project's.
+    const personal = accountSource === USER_ACCOUNT_SOURCE
+    const minted = await getGatewayClient().issueGatewayCredentials(
+        personal ? {item_keys: [userItemKey("mcp_server", slug)]} : {},
+        {queryParams: params},
+    )
+    const credentials = minted?.credentials
     if (!credentials) throw new McpProtocolError("Could not authorize the tool list request.")
+    const relayParams = personal ? {...params, account_source: USER_ACCOUNT_SOURCE} : params
 
     const url = `${getAgentaApiUrl()}${BASE.replace("/endpoints", "")}/custom/${slug}`
     const headers: Record<string, string> = {
@@ -259,7 +322,7 @@ export const listMcpTools = async (slug: string, projectId?: string): Promise<Mc
     let nextId = 1
     const call = async (method: string, body: Record<string, unknown>) => {
         try {
-            return await axios.post(url, body, {headers, params})
+            return await axios.post(url, body, {headers, params: relayParams})
         } catch (error) {
             throw relayFailure(error, method)
         }
@@ -288,7 +351,7 @@ export const listMcpTools = async (slug: string, projectId?: string): Promise<Mc
         await axios.post(
             url,
             {jsonrpc: "2.0", method: "notifications/initialized", params: {}},
-            {headers, params},
+            {headers, params: relayParams},
         )
     } catch {
         // Deliberately ignored: `initialize` already proved the connection.

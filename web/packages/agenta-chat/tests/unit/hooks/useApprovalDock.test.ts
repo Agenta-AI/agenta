@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import {act, renderHook} from "@testing-library/react"
 import type {SessionInteractionRowStates} from "@agenta/entities/session"
+import {act, renderHook} from "@testing-library/react"
 import type {UIMessage} from "ai"
 import {describe, expect, it, vi} from "vitest"
 
@@ -238,5 +238,70 @@ describe("useApprovalDock", () => {
         expect(result.current.current?.approvalId).toBe("g2")
         expect(result.current.answered).toBe(false)
         expect(result.current.recoverable).toBe(false)
+    })
+})
+
+describe("host-driven dismiss", () => {
+    // A chat message sent over a pending approval replaces it: every shown gate is denied, then
+    // the host steers the message into the resumed run.
+    it("denies every shown gate in one write and closes the dock", async () => {
+        const respond = vi.fn()
+        const respondAll = vi.fn().mockResolvedValue(undefined)
+        const {result} = renderHook(() =>
+            useApprovalDock({
+                messages: [userTurn, assistantWithGates("g1", "g2")],
+                respond,
+                respondAll,
+            }),
+        )
+
+        await act(async () => {
+            await result.current.dismiss()
+        })
+
+        expect(respondAll).toHaveBeenCalledExactlyOnceWith({ids: ["g1", "g2"], approved: false})
+        expect(respond).not.toHaveBeenCalled()
+        expect(result.current.open).toBe(false)
+    })
+
+    it("gives the gates back and lets the failure through when the denial fails", async () => {
+        const respond = vi.fn().mockRejectedValue(new Error("offline"))
+        const {result} = renderHook(() =>
+            useApprovalDock({messages: [userTurn, assistantWithGates("g1")], respond}),
+        )
+
+        await act(async () => {
+            await expect(result.current.dismiss()).rejects.toThrow("offline")
+        })
+
+        expect(respond).toHaveBeenCalledExactlyOnceWith({id: "g1", approved: false})
+        expect(result.current.open).toBe(true)
+    })
+
+    it("gives the gates back instead of letting a message steer into a run that will not resume", async () => {
+        // A recoverable denial is recorded, but nothing resumes until the user sends again.
+        const respondAll = vi.fn().mockResolvedValue({durable: true, recoverable: true})
+        const {result} = renderHook(() =>
+            useApprovalDock({
+                messages: [userTurn, assistantWithGates("g1")],
+                respond: vi.fn(),
+                respondAll,
+            }),
+        )
+
+        await act(async () => {
+            await expect(result.current.dismiss()).rejects.toThrow("didn't resume")
+        })
+
+        expect(result.current.open).toBe(true)
+        expect(result.current.recoverable).toBe(true)
+    })
+
+    it("does nothing when no gate is pending", async () => {
+        const {result, respond} = setup([userTurn, settledAssistant])
+        await act(async () => {
+            await result.current.dismiss()
+        })
+        expect(respond).not.toHaveBeenCalled()
     })
 })

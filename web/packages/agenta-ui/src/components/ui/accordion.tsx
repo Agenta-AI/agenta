@@ -2,8 +2,8 @@ import * as React from "react"
 
 import * as AccordionPrimitive from "@radix-ui/react-accordion"
 import {cva, type VariantProps} from "class-variance-authority"
-import {ChevronRight} from "lucide-react"
 
+import {CollapseCaret} from "./collapse-caret"
 import {cn} from "./utils"
 
 /**
@@ -56,7 +56,7 @@ const accordionTriggerVariants = cva(
         "focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-1 focus-visible:outline-focus-ring",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0",
         // Caret rotates 90° when open; data-state lives on the trigger, so target the marked svg.
-        "[&[data-state=open]_[data-slot=accordion-caret]]:rotate-90",
+        "[&[data-state=open]_[data-slot=collapse-caret]]:rotate-90",
     ],
     {
         variants: {
@@ -116,10 +116,7 @@ function AccordionTrigger({
     // Same box either side, so the caret keeps antd's fontHeight alignment wherever it sits.
     const caretBox = (
         <span className="flex h-[22px] shrink-0 items-center">
-            <ChevronRight
-                data-slot="accordion-caret"
-                className="size-3 text-colorText transition-transform duration-200"
-            />
+            <CollapseCaret size={12} />
         </span>
     )
     // Radix Header is an <h3>: preflight-off leaves its UA block margin (white bands +

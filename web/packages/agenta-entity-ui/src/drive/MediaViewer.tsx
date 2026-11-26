@@ -3,6 +3,8 @@ import {useMemo, useRef, useState, type PointerEvent} from "react"
 
 import {resolveDriveFileKind, type DriveFileKind} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
+import {useT} from "@agenta/i18n"
+import drivePreviewCatalog from "@agenta/i18n/catalogs/entityUi.drivePreview"
 import {Button, Dialog, DialogContent, DialogTitle, Spinner} from "@agenta/ui/ui"
 import {CaretLeft, CaretRight, DownloadSimple, X} from "@phosphor-icons/react"
 import {atom, useAtom} from "jotai"
@@ -39,11 +41,27 @@ export interface MediaViewerItem {
     source: MediaViewerSource
 }
 
+const SPREADSHEET_TYPES = new Set([
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-excel.sheet.macroEnabled.12",
+    "application/vnd.ms-excel",
+    "application/vnd.oasis.opendocument.spreadsheet",
+])
+
 const MEDIA_TYPE_KINDS: [test: (type: string) => boolean, kind: DriveFileKind][] = [
     [(t) => t.startsWith("image/"), "image"],
     [(t) => t.startsWith("video/"), "video"],
     [(t) => t.startsWith("audio/"), "audio"],
     [(t) => t === "application/pdf", "pdf"],
+    [(t) => SPREADSHEET_TYPES.has(t), "spreadsheet"],
+    [
+        (t) => t === "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "document",
+    ],
+    [
+        (t) => t === "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "presentation",
+    ],
     [(t) => t === "text/csv" || t === "text/tab-separated-values", "csv"],
     [(t) => t === "text/markdown", "markdown"],
     [(t) => t === "application/json", "json"],
@@ -51,7 +69,7 @@ const MEDIA_TYPE_KINDS: [test: (type: string) => boolean, kind: DriveFileKind][]
 ]
 
 /** The name's extension first (it tells `.py` from plain text), the media type when that fails. */
-const mediaViewerKind = (item: Pick<MediaViewerItem, "name" | "mediaType">) => {
+export const mediaViewerKind = (item: Pick<MediaViewerItem, "name" | "mediaType">) => {
     const byName = resolveDriveFileKind(item.name)
     if (byName !== "other" || !item.mediaType) return byName
     return MEDIA_TYPE_KINDS.find(([test]) => test(item.mediaType ?? ""))?.[1] ?? "other"
@@ -78,18 +96,26 @@ function useItemFile(item: MediaViewerItem) {
 }
 
 const ViewerImage = ({mount, path, name}: {mount: Mount | null; path: string; name: string}) => {
+    const t = useT(drivePreviewCatalog)
     const {src, isPending, failed, onError} = useDriveMediaSrc(mount, path, {direct: true})
     const [loaded, setLoaded] = useState<string | null>(null)
     if (failed)
         return (
             <div className="flex w-full max-w-md flex-col rounded-lg bg-background p-2">
-                <DownloadCard mount={mount} path={path} title="Couldn't load this image" />
+                <DownloadCard
+                    mount={mount}
+                    path={path}
+                    title={t("entityUi.drivePreview.couldNotLoadImage")}
+                />
             </div>
         )
     return (
         <>
             {isPending || !src || loaded !== src ? (
-                <Spinner className="absolute text-white/70" aria-label="Loading image" />
+                <Spinner
+                    className="absolute text-white/70"
+                    aria-label={t("entityUi.drivePreview.loadingImage")}
+                />
             ) : null}
             {src ? (
                 // A cookie-authenticated or object URL; next/image can optimize neither.
@@ -115,14 +141,24 @@ interface ItemFile {
 
 /** An SVG from its text as an `image/svg+xml` blob in `<img>`; its markup never enters the DOM. */
 const ViewerSvg = ({mount, path, name}: {mount: Mount | null; path: string; name: string}) => {
+    const t = useT(drivePreviewCatalog)
     const {data, isPending} = useDriveFileText(mount, path)
     const src = useSvgImage(data)?.src
     if (isPending || (typeof data === "string" && data.length <= SVG_PREVIEW_CAP && !src))
-        return <Spinner className="text-white/70" aria-label="Loading image" />
+        return (
+            <Spinner
+                className="text-white/70"
+                aria-label={t("entityUi.drivePreview.loadingImage")}
+            />
+        )
     if (!src)
         return (
             <div className="flex w-full max-w-md flex-col rounded-lg bg-background p-2">
-                <DownloadCard mount={mount} path={path} title="Couldn't preview this SVG" />
+                <DownloadCard
+                    mount={mount}
+                    path={path}
+                    title={t("entityUi.drivePreview.couldNotPreviewSvg")}
+                />
             </div>
         )
     return (
@@ -153,12 +189,13 @@ const ViewerBody = ({item, file}: {item: MediaViewerItem; file: ItemFile}) => {
 }
 
 const DownloadButton = ({name, file}: {name: string; file: ItemFile}) => {
+    const t = useT(drivePreviewCatalog)
     const download = useDriveDownload(file.mount, file.path)
     return (
         <Button
             variant="ghost"
             size="icon"
-            aria-label={`Download ${name}`}
+            aria-label={t("entityUi.drivePreview.downloadName", {name})}
             onClick={download}
             className="text-white hover:bg-white/10 hover:text-white"
         >
@@ -167,19 +204,26 @@ const DownloadButton = ({name, file}: {name: string; file: ItemFile}) => {
     )
 }
 
-const NavButton = ({side, onClick}: {side: "prev" | "next"; onClick: () => void}) => (
-    <Button
-        variant="ghost"
-        size="icon"
-        aria-label={side === "prev" ? "Previous file" : "Next file"}
-        onClick={onClick}
-        className={`absolute top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/40 text-white hover:bg-black/60 hover:text-white ${
-            side === "prev" ? "left-2 sm:left-4" : "right-2 sm:right-4"
-        }`}
-    >
-        {side === "prev" ? <CaretLeft /> : <CaretRight />}
-    </Button>
-)
+const NavButton = ({side, onClick}: {side: "prev" | "next"; onClick: () => void}) => {
+    const t = useT(drivePreviewCatalog)
+    return (
+        <Button
+            variant="ghost"
+            size="icon"
+            aria-label={
+                side === "prev"
+                    ? t("entityUi.drivePreview.previousFile")
+                    : t("entityUi.drivePreview.nextFile")
+            }
+            onClick={onClick}
+            className={`absolute top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/40 text-white hover:bg-black/60 hover:text-white ${
+                side === "prev" ? "left-2 sm:left-4" : "right-2 sm:right-4"
+            }`}
+        >
+            {side === "prev" ? <CaretLeft /> : <CaretRight />}
+        </Button>
+    )
+}
 
 /** One item's chrome and stage. Keyed by item, so per-file state never leaks to the next one. */
 const ViewerFrame = ({
@@ -195,6 +239,7 @@ const ViewerFrame = ({
     go: (step: -1 | 1) => void
     close: () => void
 }) => {
+    const t = useT(drivePreviewCatalog)
     const {local, ...file} = useItemFile(item)
     const swipeStart = useRef<{x: number; y: number} | null>(null)
     const swipeable = SWIPEABLE.has(mediaViewerKind(item))
@@ -221,7 +266,10 @@ const ViewerFrame = ({
                     </DialogTitle>
                     {count > 1 ? (
                         <span className="shrink-0 text-xs tabular-nums text-white/60">
-                            {position + 1} of {count}
+                            {t("entityUi.drivePreview.positionOfCount", {
+                                position: position + 1,
+                                total: count,
+                            })}
                         </span>
                     ) : null}
                 </div>
@@ -229,7 +277,7 @@ const ViewerFrame = ({
                 <Button
                     variant="ghost"
                     size="icon"
-                    aria-label="Close"
+                    aria-label={t("entityUi.drivePreview.close")}
                     onClick={close}
                     className="text-white hover:bg-white/10 hover:text-white"
                 >

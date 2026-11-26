@@ -14,11 +14,16 @@ import json
 from types import SimpleNamespace
 from uuid import uuid4
 
+import httpx
 import pytest
+from agenta.sdk.agents.platform.workflow import REFERENCE_TOOL_TIMEOUT_MS
+
+from oss.tests.pytest.utils.principals import make_envelope
 from fastapi import HTTPException
 
 from oss.src.apis.fastapi.tools.router import ToolsRouter
 from oss.src.core.tools.dtos import ToolCall, ToolCallData, ToolCallFunction
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 class FakeWorkflowsService:
@@ -33,9 +38,24 @@ class FakeWorkflowsService:
         self._raises = raises
         self.calls: list[dict] = []
 
-    async def invoke_workflow(self, *, project_id, user_id, request):
+    async def invoke_workflow(
+        self,
+        *,
+        project_id,
+        user_id,
+        request,
+        envelope,
+        timeout=None,
+        admitted_agent_id=None,
+    ):
         self.calls.append(
-            {"project_id": project_id, "user_id": user_id, "request": request}
+            {
+                "project_id": project_id,
+                "user_id": user_id,
+                "request": request,
+                "envelope": envelope,
+                "timeout": timeout,
+            }
         )
         if self._raises is not None:
             raise self._raises
@@ -47,9 +67,10 @@ class FakeWorkflowsService:
         )
 
 
-def _router(workflows_service):
+def _router(workflows_service, admission=None):
     # The Composio ToolsService is unused on the workflow branch; a stub is fine.
     return ToolsRouter(
+        run_admission=admission or NoopRunAdmission(),
         tools_service=SimpleNamespace(),
         workflows_service=workflows_service,
     )
@@ -57,7 +78,11 @@ def _router(workflows_service):
 
 def _request():
     return SimpleNamespace(
-        state=SimpleNamespace(project_id=str(uuid4()), user_id=str(uuid4())),
+        state=SimpleNamespace(
+            project_id=str(uuid4()),
+            user_id=str(uuid4()),
+            run_envelope=make_envelope(run_id="parent-run"),
+        ),
         headers={},
     )
 
@@ -182,6 +207,51 @@ async def test_invoke_exception_surfaces_as_502():
     assert caught.value.status_code == 502
 
 
+async def test_invoke_waits_as_long_as_the_tool_spec_limit():
+    workflows = FakeWorkflowsService(outputs={})
+    await _router(workflows)._call_workflow_tool(
+        request=_request(),
+        body=_call("workflow.variant.wf", {}),
+    )
+    assert workflows.calls[0]["timeout"] == REFERENCE_TOOL_TIMEOUT_MS / 1000
+
+
+async def test_invoke_timeout_is_a_tool_error_the_model_can_read():
+    # Not an HTTP error: the runner shows the model only the status code of a non-2xx answer.
+    workflows = FakeWorkflowsService(raises=httpx.ReadTimeout("slow"))
+    response = await _router(workflows)._call_workflow_tool(
+        request=_request(),
+        body=_call("workflow.variant.wf", {}),
+    )
+    assert response.call.status.code == "STATUS_CODE_ERROR"
+    assert (
+        response.call.status.message
+        == "Workflow tool 'wf' did not answer within 30 minutes."
+    )
+    error = json.loads(response.call.data.content)
+    assert error["code"] == "workflow_tool_timeout"
+    assert error["retryable"] is False
+
+
+async def test_invoke_has_a_wall_clock_limit(monkeypatch):
+    # httpx limits each phase, not the whole call; the router caps the whole call.
+    import asyncio
+
+    import oss.src.apis.fastapi.tools.router as router_module
+
+    monkeypatch.setattr(router_module, "REFERENCE_TOOL_TIMEOUT_MS", 50)
+
+    class SlowWorkflows(FakeWorkflowsService):
+        async def invoke_workflow(self, **kwargs):
+            await asyncio.sleep(5)
+
+    response = await _router(SlowWorkflows())._call_workflow_tool(
+        request=_request(),
+        body=_call("workflow.variant.wf", {}),
+    )
+    assert response.call.status.code == "STATUS_CODE_ERROR"
+
+
 async def test_missing_workflows_service_returns_501():
     with pytest.raises(HTTPException) as caught:
         await _router(None)._call_workflow_tool(
@@ -212,3 +282,119 @@ async def test_malformed_call_ref_rejected(name):
         )
     assert caught.value.status_code == 400
     assert workflows.calls == []
+
+
+async def test_child_run_inherits_parent_and_names_parent_run():
+    workflows = FakeWorkflowsService(outputs={"summary": "ok"})
+    request = _request()
+    parent = request.state.run_envelope
+
+    await _router(workflows)._call_workflow_tool(
+        request=request,
+        body=_call("workflow.variant.summarize", {"text": "hello"}),
+    )
+
+    child = workflows.calls[0]["envelope"]
+    assert child.authority == parent.authority
+    assert child.sender == parent.sender
+    assert child.context.origin.value == "child"
+    assert child.context.parent_run_id == "parent-run"
+    assert child.context.run_id is None
+
+
+async def test_web_direct_parent_has_no_parent_run_id():
+    workflows = FakeWorkflowsService(outputs={"summary": "ok"})
+    request = _request()
+    request.state.run_envelope = make_envelope(run_id=None)
+
+    await _router(workflows)._call_workflow_tool(
+        request=request,
+        body=_call("workflow.variant.summarize", {"text": "hello"}),
+    )
+
+    assert workflows.calls[0]["envelope"].context.parent_run_id is None
+
+
+async def test_child_run_denied_returns_access_denied(monkeypatch):
+    import json
+
+    import oss.src.core.access.service as access_module
+    from oss.src.core.access.dtos import DecisionReason
+    from oss.tests.pytest.utils.principals import DenyingAccessService
+
+    monkeypatch.setattr(
+        access_module,
+        "_access_service",
+        DenyingAccessService(reason=DecisionReason.MISSING_CAPABILITY),
+    )
+    workflows = FakeWorkflowsService(outputs={"summary": "ok"})
+
+    response = await _router(workflows)._call_workflow_tool(
+        request=_request(),
+        body=_call("workflow.variant.summarize", {"text": "hello"}),
+    )
+
+    assert workflows.calls == []  # nothing invoked
+    assert response.call.status.code == "STATUS_CODE_ERROR"
+    error = json.loads(response.call.data.content)
+    assert error["code"] == "access_denied"
+    assert error["details"]["reason"] == "missing_capability"
+
+
+async def test_child_run_is_admitted_and_invokes_the_admitted_request():
+    from oss.tests.pytest.utils.sharing import RecordingRunAdmission
+
+    workflows = FakeWorkflowsService(outputs={"ok": True})
+    admission = RecordingRunAdmission()
+    request = _request()
+    await _router(workflows, admission)._call_workflow_tool(
+        request=request,
+        body=_call("workflow.variant.summarize", {}),
+    )
+
+    assert admission.methods() == ["admit_request"]
+    admitted = admission.calls[0][1]
+    assert admitted["boundary"] == "child_run"
+    assert admitted["session_id"] is None
+    assert str(admitted["project_id"]) == request.state.project_id
+    # The child runs as its parent: same principal and sender, origin child.
+    parent = request.state.run_envelope
+    assert admitted["envelope"].authority == parent.authority
+    assert admitted["envelope"].sender == parent.sender
+    assert admitted["envelope"].context.origin.value == "child"
+    assert workflows.calls[0]["request"] is admitted["request"]
+
+
+async def test_child_run_into_private_agent_is_access_denied():
+    """The child's agent is private to someone else: a tool result `access_denied`
+    the model can read (HTTP 200), and nothing is invoked."""
+
+    from oss.src.core.access.dtos import Decision, DecisionReason
+    from oss.src.core.sharing.types import AdmissionDenied
+    from oss.tests.pytest.utils.sharing import RecordingRunAdmission
+
+    def _refuse_the_private_agent(method, kwargs):
+        # Only an admission of the private agent's request is refused.
+        if "private-agent" not in repr(kwargs.get("request")):
+            return None
+        return AdmissionDenied(
+            decision=Decision(allowed=False, reason=DecisionReason.RESOURCE_DENIED),
+            readable=False,
+            boundary=kwargs["boundary"],
+        )
+
+    workflows = FakeWorkflowsService(outputs={"ok": True})
+    admission = RecordingRunAdmission(refuse=_refuse_the_private_agent)
+    response = await _router(workflows, admission)._call_workflow_tool(
+        request=_request(),
+        body=_call("workflow.variant.private-agent", {}),
+    )
+
+    assert admission.methods() == ["admit_request"]
+    assert workflows.calls == []
+    result = response.call
+    assert result.status.code == "STATUS_CODE_ERROR"
+    error = json.loads(result.data.content)
+    assert error["code"] == "access_denied"
+    assert error["retryable"] is False
+    assert error["details"]["reason"] == "resource_denied"

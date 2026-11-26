@@ -1,5 +1,9 @@
 import { InMemorySessionPersistDriver, SandboxAgent } from "sandbox-agent";
-import type { SeededDecision } from "../../sessions/interactions.ts";
+import type { PlatformCredentialSource } from "../../sessions/auth.ts";
+import type {
+  SeededDecision,
+  TurnApprovalRows,
+} from "../../sessions/interactions.ts";
 import type { AgentToolsSetupExec, AgentToolsSetupResult } from "./agent-tools-setup.ts";
 
 import {
@@ -18,7 +22,12 @@ import { createSandboxAgentOtel } from "../../tracing/otel.ts";
 import type { PiTraceTurnExport } from "../../tracing/pi-trace-turn-export.ts";
 import { createAcpFetch } from "./acp-fetch.ts";
 import { type ParkedApprovalGateType } from "./acp-interactions.ts";
-import { signAgentMountCredentials } from "./agent-mount.ts";
+import type {
+  RunDrive,
+  signAgentMountCredentials,
+  signMountCredentialsBySlug,
+} from "./run-drives.ts";
+import type { DriveRoot } from "../inprocess/sandbox/sandbox-drive.ts";
 import { probeCapabilities } from "./capabilities.ts";
 import { awaitCredentialSubstitution } from "./credential-preflight.ts";
 import { createToolCallCorrelationIndex } from "./client-tools.ts";
@@ -71,8 +80,10 @@ export interface InRunnerRunFacts {
   network: { networkBlockAll: boolean; networkAllowList?: string };
   /** The run's skills on the runner's own disk, where their file modes are intact. */
   skillSources: Array<{ name: string; dir: string }>;
-  /** The object store behind each durable root, with the mount's current credentials. */
-  drives: Array<{ root: string; credentials: () => MountCredentials | null }>;
+  /** The durable roots the command sandbox mounts, each with the mount's current credentials. */
+  roots: DriveRoot[];
+  /** The text of `drives/README.md`; absent for a request without `drives`. */
+  drivesReadme?: string;
   /**
    * Signs the session's own prefix for the harness's conversation file (`pi-sessions`), apart from
    * the session folder. Absent without a session or a run credential.
@@ -146,6 +157,7 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   sandboxRelayHost?: typeof sandboxRelayHost;
   signSessionMountCredentials?: typeof signSessionMountCredentials;
   signAgentMountCredentials?: typeof signAgentMountCredentials;
+  signMountCredentialsBySlug?: typeof signMountCredentialsBySlug;
   mountStorage?: typeof mountStorage;
   mountStorageRemote?: typeof mountStorageRemote;
   unmountStorage?: typeof unmountStorage;
@@ -241,14 +253,20 @@ export interface ParkedApprovedExecution {
 
 /** Per-turn options for `runTurn`. Absent (flag off / cold) means today's byte-identical path. */
 export interface RunTurnOptions {
-  /** Latest session credential accessor; long turns may refresh the value between API calls. */
-  credential?: () => string;
+  /** The session credential lease; long turns may refresh the value between API calls. */
+  credentialLease?: PlatformCredentialSource;
   /**
    * Durable approval decisions this session already holds, read and CLAIMED by the caller via
-   * `loadDurableDecisions`. Passed in rather than read here because that read is I/O and
+   * `TurnApprovalRows.claimAll`. Passed in rather than read here because that read is I/O and
    * `runTurn` must not suspend before its permission responder is attached.
    */
   seededDecisions?: readonly SeededDecision[];
+  /**
+   * The session's answered approval rows, read once for this turn before the warm or cold choice.
+   * The engine wrapper claims them into `seededDecisions`. Absent, `runSandboxAgent` (a direct
+   * caller such as the CLI) reads them itself, and the keepalive wrappers take none.
+   */
+  approvalRows?: TurnApprovalRows;
   /** A live continuation: send only the new user text instead of the full cold transcript. */
   continuation?: boolean;
   /**
@@ -426,7 +444,8 @@ export interface SessionEnvironment {
    */
   sandboxMeter?: import("../../metering/sandbox-usage.ts").SandboxMeter;
   mountCreds: MountCredentials | null;
-  agentMountCreds?: MountCredentials | null;
+  /** The run's configured drives, resolved once at acquire (`run-drives.ts`). */
+  drives: RunDrive[];
   /** The mount's owning project id (keep-alive pool key FALLBACK scope, preferred is
    * `runContext.project.id`); undefined when there is no mount. */
   mountProjectId?: string;
@@ -457,7 +476,6 @@ export interface SessionEnvironment {
   // Mutable teardown/turn state shared across acquire, runTurn, and destroy.
   sessionDestroyRequested: boolean;
   mountedCwd: string | undefined;
-  agentMountedPath?: string;
   /**
    * Expiry (epoch millis) of the credentials actually installed in each running geesefs daemon,
    * recorded at successful mount time. Per mount, because a remount replaces one mount's
@@ -468,6 +486,12 @@ export interface SessionEnvironment {
    * cwd mount with the same TTL, so their expiry is never the minimum.
    */
   installedMountExpiries: InstalledMountExpiries;
+  /**
+   * True from the end of the acquire's mounts until the first turn starts. That turn skips the
+   * turn-start refresh of the drive views, because the mounts are seconds old. See
+   * `refreshDriveViewsAtTurnStart`.
+   */
+  driveViewsFresh?: boolean;
   durableCwdSafeToDelete: boolean;
   workspace: { cleanup: () => Promise<void> } | undefined;
   runtimeRemount: Promise<boolean> | undefined;

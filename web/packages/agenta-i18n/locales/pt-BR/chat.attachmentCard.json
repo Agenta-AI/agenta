@@ -1,0 +1,9 @@
+{
+    "download": "Baixar {{name}}",
+    "pause": "Pausar {{name}}",
+    "play": "Reproduzir {{name}}",
+    "remove": "Remover {{name}}",
+    "retry": "Tentar de novo",
+    "retryNamed": "Tentar {{name}} de novo",
+    "view": "Ver {{name}}"
+}

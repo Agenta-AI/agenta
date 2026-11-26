@@ -20,8 +20,8 @@ const EMPTY_FIELDS_DETECTION = {}
 export interface AgentBuildPanelProps {
     /** The revision being configured. Everything else is read off the workflow molecule. */
     revisionId: string
-    /** The panel's own header — identity, and the Commit/Deploy actions. */
-    header?: ReactNode
+    /** Shown above the config sections (the needs-setup banner). */
+    banner?: ReactNode
     /**
      * The Files region. `AgentOperationsSections` has always taken this as a slot, because the
      * drive listing is the one part of the panel that is still app-layer.
@@ -45,6 +45,13 @@ export interface AgentBuildPanelProps {
      * navigates there; absent, the history opens in the deliveries drawer over the panel.
      */
     onOpenRunHistory?: (owner: TriggerOwnerRef) => void
+    /** The reader may not edit this agent: every config and automation control is locked. */
+    disabled?: boolean
+    /**
+     * False leaves out the operational sections, for a host that shows them in a tab of their
+     * own (the agent panel's Automations tab). Default: shown under the configuration.
+     */
+    operations?: boolean
     className?: string
 }
 
@@ -59,13 +66,15 @@ export interface AgentBuildPanelProps {
 export const AgentBuildPanel = memo(
     ({
         revisionId,
-        header,
+        banner,
         storage,
         storageHeader,
-        stickyHeaderTop = 48,
+        stickyHeaderTop,
         sticky = true,
         automationDrawer,
         onOpenRunHistory,
+        disabled,
+        operations = true,
         className,
     }: AgentBuildPanelProps) => {
         const hasPendingHydration = useAtomValue(hasPendingHydrationAtomFamily(revisionId))
@@ -73,7 +82,7 @@ export const AgentBuildPanel = memo(
         return (
             <div className={className}>
                 <section className="flex flex-col">
-                    {header}
+                    {banner}
                     {hasPendingHydration ? (
                         // The same px-4 pb-3 pt-1 inset the schema-loading gate and the real
                         // agent_config field wrapper use — without it the skeleton renders flush
@@ -85,6 +94,7 @@ export const AgentBuildPanel = memo(
                         <FieldsDetectionProvider value={EMPTY_FIELDS_DETECTION}>
                             <PlaygroundConfigSection
                                 revisionId={revisionId}
+                                disabled={disabled}
                                 stickyHeaderTop={stickyHeaderTop}
                                 // Hold the panel's real section-row shape while the schema loads,
                                 // instead of the generic prompt-config pulse boxes.
@@ -96,11 +106,12 @@ export const AgentBuildPanel = memo(
 
                 {/* Triggers and Mounts — operational, never part of the committable config, each
                     with its own Configuration-style sticky header. */}
-                {hasPendingHydration ? (
+                {!operations ? null : hasPendingHydration ? (
                     <AgentOperationsSkeleton sticky={sticky} />
                 ) : (
                     <AgentOperationsSections
                         revisionId={revisionId}
+                        disabled={disabled}
                         sticky={sticky}
                         storage={storage}
                         storageHeader={storageHeader}

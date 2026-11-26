@@ -19,6 +19,7 @@ from oss.src.core.channels.dtos import (
     ChannelPolicy,
 )
 from oss.src.core.channels.service import ChannelsService
+from oss.tests.pytest.utils.sharing import ProjectAgentResolver
 
 pytestmark = pytest.mark.asyncio
 
@@ -41,7 +42,9 @@ def _service(existing: ChannelAgent):
     dao.fetch_agent = AsyncMock(return_value=existing)
     dao.edit_agent = AsyncMock(side_effect=lambda **kw: kw["agent"])
     service = ChannelsService(
-        channels_dao=dao, adapter_registry=ChannelAdapterRegistry(adapters={})
+        channels_dao=dao,
+        adapter_registry=ChannelAdapterRegistry(adapters={}),
+        workflows_service=ProjectAgentResolver(),
     )
     return service, dao
 
@@ -62,6 +65,7 @@ async def test_edit_tools_keeps_references_and_policy():
     await service.edit_agent(
         project_id=uuid4(),
         user_id=uuid4(),
+        guard_user_id=None,
         agent=ChannelAgentEdit(
             id=existing.id,
             data=ChannelAgentDataEdit(
@@ -89,6 +93,7 @@ async def test_edit_without_tools_keeps_stored_tools():
     await service.edit_agent(
         project_id=uuid4(),
         user_id=uuid4(),
+        guard_user_id=None,
         agent=ChannelAgentEdit(
             id=existing.id,
             data=ChannelAgentDataEdit(policy=ChannelPolicy(backfill=False)),
@@ -108,6 +113,7 @@ async def test_editing_one_tools_field_keeps_the_others():
     await service.edit_agent(
         project_id=uuid4(),
         user_id=uuid4(),
+        guard_user_id=None,
         agent=ChannelAgentEdit(
             id=existing.id,
             data=ChannelAgentDataEdit.model_validate(

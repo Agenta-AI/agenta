@@ -1,0 +1,65 @@
+[
+    {
+        "id": "agent-tab-agent-tab-light",
+        "story": "builderlayout-agent-tab-agent-tab--light",
+        "width": 600,
+        "height": 900,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Instructions"
+    },
+    {
+        "id": "agent-tab-agent-tab-dark",
+        "story": "builderlayout-agent-tab-agent-tab--dark",
+        "width": 600,
+        "height": 900,
+        "theme": "dark",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Instructions"
+    },
+    {
+        "id": "agent-tab-dialog-unsaved-changes",
+        "story": "builderlayout-agent-tab-dialogs--unsaved-changes-dialog-story",
+        "width": 800,
+        "height": 600,
+        "theme": "light",
+        "selector": "body",
+        "ready": "text=You have unsaved changes"
+    },
+    {
+        "id": "agent-tab-dialog-remove-from-agent",
+        "story": "builderlayout-agent-tab-dialogs--remove-from-agent-story",
+        "width": 800,
+        "height": 600,
+        "theme": "light",
+        "selector": "body",
+        "ready": "text=Remove Zendesk from this agent?"
+    },
+    {
+        "id": "agent-tab-dialog-remove-secret",
+        "story": "builderlayout-agent-tab-dialogs--remove-secret-story",
+        "width": 800,
+        "height": 600,
+        "theme": "light",
+        "selector": "body",
+        "ready": "text=Remove this secret attachment?"
+    },
+    {
+        "id": "agent-tab-dialog-delete-automation",
+        "story": "builderlayout-agent-tab-dialogs--delete-automation-story",
+        "width": 800,
+        "height": 600,
+        "theme": "light",
+        "selector": "body",
+        "ready": "text=Delete this automation?"
+    },
+    {
+        "id": "agent-tab-dialog-revert",
+        "story": "builderlayout-agent-tab-dialogs--revert-story",
+        "width": 800,
+        "height": 600,
+        "theme": "light",
+        "selector": "body",
+        "ready": "text=Revert to v3?"
+    }
+]

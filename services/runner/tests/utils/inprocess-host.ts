@@ -135,9 +135,9 @@ export function createHostFixture(
     sandboxEnvironment: {},
     network: { networkBlockAll: false },
     skillSources: skills,
-    drives: [
+    roots: [
       { root: cwd, credentials: () => TEST_CREDENTIALS },
-      { root: agent, credentials: () => TEST_CREDENTIALS },
+      { root: agent, credentials: () => TEST_CREDENTIALS, link: { home: true } },
     ],
     signTranscriptMount: async () => TEST_TRANSCRIPT_CREDENTIALS,
     harnessEnv: {

@@ -10,10 +10,13 @@
  */
 import {type ReactNode, useCallback, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {EnhancedModal} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Button} from "@agenta/ui/ui"
 
+import {FormDrawerSkeleton} from "./DrawerSkeletons"
 import {SectionDrawerPanelContext} from "./sectionDrawerPanel"
 
 export interface SectionDrawerProps {
@@ -43,6 +46,7 @@ export function SectionDrawer({
     bodyPadding = "16px 12px",
     children,
 }: SectionDrawerProps) {
+    const t = useT(configItemsCatalog)
     const [confirmOpen, setConfirmOpen] = useState(false)
     const [panel, setPanel] = useState<HTMLDivElement | null>(null)
     // Scrim/X close: guard with a confirm when dirty; the footer Cancel button bypasses this.
@@ -63,6 +67,7 @@ export function SectionDrawer({
                 width={width}
                 panelRef={setPanel}
                 destroyOnClose
+                bodyFallback={<FormDrawerSkeleton />}
                 title={
                     <div className="flex min-w-0 items-center gap-2">
                         {icon ? <span className="flex shrink-0 items-center">{icon}</span> : null}
@@ -72,10 +77,10 @@ export function SectionDrawer({
                 footer={
                     <div className="flex items-center justify-end gap-2">
                         <Button variant="outline" onClick={onCancel}>
-                            Cancel
+                            {t("entityUi.configItems.cancel")}
                         </Button>
                         <Button onClick={onSave} disabled={disabled}>
-                            Save
+                            {t("entityUi.configItems.save")}
                         </Button>
                     </div>
                 }
@@ -90,12 +95,12 @@ export function SectionDrawer({
             <EnhancedModal
                 open={confirmOpen}
                 onCancel={() => setConfirmOpen(false)}
-                title="You have unsaved changes"
+                title={t("entityUi.configItems.unsavedChanges")}
                 width={420}
                 footer={
                     <div className="flex items-center justify-end gap-2">
                         <Button variant="outline" onClick={() => setConfirmOpen(false)}>
-                            Keep editing
+                            {t("entityUi.configItems.keepEditing")}
                         </Button>
                         <Button
                             variant="destructive-outline"
@@ -104,7 +109,7 @@ export function SectionDrawer({
                                 onCancel()
                             }}
                         >
-                            Discard
+                            {t("entityUi.configItems.discard")}
                         </Button>
                         <Button
                             disabled={disabled}
@@ -113,12 +118,12 @@ export function SectionDrawer({
                                 onSave()
                             }}
                         >
-                            Save changes
+                            {t("entityUi.configItems.saveChanges")}
                         </Button>
                     </div>
                 }
             >
-                <p className="text-sm">Save your changes to this agent draft, or discard them?</p>
+                <p className="text-sm">{t("entityUi.configItems.saveOrDiscardDraft")}</p>
             </EnhancedModal>
         </>
     )

@@ -8,6 +8,8 @@
  */
 import {useEffect, useRef, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiChatActionsCatalog from "@agenta/i18n/catalogs/ui.chatActions"
 import {ArrowDown} from "@phosphor-icons/react"
 
 // The tailwind-merge `cn`, NOT the clsx-only one in utils/styles: a caller's `classNames.content`
@@ -15,6 +17,7 @@ import {ArrowDown} from "@phosphor-icons/react"
 // element and CSS source order decides, so an override to a smaller scale silently loses.
 import {Button} from "../../ui/button"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
+import {PHONE_TOUCH_TARGET_CLASS} from "../../ui/touch-target"
 import {cn} from "../../ui/utils"
 
 /** The antd-x loading dots: three 4px primary dots on a gentle bounce. */
@@ -186,6 +189,10 @@ export const ChatActionIconButton = ({
                 "flex size-[18px] shrink-0 cursor-pointer items-center justify-center rounded border-0 p-0",
                 "bg-transparent text-colorTextSecondary transition-colors",
                 "hover:bg-colorFillTertiary hover:text-colorText",
+                // A phone: a 44 px area, and 11 px more room each side. With the row's 4 px gap
+                // the centres sit 44 px apart, so no two areas overlap.
+                PHONE_TOUCH_TARGET_CLASS,
+                "max-md:mx-[11px]",
             )}
         >
             {icon}
@@ -225,6 +232,7 @@ export const ChatJumpToLatest = ({
     onClick: () => void
     className?: string
 }) => {
+    const t = useT(uiChatActionsCatalog)
     const ref = useRef<HTMLButtonElement>(null)
     // `tabIndex={-1}` does not drop focus the element already has, so a button hidden while
     // focused would stay keyboard-reachable while `aria-hidden` — and Enter would still fire it.
@@ -242,7 +250,7 @@ export const ChatJumpToLatest = ({
             onClick={onClick}
             tabIndex={show ? 0 : -1}
             aria-hidden={!show}
-            aria-label="Jump to latest message"
+            aria-label={t("ui.chatActions.jumpToLatestMessage")}
             className={cn(
                 // `hover:bg-colorBgElevated` is load-bearing: the variant's hover fill is 4% white
                 // in dark mode, which would let streamed text read through the pill.
@@ -252,7 +260,7 @@ export const ChatJumpToLatest = ({
             )}
         >
             <ArrowDown size={11} className="!size-[11px]" />
-            Jump to latest
+            {t("ui.chatActions.jumpToLatest")}
         </Button>
     )
 }

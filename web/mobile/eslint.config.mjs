@@ -4,13 +4,16 @@
  * Mirrors web/packages/eslint.config.mjs (flat config: tseslint + import
  * order + prettier, strict no-explicit-any) and adds the mobile hard bans:
  * no antd, no @ant-design/*, no Lexical, no app-layer imports (@/oss/*,
- * @agenta/oss, @agenta/ee). See web/mobile/AGENTS.md.
+ * @agenta/oss, @agenta/ee), no @agenta/annotation-ui (antd; use @agenta/annotation).
+ * See web/mobile/AGENTS.md.
  */
 import eslint from "@eslint/js"
 import importPlugin from "eslint-plugin-import"
 import eslintPluginPrettier from "eslint-plugin-prettier/recommended"
 import reactHooks from "eslint-plugin-react-hooks"
 import tseslint from "typescript-eslint"
+
+import {i18nGuardConfigs} from "../packages/eslint-i18n-guard.mjs"
 
 const includePrettierRule = process.env.DISABLE_PRETTIER !== "true"
 
@@ -54,7 +57,21 @@ const config = [
                             message:
                                 "web/mobile never imports app-layer code. Consume @agenta/* packages only.",
                         },
+                        {
+                            group: ["@agenta/annotation-ui", "@agenta/annotation-ui/*"],
+                            message:
+                                "@agenta/annotation-ui is built on antd and is banned in web/mobile. Import the annotation state and helpers from @agenta/annotation.",
+                        },
                     ],
+                },
+            ],
+            // `no-restricted-imports` does not see `import(...)`, which `next/dynamic` uses.
+            "no-restricted-syntax": [
+                "error",
+                {
+                    selector: "ImportExpression > Literal[value=/^@agenta\\/annotation-ui(\\/|$)/]",
+                    message:
+                        "@agenta/annotation-ui is built on antd and is banned in web/mobile. Import the annotation state and helpers from @agenta/annotation.",
                 },
             ],
             "react-hooks/rules-of-hooks": "error",
@@ -112,7 +129,14 @@ const config = [
                 : {}),
         },
     },
+    {
+        files: ["tests/**/*.{js,jsx,ts,tsx}"],
+        rules: {
+            "@typescript-eslint/no-empty-function": "off",
+        },
+    },
     ...(includePrettierRule ? [eslintPluginPrettier] : []),
+    ...i18nGuardConfigs(process.cwd()),
     {
         ignores: [".next/**", "node_modules/**", "next-env.d.ts"],
     },

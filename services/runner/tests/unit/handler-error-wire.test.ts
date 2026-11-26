@@ -78,6 +78,7 @@ import {
   startToolRelay,
   type RelayResponse,
 } from "../../src/tools/relay.ts";
+import { fixedToolCallback } from "../utils/tool-callback.ts";
 
 const ENDPOINT = "https://agenta.example/api/tools/call";
 
@@ -143,10 +144,12 @@ function answerWithDomainFailure(): void {
 async function throughTheRelay(spec: ResolvedToolSpec): Promise<RelayResponse> {
   const dir = mkdtempSync(join(tmpdir(), "agenta-handler-wire-"));
   try {
-    const relay = startToolRelay(localRelayHost(), dir, [spec], {
-      endpoint: ENDPOINT,
-      authorization: "ApiKey secret",
-    });
+    const relay = startToolRelay(
+      localRelayHost(),
+      dir,
+      [spec],
+      fixedToolCallback({ endpoint: ENDPOINT, authorization: "ApiKey secret" }),
+    );
     writeFileSync(
       join(dir, "call-1.req.json"),
       JSON.stringify({

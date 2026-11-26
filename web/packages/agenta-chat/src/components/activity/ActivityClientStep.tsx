@@ -1,6 +1,8 @@
 import type {ReactNode} from "react"
 
 import {isDeferredByRunner, useIntegrationIdentity} from "@agenta/entity-ui/clientTools"
+import {useT} from "@agenta/i18n"
+import chatActivityCatalog from "@agenta/i18n/catalogs/chat.activity"
 import type {ToolUIPart} from "ai"
 
 import {partToolName} from "../../model"
@@ -31,6 +33,7 @@ export const ActivityClientStep = ({
     part: ToolUIPart
     render?: (part: ToolUIPart) => ReactNode
 }) => {
+    const t = useT(chatActivityCatalog)
     const name = partToolName(part)
     const display = resolveToolDisplay(name, (part as {input?: unknown}).input)
     // A runner-deferred ask is waiting for next turn, not failed: keep the app's mark on the node.
@@ -52,7 +55,7 @@ export const ActivityClientStep = ({
                 {widget ?? (
                     <span className={`text-sm ${failed ? "text-colorError" : "text-colorText"}`}>
                         {failed
-                            ? `${display.activity.running} failed`
+                            ? t("chat.activity.actionFailed", {action: display.activity.running})
                             : settled
                               ? display.activity.done
                               : display.activity.running}

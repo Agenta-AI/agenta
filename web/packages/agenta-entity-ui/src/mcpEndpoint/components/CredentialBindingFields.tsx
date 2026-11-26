@@ -7,61 +7,27 @@
  * header field alone gave no way to say `Bearer` or `Basic`. The prefix is its own field so
  * the reader sees it, and the preview line is built by the same rule the relay sends by
  * (`credentialBindingPreview`), so it is what goes out.
- *
- * The presets only fill these fields. They are not a mode and nothing stores which one was
- * pressed.
  */
 import {
     credentialBindingPreview,
-    MCP_DEFAULT_CREDENTIAL_BINDING,
     mcpChallengeScheme,
     type MCPCredentialBinding,
     type MCPServerProbe,
 } from "@agenta/entities/mcpEndpoint"
-import {
-    Button,
-    Input,
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@agenta/ui/ui"
+import {createT, richText, useT} from "@agenta/i18n"
+import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
+import {Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@agenta/ui/ui"
 
 import {HintedField} from "./HintedField"
 
 type Kind = MCPCredentialBinding["kind"]
 type PrefixChoice = "none" | "Bearer" | "Basic" | "custom"
 
-const CREDENTIAL_PRESETS: {label: string; binding: MCPCredentialBinding}[] = [
-    {label: "Bearer token", binding: MCP_DEFAULT_CREDENTIAL_BINDING},
-    {label: "Custom header", binding: {kind: "header", name: "", prefix: null}},
-    {label: "Basic", binding: {kind: "header", name: "Authorization", prefix: "Basic"}},
-    {label: "Query parameter", binding: {kind: "query", name: "", prefix: null}},
-]
-
-const KIND_LABEL: Record<Kind, string> = {
-    header: "Header",
-    query: "Query parameter",
-    url: "In the URL",
-}
-
-const PREFIX_LABEL: Record<PrefixChoice, string> = {
-    none: "None",
-    Bearer: "Bearer",
-    Basic: "Basic",
-    custom: "Custom",
-}
-
-const HEADER_HELP = "The HTTP header this server expects, for example x-api-key"
-
-const BASIC_HINT =
-    "What goes in front of the secret. Basic expects username:password encoded once; the helper below does that."
-const NO_PREFIX_HINT = "The secret is sent as the header value with nothing in front of it."
+const tNow = createT(mcpConnectCatalog)
 
 /** Said under Prefix when the server named a scheme the prefix does not send. */
 export const headerSchemeHint = (scheme: string): string =>
-    `This server asked for the ${scheme} scheme.`
+    tNow("entityUi.mcpConnect.headerSchemeHint", {scheme})
 
 /**
  * The menu entry a prefix reads back as. An empty string is Custom with nothing typed yet,
@@ -99,6 +65,18 @@ export const CredentialBindingFields = ({
     invalid,
     "aria-describedby": describedBy,
 }: CredentialBindingFieldsProps) => {
+    const t = useT(mcpConnectCatalog)
+    const kindLabel: Record<Kind, string> = {
+        header: t("entityUi.mcpConnect.kindHeader"),
+        query: t("entityUi.mcpConnect.kindQuery"),
+        url: t("entityUi.mcpConnect.kindUrl"),
+    }
+    const prefixLabel: Record<PrefixChoice, string> = {
+        none: t("entityUi.mcpConnect.prefixNone"),
+        Bearer: "Bearer",
+        Basic: "Basic",
+        custom: t("entityUi.mcpConnect.prefixCustom"),
+    }
     const prefixChoice = prefixChoiceOf(value.prefix)
     const scheme = mcpChallengeScheme(probe)
     const schemeDisagrees =
@@ -106,32 +84,20 @@ export const CredentialBindingFields = ({
     const preview = credentialBindingPreview(value)
 
     const prefixHint = [
-        prefixChoice === "Basic" ? BASIC_HINT : null,
-        prefixChoice === "none" && value.kind === "header" ? NO_PREFIX_HINT : null,
+        prefixChoice === "Basic" ? t("entityUi.mcpConnect.basicPrefixHint") : null,
+        prefixChoice === "none" && value.kind === "header"
+            ? t("entityUi.mcpConnect.noPrefixHint")
+            : null,
         schemeDisagrees ? headerSchemeHint(scheme) : null,
     ].filter(Boolean)
 
     return (
         <div className="flex flex-col gap-3" data-testid="mcp-credential-binding">
-            <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-xs font-medium text-colorText">Preset</span>
-                {CREDENTIAL_PRESETS.map((preset) => (
-                    <Button
-                        key={preset.label}
-                        variant="outline"
-                        size="xs"
-                        disabled={disabled}
-                        onClick={() => onChange(preset.binding)}
-                    >
-                        {preset.label}
-                    </Button>
-                ))}
-            </div>
-            <HintedField label="Send as">
+            <HintedField label={t("entityUi.mcpConnect.sendAs")}>
                 <ChoiceSelect
-                    label="Send as"
+                    label={t("entityUi.mcpConnect.sendAs")}
                     value={value.kind}
-                    options={KIND_LABEL}
+                    options={kindLabel}
                     disabled={disabled}
                     // Only a header takes a prefix (`normalizeCredentialBinding`).
                     onChange={(kind) =>
@@ -141,16 +107,26 @@ export const CredentialBindingFields = ({
             </HintedField>
             {value.kind === "url" ? null : (
                 <HintedField
-                    label="Name"
-                    tooltip={value.kind === "header" && !invalid ? HEADER_HELP : undefined}
+                    label={t("entityUi.mcpConnect.name")}
+                    tooltip={
+                        value.kind === "header" && !invalid
+                            ? t("entityUi.mcpConnect.headerHelp")
+                            : undefined
+                    }
                     invalid={invalid}
                 >
                     <Input
                         className="font-mono text-[13px]"
+                        // Sample header and parameter names, not words to translate.
+                        // eslint-disable-next-line agenta-i18n/no-hardcoded-text
                         placeholder={value.kind === "header" ? "Authorization" : "api_key"}
                         value={value.name ?? ""}
                         disabled={disabled}
-                        aria-label={value.kind === "header" ? "Header name" : "Parameter name"}
+                        aria-label={
+                            value.kind === "header"
+                                ? t("entityUi.mcpConnect.headerName")
+                                : t("entityUi.mcpConnect.parameterName")
+                        }
                         aria-describedby={describedBy}
                         onChange={(event) => onChange({...value, name: event.target.value})}
                     />
@@ -158,32 +134,34 @@ export const CredentialBindingFields = ({
             )}
             {value.kind === "header" ? (
                 <HintedField
-                    label="Prefix"
+                    label={t("entityUi.mcpConnect.prefix")}
                     hint={
                         prefixHint.length || preview ? (
                             <>
                                 {prefixHint.join(" ")}
                                 {prefixHint.length && preview ? " " : null}
-                                {preview ? (
-                                    <>
-                                        Sent as <span className="font-mono">{preview}</span>.
-                                    </>
-                                ) : null}
+                                {preview
+                                    ? richText(t("entityUi.mcpConnect.sentAs", {preview}), {
+                                          code: (text) => <span className="font-mono">{text}</span>,
+                                      })
+                                    : null}
                             </>
                         ) : null
                     }
                 >
                     <ChoiceSelect
-                        label="Prefix"
+                        label={t("entityUi.mcpConnect.prefix")}
                         value={prefixChoice}
-                        options={PREFIX_LABEL}
+                        options={prefixLabel}
                         disabled={disabled}
                         onChange={(choice) => onChange({...value, prefix: prefixFor(choice)})}
                     />
                 </HintedField>
             ) : preview ? (
                 <p className="m-0 text-xs leading-normal text-colorTextTertiary">
-                    Sent as <span className="font-mono">{preview}</span>.
+                    {richText(t("entityUi.mcpConnect.sentAs", {preview}), {
+                        code: (text) => <span className="font-mono">{text}</span>,
+                    })}
                 </p>
             ) : null}
             {value.kind === "header" && prefixChoice === "custom" ? (
@@ -191,7 +169,7 @@ export const CredentialBindingFields = ({
                     className="-mt-1 font-mono text-[13px]"
                     value={value.prefix ?? ""}
                     disabled={disabled}
-                    aria-label="Custom prefix"
+                    aria-label={t("entityUi.mcpConnect.customPrefix")}
                     onChange={(event) => onChange({...value, prefix: event.target.value})}
                 />
             ) : null}

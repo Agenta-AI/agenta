@@ -1,0 +1,1 @@
+{"parameters":[{"name":"embed_id","in":"path","required":true,"schema":{"type":"string","title":"Embed Id"}},{"name":"thread_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Thread Id"}},{"name":"after","in":"query","required":false,"schema":{"type":"integer","minimum":0,"default":0,"title":"After"}}]}

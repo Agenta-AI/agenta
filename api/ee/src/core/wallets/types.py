@@ -6,7 +6,7 @@ do the locking, ordered reads, and writes around it.
 
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, FrozenSet, List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -131,6 +131,7 @@ GENERAL_CREDIT_KINDS = frozenset(
         "plan_allowance",
         "purchase",
         "promotion",
+        # The retired starter-credits program's transferred budgets. Those rows remain.
         "starter_credits",
         "contribution_award",
         "referral_bonus",
@@ -347,6 +348,23 @@ class WalletsDAOInterface(ABC):
         as the actual guard, not on an application-level check-then-insert. The returned
         row is the existing one on that second call, not the one the caller proposed, so
         `floor_musd` is applied only when the row is genuinely new."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def hold_credits(
+        self,
+        *,
+        organization_id: UUID,
+        keep_credit_kinds: FrozenSet[str],
+        now: datetime,
+    ) -> int:
+        """Expire every live credit of the organization whose kind is not in
+        `keep_credit_kinds` (`end_time = now`, the old value kept under
+        `data.revoked.previous_end_time`; a credit already carrying `data.revoked` is left
+        as is). The floor is not changed. To release
+        a held organization, set each such credit's `end_time` back to
+        `data.revoked.previous_end_time` and drop `data.revoked`. Returns the number of
+        credits expired."""
         raise NotImplementedError
 
     @abstractmethod

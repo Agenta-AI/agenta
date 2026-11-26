@@ -1,29 +1,50 @@
 import {createElement, useMemo} from "react"
 
-import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
+import {
+    agentWorkflowsListQueryStateAtom,
+    isHumanEvaluator,
+    nonArchivedEvaluatorsAtom,
+    promptWorkflowsListQueryStateAtom,
+    type Workflow,
+} from "@agenta/entities/workflow"
 import {AgentChip} from "@agenta/entity-ui/agent"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
+import commandPaletteCatalog from "@agenta/i18n/catalogs/shell.commandPalette"
 import {
     sidebarSessionSearchLoadingAtom,
+    sidebarSessionSearchOpenAtom,
     sidebarSessionSearchResultsAtom,
     type SessionSidebarRef,
+    type SidebarConfig,
 } from "@agenta/navigation"
 import type {CommandPaletteEntry, CommandPaletteGroup} from "@agenta/navigation-ui"
 import {getSettingsSidebarTabs} from "@agenta/settings"
+import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {
     ChatsCircleIcon,
+    GavelIcon,
     GearIcon,
-    GraduationCapIcon,
+    CompassIcon,
     HouseIcon,
     LightningIcon,
     PlusIcon,
     RobotIcon,
     SquaresFourIcon,
 } from "@phosphor-icons/react"
-import {useAtomValue} from "jotai"
+import {atom, useAtomValue} from "jotai"
 
+import {agentEntryHref} from "@/features/agents/agentEntry"
+import {useEnabledDeveloperViews} from "@/features/developer/developerViewAccess"
+import type {DeveloperView} from "@/features/developer/developerViews"
 import {AVAILABLE_SETTINGS_TABS, useMobileSettingsAccess} from "@/features/settings/settingsTabs"
 import {withMobileSettingsLabels} from "@/lib/integrationsCopy"
 
+import {playgroundHref} from "../playground/playgroundUrl"
+
+import {developerNavSlots} from "./developerNavSlots"
+import type {NavTranslate} from "./observabilityNavItems"
 import {mobileSessionsEntity} from "./useMobileNavItems"
 
 /** Case-insensitive substring over the label and any extra words. */
@@ -38,6 +59,26 @@ const MATCH_CAP = 8
 
 const icon = (Icon: typeof HouseIcon) => createElement(Icon, {size: 14})
 
+const evaluatorsHref = (projectURL: string, human: boolean) =>
+    `${projectURL}/evaluators?tab=${human ? "human" : "automatic"}`
+
+const NO_WORKFLOWS = atom<readonly Workflow[]>([])
+const NO_PROMPTS = atom({data: [] as Workflow[], isPending: false, isError: false, error: null})
+
+/** The developer rail's pages, flattened: Prompts, the Evaluation pages and Observability. */
+const developerPages = (
+    projectURL: string,
+    views: readonly DeveloperView[],
+    t: NavTranslate,
+): CommandPaletteEntry[] => {
+    const {afterHome, afterSessions} = developerNavSlots(projectURL, views, true, [], t)
+    return [...afterHome, ...afterSessions]
+        .flatMap((row: SidebarConfig) => row.submenu ?? [row])
+        .flatMap((row) =>
+            row.link ? [{key: row.key, label: row.title, icon: row.icon, href: row.link}] : [],
+        )
+}
+
 /**
  * What the palette can reach, by group, most-wanted first: sessions, agents, then the pages
  * and settings. Every source here is already in memory while the rail is up —
@@ -49,6 +90,7 @@ export const useCommandPaletteGroups = (
     projectURL: string,
     query: string,
 ): {groups: CommandPaletteGroup[]; loading: boolean} => {
+    const t = useT(navigationCatalog, commonCatalog, commandPaletteCatalog)
     const q = query.trim().toLowerCase()
     const typed = q.length > 0
 
@@ -57,6 +99,14 @@ export const useCommandPaletteGroups = (
     const searching = useAtomValue(sidebarSessionSearchLoadingAtom)
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
     const access = useMobileSettingsAccess()
+    // Beta developer mode only, and only while the palette is open with a query: the prompt apps
+    // and the evaluators load then, not with the rail.
+    const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
+    const open = useAtomValue(sidebarSessionSearchOpenAtom)
+    const views = useEnabledDeveloperViews()
+    const findWorkflows = developerMode && open && typed
+    const prompts = useAtomValue(findWorkflows ? promptWorkflowsListQueryStateAtom : NO_PROMPTS)
+    const evaluators = useAtomValue(findWorkflows ? nonArchivedEvaluatorsAtom : NO_WORKFLOWS)
 
     const groups = useMemo<CommandPaletteGroup[]>(() => {
         const sessionRow = (ref: SessionSidebarRef): CommandPaletteEntry => ({
@@ -73,7 +123,8 @@ export const useCommandPaletteGroups = (
                 },
                 mobileSessionsEntity.getIcon?.(ref),
             ),
-            href: `${projectURL}/sessions/${ref.sessionId}`,
+            // The rail's own link: a builder chat opens on the builder page.
+            href: mobileSessionsEntity.childLink(ref, projectURL),
         })
         // Typed: the server's answer. Empty: what the rail already holds, pins leading.
         const sessions = typed
@@ -87,45 +138,87 @@ export const useCommandPaletteGroups = (
             .slice(0, typed ? MATCH_CAP : RECENT_AGENTS)
             .map((agent) => ({
                 key: agent.id,
-                label: agent.name || "Agent",
+                label: agent.name || t("shell.commandPalette.agentFallback"),
                 // The agent's own avatar, as its rows draw it everywhere else.
                 icon: createElement(AgentChip, {workflowId: agent.id, box: "size-5", glyph: 13}),
-                href: `${projectURL}/agents/${agent.id}`,
+                href: agentEntryHref(projectURL, agent.id),
             }))
         const pages: CommandPaletteEntry[] = [
-            {key: "home", label: "Home", icon: icon(HouseIcon), href: `${projectURL}/apps`},
-            {key: "agents", label: "Agents", icon: icon(RobotIcon), href: `${projectURL}/agents`},
+            {
+                key: "home",
+                label: t("navigation.items.home"),
+                icon: icon(HouseIcon),
+                href: `${projectURL}/apps`,
+            },
+            {
+                key: "agents",
+                label: t("navigation.items.agents"),
+                icon: icon(RobotIcon),
+                href: `${projectURL}/agents`,
+            },
             {
                 key: "automations",
-                label: "Automations",
+                label: t("navigation.items.automations"),
                 icon: icon(LightningIcon),
                 href: `${projectURL}/automations`,
             },
             {
                 key: "skills",
-                label: "Skills",
-                icon: icon(GraduationCapIcon),
+                label: t("navigation.items.skills"),
+                icon: icon(CompassIcon),
                 href: `${projectURL}/skills`,
             },
             {
                 key: "sessions",
-                label: "Sessions",
+                label: t("navigation.items.sessions"),
                 icon: icon(ChatsCircleIcon),
                 href: `${projectURL}/sessions`,
             },
             {
                 key: "templates",
-                label: "Templates",
+                label: t("navigation.items.templates"),
                 icon: icon(SquaresFourIcon),
                 href: `${projectURL}/templates`,
             },
             {
                 key: "settings",
-                label: "Settings",
+                label: t("common.settings"),
                 icon: icon(GearIcon),
                 href: `${projectURL}/settings`,
             },
+            ...(developerMode ? developerPages(projectURL, views, t) : []),
         ].filter((page) => !typed || matches(q, page.label))
+
+        const workflowRows = (
+            list: readonly Workflow[],
+            hint: string,
+            glyph: typeof HouseIcon,
+            href: (workflow: Workflow) => string,
+        ): CommandPaletteEntry[] =>
+            list
+                .filter((workflow) => matches(q, workflow.name || workflow.slug || ""))
+                .slice(0, MATCH_CAP)
+                .map((workflow) => ({
+                    key: workflow.id,
+                    label: workflow.name || workflow.slug || hint,
+                    icon: icon(glyph),
+                    hint,
+                    href: href(workflow),
+                }))
+        const promptRows = findWorkflows
+            ? workflowRows(prompts.data, t("navigation.items.promptKind"), SquaresFourIcon, (app) =>
+                  playgroundHref(projectURL, app.id),
+              )
+            : []
+        // /m has no page per evaluator yet: an evaluator opens its tab of the Evaluators list.
+        const evaluatorRows = findWorkflows
+            ? workflowRows(
+                  evaluators,
+                  t("navigation.items.evaluatorKind"),
+                  GavelIcon,
+                  (evaluator) => evaluatorsHref(projectURL, isHumanEvaluator(evaluator)),
+              )
+            : []
 
         // Settings tabs only once something is typed: the empty state is for sessions and agents.
         const settings: CommandPaletteEntry[] = typed
@@ -139,7 +232,7 @@ export const useCommandPaletteGroups = (
                       key: tab.key,
                       label: tab.title,
                       icon: icon(GearIcon),
-                      hint: "Settings",
+                      hint: t("common.settings"),
                       href: `${projectURL}/settings?tab=${tab.key}`,
                   }))
             : []
@@ -147,26 +240,54 @@ export const useCommandPaletteGroups = (
         const actions: CommandPaletteEntry[] = [
             {
                 key: "new-agent",
-                label: "New agent",
+                label: t("shell.commandPalette.newAgent"),
                 icon: icon(PlusIcon),
                 href: `${projectURL}/agents/new`,
             },
             {
                 key: "browse-templates",
-                label: "Browse templates",
+                label: t("shell.commandPalette.browseTemplates"),
                 icon: icon(SquaresFourIcon),
                 href: `${projectURL}/templates`,
             },
         ].filter((action) => !typed || matches(q, action.label, ["create", "add"]))
 
         return [
-            {key: "sessions", heading: "Sessions", entries: sessions},
-            {key: "agents", heading: "Agents", entries: agentRows},
-            {key: "pages", heading: "Pages", entries: pages},
-            {key: "settings", heading: "Settings", entries: settings},
-            {key: "actions", heading: "Actions", entries: actions},
+            {key: "sessions", heading: t("navigation.items.sessions"), entries: sessions},
+            {key: "agents", heading: t("navigation.items.agents"), entries: agentRows},
+            ...(developerMode
+                ? [
+                      {
+                          key: "prompts",
+                          heading: t("shell.commandPalette.groupPrompts"),
+                          entries: promptRows,
+                      },
+                      {
+                          key: "evaluators",
+                          heading: t("shell.commandPalette.groupEvaluators"),
+                          entries: evaluatorRows,
+                      },
+                  ]
+                : []),
+            {key: "pages", heading: t("shell.commandPalette.groupPages"), entries: pages},
+            {key: "settings", heading: t("common.settings"), entries: settings},
+            {key: "actions", heading: t("common.actions"), entries: actions},
         ]
-    }, [access, agentsQuery.data, hits, projectURL, q, source.refs, typed])
+    }, [
+        access,
+        agentsQuery.data,
+        developerMode,
+        evaluators,
+        findWorkflows,
+        hits,
+        projectURL,
+        prompts.data,
+        q,
+        source.refs,
+        t,
+        typed,
+        views,
+    ])
 
     return {groups, loading: typed && searching}
 }

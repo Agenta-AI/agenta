@@ -7,6 +7,8 @@
  */
 import {useEffect, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import notFoundCatalog from "@agenta/i18n/catalogs/auth.notFound"
 import {Button} from "@agenta/ui/ui"
 
 import {AgentaMark, AgentaWordmark} from "./AgentaBrand"
@@ -20,9 +22,12 @@ export interface NotFoundScreenProps {
     onBack?: () => void
     /** The address that failed, printed small at the bottom beside the code. */
     path?: string
+    /** Where the wordmark links. Omitted, the wordmark is not a link. */
+    homeHref?: string
 }
 
-export const NotFoundScreen = ({onBack, path}: NotFoundScreenProps) => {
+export const NotFoundScreen = ({onBack, path, homeHref}: NotFoundScreenProps) => {
+    const t = useT(notFoundCatalog)
     // Next prerenders /404 with `asPath` as the literal "/404", so the real address is
     // client-only or it hydrates against different text.
     const [mounted, setMounted] = useState(false)
@@ -32,7 +37,17 @@ export const NotFoundScreen = ({onBack, path}: NotFoundScreenProps) => {
         <main className="auth-redesign relative flex min-h-dvh w-full flex-col bg-background text-foreground">
             <div className="px-9 pt-7">
                 {/* 104x23 keeps the SVG's 361:80 ratio at the sign-in page's brand height. */}
-                <AgentaWordmark width={104} height={23} markClassName="fill-current" />
+                {homeHref ? (
+                    <a
+                        href={homeHref}
+                        aria-label={t("auth.notFound.homeLink")}
+                        className="inline-flex text-inherit"
+                    >
+                        <AgentaWordmark width={104} height={23} markClassName="fill-current" />
+                    </a>
+                ) : (
+                    <AgentaWordmark width={104} height={23} markClassName="fill-current" />
+                )}
             </div>
 
             <div className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
@@ -51,10 +66,9 @@ export const NotFoundScreen = ({onBack, path}: NotFoundScreenProps) => {
                     <span aria-hidden>4</span>
                 </div>
 
-                <h1 className={`${HEADLINE_CLASS} mt-4`}>This page isn&apos;t here</h1>
+                <h1 className={`${HEADLINE_CLASS} mt-4`}>{t("auth.notFound.heading")}</h1>
                 <p className={`${SUBLINE_CLASS} mt-2 max-w-[440px]`}>
-                    This link doesn&apos;t point anywhere. Go back to where you were, or report it
-                    if you think it should work.
+                    {t("auth.notFound.description")}
                 </p>
 
                 <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
@@ -65,7 +79,7 @@ export const NotFoundScreen = ({onBack, path}: NotFoundScreenProps) => {
                             className={`${KEYCAP_CLASS} w-auto px-5`}
                             onClick={onBack}
                         >
-                            Go back
+                            {t("auth.notFound.goBack")}
                         </Button>
                     ) : null}
                     <Button
@@ -74,14 +88,14 @@ export const NotFoundScreen = ({onBack, path}: NotFoundScreenProps) => {
                         size="lg"
                         className="h-11 rounded-lg px-5 text-sm font-medium"
                     >
-                        <a href={ISSUES_URL}>Report</a>
+                        <a href={ISSUES_URL}>{t("auth.notFound.report")}</a>
                     </Button>
                 </div>
             </div>
 
             {/* Quietest text on the page: it is here to be quoted into a bug report. */}
             <p className="px-6 pb-10 text-center text-xs leading-[18px] text-[color:var(--ag-colorTextQuaternary)]">
-                Error 404
+                {t("auth.notFound.error404")}
                 {mounted && path ? (
                     <>
                         {" · "}

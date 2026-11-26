@@ -2,7 +2,7 @@
  * ETL Loop Engine — Contracts
  *
  * The four shapes that define the engine. No DSL, no implementations,
- * just the protocol. See docs/designs/etl-engine.md for the design RFC.
+ * just the protocol. See docs/design/etl-engine.md for the design RFC.
  *
  * Five guarantees of the loop runtime:
  *   1. Pipeline memory bounded by chunk size

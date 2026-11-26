@@ -116,7 +116,8 @@ export type {
     DrillInUIProviderProps,
     GatewayToolsBridge,
     SkillsBridge,
-    SkillsPickerHostProps,
+    AddSkillsBodyProps,
+    NewSkillBodyProps,
     WorkflowReferenceBridge,
     WorkflowReferenceUI,
     WorkflowReferenceType,
@@ -251,7 +252,6 @@ export {
     TOOL_SPECS,
     // Composite controls
     ObjectSchemaControl,
-    CollapsibleObjectControl,
     SchemaPropertyRenderer,
     // Context providers
     FieldsDetectionProvider,
@@ -329,6 +329,8 @@ export {
     harnessSections,
     SUBSCRIPTION_TAG,
 } from "./SchemaControls/pickerSections"
+// The grouped list order of the Model view, which the composer's model list uses too.
+export {listPickerGroups} from "./SchemaControls/agentTemplate/modelPickerLayout"
 
 export type {
     NumberSliderControlProps,
@@ -380,6 +382,7 @@ export {
 export {
     TriggerManagementSection,
     AddTriggerDropdown,
+    AutomationDeleteDialog,
 } from "./SchemaControls/TriggerManagementSection"
 export type {
     TriggerManagementSectionProps,
@@ -421,11 +424,7 @@ export {SectionDrawer} from "./SchemaControls/SectionDrawer"
 export type {SectionDrawerProps} from "./SchemaControls/SectionDrawer"
 export {SectionQuickAction} from "./SchemaControls/SectionQuickAction"
 export type {SectionQuickActionProps} from "./SchemaControls/SectionQuickAction"
-export {
-    ProviderLogo,
-    SubSectionHeader,
-    CollapsibleProviderGroup,
-} from "./SchemaControls/sectionGroups"
+export {ProviderLogo, SubSectionHeader} from "./SchemaControls/sectionGroups"
 
 // Tool / skill / MCP item + form views. Presentational and prop-driven (the drawer owns the
 // value); surfaced so the Storybook component inventory can render each one.
@@ -443,21 +442,41 @@ export {
 } from "./SchemaControls/agentTemplate/ToolManagementList"
 export {CatalogListRow} from "./SchemaControls/agentTemplate/CatalogListRow"
 export type {CatalogListRowProps} from "./SchemaControls/agentTemplate/CatalogListRow"
-export {AddSubagentDrawer} from "./SchemaControls/agentTemplate/AddSubagentDrawer"
-export type {
-    SubagentOption,
-    SubagentIntegration,
-} from "./SchemaControls/agentTemplate/AddSubagentDrawer"
+export {AddSubagentList} from "./SchemaControls/agentTemplate/AddSubagentList"
+export type {SubagentOption} from "./SchemaControls/agentTemplate/AddSubagentList"
 export type {SubagentListProps} from "./SchemaControls/agentTemplate/ToolManagementList"
 export type {ReferenceToolFormViewProps} from "./SchemaControls/ReferenceToolFormView"
 export {McpServerFormView} from "./SchemaControls/McpServerFormView"
 export type {McpServerFormViewProps} from "./SchemaControls/McpServerFormView"
 export {SkillFormView} from "./SchemaControls/SkillFormView"
+export {useSkillViewForm} from "./SchemaControls/SkillUploadStep"
+export type {SkillUploadControl} from "./SchemaControls/SkillUploadStep"
+export {SkillFormSkeleton} from "./SchemaControls/DrawerSkeletons"
 export type {SkillFormViewProps} from "./SchemaControls/SkillFormView"
-export {SkillUploadZone} from "./SchemaControls/SkillUploadZone"
-export type {SkillUploadZoneProps} from "./SchemaControls/SkillUploadZone"
 export {scanSkillFromDataTransfer, scanSkillFromFileList} from "./SchemaControls/skillUpload"
 export type {ParsedSkill, SkillScanCandidate, SkillUploadScan} from "./SchemaControls/skillUpload"
+export {
+    buildSkillDownload,
+    composeSkillMarkdown,
+    downloadSkill,
+} from "./SchemaControls/skillDownload"
+export {firstBadFile, skillFilesOf} from "./SchemaControls/skillFiles"
+export {
+    SKILL_ACTION_ROW,
+    SkillViewHeader,
+    useSkillDownloadAction,
+} from "./SchemaControls/SkillViewHeader"
+export type {SkillAction, SkillViewHeaderProps} from "./SchemaControls/SkillViewHeader"
+export type {SkillDownload} from "./SchemaControls/skillDownload"
+
+// The agent a container shows now (revision, edit right); its open agent views follow it.
+export {AgentEditorContext} from "./SchemaControls/agentTemplate/useAgentConfigWriter"
+export {
+    SectionMarksContext,
+    type MarkableSectionKey,
+    type SectionMarks,
+} from "./SchemaControls/sectionMarks"
+export type {AgentEditor} from "./SchemaControls/agentTemplate/useAgentConfigWriter"
 
 // Agent config panel — presentational siblings of the AgentTemplateControl container (the
 // control itself stays code-split behind SchemaPropertyRenderer's lazy import). Prop-driven,
@@ -467,11 +486,22 @@ export type {
     AgentTemplateSectionListProps,
     AgentTemplateSectionDescriptor,
 } from "./SchemaControls/agentTemplate/AgentTemplateSectionList"
+export {
+    PhoneSectionsContext,
+    usePhoneSectionScreen,
+} from "./SchemaControls/agentTemplate/phoneSections"
+export type {PhoneSection, PhoneSectionsApi} from "./SchemaControls/agentTemplate/phoneSections"
+export {SectionListLayoutContext} from "./SchemaControls/agentTemplate/sectionListLayout"
+export {SectionPageAction} from "./SchemaControls/agentTemplate/SectionPageAction"
+export type {SectionListLayout} from "./SchemaControls/agentTemplate/sectionListLayout"
 export {SectionAddButton} from "./SchemaControls/agentTemplate/SectionAddButton"
 export type {SectionAddButtonProps} from "./SchemaControls/agentTemplate/SectionAddButton"
 // Writes the composer-prefill request atom from @agenta/shared/state: its one atom dependency.
 export {CreateWithAIAddMenu} from "./SchemaControls/agentTemplate/CreateWithAIAddMenu"
-export type {CreateWithAIAddMenuProps} from "./SchemaControls/agentTemplate/CreateWithAIAddMenu"
+export type {
+    CreateWithAIAddMenuProps,
+    CreateWithAIMenuItem,
+} from "./SchemaControls/agentTemplate/CreateWithAIAddMenu"
 export {SectionTitleBadge} from "./SchemaControls/agentTemplate/SectionTitleBadge"
 export type {
     SectionTitleBadgeProps,
@@ -481,3 +511,5 @@ export type {
 // The panel's instructions file row, reused read-only by surfaces that show an agent's brief
 // without editing it (the agent overview).
 export {InstructionsFileRow, ItemRow} from "./SchemaControls/agentTemplate/ItemRow"
+export {NeedsSetupTag, type NeedsSetupTagProps} from "./SchemaControls/agentTemplate/NeedsSetupTag"
+export {needsSetupStatus} from "./SchemaControls/agentTemplate/needsSetup"

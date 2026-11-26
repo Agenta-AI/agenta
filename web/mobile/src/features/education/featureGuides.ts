@@ -1,8 +1,11 @@
+import type {CatalogKey} from "@agenta/i18n"
+import type educationGuidesCatalog from "@agenta/i18n/catalogs/education.guides"
+import type navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {
     ChatCircle,
     Chats,
     Clock,
-    GraduationCap,
+    Compass,
     Lightning,
     MagnifyingGlass,
     NotePencil,
@@ -11,6 +14,8 @@ import {
     TerminalWindow,
     type Icon,
 } from "@phosphor-icons/react"
+
+type GuideKey = CatalogKey<typeof educationGuidesCatalog>
 
 /** What each empty page's onboarding says; templates are agent-template catalog keys. */
 
@@ -37,9 +42,11 @@ export interface Walkthrough {
 
 export interface FeatureGuide {
     /** The page's own name; the banner's pill reads "{title} walkthrough". */
-    title: string
-    headline: string
-    body: string
+    title: CatalogKey<typeof navigationCatalog>
+    headline: GuideKey
+    body: GuideKey
+    /** The populated page's button back to the walkthrough. */
+    howItWorks: GuideKey
     docsUrl: string
     /** Absent until the page has its own walkthrough clip. */
     video?: GuideVideo
@@ -51,33 +58,37 @@ export interface FeatureGuide {
 
 export const FEATURE_GUIDES: Record<FeatureGuideKey, FeatureGuide> = {
     agents: {
-        title: "Agents",
-        headline: "Build an agent by chatting with it",
-        body: "You describe the work, connect the apps it needs, and improve it through feedback. Share it with your team when it works.",
+        title: "navigation.items.agents",
+        headline: "education.guides.agentsHeadline",
+        body: "education.guides.agentsBody",
+        howItWorks: "education.guides.agentsHowItWorks",
         docsUrl: "https://agenta.ai/docs/concepts/agents",
         icons: {main: Robot, left: ChatCircle, right: Plug},
         templateKeys: ["code-qa", "knowledge-chatbot", "outreach-drafter"],
     },
     automations: {
-        title: "Automations",
-        headline: "Put your agents to work in the background",
-        body: "An automation runs one of your agents without you asking — on a schedule, or when something happens in an app you have connected.",
+        title: "navigation.items.automations",
+        headline: "education.guides.automationsHeadline",
+        body: "education.guides.automationsBody",
+        howItWorks: "education.guides.automationsHowItWorks",
         docsUrl: "https://agenta.ai/docs/concepts/automations",
         icons: {main: Lightning, left: Clock, right: Robot},
         templateKeys: ["pr-reviewer", "changelog-writer", "issue-triage"],
     },
     skills: {
-        title: "Skills",
-        headline: "Teach your agents how your team works",
-        body: "Define your agent with AGENTS.md, skills, and MCP servers. You can bring skills and MCP servers from the agent ecosystem into Agenta.",
+        title: "navigation.items.skills",
+        headline: "education.guides.skillsHeadline",
+        body: "education.guides.skillsBody",
+        howItWorks: "education.guides.skillsHowItWorks",
         docsUrl: "https://agenta.ai/docs/concepts/skills",
-        icons: {main: GraduationCap, left: NotePencil, right: TerminalWindow},
+        icons: {main: Compass, left: NotePencil, right: TerminalWindow},
         templateKeys: [],
     },
     sessions: {
-        title: "Sessions",
-        headline: "Every conversation with an agent, in one place",
-        body: "Each chat with an agent is a session. Pick one up where you left off, search across them, and inspect every model and tool call.",
+        title: "navigation.items.sessions",
+        headline: "education.guides.sessionsHeadline",
+        body: "education.guides.sessionsBody",
+        howItWorks: "education.guides.sessionsHowItWorks",
         docsUrl: "https://agenta.ai/docs/reference/agents/sessions-and-turns",
         icons: {main: Chats, left: Robot, right: MagnifyingGlass},
         templateKeys: ["standup-summarizer", "meeting-followup", "weekly-report"],

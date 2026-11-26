@@ -1,0 +1,9 @@
+{
+    "download": "{{name}} をダウンロード",
+    "pause": "{{name}} を一時停止",
+    "play": "{{name}} を再生",
+    "remove": "{{name}} を削除",
+    "retry": "再試行",
+    "retryNamed": "{{name}} を再試行",
+    "view": "{{name}} を表示"
+}

@@ -14,6 +14,8 @@
 import type {ReactNode} from "react"
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import sessionsTabsCatalog from "@agenta/i18n/catalogs/sessions.tabs"
 import {sessionRowStatusMeta, type SessionRowVm} from "@agenta/sessions/row"
 import {
     applySessionTabOrder,
@@ -55,6 +57,8 @@ import {SessionTabDragItem} from "./SessionTabDragItem"
 import {SessionTabStrip, TAB_DIVIDER} from "./SessionTabStrip"
 import {useInlineRename} from "./useInlineRename"
 
+const tNow = createT(sessionsTabsCatalog)
+
 /** A rename asked for from outside the rail (Alt+R) — the tab for this session opens its editor. */
 const renameTabRequestAtom = atom<{sessionId: string; nonce: number} | null>(null)
 
@@ -91,6 +95,8 @@ export interface SessionTabRailProps extends UseSessionCardListArgs {
      * "Rename" and Alt+R all open the same editor; without it none of them mount.
      */
     onRenameTab?: (vm: SessionRowVm, name: string) => Promise<boolean>
+    /** False for a tab the reader may not rename (someone else's chat): no pencil, no editor. */
+    canRenameTab?: (vm: SessionRowVm) => boolean
     /**
      * Close one tab. The rail supplies the RENDERED order alongside it, because the survivor a
      * host routes to is defined over what is on screen and only the rail knows that. Omit and no
@@ -189,6 +195,7 @@ const RailTab = ({
     /** Hairline before this tab — every tab but the first. */
     divided?: boolean
 }) => {
+    const t = useT(sessionsTabsCatalog)
     const ref = useRevealWhenActive(active)
     const handleSelect = useCallback(() => onSelect(vm), [onSelect, vm])
     // The SAME rename machine the session rows use, so Enter/blur commit and Escape abandons here
@@ -252,7 +259,9 @@ const RailTab = ({
                                       {onRename ? (
                                           <button
                                               type="button"
-                                              aria-label={`Rename ${vm.title}`}
+                                              aria-label={t("sessions.tabs.rename", {
+                                                  title: vm.title,
+                                              })}
                                               onClick={(event) => {
                                                   event.stopPropagation()
                                                   startRename()
@@ -267,7 +276,9 @@ const RailTab = ({
                                       {onClose ? (
                                           <button
                                               type="button"
-                                              aria-label={`Close ${vm.title}`}
+                                              aria-label={t("sessions.tabs.close", {
+                                                  title: vm.title,
+                                              })}
                                               onClick={(event) => {
                                                   event.stopPropagation()
                                                   onClose()
@@ -351,6 +362,7 @@ const UnlistedTab = ({
     menu?: SessionMenuEntry[]
     onMenuSelect?: (key: string) => void
 }) => {
+    const t = useT(sessionsTabsCatalog)
     const ref = useRevealWhenActive(active)
     return (
         <div ref={ref} className={clsx("mr-2.25 shrink-0", divided && TAB_DIVIDER)}>
@@ -375,7 +387,7 @@ const UnlistedTab = ({
                             ? () => (
                                   <button
                                       type="button"
-                                      aria-label={`Close ${title}`}
+                                      aria-label={t("sessions.tabs.close", {title})}
                                       onClick={(event) => {
                                           event.stopPropagation()
                                           onClose()
@@ -406,10 +418,12 @@ export const SessionTabRail = ({
     onCloseMany,
     onSelectUnlisted,
     onRenameTab,
+    canRenameTab,
     reorderable = true,
     className,
     ...listArgs
 }: SessionTabRailProps) => {
+    const t = useT(sessionsTabsCatalog)
     // The card list seeds a first visit — which tabs start open, and in what order. It decides
     // nothing after that; the sidebar shares this query, so it costs no extra request.
     const list = useSessionCardList(listArgs)
@@ -460,7 +474,13 @@ export const SessionTabRail = ({
         setUnlisted((prev) =>
             prev.some((tab) => tab.id === activeSessionId)
                 ? prev
-                : [...prev, {id: activeSessionId, title: activeFallbackTitle || "New session"}],
+                : [
+                      ...prev,
+                      {
+                          id: activeSessionId,
+                          title: activeFallbackTitle || tNow("sessions.tabs.newSession"),
+                      },
+                  ],
         )
     }, [activeFallbackTitle, activeSessionId, activeOpen, hasActive, tabs.isPending])
     // Let one go the moment its row lands, or the tab is closed.
@@ -508,7 +528,7 @@ export const SessionTabRail = ({
             onAdd={onNew}
             addTooltip={
                 <span className="flex items-center gap-1.5">
-                    New session <ShortcutKeys id="session.new" tone="inverse" />
+                    {t("sessions.tabs.newSession")} <ShortcutKeys id="session.new" tone="inverse" />
                 </span>
             }
             extra={extra}
@@ -537,7 +557,11 @@ export const SessionTabRail = ({
                           onSelect={onSelect}
                           draggable={reorderable}
                           onClose={onClose && closable ? () => onClose(vm, renderedIds) : undefined}
-                          onRename={onRenameTab ? (name) => onRenameTab(vm, name) : undefined}
+                          onRename={
+                              onRenameTab && (canRenameTab?.(vm) ?? true)
+                                  ? (name) => onRenameTab(vm, name)
+                                  : undefined
+                          }
                           menuFor={(row) => [
                               ...(menuFor?.(row) ?? []),
                               ...(onClose

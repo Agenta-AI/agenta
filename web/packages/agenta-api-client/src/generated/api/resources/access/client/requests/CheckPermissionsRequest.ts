@@ -10,4 +10,7 @@ export interface CheckPermissionsRequest {
     scope_id?: string | null;
     resource_type?: string | null;
     resource_id?: string | null;
+    without_grants?: boolean;
+    workflow_id?: string | null;
+    item_keys?: string[] | null;
 }

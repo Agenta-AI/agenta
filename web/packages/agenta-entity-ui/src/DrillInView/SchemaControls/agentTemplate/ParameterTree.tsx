@@ -12,6 +12,8 @@
  */
 import {useEffect, useMemo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import parameterEditorCatalog from "@agenta/i18n/catalogs/entityUi.parameterEditor"
 import {Button} from "@agenta/ui/ui"
 import {CaretDown, CaretRight, Plus, Wrench} from "@phosphor-icons/react"
 
@@ -120,6 +122,7 @@ function TreeRow({
     onRemove: () => void
     disabled?: boolean
 }) {
+    const t = useT(parameterEditorCatalog)
     return (
         <div
             className={`group flex items-center gap-1 rounded px-1.5 py-1 ${
@@ -129,7 +132,11 @@ function TreeRow({
             {expandable ? (
                 <button
                     type="button"
-                    aria-label={expanded ? "Collapse" : "Expand"}
+                    aria-label={
+                        expanded
+                            ? t("entityUi.parameterEditor.collapse")
+                            : t("entityUi.parameterEditor.expand")
+                    }
                     onClick={(e) => {
                         e.stopPropagation()
                         onToggle()
@@ -159,7 +166,7 @@ function TreeRow({
                 {required ? (
                     <span
                         className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorError)]"
-                        title="Required"
+                        title={t("entityUi.parameterEditor.required")}
                     />
                 ) : null}
                 <span className={`ml-auto shrink-0 pl-2 text-xs ${TYPE_TINT}`}>
@@ -193,6 +200,7 @@ function TreeNodes({
     onRemove: (parentPath: Seg[], key: string) => void
     disabled?: boolean
 }) {
+    const t = useT(parameterEditorCatalog)
     const props = getProps(node)
     const required = getRequired(node)
     const entries = Object.entries(props)
@@ -248,7 +256,7 @@ function TreeNodes({
                                 />
                                 {!disabled ? (
                                     <AddPropertyRow
-                                        label="Add property"
+                                        label={t("entityUi.parameterEditor.addProperty")}
                                         onClick={() =>
                                             onAddProperty(
                                                 type === "array" ? [...path, {items: true}] : path,
@@ -276,6 +284,7 @@ export function ParameterTree({
     onRemove,
     disabled,
 }: ParameterTreeProps) {
+    const t = useT(parameterEditorCatalog)
     const [expanded, setExpanded] = useState<Set<string>>(new Set())
     const selectedKey = selectedPath ? pathKey(selectedPath) : null
 
@@ -329,14 +338,14 @@ export function ParameterTree({
                                 : "text-[var(--ag-colorText)]"
                         }`}
                     >
-                        Tool details
+                        {t("entityUi.parameterEditor.toolDetails")}
                     </span>
                 </button>
             </div>
 
             <div className="flex shrink-0 items-center justify-between gap-2 px-3 pb-2 pt-3">
                 <span className="text-xs font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                    Parameters
+                    {t("entityUi.parameterEditor.parameters")}
                 </span>
                 <Button
                     variant="link"
@@ -345,15 +354,14 @@ export function ParameterTree({
                     disabled={disabled}
                 >
                     <Plus size={13} />
-                    Add
+                    {t("entityUi.parameterEditor.add")}
                 </Button>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
                 {isEmpty ? (
                     <p className="m-0 px-1.5 py-2 text-xs leading-snug text-[var(--ag-colorTextTertiary)]">
-                        No parameters yet. Add the inputs the model provides when it calls this
-                        tool.
+                        {t("entityUi.parameterEditor.noParameters")}
                     </p>
                 ) : (
                     <TreeNodes

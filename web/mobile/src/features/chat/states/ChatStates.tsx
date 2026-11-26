@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import chatMobileScreenCatalog from "@agenta/i18n/catalogs/chat.mobileScreen"
 import {SkeletonBlock} from "@agenta/ui/ui"
 
 import {ContentRail} from "@/components/ContentRail"
@@ -79,28 +81,34 @@ const AssistantTurn = ({steps = [], paragraphs}: {steps?: string[]; paragraphs: 
     </div>
 )
 
-export const ChatLoading = () => (
-    <ContentRail
-        className="flex grow flex-col justify-end gap-3 p-4 pt-6 pb-[calc(1rem+env(safe-area-inset-bottom))]"
-        aria-busy
-        aria-label="Loading conversation"
-    >
-        <UserTurn width="w-[420px]" />
-        <AssistantTurn
-            steps={["w-[440px] max-w-[70%]", "w-[400px] max-w-[64%]"]}
-            paragraphs={[
-                ["w-full", "w-[92%]", "w-[58%]"],
-                ["w-[96%]", "w-[40%]"],
-            ]}
-        />
-        <UserTurn width="w-[260px]" />
-        <AssistantTurn paragraphs={[["w-full", "w-[88%]", "w-[71%]", "w-[33%]"]]} />
-    </ContentRail>
-)
+export const ChatLoading = () => {
+    const t = useT(chatMobileScreenCatalog)
+    return (
+        <ContentRail
+            className="flex grow flex-col justify-end gap-3 p-4 pt-6 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+            aria-busy
+            aria-label={t("chat.mobileScreen.loadingConversation")}
+        >
+            <UserTurn width="w-[420px]" />
+            <AssistantTurn
+                steps={["w-[440px] max-w-[70%]", "w-[400px] max-w-[64%]"]}
+                paragraphs={[
+                    ["w-full", "w-[92%]", "w-[58%]"],
+                    ["w-[96%]", "w-[40%]"],
+                ]}
+            />
+            <UserTurn width="w-[260px]" />
+            <AssistantTurn paragraphs={[["w-full", "w-[88%]", "w-[71%]", "w-[33%]"]]} />
+        </ContentRail>
+    )
+}
 
 /** No durable history; a read that failed is `ChatUnreachable` instead. */
-export const ChatEmpty = () => (
-    <p className="text-muted-foreground grow p-6 text-xs">
-        No messages here — this session has no replayable history.
-    </p>
-)
+export const ChatEmpty = () => {
+    const t = useT(chatMobileScreenCatalog)
+    return (
+        <p className="text-muted-foreground grow p-6 text-xs">
+            {t("chat.mobileScreen.noMessages")}
+        </p>
+    )
+}

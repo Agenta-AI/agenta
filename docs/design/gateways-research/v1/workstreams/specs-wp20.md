@@ -111,10 +111,12 @@ that would ever tell it to.
 
 ## The document is static and deployment-wide, not per-project or per-server
 
-`client_metadata_document()` needs nothing from the connect attempt except the fixed
+`identity_document_client_info()` needs nothing from the connect attempt except the fixed
 callback URL WP17 already built (`callback_redirect_uri`). It carries no project id, no
-server URL, no scope list — just `redirect_uris`, `grant_types`, `response_types`,
-`token_endpoint_auth_method: "none"`, `client_name: "Agenta"`. One document, one URL,
+server URL, no scope list — just `client_id`, `redirect_uris`, `grant_types`,
+`response_types`, `token_endpoint_auth_method: "none"`, `client_name: "Agenta"`. The
+`client_id` must equal the document's own URL (draft-ietf-oauth-client-id-metadata-document
+§4.1); an authorization server refuses a document without it. One document, one URL,
 served by one new unauthenticated route, for every project on the deployment.
 
 This is a deliberate departure from WP17's per-project outbound registrations (each

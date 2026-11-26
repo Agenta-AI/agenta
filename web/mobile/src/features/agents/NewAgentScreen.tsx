@@ -1,3 +1,6 @@
+import {useT} from "@agenta/i18n"
+import agentsFirstRun from "@agenta/i18n/catalogs/agents.firstRun"
+
 import {PageTitle} from "@/components/PageTitle"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
@@ -10,8 +13,8 @@ import {FirstRunScreen} from "./FirstRunScreen"
  * project gets, under the app shell this route must provide for itself (Home provides its own
  * when it mounts the first run).
  *
- * Blank shows the template strip; `?template=<key>` arrives with the pick already made, so the
- * connect step opens in the strip's place. See [[FirstRunScreen]] for the structure.
+ * Blank shows the template strip; `?template=<key>` arrives with the pick already made and creates
+ * that agent on landing. See [[FirstRunScreen]] for the structure.
  */
 export const NewAgentScreen = ({
     workspaceId,
@@ -22,12 +25,13 @@ export const NewAgentScreen = ({
     projectId: string
     templateKey?: string
 }) => {
+    const t = useT(agentsFirstRun)
     useBindProjectContext(projectId)
     const base = `/w/${workspaceId}/p/${projectId}`
 
     return (
         <>
-            <PageTitle title="New agent" />
+            <PageTitle title={t("agents.firstRun.newAgentTitle")} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <FirstRunScreen
                     base={base}

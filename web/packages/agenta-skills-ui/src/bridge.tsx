@@ -1,14 +1,19 @@
 /** The drill-in `skills` bridge implementation each host feeds its DrillInUIProvider. */
 import {useMemo} from "react"
 
+import {createT} from "@agenta/i18n"
+import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {projectIdAtom} from "@agenta/shared/state"
 import {buildSkillEmbedEntry, createSkillWorkflow, skillContentSchema} from "@agenta/skills"
 import {invalidateSkillsListCache, skillsListDataAtom} from "@agenta/skills/state"
 import type {SkillsBridge} from "@agenta/ui/drill-in"
 import {getDefaultStore, useAtomValue} from "jotai"
 
-import {SkillDetailHost} from "./SkillDetailHost"
-import {SkillPickerHost} from "./SkillPickerHost"
+import {AddSkillsBody} from "./AddSkillsBody"
+import {NewSkillBody} from "./NewSkillBody"
+import {RegistrySkillBody} from "./registrySkillView"
+
+const tNow = createT(skillsGalleryCatalog)
 
 /** Registry head versions by workflow slug — feeds the config rows' "vN available" nudge. */
 function useHeadVersions(): Record<string, string> {
@@ -32,10 +37,14 @@ async function publishInlineSkill(
     if (!parsed.success) {
         const issue = parsed.error.issues[0]
         const path = issue?.path.join(".")
-        return {error: `Fix the skill before publishing${path ? ` (${path})` : ""}.`}
+        return {
+            error: path
+                ? tNow("skills.gallery.publishFixSkillPath", {path})
+                : tNow("skills.gallery.publishFixSkill"),
+        }
     }
     const projectId = getDefaultStore().get(projectIdAtom) ?? ""
-    if (!projectId) return {error: "No project in scope."}
+    if (!projectId) return {error: tNow("skills.gallery.noProject")}
     try {
         const created = await createSkillWorkflow({projectId, skill: parsed.data})
         invalidateSkillsListCache()
@@ -52,8 +61,8 @@ async function publishInlineSkill(
         return {
             error:
                 err instanceof Error && err.message
-                    ? `Publish failed: ${err.message}`
-                    : "Publish failed.",
+                    ? tNow("skills.gallery.publishFailedDetail", {error: err.message})
+                    : tNow("skills.gallery.publishFailed"),
         }
     }
 }
@@ -62,8 +71,9 @@ export function useSkillsBridge(): SkillsBridge {
     return useMemo(
         () => ({
             enabled: true,
-            PickerHost: SkillPickerHost,
-            DetailHost: SkillDetailHost,
+            AddSkillsBody,
+            NewSkillBody,
+            RegistrySkillBody,
             useHeadVersions,
             publishInlineSkill,
         }),

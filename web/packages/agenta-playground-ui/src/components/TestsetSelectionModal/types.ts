@@ -198,33 +198,7 @@ export interface SelectionSummaryProps {
 // HOOK TYPES
 // ============================================================================
 
-/**
- * Return type for useTestsetSelection hook
- */
-export interface UseTestsetSelectionReturn {
-    /** Currently selected revision ID */
-    selectedRevisionId: string | null
-    /** Currently selected testset ID */
-    selectedTestsetId: string | null
-    /** Set the selected revision and testset IDs */
-    setSelection: (revisionId: string | null, testsetId: string | null) => void
-    /** Information about the selected revision */
-    revisionInfo: RevisionInfo | null
-    /** Whether revision data is loading */
-    isLoading: boolean
-}
-
-/**
- * Information about a selected revision
- */
-export interface RevisionInfo {
-    /** Testset name */
-    testsetName: string
-    /** Testset ID */
-    testsetId: string
-    /** Revision version number */
-    version: number
-}
+export type {RevisionInfo, UseTestsetSelectionReturn} from "../../hooks/useTestsetSelection"
 
 /**
  * Return type for useTestcaseFiltering hook

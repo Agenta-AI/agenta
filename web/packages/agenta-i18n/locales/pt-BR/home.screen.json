@@ -1,0 +1,8 @@
+{
+    "title": "Início",
+    "loading": "Carregando o início",
+    "untitledAgent": "Agente sem título",
+    "templatesError": "Não foi possível carregar os modelos",
+    "agentsEmpty": "Os agentes que você criar aparecerão aqui.",
+    "agentsError": "Não foi possível carregar seus agentes"
+}

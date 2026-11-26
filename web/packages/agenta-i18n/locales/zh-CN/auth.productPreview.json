@@ -1,0 +1,19 @@
+{
+    "daysAgo": "{{count}} 天前",
+    "elapsed": "{{seconds}} 秒",
+    "hoursAgo": "{{count}} 小时前",
+    "minutesAgo": "{{count}} 分钟前",
+    "navAgents": "Agent",
+    "navAutomations": "自动化",
+    "navHome": "首页",
+    "navSessions": "会话",
+    "navSettings": "设置",
+    "navSkills": "Skill",
+    "navTemplates": "模板",
+    "newAutomation": "新建自动化",
+    "now": "现在",
+    "starting": "正在启动",
+    "subtitle": "按计划运行，或在你的应用中发生某些事件时运行的 Agent。",
+    "title": "自动化",
+    "workedFor": "已工作 {{seconds}} 秒"
+}

@@ -2,25 +2,43 @@
  * The shared approval card — ONE design for a human-in-the-loop gate, rendered identically by the
  * desktop dock and mobile, in every mode.
  *
- * The card deliberately shows no payload, no diff, and no digest. A gate resolves to plain
- * language through `describeApproval`, and everything beyond the one-sentence ask folds behind a
- * single toggle. Hosts adapt transport only: how a response actually fires arrives as callbacks.
- * There is no `body` slot and no mode flag, because a second visual shape is exactly what this
- * card exists to remove.
+ * The card shows no raw payload. A gate resolves to plain language through `describeApproval`,
+ * and everything beyond the one-sentence ask folds behind a single toggle. An agent change is the
+ * one exception: its changes show in place, with the old and new values of the server preview.
+ * Hosts adapt transport only: how a response actually fires arrives as callbacks. There is no
+ * `body` slot and no mode flag.
+ *
+ * Several change calls of one turn share one grouped card (`ChangeCallGroups`). After the answer the
+ * card shrinks to the row "Waiting for the agent"; a reader who cannot answer sees the row "Only
+ * the owner can approve" in place of the buttons (`ChangeResultRow`).
  */
 import {useEffect, useId, useMemo, useRef, useState} from "react"
 
 import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
+import {useDriveHomeSlug} from "@agenta/entity-ui/drive"
+import {useT} from "@agenta/i18n"
+import chatApprovalCardCatalog from "@agenta/i18n/catalogs/chat.approvalCard"
+import chatChangeCardCatalog from "@agenta/i18n/catalogs/chat.changeCard"
+import chatChangeCardStatesCatalog from "@agenta/i18n/catalogs/chat.changeCardStates"
+import {canonicalClientToolName} from "@agenta/shared/clientTools"
 import {isOnScreen, isOverlayOpen, shortcutAria} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
+import {useIsPhone} from "@agenta/ui/phone"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {AutosizeTextarea, Button, Checkbox, LoadingButton} from "@agenta/ui/ui"
 import {CaretRight, ShieldCheck} from "@phosphor-icons/react"
 
+import {useAgentDisplayName, useAgentDisplayNames} from "../hooks/useAgentDisplayName"
 import {useAlwaysAllowTool} from "../hooks/useAlwaysAllowTool"
+import {useChangeVersions} from "../hooks/useChangeVersions"
 import {useHardwareKeyboard} from "../hooks/useHardwareKeyboard"
-import {describeApproval, describeBatchItems} from "../model/approvalPreview"
+import {batchAgentRefs, describeApproval, describeBatchItems} from "../model/approvalPreview"
 import type {PendingApproval} from "../model/approvals"
+import {changeCallState} from "../model/changeCallState"
+
+import {ChangeCallGroups} from "./ChangeCallGroups"
+import {ChangeResultRow} from "./ChangeResultRow"
+import {ChangeSections, removesOnly, RiskLine} from "./ChangeSections"
 
 export interface ApprovalCardProps {
     /** Pending gates for the paused turn — index 0 is the one a single decision answers. */
@@ -35,7 +53,8 @@ export interface ApprovalCardProps {
     entityId?: string
     /** Show the Redirect (deny + note) entry point — hosts gate it by their own flag. */
     steerEnabled?: boolean
-    /** Touch mode: identical chrome with an invisibly extended ~44px tap area per action. */
+    /** Touch mode: identical chrome with an invisibly extended ~44px tap area per action. A phone
+     *  width draws the actions 44 px high instead, whatever this says. */
     touch?: boolean
     /** A host-side failure to surface under the actions (e.g. the detached resume failed). */
     errorText?: string | null
@@ -45,8 +64,35 @@ export interface ApprovalCardProps {
     onApproveAll: (approvalIds: string[]) => void
     /** Deny the whole batch. Omit (mobile has no batch deny) and Deny answers the current gate. */
     onDenyAll?: (approvalIds: string[]) => void
-    /** Card surface + density; hosts pass their own token surface. */
+    /** Card surface + density; hosts pass their own token surface. A change card draws its own
+     *  chrome (C01: parts from edge to edge, the footer band), so it does not use this. */
     className?: string
+    /** Offer "Always auto-approve". Off in a builder chat: the grant would go to the builder
+     *  itself, not to the agent it edits (OPEN-QUESTIONS 2.67). */
+    alwaysAllowOffered?: boolean
+    /**
+     * The builder chat: "Always auto-approve" stores the person's approval choice for these
+     * tools (`choose`) instead of writing the agent's configuration. Set, it replaces
+     * `alwaysAllowOffered` and the configuration grant.
+     */
+    alwaysApprove?: {
+        /** The tools the person can choose now, by their canonical name. */
+        toolNames: ReadonlySet<string>
+        choose: (toolNames: string[]) => void
+    }
+    /**
+     * The viewer cannot answer (they can view the chat but not send to it): the card keeps the
+     * eyebrow, the ask and the details, and drops every answer control and shortcut.
+     */
+    readOnly?: boolean
+    /** Shown in place of the actions while `readOnly`; the host words it (it names the owner). */
+    readOnlyNote?: string | null
+    /**
+     * Whether the keys (Cmd/Ctrl+Enter, Escape) belong to this card now. A host with two
+     * conversations on screen answers by the focus, so one key answers one card. Omitted, the
+     * card on screen takes them.
+     */
+    ownsShortcut?: (card: HTMLElement) => boolean
 }
 
 export const ApprovalCard = ({
@@ -61,12 +107,20 @@ export const ApprovalCard = ({
     onRespond,
     onApproveAll,
     onDenyAll,
+    readOnly = false,
+    readOnlyNote,
+    ownsShortcut,
+    alwaysAllowOffered = true,
+    alwaysApprove,
     className = "gap-2.5 border border-solid border-colorBorderSecondary bg-colorBgContainer p-3.5",
 }: ApprovalCardProps) => {
     const current = approvals[0]
     const count = approvals.length
     const batched = count > 1
 
+    const t = useT(chatApprovalCardCatalog)
+    const tChange = useT(chatChangeCardCatalog)
+    const tStates = useT(chatChangeCardStatesCatalog)
     const [detailsOpen, setDetailsOpen] = useState(false)
     // Which detail rows are expanded from their one-line preview to the full text.
     const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set())
@@ -115,50 +169,124 @@ export const ApprovalCard = ({
 
     // A commit gate parses its whole delta + manifest, so memoize on the gate id (a gate's payload
     // is immutable) rather than re-parsing on every keystroke and `responding` toggle.
-    const base = useMemo(() => (current ? describeApproval(current) : null), [current?.approvalId])
+    const homeSlug = useDriveHomeSlug()
+    // The server preview can land after the gate, so its arrival describes the gate again.
+    const hasChangePreview = current?.changePreview !== undefined
+    const base = useMemo(
+        () => (current ? describeApproval(current, undefined, homeSlug) : null),
+        [current?.approvalId, hasChangePreview, homeSlug],
+    )
     // The catalog answers late, so re-describe once it names the slug (#6349). Disabled on "".
     const sourceKey = base?.sourceKey ?? ""
     const {integration} = useToolIntegrationDetail(sourceKey)
     const appName = sourceKey ? integration?.name : undefined
+    // A call that names an agent by its slug or id: describe it again with the agent's name.
+    const agentName = useAgentDisplayName(base?.agentRef)
     const preview = useMemo(
-        () => (current && appName ? describeApproval(current, appName) : base),
-        [current?.approvalId, appName, base],
+        () =>
+            current && (appName || agentName)
+                ? describeApproval(current, appName, homeSlug, agentName)
+                : base,
+        [current?.approvalId, appName, agentName, homeSlug, base],
     )
     // A batch answers as a whole, so the rows list the pending ACTIONS rather than one gate's
     // changes — this is what replaced the peek popover.
+    // One agent change shows its changes in place; the rows behind the toggle would repeat them.
+    // A refused change with no rows still shows its notice.
+    const changes =
+        !batched && (preview?.changes?.length || preview?.cannotApply || preview?.header)
+            ? (preview.changes ?? [])
+            : null
+    // Several change calls: one grouped card with a group per call. A batch with any other tool
+    // keeps the list of actions behind the toggle.
+    const batchKey = approvals
+        .map((approval) => `${approval.approvalId}:${approval.changePreview !== undefined}`)
+        .join("|")
+    const grouped = useMemo(() => {
+        if (!batched) return null
+        const previews = approvals.map((approval) =>
+            describeApproval(approval, undefined, homeSlug),
+        )
+        return previews.every((one) => one.changes?.length) ? previews : null
+        // Keyed on the ids and the preview arrivals: they are what change a batch's description.
+    }, [batched, batchKey, homeSlug])
+    // Each batch row that names an agent names its own agent, not the first call's.
+    const batchRefs = useMemo(
+        () => (batched ? batchAgentRefs(approvals, homeSlug) : []),
+        [batched, batchKey, homeSlug],
+    )
+    const batchAgentNames = useAgentDisplayNames(batchRefs)
     const items = useMemo(
-        () => (batched ? describeBatchItems(approvals) : (preview?.items ?? [])),
-        [batched, approvals, preview],
+        () =>
+            grouped
+                ? []
+                : batched
+                  ? describeBatchItems(approvals, homeSlug, batchAgentNames)
+                  : changes
+                    ? []
+                    : (preview?.items ?? []),
+        [grouped, batched, approvals, homeSlug, preview, changes, batchAgentNames],
     )
 
-    if (!current || !preview) return null
+    // "Saves as v{base + 1}", and the conflict state when a newer version landed after the base.
+    const versions = useChangeVersions(changes ? preview?.base : undefined)
+    const {baseVersion, latestVersion} = versions
+    const conflict =
+        baseVersion !== undefined && latestVersion !== undefined && latestVersion > baseVersion
+
+    const removes = changes ? removesOnly(changes) : false
+    const risky = Boolean(
+        (grouped ? grouped.flatMap((one) => one.changes ?? []) : changes)?.some(
+            (change) => change.risks.length,
+        ),
+    )
 
     // A batch answers as a whole, so the grant covers every tool it would approve, not just the
     // first gate's. Ineligible members (a commit op mixed in) simply stay gated.
     const grantableTools = [
-        ...new Set((batched ? approvals : [current]).map((approval) => approval.toolName)),
+        ...new Set(
+            (batched ? approvals : current ? [current] : []).map((approval) => approval.toolName),
+        ),
     ].filter((toolName) => {
+        if (alwaysApprove) return alwaysApprove.toolNames.has(canonicalClientToolName(toolName))
         const info = infoFor(toolName)
         return info.eligible && !info.alreadyAllowed
     })
-    const canAlwaysAllow = grantableTools.length > 0
-    // Touch must NOT change the chrome — the tap target extends invisibly instead.
-    const touchCls = touch
-        ? "relative after:absolute after:-inset-x-1 after:-inset-y-2 after:content-['']"
-        : ""
+    const canAlwaysAllow = (alwaysApprove ? true : alwaysAllowOffered) && grantableTools.length > 0
+    // On a phone the actions are drawn 44 px high (M05). Touch elsewhere keeps the chrome and
+    // extends the tap target invisibly.
+    const phone = useIsPhone()
+    // A change card: the C01 chrome, with its parts from edge to edge and a footer band.
+    const changeCard = Boolean(changes || grouped)
+    const actionCls = phone
+        ? `h-11 rounded-[10px] px-4 text-[15px] ${changeCard ? "min-w-[92px]" : ""}`
+        : touch
+          ? "relative after:absolute after:-inset-x-1 after:-inset-y-2 after:content-['']"
+          : ""
     // The keycaps ride on the actions themselves, so the gesture reads without a hover. Gated on
     // the keyboard, not on `touch`: that prop sizes the buttons, and /m serves desktop browsers too.
     const showKeys = hasKeyboard
+    // C01: Deny reads secondary on a white ground in the footer band (no ground on a phone, M05).
+    const denyCls = !changeCard
+        ? ""
+        : phone
+          ? "text-colorTextSecondary"
+          : "bg-colorBgContainer text-colorTextSecondary"
+    // A change card's buttons are the canvas's 28 px ones (C01); a phone sets 44 px above.
+    const buttonSize = changeCard ? "compact" : undefined
 
     const approve = () => {
-        if (responding) return
+        if (!current || responding || readOnly || answered) return
         setFiredAction("approve")
-        if (alwaysAllowArmed && canAlwaysAllow) grantMany(grantableTools)
+        if (alwaysAllowArmed && canAlwaysAllow) {
+            if (alwaysApprove) alwaysApprove.choose(grantableTools)
+            else grantMany(grantableTools)
+        }
         if (batched) return onApproveAll(approvals.map((a) => a.approvalId))
         onRespond({approvalId: current.approvalId, approved: true})
     }
     const deny = () => {
-        if (responding) return
+        if (!current || responding || readOnly || answered) return
         setFiredAction("deny")
         // No always-allow grant on a deny, ever.
         if (batched && onDenyAll) return onDenyAll(approvals.map((a) => a.approvalId))
@@ -171,7 +299,12 @@ export const ApprovalCard = ({
     // has focus, so a note-in-progress can use Escape/Enter for its own editing. `approve`/`deny`
     // already no-op while `responding`, so a double-fire is harmless.
     useEffect(() => {
+        // A read-only or answered card answers nothing, so it binds no keys either.
+        if (readOnly || answered) return
         const onKeyDown = (event: KeyboardEvent) => {
+            const approveChord = (event.metaKey || event.ctrlKey) && event.key === "Enter"
+            const denyChord = event.key === "Escape" && !event.metaKey && !event.ctrlKey
+            if (!approveChord && !denyChord) return
             // Something on top owns the keyboard. Both halves are load-bearing: Radix cancels
             // Escape for a dialog, menu or popover but still lets it reach us, and it never
             // touches Cmd+Enter, which only the overlay check catches.
@@ -179,10 +312,8 @@ export const ApprovalCard = ({
             // The listener is on `window`, and a parallel run parks a gate in a session you are
             // not looking at. Without this, one Cmd+Enter answered every hidden card too.
             if (rootRef.current && !isOnScreen(rootRef.current)) return
+            if (rootRef.current && ownsShortcut && !ownsShortcut(rootRef.current)) return
             if (steerOpen) return
-            const approveChord = (event.metaKey || event.ctrlKey) && event.key === "Enter"
-            const denyChord = event.key === "Escape" && !event.metaKey && !event.ctrlKey
-            if (!approveChord && !denyChord) return
             // Escape must not deny while the user is typing (e.g. clearing a queued message in the
             // composer). Cmd/Ctrl+Enter still fires from a field — it mirrors the composer's send.
             const target = event.target as HTMLElement | null
@@ -200,27 +331,93 @@ export const ApprovalCard = ({
         return () => window.removeEventListener("keydown", onKeyDown)
     })
 
-    return (
-        <div ref={rootRef} className={`flex flex-col rounded-lg ${className}`}>
-            {/* Eyebrow: a quiet cue that a decision is owed, not an error tint. */}
-            <div className="flex items-center gap-1.5">
-                <ShieldCheck size={14} weight="fill" className="shrink-0 text-colorText" />
-                <span className="text-xs font-medium text-colorText">
-                    {answered
-                        ? recoverable
-                            ? "Answer saved, retry needed"
-                            : "Answered, waiting for the agent"
-                        : "Needs your approval"}
-                </span>
+    // Every hook ran above: a card with no gate renders nothing.
+    if (!current || !preview) return null
+
+    // One state for the card, from the same function as the result rows. A recoverable answer
+    // keeps the full card with the production retry text.
+    const cardState = changeCallState({
+        partState: "approval-requested",
+        answered: answered && !recoverable,
+        readOnly,
+    })
+
+    // Answered: the card shrinks to its result row until the tool result replaces it.
+    if (cardState.kind === "waiting") {
+        return (
+            <div
+                ref={rootRef}
+                className="flex flex-col gap-1 rounded-[10px] border border-solid border-colorBorderSecondary bg-colorBgContainer py-1 shadow-[var(--ag-surface-card-shadow)]"
+            >
+                <ChangeResultRow state={cardState} />
+                {errorText ? (
+                    <p
+                        role="alert"
+                        aria-live="assertive"
+                        className="m-0 px-3 pb-1 text-xs text-colorError"
+                    >
+                        {errorText}
+                    </p>
+                ) : null}
             </div>
+        )
+    }
+
+    return (
+        <div
+            ref={rootRef}
+            className={`flex flex-col ${
+                changeCard
+                    ? "overflow-hidden rounded-[10px] border border-solid border-colorBorderSecondary bg-colorBgContainer shadow-[var(--ag-surface-card-shadow)]"
+                    : `rounded-lg ${className}`
+            } ${risky ? "!border-colorWarningBorder" : ""}`}
+        >
+            {/* Eyebrow: a quiet cue that a decision is owed, not an error tint. A change card's
+                header is the change itself, so it shows the eyebrow only once answered. */}
+            {(changes || grouped) && !answered ? null : (
+                <div className="flex items-center gap-1.5">
+                    <ShieldCheck size={14} weight="fill" className="shrink-0 text-colorText" />
+                    <span className="text-xs font-medium text-colorText">
+                        {answered
+                            ? t("chat.approvalCard.answerSavedRetry")
+                            : t("chat.approvalCard.needsApproval")}
+                    </span>
+                </div>
+            )}
 
             {/* The whole ask, in one sentence — what happens, and what it costs. */}
-            <span
-                className="text-[13px] leading-relaxed text-colorTextSecondary [text-wrap:pretty]"
-                title={current.toolName}
-            >
-                {preview.sentence}
-            </span>
+            {grouped ? (
+                <div className="px-3 pb-3 pt-2.5">
+                    <ChangeCallGroups previews={grouped} />
+                </div>
+            ) : changes ? (
+                <ChangeSections
+                    changes={changes}
+                    proposedValues={preview.proposedValues}
+                    cannotApply={preview.cannotApply}
+                    agentName={versions.agentName ?? preview.agentName}
+                    header={preview.header}
+                    sentence={preview.sentence}
+                />
+            ) : (
+                <span
+                    className="text-[13px] leading-relaxed text-colorTextSecondary [text-wrap:pretty]"
+                    title={current.toolName}
+                >
+                    {preview.sentence}
+                </span>
+            )}
+
+            {changes && conflict ? (
+                <div data-testid="change-conflict" className="mx-3 mb-2.5 mt-1.5">
+                    <RiskLine>
+                        {tChange("chat.changeCard.conflict", {
+                            latest: latestVersion,
+                            base: baseVersion,
+                        })}
+                    </RiskLine>
+                </div>
+            ) : null}
 
             {items.length ? (
                 <div className="flex flex-col gap-2.5">
@@ -237,8 +434,13 @@ export const ApprovalCard = ({
                         />
                         {/* The count sits in the label so the size is known before opening. */}
                         {detailsOpen
-                            ? "Hide the details"
-                            : `${batched ? "See what runs" : "See what changes"} (${items.length})`}
+                            ? t("chat.approvalCard.hideDetails")
+                            : t(
+                                  batched
+                                      ? "chat.approvalCard.seeWhatRuns"
+                                      : "chat.approvalCard.seeWhatChanges",
+                                  {count: items.length},
+                              )}
                     </button>
                     <HeightCollapse open={detailsOpen}>
                         <div className="flex max-h-[196px] flex-col overflow-y-auto rounded-md border border-solid border-colorBorderSecondary bg-colorFillQuaternary">
@@ -288,76 +490,143 @@ export const ApprovalCard = ({
 
             {/* Actions. The whole row collapses while steering: an explicit deny+redirect shouldn't
                 leave Approve competing, so the redirect panel becomes the entire action surface. */}
-            <HeightCollapse className="-mt-1" open={!steerOpen && !answered} fade inert>
-                {/* Wraps rather than squeezes: with Redirect on, the buttons drop to their own line
-                    instead of shoving Approve off a narrow screen. */}
-                <div className="flex flex-wrap items-center gap-2">
-                    {canAlwaysAllow ? (
-                        <label className="flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap text-xs text-colorTextSecondary">
-                            <Checkbox
-                                checked={alwaysAllowArmed}
-                                disabled={responding}
-                                onCheckedChange={(checked) => setAlwaysAllowArmed(checked === true)}
-                                aria-labelledby={alwaysAllowLabelId}
-                                className="shrink-0"
-                            />
-                            <span id={alwaysAllowLabelId}>Always auto-approve</span>
-                        </label>
-                    ) : null}
-                    <div className="ml-auto flex shrink-0 items-center gap-1.5">
-                        {steerEnabled ? (
-                            <Button
-                                variant="ghost"
-                                disabled={responding}
-                                className={`text-colorTextSecondary ${touchCls}`}
-                                onClick={() => setSteerOpen(true)}
+            {cardState.kind === "read_only" ? (
+                <ChangeResultRow
+                    state={cardState}
+                    readOnlyNote={readOnlyNote}
+                    className={`rounded-md bg-colorFillQuaternary px-2.5 py-2 ${
+                        changeCard ? "mx-2 mb-2" : "-mx-1"
+                    }`}
+                />
+            ) : null}
+            {readOnly ? null : (
+                <HeightCollapse
+                    className={changeCard ? "" : "-mt-1"}
+                    open={!steerOpen && !answered}
+                    fade
+                    inert
+                >
+                    {/* Wraps rather than squeezes: with Redirect on, the buttons drop to their own line
+                    instead of shoving Approve off a narrow screen. A change card puts the row in
+                    its footer band (C01): the version note left, the buttons right. */}
+                    <div
+                        className={`flex flex-wrap items-center gap-2 ${
+                            changeCard
+                                ? `border-0 border-t border-solid border-colorBorderSecondary bg-[var(--ag-surface-raised)] ${
+                                      phone ? "px-3 py-2" : "py-2 pl-3 pr-2.5"
+                                  }`
+                                : ""
+                        }`}
+                    >
+                        {grouped ? (
+                            <span className="text-[12px] leading-4 text-colorTextSecondary">
+                                {tStates("chat.changeCardStates.openRow")}
+                            </span>
+                        ) : changes && baseVersion !== undefined ? (
+                            <span
+                                className="text-[12px] leading-4 text-colorTextSecondary"
+                                data-testid="change-saves-as"
                             >
-                                Redirect
-                            </Button>
+                                {tChange("chat.changeCard.savesAs", {version: baseVersion + 1})}
+                            </span>
                         ) : null}
-                        <LoadingButton
-                            variant="ghost"
-                            disabled={responding}
-                            loading={responding && firedAction === "deny"}
-                            className={touchCls}
-                            onClick={deny}
-                            aria-keyshortcuts={shortcutAria("approval.deny")}
-                        >
-                            {batched && onDenyAll ? "Deny all" : "Deny"}
-                            {/* Decorative: the button's own label already names the action. */}
-                            {showKeys ? (
-                                <ShortcutKeys id="approval.deny" aria-hidden className="ml-1.5" />
-                            ) : null}
-                        </LoadingButton>
-                        <LoadingButton
-                            disabled={responding}
-                            loading={responding && firedAction === "approve"}
-                            className={touchCls}
-                            onClick={approve}
-                            aria-keyshortcuts={shortcutAria("approval.approve")}
-                        >
-                            {batched ? "Approve all" : "Approve"}
-                            {showKeys ? (
-                                <ShortcutKeys
-                                    id="approval.approve"
-                                    tone="inverse"
-                                    aria-hidden
-                                    className="ml-1.5"
+                        {canAlwaysAllow ? (
+                            <label
+                                className={`flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap text-xs text-colorTextSecondary ${
+                                    phone ? "min-h-11" : ""
+                                }`}
+                            >
+                                <Checkbox
+                                    checked={alwaysAllowArmed}
+                                    disabled={responding}
+                                    onCheckedChange={(checked) =>
+                                        setAlwaysAllowArmed(checked === true)
+                                    }
+                                    aria-labelledby={alwaysAllowLabelId}
+                                    className="shrink-0"
                                 />
+                                <span id={alwaysAllowLabelId}>
+                                    {t("chat.approvalCard.alwaysAutoApprove")}
+                                </span>
+                            </label>
+                        ) : null}
+                        <div
+                            className={`ml-auto flex items-center gap-1.5 ${
+                                // The 44 px phone buttons wrap rather than run off a narrow card.
+                                phone ? "flex-wrap justify-end" : "shrink-0"
+                            }`}
+                        >
+                            {steerEnabled ? (
+                                <Button
+                                    variant="ghost"
+                                    size={buttonSize}
+                                    disabled={responding}
+                                    className={`text-colorTextSecondary ${actionCls}`}
+                                    onClick={() => setSteerOpen(true)}
+                                >
+                                    {t("chat.approvalCard.redirect")}
+                                </Button>
                             ) : null}
-                        </LoadingButton>
+                            <LoadingButton
+                                variant="ghost"
+                                size={buttonSize}
+                                disabled={responding}
+                                loading={responding && firedAction === "deny"}
+                                className={`${denyCls} ${actionCls}`}
+                                onClick={deny}
+                                aria-keyshortcuts={shortcutAria("approval.deny")}
+                            >
+                                {batched && onDenyAll
+                                    ? t("chat.approvalCard.denyAll")
+                                    : t("chat.approvalCard.deny")}
+                                {/* Decorative: the button's own label already names the action. */}
+                                {showKeys ? (
+                                    <ShortcutKeys
+                                        id="approval.deny"
+                                        aria-hidden
+                                        className="ml-1.5"
+                                    />
+                                ) : null}
+                            </LoadingButton>
+                            <LoadingButton
+                                variant={removes ? "destructive" : undefined}
+                                size={buttonSize}
+                                disabled={responding}
+                                loading={responding && firedAction === "approve"}
+                                className={actionCls}
+                                onClick={approve}
+                                aria-keyshortcuts={shortcutAria("approval.approve")}
+                            >
+                                {batched
+                                    ? t("chat.approvalCard.approveAll")
+                                    : removes
+                                      ? tChange("chat.changeCard.remove")
+                                      : t("chat.approvalCard.approve")}
+                                {showKeys ? (
+                                    <ShortcutKeys
+                                        id="approval.approve"
+                                        tone="inverse"
+                                        aria-hidden
+                                        className="ml-1.5"
+                                    />
+                                ) : null}
+                            </LoadingButton>
+                        </div>
                     </div>
-                </div>
-            </HeightCollapse>
+                </HeightCollapse>
+            )}
 
             {/* Steer: an inline redirect note. Unmounted (not merely collapsed) while the flag is
                 off — a collapsed HeightCollapse still leaves its controls in the tab order. */}
-            {steerEnabled && !answered ? (
+            {steerEnabled && !answered && !readOnly ? (
                 <HeightCollapse open={steerOpen} fade inert>
-                    <div className="flex flex-col gap-2 border-0 border-t border-solid border-colorBorderSecondary pt-2.5">
+                    <div
+                        className={`flex flex-col gap-2 border-0 border-t border-solid border-colorBorderSecondary pt-2.5 ${
+                            changeCard ? "px-3 pb-3" : ""
+                        }`}
+                    >
                         <span className="text-xs text-colorTextSecondary">
-                            Deny this step and tell the agent what to do instead — your note runs as
-                            the next message.
+                            {t("chat.approvalCard.steerHint")}
                         </span>
                         <AutosizeTextarea
                             ref={steerInputRef}
@@ -365,7 +634,7 @@ export const ApprovalCard = ({
                             autoSize={{minRows: 2, maxRows: 6}}
                             value={steerMessage}
                             onChange={(e) => setSteerMessage(e.target.value)}
-                            placeholder="e.g. write to staging, not prod — or ask for something else entirely"
+                            placeholder={t("chat.approvalCard.steerPlaceholder")}
                             disabled={responding}
                             className="text-xs hover:border-colorBorder focus:border-colorBorder focus:shadow-none"
                         />
@@ -373,16 +642,16 @@ export const ApprovalCard = ({
                             <Button
                                 variant="ghost"
                                 disabled={responding}
-                                className={touchCls}
+                                className={actionCls}
                                 onClick={() => setSteerOpen(false)}
                             >
-                                Cancel
+                                {t("chat.approvalCard.cancel")}
                             </Button>
                             {/* Default, not primary: Approve is the card's single primary. */}
                             <Button
                                 variant="outline"
                                 disabled={responding || !steerMessage.trim()}
-                                className={touchCls}
+                                className={actionCls}
                                 onClick={() => {
                                     setFiredAction("deny")
                                     onRespond({
@@ -392,7 +661,7 @@ export const ApprovalCard = ({
                                     })
                                 }}
                             >
-                                Deny &amp; send
+                                {t("chat.approvalCard.denyAndSend")}
                             </Button>
                         </div>
                     </div>
@@ -400,14 +669,20 @@ export const ApprovalCard = ({
             ) : null}
 
             {answered ? (
-                <p role="status" aria-live="polite" className="m-0 text-xs text-colorTextSecondary">
-                    {recoverable
-                        ? "The answer is saved. Send your next message to retry the continuation."
-                        : "The answer is saved. Waiting for the agent’s next update…"}
+                <p
+                    role="status"
+                    aria-live="polite"
+                    className={`m-0 text-xs text-colorTextSecondary ${changeCard ? "px-3 pb-3" : ""}`}
+                >
+                    {t("chat.approvalCard.answerSavedRetryHint")}
                 </p>
             ) : null}
             {errorText ? (
-                <p role="alert" aria-live="assertive" className="m-0 text-xs text-colorError">
+                <p
+                    role="alert"
+                    aria-live="assertive"
+                    className={`m-0 text-xs text-colorError ${changeCard ? "px-3 py-2" : ""}`}
+                >
                     {errorText}
                 </p>
             ) : null}

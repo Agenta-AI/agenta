@@ -64,6 +64,19 @@ export type {
 // The query param a session is addressed by, on either app
 export {SESSION_QUERY_PARAM} from "./sessionParam"
 
+// The query params a drive selection and an open automation are linked by
+export {
+    AUTOMATION_QUERY_PARAM,
+    DRIVE_QUERY_PARAM,
+    formatDriveParam,
+    parseDriveParam,
+    readQueryParam,
+    replaceQueryParam,
+    shareUrlWithQueryParam,
+    withQueryParam,
+} from "./deepLinkParams"
+export type {DriveLinkTarget} from "./deepLinkParams"
+
 // Template variable validation (envelope-slot aware)
 export {
     KNOWN_ENVELOPE_SLOTS,
@@ -160,7 +173,7 @@ export {generateId} from "./generateId"
 // Data URI / Base64 / URL detection utilities
 export {dataUriToObjectUrl, isBase64, isUrl} from "./dataUri"
 export {sanitizeDataWithBlobUrls, type FileAttachment} from "./attachments"
-export {downloadCsv, downloadText} from "./download"
+export {downloadBlob, downloadCsv, downloadText} from "./download"
 
 // Value extraction utilities (strip enhanced wrappers / metadata)
 export {
@@ -221,6 +234,7 @@ export {
     isGatewayToolSlug,
     parseGatewayToolSlug,
 } from "./toolSlug"
+export {skillDisplayName, stripStaticSkillPrefix} from "./skillDisplayName"
 
 // Agent tool-permission policy vocabulary.
 export {

@@ -480,3 +480,29 @@ def test_the_approval_label_exists_in_the_repository():
     labels = (_REPO / ".github" / ".labels.yml").read_text()
 
     assert f"- name: {gate.APPROVAL_LABEL}" in labels
+
+
+# -------------------------------------------------------- the run principal revisions
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "oss000000046_add_run_principal_columns.py",
+        "oss000000047_backfill_run_principal.py",
+    ],
+)
+def test_run_principal_revisions_pass_the_gate(name, run):
+    path = (
+        _REPO
+        / "api"
+        / "oss"
+        / "databases"
+        / "postgres"
+        / "migrations"
+        / "core_oss"
+        / "versions"
+        / name
+    )
+    code, out = run(path)
+    assert code == 0, out

@@ -38,8 +38,8 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "Modal wrapper around the breadcrumb EntityPicker (already antd-free — " +
-                    "inventory coverage). Open state and adapters are seeded through its own " +
+                    "Modal wrapper around the breadcrumb EntityPicker. " +
+                    "Open state and adapters are seeded through its own " +
                     "controller atoms.",
             },
         },

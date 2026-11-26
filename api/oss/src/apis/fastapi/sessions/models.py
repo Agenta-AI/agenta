@@ -27,10 +27,14 @@ from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionStatus,
 )
 from oss.src.core.sessions.mounts.dtos import SessionMount, SessionMountQuery
-from oss.src.core.sessions.turns.dtos import HarnessKind, SessionTurn, SessionTurnQuery
+from oss.src.core.sessions.turns.dtos import (
+    HarnessKind,
+    SessionTurn,
+    SessionTurnQuery,
+)
 from oss.src.core.sessions.types import SessionReference
 from oss.src.core.sessions.inputs.dtos import PendingInputUpdate, PendingInput
-from oss.src.core.shared.dtos import OTelSpanId, Windowing
+from oss.src.core.shared.dtos import OTelSpanId, Windowing, RunUsage
 from oss.src.dbs.postgres.sessions.streams.dao import MAX_SESSION_QUERY_LIMIT
 
 
@@ -61,12 +65,23 @@ class CurrentSessionResponse(BaseModel):
     ) = None
 
 
+class SessionCallingSessionRequest(BaseModel):
+    """Sessions that a calling session created. `ids` are the calling sessions' ids;
+    `agent_ids` are the calling agents' ids. Both set: a session must match both."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ids: Optional[List[SessionId]] = Field(default=None, max_length=500)
+    agent_ids: Optional[List[UUID]] = Field(default=None, max_length=500)
+
+
 class SessionPredicatesRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     search: Optional[str] = None
     liveness: Optional[SessionStreamQueryFlags] = None
     origins: Optional[List[SessionOrigin]] = None
+    calling_session: Optional[SessionCallingSessionRequest] = None
 
 
 class SessionExcludeRequest(BaseModel):
@@ -371,6 +386,10 @@ class SessionInteractionRespondRequest(BaseModel):
         default=None, min_length=1, max_length=100
     )
     expected_execution_id: Optional[str] = None
+    # Who runs the continuation. `server` (the default): the API delivers it. `caller`:
+    # the caller runs it in its own request, under the returned execution id, command
+    # id and session turn id (the agent service does this for an in-band answer).
+    delivery: Literal["server", "caller"] = "server"
 
     @model_validator(mode="after")
     def validate_answer_shape(self) -> "SessionInteractionRespondRequest":
@@ -453,6 +472,8 @@ class SessionTurnCompleteRequest(BaseModel):
     turn_index: int
     agent_session_id: Optional[str] = None
     end_time: datetime
+    # The runner's usage of the turn; kept only from the runner.
+    usage: Optional[RunUsage] = None
 
 
 class SessionTurnQueryRequest(BaseModel):
@@ -589,6 +610,8 @@ class SessionInteractionContinuationExecution(BaseModel):
         "running",
         "terminal",
     ]
+    # The session turn this execution continues: the turn's first execution.
+    session_turn_id: Optional[str] = None
 
 
 class SessionInteractionContinuationResponse(BaseModel):

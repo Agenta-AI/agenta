@@ -130,7 +130,6 @@ export const PLAYGROUND_SHORTCUTS: readonly Shortcut[] = [
         label: "Search sessions, agents and pages",
         modifiers: ["mod"],
         key: "K",
-        when: "in the mobile app",
     },
 
     // Side panels — ShowConfigPanelButton.tsx, OpenFilesPaneButton.tsx
@@ -189,6 +188,14 @@ export const PLAYGROUND_SHORTCUTS: readonly Shortcut[] = [
         modifiers: ["mod"],
         key: "S",
         when: "while editing a file",
+    },
+    {
+        id: "drive.comment",
+        group: "files",
+        label: "Comment on the preview, or stop",
+        modifiers: ["alt"],
+        key: "M",
+        when: "an HTML, Word, PowerPoint or spreadsheet file is open",
     },
     // Quote-to-reply — QuoteSelection/useQuoteSelection.ts
     {

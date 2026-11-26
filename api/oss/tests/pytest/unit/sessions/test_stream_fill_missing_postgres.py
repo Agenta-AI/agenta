@@ -25,6 +25,7 @@ from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE  # noqa:
 from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
 import oss.src.dbs.postgres.shared.engine as engine_module
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
 
 
 pytestmark = pytest.mark.integration
@@ -125,7 +126,9 @@ async def _stream(dao: SessionStreamsDAO, project_id, session_id: str):
     return await dao.create(
         project_id=project_id,
         user_id=None,
-        stream=SessionStreamCreate(session_id=session_id),
+        stream=SessionStreamCreate(
+            session_id=session_id, access=OWNERLESS_PROJECT_POLICY
+        ),
     )
 
 

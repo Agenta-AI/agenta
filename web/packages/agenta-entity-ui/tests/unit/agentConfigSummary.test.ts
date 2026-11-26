@@ -33,7 +33,7 @@ describe("agentConfigSummary", () => {
             skills: 0,
             skillNames: [],
             sandbox: "Local",
-            permissions: "Allow reads",
+            permissions: "allow_reads",
         })
     })
 
@@ -102,7 +102,7 @@ describe("integrationKeys", () => {
 })
 
 describe("skillNames", () => {
-    it("names embed refs by sibling name, falls back to the referenced slug", () => {
+    it("names embed refs by sibling name, falls back to the referenced slug, never title-cased", () => {
         const summary = agentConfigSummary({
             agent: {
                 skills: [
@@ -113,11 +113,20 @@ describe("skillNames", () => {
                     {"@ag.embed": {"@ag.references": {workflow_revision: {slug: "csv-checker"}}}},
                     {name: "inline-skill", body: "..."},
                     {"@ag.embed": {}},
+                    {
+                        "@ag.embed": {"@ag.references": {workflow: {slug: "__ag__web-search"}}},
+                        name: "__ag__web-search",
+                    },
                 ],
             },
         })
-        expect(summary.skills).toBe(4)
-        expect(summary.skillNames).toEqual(["PDF tools", "csv-checker", "inline-skill"])
+        expect(summary.skills).toBe(5)
+        expect(summary.skillNames).toEqual([
+            "PDF tools",
+            "csv-checker",
+            "inline-skill",
+            "web-search",
+        ])
     })
 })
 

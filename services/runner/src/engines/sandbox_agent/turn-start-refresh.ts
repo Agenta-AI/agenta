@@ -15,10 +15,17 @@
  *
  * For `local` and `daytona`, a refresh that fails or does not answer in time is logged and the
  * turn goes on as it did before this refresh existed.
+ *
+ * The first turn after a cold start skips the refresh (`driveViewsFresh`, set by the acquire for
+ * `local` and `daytona`): the acquire mounted the drives seconds before, so their views hold only
+ * what was read since then. A write that reaches the store in that window (the files pane, another
+ * conversation's agent mount) can still be missed by this turn's first reads, for up to the
+ * one-minute cache. Every later turn refreshes, and so does a turn after a mid-run remount.
  */
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { InRunnerSandboxHandle } from "./runtime-contracts.ts";
+import type { RunDrive } from "./run-drives.ts";
 
 type Log = (message: string) => void;
 
@@ -41,10 +48,12 @@ export interface TurnStartViews {
   sandbox: unknown;
   /** Local provider: the durable cwd mount on the runner host. */
   mountedCwd: string | undefined;
-  /** The agent folder's mount (runner host locally, in-sandbox path on Daytona). */
-  agentMountedPath?: string | undefined;
   /** Daytona: set when the cwd mount in the sandbox succeeded. */
   installedMountExpiries: { cwd?: number };
+  /** The run's drives; each mounted writable drive is refreshed too. */
+  drives?: readonly RunDrive[];
+  /** Set by an acquire that mounted the drives fresh; the first turn clears it and skips the refresh. */
+  driveViewsFresh?: boolean;
 }
 
 export interface TurnStartPlan {
@@ -53,16 +62,28 @@ export interface TurnStartPlan {
   workspace: { cwd: string };
 }
 
+/** A read-only mount refuses the refresh attribute, so a read drive keeps geesefs's own cache expiry. */
+function driveRoots(env: TurnStartViews): Array<string | undefined> {
+  return (env.drives ?? [])
+    .filter((d) => d.access !== "read")
+    .map((d) => d.mountedPath);
+}
+
 /** Refresh the durable folders' views for this turn. Never throws. */
 export async function refreshDriveViewsAtTurnStart(env: TurnStartViews, plan: TurnStartPlan, log: Log): Promise<void> {
   if (plan.harnessInRunner) {
     (env.sandbox as InRunnerSandboxHandle | undefined)?.startTurn();
     return;
   }
+  if (env.driveViewsFresh) {
+    env.driveViewsFresh = false;
+    log("[turn-start] drive views refresh skipped: mounted by this acquire, no turn since");
+    return;
+  }
   const t0 = Date.now();
   try {
     if (plan.isDaytona) {
-      const roots = [env.installedMountExpiries.cwd !== undefined ? plan.workspace.cwd : undefined, env.agentMountedPath].filter((p): p is string => !!p);
+      const roots = [env.installedMountExpiries.cwd !== undefined ? plan.workspace.cwd : undefined, ...driveRoots(env)].filter((p): p is string => !!p);
       const sandbox = env.sandbox as { runProcess?: (opts: { command: string; args: string[]; timeoutMs: number }) => Promise<unknown> } | undefined;
       if (roots.length === 0 || typeof sandbox?.runProcess !== "function") return;
       const result = await Promise.race([
@@ -72,7 +93,7 @@ export async function refreshDriveViewsAtTurnStart(env: TurnStartViews, plan: Tu
       const exitCode = (result as { exitCode?: unknown } | undefined)?.exitCode;
       if (typeof exitCode === "number" && exitCode !== 0) throw new Error(`a root was not refreshed (exit code ${exitCode})`);
     } else {
-      const roots = [env.mountedCwd, env.agentMountedPath].filter((p): p is string => !!p);
+      const roots = [env.mountedCwd, ...driveRoots(env)].filter((p): p is string => !!p);
       if (roots.length === 0) return;
       await execFileAsync("python3", ["-c", REFRESH_ROOTS_SCRIPT, ...roots], { timeout: REFRESH_TIMEOUT_MS });
     }

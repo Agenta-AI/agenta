@@ -8,7 +8,7 @@
  * Both halves meet through the skin registry in ../skin, which is where the store lives.
  */
 export {default as ClientToolPart, type ClientToolOutputHandler} from "./ClientToolPart"
-export {clientToolMeta, isClientToolPart, clientToolName} from "./meta"
+export {clientToolMeta, isClientToolPart} from "./meta"
 export {getPendingConnectInteractions, getConnectInteractions} from "./connectInteractions"
 export {
     getPendingElicitationInteractions,

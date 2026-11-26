@@ -1,4 +1,6 @@
-import type {SkillListItem} from "@agenta/skills-ui"
+import {createT} from "@agenta/i18n"
+import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
+import {skillTitle, type SkillListItem} from "@agenta/skills-ui"
 import type {ListTableGroup, ListTableView} from "@agenta/ui/list-table"
 
 /**
@@ -47,13 +49,12 @@ export const isDefaultSkillFilters = (view: SkillListView): boolean =>
 /** What both views need of a skill, resolved once by the screen. */
 export interface SkillListRow {
     id: string
-    slug: string
+    /** The readable title from the SKILL.md name ("Laptop Replacement Policy"). */
+    title: string
     description: string | null
     origin: SkillListItem["origin"]
     /** The repository an import came from; empty for a project-authored skill. */
     repository: string
-    /** What the Source cell and the group heading read: the repository, or "This project". */
-    sourceLabel: string
     /** Already humanized by the shared mapping ("3d ago"); empty when the item carries no date. */
     age: string | null
     /** The author's display name, resolved once by the screen; empty when unknown. */
@@ -66,22 +67,24 @@ export interface SkillListRow {
 
 export type SkillListGroup = ListTableGroup<SkillListRow>
 
+const tNow = createT(skillsListCatalog)
+
 /** The heading over the skills nobody imported. */
-export const PROJECT_LABEL = "This project"
+export const projectLabel = (): string => tNow("skills.list.projectLabel")
 
 /** What a row and a card both say where a skill has never been described. */
-export const NO_DESCRIPTION = "No description"
+export const noDescriptionLabel = (): string => tNow("skills.list.noDescription")
 
 /**
  * What the row's second column and the card's footer read. Grouped by source the heading
  * already says where a skill came from, so the row answers the next question — who made it.
  */
 export const provenanceLabel = (row: SkillListRow, group: SkillGrouping): string =>
-    group === "source" ? row.creatorName || "—" : row.sourceLabel
+    group === "source" ? row.creatorName || "—" : row.repository || projectLabel()
 
 /** The "Used by" cell: how many agents run it, or an em dash for none. */
 export const usedByLabel = (count: number): string =>
-    count === 0 ? "—" : `${count} ${count === 1 ? "agent" : "agents"}`
+    count === 0 ? "—" : tNow("skills.list.usedByCount", {count})
 
 /** The "Last updated" cell. Empty rows read as an em dash, not as "just now". */
 export const lastUpdatedLabel = (age: string | null): string => age || "—"
@@ -95,11 +98,10 @@ export const toSkillListRow = (item: SkillListItem, creatorName = ""): SkillList
     const repository = item.origin === "imported" ? (item.source?.label ?? "") : ""
     return {
         id: item.id,
-        slug: item.slug,
+        title: skillTitle(item),
         description: item.description ?? null,
         origin: item.origin,
         repository,
-        sourceLabel: repository || PROJECT_LABEL,
         age: item.age ?? null,
         creatorName,
         usedByCount: item.usedByCount ?? 0,
@@ -151,7 +153,7 @@ export const deriveSkillList = (rows: SkillListRow[], view: SkillListView): Skil
         .sort((a, b) => (a === "" ? -1 : b === "" ? 1 : a.localeCompare(b)))
         .map((repository) => ({
             key: repository || PROJECT_SOURCE,
-            label: repository || PROJECT_LABEL,
+            label: repository || projectLabel(),
             rows: buckets.get(repository) ?? [],
         }))
 }

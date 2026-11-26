@@ -3,6 +3,7 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/sandbox-agent-orchestration.test.ts)
  */
+import { TurnApprovalRows } from "../../src/sessions/interactions.ts";
 import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 
@@ -453,7 +454,7 @@ describe("runSandboxAgent orchestration", () => {
       undefined,
       undefined,
       deps,
-      { credential },
+      { credentialLease: { credential, seed: "" } },
     );
 
     assert.equal(result.ok, true);
@@ -1086,9 +1087,16 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(result.ok, true);
     const selected = calls.workspacePiSkillSnapshot;
     assert.ok(selected);
+    // A local snapshot lives on the runner's disk, not on the (geesefs) session cwd, and the
+    // model is told that same path.
     assert.match(
       selected.dir,
-      new RegExp(`${cwd}/agents/skills/[a-f0-9]{64}$`),
+      new RegExp(`^${tmpdir()}/agenta-pi-skills/[a-f0-9]{64}$`),
+    );
+    assert.ok(
+      (calls.workspacePlan.prompt.agentsMd as string).includes(
+        `Your rendered skill files live at \`${selected.dir}\``,
+      ),
     );
     assert.equal(
       (calls.providerArgs[1] as Record<string, string>)
@@ -1143,6 +1151,32 @@ describe("runSandboxAgent orchestration", () => {
     rmSync(skill, { recursive: true, force: true });
   });
 
+  it("starts a Claude session in the default permission mode, and leaves Pi alone", async () => {
+    // claude-agent-acp starts a session in `auto` unless told otherwise; `auto` lets Claude Code
+    // approve tool calls without asking the runner's permission plan.
+    const claude = fakeHarness();
+    const claudeResult = await runSandboxAgent(
+      { harness: "claude", messages: [{ role: "user", content: "hello" }] },
+      undefined,
+      undefined,
+      claude.deps,
+    );
+    assert.equal(claudeResult.ok, true);
+    assert.deepEqual(claude.calls.createSessionOptions.sessionInit.configOptions, [
+      { configId: "mode", value: "default" },
+    ]);
+
+    const pi = fakeHarness();
+    const piResult = await runSandboxAgent(
+      { harness: "pi_core", messages: [{ role: "user", content: "hello" }] },
+      undefined,
+      undefined,
+      pi.deps,
+    );
+    assert.equal(piResult.ok, true);
+    assert.equal(pi.calls.createSessionOptions.sessionInit.configOptions, undefined);
+  });
+
   it("advertises durable agent storage only after a confirmed local mount", async () => {
     const cwd = join(
       tmpdir(),
@@ -1178,7 +1212,8 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(result.ok, true);
     assert.equal(
       (calls.providerArgs[1] as Record<string, string>).AGENTA_AGENT_MOUNT_DIR,
-      `${cwd}-agent`,
+      undefined,
+      "the mount folder variable is not set any more",
     );
     assert.match(
       calls.createSessionOptions.sessionInit._meta.systemPrompt.append,
@@ -1187,7 +1222,7 @@ describe("runSandboxAgent orchestration", () => {
     rmSync(cwd, { recursive: true, force: true });
   });
 
-  it("removes a safe failed agent mountpoint without advertising it to Pi", async () => {
+  it("removes a safe failed agent mountpoint and tells Pi the home drive is not available", async () => {
     const cwd = join(
       tmpdir(),
       `agenta-agent-mount-failure-${process.pid}-${Date.now()}`,
@@ -1223,7 +1258,11 @@ describe("runSandboxAgent orchestration", () => {
       (calls.providerArgs[1] as Record<string, string>).AGENTA_AGENT_MOUNT_DIR,
       undefined,
     );
-    assert.equal(calls.workspacePlan.prompt.appendSystemPrompt, undefined);
+    assert.match(
+      calls.workspacePlan.prompt.appendSystemPrompt ?? "",
+      /durable agent folder is not available/,
+    );
+    assert.doesNotMatch(calls.workspacePlan.prompt.appendSystemPrompt ?? "", /absolute path/);
     assert.equal(existsSync(`${cwd}-agent`), false);
     rmSync(cwd, { recursive: true, force: true });
   });
@@ -1263,9 +1302,9 @@ describe("runSandboxAgent orchestration", () => {
     const guidance = platformGuidanceAppendix({
       acpAgent: "codex",
       isPi: false,
-      agentMountedPath: undefined,
-      agentMountSkipped: false,
+      homeDrive: undefined,
       toolNames: ["commit_revision"],
+      // No artifact id, so the run has no home drive and the citation sentence leaves out agent-files.
     });
     assert.ok(guidance);
     assert.equal(
@@ -1948,6 +1987,149 @@ describe("runSandboxAgent orchestration", () => {
       1,
       "the durable cwd is mounted before workspace materialization writes into it",
     );
+  });
+
+  it("Daytona mounts the cwd, the session dir, and the agent drive at the same time, and links after the cwd", async () => {
+    const { deps } = fakeHarness();
+    const creds = (prefix: string) => ({
+      endpoint: "https://s3.example.com",
+      region: "us-east-1",
+      bucket: "agenta-store",
+      prefix,
+      accessKey: "AK-1",
+      secretKey: "SK-1",
+    });
+    deps.signSessionMountCredentials = (async (_s: string, _o: unknown, name?: string) =>
+      creds(`mounts/proj-1/${name ?? "cwd"}`)) as any;
+    deps.signAgentMountCredentials = (async () => creds("mounts/proj-1/agent")) as any;
+    const order: string[] = [];
+    const started = new Set<string>();
+    let releaseCwd!: () => void;
+    const cwdHeld = new Promise<void>((resolve) => {
+      releaseCwd = resolve;
+    });
+    // The session-dir mounts sign their own credentials; route them to the same fake mount.
+    deps.mountHarnessSessionDirs = (async (sb: unknown, _s: string, dirs: Array<{ path: string }>) => {
+      for (const dir of dirs) await deps.mountStorageRemote!(sb as never, dir.path, creds("d") as never, {} as never);
+    }) as any;
+    deps.mountStorageRemote = (async (_sb: unknown, path: string) => {
+      const kind = path.endsWith("-agent")
+        ? "agent"
+        : path.includes("/.claude/")
+          ? "session-dir"
+          : "cwd";
+      started.add(kind);
+      order.push(`start:${kind}`);
+      if (kind === "cwd") {
+        // Hold the cwd mount until the other two have started: a serial acquire never gets here.
+        for (let i = 0; i < 50 && started.size < 3; i++) {
+          await new Promise((r) => setTimeout(r, 1));
+        }
+        await cwdHeld;
+      } else if (started.size === 3) {
+        releaseCwd();
+      }
+      order.push(`done:${kind}`);
+      return true;
+    }) as any;
+    const startSandboxAgent = deps.startSandboxAgent!;
+    deps.startSandboxAgent = (async (opts: any) => {
+      const sandbox: any = await startSandboxAgent(opts);
+      sandbox.runProcess = async (o: { args?: string[] }) => {
+        if ((o.args?.[1] ?? "").includes("agent-files")) order.push("link");
+        return { exitCode: 0 };
+      };
+      return sandbox;
+    }) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sandbox: "daytona",
+        sessionId: "sess-1",
+        runContext: { workflow: { artifact: { id: "artifact-1" } } },
+        telemetry: {
+          exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+        },
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(
+      [...started].sort(),
+      ["agent", "cwd", "session-dir"],
+      `all three mounts ran: ${order}`,
+    );
+    assert.ok(
+      order.indexOf("start:agent") < order.indexOf("done:cwd") &&
+        order.indexOf("start:session-dir") < order.indexOf("done:cwd"),
+      `the agent and session-dir mounts start before the cwd mount ends: ${order}`,
+    );
+    assert.ok(order.includes("link"), `agent-files is linked: ${order}`);
+    assert.ok(
+      order.indexOf("link") > order.indexOf("done:cwd"),
+      `agent-files is linked only after the cwd mount: ${order}`,
+    );
+  });
+
+  it("Daytona rethrows a cwd mount abort only after the agent mount settled", async () => {
+    const { deps } = fakeHarness();
+    const creds = {
+      endpoint: "https://s3.example.com",
+      region: "us-east-1",
+      bucket: "agenta-store",
+      prefix: "mounts/proj-1/x",
+      accessKey: "AK-1",
+      secretKey: "SK-1",
+    };
+    deps.signSessionMountCredentials = (async () => creds) as any;
+    deps.signAgentMountCredentials = (async () => creds) as any;
+    let agentSettled = false;
+    let linked = false;
+    deps.mountHarnessSessionDirs = (async () => {}) as any;
+    deps.mountStorageRemote = (async (_sb: unknown, path: string) => {
+      if (path.endsWith("-agent")) {
+        await new Promise((r) => setTimeout(r, 20));
+        agentSettled = true;
+        return true;
+      }
+      if (path.includes("/.claude/")) return true;
+      throw new Error("cwd mount exploded");
+    }) as any;
+    const startSandboxAgent = deps.startSandboxAgent!;
+    deps.startSandboxAgent = (async (opts: any) => {
+      const sandbox: any = await startSandboxAgent(opts);
+      sandbox.runProcess = async (o: { args?: string[] }) => {
+        if ((o.args?.[1] ?? "").includes("agent-files")) linked = true;
+        return { exitCode: 0 };
+      };
+      return sandbox;
+    }) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sandbox: "daytona",
+        sessionId: "sess-1",
+        runContext: { workflow: { artifact: { id: "artifact-1" } } },
+        telemetry: {
+          exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+        },
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, false);
+    assert.match(String(!result.ok && result.error), /cwd mount exploded|could not|failed/i);
+    assert.equal(agentSettled, true, "the agent mount settled before the error surfaced");
+    assert.equal(linked, false, "a failed cwd mount skips the agent-files link");
   });
 
   it("keeps terminal events empty on the streaming path", async () => {
@@ -3737,6 +3919,23 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
       undefined,
       undefined,
       deps,
+      {
+        // The person's answer, as the API stored it on the gate's row.
+        approvalRows: new TurnApprovalRows(
+          [
+            {
+              token: "perm-1",
+              kind: "user_approval",
+              status: "responded",
+              data: {
+                request: { tool: "edit", args: {} },
+                resolution: { approved: true },
+              },
+            },
+          ],
+          async () => true,
+        ),
+      },
     );
     await flushPromises();
 

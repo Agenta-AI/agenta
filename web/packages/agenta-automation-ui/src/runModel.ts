@@ -1,4 +1,10 @@
-import type {TriggerDelivery} from "@agenta/entities/gatewayTrigger"
+import {
+    RECENT_TRIGGER_DELIVERIES_LIMIT,
+    type TriggerDelivery,
+} from "@agenta/entities/gatewayTrigger"
+import {createT, formatLocale} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
+import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
 
 import {deliveryOutcome, type Automation} from "./automationModel"
 
@@ -9,6 +15,9 @@ import {deliveryOutcome, type Automation} from "./automationModel"
  * branches on the raw payload, so the row, the pane header and the empty state can never
  * disagree about what a run was called or whether it produced anything.
  */
+
+const tNow = createT(automationsModelCatalog)
+const tEditor = createT(automationsEditorCatalog)
 
 /** The window the run-history caption counts over, and the only one this screen claims. */
 export const RUN_WINDOW_DAYS = 30
@@ -27,9 +36,14 @@ export function countRecentRuns(deliveries: TriggerDelivery[], now = Date.now())
     }).length
 }
 
-/** "12 runs in the last 30 days" — the caption under both the card and the heading. */
+/**
+ * "12 runs in 30 days": the caption under the card, the heading and the list row. Counted from
+ * the capped recent read, so above the cap it says "100+ runs in 30 days".
+ */
 export function runCountCaption(count: number): string {
-    return `${count} ${count === 1 ? "run" : "runs"} in the last ${RUN_WINDOW_DAYS} days`
+    return count > RECENT_TRIGGER_DELIVERIES_LIMIT
+        ? tEditor("automations.editor.runsIn30DaysOver", {limit: RECENT_TRIGGER_DELIVERIES_LIMIT})
+        : tEditor("automations.editor.runsIn30Days", {count})
 }
 
 /** One run of rows under one heading — a day by default, whatever the view groups by otherwise. */
@@ -43,18 +57,20 @@ export interface RunDayGroup {
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-/** Local midnight — runs group by calendar day, not by rolling 24h buckets. */
+/**
+ * UTC midnight — runs group by calendar day, not by rolling 24h buckets.
+ *
+ * Every run time here is UTC, as the schedule is: "Next run … 09:00 UTC" and the run it starts
+ * then read the same "09:00", in whatever zone the reader's browser is in.
+ */
 function startOfDay(ms: number): number {
     const date = new Date(ms)
-    date.setHours(0, 0, 0, 0)
+    date.setUTCHours(0, 0, 0, 0)
     return date.getTime()
 }
 
 function dayKey(ms: number): string {
-    const date = new Date(ms)
-    const month = String(date.getMonth() + 1).padStart(2, "0")
-    const day = String(date.getDate()).padStart(2, "0")
-    return `${date.getFullYear()}-${month}-${day}`
+    return new Date(ms).toISOString().slice(0, 10)
 }
 
 /**
@@ -65,15 +81,19 @@ function dayKey(ms: number): string {
  */
 function dayLabel(ms: number, now: number): string {
     const days = Math.round((startOfDay(now) - startOfDay(ms)) / DAY_MS)
-    if (days <= 0) return "Today"
-    if (days === 1) return "Yesterday"
+    if (days <= 0) return tNow("automations.model.dayToday")
+    if (days === 1) return tNow("automations.model.dayYesterday")
     const date = new Date(ms)
-    if (days < 7) return date.toLocaleDateString(undefined, {weekday: "short"})
-    return `${date.getDate()} ${date.toLocaleDateString(undefined, {month: "short"})}`
+    const locale = formatLocale()
+    if (days < 7) return date.toLocaleDateString(locale, {weekday: "short", timeZone: "UTC"})
+    // English keeps its day-first form; another language writes the date its own way.
+    if (locale)
+        return date.toLocaleDateString(locale, {day: "numeric", month: "short", timeZone: "UTC"})
+    return `${date.getUTCDate()} ${date.toLocaleDateString(undefined, {month: "short", timeZone: "UTC"})}`
 }
 
 /**
- * "08:00" — the stamp a row carries.
+ * "08:00" (UTC) — the stamp a row carries.
  *
  * Not a relative age: the day heading above the row has already said which day, so repeating
  * "12d ago" on every row would restate the heading and lose the only fact it was missing.
@@ -82,10 +102,11 @@ function dayLabel(ms: number, now: number): string {
 export function runTimeOfDay(delivery: TriggerDelivery): string {
     const at = Date.parse(delivery.created_at ?? "")
     if (!Number.isFinite(at)) return ""
-    return new Date(at).toLocaleTimeString(undefined, {
+    return new Date(at).toLocaleTimeString(formatLocale(), {
         hour: "2-digit",
         minute: "2-digit",
         hourCycle: "h23",
+        timeZone: "UTC",
     })
 }
 
@@ -116,7 +137,7 @@ export function runDayGroups(deliveries: TriggerDelivery[], now = Date.now()): R
         }
         groups.push({
             key,
-            label: dated ? dayLabel(at, now) : "Earlier",
+            label: dated ? dayLabel(at, now) : tNow("automations.model.dayEarlier"),
             runs: [delivery],
         })
     }
@@ -132,10 +153,10 @@ export function runDayGroups(deliveries: TriggerDelivery[], now = Date.now()): R
  * event that arrived.
  */
 export function runLabel(delivery: TriggerDelivery): string {
-    if (delivery.data?.is_test) return "Test run"
-    if (delivery.schedule_id) return "Scheduled run"
+    if (delivery.data?.is_test) return tNow("automations.model.runTest")
+    if (delivery.schedule_id) return tNow("automations.model.runScheduled")
     const event = readableEventKey(delivery.data?.event_key ?? "")
-    return event || "Run"
+    return event || tNow("automations.model.runDefault")
 }
 
 /** "GITHUB_STAR_ADDED_EVENT" → "Github star added". The trailing "EVENT" adds nothing. */
@@ -151,6 +172,8 @@ export function readableEventKey(eventKey: string): string {
     return sentence.charAt(0).toUpperCase() + sentence.slice(1)
 }
 
+export const skippedNeedsSetupLabel = (): string => tNow("automations.model.skippedNeedsSetup")
+
 /** Dot colour, from `deliveryOutcome` — never `status.type`, which the backend never sets. */
 export function runDotClass(delivery: TriggerDelivery): string {
     switch (deliveryOutcome(delivery)) {
@@ -158,6 +181,8 @@ export function runDotClass(delivery: TriggerDelivery): string {
             return "bg-success"
         case "bad":
             return "bg-destructive"
+        case "skipped":
+            return "bg-colorWarning"
         default:
             return "bg-muted-foreground/50"
     }
@@ -167,13 +192,16 @@ export function runDotClass(delivery: TriggerDelivery): string {
 export function runOutcomeLabel(delivery: TriggerDelivery): string {
     switch (deliveryOutcome(delivery)) {
         case "ok":
-            return "Succeeded"
+            return tNow("automations.model.outcomeSucceeded")
         case "bad":
-            return "Failed"
+            return tNow("automations.model.outcomeFailed")
+        // The dispatcher skips a fire only when the agent's model needs setup.
+        case "skipped":
+            return skippedNeedsSetupLabel()
         default:
             // "Running", not "Pending": a delivery that is neither succeeded nor failed has
             // been handed to the runner, which has it in flight rather than queued.
-            return "Running"
+            return tNow("automations.model.outcomeRunning")
     }
 }
 
@@ -181,14 +209,16 @@ export function runOutcomeLabel(delivery: TriggerDelivery): string {
  * How long a run took.
  *
  * DERIVED, not reported: a delivery carries no duration field, so this is the distance between
- * the row being written (`created_at`) and last touched (`updated_at`) — which is the dispatch
- * settling, and the closest thing to a run length the payload has. A row never updated after
- * insert has the two equal, and "took 0s" would be a measurement rather than the absence of
- * one, so that case returns null and the caller drops the clause.
+ * the row being written (`created_at`) and the time of its status, which the API sets to when
+ * the run ended. A run that has not ended has no length yet. A zero distance would be a
+ * measurement rather than the absence of one, so that case returns null too and the caller drops
+ * the clause.
  */
 export function runDuration(delivery: TriggerDelivery): string | null {
+    const outcome = deliveryOutcome(delivery)
+    if (outcome !== "ok" && outcome !== "bad") return null
     const started = Date.parse(delivery.created_at ?? "")
-    const ended = Date.parse(delivery.updated_at ?? "")
+    const ended = Date.parse(delivery.status?.timestamp ?? "")
     if (!Number.isFinite(started) || !Number.isFinite(ended)) return null
     const ms = ended - started
     if (ms <= 0) return null
@@ -237,15 +267,15 @@ export function runFailureReason(delivery: TriggerDelivery): string {
     const code = String(delivery.status?.code ?? "")
     const detail = runError(delivery)?.trim()
     if (code === "409") {
-        return "The app connection is no longer valid. Reconnect it, then turn the automation back on."
+        return tNow("automations.model.failureConnection")
     }
     const lead =
         code === "400"
-            ? "The run couldn't be prepared from this event's data."
+            ? tNow("automations.model.failurePrepare")
             : code === "500"
-              ? "The agent couldn't be started."
-              : "The agent stopped before finishing."
-    return detail ? `${lead} ${detail}` : lead
+              ? tNow("automations.model.failureStart")
+              : tNow("automations.model.failureStopped")
+    return detail ? tNow("automations.model.failureWithDetail", {lead, detail}) : lead
 }
 
 /** The owner filter `useTriggerDeliveries` takes, in this app's vocabulary. */

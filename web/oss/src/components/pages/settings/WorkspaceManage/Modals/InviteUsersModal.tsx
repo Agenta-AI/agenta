@@ -1,11 +1,11 @@
-import {useCallback, useState, useMemo, type FC} from "react"
+import {useCallback, useEffect, useState, useMemo, type FC} from "react"
 
 import {inviteToWorkspace} from "@agenta/entities/organization"
 import {isEE, isEmailInvitationsEnabled} from "@agenta/shared/api"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {MinusCircleOutlined} from "@ant-design/icons"
-import {Alert, Form, Input, Select, Space, Typography, theme} from "antd"
+import {Alert, Button, Form, Input, Select, Space, Typography, theme} from "antd"
 import Link from "next/link"
 
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
@@ -15,10 +15,11 @@ import {useOrgData} from "@/oss/state/org"
 import {useWorkspaceRoles} from "@/oss/state/workspace"
 
 import {InviteFormProps, InviteUsersModalProps} from "./assets/types"
+import {getDefaultInviteRole} from "./getDefaultInviteRole"
 
 const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoading}) => {
     const {selectedOrg, refetch} = useOrgData()
-    const {roles} = useWorkspaceRoles()
+    const {roles, isError: rolesFailed, refetch: refetchRoles} = useWorkspaceRoles()
     const {hasRBAC} = useEntitlements()
     const {token} = theme.useToken()
     const organizationId = selectedOrg?.id
@@ -27,6 +28,19 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
         // Always filter out "owner" role from invite dropdown
         return roles.filter((role) => role.role_name !== "owner")
     }, [roles])
+
+    // The plan decides which roles are offered, and they load after the form mounts, so the
+    // default is set once they arrive. A role the user already picked stays.
+    const defaultRole = useMemo(
+        () => getDefaultInviteRole(filteredRoles.map((role) => role.role_name || "")),
+        [filteredRoles],
+    )
+    useEffect(() => {
+        const names = filteredRoles.map((role) => role.role_name || "")
+        const current = form.getFieldValue("role")
+        if (current && names.includes(current)) return
+        form.setFieldValue("role", defaultRole)
+    }, [filteredRoles, defaultRole, form])
 
     const onSubmit = useCallback(
         ({emails, role}: {emails: string[]; role: string | null}) => {
@@ -130,11 +144,24 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                     </>
                 )}
             </Form.List>
+            {rolesFailed && (!isEE() || hasRBAC) && (
+                <Alert
+                    className="mb-3"
+                    type="error"
+                    showIcon
+                    message="The roles could not be loaded."
+                    action={
+                        <Button size="small" onClick={() => refetchRoles()}>
+                            Try again
+                        </Button>
+                    }
+                />
+            )}
             {!isEE() || hasRBAC ? (
                 <Form.Item
                     name="role"
                     rules={[{required: true, message: "Please select a role"}]}
-                    initialValue="viewer"
+                    initialValue={defaultRole}
                     className="mb-1"
                 >
                     <Select

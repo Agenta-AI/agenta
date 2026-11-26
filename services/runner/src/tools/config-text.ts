@@ -26,7 +26,8 @@
  */
 import { callAgentaTool } from "./callback.ts";
 import { resolveCtxToken } from "./direct.ts";
-import type { RunContext, ToolCallbackContext } from "../protocol.ts";
+import type { RunContext } from "../protocol.ts";
+import type { ToolCallbackRuntime } from "./run-credential.ts";
 import type { ConfigTextFetcher } from "./commit-authorization.ts";
 
 /**
@@ -54,7 +55,7 @@ const READ_CONFIG_TIMEOUT_MS = 15_000;
 const READ_CONFIG_MAX_BYTES = 262144;
 
 export function buildConfigTextFetcher(input: {
-  callback: ToolCallbackContext | undefined;
+  callback: ToolCallbackRuntime | undefined;
   runContext: RunContext | undefined;
   signal?: AbortSignal;
 }): ConfigTextFetcher {
@@ -87,7 +88,7 @@ export function buildConfigTextFetcher(input: {
     // API-side log say which reader asked.
     const raw = await callAgentaTool(
       endpoint,
-      input.callback?.authorization,
+      input.callback?.credential(),
       READ_CONFIG_CALL_REF,
       `config-text-${revisionId}`,
       body,

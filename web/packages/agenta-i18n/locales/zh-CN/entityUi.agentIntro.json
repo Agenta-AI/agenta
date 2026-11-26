@@ -1,0 +1,12 @@
+{
+    "toolsCount_other": "{{count}} 个工具",
+    "skillsCount_other": "{{count}} 个 Skill",
+    "toolsAndSkills": "{{tools}} · {{skills}}",
+    "agent": "Agent",
+    "tomorrowAt": "明天 {{time}}",
+    "unassignedAgent": "未分配的 Agent",
+    "eventAutomation": "事件自动化",
+    "onEvent": "事件触发",
+    "firesOn": "在 {{eventKey}} 时触发",
+    "firesWhenEventArrives": "在事件到达时触发"
+}

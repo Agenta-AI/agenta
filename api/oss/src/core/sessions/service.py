@@ -32,6 +32,7 @@ from oss.src.core.sessions.streams.dtos import (
 )
 from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.sessions.turns.service import SessionTurnsService
+from oss.src.core.sharing.dtos import SessionReadScope
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.mounts.service import MountsService
@@ -59,6 +60,9 @@ def _stream_filter(
         flags=query.flags if query else None,
         origins=query.origins if query else None,
         exclude_origins=query.exclude_origins if query else None,
+        calling_session=query.calling_session if query else None,
+        created_after=query.created_after if query else None,
+        created_before=query.created_before if query else None,
     )
 
 
@@ -84,6 +88,7 @@ class SessionsService:
         self,
         *,
         project_id: UUID,
+        read_scope: SessionReadScope,
         #
         query: Optional[SessionQuery] = None,
         lifecycle: Optional[SessionQueryLifecycle] = None,
@@ -105,6 +110,7 @@ class SessionsService:
         """
         page = await self.query_sessions_page(
             project_id=project_id,
+            read_scope=read_scope,
             query=query,
             lifecycle=lifecycle,
             options=options,
@@ -116,6 +122,7 @@ class SessionsService:
         self,
         *,
         project_id: UUID,
+        read_scope: SessionReadScope,
         #
         query: Optional[SessionQuery] = None,
         lifecycle: Optional[SessionQueryLifecycle] = None,
@@ -130,6 +137,7 @@ class SessionsService:
 
         sessions = await self._query_sessions(
             project_id=project_id,
+            read_scope=read_scope,
             query=query,
             lifecycle=lifecycle,
             options=options,
@@ -139,6 +147,7 @@ class SessionsService:
         total = (
             await self._count_sessions(
                 project_id=project_id,
+                read_scope=read_scope,
                 query=query,
                 lifecycle=lifecycle,
                 session_ids=session_ids,
@@ -152,6 +161,7 @@ class SessionsService:
         self,
         *,
         project_id: UUID,
+        read_scope: SessionReadScope,
         query: Optional[SessionQuery],
         lifecycle: SessionQueryLifecycle,
         options: SessionQueryOptions,
@@ -163,6 +173,7 @@ class SessionsService:
 
         streams = await self.streams_service.query_streams(
             project_id=project_id,
+            read_scope=read_scope,
             filter=_stream_filter(query, lifecycle),
             windowing=windowing,
             session_ids=session_ids,
@@ -239,6 +250,7 @@ class SessionsService:
         self,
         *,
         project_id: UUID,
+        read_scope: SessionReadScope,
         #
         query: Optional[SessionQuery] = None,
         lifecycle: Optional[SessionQueryLifecycle] = None,
@@ -250,6 +262,7 @@ class SessionsService:
         )
         return await self._count_sessions(
             project_id=project_id,
+            read_scope=read_scope,
             query=query,
             lifecycle=lifecycle or SessionQueryLifecycle(),
             session_ids=session_ids,
@@ -259,6 +272,7 @@ class SessionsService:
         self,
         *,
         project_id: UUID,
+        read_scope: SessionReadScope,
         query: Optional[SessionQuery],
         lifecycle: SessionQueryLifecycle,
         session_ids: Optional[List[str]],
@@ -268,6 +282,7 @@ class SessionsService:
 
         return await self.streams_service.count_streams(
             project_id=project_id,
+            read_scope=read_scope,
             filter=_stream_filter(query, lifecycle),
             session_ids=session_ids,
             exclude_session_ids=query.exclude_session_ids if query else None,

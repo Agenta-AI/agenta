@@ -17,6 +17,7 @@ import {
   createAcpFetch,
   withSandboxGoneReport,
 } from "../../src/engines/sandbox_agent/acp-fetch.ts";
+import { DEFAULT_TOTAL_DEADLINE_MS } from "../../src/engines/sandbox_agent/run-limits.ts";
 
 const envKeys = [
   "SANDBOX_AGENT_ACP_HEADERS_TIMEOUT_MS",
@@ -47,9 +48,9 @@ describe("createAcpDispatcher", () => {
     delete process.env.SANDBOX_AGENT_ACP_HEADERS_TIMEOUT_MS;
     delete process.env.SANDBOX_AGENT_ACP_BODY_TIMEOUT_MS;
     const opts = agentOptions(createAcpDispatcher());
-    // Wide enough that no ordinary pause or run trips it (see run-limits.ts for the total
-    // deadline this backstops); not disabled outright, so a truly stuck connection still ends.
-    assert.equal(opts.headersTimeout, 60 * 60_000);
+    // Past the longest turn the run limits allow; not disabled outright, so a truly stuck
+    // connection still ends.
+    assert.equal(opts.headersTimeout, DEFAULT_TOTAL_DEADLINE_MS + 60 * 60_000);
     assert.equal(opts.bodyTimeout, 60 * 60_000);
   });
 
@@ -70,7 +71,7 @@ describe("createAcpDispatcher", () => {
   it("falls back to the wide default for a non-numeric override", () => {
     process.env.SANDBOX_AGENT_ACP_HEADERS_TIMEOUT_MS = "not-a-number";
     const opts = agentOptions(createAcpDispatcher());
-    assert.equal(opts.headersTimeout, 60 * 60_000);
+    assert.equal(opts.headersTimeout, DEFAULT_TOTAL_DEADLINE_MS + 60 * 60_000);
   });
 });
 

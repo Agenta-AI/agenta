@@ -5,7 +5,17 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.shared.dtos import Identifier, Lifecycle
+
+
+class PendingInputKind(str, Enum):
+    """What a queued input is. Server-owned: only `enqueue_session_input` writes a kind
+    other than `message`, and no request has a field for it. A row stored before the
+    column existed reads as `message`."""
+
+    message = "message"
+    child_update = "child_update"
 
 
 class PendingInputState(str, Enum):
@@ -21,9 +31,16 @@ class PendingInput(Identifier, Lifecycle):
     position: int
     state: PendingInputState
     policy: Literal["queue", "steer"]
+    kind: PendingInputKind = PendingInputKind.message
     idempotency_key: str
     request_fingerprint: str
     promoted_execution_id: Optional[str] = None
+    # The run envelope this work continues under (M2). Internal: never in a response
+    # (`exclude=True`), and copied, never dumped, between services.
+    run_envelope: Optional[RunEnvelope] = Field(default=None, exclude=True)
+    # The first execution id of the calling turn of a child input. Server-owned and
+    # internal: never in a response.
+    calling_turn_id: Optional[str] = Field(default=None, exclude=True)
 
 
 class PendingInputCreate(BaseModel):
@@ -31,8 +48,13 @@ class PendingInputCreate(BaseModel):
     session_id: str
     content: Dict[str, Any]
     policy: Literal["queue", "steer"]
+    kind: PendingInputKind = PendingInputKind.message
     idempotency_key: str
     request_fingerprint: str
+    # The admitting request's run envelope; the delivery of this input runs under it.
+    run_envelope: Optional[RunEnvelope] = None
+    # The first execution id of the calling turn, for a child input only.
+    calling_turn_id: Optional[str] = None
 
 
 class PendingInputAdmission(BaseModel):

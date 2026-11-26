@@ -25,6 +25,10 @@ import {
   type StoredPermissionDecisions,
   type Verdict,
 } from "./permission-plan.ts";
+import {
+  APPROVAL_CHOICE_BASIS,
+  type GateAnswerFetcher,
+} from "./tools/gate-answer.ts";
 
 export type PermissionDecision = "allow" | "deny";
 
@@ -34,6 +38,15 @@ export type ClientToolOutcome =
 /** A permission gate raised by the harness, normalized from the ACP request. */
 export interface PermissionGateRequest {
   id: string;
+  /** The harness's id for the gated call, when the gate knows it. */
+  toolCallId?: string;
+  /**
+   * Spends an approval that an earlier gate of this same call left (an execution grant), and
+   * says whether there was one. Called only when the configuration would show a card, before
+   * the server is asked, so a call that a person or the server already allowed runs once and
+   * the server is not asked a second time.
+   */
+  takeGrant?: () => boolean;
   availableReplies: string[];
   gate: GateDescriptor;
   raw?: unknown;
@@ -269,8 +282,8 @@ function canonicalJsonValue(value: unknown): string {
 export type ClientToolOutputs = ReadonlyMap<string, readonly unknown[]>;
 
 /**
- * Consume-once store of approvals/denials and client-tool outputs carried in the replayed
- * conversation.
+ * Consume-once store of approvals/denials (from the session's claimed interaction rows) and
+ * client-tool outputs (from the replayed conversation).
  *
  * Client-tool outputs are consume-once per fulfillment: the ACP gate only peeks to prove an
  * output exists, and the relay consumes when it actually serves that output to the tool child.
@@ -349,16 +362,50 @@ export class ApprovalResponder implements Responder {
     private readonly plan: PermissionPlan,
     private readonly decisions: ConversationDecisions,
     private readonly log: (msg: string) => void = () => {},
+    private readonly fetchGateAnswer?: GateAnswerFetcher,
   ) {}
 
   async onPermission(request: PermissionGateRequest): Promise<Verdict> {
     const permission = effectivePermission(request.gate, this.plan);
-    const verdict = decide(request.gate, this.plan, this.decisions);
+    let verdict = decide(request.gate, this.plan, this.decisions);
+    // Only a call that would show a card spends a grant or asks the server, and only for a
+    // runner-executed tool: the answer can remove that card or refuse the call, never skip a
+    // policy decision. A grant that an earlier gate of this call left answers first.
+    if (
+      verdict.kind === "pendingApproval" &&
+      request.gate.executor === "relay"
+    ) {
+      verdict = request.takeGrant?.()
+        ? { kind: "allow" }
+        : await this.serverVerdict(request);
+    }
     this.log(
       `[HITL] gate toolName=${JSON.stringify(request.gate.toolName)} ` +
         `permission=${permission} outcome=${verdict.kind}`,
     );
     return verdict;
+  }
+
+  private async serverVerdict(
+    request: PermissionGateRequest,
+  ): Promise<Verdict> {
+    const { gate } = request;
+    const answer = await this.fetchGateAnswer?.({
+      toolName: gate.toolName,
+      callId: request.toolCallId ?? request.id,
+      args: gate.args,
+    });
+    if (!answer || answer.permission === "ask") {
+      return { kind: "pendingApproval" };
+    }
+    return {
+      kind: answer.permission,
+      byGateAnswer: true,
+      ...(answer.permission === "allow" &&
+      answer.basis === APPROVAL_CHOICE_BASIS
+        ? { autoApproved: true as const }
+        : {}),
+    };
   }
 
   async onClientTool(
@@ -394,106 +441,6 @@ export class ApprovalResponder implements Responder {
 }
 
 /**
- * Build the approval-decision lookup from the inbound run request's message history.
- *
- * The signal is the converted approval reply that the Vercel adapter produces: a
- * `tool_result` content block keyed by `toolCallId` whose `output` is an `{ approved:
- * boolean }` envelope. Each decision is indexed only by `approvedCallKey(name, args)` - the
- * cold-replay anchor. The name/args are recovered from the matching `tool_call` block (same
- * `toolCallId`) the egress folds into the transcript. An unbindable approval envelope is
- * dropped; the gate re-raises and re-prompts, never guessed.
- *
- * ONLY approval-envelope (`{approved}`) results land here; a client-tool's raw browser output
- * goes to the separate `extractClientToolOutputs` store (so a client output literally
- * `"allow"`/`"deny"` can never be mis-read as a permission decision).
- */
-export function extractApprovalDecisions(
-  request: AgentRunRequest,
-  log?: (msg: string) => void,
-): Map<string, unknown[]> {
-  const decisions = new Map<string, unknown[]>();
-  const callShapeById = buildCallShapeIndex(request);
-  // Diagnostics for one specific disagreement. The cold-replay transcript predicate
-  // (`approvalRenderHints`) and this function read the SAME blocks with the SAME
-  // `storedApprovalDecisionOf` test, so a turn that reports `resumeFrame=approval` while this
-  // map comes back empty is a contradiction — the envelope was recognized but produced no key.
-  // Live, that is exactly what a gateway approval did, and the old "log only when non-empty"
-  // line made the empty case invisible. Count both sides so one run tells you which it was.
-  let envelopes = 0;
-  let unkeyable = 0;
-  for (const block of toolResultBlocks(request)) {
-    const decision = storedApprovalDecisionOf(block);
-    if (decision === undefined) continue;
-    envelopes += 1;
-    const argsKey = coldReplayKey(block, callShapeById);
-    if (!argsKey) {
-      unkeyable += 1;
-      // The two inputs the key is built from, so an unkeyable envelope names its own cause:
-      // a missing tool name on both the result and its correlated call, or arguments that are
-      // not plain JSON.
-      log?.(
-        `[HITL] approval envelope unkeyable toolCallId=${JSON.stringify(
-          block.toolCallId,
-        )} blockToolName=${JSON.stringify(block.toolName)} ` +
-          `callShape=${JSON.stringify(
-            block.toolCallId ? callShapeById.get(block.toolCallId) : undefined,
-          )?.slice(0, 300)}`,
-      );
-      continue;
-    }
-    const list = decisions.get(argsKey) ?? [];
-    list.push(decision);
-    decisions.set(argsKey, list);
-  }
-  log?.(
-    `[HITL] approval extract envelopes=${envelopes} keyed=${decisions.size} ` +
-      `unkeyable=${unkeyable} keys=${JSON.stringify(
-        [...decisions.keys()].map(approvalKeyDigest),
-      )}`,
-  );
-  return decisions;
-}
-
-/** One approval envelope this turn received in-band, carrying its durable row's token. */
-export type InBandApprovalAnswer = {
-  /** The `session_interactions.token` of the row the human answered. */
-  token: string;
-  approved: boolean;
-  toolCallId: string;
-};
-
-/**
- * The approval envelopes THIS turn received in-band, keyed by the durable interaction token the
- * client echoed back. A resume delivers the human's yes/no as a `tool_result` envelope; the turn
- * consumes that decision whether or not the harness re-raises the gate. When it does re-raise,
- * the responder resolves the row on reply; when it does NOT (a cold replay whose transcript
- * already contains the envelope, so the agent simply proceeds), nothing else ever touches the
- * row — it is this list that lets the turn settle it instead of orphaning it as `pending`.
- *
- * Scoped to the CURRENT turn (results at/after the latest user message) so a long session does
- * not re-settle every prior turn's already-terminal row on every turn. Envelopes without an
- * `interactionToken` are skipped: without it there is no durable row to key on.
- */
-export function extractInBandApprovalAnswers(
-  request: AgentRunRequest,
-): InBandApprovalAnswer[] {
-  const answers: InBandApprovalAnswer[] = [];
-  const seen = new Set<string>();
-  for (const block of currentTurnToolResultBlocks(request)) {
-    const stored = storedApprovalDecisionOf(block);
-    const token = stored?.interactionToken;
-    if (!stored || !token || seen.has(token)) continue;
-    seen.add(token);
-    answers.push({
-      token,
-      approved: stored.decision === "allow",
-      toolCallId: block.toolCallId ?? token,
-    });
-  }
-  return answers;
-}
-
-/**
  * Build the client-tool output store from the inbound history: every NON-approval `tool_result`
  * is a browser-fulfilled client-tool output. Keyed by the cold-replay anchor
  * `approvedCallKey(name, args)`, with a FIFO LIST per key so two identical calls each resolve
@@ -503,7 +450,8 @@ export function extractInBandApprovalAnswers(
  * Scoped to the CURRENT turn (results at/after the latest user message). A prior turn's answer
  * is already resolved-in-transcript, so a new identical-args call in a later turn must pause for
  * a fresh answer rather than silently reuse it — the store only fulfills the current turn's own
- * paused call. (Approvals deliberately stay full-history: a grant is idempotent across turns.)
+ * paused call. (Approval decisions do not come from the history at all: the runner takes them
+ * only from the session's answered interaction rows, see `TurnApprovalRows`.)
  *
  * (A normal callback/code tool result also lands here, but is harmless: `onClientTool` only
  * fires for `kind: "client"` tools, and a resolved callback tool is not re-called as a client
@@ -513,7 +461,7 @@ export function extractClientToolOutputs(
   request: AgentRunRequest,
 ): Map<string, unknown[]> {
   const outputs = new Map<string, unknown[]>();
-  const callShapeById = buildCallShapeIndex(request);
+  const callShapeById = buildCallShapeIndex(request.messages);
   for (const block of currentTurnToolResultBlocks(request)) {
     if (approvalDecisionOf(block) !== undefined) continue; // an approval, not a client output
     // Pause terminalization sentinels are not client outputs: deferred work may re-park, while
@@ -530,11 +478,11 @@ export function extractClientToolOutputs(
 
 /** Recover each tool call's name + args keyed by its id, so a reply that carries only the id
  * (e.g. an `{approved}` envelope) can be bound to the cold-replay name+args anchor. */
-function buildCallShapeIndex(
-  request: AgentRunRequest,
+export function buildCallShapeIndex(
+  messages: readonly { content?: string | ContentBlock[] }[] | undefined,
 ): Map<string, { name?: string; input?: unknown }> {
   const index = new Map<string, { name?: string; input?: unknown }>();
-  for (const message of request.messages ?? []) {
+  for (const message of messages ?? []) {
     const content = message?.content;
     if (!Array.isArray(content)) continue;
     for (const block of content) {
@@ -547,17 +495,6 @@ function buildCallShapeIndex(
     }
   }
   return index;
-}
-
-/** Every `tool_result` content block across the run's message history. */
-function* toolResultBlocks(request: AgentRunRequest): Generator<ContentBlock> {
-  for (const message of request.messages ?? []) {
-    const content = message?.content;
-    if (!Array.isArray(content)) continue;
-    for (const block of content) {
-      if (block?.type === "tool_result") yield block;
-    }
-  }
 }
 
 /** Index where the current turn starts: the latest `user`-role message. 0 when there is no user
@@ -587,7 +524,7 @@ function* currentTurnToolResultBlocks(
 
 /** The cold-replay name+args key for a tool_result, recovering name/args from the correlated
  * tool_call block when the result block itself carries only an id. Never a bare name or an id. */
-function coldReplayKey(
+export function coldReplayKey(
   block: ContentBlock,
   callShapeById: Map<string, { name?: string; input?: unknown }>,
 ): string | undefined {
@@ -624,11 +561,13 @@ function isPauseSyntheticResult(block: ContentBlock): boolean {
 }
 
 /**
- * Approval envelopes are the only tool results treated as permission decisions. Preserve their
- * interaction token so a cold responder can resolve the original row after replying successfully;
- * real browser/client outputs remain outside this path.
+ * The approval envelope a tool result carries (`{approved, interactionToken?}`), or undefined.
+ *
+ * This only PARSES the message text. It is not a decision: a gate takes a verdict only from the
+ * session's answered interaction row (`TurnApprovalRows`). The envelope still tells a request
+ * that it is a resume, names the row it answers, and renders the transcript for a cold model.
  */
-function storedApprovalDecisionOf(
+export function approvalEnvelopeOf(
   block: ContentBlock,
 ): StoredPermissionDecision | undefined {
   if (!block || block.type !== "tool_result") return undefined;
@@ -653,7 +592,7 @@ function storedApprovalDecisionOf(
 export function approvalDecisionOf(
   block: ContentBlock,
 ): PermissionDecision | undefined {
-  return storedApprovalDecisionOf(block)?.decision;
+  return approvalEnvelopeOf(block)?.decision;
 }
 
 /**

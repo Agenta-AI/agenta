@@ -5,9 +5,10 @@
  */
 import type {ReactNode} from "react"
 
-import {CaretDown, CaretRight} from "@phosphor-icons/react"
+import {CaretRight} from "@phosphor-icons/react"
 
 import {cn} from "../../../utils/styles"
+import {CollapseCaret} from "../../ui/collapse-caret"
 
 /** Side of the affordance column, in px — the phosphor caret box every config row ends with. */
 const AFFORDANCE_SIZE = 14
@@ -27,13 +28,38 @@ function ConfigRowAffordance({children, className}: {children?: ReactNode; class
     )
 }
 
-/** Both phosphor carets inset their ink differently, so a bare glyph sits off-axis and MOVES on toggle. */
+/** A collapsible row's caret: the shared filled caret, turned down when open. */
 export function ConfigRowCaret({open = false, className}: {open?: boolean; className?: string}) {
-    const cls = cn("text-[var(--ag-zinc-5)]", className)
-    return open ? (
-        <CaretDown size={AFFORDANCE_SIZE} className={cn("translate-x-[2.2px]", cls)} />
-    ) : (
-        <CaretRight size={AFFORDANCE_SIZE} className={cn("translate-x-[3.9px]", cls)} />
+    return <CollapseCaret open={open} size={AFFORDANCE_SIZE} className={className} />
+}
+
+/** A row that opens a drawer: an outline caret, since navigation is not collapse. */
+export function ConfigRowDrawerCaret({className}: {className?: string}) {
+    return (
+        <CaretRight
+            aria-hidden
+            size={AFFORDANCE_SIZE}
+            className={cn("shrink-0 text-colorTextTertiary", className)}
+        />
+    )
+}
+
+/**
+ * The canvas caret (F01, B03): an 8 x 5 triangle in the secondary text color. It points right on
+ * a closed row and down on an open one; the right one keeps 4 px from the row's edge.
+ */
+export function ConfigRowTriangle({open = false}: {open?: boolean}) {
+    return (
+        <span
+            aria-hidden
+            data-slot="collapse-caret"
+            className={cn(
+                "block size-0 shrink-0 border-solid border-transparent",
+                open
+                    ? "mx-0.5 border-x-4 border-b-0 border-t-[5px] border-t-colorTextSecondary"
+                    : "mr-1 border-y-4 border-l-[5px] border-r-0 border-l-colorTextSecondary",
+            )}
+        />
     )
 }
 

@@ -6,6 +6,8 @@ import {
     type AgentModelCandidate,
     type ProviderConnection,
 } from "@agenta/entities/secret"
+import {createT} from "@agenta/i18n"
+import creditsCatalog from "@agenta/i18n/catalogs/onboarding.credits"
 import {message} from "@agenta/ui/app-message"
 
 /** Picks the candidate a pending switch is waiting for, once the candidate list has it. */
@@ -23,20 +25,23 @@ export interface OnboardingSubscription {
 }
 
 /** One subscription row: when its connection turns ready, the agent switches to its first model. */
+const tNow = createT(creditsCatalog)
+
 export const useOnboardingSubscription = ({
     connection,
     available,
     status,
     selected,
     arm,
-    connectedMessage,
+    connected,
 }: {
     connection: ProviderConnection | null
     available: boolean
     status: "loading" | "error" | "ready"
     selected: AgentModelCandidate | undefined
     arm: (pending: PendingSwitch) => void
-    connectedMessage: string
+    /** Which subscription this row is; its connected message is read when it shows. */
+    connected: "chatgpt" | "claude"
 }): OnboardingSubscription => {
     const ready = subscriptionIsReady(connection?.subscription)
     const connectionId = connection?.id
@@ -54,9 +59,13 @@ export const useOnboardingSubscription = ({
         arm((list) => firstAgentModelForConnection(list, connectionId) ?? undefined)
         if (dialogOpenRef.current) {
             setDialogOpen(false)
-            message.success(connectedMessage)
+            message.success(
+                connected === "chatgpt"
+                    ? tNow("onboarding.credits.chatgptConnected")
+                    : tNow("onboarding.credits.claudeConnected"),
+            )
         }
-    }, [status, ready, connectionId, arm, connectedMessage])
+    }, [status, ready, connectionId, arm, connected])
 
     return {
         available,

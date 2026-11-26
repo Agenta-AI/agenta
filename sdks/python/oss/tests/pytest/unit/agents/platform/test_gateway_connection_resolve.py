@@ -105,7 +105,8 @@ async def test_one_entry_produces_two_specs_and_one_policy(fake_http, connection
                     "permissions": {"default": "inherit", "tools": {}},
                 },
             }
-        ]
+        ],
+        "omit_unavailable": True,
     }
 
     # The two derived specifications, exactly as contracts section 4 fixes them.
@@ -494,3 +495,56 @@ async def test_legacy_and_connection_entries_both_resolve(fake_http, connection)
     assert legacy.permission == "allow"
     policy_tools = resolved.gateway_policy.integrations["github"].tools
     assert policy_tools["GET_ISSUE"].permission == "deny"
+
+
+async def test_a_user_entry_carries_its_account_source_and_is_left_out_when_unavailable(
+    fake_http, connection
+):
+    """A "user" entry names no slug; the policy says so to the runner, and an entry the API
+    reports as unavailable (the run person has no account) is left out of the run."""
+    user_gmail = GatewayConnectionToolConfig.model_validate(
+        {
+            "type": "gateway_connection",
+            "connection": {
+                "provider": "composio",
+                "integration": "gmail",
+                "account_source": "user",
+            },
+            "policy": {"permissions": {"default": "allow", "tools": {}}},
+        }
+    )
+    capture = fake_http(
+        gateway,
+        payload={
+            "gateway_connections": [_slice("github", _GITHUB_CATALOG)],
+            "unavailable_connections": [
+                {
+                    "provider": "composio",
+                    "integration": "gmail",
+                    "connection": None,
+                    "account_source": "user",
+                }
+            ],
+        },
+    )
+    resolution = await _resolver(connection).resolve_connections(
+        [_connection_config(), user_gmail], mode="allow_reads"
+    )
+    sent = capture["json"]["tools"][1]["connection"]
+    assert sent == {
+        "provider": "composio",
+        "integration": "gmail",
+        "account_source": "user",
+    }
+    assert list(resolution.gateway_policy.integrations) == ["github"]
+
+    fake_http(
+        gateway,
+        payload={"gateway_connections": [_slice("gmail", _GITHUB_CATALOG)]},
+    )
+    resolution = await _resolver(connection).resolve_connections(
+        [user_gmail], mode="allow_reads"
+    )
+    wire = resolution.gateway_policy.to_wire()["integrations"]["gmail"]
+    assert wire["connection"] is None
+    assert wire["accountSource"] == "user"

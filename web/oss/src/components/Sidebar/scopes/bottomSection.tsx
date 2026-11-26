@@ -168,7 +168,11 @@ export const useSidebarHelpItem = ({
                         // The rule between the destinations and the release list.
                         divider: true,
                     },
-                    ...buildReleaseNavItems(version),
+                    // The desktop app is English only.
+                    ...buildReleaseNavItems(version, {
+                        whatsNew: "What's new?",
+                        viewAll: "View all releases",
+                    }),
                 ],
             }),
         [handleToggleSupport, isCrispEnabled, isVisible, onOpenShortcuts, version],

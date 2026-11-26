@@ -17,6 +17,8 @@
 import type { AgentEvent, RenderHint } from "../../protocol.ts";
 import type { GateDescriptor } from "../../permission-plan.ts";
 import { approvedCallKey, type Responder } from "../../responder.ts";
+import type { ParkRun } from "./seam-approval.ts";
+import { INTERNAL_TOOL_MCP_SERVER_NAME } from "./mcp.ts";
 import type {
   ClientToolRelay,
   ClientToolRelayRequest,
@@ -91,6 +93,22 @@ export interface ToolCallCorrelationIndex {
  */
 export function bareToolName(title: string): string {
   return title.replace(/^(?:mcp__.+?__|mcp\.[^.]+\.)/, "");
+}
+
+/**
+ * The bare spec name of a tool the runner itself serves: an `agenta-tools` MCP tool
+ * (`mcp__agenta-tools__<name>` or `mcp.agenta-tools.<name>`) or a Pi custom tool (its bare
+ * name). Undefined for a tool on any other MCP server, so a user server's tool can never be
+ * read as a runner spec of the same name. The `agenta-tools` name is reserved for the runner.
+ */
+export function internalToolName(title: string): string | undefined {
+  for (const prefix of [
+    `mcp__${INTERNAL_TOOL_MCP_SERVER_NAME}__`,
+    `mcp.${INTERNAL_TOOL_MCP_SERVER_NAME}.`,
+  ]) {
+    if (title.startsWith(prefix)) return title.slice(prefix.length);
+  }
+  return /^mcp(?:__|\.)/.test(title) ? undefined : title;
 }
 
 export function createToolCallCorrelationIndex(): ToolCallCorrelationIndex {
@@ -208,7 +226,7 @@ interface PauseLike {
 
 export interface BuildClientToolRelayInput {
   responder: Responder;
-  run: EmitRun;
+  run: ParkRun;
   /** The turn-ender: `pause()` cancels the prompt; `markPausedToolCall` suppresses late frames. */
   pause: PauseLike;
   /**
@@ -280,6 +298,14 @@ export function buildClientToolRelay({
       const correlatedId =
         toolCallIndex?.lookup(request.toolName, request.input) ??
         request.toolCallId;
+      // Already closed as not executed: skip it (see `ParkRun`).
+      if (run.wasForceSettled(correlatedId)) {
+        onNonParkablePause?.();
+        log(
+          `[client-tool] ${request.toolName} id=${correlatedId} already closed by the pause; not parked`,
+        );
+        return "pendingApproval";
+      }
       // Every pending client tool parks its OWN widget: browser-fulfilled client tools are
       // independent surfaces — an agent may request several connections in one turn, and each must
       // render. Approval gates now behave the same way (no per-turn cap). The turn still ends

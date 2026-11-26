@@ -30,8 +30,12 @@ import {
     createEntityDraftState,
     normalizeValueForComparison,
 } from "../../shared/molecule/createEntityDraftState"
-import {pendingColumnOpsAtomFamily} from "../../testset/state/revisionTableState"
-import {testcaseSchema, SYSTEM_FIELDS, type Testcase} from "../core"
+import {
+    applyColumnOps,
+    pendingColumnOpsAtomFamily,
+    type PendingColumnOps,
+} from "../../testset/state/revisionTableState"
+import {testcaseSchema, SYSTEM_FIELDS, isInternalDataField, type Testcase} from "../core"
 
 // ============================================================================
 // CONTEXT ATOMS
@@ -421,6 +425,22 @@ export const testcaseQueryAtomFamily = atomFamily((testcaseId: string) =>
     }),
 )
 
+/** The pending column operations of the current revision. */
+const currentColumnOpsAtom = atom((get): PendingColumnOps | null => {
+    const revisionId = get(currentRevisionIdAtom)
+    return revisionId ? get(pendingColumnOpsAtomFamily(revisionId)) : null
+})
+
+/**
+ * A saved row with the pending column operations applied, as the server will apply them.
+ * Returns the same object when nothing changes.
+ */
+const withColumnOps = (testcase: Testcase, ops: PendingColumnOps | null): Testcase => {
+    if (!ops) return testcase
+    const data = applyColumnOps(testcase.data ?? {}, ops)
+    return data === testcase.data ? testcase : {...testcase, data}
+}
+
 // ============================================================================
 // DRAFT STATE
 // ============================================================================
@@ -472,18 +492,18 @@ const testcaseDraftState = createEntityDraftState<Testcase, Testcase>({
             // New entity - check if data has any non-empty values
             const draftData = draft.data ?? {}
             for (const [key, value] of Object.entries(draftData)) {
-                if (SYSTEM_FIELDS.has(key)) continue
+                if (isInternalDataField(key)) continue
                 if (value !== undefined && value !== null && value !== "") return true
             }
             return false
         }
 
-        // Compare data fields
+        // Compare data fields with the saved row as the commit would leave it
         const draftData = currentData.data ?? {}
-        const serverData = originalData.data ?? {}
+        const serverData = withColumnOps(originalData, get(currentColumnOpsAtom)).data ?? {}
 
         for (const key of Object.keys(draftData)) {
-            if (SYSTEM_FIELDS.has(key)) continue
+            if (isInternalDataField(key)) continue
             if (!(key in serverData)) return true
             const normalizedDraft = normalizeValueForComparison(draftData[key])
             const normalizedServer = normalizeValueForComparison(serverData[key])
@@ -491,13 +511,10 @@ const testcaseDraftState = createEntityDraftState<Testcase, Testcase>({
         }
 
         for (const key of Object.keys(serverData)) {
-            if (SYSTEM_FIELDS.has(key)) continue
-            if (!(key in draftData)) {
-                const serverValue = serverData[key]
-                if (serverValue !== undefined && serverValue !== null && serverValue !== "") {
-                    return true
-                }
-            }
+            if (isInternalDataField(key)) continue
+            // A key the server row has but the draft dropped is a removal, even
+            // when the server value is null or "".
+            if (!(key in draftData)) return true
         }
 
         return false
@@ -515,69 +532,35 @@ export const discardDraftAtom = testcaseDraftState.discardDraftAtom
 // ============================================================================
 
 /**
- * Apply pending column changes to a testcase's data field.
- * Returns Testcase with modified data property.
+ * A draft with the added columns it lacks, set to "". A draft already holds the renames and
+ * removals: the column edit atoms (`revisionMolecule.tableReducers`) make them in every draft
+ * at once.
  */
-const applyPendingColumnChanges = (
-    testcase: Testcase,
-    renames: Map<string, string>,
-    deletedColumns: Set<string>,
-    addedColumns: Set<string>,
-): Testcase => {
-    if (renames.size === 0 && deletedColumns.size === 0 && addedColumns.size === 0) {
-        return testcase
-    }
-
-    const dataRecord = {...(testcase.data ?? {})}
-    let hasChanges = false
-
-    for (const [oldKey, newKey] of renames.entries()) {
-        if (oldKey in dataRecord && !(newKey in dataRecord)) {
-            dataRecord[newKey] = dataRecord[oldKey]
-            delete dataRecord[oldKey]
-            hasChanges = true
-        }
-    }
-
-    for (const columnKey of deletedColumns) {
-        if (columnKey in dataRecord) {
-            delete dataRecord[columnKey]
-            hasChanges = true
-        }
-    }
-
-    for (const columnKey of addedColumns) {
-        if (!(columnKey in dataRecord)) {
-            dataRecord[columnKey] = ""
-            hasChanges = true
-        }
-    }
-
-    return hasChanges ? {...testcase, data: dataRecord} : testcase
+const withAddedColumns = (testcase: Testcase, ops: PendingColumnOps | null): Testcase => {
+    const data = testcase.data ?? {}
+    const missing = ops?.add.filter((key) => !Object.hasOwn(data, key)) ?? []
+    if (missing.length === 0) return testcase
+    const next = {...data}
+    for (const key of missing) next[key] = ""
+    return {...testcase, data: next}
 }
 
 /**
- * Combined entity atom: draft if exists, otherwise server data with column changes.
+ * Combined entity atom: the draft if one exists, otherwise the server data, with the pending
+ * column changes.
  * Returns Testcase (nested format) - cell values accessed via testcase.data[columnKey].
+ *
+ * The server data gets every pending column operation, the way the commit applies them to the
+ * rows it does not replace. A draft holds the values the commit sends for its row, so it gets
+ * only the added columns it lacks.
  */
 export const testcaseEntityAtomFamily = atomFamily((testcaseId: string) =>
     atom((get): Testcase | null => {
+        const ops = get(currentColumnOpsAtom)
         const draft = get(testcaseDraftAtomFamily(testcaseId))
-        if (draft) return draft
-
-        const query = get(testcaseQueryAtomFamily(testcaseId))
-        const data = query.data ?? null
-
-        if (data) {
-            const pendingRenames = get(pendingColumnRenamesAtom)
-            const pendingDeleted = get(pendingDeletedColumnsAtom)
-            const pendingAdded = get(pendingAddedColumnsAtom)
-            if (pendingRenames.size > 0 || pendingDeleted.size > 0 || pendingAdded.size > 0) {
-                return applyPendingColumnChanges(data, pendingRenames, pendingDeleted, pendingAdded)
-            }
-        }
-
-        return data
+        if (draft) return withAddedColumns(draft, ops)
+        const data = get(testcaseQueryAtomFamily(testcaseId)).data ?? null
+        return data ? withColumnOps(data, ops) : null
     }),
 )
 
@@ -671,7 +654,7 @@ const updatedMatchesOriginal = (updated: Testcase, serverState: Testcase | null)
     const serverData = serverState.data ?? {}
 
     for (const key of Object.keys(updatedData)) {
-        if (SYSTEM_FIELDS.has(key)) continue
+        if (isInternalDataField(key)) continue
         if (!(key in serverData)) {
             const value = updatedData[key]
             if (value !== undefined && value !== null && value !== "") return false
@@ -683,13 +666,10 @@ const updatedMatchesOriginal = (updated: Testcase, serverState: Testcase | null)
     }
 
     for (const key of Object.keys(serverData)) {
-        if (SYSTEM_FIELDS.has(key)) continue
-        if (!(key in updatedData)) {
-            const serverValue = serverData[key]
-            if (serverValue !== undefined && serverValue !== null && serverValue !== "") {
-                return false
-            }
-        }
+        if (isInternalDataField(key)) continue
+        // A key the server row has but the edit dropped is a removal, even when
+        // the server value is null or "".
+        if (!(key in updatedData)) return false
     }
 
     return true
@@ -733,8 +713,11 @@ export const updateTestcaseAtom = atom(
             }
         }
 
+        // The saved row as the commit would leave it, so an edit made back clears the draft
         const queryState = get(testcaseQueryAtomFamily(id))
-        const serverState = queryState.data ?? null
+        const serverState = queryState.data
+            ? withColumnOps(queryState.data, get(currentColumnOpsAtom))
+            : null
 
         if (serverState && updatedMatchesOriginal(updated, serverState)) {
             set(testcaseDraftAtomFamily(id), null)
@@ -746,12 +729,14 @@ export const updateTestcaseAtom = atom(
 )
 
 /**
- * Discard all drafts
+ * Discard all drafts, including the drafts of rows marked deleted. A screen may drop a deleted
+ * row from `testcaseIdsAtom`, and its draft would come back if the row is restored.
  */
 export const discardAllDraftsAtom = atom(null, (get, set) => {
     const ids = get(testcaseIdsAtom)
     const newIds = get(newEntityIdsAtom)
-    ;[...ids, ...newIds].forEach((id) => {
+    const deletedIds = get(deletedEntityIdsAtom)
+    ;[...ids, ...newIds, ...deletedIds].forEach((id) => {
         set(testcaseDraftAtomFamily(id), null)
     })
 })
@@ -770,9 +755,11 @@ export const batchUpdateTestcasesSyncAtom = atom(
         for (const {id, updates: entityUpdates} of updates) {
             let current: Testcase | null = get(testcaseDraftAtomFamily(id))
 
-            // Check cache if no draft
+            // Check cache if no draft. A saved row takes the pending column changes, as a draft
+            // holds them.
             if (!current && projectId) {
-                current = findInTestcaseCache(queryClient, projectId, id) ?? null
+                const cached = findInTestcaseCache(queryClient, projectId, id)
+                current = cached ? withColumnOps(cached, get(currentColumnOpsAtom)) : null
             }
 
             if (!current) {

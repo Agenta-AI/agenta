@@ -25,6 +25,7 @@ from uuid import uuid4
 import pytest
 import requests
 
+from oss.tests.pytest.acceptance.channels.support import create_project_agent
 from utils.constants import BASE_TIMEOUT
 
 pytestmark = pytest.mark.acceptance
@@ -148,6 +149,7 @@ def _poll(fetch, *, attempts=40, delay=0.5):
 
 def _seed(owner):
     slug = f"perm-{uuid4().hex[:8]}"
+    agent_revision_id = create_project_agent(owner)["revision_id"]
 
     connection = _ok(
         owner(
@@ -171,7 +173,9 @@ def _seed(owner):
                 "agent": {
                     "connection_id": connection["id"],
                     "slug": f"agent-{slug}",
-                    "data": {"references": {"workflow_revision": {"id": str(uuid4())}}},
+                    "data": {
+                        "references": {"workflow_revision": {"id": agent_revision_id}}
+                    },
                 }
             },
         )
@@ -230,8 +234,11 @@ def _seed(owner):
     threads = _poll(
         lambda: _ok(owner("POST", "/channels/threads/query", json={}))["threads"]
     )
+    # The reply needs the agent's run (a real project agent since M3), which starts a
+    # sandbox: up to 90 s on a cold preview deployment.
     outbox = _poll(
-        lambda: _ok(owner("POST", "/channels/outbox/events/query", json={}))["events"]
+        lambda: _ok(owner("POST", "/channels/outbox/events/query", json={}))["events"],
+        attempts=180,
     )
     assert inbox and threads and outbox, (
         "seeding did not produce an inbox event, a thread and an outbox event: "
@@ -241,6 +248,7 @@ def _seed(owner):
     return {
         "project_id": project_id,
         "slug": slug,
+        "agent_revision_id": agent_revision_id,
         "connection": connection,
         "agent": agent,
         "space": space,
@@ -438,7 +446,7 @@ def _writes(w):
     space_id = w["space"]["id"]
     grant_id = w["grant"]["id"]
     thread_id = w["thread"]["id"]
-    references = {"workflow_revision": {"id": str(uuid4())}}
+    references = {"workflow_revision": {"id": w["agent_revision_id"]}}
     return [
         (
             "fetch_channel_setup",
@@ -499,6 +507,20 @@ def _writes(w):
             "fetch_channel_connection_setup",
             "GET",
             f"/channels/connections/{connection_id}/setup",
+            None,
+            None,
+        ),
+        (
+            "query_channel_people",
+            "POST",
+            f"/channels/connections/{connection_id}/people/query",
+            {"people": {"text": ""}},
+            None,
+        ),
+        (
+            "refresh_channel_people",
+            "POST",
+            f"/channels/connections/{connection_id}/people/refresh",
             None,
             None,
         ),
@@ -613,6 +635,8 @@ _ALL_OPERATIONS = {
     "archive_channel_connection",
     "unarchive_channel_connection",
     "fetch_channel_connection_setup",
+    "query_channel_people",
+    "refresh_channel_people",
     "create_channel_agent",
     "list_channel_agents",
     "query_channel_agents",
@@ -752,6 +776,8 @@ class TestViewerRole:
 # A foreign key names this project's ids; the handler scopes by the key's own
 # project, so every by-id route answers "not found".
 _FOREIGN_BY_ID = {
+    "query_channel_people",
+    "refresh_channel_people",
     "fetch_channel_agent",
     "fetch_channel_space",
     "discover_channel_spaces",

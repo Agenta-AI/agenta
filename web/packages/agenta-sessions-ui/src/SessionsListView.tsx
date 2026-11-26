@@ -7,6 +7,8 @@
  */
 import {Fragment, useCallback, useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import sessionsListStatesCatalog from "@agenta/i18n/catalogs/sessions.listStates"
 import {type SessionRowVm} from "@agenta/sessions/row"
 import {useSessionPins, useSessionsList} from "@agenta/sessions/state"
 import {LoadError} from "@agenta/ui/components/presentational"
@@ -112,6 +114,7 @@ export const SessionsListView = ({
     revealActionsOnHover = true,
     className,
 }: SessionsListViewProps) => {
+    const t = useT(sessionsListStatesCatalog)
     const list = useSessionsList({
         agentId: scopedAgentId,
         // Release contract: the human list hides automation runs; the "show triggered" toggle
@@ -166,7 +169,7 @@ export const SessionsListView = ({
     if (list.isError)
         return (
             <div className={className}>
-                <LoadError title="Could not load sessions" onRetry={list.refetch} />
+                <LoadError title={t("sessions.listStates.loadFailed")} onRetry={list.refetch} />
             </div>
         )
     if (list.isPending)

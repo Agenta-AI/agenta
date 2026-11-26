@@ -5,7 +5,9 @@ import {
     AutomationTriggerDrawers,
     useAutomationCreate,
 } from "@agenta/automation-ui"
-import {Button, Spinner} from "@agenta/ui/ui"
+import {useT} from "@agenta/i18n"
+import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
+import {Button, PHONE_TOUCH_TARGET_CLASS, Spinner} from "@agenta/ui/ui"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -24,6 +26,7 @@ export const AutomationDraftScreen = ({
     projectId: string
 }) => {
     useBindProjectContext(projectId)
+    const t = useT(automationsScreensCatalog)
     const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
 
@@ -38,20 +41,24 @@ export const AutomationDraftScreen = ({
 
     return (
         <>
-            <PageTitle title="Automations" context="New automation" />
+            <PageTitle
+                title={t("automations.screens.pageTitle")}
+                context={t("automations.screens.newAutomation")}
+            />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
                         <AutomationScreenHeader
                             workspaceId={workspaceId}
                             projectId={projectId}
-                            title="New automation"
+                            title={t("automations.screens.newAutomation")}
                             backHref={`${base}/automations`}
                         />
                     }
                 >
-                    {/* pt-1: the name field's focus ring would otherwise be clipped by the scroller's edge. */}
-                    <div className="mx-auto flex w-full max-w-[760px] flex-col px-8 pb-[70px] pt-1">
+                    {/* pt-1: the name field's focus ring would otherwise be clipped by the scroller's edge.
+                        A phone takes back the 4px the header gives up, as the detail screen does. */}
+                    <div className="mx-auto flex w-full max-w-[760px] flex-col px-8 pb-[70px] pt-1 max-md:pt-2">
                         <AutomationCreateBody
                             state={state}
                             autoEditName
@@ -60,15 +67,17 @@ export const AutomationDraftScreen = ({
                                     <Button
                                         type="button"
                                         variant="outline"
+                                        className={PHONE_TOUCH_TARGET_CLASS}
                                         onClick={() => void router.push(`${base}/automations`)}
                                     >
-                                        Cancel
+                                        {t("automations.screens.cancel")}
                                     </Button>
                                     {/* Always pressable. A press with something missing does
                                         not create; it turns the missing fields red, which is
                                         how the reader learns what to do. */}
                                     <Button
                                         type="button"
+                                        className={PHONE_TOUCH_TARGET_CLASS}
                                         disabled={state.saving}
                                         onClick={() => void onCreate()}
                                     >
@@ -76,7 +85,7 @@ export const AutomationDraftScreen = ({
                                                 its first run — long enough that a button which
                                                 only greys out reads as broken. */}
                                         {state.saving ? <Spinner data-icon="inline-start" /> : null}
-                                        Create automation
+                                        {t("automations.screens.createAutomation")}
                                     </Button>
                                 </div>
                             }

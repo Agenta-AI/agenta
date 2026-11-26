@@ -7,6 +7,7 @@ import {
   PI_TRACE_MAX_FILES,
   isPiTraceChannelId,
   isPiTraceSpoolFileName,
+  piTraceDoneFileName,
 } from "./pi-spool-protocol.ts";
 import {
   publishTelemetryFileAtomic,
@@ -41,7 +42,10 @@ export interface PiTraceSpoolConsumer {
   ready: Promise<void>;
   /** Atomically publish the read-once control file. False means tracing was skipped. */
   publishControl: (contents: Uint8Array | string) => Promise<boolean>;
-  /** Pick up and forward every bounded current-channel batch available by the deadline. */
+  /**
+   * Pick up and forward every bounded current-channel batch. Stops once Pi's done marker shows the
+   * turn's last batch is on disk, or at the deadline when the marker never comes.
+   */
   drain: () => Promise<PiTraceSpoolDrainResult>;
   /** Remove telemetry-owned residue and report what was found. Never rejects. */
   teardown: () => Promise<PiTraceSpoolDrainResult>;
@@ -216,6 +220,7 @@ export function createPiTraceSpoolConsumer(
   );
   const seenSequences = new Set<number>();
   const controlPath = join(options.dir, PI_TRACE_CONTROL_FILE);
+  const doneName = piTraceDoneFileName(options.channelId);
 
   const ready = (async () => {
     try {
@@ -248,6 +253,9 @@ export function createPiTraceSpoolConsumer(
     const pickedUpBatches: PiTraceSpoolBatch[] = [];
 
     for (let poll = 0; poll < maxPolls; poll += 1) {
+      // Pi writes the marker after its last batch, so a listing that shows the marker shows every
+      // batch too. A batch this poll could not read keeps the drain polling.
+      let done = false;
       const names = await listWithRetries(
         options.host,
         options.dir,
@@ -257,6 +265,7 @@ export function createPiTraceSpoolConsumer(
         PI_TRACE_SWEEP_MAX_FILES + 1,
       );
       if (names) {
+        done = names.includes(doneName);
         if (names.includes(PI_TRACE_CONTROL_FILE) && !result.unreadControl) {
           result.unreadControl = true;
           log("stage=pi_trace_control unread=true");
@@ -285,6 +294,7 @@ export function createPiTraceSpoolConsumer(
             log(
               `stage=pi_trace_spool_pickup sequence=${candidate.sequence} stat_failed=true`,
             );
+            done = false;
             continue;
           }
           if (size > maxBatchBytes) {
@@ -305,6 +315,7 @@ export function createPiTraceSpoolConsumer(
             log(
               `stage=pi_trace_spool_pickup sequence=${candidate.sequence} read_failed=true error=${conciseError(err)}`,
             );
+            done = false;
             continue;
           }
           seenSequences.add(candidate.sequence);
@@ -349,7 +360,7 @@ export function createPiTraceSpoolConsumer(
         result.limitReached = true;
         break;
       }
-      if (now() >= deadline || poll + 1 >= maxPolls) break;
+      if (done || now() >= deadline || poll + 1 >= maxPolls) break;
       await sleep(Math.min(pollMs, Math.max(0, deadline - now())));
     }
     await Promise.all(

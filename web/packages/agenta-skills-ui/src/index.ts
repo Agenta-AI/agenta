@@ -4,7 +4,8 @@
  */
 export * from "./types"
 export {NewSkillMenuButton, type NewSkillMenuButtonProps} from "./NewSkillMenuButton"
-export {SkillCard, SkillAvatar, type SkillCardProps} from "./SkillCard"
+export {SkillCard, type SkillCardProps} from "./SkillCard"
+export {skillTitle} from "./skillTitle"
 export {
     SkillsGalleryPage,
     type SkillsGalleryPageProps,
@@ -15,19 +16,24 @@ export {
     type SkillGallerySectionsProps,
     type SkillGallerySection,
 } from "./SkillGallerySections"
-export {
-    SkillPickerDrawer,
-    type SkillPickerDrawerProps,
-    type SkillAddChoice,
-} from "./SkillPickerDrawer"
-export {SkillSaveBlastRadius, type SkillSaveBlastRadiusProps} from "./SkillSaveBlastRadius"
 export {buildRegistrySections, toSkillListItem, type RegistrySections} from "./registrySections"
 export {SkillImportDrawer, type SkillImportDrawerProps} from "./SkillImportDrawer"
 export {SkillCreateDrawer, type SkillCreateDrawerProps} from "./SkillCreateDrawer"
 export {useSkillCreateEntry} from "./useSkillCreateEntry"
-export {SkillDetailDrawer, type SkillDetailDrawerProps} from "./SkillDetailDrawer"
+export {
+    SkillDetailDrawer,
+    skillRevisionsQueryKey,
+    type SkillDetailDrawerProps,
+} from "./SkillDetailDrawer"
 export {SkillAgentPicker} from "./SkillAgentPicker"
-export {SkillPickerHost} from "./SkillPickerHost"
-export {SkillDetailHost} from "./SkillDetailHost"
+export {AddSkillsBody} from "./AddSkillsBody"
+export {
+    NewSkillBody,
+    type NewSkillBodyProps,
+    type NewSkillStart,
+    type NewSkillStep,
+} from "./NewSkillBody"
+export {registryNewSkillView, type RegistryNewSkillParams} from "./registryNewSkillView"
+export {registrySkillView, RegistrySkillBody} from "./registrySkillView"
 export {SourceRefreshButton} from "./SourceRefreshButton"
 export {useSkillsBridge} from "./bridge"

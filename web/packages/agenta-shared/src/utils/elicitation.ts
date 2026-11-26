@@ -160,6 +160,16 @@ const isValidOneOf = (value: unknown): value is ElicitationOptionSchema[] =>
             (o.description === undefined || typeof o.description === "string"),
     )
 
+/** Some models send `requestedSchema` as a JSON string; a string that holds an object counts. */
+const schemaObject = (value: unknown): unknown => {
+    if (typeof value !== "string") return value
+    try {
+        return JSON.parse(value)
+    } catch {
+        return undefined
+    }
+}
+
 /**
  * Validate an incoming client-tool input as an elicitation payload (tolerant reader: unknown
  * extra keys are ignored; the hard rules below are the dialect). Failure reasons are stable
@@ -167,7 +177,8 @@ const isValidOneOf = (value: unknown): value is ElicitationOptionSchema[] =>
  */
 export function parseElicitationPayload(input: unknown): ElicitationParseResult {
     if (!isRecord(input)) return {ok: false, reason: "payload is not an object"}
-    const {message, requestedSchema} = input as Partial<ElicitationRequestPayload>
+    const {message} = input as Partial<ElicitationRequestPayload>
+    const requestedSchema = schemaObject((input as Record<string, unknown>).requestedSchema)
 
     if (typeof message !== "string" || message.trim() === "")
         return {ok: false, reason: "missing message"}
@@ -338,8 +349,7 @@ export function deriveElicitationPartState(part: {
 
 /**
  * Degradation retry cap: true when an earlier part in the turn already auto-settled as an
- * elicitation degradation. The widget then PARKS the part (visible notice, no auto-settle)
- * instead of feeding the settle→resume→re-emit token loop.
+ * elicitation degradation. A repeat then settles as a cancel that moves the question to chat.
  */
 export function hasPriorElicitationDegradation(
     parts: readonly {state?: string; errorText?: string}[] | undefined,

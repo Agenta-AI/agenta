@@ -1,5 +1,7 @@
 import {createElement, type ComponentType, useSyncExternalStore} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {ExtensionComponent} from "@lexical/react/ExtensionComponent"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {ReactExtension} from "@lexical/react/ReactExtension"
@@ -7,9 +9,12 @@ import {useExtensionDependency} from "@lexical/react/useExtensionComponent"
 import {configExtension, defineExtension} from "lexical"
 import {createPortal} from "react-dom"
 
+import {CollapseCaret} from "../../../../components/ui/collapse-caret"
+
 import {CodeFoldingCoreExtension} from "./codeFoldingCore"
 
 function CodeFoldingOverlay() {
+    const t = useT(commonCatalog)
     const {output: core} = useExtensionDependency(CodeFoldingCoreExtension)
     const [editor] = useLexicalComposerContext()
     const lines = useSyncExternalStore(core.subscribe, core.getLines, core.getLines)
@@ -34,13 +39,16 @@ function CodeFoldingOverlay() {
                     <button
                         key={line.key}
                         className="fold-toggle"
+                        aria-label={line.collapsed ? t("common.expand") : t("common.collapse")}
+                        aria-expanded={!line.collapsed}
                         style={{
                             top: line.top,
                             height: line.height,
                         }}
                         onClick={() => core.toggleLineByKey(line.key)}
                     >
-                        {line.collapsed ? "▸" : "▾"}
+                        {/* text-current keeps the gutter's own line-number color. */}
+                        <CollapseCaret open={!line.collapsed} size={10} className="text-current" />
                     </button>
                 )
             })}

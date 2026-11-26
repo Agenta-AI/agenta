@@ -20,6 +20,7 @@ import pytest
 
 from agenta.sdk.engines.running.errors import (
     ConnectionModelMismatchV0Error,
+    InvalidConfigurationParameterV0Error,
     UnknownConnectionV0Error,
 )
 from agenta.sdk.managers.secrets import SecretsManager
@@ -291,3 +292,73 @@ def test_a_slug_pointing_at_a_keyless_record_resolves_to_nothing(resolve):
 def test_no_secrets_still_resolves_to_nothing(resolve):
     assert resolve([], "gpt-4o-mini") is None
     assert resolve([], "gpt-4o-mini", "openai") is None
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [
+        "openai",
+        "anthropic",
+        "gemini",
+        "cohere",
+        "anyscale",
+        "deepinfra",
+        "alephalpha",
+        "groq",
+        "minimax",
+        "mistral",
+        "mistralai",
+        "perplexityai",
+        "together_ai",
+        "openrouter",
+        "custom",
+        "azure",
+        "xai",
+    ],
+)
+@pytest.mark.parametrize("connection", [None, "my-gw"])
+def test_custom_provider_requires_its_own_key(resolve, kind, connection):
+    custom = _custom_provider(slug="my-gw", kind=kind)
+    custom["data"]["provider"]["extras"] = {}
+    family = "openai" if kind == "custom" else kind
+    secrets = [_provider_key(kind=family, key="fixture-family-key"), custom]
+    with pytest.raises(InvalidConfigurationParameterV0Error) as error:
+        resolve(secrets, f"my-gw/{kind}/gpt-4o-mini", connection)
+    assert error.value.code == 400
+    assert "fixture-family-key" not in error.value.message
+
+
+@pytest.mark.parametrize("key", [None, "", "   "])
+def test_custom_provider_empty_key_does_not_enable_ambient_fallback(resolve, key):
+    custom = _custom_provider(slug="my-gw", kind="openai")
+    custom["data"]["provider"]["extras"] = {"api_key": key}
+    with pytest.raises(InvalidConfigurationParameterV0Error):
+        resolve([custom], "my-gw/openai/gpt-4o-mini")
+
+
+def test_custom_provider_uses_only_its_own_settings(resolve):
+    custom = _custom_provider(slug="my-gw", kind="openai")
+    settings = resolve(
+        [_provider_key(key="fixture-family-key"), custom], "my-gw/openai/gpt-4o-mini"
+    )
+    assert settings["api_key"] == "sk-gateway"
+    assert settings["model"] == "openai/gpt-4o-mini"
+
+
+@pytest.mark.parametrize("override", ["kind", "model", "custom_llm_provider"])
+def test_custom_provider_cannot_bypass_key_check_with_structured_kind(
+    resolve, override
+):
+    custom = _custom_provider(
+        slug="my-gw", kind="openai" if override == "kind" else "bedrock"
+    )
+    model = custom["data"]["model_keys"][0]
+    custom["data"]["provider"]["extras"] = {}
+    if override == "kind":
+        custom["data"]["kind"] = "bedrock"
+    else:
+        custom["data"]["provider"]["extras"][override] = (
+            "openai/gpt-4o-mini" if override == "model" else "openai"
+        )
+    with pytest.raises(InvalidConfigurationParameterV0Error):
+        resolve([custom], model)

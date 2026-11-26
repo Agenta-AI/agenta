@@ -23,6 +23,7 @@ from oss.src.dbs.redis.sessions.locks import bind_turn
 from oss.src.utils.env import env
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 _PROJECT = UUID("00000000-0000-0000-0000-0000000000aa")
@@ -84,7 +85,11 @@ async def _bind(engine, turn_id, address=_ADDRESS):
 
 async def _read(engine, row, headers):
     service = SessionStreamsService(streams_dao=_FakeDAO(row), lock_engine=engine)
-    router = SessionStreamsRouter(service=service, interactions_service=None)
+    router = SessionStreamsRouter(
+        service=service,
+        interactions_service=None,
+        run_admission=NoopRunAdmission(),
+    )
     return await router.fetch_session_stream(_request(headers), session_id=_SESSION)
 
 

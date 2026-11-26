@@ -51,7 +51,7 @@ const EVALUATOR_RUN_BUTTON_LABEL = "Run"
 const EVALUATOR_RESULT_CARD_SELECTOR = ".node-result-card"
 
 // Row context menu
-const EVALUATOR_ROW_MENU_TRIGGER_ARIA = "more"
+const EVALUATOR_ROW_MENU_TRIGGER_ARIA = "Actions"
 const EVALUATOR_EDIT_MENU_ITEM = "Configure"
 const EVALUATOR_DELETE_MENU_ITEM = "Archive"
 
@@ -447,11 +447,8 @@ const openEvaluatorRowMenu = async (page: Page, evaluatorName: string) => {
     const row = page.locator("[data-row-key]").filter({hasText: evaluatorName}).first()
     await expect(row).toBeVisible({timeout: 10000})
 
-    // Click the button wrapping the MoreOutlined icon — the icon span itself is not the trigger
-    const moreButton = row
-        .locator("button")
-        .filter({has: page.locator(`[aria-label="${EVALUATOR_ROW_MENU_TRIGGER_ARIA}"]`)})
-        .first()
+    // The row menu button itself carries the aria-label
+    const moreButton = row.getByRole("button", {name: EVALUATOR_ROW_MENU_TRIGGER_ARIA}).first()
     await expect(moreButton).toBeVisible({timeout: 5000})
     await moreButton.click()
 

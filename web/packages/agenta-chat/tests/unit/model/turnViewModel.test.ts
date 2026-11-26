@@ -1,6 +1,7 @@
 import type {ToolUIPart, UIMessage} from "ai"
 import {describe, expect, it, vi} from "vitest"
 
+import {splitTurnActivity} from "../../../src/model/activitySteps"
 import {
     buildTurnViewModels,
     createExecutedToolIdentityCache,
@@ -54,6 +55,8 @@ describe("createTurnViewModelCache", () => {
         expect(reclassified).not.toBe(first)
         expect(reclassified.items.some((item) => item.kind === "clientTool")).toBe(true)
         expect(first.items.some((item) => item.kind === "clientTool")).toBe(false)
+        expect(reclassified.hadGate).toBe(true)
+        expect(first.hadGate).toBe(false)
     })
 })
 
@@ -153,6 +156,60 @@ describe("buildTurnViewModels", () => {
         expect(items[0].kind).toBe("tools")
         const group = items[0] as {kind: "tools"; parts: ToolUIPart[]}
         expect(group.parts.map((p) => p.toolCallId)).toEqual(["exec-1"])
+        expect(turns[1].hadGate).toBe(true)
+    })
+
+    it("keeps approval history when the activity fold hides a failed tool", () => {
+        const [turn] = buildTurnViewModels(
+            [
+                assistant("a1", [
+                    {
+                        ...toolPart("c1", "output-error"),
+                        errorText: "command failed",
+                        approval: {id: "appr-1", approved: true},
+                    },
+                    {type: "text", text: "The command failed."},
+                ]),
+            ],
+            {busy: false, executedFor: createExecutedToolIdentityCache()},
+        )
+        expect(splitTurnActivity(turn.items).steps).toHaveLength(0)
+        expect(turn.hadGate).toBe(true)
+    })
+
+    it("keeps approval history when consecutive file writes merge into one step", () => {
+        const [turn] = buildTurnViewModels(
+            [
+                assistant("a1", [
+                    {
+                        type: "tool-write",
+                        toolCallId: "c1",
+                        state: "output-available",
+                        input: {file_path: "a.md", content: "a"},
+                        output: "ok",
+                    },
+                    {
+                        type: "tool-write",
+                        toolCallId: "c2",
+                        state: "output-available",
+                        input: {file_path: "b.md", content: "b"},
+                        output: "ok",
+                        approval: {id: "appr-1", approved: true},
+                    },
+                ]),
+            ],
+            {busy: false, executedFor: createExecutedToolIdentityCache()},
+        )
+        expect(splitTurnActivity(turn.items).steps).toHaveLength(1)
+        expect(turn.hadGate).toBe(true)
+    })
+
+    it("does not mark an ungated tool as waiting on the reader", () => {
+        const [turn] = buildTurnViewModels(
+            [assistant("a1", [toolPart("c1", "output-available")])],
+            {busy: false, executedFor: createExecutedToolIdentityCache()},
+        )
+        expect(turn.hadGate).toBe(false)
     })
 
     it("splits client-tool parts out of the tool fold via the parameterized predicate", () => {
@@ -178,6 +235,7 @@ describe("buildTurnViewModels", () => {
             isClientToolPart,
         })
         expect(turns[1].items.map((i) => i.kind)).toEqual(["tools", "clientTool", "tools"])
+        expect(turns[1].hadGate).toBe(true)
         // The predicate receives the desktop's context shape (streaming + last-message flags).
         expect(isClientToolPart).toHaveBeenCalledWith(
             expect.objectContaining({toolCallId: "ct-1"}),

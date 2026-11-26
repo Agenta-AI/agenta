@@ -13,6 +13,9 @@
  */
 import {type ReactNode, useCallback, useEffect, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiEditorCatalog from "@agenta/i18n/catalogs/ui.editor"
 import {$createCodeNode, $isCodeNode} from "@lexical/code"
 import {$isLinkNode, TOGGLE_LINK_COMMAND} from "@lexical/link"
 import {INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND, ListNode} from "@lexical/list"
@@ -69,37 +72,50 @@ import {Popover, PopoverContent, PopoverTrigger} from "../components/ui/popover"
 import {cn} from "../utils/styles"
 
 const BLOCK_TYPES = [
-    {key: "paragraph", label: "Normal text"},
-    {key: "h1", label: "Heading 1"},
-    {key: "h2", label: "Heading 2"},
-    {key: "h3", label: "Heading 3"},
-    {key: "quote", label: "Quote"},
-    {key: "code", label: "Code block"},
+    {key: "paragraph", labelKey: "ui.editor.normalText"},
+    {key: "h1", labelKey: "ui.editor.heading1"},
+    {key: "h2", labelKey: "ui.editor.heading2"},
+    {key: "h3", labelKey: "ui.editor.heading3"},
+    {key: "quote", labelKey: "ui.editor.quote"},
+    {key: "code", labelKey: "ui.editor.codeBlock"},
 ] as const
 
 export interface MarkdownToolbarProps {
     /** Disable the buttons (e.g. while the editor shows raw Markdown source or is read-only). */
     disabled?: boolean
-    /** `inline`: H1 / H2 / H3 buttons instead of the dropdown, plus strikethrough, code and quote. */
+    /** `default`: the panel bar (F01 f3): a bordered block-type select, then B, I, S, code, bullet
+     * list and table. `inline`: H1 / H2 / H3 buttons instead of the select, plus numbered list,
+     * quote and link. */
     layout?: "default" | "inline"
 }
 
 const BTN_BASE =
-    "flex h-7 w-7 shrink-0 items-center justify-center rounded border-0 bg-transparent transition-colors"
-const btnClass = (disabled: boolean, isActive: boolean) =>
-    [
-        BTN_BASE,
-        disabled
-            ? "cursor-not-allowed text-[var(--ag-zinc-5)] opacity-50"
-            : "cursor-pointer text-[var(--ag-c-586673)] hover:bg-[var(--ag-c-EAEFF5)]",
-        isActive ? "bg-[var(--ag-c-EAEFF5)] !text-[var(--ag-c-1677FF)]" : "",
-    ].join(" ")
+    "flex shrink-0 items-center justify-center border-0 bg-transparent transition-colors"
+const btnClass = (disabled: boolean, isActive: boolean, layout: "default" | "inline") =>
+    layout === "default"
+        ? cn(
+              BTN_BASE,
+              "size-6 rounded",
+              disabled
+                  ? "cursor-not-allowed text-colorTextQuaternary"
+                  : "cursor-pointer text-zinc-8 hover:bg-colorFillSecondary",
+              isActive && "bg-colorFillSecondary text-colorText",
+          )
+        : cn(
+              BTN_BASE,
+              "h-7 w-7 rounded",
+              disabled
+                  ? "cursor-not-allowed text-[var(--ag-zinc-5)] opacity-50"
+                  : "cursor-pointer text-[var(--ag-c-586673)] hover:bg-[var(--ag-c-EAEFF5)]",
+              isActive && "bg-[var(--ag-c-EAEFF5)] !text-[var(--ag-c-1677FF)]",
+          )
 
 /** Keep focus (and the Lexical selection) in the editor when a menu item is pressed. */
 const keepEditorSelection = (e: {preventDefault: () => void}) => e.preventDefault()
 
 /** A compact rows×cols grid the user hovers to pick a table size, like Notion / the Lexical demo. */
 function TableSizePicker({onPick}: {onPick: (rows: number, cols: number) => void}) {
+    const t = useT(uiEditorCatalog, commonCatalog)
     const MAX = 6
     const [hover, setHover] = useState({rows: 0, cols: 0})
     return (
@@ -117,7 +133,7 @@ function TableSizePicker({onPick}: {onPick: (rows: number, cols: number) => void
                         <button
                             key={i}
                             type="button"
-                            aria-label={`${r} by ${c}`}
+                            aria-label={t("ui.editor.tableSize", {rows: r, columns: c})}
                             onMouseEnter={() => setHover({rows: r, cols: c})}
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={() => onPick(r, c)}
@@ -132,13 +148,14 @@ function TableSizePicker({onPick}: {onPick: (rows: number, cols: number) => void
                 })}
             </div>
             <span className="text-center text-xs text-[var(--ag-zinc-5)]">
-                {hover.rows > 0 ? `${hover.rows} × ${hover.cols}` : "Insert table"}
+                {hover.rows > 0 ? `${hover.rows} × ${hover.cols}` : t("ui.editor.insertTable")}
             </span>
         </div>
     )
 }
 
 export function MarkdownToolbar({disabled = false, layout = "default"}: MarkdownToolbarProps) {
+    const t = useT(uiEditorCatalog, commonCatalog)
     const [editor] = useLexicalComposerContext()
     const [active, setActive] = useState({
         bold: false,
@@ -299,23 +316,32 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
             // text instead of being lost when the button steals focus.
             onMouseDown={(e) => e.preventDefault()}
             onClick={onClick}
-            className={btnClass(disabled, isActive)}
+            className={btnClass(disabled, isActive, layout)}
         >
             {icon}
         </button>
     )
 
-    const divider = (
-        <span className="mx-0.5 h-4 w-px shrink-0 bg-[var(--ag-c-EAEFF5)]" aria-hidden />
-    )
+    const divider =
+        layout === "default" ? (
+            <span className="mx-1 h-4 w-px shrink-0 bg-colorBorderSecondary" aria-hidden />
+        ) : (
+            <span className="mx-0.5 h-4 w-px shrink-0 bg-[var(--ag-c-EAEFF5)]" aria-hidden />
+        )
 
-    const blockLabel = BLOCK_TYPES.find((b) => b.key === blockType)?.label ?? "Normal text"
+    const blockLabel = t(
+        BLOCK_TYPES.find((b) => b.key === blockType)?.labelKey ?? "ui.editor.normalText",
+    )
 
     // Pressing the active level returns the block to a paragraph.
     const headingButton = (level: "h1" | "h2" | "h3") =>
         button(
             level,
-            `Heading ${level.slice(1)}`,
+            level === "h1"
+                ? t("ui.editor.heading1")
+                : level === "h2"
+                  ? t("ui.editor.heading2")
+                  : t("ui.editor.heading3"),
             <span className="text-[11px] font-semibold tracking-wide">{level.toUpperCase()}</span>,
             () => formatBlock(blockType === level ? "paragraph" : level),
             blockType === level,
@@ -343,14 +369,18 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
                     <DropdownMenuTrigger asChild disabled={disabled}>
                         <button
                             type="button"
-                            title="Text style"
-                            aria-label="Text style"
+                            title={t("ui.editor.textStyle")}
+                            aria-label={t("ui.editor.textStyle")}
                             disabled={disabled}
                             onMouseDown={(e) => e.preventDefault()}
-                            className={`${btnClass(disabled, false)} !w-auto min-w-[88px] justify-between gap-1 px-2 text-xs`}
+                            // A bordered select, 26 px tall (F01 f3).
+                            className={cn(
+                                "flex h-[26px] min-w-[112px] shrink-0 items-center justify-between gap-1 rounded-[6px] border border-solid border-colorBorder bg-colorBgContainer px-1.5 font-[inherit] text-[12px] text-colorText",
+                                disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
+                            )}
                         >
                             <span className="truncate">{blockLabel}</span>
-                            <ChevronDown size={13} className="shrink-0" />
+                            <ChevronDown size={12} className="shrink-0 text-colorTextTertiary" />
                         </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start">
@@ -367,7 +397,7 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
                                 onMouseDown={keepEditorSelection}
                                 onSelect={() => formatBlock(b.key)}
                             >
-                                {b.label}
+                                {t(b.labelKey)}
                             </DropdownMenuItem>
                         ))}
                     </DropdownMenuContent>
@@ -375,104 +405,117 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
             )}
 
             {divider}
-            {button("b", "Bold", <Bold size={14} />, () => formatText("bold"), active.bold)}
-            {button("i", "Italic", <Italic size={14} />, () => formatText("italic"), active.italic)}
-            {layout === "inline"
-                ? button(
-                      "s",
-                      "Strikethrough",
-                      <Strikethrough size={14} />,
-                      () => formatText("strikethrough"),
-                      active.strikethrough,
-                  )
-                : null}
-            {layout === "inline"
-                ? button(
-                      "code",
-                      "Inline code",
-                      <Code size={14} />,
-                      () => formatText("code"),
-                      active.code,
-                  )
-                : null}
+            {button(
+                "b",
+                t("ui.editor.bold"),
+                <Bold size={14} />,
+                () => formatText("bold"),
+                active.bold,
+            )}
+            {button(
+                "i",
+                t("ui.editor.italic"),
+                <Italic size={14} />,
+                () => formatText("italic"),
+                active.italic,
+            )}
+            {button(
+                "s",
+                t("ui.editor.strikethrough"),
+                <Strikethrough size={14} />,
+                () => formatText("strikethrough"),
+                active.strikethrough,
+            )}
+            {button(
+                "code",
+                t("ui.editor.inlineCode"),
+                <Code size={14} />,
+                () => formatText("code"),
+                active.code,
+            )}
             {divider}
             {button(
                 "ul",
-                "Bulleted list",
+                t("ui.editor.bulletedList"),
                 <List size={14} />,
                 () => editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined),
                 active.bullet,
             )}
-            {button(
-                "ol",
-                "Numbered list",
-                <ListOrdered size={14} />,
-                () => editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined),
-                active.ordered,
-            )}
+            {layout === "inline"
+                ? button(
+                      "ol",
+                      t("ui.editor.numberedList"),
+                      <ListOrdered size={14} />,
+                      () => editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined),
+                      active.ordered,
+                  )
+                : null}
             {layout === "inline"
                 ? button(
                       "quote",
-                      "Quote",
+                      t("ui.editor.quote"),
                       <TextQuote size={14} />,
                       () => formatBlock(blockType === "quote" ? "paragraph" : "quote"),
                       blockType === "quote",
                   )
                 : null}
-            {divider}
+            {layout === "inline" ? divider : null}
 
-            {/* Link — popover asks for the URL (and removes an existing link). */}
-            <Popover
-                open={disabled ? false : linkOpen}
-                onOpenChange={(next) => {
-                    setLinkOpen(next)
-                    if (next) setLinkDraft(linkUrl)
-                }}
-            >
-                <PopoverTrigger asChild disabled={disabled}>
-                    <button
-                        type="button"
-                        title="Link"
-                        aria-label="Link"
-                        aria-pressed={active.link}
-                        disabled={disabled}
-                        onMouseDown={(e) => e.preventDefault()}
-                        className={btnClass(disabled, active.link)}
-                    >
-                        <LinkIcon size={14} />
-                    </button>
-                </PopoverTrigger>
-                <PopoverContent side="bottom" align="center" className="p-3">
-                    <div className="flex w-60 flex-col gap-2">
-                        <Input
-                            autoFocus
-                            value={linkDraft}
-                            placeholder="https://example.com"
-                            onChange={(e) => setLinkDraft(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter") applyLink()
-                            }}
-                        />
-                        <div className="flex items-center justify-between gap-2">
-                            {active.link ? (
-                                <Button
-                                    variant="destructive-outline"
-                                    size="sm"
-                                    onClick={removeLink}
-                                >
-                                    {<Unlink size={13} />}
-                                    Remove
+            {/* Link — popover asks for the URL (and removes an existing link). The panel bar
+                (F01 f3) has no link button. */}
+            {layout === "inline" ? (
+                <Popover
+                    open={disabled ? false : linkOpen}
+                    onOpenChange={(next) => {
+                        setLinkOpen(next)
+                        if (next) setLinkDraft(linkUrl)
+                    }}
+                >
+                    <PopoverTrigger asChild disabled={disabled}>
+                        <button
+                            type="button"
+                            title={t("ui.editor.link")}
+                            aria-label={t("ui.editor.link")}
+                            aria-pressed={active.link}
+                            disabled={disabled}
+                            onMouseDown={(e) => e.preventDefault()}
+                            className={btnClass(disabled, active.link, layout)}
+                        >
+                            <LinkIcon size={14} />
+                        </button>
+                    </PopoverTrigger>
+                    <PopoverContent side="bottom" align="center" className="p-3">
+                        <div className="flex w-60 flex-col gap-2">
+                            <Input
+                                autoFocus
+                                value={linkDraft}
+                                placeholder="https://example.com"
+                                onChange={(e) => setLinkDraft(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter") applyLink()
+                                }}
+                            />
+                            <div className="flex items-center justify-between gap-2">
+                                {active.link ? (
+                                    <Button
+                                        variant="destructive-outline"
+                                        size="sm"
+                                        onClick={removeLink}
+                                    >
+                                        {<Unlink size={13} />}
+                                        {t("common.remove")}
+                                    </Button>
+                                ) : (
+                                    <span />
+                                )}
+                                <Button variant="default" size="sm" onClick={applyLink}>
+                                    {active.link ? t("common.update") : t("ui.editor.addLink")}
                                 </Button>
-                            ) : (
-                                <span />
-                            )}
-                            <Button variant="default" size="sm" onClick={applyLink}>
-                                {active.link ? "Update" : "Add link"}
-                            </Button>
+                            </div>
                         </div>
-                    </div>
-                </PopoverContent>
-            </Popover>
+                    </PopoverContent>
+                </Popover>
+            ) : null}
 
             {/* Table — one control: inside a table it opens the row/column ops menu; otherwise a
                 size picker to insert one. The chevron signals the menu when the caret is in a table. */}
@@ -481,10 +524,10 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
                     <DropdownMenuTrigger asChild>
                         <button
                             type="button"
-                            title="Table options"
-                            aria-label="Table options"
+                            title={t("ui.editor.tableOptions")}
+                            aria-label={t("ui.editor.tableOptions")}
                             onMouseDown={(e) => e.preventDefault()}
-                            className={`${btnClass(false, false)} !w-auto gap-0.5 px-1`}
+                            className={`${btnClass(false, false, layout)} !w-auto gap-0.5 px-1`}
                         >
                             <TableIcon size={14} />
                             <ChevronDown size={12} />
@@ -495,45 +538,45 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
                             onMouseDown={keepEditorSelection}
                             onSelect={() => runTableOp(() => $insertTableRowAtSelection(false))}
                         >
-                            Insert row above
+                            {t("ui.editor.insertRowAbove")}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                             onMouseDown={keepEditorSelection}
                             onSelect={() => runTableOp(() => $insertTableRowAtSelection(true))}
                         >
-                            Insert row below
+                            {t("ui.editor.insertRowBelow")}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                             onMouseDown={keepEditorSelection}
                             onSelect={() => runTableOp(() => $insertTableColumnAtSelection(false))}
                         >
-                            Insert column left
+                            {t("ui.editor.insertColumnLeft")}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                             onMouseDown={keepEditorSelection}
                             onSelect={() => runTableOp(() => $insertTableColumnAtSelection(true))}
                         >
-                            Insert column right
+                            {t("ui.editor.insertColumnRight")}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                             onMouseDown={keepEditorSelection}
                             onSelect={() => runTableOp(() => $deleteTableRowAtSelection())}
                         >
-                            Delete row
+                            {t("ui.editor.deleteRow")}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                             onMouseDown={keepEditorSelection}
                             onSelect={() => runTableOp(() => $deleteTableColumnAtSelection())}
                         >
-                            Delete column
+                            {t("ui.editor.deleteColumn")}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                             variant="destructive"
                             onMouseDown={keepEditorSelection}
                             onSelect={deleteTable}
                         >
-                            Delete table
+                            {t("ui.editor.deleteTable")}
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
@@ -542,11 +585,11 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
                     <PopoverTrigger asChild disabled={disabled}>
                         <button
                             type="button"
-                            title="Insert table"
-                            aria-label="Insert table"
+                            title={t("ui.editor.insertTable")}
+                            aria-label={t("ui.editor.insertTable")}
                             disabled={disabled}
                             onMouseDown={(e) => e.preventDefault()}
-                            className={btnClass(disabled, false)}
+                            className={btnClass(disabled, false, layout)}
                         >
                             <TableIcon size={14} />
                         </button>

@@ -76,3 +76,5 @@ class MCPOAuthAttemptDBA(ProjectScopeDBA, UserScopeDBA, IdentifierDBA):
     # popup's message never arrives. See `MCPOAuthAttemptStatus`.
     status = Column(String, nullable=False, server_default="pending")
     error = Column(String, nullable=True)
+    # Whose sign-in the callback writes: `project`, or `user` (the person in `user_id`).
+    owner_kind = Column(String, nullable=False, server_default="project")

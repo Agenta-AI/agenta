@@ -36,7 +36,7 @@ class SessionMountsService:
             windowing=windowing,
         )
         return [
-            SessionMount(**mount.model_dump())
+            SessionMount(**mount.model_dump(), storage_prefix=mount.storage_prefix)
             for mount in mounts
             if mount.session_id is not None
         ]

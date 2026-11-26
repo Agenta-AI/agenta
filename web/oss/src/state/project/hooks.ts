@@ -3,6 +3,8 @@ import {useCallback, useEffect} from "react"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
+import {selectedOrgAtom} from "@/oss/state/org/selectors/org"
+
 import {projectsQueryAtom} from "./selectors/project"
 import {
     cacheLastUsedProjectId,
@@ -14,19 +16,25 @@ import {
 
 export const useProjectData = () => {
     const [{isPending: _isPending, isLoading, refetch: _refetch}] = useAtom(projectsQueryAtom)
-    // Read via projectsAtom (not raw query data) so demo projects stay hidden
     const projects = useAtomValue(projectsAtom)
     const project = useAtomValue(projectAtom)
     const projectId = useAtomValue(projectIdAtom)
     const isProjectId = !!projectId
     const queryClient = useQueryClient()
     const setLastNonDemoProject = useSetAtom(lastNonDemoProjectAtom)
+    // Projects carry no demo flag any more; the demo workspace is an organization flag.
+    const selectedOrg = useAtomValue(selectedOrgAtom)
+    // Until the project's own organization has loaded, its demo flag is unknown, and a
+    // demo project must not be saved as the "return to your workspace" target.
+    const projectOrgLoaded =
+        Boolean(selectedOrg?.id) && selectedOrg?.id === project?.organization_id
+    const isDemoWorkspace = Boolean(selectedOrg?.flags?.is_demo)
 
     useEffect(() => {
         if (!project?.project_id) return
         const workspaceKey = project.workspace_id || project.organization_id || null
         cacheLastUsedProjectId(workspaceKey, project.project_id)
-        if (!project.is_demo && workspaceKey) {
+        if (projectOrgLoaded && !isDemoWorkspace && workspaceKey) {
             setLastNonDemoProject({
                 workspaceId: workspaceKey,
                 projectId: project.project_id,
@@ -37,7 +45,8 @@ export const useProjectData = () => {
         project?.organization_id,
         project?.project_id,
         project?.workspace_id,
-        project?.is_demo,
+        projectOrgLoaded,
+        isDemoWorkspace,
         setLastNonDemoProject,
     ])
 

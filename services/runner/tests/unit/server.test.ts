@@ -8,6 +8,7 @@
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/server.test.ts)
  */
 import { turnLogUnmoved } from "../utils/turn-log.ts";
+import { driveSigns } from "../utils/drive-sign.ts";
 import { afterEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 import * as http from "node:http";
@@ -25,9 +26,12 @@ import {
   type RunAgent,
 } from "../../src/server.ts";
 import type { SessionEnvironment } from "../../src/engines/sandbox_agent.ts";
+import { runSandboxAgent } from "../../src/engines/sandbox_agent.ts";
 import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
 import type { KillSessionSandboxes } from "../../src/engines/sandbox_agent/kill-by-label.ts";
 import { HEARTBEAT_INTERVAL_SECONDS } from "../../src/sessions/contract.ts";
+import { AcquireAbortedError } from "../../src/environment/acquire-abort.ts";
+import { PREVIOUS_TEARDOWN_STUCK_MESSAGE } from "../../src/engines/sandbox_agent/session-pool.ts";
 import { REPLICA_ID } from "../../src/sessions/alive.ts";
 import {
   liveExecutions,
@@ -144,6 +148,33 @@ describe("createAgentServer", () => {
       const body = (await res.json()) as { ok: boolean; output: string };
       assert.equal(body.ok, true);
       assert.equal(body.output, "hi");
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /run accepts a field it does not know and passes the drive fields to the engine", async () => {
+    // An older runner must keep running requests from a newer agent service (drive sharing).
+    let seen: Record<string, unknown> | undefined;
+    const s = await listen(async (request) => {
+      seen = request as Record<string, unknown>;
+      return { ok: true, output: "hi", events: [] };
+    });
+    try {
+      const res = await fetch(`${s.url}/run`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({
+          harness: "pi_core",
+          aFieldFromTheFuture: { nested: true },
+          drives: [{ kind: "agent" }, { kind: "project", slug: "notes", access: "read" }],
+          hasSessionDrive: false,
+        }),
+      });
+      assert.equal(res.status, 200);
+      assert.deepEqual(seen?.aFieldFromTheFuture, { nested: true });
+      assert.deepEqual(seen?.drives, [{ kind: "agent" }, { kind: "project", slug: "notes", access: "read" }]);
+      assert.equal(seen?.hasSessionDrive, false);
     } finally {
       await s.close();
     }
@@ -723,6 +754,7 @@ describe("createAgentServer", () => {
         return { ok: true, output: "must not run" };
       },
       readLatestTurnIndex: turnLogUnmoved,
+      signDrive: driveSigns,
       async runCold() {
         return { ok: false, error: "must not run cold fallback" };
       },
@@ -809,7 +841,430 @@ describe("createAgentServer", () => {
         1,
         "the run outcome is reported once",
       );
-      assert.equal(records.at(-1)?.result.ok, false);
+      assert.equal(
+        records.filter(
+          (record) => record.kind === "event" && record.event?.type === "error",
+        ).length,
+        0,
+        "a user Stop does not reach the client as an error event",
+      );
+      assert.equal(records.at(-1)?.result.ok, true);
+      assert.equal(records.at(-1)?.result.stopReason, "cancelled");
+    } finally {
+      vi.useRealTimers();
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  // The Stop can land even earlier than the test above: `acquireEnvironmentOnce` calls
+  // `throwIfAcquireAborted(signal)` twice BEFORE its own try block (environment.ts ~460/~467),
+  // so an abort there THROWS out of `acquireEnvironment` instead of returning `{ ok: false }`.
+  // Neither `coldAndPark`'s try (it wraps only `engine.runTurn`) nor `awaitTurnOrAbandon`
+  // converts it, so it reaches `server.ts`'s catch branch. That path is the cold-acquire Stop
+  // the issue reports, and it must end the same way: cancelled, with no error frame.
+  it("ends a user Stop that throws out of a cold acquire as cancelled", async () => {
+    let markAcquireStarted!: () => void;
+    const acquireStarted = new Promise<void>((resolve) => {
+      markAcquireStarted = resolve;
+    });
+    let runTurnCalls = 0;
+    const engine: KeepaliveEngine = {
+      async resolveKeepaliveMount() {
+        return null;
+      },
+      async acquireEnvironment(_request, signal) {
+        markAcquireStarted();
+        await new Promise<void>((resolve) => {
+          if (signal?.aborted) return resolve();
+          signal?.addEventListener("abort", () => resolve(), { once: true });
+        });
+        throw new AcquireAbortedError();
+      },
+      async runTurn() {
+        runTurnCalls += 1;
+        return { ok: true, output: "must not run" };
+      },
+      readLatestTurnIndex: turnLogUnmoved,
+      signDrive: driveSigns,
+      async runCold() {
+        return { ok: false, error: "must not run cold fallback" };
+      },
+    };
+    const run: RunAgent = (request, emit, signal) =>
+      runWithKeepalive(request, emit, signal, {
+        engine,
+        pool: new SessionPool<SessionEnvironment>({ poolMax: 1 }),
+        config: {
+          enabled: true,
+          ttlMs: 60_000,
+          approvalTtlMs: 60_000,
+          poolMax: 1,
+        },
+      });
+    const s = await listen(run);
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const ingested: Array<Record<string, any>> = [];
+    let heartbeatCount = 0;
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          heartbeatCount += 1;
+          return Response.json({
+            stream: { id: "stream-stop-thrown-acquire" },
+            is_current_turn: heartbeatCount === 1,
+          });
+        }
+        if (url.endsWith("/sessions/records/ingest")) {
+          ingested.push(JSON.parse(String(init?.body)));
+        }
+        return Response.json({});
+      });
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+
+    try {
+      const responsePromise = fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sandbox: "local",
+          sessionId: "session-stop-thrown-acquire",
+          runContext: { project: { id: "project-1" } },
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: `${s.url}/otlp/v1/traces`,
+                headers: { authorization: "Test platform authorization" },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "start slowly" }],
+        }),
+      });
+
+      await acquireStarted;
+      await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_SECONDS * 1000);
+      const response = await responsePromise;
+      const records = (await response.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+
+      assert.equal(runTurnCalls, 0, "the Stop landed before the turn started");
+      const endings = ingested.filter(
+        (record) => record.record_type === "done",
+      );
+      assert.equal(endings.length, 1, "the transcript has one terminal record");
+      assert.equal(
+        ingested.filter((record) => record.record_type === "error").length,
+        0,
+        "a user Stop does not persist an acquire error",
+      );
+      assert.deepEqual(endings[0].attributes, {
+        type: "done",
+        stopReason: "cancelled",
+      });
+      assert.equal(
+        records.filter(
+          (record) => record.kind === "event" && record.event?.type === "error",
+        ).length,
+        0,
+        "the thrown abort does not reach the client as an error event",
+      );
+      assert.equal(records.at(-1)?.result.ok, true);
+      assert.equal(records.at(-1)?.result.stopReason, "cancelled");
+    } finally {
+      vi.useRealTimers();
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  // A Stop that arrives AFTER the run already emitted and persisted a real terminal record must
+  // not rewrite that failure into a cancellation. The `!terminalRecordEmitted` half of the Stop
+  // rewrite in `server.ts` exists for exactly this run: it fails loudly, then the transport URL
+  // for the turn dies with the Stop label already on the controller.
+  it("keeps a real failure when a user Stop lands after its terminal record", async () => {
+    const realError = "model exploded";
+    let markRunStarted!: () => void;
+    const runStarted = new Promise<void>((resolve) => {
+      markRunStarted = resolve;
+    });
+    const run: RunAgent = async (_request, emit, signal) => {
+      emit?.({ type: "error", message: realError });
+      emit?.({ type: "done" });
+      markRunStarted();
+      await new Promise<void>((resolve) => {
+        if (signal?.aborted) return resolve();
+        signal?.addEventListener("abort", () => resolve(), { once: true });
+      });
+      throw new Error(realError);
+    };
+    const s = await listen(run);
+    const realFetch = globalThis.fetch.bind(globalThis);
+    let heartbeatCount = 0;
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          heartbeatCount += 1;
+          return Response.json({
+            stream: { id: "stream-stop-after-terminal" },
+            is_current_turn: heartbeatCount === 1,
+          });
+        }
+        return Response.json({});
+      });
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+
+    try {
+      const responsePromise = fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sandbox: "local",
+          sessionId: "session-stop-after-terminal",
+          runContext: { project: { id: "project-1" } },
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: `${s.url}/otlp/v1/traces`,
+                headers: { authorization: "Test platform authorization" },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "fail loudly" }],
+        }),
+      });
+
+      await runStarted;
+      await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_SECONDS * 1000);
+      const response = await responsePromise;
+      const records = (await response.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+
+      const result = records.at(-1)?.result;
+      assert.equal(result?.ok, false);
+      assert.equal(result?.error, realError);
+      assert.notEqual(
+        result?.stopReason,
+        "cancelled",
+        "a terminal record already written keeps its own ending",
+      );
+    } finally {
+      vi.useRealTimers();
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  // The two tests above use a FAKE engine, so they pin the transport's contract but not the real
+  // acquire. This one drives the REAL engine (`runSandboxAgent`) through the same HTTP server and
+  // aborts it inside `environment.ts`'s own acquire. Only the mount-signing network call is
+  // stubbed, through the documented `deps.signSessionMountCredentials` seam. The abort therefore
+  // makes the REAL `throwIfAcquireAborted(signal)` at environment.ts ~467 throw the REAL
+  // `AcquireAbortedError`, and the real `acquireEnvironment`/`runSandboxAgent` chain carries it to
+  // the transport. This is the closest this suite can get to a live cold provider without a
+  // deployment: the provider's own network behaviour is not exercised, but every line of the
+  // runner's acquire-and-report path is.
+  it("ends a user Stop inside the real engine's acquire as cancelled", async () => {
+    let markAcquireStarted!: () => void;
+    const acquireStarted = new Promise<void>((resolve) => {
+      markAcquireStarted = resolve;
+    });
+    // The real `prepareEnvironmentSetup` awaits this before its post-setup abort check. Blocking
+    // here holds acquire open until the Stop lands, then returning lets the REAL check throw.
+    const signSessionMountCredentials = (async (
+      _session: string,
+      options: { signal?: AbortSignal } = {},
+    ) => {
+      markAcquireStarted();
+      await new Promise<void>((resolve) => {
+        if (options.signal?.aborted) return resolve();
+        options.signal?.addEventListener("abort", () => resolve(), { once: true });
+      });
+      return null;
+    }) as never;
+    const run: RunAgent = (request, emit, signal) =>
+      runSandboxAgent(request, emit, signal, { signSessionMountCredentials });
+    const s = await listen(run);
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const ingested: Array<Record<string, any>> = [];
+    let heartbeatCount = 0;
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          heartbeatCount += 1;
+          return Response.json({
+            stream: { id: "stream-real-acquire-stop" },
+            is_current_turn: heartbeatCount === 1,
+          });
+        }
+        if (url.endsWith("/sessions/records/ingest")) {
+          ingested.push(JSON.parse(String(init?.body)));
+        }
+        return Response.json({});
+      });
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+
+    try {
+      const responsePromise = fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sandbox: "local",
+          sessionId: "session-real-acquire-stop",
+          runContext: { project: { id: "project-1" } },
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: `${s.url}/otlp/v1/traces`,
+                headers: { authorization: "Test platform authorization" },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "start slowly" }],
+        }),
+      });
+
+      await acquireStarted;
+      await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_SECONDS * 1000);
+      const response = await responsePromise;
+      const records = (await response.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+
+      assert.equal(
+        ingested.filter((record) => record.record_type === "error").length,
+        0,
+        "the real acquire abort does not persist an error",
+      );
+      const endings = ingested.filter(
+        (record) => record.record_type === "done",
+      );
+      assert.equal(endings.length, 1, "the transcript has one terminal record");
+      assert.deepEqual(endings[0].attributes, {
+        type: "done",
+        stopReason: "cancelled",
+      });
+      assert.equal(
+        records.filter(
+          (record) => record.kind === "event" && record.event?.type === "error",
+        ).length,
+        0,
+        "the real acquire abort does not reach the client as an error event",
+      );
+      const result = records.at(-1)?.result;
+      assert.equal(result?.ok, true);
+      assert.equal(result?.stopReason, "cancelled");
+    } finally {
+      vi.useRealTimers();
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  // A Stop label is not proof that the throw WAS the Stop. The pool raises
+  // `PREVIOUS_TEARDOWN_STUCK_MESSAGE` when the previous environment of the conversation is still
+  // tearing down, and a user can press Stop at the same moment. Reading only the label would
+  // persist a cancellation and report success, hiding an infrastructure fault as a user action.
+  // The catch branch keys on `AcquireAbortedError`, so an unrelated throw keeps its error.
+  it("keeps an unrelated failure when a user Stop lands at the same moment", async () => {
+    let markRunStarted!: () => void;
+    const runStarted = new Promise<void>((resolve) => {
+      markRunStarted = resolve;
+    });
+    const run: RunAgent = async (_request, _emit, signal) => {
+      markRunStarted();
+      await new Promise<void>((resolve) => {
+        if (signal?.aborted) return resolve();
+        signal?.addEventListener("abort", () => resolve(), { once: true });
+      });
+      // Not an acquire abort: the previous turn's teardown ran past its budget.
+      throw Object.assign(new Error(PREVIOUS_TEARDOWN_STUCK_MESSAGE), {
+        publicCode: "runner_error",
+      });
+    };
+    const s = await listen(run);
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const ingested: Array<Record<string, any>> = [];
+    let heartbeatCount = 0;
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          heartbeatCount += 1;
+          return Response.json({
+            stream: { id: "stream-stop-beside-failure" },
+            is_current_turn: heartbeatCount === 1,
+          });
+        }
+        if (url.endsWith("/sessions/records/ingest")) {
+          ingested.push(JSON.parse(String(init?.body)));
+        }
+        return Response.json({});
+      });
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+
+    try {
+      const responsePromise = fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sandbox: "local",
+          sessionId: "session-stop-beside-failure",
+          runContext: { project: { id: "project-1" } },
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: `${s.url}/otlp/v1/traces`,
+                headers: { authorization: "Test platform authorization" },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "start" }],
+        }),
+      });
+
+      await runStarted;
+      await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_SECONDS * 1000);
+      const response = await responsePromise;
+      const records = (await response.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+
+      const errors = ingested.filter((record) => record.record_type === "error");
+      assert.equal(errors.length, 1, "the real failure is persisted");
+      assert.equal(errors[0].attributes.message, PREVIOUS_TEARDOWN_STUCK_MESSAGE);
+      const endings = ingested.filter((record) => record.record_type === "done");
+      assert.equal(endings.length, 1, "the transcript has one terminal record");
+      assert.notEqual(
+        endings[0].attributes.stopReason,
+        "cancelled",
+        "an unrelated failure is not written down as a cancellation",
+      );
+      const result = records.at(-1)?.result;
+      assert.equal(result?.ok, false);
+      assert.equal(result?.error, PREVIOUS_TEARDOWN_STUCK_MESSAGE);
+      assert.notEqual(result?.stopReason, "cancelled");
     } finally {
       vi.useRealTimers();
       fetchSpy.mockRestore();
@@ -832,6 +1287,7 @@ describe("createAgentServer", () => {
         return { ok: true, output: "must not run" };
       },
       readLatestTurnIndex: turnLogUnmoved,
+      signDrive: driveSigns,
       async runCold() {
         return { ok: false, error: "must not run cold fallback" };
       },
@@ -1207,14 +1663,20 @@ describe("createAgentServer", () => {
   });
 
   for (const testCase of [
-    { name: "durable continuation", continuation: true, clientGone: false },
-    { name: "session-owned turn", continuation: false, clientGone: true },
+    {
+      name: "durable continuation",
+      suffix: "c",
+      fields: { controlCommandId: "command-close" },
+      clientGone: false,
+    },
+    { name: "detached session turn", suffix: "d", fields: { detached: true }, clientGone: false },
+    { name: "session-owned turn", suffix: "s", fields: {}, clientGone: true },
   ]) {
     it(`a ${testCase.name} whose caller closes mid-turn reports clientGone=${testCase.clientGone} to the park decision`, async () => {
       // The api dispatches an answered approval detached and closes the stream once the first
       // record arrives. That close must not read as a lost client, or the resumed warm sandbox is
-      // destroyed at turn end and the next message starts cold. Any other session-owned turn
-      // keeps "disconnect means destroy, never park".
+      // destroyed at turn end and the next message starts cold. A detached turn closes the same
+      // way on purpose. Any other session-owned turn keeps "disconnect means destroy, never park".
       vi.stubEnv("AGENTA_API_URL", "https://api.example.test/api");
       let markStarted: (() => void) | undefined;
       const started = new Promise<void>((resolve) => {
@@ -1266,12 +1728,10 @@ describe("createAgentServer", () => {
         request.end(
           JSON.stringify({
             harness: "pi_core",
-            sessionId: `session-close-${testCase.continuation ? "c" : "s"}`,
-            turnId: `turn-close-${testCase.continuation ? "c" : "s"}`,
+            sessionId: `session-close-${testCase.suffix}`,
+            turnId: `turn-close-${testCase.suffix}`,
             projectId: "project-1",
-            ...(testCase.continuation
-              ? { controlCommandId: "command-close", detached: true }
-              : {}),
+            ...testCase.fields,
             messages: [{ role: "user", content: "approved" }],
           }),
         );
@@ -1800,7 +2260,7 @@ describe("createAgentServer", () => {
     vi.stubEnv("AGENTA_API_URL", "https://agenta.example.test/api");
     let engineCredential: string | undefined;
     const s = await listen(async (_request, _emit, _signal, options) => {
-      engineCredential = options?.credential?.();
+      engineCredential = options?.credentialLease?.credential();
       return { ok: true, output: "done", events: [] };
     });
     const realFetch = globalThis.fetch.bind(globalThis);
@@ -1876,7 +2336,7 @@ describe("createAgentServer", () => {
     vi.stubEnv("AGENTA_API_INTERNAL_URL", "http://api:8000");
     let engineCredential: string | undefined;
     const s = await listen(async (_request, _emit, _signal, options) => {
-      engineCredential = options?.credential?.();
+      engineCredential = options?.credentialLease?.credential();
       return { ok: true, output: "done", events: [] };
     });
     const realFetch = globalThis.fetch.bind(globalThis);

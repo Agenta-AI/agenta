@@ -1,0 +1,97 @@
+---
+title: "Connect an agent to Discord"
+sidebar_label: "Connect Discord"
+description: "Put an Agenta agent in your Discord server, so people can mention it in a channel or send it direct messages."
+---
+
+Connect a Discord bot to an agent, and the agent answers people in your Discord server and in direct messages. You set this up in two places: the Discord Developer Portal, where you create the bot, and Agenta.
+
+The bot is your own. Agenta does not offer a shared Discord bot.
+
+## Before you start
+
+You need:
+
+- **A Discord account.**
+- **The Manage Server permission** in the server you want to add the bot to. Discord asks for it when you invite the bot.
+
+## 1. Create the bot in Discord
+
+1. Open the [Discord Developer Portal](https://discord.com/developers/applications) and click **New Application**. Give it a name, such as `Support agent`, and create it.
+2. Open the **Bot** page of the application.
+3. Click **Reset Token**, confirm, and copy the token. Discord shows the token only once. If you lose it, reset it again.
+
+## 2. Turn on the Message Content intent
+
+On the same **Bot** page, under **Privileged Gateway Intents**, turn on **Message Content Intent** and click **Save Changes**.
+
+Without this intent, the bot cannot read what people write, and Agenta refuses the connection.
+
+## 3. Connect the bot in Agenta
+
+1. Open the agent that should answer on Discord and go to its **Channels** section.
+2. Choose **Discord**.
+3. Paste the token into the **Bot token** field.
+4. Click **Connect bot**.
+
+Agenta checks the token with Discord, and checks that the Message Content intent is on, before it saves anything. If a check fails, nothing is stored. The token stays masked after you save it.
+
+## 4. Invite the bot to your server
+
+After the bot connects, Agenta shows an invite link.
+
+1. Click **Add to a server**.
+2. Pick your server and click **Authorize**.
+
+The link asks Discord for these permissions only: View Channels, Send Messages, Send Messages in Threads, Create Public Threads, Read Message History, Add Reactions, Attach Files, and Embed Links.
+
+To invite the bot to another server later, open the Discord connection on the agent's **Channels** section and click **Add to a server** again.
+
+## 5. Send a test message
+
+In a text channel of your server, mention the bot, for example `@Support agent what can you do?`. The agent replies in a new thread under your message.
+
+## Troubleshooting
+
+**"Discord rejected this bot token."** The token is wrong or was reset after you copied it. On the **Bot** page in the Developer Portal, click **Reset Token**, copy the new token, and connect again.
+
+**"Turn on the Message Content intent for this bot in the Discord Developer Portal, then try again."** The intent is off. Do [step 2](#2-turn-on-the-message-content-intent), then paste the same token again.
+
+**The bot does not answer in a private channel.** The invite link adds the bot to the server, but a private channel stays hidden from it until someone adds it to that channel. Open the channel settings, go to **Permissions**, click **Add members or roles**, and pick the bot.
+
+**"Could not check this bot token with Discord. Try again."** Agenta could not reach Discord. Wait a moment and connect again.
+
+**The bot does not answer in a channel.** Check that you mentioned the bot. In a server channel, the agent answers only a message that mentions it. Also check that the bot can see the channel: in the channel settings, open **Permissions** and make sure the bot's role has **View Channel**, **Send Messages**, **Create Public Threads** and **Send Messages in Threads**. The agent starts a thread for its reply, so it needs the thread permissions too.
+
+## How conversations work
+
+### Direct messages
+
+In a direct message, the agent answers every message. All messages in one direct message are one conversation. To start a new conversation, send `!new`.
+
+### Mentions in server channels
+
+In a server channel, the agent answers only a message that mentions the bot. It replies in a new thread started from that message. Each mention in the channel starts its own thread and its own conversation.
+
+Messages without a mention do not start a reply.
+
+### Follow-ups in a thread
+
+To continue a conversation, mention the bot again in its thread. The agent answers in the same conversation. Messages posted in the thread since its last answer reach the agent as context with the new mention.
+
+### Typing and long replies
+
+While the agent works, the channel shows the typing indicator, and a reaction appears on the message the agent is answering. The reaction changes when the agent finishes or fails. If the reply takes more than 30 seconds, the agent posts one message: "Working on it, I'll reply here when I'm done."
+
+The answer always arrives as new messages. Discord allows 2,000 characters in one message, so a longer answer is split into several messages, sent in order. A code block stays in one message when it fits in one.
+
+### Approvals
+
+When the agent needs approval before it runs a tool, it posts the request with **Approve** and **Deny** buttons. After someone clicks one, the buttons are removed and the message text stays.
+
+## Limits
+
+- The agent cannot send or receive files on Discord yet.
+- The bot has no slash commands. Type `!new` as a normal message.
+- The agent does not edit its messages while it works. The full answer arrives when it is done.
+- Disconnecting the bot in Agenta stops the agent from answering, but the bot stays in your servers. To remove it, kick it from each server in Discord.

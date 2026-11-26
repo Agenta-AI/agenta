@@ -1,28 +1,11 @@
-import type {SessionView} from "@agenta/annotation"
+import {SESSION_TABS} from "@agenta/annotation"
 import {testsetsListAtom, type Testset} from "@agenta/entities/testset"
 import type {EntitySelectionAdapter, ListQueryState, SelectionPathItem} from "@agenta/entity-ui"
 import type {Atom} from "jotai"
 
 import type {AddToTestsetTargetSelection} from "./type"
 
-export const SESSION_TABS: {key: SessionView; label: string}[] = [
-    {key: "annotate", label: "Annotate"},
-    {key: "list", label: "All Annotations"},
-    {key: "configuration", label: "Configuration"},
-]
-
 export const TAB_ITEMS = SESSION_TABS.map((tab) => ({key: tab.key, label: tab.label}))
-
-export const ADD_TO_TESTSET_COMMIT_MODES = [
-    {id: "existing", label: "Existing testset"},
-    {id: "new", label: "New testset"},
-]
-
-export const CREATE_TESTSET_FIELDS = {
-    modes: ["new"],
-    nameLabel: "Testset name",
-    defaultName: ({entity}: {entity: {name?: string} | null}) => entity?.name ?? "",
-}
 
 export const ADD_TO_TESTSET_TARGET_ADAPTER: EntitySelectionAdapter<AddToTestsetTargetSelection> = {
     name: "annotation-add-to-testset-target",

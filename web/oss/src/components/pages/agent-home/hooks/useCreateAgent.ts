@@ -75,6 +75,9 @@ export function useCreateAgent() {
                 template,
                 initialMessage: seedMessage,
                 setup,
+                // This app has no sharing controls, so every agent it creates stays visible to
+                // the whole project, as it was before sharing existed.
+                visibility: "project",
             })
             if (!created) return false
 

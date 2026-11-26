@@ -13,7 +13,7 @@ Custom roles are an EE feature: `AGENTA_ACCESS_ROLES` /
 `build_role_controls()` via a function-local `is_ee()`-guarded import. OSS always
 enforces the code-default catalog.
 
-Minima contract: every scope MUST expose `owner`, `admin`, and `viewer` with
+Minima contract: every scope MUST expose `owner`, `admin`, `member` and `viewer` with
 code-defined permissions. EE env overrides may add roles or customize permissions
 of non-minima roles, but the minima are always present and their slugs cannot be
 re-bound to a different permission set.
@@ -73,16 +73,27 @@ def _admin_permissions_for_scope(scope: str) -> List[str]:
     return [p.value for p in Permission.default_permissions(DefaultRole.ADMIN)]
 
 
+def _member_permissions_for_scope(scope: str) -> List[str]:
+    """Per-scope code-default permissions for the `member` minima role.
+
+    - `organization`: empty — orgs have no permission concept today.
+    - `workspace` and `project`: the code-default `DefaultRole.MEMBER` set.
+    """
+    if scope == "organization":
+        return []
+    return [p.value for p in Permission.default_permissions(DefaultRole.MEMBER)]
+
+
 def _minima_for(scope: str) -> List[Dict[str, Any]]:
-    """Return the required role entries for a scope (owner + admin + viewer).
+    """Return the required role entries for a scope (owner + admin + member + viewer).
 
     Application code relies on these slugs being present in every scope; the
     builder synthesizes them up front and re-applies them after any env
     overrides so they can never be dropped or relabeled.
 
-    `owner` is always wildcard. The permission sets for `admin` and `viewer`
-    vary per scope (see `_admin_permissions_for_scope` /
-    `_viewer_permissions_for_scope`): both are empty at organization scope
+    `owner` is always wildcard. The permission sets for `admin`, `member` and
+    `viewer` vary per scope (see the `_*_permissions_for_scope` helpers): all are
+    empty at organization scope
     (orgs have no permission concept today) and code-default elsewhere.
     """
     return [
@@ -99,6 +110,15 @@ def _minima_for(scope: str) -> List[Dict[str, Any]]:
                 else DefaultRole.get_description(DefaultRole.ADMIN)
             ),
             "permissions": _admin_permissions_for_scope(scope),
+        },
+        {
+            "role": RequiredRole.MEMBER.value,
+            "description": (
+                "Membership marker (no permissions)."
+                if scope == "organization"
+                else DefaultRole.get_description(DefaultRole.MEMBER)
+            ),
+            "permissions": _member_permissions_for_scope(scope),
         },
         {
             "role": RequiredRole.VIEWER.value,
@@ -123,11 +143,7 @@ def _default_roles() -> Dict[str, List[Dict[str, Any]]]:
     `AGENTA_ACCESS_ROLES` in EE.
     """
     default_extras: List[Dict[str, Any]] = []
-    minima_slugs = {
-        RequiredRole.OWNER.value,
-        RequiredRole.ADMIN.value,
-        RequiredRole.VIEWER.value,
-    }
+    minima_slugs = {role.value for role in RequiredRole}
     for role in DefaultRole:
         if role.value in minima_slugs:
             continue

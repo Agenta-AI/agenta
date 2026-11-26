@@ -13,7 +13,9 @@ import {
     platformLabel,
 } from "./helpers"
 import type {
+    ChannelAudiencePerson,
     ChannelBehaviorState,
+    ChannelPerson,
     ChannelConnection,
     ChannelConnections,
     ChannelInstallMode,
@@ -109,6 +111,16 @@ export const WHATSAPP_SETUP: ChannelSetupInfo = {
     ],
 }
 
+export const DISCORD_SETUP: ChannelSetupInfo = {
+    manifest: null,
+    hostedAvailable: false,
+    fields: [{name: "bot_token", label: "Bot token", secret: true, required: true}],
+}
+
+/** The invite link the Discord setup document carries for application 123456789012345678. */
+export const DISCORD_INVITE_URL =
+    "https://discord.com/oauth2/authorize?client_id=123456789012345678&scope=bot&permissions=309237763136"
+
 const SLACK_MANIFEST = `display_information:
   name: Support agent
 features:
@@ -130,6 +142,47 @@ settings:
       - app_mention
       - message.im
 `
+
+const GUID_PATTERN = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+const GUID_ERROR = "Enter the ID as a GUID, for example 00000000-0000-0000-0000-000000000000."
+
+export const TEAMS_SETUP: ChannelSetupInfo = {
+    manifest: null,
+    hostedAvailable: false,
+    fields: [
+        {
+            name: "app_id",
+            label: "Application (client) ID",
+            secret: false,
+            required: true,
+            pattern: GUID_PATTERN,
+            patternError: GUID_ERROR,
+        },
+        {
+            name: "client_secret",
+            label: "Client secret value",
+            secret: true,
+            required: true,
+            help: "Copy the secret's Value, not its Secret ID.",
+        },
+        {
+            name: "tenant_id",
+            label: "Directory (tenant) ID",
+            secret: false,
+            required: true,
+            pattern: GUID_PATTERN,
+            patternError: GUID_ERROR,
+        },
+    ],
+}
+
+/** An empty zip archive, base64: enough for the download button to save a file. */
+export const TEAMS_APP_PACKAGE = {
+    format: "zip",
+    content: "UEsFBgAAAAAAAAAAAAAAAAAAAAAAAA==",
+    filename: "agenta-teams-app.zip",
+    link: null,
+}
 
 export const SLACK_SETUP: ChannelSetupInfo = {
     manifest: SLACK_MANIFEST,
@@ -165,6 +218,32 @@ export const whatsappHere: ChannelConnection = {
     handle: "+1 555 0100",
     webhookUrl: "https://cloud.agenta.ai/api/channels/whatsapp/events/",
     webhookVerifyToken: "1065550100.example-verify-token",
+}
+
+export const discordHere: ChannelConnection = {
+    connectionId: "cx-discord",
+    platform: "discord",
+    kind: "custom",
+    status: "connected",
+    dm: "allow",
+    group: "allow",
+    chats: [DIRECT_MESSAGES_CHAT, {name: "support", type: "channel"}],
+    agent: {id: AGENT_ID, name: AGENT_NAME},
+    connectedAt: "2026-11-07T10:12:00.000Z",
+    handle: "@SupportAgent",
+}
+
+export const teamsHere: ChannelConnection = {
+    connectionId: "cx-teams",
+    platform: "teams",
+    kind: "custom",
+    status: "connected",
+    dm: "allow",
+    group: "allow",
+    chats: [DIRECT_MESSAGES_CHAT, {name: "Support", type: "channel"}],
+    agent: {id: AGENT_ID, name: AGENT_NAME},
+    connectedAt: "2026-08-21T10:12:00.000Z",
+    webhookUrl: "https://agenta.example.com/api/channels/teams/events/",
 }
 
 export const telegramElsewhere: ChannelConnection = {
@@ -306,6 +385,8 @@ export interface ChannelStoryActionsOptions {
     /** How long after the install starts the Slack connection appears. Undefined = never. */
     slackConnectsAfterMs?: number
     connectCustomError?: string
+    /** What `discordInviteUrl` returns. Default: the fixture link. */
+    discordInviteUrl?: string | null
     connectHereError?: string
     disconnectError?: string
     /** The places each connection answers in, keyed by connection id. */
@@ -314,8 +395,10 @@ export interface ChannelStoryActionsOptions {
     candidates?: Record<string, ChannelSpaceCandidate[]>
     /** The switches each connection starts with, keyed by connection id. Default: both on. */
     behavior?: Record<string, ChannelBehaviorState>
-    /** The allowed Telegram accounts, keyed by connection id. Default: everyone. */
-    allowedUsers?: Record<string, string[]>
+    /** The people each agent answers, keyed by connection id. Default: everyone. */
+    audience?: Record<string, ChannelAudiencePerson[]>
+    /** What the people picker finds, keyed by connection id. */
+    people?: Record<string, ChannelPerson[]>
     /** The channel tool settings, keyed by connection id. Default: the defaults. */
     toolSettings?: Record<string, ChannelToolSettings>
     toolSettingsError?: string
@@ -323,7 +406,7 @@ export interface ChannelStoryActionsOptions {
     discoverError?: string
     addSpaceError?: string
     behaviorError?: string
-    allowedUsersError?: string
+    audienceError?: string
     credentialsError?: string
     /** Called with the fixture after every change, so a host component can re-render. */
     onChange?: (connections: ChannelConnections) => void
@@ -351,13 +434,14 @@ export const createChannelStoryActions = (
         slackInstallUrl = null,
         slackConnectsAfterMs,
         connectCustomError,
+        discordInviteUrl = DISCORD_INVITE_URL,
         connectHereError,
         disconnectError,
         spacesError,
         discoverError,
         addSpaceError,
         behaviorError,
-        allowedUsersError,
+        audienceError,
         credentialsError,
         toolSettingsError,
         onChange,
@@ -371,7 +455,8 @@ export const createChannelStoryActions = (
         ...options.candidates,
     }
     const behavior: Record<string, ChannelBehaviorState> = {...options.behavior}
-    const allowedUsers: Record<string, string[]> = {...options.allowedUsers}
+    const audience: Record<string, ChannelAudiencePerson[]> = {...options.audience}
+    const people: Record<string, ChannelPerson[]> = {...options.people}
     const toolSettings: Record<string, ChannelToolSettings> = {...options.toolSettings}
     let nextSpaceId = 0
 
@@ -418,13 +503,25 @@ export const createChannelStoryActions = (
             }
             return slackInstallUrl
         },
+        discordInviteUrl: async () => {
+            await delay(latencyMs)
+            return discordInviteUrl
+        },
+        teamsAppPackage: async () => {
+            await delay(latencyMs)
+            return TEAMS_APP_PACKAGE
+        },
         connectCustom: async (platform) => {
             await delay(latencyMs)
             if (connectCustomError) throw new Error(connectCustomError)
             const connection: ChannelConnection = {
-                ...{slack: slackCustomHere, telegram: telegramHere, whatsapp: whatsappHere}[
-                    platform
-                ],
+                ...{
+                    slack: slackCustomHere,
+                    telegram: telegramHere,
+                    whatsapp: whatsappHere,
+                    discord: discordHere,
+                    teams: teamsHere,
+                }[platform],
                 kind: "custom",
                 agent: {id: AGENT_ID, name: AGENT_NAME},
             }
@@ -442,6 +539,20 @@ export const createChannelStoryActions = (
             await delay(latencyMs)
             if (disconnectError) throw new Error(disconnectError)
             write({...store, [platform]: null})
+        },
+        turnOn: async (platform, connectionId) => {
+            await delay(latencyMs)
+            const on = (c: ChannelConnection | null) =>
+                c && c.connectionId === connectionId ? {...c, agentOff: false} : c
+            write({
+                ...store,
+                [platform]: on(store[platform]),
+                agentConnections: store.agentConnections && {
+                    ...store.agentConnections,
+                    [platform]: store.agentConnections[platform].map((c) => on(c) ?? c),
+                },
+                allConnections: store.allConnections?.map((c) => on(c) ?? c),
+            })
         },
         listSpaces: async (connectionId) => {
             await delay(latencyMs)
@@ -476,21 +587,40 @@ export const createChannelStoryActions = (
         },
         readBehavior: async (_platform, connectionId) => {
             await delay(latencyMs)
-            return behavior[connectionId] ?? {dm: true, group: true}
+            return behavior[connectionId] ?? {dm: true, group: true, spaceIds: null}
         },
         writeBehavior: async (_platform, connectionId, next) => {
             await delay(latencyMs)
             if (behaviorError) throw new Error(behaviorError)
             behavior[connectionId] = next
         },
-        readAllowedUsers: async (connectionId) => {
+        readAudience: async (connectionId) => {
             await delay(latencyMs)
-            return allowedUsers[connectionId] ?? []
+            return audience[connectionId] ?? []
         },
-        writeAllowedUsers: async (connectionId, ids) => {
+        writeAudience: async (connectionId, next) => {
             await delay(latencyMs)
-            if (allowedUsersError) throw new Error(allowedUsersError)
-            allowedUsers[connectionId] = ids
+            if (audienceError) throw new Error(audienceError)
+            audience[connectionId] = next
+        },
+        queryPeople: async (connectionId, text) => {
+            await delay(latencyMs)
+            const needle = text.trim().toLowerCase()
+            const found = (people[connectionId] ?? []).filter(
+                (person) =>
+                    !needle ||
+                    [person.name, person.email, person.username, person.id].some((value) =>
+                        (value ?? "").toLowerCase().includes(needle),
+                    ),
+            )
+            return {
+                people: found,
+                directory: {state: "ready", updatedAt: new Date().toISOString()},
+            }
+        },
+        refreshPeople: async () => {
+            await delay(latencyMs)
+            return {state: "ready", updatedAt: new Date().toISOString()}
         },
         updateCredentials: async (connectionId) => {
             await delay(latencyMs)

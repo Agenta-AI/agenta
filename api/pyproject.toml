@@ -1,6 +1,6 @@
 [project]
 name = "api"
-version = "0.122.9"
+version = "0.131.0"
 description = "Agenta API"
 requires-python = ">=3.11,<3.14"
 authors = [
@@ -15,7 +15,7 @@ dependencies = [
     # Keep this exact: a range would silently change those contracts underneath us, and
     # the contract case beside the OAuth storage asserts this exact version, so a relock
     # that moved within a range turned the branch red (M16).
-    "mcp==2.1.1",
+    "mcp==2.2.0",
     "uvicorn[standard]>=0.51,<0.52",
     "gunicorn>=26,<27",
     "httpx>=0.28,<0.29",
@@ -23,6 +23,7 @@ dependencies = [
     "python-dotenv>=1,<2",
     "python-multipart>=0.0.32,<0.0.33",
     "cryptography>=49,<51",
+    "pyjwt[crypto]>=2.15,<3",
     "sqlalchemy>=2,<3",
     "sqlalchemy-utils>=0.42,<0.43",
     "sqlalchemy-json>=0.7,<0.8",
@@ -40,19 +41,22 @@ dependencies = [
     "cachetools>=7,<8",
     "supertokens-python>=0.31,<0.32",
     "openai>=2,<3",
-    "litellm>=1.98,<2",
+    "litellm>=1.98,<2,!=1.107.0",
     "sendgrid>=6,<7",
     "stripe>=15,<16",
     "posthog>=7,<8",
     "dnspython>=2,<3",
     "opentelemetry-proto>=1,<2",
     "croniter>=6,<7",
-    "miniopy-async>=1,<2",
+    "miniopy-async>=1.21.3,<1.22",
     "pathspec>=0.12,<0.13",
     "stream-zip>=0.0.83,<0.1",
     "puremagic>=1.30,<2",
     "pyyaml>=6,<7",
     "google-auth>=2.40",
+    # The Discord Gateway socket only (connect, heartbeat, resume). Outbound
+    # Discord calls stay on httpx, as in the other channel adapters.
+    "discord.py==2.7.1",
 ]
 
 [dependency-groups]
@@ -76,6 +80,11 @@ dev = [
 
 [tool.uv]
 package = false
+# miniopy-async 1.21.x caps certifi below 2026, which blocks the certifi security fix
+# (GHSA-6q48-6c7w-9gw2). Its code only needs certifi's CA bundle, so lift the cap here.
+# miniopy-async must stay on 1.21.3: 1.21.1 returns a tuple from remove_objects and
+# storage.py iterates it with `async for`.
+override-dependencies = ["certifi>=2026.10.18"]
 
 [tool.uv.sources]
 agenta = { path = "../sdks/python", editable = true }

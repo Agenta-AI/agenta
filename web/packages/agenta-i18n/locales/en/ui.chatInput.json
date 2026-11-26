@@ -1,0 +1,21 @@
+{
+    "chatMessage": "Chat message",
+    "commands": "Commands",
+    "dismiss": "dismiss",
+    "enterInsert": "insert",
+    "enterOpen": "open",
+    "enterRun": "run",
+    "enterSend": "send",
+    "navigate": "navigate",
+    "newline": "Newline",
+    "noCommand": "No command or skill matches “{{query}}”",
+    "noMatchFor": "No match for “{{query}}”",
+    "openItem": "Open {{item}}",
+    "pasteBlocked": "Paste blocked. This would exceed the {{max}}-character limit by {{over}} characters ({{total}} total). Reduce the pasted content and try again.",
+    "pastingLarge": "Pasting large content…",
+    "send": "Send",
+    "sending": "Sending",
+    "stop": "Stop",
+    "stopping": "Stopping",
+    "typeMessage": "Type a message…"
+}

@@ -31,7 +31,9 @@ from oss.src.tasks.taskiq.shared.broker import (
     prune_idle_consumers,
 )
 
+from entrypoints.access import bootstrap_access
 from entrypoints.channel_adapters import build_channel_adapter_registry
+from entrypoints.session_child_updates import build_session_child_updates_service
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.events.service import EventsService
 from oss.src.core.secrets.services import VaultService
@@ -60,12 +62,18 @@ from oss.src.dbs.postgres.shared.engine import (
 from oss.src.dbs.postgres.tracing.dao import TracingDAO
 from oss.src.dbs.postgres.webhooks.dao import WebhooksDAO
 from oss.src.dbs.redis.sessions.watch import SessionsWatchPublisher
+from oss.src.dbs.redis.shared.engine import streams_client_options
 from oss.src.tasks.asyncio.channels.outbox import (
     ChannelsOutboxStreamWorker,
     ChannelsOutboxWorker,
 )
 from oss.src.tasks.asyncio.events.worker import EventsWorker
+from oss.src.tasks.asyncio.sessions.child_updates_worker import ChildUpdatesWorker
 from oss.src.tasks.asyncio.sessions.records_worker import RecordsWorker
+from oss.src.tasks.asyncio.sessions.streaming import (
+    SESSION_TURN_ENDS_STREAM_NAME,
+    SESSIONS_STREAM_NAME,
+)
 from oss.src.tasks.asyncio.shared.consumer import (
     StreamConsumer,
     run_consumers_until_shutdown,
@@ -124,6 +132,7 @@ async def _build_spans_worker(redis_client: Redis) -> StreamConsumer:
         redis_client=redis_client,
         stream_name="streams:spans",
         consumer_group="worker-spans",
+        turns_service=SessionTurnsService(turns_dao=SessionTurnsDAO()),
     )
 
 
@@ -133,6 +142,8 @@ async def _build_records_worker(redis_client: Redis) -> StreamConsumer:
         service=RecordsService(
             records_dao=RecordsDAO(),
             executions_dao=SessionExecutionsDAO(),
+            # The structured part of a child update, read from its input row.
+            inputs_dao=SessionInputsDAO(),
         ),
         redis_client=redis_client,
         stream_name=RECORD_STREAM_NAME,
@@ -240,8 +251,16 @@ async def _build_sessions_worker(redis_client: Redis) -> StreamConsumer:
     return ChannelsOutboxStreamWorker(
         outbox=outbox,
         redis_client=redis_client,
-        stream_name="streams:sessions",
+        stream_name=SESSIONS_STREAM_NAME,
         consumer_group="worker-sessions-channels-outbox",
+    )
+
+
+async def _build_child_updates_worker(redis_client: Redis) -> StreamConsumer:
+    return ChildUpdatesWorker(
+        service=build_session_child_updates_service(),
+        redis_client=redis_client,
+        stream_name=SESSION_TURN_ENDS_STREAM_NAME,
     )
 
 
@@ -275,11 +294,13 @@ async def main_async() -> int:
         if is_ee():
             bootstrap_entitlements_services()
 
-        # socket_timeout=None: XREADGROUP(block=5000ms) would otherwise trip the socket timeout.
+        bootstrap_access()
+
+        # The socket timeout outlasts XREADGROUP(block=5000ms), see streams_client_options.
         redis_client = Redis.from_url(
             env.redis.uri_durable,
             decode_responses=False,
-            socket_timeout=None,
+            **streams_client_options(),
         )
 
         builders = {
@@ -295,6 +316,11 @@ async def main_async() -> int:
         consumers: List[StreamConsumer] = [
             await builders[name](redis_client) for name in streams
         ]
+        # The `sessions` loop also runs the producer of child updates, beside the
+        # channels outbox, on its own stream: an explicit selector that names
+        # `sessions` gets both, so no deployment needs a new selector name.
+        if "sessions" in streams:
+            consumers.append(await _build_child_updates_worker(redis_client))
 
         for consumer in consumers:
             await _initialize_consumer(consumer)

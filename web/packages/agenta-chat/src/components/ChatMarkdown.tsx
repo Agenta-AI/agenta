@@ -20,8 +20,7 @@ import {
     withExplicitRelativeLinks,
 } from "@agenta/entity-ui/drive"
 import {useSettledValue} from "@agenta/shared/hooks"
-import {createCodePlugin, type CodeHighlighterPlugin} from "@streamdown/code"
-import {math} from "@streamdown/math"
+import type {CodeHighlighterPlugin} from "@streamdown/code"
 import {
     defaultRehypePlugins,
     Streamdown,
@@ -29,6 +28,14 @@ import {
     type IconMap,
     type ThemeInput,
 } from "streamdown"
+
+import {
+    detectMarkdownPlugins,
+    lazyMarkdownPlugin,
+    useLazyMarkdownPlugin,
+} from "./chatMarkdownPlugins"
+import {ChatTable, ChatTableCell} from "./ChatTable"
+import type {HastNode as TableHastNode} from "./chatTableModel"
 
 /** Host-supplied renderer for a code span / relative href that may name an agent file. */
 export interface ChatMarkdownLinkResolver {
@@ -356,6 +363,19 @@ export const chatMarkdownComponents: Components = {
     ),
     p: Paragraph,
     li: ListItem,
+    table: ({node, children}) => (
+        <ChatTable node={node as TableHastNode | undefined}>{children}</ChatTable>
+    ),
+    th: ({node, style, children}) => (
+        <ChatTableCell as="th" node={node as TableHastNode | undefined} style={style}>
+            {children}
+        </ChatTableCell>
+    ),
+    td: ({node, style, children}) => (
+        <ChatTableCell as="td" node={node as TableHastNode | undefined} style={style}>
+            {children}
+        </ChatTableCell>
+    ),
 }
 
 /** Streamdown's own list, plus one plugin BEFORE its harden gate; the prop replaces the defaults. */
@@ -386,18 +406,21 @@ const aliasLanguage = <T extends string>(language: T): T =>
  * themes win over that prop, so the pre-built `code` export silently kept GitHub's palette.
  * Wrapped so our aliases apply before the plugin decides whether it can highlight at all.
  */
-const shiki = createCodePlugin({themes: SHIKI_THEMES})
-const code: CodeHighlighterPlugin = {
-    ...shiki,
-    supportsLanguage: (language) => shiki.supportsLanguage(aliasLanguage(language)),
-    highlight: (options, callback) =>
-        shiki.highlight({...options, language: aliasLanguage(options.language)}, callback),
-}
+const codePlugin = lazyMarkdownPlugin(async (): Promise<CodeHighlighterPlugin> => {
+    const {createCodePlugin} = await import("@streamdown/code")
+    const shiki = createCodePlugin({themes: SHIKI_THEMES})
+    return {
+        ...shiki,
+        supportsLanguage: (language) => shiki.supportsLanguage(aliasLanguage(language)),
+        highlight: (options, callback) =>
+            shiki.highlight({...options, language: aliasLanguage(options.language)}, callback),
+    }
+})
 
-/** KaTeX math ($…$ / $$…$$) + Shiki-highlighted fences; both tree-shaken plugin packages. */
-const MD_PLUGINS = {math, code}
+/** KaTeX math ($$…$$), loaded like Shiki on the first message that needs it. */
+const mathPlugin = lazyMarkdownPlugin(() => import("@streamdown/math").then((m) => m.math))
 
-/** Copy button on fences; no per-table/mermaid chrome. */
+/** Copy button on fences; tables draw their own chrome (`ChatTable`), mermaid none. */
 const MD_CONTROLS = {code: {copy: true, download: false}, mermaid: false, table: false} as const
 
 export interface ChatMarkdownProps {
@@ -433,6 +456,10 @@ const ChatMarkdown = ({
     icons,
 }: ChatMarkdownProps) => {
     const [claims] = useState(() => new FollowUpClaims())
+    const needs = detectMarkdownPlugins(content)
+    const math = useLazyMarkdownPlugin(mathPlugin, needs.math)
+    const code = useLazyMarkdownPlugin(codePlugin, needs.code)
+    const plugins = useMemo(() => ({math, code}), [math, code])
     return (
         <LinkResolverContext.Provider value={useLinkResolver ?? null}>
             <FollowUpClaimsContext.Provider value={claims}>
@@ -442,7 +469,10 @@ const ChatMarkdown = ({
                         .join(" ")}
                     components={chatMarkdownComponents}
                     rehypePlugins={MD_REHYPE_PLUGINS}
-                    plugins={MD_PLUGINS}
+                    plugins={plugins}
+                    // Finished blocks are memoized on their text, so a plugin that lands after
+                    // them only takes effect on a new tree.
+                    key={`${Boolean(math)}:${Boolean(code)}`}
                     controls={MD_CONTROLS}
                     icons={icons}
                     shikiTheme={SHIKI_THEMES}

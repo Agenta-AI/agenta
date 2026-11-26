@@ -1,0 +1,17 @@
+{
+    "title": "你的 API 密钥",
+    "hint": "OpenAI、Anthropic、Gemini 以及另外 {{more}} 个。",
+    "saved": "已安全保存。你可以在任何 Agent 上使用它。",
+    "using": "正在使用 {{name}}。",
+    "usingMore": "正在使用 {{name}} 以及另外 {{more}} 个。",
+    "cancel": "取消",
+    "add": "添加密钥",
+    "save": "保存",
+    "keyLabel": "API 密钥",
+    "provider": "供应商",
+    "providerCount": "{{total}} 个供应商",
+    "search": "搜索供应商",
+    "noMatch": "没有匹配的供应商",
+    "invalid": "这看起来不是有效的密钥。",
+    "saveFailed": "无法保存此密钥。请重试。"
+}

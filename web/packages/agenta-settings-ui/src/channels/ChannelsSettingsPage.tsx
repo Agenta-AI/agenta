@@ -1,5 +1,8 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {useT, type CatalogKey} from "@agenta/i18n"
+import channelsPageCatalog from "@agenta/i18n/catalogs/channels.page"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Button} from "@agenta/ui/ui"
 import {GearSix, LinkBreak} from "@phosphor-icons/react"
 
@@ -50,27 +53,41 @@ export interface ChannelsSettingsPageProps {
     hostedHandle?: string
     /** Confirms a disconnect; without it the row menu offers no Disconnect. */
     confirm?: ConfirmDestructive
+    /** The project's name, for the agent step's audience note. */
+    projectName?: string
 }
 
-const PLATFORM_DESCRIPTIONS: Record<ChannelPlatform, string> = {
-    slack: "Mention or DM an agent in Slack",
-    telegram: "Chat with an agent through a hosted bot or your own",
-    whatsapp: "Let customers message an agent on WhatsApp",
+const PLATFORM_DESCRIPTIONS: Record<
+    ChannelPlatform,
+    CatalogKey<typeof channelsPageCatalog | typeof commonCatalog>
+> = {
+    slack: "channels.page.slackDescription",
+    telegram: "channels.page.telegramDescription",
+    whatsapp: "channels.page.whatsappDescription",
+    discord: "channels.page.discordDescription",
+    teams: "channels.page.teamsDescription",
 }
+
+type Translate = ReturnType<typeof useT>
 
 /** A connection's trailing mark: live, waiting on a first chat, or broken. */
 const connectionStatus = (
     connection: ChannelConnection,
+    t: Translate,
 ): Pick<SettingsCatalogItem, "status" | "statusLabel"> => {
     if (connection.status === "revoked")
-        return {status: "attention", statusLabel: "Needs attention"}
-    if (connection.status === "pending") return {status: "attention", statusLabel: "Not linked yet"}
-    if (connection.agent === null) return {status: "attention", statusLabel: "No agent"}
-    return {status: "connected", statusLabel: "Live"}
+        return {status: "attention", statusLabel: t("common.needsAttention")}
+    if (connection.status === "pending")
+        return {status: "attention", statusLabel: t("channels.page.notLinkedYet")}
+    if (connection.agent === null)
+        return {status: "attention", statusLabel: t("channels.page.noAgent")}
+    return {status: "connected", statusLabel: t("common.live")}
 }
 
-const agentText = (connection: ChannelConnection): string =>
-    connection.agent === null ? "No agent yet" : connection.agent?.name?.trim() || "Unknown agent"
+const agentText = (connection: ChannelConnection, t: Translate): string =>
+    connection.agent === null
+        ? t("channels.page.noAgentYet")
+        : connection.agent?.name?.trim() || t("channels.page.unknownAgent")
 
 /** Settings > Channels: every connection in the project, then the platforms to connect. */
 export const ChannelsSettingsPage = ({
@@ -87,9 +104,12 @@ export const ChannelsSettingsPage = ({
     renderPanel,
     hostedHandle = "@agenta",
     confirm,
+    projectName,
 }: ChannelsSettingsPageProps) => {
+    const t = useT(channelsPageCatalog, commonCatalog)
     const [retrying, setRetrying] = useState(false)
-    const agentName = agents.find((agent) => agent.id === agentId)?.name
+    const current = agents.find((agent) => agent.id === agentId)
+    const agentName = current?.name
 
     // The panel's agent changes before the host reloads for it, so derive its view here.
     const forAgent = useMemo(
@@ -116,6 +136,7 @@ export const ChannelsSettingsPage = ({
         hostedHandle,
         agents,
         onAgentChange,
+        projectName,
     })
     const {openRoute, openConnection: openPanelConnection} = panel
 
@@ -141,38 +162,45 @@ export const ChannelsSettingsPage = ({
         const connected = (connections.allConnections ?? []).map(
             (connection, index): SettingsCatalogItem => {
                 const {title, detail} = connectionRowText(connection, hostedHandle)
+                const owner = connection.agent?.id
+                // Answers as an agent this member cannot see: the row has nothing to open.
+                const hiddenOwner = !!owner && !agents.some((agent) => agent.id === owner)
                 return {
                     key: connection.connectionId ?? `${connection.platform}-${index}`,
                     logo: platformLogo(connection.platform, 18),
                     name: title,
-                    description: `${agentText(connection)} · ${detail}`,
-                    ...connectionStatus(connection),
-                    onOpen: () => openConnection(connection),
+                    description: `${agentText(connection, t)} · ${detail}`,
+                    ...connectionStatus(connection, t),
+                    onOpen: hiddenOwner ? undefined : () => openConnection(connection),
                     menu: (
                         <SettingsRowMenu
-                            label="Channel actions"
+                            label={t("channels.page.channelActions")}
                             items={[
                                 {
                                     key: "manage",
                                     label:
                                         connection.status === "pending"
-                                            ? "Finish linking"
-                                            : "Manage",
+                                            ? t("channels.page.finishLinking")
+                                            : t("common.manage"),
                                     icon: <GearSix size={14} />,
+                                    hidden: hiddenOwner,
                                     onClick: () => openConnection(connection),
                                 },
                                 {type: "divider"},
                                 {
                                     key: "disconnect",
-                                    label: "Disconnect",
+                                    label: t("common.disconnect"),
                                     icon: <LinkBreak size={14} />,
                                     danger: true,
                                     hidden: !confirm || !connection.connectionId,
                                     onClick: () =>
                                         confirm?.({
-                                            title: "Disconnect channel",
-                                            message: `${title} stops answering on ${platformLabel(connection.platform)}. You can connect it again later.`,
-                                            okText: "Disconnect",
+                                            title: t("channels.page.disconnectTitle"),
+                                            message: t("channels.page.disconnectMessage", {
+                                                name: title,
+                                                platform: platformLabel(connection.platform),
+                                            }),
+                                            okText: t("common.disconnect"),
                                             danger: true,
                                             onOk: async () => {
                                                 await actions.disconnect(
@@ -196,19 +224,34 @@ export const ChannelsSettingsPage = ({
                 key: platform,
                 logo: platformLogo(platform, 18),
                 name: platformLabel(platform),
-                description: PLATFORM_DESCRIPTIONS[platform],
+                description: t(PLATFORM_DESCRIPTIONS[platform]),
                 status: "available",
-                statusLabel: `Connect ${platformLabel(platform)}`,
+                statusLabel: t("channels.page.connectPlatform", {
+                    platform: platformLabel(platform),
+                }),
                 onOpen: () => startConnect(platform),
                 testId: `channels-platform-${platform}`,
             }),
         )
 
         return [
-            {key: "connected", label: "Connected", items: connected},
-            {key: "platforms", label: "Messaging platforms", items: platforms},
+            {key: "connected", label: t("common.connected"), items: connected},
+            {
+                key: "platforms",
+                label: t("channels.page.messagingPlatforms"),
+                items: platforms,
+            },
         ]
-    }, [actions, confirm, connections.allConnections, hostedHandle, openConnection, startConnect])
+    }, [
+        actions,
+        agents,
+        confirm,
+        connections.allConnections,
+        hostedHandle,
+        openConnection,
+        startConnect,
+        t,
+    ])
 
     const retry = async () => {
         setRetrying(true)
@@ -234,7 +277,7 @@ export const ChannelsSettingsPage = ({
                         >
                             <span className="min-w-0">{loadError}</span>
                             <Button variant="outline" disabled={retrying} onClick={retry}>
-                                {retrying ? "Retrying…" : "Try again"}
+                                {retrying ? t("common.retrying") : t("common.tryAgain")}
                             </Button>
                         </div>
                     ) : undefined

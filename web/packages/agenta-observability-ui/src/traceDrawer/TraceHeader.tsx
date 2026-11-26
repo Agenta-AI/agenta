@@ -7,6 +7,8 @@ import {
     transformTracesResponseToTree,
     transformTracingResponse,
 } from "@agenta/entities/trace"
+import {useT} from "@agenta/i18n"
+import drawerCatalog from "@agenta/i18n/catalogs/observabilityUi.traceDrawer"
 import type {TraceSpanNode} from "@agenta/observability"
 import {buildTraceUrlParams as buildTraceQueryParams} from "@agenta/observability"
 import {observabilityScopeAtom, useObservability} from "@agenta/observability"
@@ -26,14 +28,9 @@ import {EnhancedButton, Tag} from "@agenta/ui/components/presentational"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {ArrowLeft, CaretDown, CaretUp} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
-import dynamic from "next/dynamic"
 
+import {getTraceDrawerReferences} from "./referenceSlots"
 import type {NavSource, NavState, TraceHeaderProps} from "./traceHeaderTypes"
-
-const AddToQueuePopover = dynamic(
-    () => import("@agenta/annotation-ui/add-to-queue").then((m) => m.default),
-    {ssr: false},
-)
 
 const TraceHeader = ({
     activeTrace: propActiveTrace,
@@ -52,6 +49,7 @@ const TraceHeader = ({
     activeTraceIndex: _activeTraceIndex,
     setSelected,
 }: TraceHeaderProps) => {
+    const t = useT(drawerCatalog)
     const {traces: tableTracesRaw, hasMoreTraces, fetchMoreTraces} = useObservability()
     // `selectedAppIdAtom` in the app; the package reads the same value through its host seam.
     const appId = useAtomValue(observabilityScopeAtom).appId
@@ -468,6 +466,8 @@ const TraceHeader = ({
     const displayTrace = propActiveTrace || drawerTraces?.[0]
     const displayTraceId = getTraceIdFromNode(displayTrace) || ""
 
+    const {AddToQueuePopover} = getTraceDrawerReferences()
+
     return (
         <>
             {/* flex-wrap: on a phone-width panel the queue button drops to a second line
@@ -499,13 +499,18 @@ const TraceHeader = ({
                         </div>
                     )}
 
-                    <span className="shrink-0 text-sm font-medium">Trace</span>
-                    <TooltipWithCopyAction copyText={displayTraceId} title="Copy trace id">
+                    <span className="shrink-0 text-sm font-medium">
+                        {t("observabilityUi.traceDrawer.trace")}
+                    </span>
+                    <TooltipWithCopyAction
+                        copyText={displayTraceId}
+                        title={t("observabilityUi.traceDrawer.copyTraceId")}
+                    >
                         {/* min-w-0 + truncate: a 32-char id ends in an ellipsis on a narrow
                             panel rather than widening the row. */}
                         <Tag
                             className="min-w-0 font-mono bg-[var(--ag-c-0517290F)]"
-                            label={<span className="truncate">{`# ${displayTraceId || "-"}`}</span>}
+                            label={<span className="truncate">{`# ${displayTraceId || "—"}`}</span>}
                         />
                     </TooltipWithCopyAction>
                 </div>
@@ -515,7 +520,7 @@ const TraceHeader = ({
                     disabled={!activeTraceKey}
                 >
                     <EnhancedButton size="small" disabled={!activeTraceKey}>
-                        Add annotation queue
+                        {t("observabilityUi.traceDrawer.addAnnotationQueue")}
                     </EnhancedButton>
                 </AddToQueuePopover>
             </div>

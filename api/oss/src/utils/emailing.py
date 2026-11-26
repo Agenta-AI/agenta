@@ -1,7 +1,6 @@
 import asyncio
 import smtplib
 import ssl
-import time
 from email.message import EmailMessage
 
 import httpx
@@ -227,11 +226,11 @@ def _send_sendgrid_email_sync(
     return True
 
 
-def add_contact(
+async def add_contact(
     email: str,
     max_retries: int = 5,
     initial_delay: int = 1,
-):
+) -> httpx.Response | None:
     """
     Add a contact to the Loops audience, with retry and exponential backoff.
 
@@ -246,7 +245,7 @@ def add_contact(
         ConnectionError: If max retries reached and unable to connect to Loops API.
 
     Returns:
-        Optional[httpx.Response]: The Loops API response, or None when disabled.
+        httpx.Response | None: The Loops API response, or None when disabled.
     """
 
     if not env.loops.enabled:
@@ -260,17 +259,18 @@ def add_contact(
     retries = 0
     delay = initial_delay
 
-    while retries < max_retries:
-        response = httpx.post(url, json=data, headers=headers, timeout=20)
+    async with httpx.AsyncClient(timeout=20) as client:
+        while retries < max_retries:
+            response = await client.post(url, json=data, headers=headers)
 
-        # 429 indicates rate limiting; back off and retry.
-        if response.status_code == 429:
-            log.warning(f"[LOOPS] Rate limit hit. Retrying in {delay} seconds...")
-            time.sleep(delay)
-            retries += 1
-            delay *= 2
-        else:
-            return response
+            # 429 indicates rate limiting; back off and retry.
+            if response.status_code == 429:
+                log.warning(f"[LOOPS] Rate limit hit. Retrying in {delay} seconds...")
+                await asyncio.sleep(delay)
+                retries += 1
+                delay *= 2
+            else:
+                return response
 
     raise ConnectionError("Max retries reached. Unable to connect to Loops API.")
 

@@ -5,6 +5,7 @@
  * in one, a filter drop asserted in another) is talking about the same world. `github` and
  * `slack` deliberately share the `GET_ISSUE` key: that collision is what R17 tests.
  */
+import type { SeededDecision } from "../../src/sessions/interactions.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -37,6 +38,8 @@ import {
 } from "../../src/tools/relay.ts";
 import { sleep } from "../../src/tools/relay-protocol.ts";
 import type { RelayResponse } from "../../src/tools/relay-protocol.ts";
+import { fixedToolCallback } from "./tool-callback.ts";
+import type { ToolCallbackRuntime } from "../../src/tools/run-credential.ts";
 
 export const GATEWAY_POLICY: GatewayPolicy = {
   integrations: {
@@ -154,7 +157,10 @@ export function buildTestGatewayGate(opts?: {
   );
   const gate = buildGatewayToolGate({
     responder: new ApprovalResponder(plan, decisions, () => {}),
-    run: { emitEvent: (event) => void events.push(event) },
+    run: {
+      emitEvent: (event) => void events.push(event),
+      wasForceSettled: () => false,
+    },
     pause: {
       markPausedToolCall: (id) => void pausedToolCallIds.push(id),
       pause: () => {
@@ -307,6 +313,7 @@ export async function startGatewayRelay(opts?: {
   policy?: GatewayPolicy;
   /** Omit the gate to prove a run without one fails closed. */
   withoutGate?: boolean;
+  callback?: ToolCallbackRuntime;
 }): Promise<RunningGatewayRelay> {
   const dir = makeRelayDir();
   const harness =
@@ -317,7 +324,7 @@ export async function startGatewayRelay(opts?: {
     localRelayHost(),
     dir,
     opts?.specs ?? [RUN_TOOL_SPEC, SEARCH_TOOL_SPEC],
-    TOOL_CALLBACK,
+    opts?.callback ?? fixedToolCallback(TOOL_CALLBACK),
     undefined,
     undefined,
     undefined,
@@ -357,6 +364,7 @@ export interface ProductionWiredRelay {
  */
 export async function startRelayFromProductionWiring(
   request: AgentRunRequest,
+  seededDecisions?: readonly SeededDecision[],
 ): Promise<ProductionWiredRelay> {
   const harness = fakeHarness();
   delete (harness.deps as { responderFactory?: unknown }).responderFactory;
@@ -366,6 +374,7 @@ export async function startRelayFromProductionWiring(
     undefined,
     undefined,
     harness.deps,
+    seededDecisions ? { seededDecisions } : {},
   );
   assert.equal(
     result.ok,

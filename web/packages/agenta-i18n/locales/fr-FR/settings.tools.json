@@ -1,0 +1,16 @@
+{
+    "connectionDeleted": "Connexion supprimée",
+    "connectionRevoked": "Connexion révoquée",
+    "default": "Par défaut",
+    "deleteConnectionFailed": "Impossible de supprimer la connexion",
+    "deleteConnectionMessage": "Voulez-vous vraiment supprimer cette connexion ? Cette action est irréversible.",
+    "deleteConnectionTitle": "Supprimer la connexion",
+    "loadConnectionsFailed": "Impossible de charger vos connexions.",
+    "makeDefault": "Définir par défaut",
+    "makeDefaultFailed": "Impossible de la définir par défaut. Réessayez.",
+    "revokeConnectionFailed": "Impossible de révoquer la connexion",
+    "revokeConnectionMessage": "La connexion sera marquée comme non valide. Vous pourrez l’actualiser plus tard pour la réactiver.",
+    "revokeConnectionTitle": "Révoquer la connexion",
+    "runTool": "Exécuter l’outil",
+    "searchTools": "Rechercher des outils"
+}

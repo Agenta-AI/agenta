@@ -9,6 +9,8 @@
  */
 import {useEffect, useId, useMemo, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import schemaFormCatalog from "@agenta/i18n/catalogs/entityUi.schemaForm"
 import {dayjs} from "@agenta/shared/utils"
 import {
     Badge,
@@ -66,6 +68,7 @@ export function SelectControl({
     "aria-label"?: string
     "aria-labelledby"?: string
 }) {
+    const t = useT(schemaFormCatalog)
     const showClear = !!allowClear && value != null && value !== "" && !disabled
     return (
         <span className="group/select relative block w-full">
@@ -95,7 +98,7 @@ export function SelectControl({
             {showClear && (
                 <button
                     type="button"
-                    aria-label="Clear selection"
+                    aria-label={t("entityUi.schemaForm.clearSelection")}
                     onClick={(e) => {
                         e.stopPropagation()
                         onChange?.(undefined)
@@ -130,6 +133,7 @@ export function Chip({
     disabled?: boolean
     className?: string
 }) {
+    const t = useT(schemaFormCatalog)
     return (
         <Badge variant="default" className={cn("max-w-full", className)}>
             <span className="truncate">{label}</span>
@@ -138,7 +142,7 @@ export function Chip({
                 // button and a tabbable control there is an axe nested-interactive violation.
                 <span
                     role="button"
-                    aria-label={`Remove ${label}`}
+                    aria-label={t("entityUi.schemaForm.removeLabel", {label})}
                     onClick={(e) => {
                         e.stopPropagation()
                         onRemove()
@@ -258,6 +262,7 @@ export function ChipsInput({
     /** Suggested values, offered in a dropdown. Typing a value not in the list still works. */
     options?: string[]
 }) {
+    const t = useT(schemaFormCatalog)
     const [draft, setDraft] = useState("")
     const [open, setOpen] = useState(false)
     const [activeIndex, setActiveIndex] = useState(0)
@@ -412,7 +417,7 @@ export function ChipsInput({
             <PopoverAnchor asChild>{box}</PopoverAnchor>
             <PopoverContent
                 align="start"
-                aria-label="Suggestions"
+                aria-label={t("entityUi.schemaForm.suggestions")}
                 // Focus stays in the input — the list is driven by aria-activedescendant.
                 onOpenAutoFocus={(e) => e.preventDefault()}
                 onCloseAutoFocus={(e) => e.preventDefault()}
@@ -425,7 +430,7 @@ export function ChipsInput({
                     id={listId}
                     ref={listRef}
                     role="listbox"
-                    aria-label="Suggestions"
+                    aria-label={t("entityUi.schemaForm.suggestions")}
                     className="max-h-[300px] overflow-y-auto"
                 >
                     {matches.map((o, index) => (

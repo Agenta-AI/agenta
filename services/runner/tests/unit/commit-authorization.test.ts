@@ -52,6 +52,7 @@ import {
   createCommitAuthorizationState,
 } from "../../src/engines/sandbox_agent/approved-content.ts";
 import type { ResolvedToolSpec, RunContext } from "../../src/protocol.ts";
+import { fixedToolCallback } from "../utils/tool-callback.ts";
 
 const ENDPOINT = "https://agenta.example/api/tools/call";
 const BASE = "rev-1";
@@ -572,7 +573,7 @@ async function relayOnce(input: {
       localRelayHost(),
       dir,
       [input.spec],
-      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+      fixedToolCallback({ endpoint: ENDPOINT, authorization: "ApiKey secret" }),
       input.runContext,
       undefined,
       // No guard: this isolates the authorization check. On a non-Pi harness the guard would

@@ -12,6 +12,7 @@ from oss.src.core.sessions.inputs.service import SessionInputsService
 from oss.src.core.sessions.inputs.types import (
     SessionInputIdempotencyConflict,
 )
+from oss.tests.pytest.utils.principals import make_envelope
 
 
 class MemoryInputsDAO:
@@ -133,6 +134,7 @@ async def test_claim_for_execution_promotes_without_exposing_pending_input():
         execution_id="execution-1",
         content={"message": "Configure the agent."},
         idempotency_key="load-1",
+        envelope=make_envelope(),
     )
 
     assert claimed.state == PendingInputState.promoted
@@ -156,6 +158,7 @@ async def test_claim_for_execution_rejects_changed_content():
         execution_id="execution-1",
         content={"message": "Configure the agent."},
         idempotency_key="load-1",
+        envelope=make_envelope(),
     )
 
     with pytest.raises(SessionInputIdempotencyConflict):
@@ -166,6 +169,7 @@ async def test_claim_for_execution_rejects_changed_content():
             execution_id="execution-1",
             content={"message": "Different setup text."},
             idempotency_key="load-1",
+            envelope=make_envelope(),
         )
 
     assert first.state == PendingInputState.promoted
@@ -185,6 +189,7 @@ async def test_claim_for_execution_rejects_a_different_execution():
         execution_id="execution-1",
         content={"message": "Configure the agent."},
         idempotency_key="load-1",
+        envelope=make_envelope(),
     )
 
     with pytest.raises(SessionInputIdempotencyConflict):
@@ -195,6 +200,7 @@ async def test_claim_for_execution_rejects_a_different_execution():
             execution_id="execution-2",
             content={"message": "Configure the agent."},
             idempotency_key="load-1",
+            envelope=make_envelope(),
         )
 
 
@@ -212,6 +218,7 @@ async def test_busy_queue_is_durable_and_removable(monkeypatch):
         content={"message": "later"},
         policy="queue",
         idempotency_key="key-1",
+        envelope=make_envelope(),
     )
 
     assert admitted.action == "pending"
@@ -245,6 +252,7 @@ async def test_idle_input_executes_without_being_queued(monkeypatch):
         content={"message": "now"},
         policy="queue",
         idempotency_key="key-1",
+        envelope=make_envelope(),
     )
 
     assert admitted.action == "execute"
@@ -268,6 +276,7 @@ async def test_detached_executing_continuation_keeps_input_in_the_queue(monkeypa
         content={"message": "after the continuation"},
         policy="queue",
         idempotency_key="key-1",
+        envelope=make_envelope(),
     )
 
     assert admitted.action == "pending"
@@ -292,6 +301,7 @@ async def test_no_recoverable_continuation_keeps_idle_input_executable(monkeypat
         content={"message": "normal idle input"},
         policy="queue",
         idempotency_key="key-1",
+        envelope=make_envelope(),
     )
 
     assert admitted.action == "execute"
@@ -318,6 +328,7 @@ async def test_steer_targets_the_execution_reopened_by_continuation_resume(monke
         content={"message": "steer the resumed continuation"},
         policy="steer",
         idempotency_key="key-1",
+        envelope=make_envelope(),
     )
 
     assert admitted.execution_id == "continuation-2"
@@ -342,6 +353,7 @@ async def test_queue_idempotency_returns_same_input_and_rejects_conflicting_reus
         "content": {"message": "later"},
         "policy": "queue",
         "idempotency_key": "key-1",
+        "envelope": make_envelope(),
     }
 
     first = await service.admit(**kwargs)
@@ -365,6 +377,7 @@ async def test_idle_retry_returns_the_existing_promoted_input(monkeypatch):
         "content": {"message": "once"},
         "policy": "queue",
         "idempotency_key": "key-1",
+        "envelope": make_envelope(),
     }
 
     first = await service.admit(**kwargs)
@@ -394,6 +407,7 @@ async def test_steer_is_saved_ahead_of_queued_input(monkeypatch):
         content={"message": "later"},
         policy="queue",
         idempotency_key="queue-1",
+        envelope=make_envelope(),
     )
     steered = await service.admit(
         project_id=project_id,
@@ -402,6 +416,7 @@ async def test_steer_is_saved_ahead_of_queued_input(monkeypatch):
         content={"message": "now"},
         policy="steer",
         idempotency_key="steer-1",
+        envelope=make_envelope(),
     )
 
     pending = await service.list_pending(project_id=project_id, session_id="session-1")
@@ -439,6 +454,7 @@ async def test_queue_waits_for_unanswered_approval_even_after_execution_settles(
         content={"message": "after approval"},
         policy="queue",
         idempotency_key="queued-1",
+        envelope=make_envelope(),
     )
     assert admitted.action == "pending"
     assert admitted.input == dao.items[0]
@@ -468,6 +484,7 @@ async def test_steer_can_replace_unanswered_approval(monkeypatch):
         content={"message": "replace this"},
         policy="steer",
         idempotency_key="steer-1",
+        envelope=make_envelope(),
     )
     assert admitted.action == "execute"
     assert dao.items == []
@@ -495,6 +512,7 @@ async def test_idle_queue_does_not_wait_on_old_answered_approval(monkeypatch, st
         content={"message": "now"},
         policy="queue",
         idempotency_key="idle-1",
+        envelope=make_envelope(),
     )
     assert admitted.action == "execute"
 
@@ -536,6 +554,7 @@ async def test_approval_winning_queue_lock_keeps_input_behind_its_continuation(
         content={"message": "after the approved tool"},
         policy="queue",
         idempotency_key="queue-approval-race",
+        envelope=make_envelope(),
     )
     assert admitted.action == "pending"
     assert admitted.execution_id == "approved-continuation"

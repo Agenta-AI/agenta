@@ -490,6 +490,7 @@ const AgentComposerDock = ({
                                 onSubmit={handleComposerSubmit}
                                 disabled={onboardingActive ? ideHandoffActive : modelBlocked}
                                 hideSendButton={onboardingActive}
+                                hasTurns={messages.length > 0}
                                 placeholder={
                                     onboardingActive
                                         ? ideHandoffActive

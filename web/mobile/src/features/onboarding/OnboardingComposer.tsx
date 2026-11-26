@@ -1,16 +1,15 @@
 import {useRef} from "react"
 
 import {HomeTaskComposer} from "@agenta/home-ui"
+import {useT} from "@agenta/i18n"
+import creatorCatalog from "@agenta/i18n/catalogs/onboarding.creator"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 
 import {FOCUS_RING} from "@/lib/interactive"
 import {cn} from "@/lib/utils"
 
-import {ONBOARDING_COPY} from "./onboardingCopy"
 import type {OnboardingCreateState} from "./OnboardingCreateState"
 import {OnboardingCreateStatus} from "./OnboardingCreateStatus"
-
-const copy = ONBOARDING_COPY.creator
 
 /** The first message, sent to create: Home's composer in create mode, saved to the draft. */
 export const OnboardingComposer = ({
@@ -24,13 +23,15 @@ export const OnboardingComposer = ({
     create: OnboardingCreateState
     starters: readonly string[]
 }) => {
+    const t = useT(creatorCatalog)
     const inputRef = useRef<RichChatInputHandle | null>(null)
     const chooseModelRef = useRef<HTMLButtonElement | null>(null)
 
     return (
-        <div className="flex min-w-0 flex-col gap-2">
+        <div className="flex min-w-0 flex-col gap-3">
             <HomeTaskComposer
                 mode="create"
+                ring={false}
                 voice
                 attachments={create.attachments}
                 onStart={() => undefined}
@@ -53,8 +54,8 @@ export const OnboardingComposer = ({
             <OnboardingCreateStatus create={create} chooseModelRef={chooseModelRef} />
             <div
                 role="group"
-                aria-label={copy.starters}
-                className="-mx-3 flex gap-1 overflow-x-auto px-3 [mask-image:linear-gradient(90deg,#000_90%,transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                aria-label={t("onboarding.creator.starters")}
+                className="flex flex-wrap gap-1.5"
             >
                 {starters.map((text) => (
                     <button
@@ -62,7 +63,8 @@ export const OnboardingComposer = ({
                         key={text}
                         onClick={() => void inputRef.current?.setMarkdown(text)}
                         className={cn(
-                            "bg-foreground/[0.04] text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground min-h-7 shrink-0 cursor-pointer whitespace-nowrap rounded-md border-0 px-2 py-[5px] text-xs leading-4",
+                            // White on the grey card, outlined, so they read as buttons beside the white composer.
+                            "bg-background text-foreground/80 ring-border hover:text-foreground hover:ring-foreground/30 min-h-7 cursor-pointer rounded-md border-0 px-2.5 py-[5px] text-xs leading-4 ring-1 transition-shadow",
                             FOCUS_RING,
                         )}
                     >

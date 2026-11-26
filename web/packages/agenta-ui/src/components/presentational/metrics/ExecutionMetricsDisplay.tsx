@@ -23,6 +23,8 @@
 
 import {Fragment, memo, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiStatusCatalog from "@agenta/i18n/catalogs/ui.status"
 import {
     formatCurrency,
     formatLatency,
@@ -100,15 +102,18 @@ const TokenRow = ({label, value, dim}: {label: string; value: number; dim?: bool
 )
 
 /** A token total and its input, cache read, cache write and output parts, for a tooltip. */
-export const TokenBreakdownList = ({breakdown}: {breakdown: TokenBreakdown}) => (
-    <div className="min-w-[140px]">
-        <TokenRow label="Total Tokens" value={breakdown.total} />
-        <TokenRow label="Input" value={breakdown.input} dim />
-        <TokenRow label="Cache read" value={breakdown.cacheRead} dim />
-        <TokenRow label="Cache write" value={breakdown.cacheWrite} dim />
-        <TokenRow label="Output" value={breakdown.output} dim />
-    </div>
-)
+export const TokenBreakdownList = ({breakdown}: {breakdown: TokenBreakdown}) => {
+    const t = useT(uiStatusCatalog)
+    return (
+        <div className="min-w-[140px]">
+            <TokenRow label={t("ui.status.totalTokens")} value={breakdown.total} />
+            <TokenRow label={t("ui.status.input")} value={breakdown.input} dim />
+            <TokenRow label={t("ui.status.cacheRead")} value={breakdown.cacheRead} dim />
+            <TokenRow label={t("ui.status.cacheWrite")} value={breakdown.cacheWrite} dim />
+            <TokenRow label={t("ui.status.output")} value={breakdown.output} dim />
+        </div>
+    )
+}
 
 /**
  * Pure presentational component for displaying execution metrics
@@ -121,6 +126,7 @@ export const ExecutionMetricsDisplay = memo(function ExecutionMetricsDisplay({
     variant = "badge",
     show,
 }: ExecutionMetricsDisplayProps) {
+    const t = useT(uiStatusCatalog)
     // Calculate what to show
     const showLatency = (!show || show.includes("latency")) && metrics.durationMs !== undefined
     const showTokens = (!show || show.includes("tokens")) && metrics.totalTokens !== undefined
@@ -153,21 +159,21 @@ export const ExecutionMetricsDisplay = memo(function ExecutionMetricsDisplay({
     ) : metrics.promptTokens !== undefined && metrics.completionTokens !== undefined ? (
         <div className="min-w-[140px]">
             <div className="flex items-center justify-between gap-3">
-                <span>Total Tokens</span>
+                <span>{t("ui.status.totalTokens")}</span>
                 <span>{formattedTokens}</span>
             </div>
             <div className="flex items-center justify-between gap-3 opacity-85">
-                <span>Prompt</span>
+                <span>{t("ui.status.prompt")}</span>
                 <span>{formatTokens(metrics.promptTokens)}</span>
             </div>
             <div className="flex items-center justify-between gap-3 opacity-85">
-                <span>Completion</span>
+                <span>{t("ui.status.completion")}</span>
                 <span>{formatTokens(metrics.completionTokens)}</span>
             </div>
         </div>
     ) : (
         <div className="flex items-center justify-between gap-3 min-w-[120px]">
-            <span>Total Tokens</span>
+            <span>{t("ui.status.totalTokens")}</span>
             <span>{formattedTokens}</span>
         </div>
     )
@@ -197,7 +203,10 @@ export const ExecutionMetricsDisplay = memo(function ExecutionMetricsDisplay({
         if (showTokens && formattedTokens)
             segments.push({
                 key: "tokens",
-                label: `${formattedTokens} tokens`,
+                label: t("ui.status.tokenCount", {
+                    count: metrics.totalTokens ?? 0,
+                    tokens: formattedTokens,
+                }),
                 tooltip: tokensTooltip,
             })
         if (showCost && formattedCost) segments.push({key: "cost", label: formattedCost})
@@ -243,7 +252,9 @@ export const ExecutionMetricsDisplay = memo(function ExecutionMetricsDisplay({
                                 </Badge>
                             </span>
                         </TooltipTrigger>
-                        <TooltipContent side="top">{`Duration: ${formattedLatency}`}</TooltipContent>
+                        <TooltipContent side="top">
+                            {t("ui.status.durationValue", {duration: formattedLatency})}
+                        </TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
             )}
@@ -273,7 +284,9 @@ export const ExecutionMetricsDisplay = memo(function ExecutionMetricsDisplay({
                                 </Badge>
                             </span>
                         </TooltipTrigger>
-                        <TooltipContent side="top">{`Total Cost: ${formattedCost}`}</TooltipContent>
+                        <TooltipContent side="top">
+                            {t("ui.status.totalCost", {cost: formattedCost})}
+                        </TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
             )}

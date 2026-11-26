@@ -6,6 +6,7 @@
  */
 export {
     ChangeSections,
+    ChangeSummary,
     SectionCard,
     DetailCard,
     StatusTags,
@@ -18,3 +19,4 @@ export {
     kindStyle,
 } from "./ChangeSections"
 export type {ChangeSectionsProps} from "./ChangeSections"
+export {commitDiffTextNow} from "./commitDiffText"

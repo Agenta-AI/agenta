@@ -22,17 +22,21 @@ const PREFETCH = 2
 // Server-side search atom — set by the drawer, drives the query
 export const toolIntegrationsSearchAtom = atom("")
 
-// Active category filter (Composio `category` slug), or null for "all apps". Search
-// overrides it — an active search ignores the category axis (flat results).
+// Active category filter (Composio `category` slug), or null for "all apps".
 export const toolIntegrationsCategoryAtom = atom<string | null>(null)
+
+/** What the catalog asks the server: a search from three characters, within the category. */
+export const catalogQueryFilters = (search: string, category: string | null) => ({
+    search: search.length >= 3 ? search : "",
+    category,
+})
 
 export const toolCatalogIntegrationsInfiniteAtom =
     atomWithInfiniteQuery<ToolCatalogIntegrationsResponse>((get) => {
-        const search = get(toolIntegrationsSearchAtom)
-        const effectiveSearch = search.length >= 3 ? search : ""
-        // Search flattens across all categories, so the category filter only applies
-        // when there is no active search.
-        const category = effectiveSearch ? null : get(toolIntegrationsCategoryAtom)
+        const {search: effectiveSearch, category} = catalogQueryFilters(
+            get(toolIntegrationsSearchAtom),
+            get(toolIntegrationsCategoryAtom),
+        )
 
         return {
             queryKey: [

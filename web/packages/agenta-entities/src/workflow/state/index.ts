@@ -42,6 +42,7 @@ export {
 
 export {
     agentModelCandidatesAtomFamily,
+    builtinModelEndpointsQueryAtom,
     loadAgentModelCandidates,
     resolveAgentModelCandidateSources,
     type AgentModelCandidatesState,
@@ -84,6 +85,7 @@ export {
     workflowVariantsCachedListAtomFamily,
     workflowRevisionsQueryAtomFamily,
     workflowRevisionRefsByVariantAtomFamily,
+    workflowVariantNewestVersionAtomFamily,
     workflowRevisionsListDataAtomFamily,
     // Revision by workflow (for 2-level hierarchy)
     workflowRevisionsByWorkflowQueryAtomFamily,
@@ -92,6 +94,7 @@ export {
     type WorkflowListRef,
     // Single entity
     workflowQueryAtomFamily,
+    workflowIncludeArchivedAtom,
     workflowDraftAtomFamily,
     workflowBaseEntityAtomFamily,
     workflowEntityAtomFamily,
@@ -118,6 +121,7 @@ export {
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
     invalidateAgentCommittedRevisionCache,
+    revalidateAgentRevisionReads,
     seedCreatedWorkflowCache,
     // ListQueryState wrappers (for selection adapters and relations)
     workflowVariantsListQueryStateAtomFamily,
@@ -135,6 +139,7 @@ export {
     workflowLatestRevisionIdAtomFamily,
     workflowAppTypeAtomFamily,
     workflowLatestRevisionQueryAtomFamily,
+    reloadWorkflowLatestRevisionAtom,
     // Static catalog schema (agent-template etc.) — exported for early prefetch
     agTypeSchemaAtomFamily,
     // Artifact (workflow-level container — entity display name)
@@ -142,6 +147,7 @@ export {
     workflowArtifactScopedQueryAtomFamily,
     workflowVariantsScopedQueryAtomFamily,
     primeWorkflowArtifactCacheImperative,
+    primeWorkflowRevisionDetailCacheImperative,
 } from "./store"
 
 // Persisted agent-type map (cold-reload fallback for playgroundEarlyAgentStateAtom)
@@ -306,6 +312,7 @@ export {
     type CreateHumanEvaluatorParams,
     type UpdateHumanEvaluatorParams,
     type HumanEvaluatorMetric,
+    type CreatedHumanEvaluator,
     // Selection config
     evaluatorSelectionConfig,
     type EvaluatorSelectionConfig,

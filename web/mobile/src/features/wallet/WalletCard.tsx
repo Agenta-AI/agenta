@@ -1,5 +1,8 @@
 import type {ReactNode} from "react"
 
+import {formatNumber, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import walletCardCatalog from "@agenta/i18n/catalogs/wallet.card"
 import {motion} from "motion/react"
 
 import {AnimatedNumber} from "@/components/AnimatedNumber"
@@ -9,20 +12,14 @@ import {cn} from "@/lib/utils"
 
 import {useCardTilt} from "./useCardTilt"
 import {formatUsd, MUSD_PER_CREDIT} from "./walletFormat"
+import {withSlots} from "./withSlots"
 
 /** The Agenta mark, drawn in the card's ink. */
 const MARK =
     "M115.504 95.9335C115.221 98.4384 116.607 99.1695 118.671 98.2233C124.787 95.4184 149.253 82.6572 162.347 82.6572C166.663 82.6572 184.04 84.7181 149.838 117.918C121.062 145.85 113.265 139.835 111.236 137.807C105.889 132.459 108.817 117.798 109.715 110.453C110.039 107.807 109.134 106.985 106.571 108.131C83.5096 118.441 40.4169 140 16.5021 140C-29.3433 140 33.8427 64.9164 43.6743 52.9651C76.3083 13.2951 97.3726 0 109.234 0C130.713 0 121.893 39.2078 115.504 95.9335Z"
 
-const copy = {
-    brand: "Agenta",
-    label: "Wallet",
-    balance: "Balance",
-    unit: "credits",
-    usage: (usd: ReactNode) => <>≈ {usd} in usage</>,
-    rate: (usd: string) => `1 credit = ${usd}`,
-    active: "Active",
-}
+/** The product name is the same in every language. */
+const BRAND = "Agenta"
 
 const STATUS_DOT = {
     success: "bg-success",
@@ -56,7 +53,7 @@ export interface WalletCardProps {
 export const WalletCard = ({
     balanceMusd,
     emptyHint,
-    status = copy.active,
+    status,
     statusTone = "success",
     countUp = false,
     entrance = false,
@@ -65,7 +62,11 @@ export const WalletCard = ({
     size = "default",
     className,
 }: WalletCardProps) => {
+    const t = useT(commonCatalog, walletCardCatalog)
     const compact = size === "compact"
+    // No status given means "Active"; `null` hides the status.
+    const statusNode = status === undefined ? t("common.active") : status
+    const usage = (usd: ReactNode) => withSlots((values) => t("wallet.card.usage", values), {usd})
     const presets = useMotionPresets()
     const moves = !presets.reduced
     const {tilt, onPointerMove, onPointerLeave} = useCardTilt(interactive && moves)
@@ -134,12 +135,10 @@ export const WalletCard = ({
                         <svg aria-hidden viewBox="0 0 171 140" width="20" height="16">
                             <path fill="currentColor" d={MARK} />
                         </svg>
-                        <span className="text-[13px] font-semibold leading-[18px]">
-                            {copy.brand}
-                        </span>
+                        <span className="text-[13px] font-semibold leading-[18px]">{BRAND}</span>
                     </span>
                     <span className="text-[11px] font-medium uppercase leading-4 tracking-[0.04em] opacity-75">
-                        {copy.label}
+                        {t("wallet.card.label")}
                     </span>
                 </div>
                 {balanceMusd === null ? (
@@ -149,7 +148,7 @@ export const WalletCard = ({
                 ) : (
                     <div className={cn("relative flex flex-col", !compact && "gap-0.5")}>
                         <span className="text-[11px] font-medium uppercase leading-4 tracking-[0.04em] opacity-75">
-                            {copy.balance}
+                            {t("wallet.card.balance")}
                         </span>
                         <span className="flex min-w-0 items-baseline gap-2">
                             <span
@@ -160,7 +159,7 @@ export const WalletCard = ({
                                         : "text-[40px] leading-[44px] tracking-[-0.035em]",
                                 )}
                             >
-                                {figure(Math.round(credits).toLocaleString())}
+                                {figure(formatNumber(Math.round(credits)))}
                             </span>
                             <span
                                 className={cn(
@@ -170,17 +169,17 @@ export const WalletCard = ({
                                         : "text-[15px] leading-5",
                                 )}
                             >
-                                {copy.unit}
+                                {t("wallet.card.unit")}
                             </span>
                             {compact ? (
                                 <span className="truncate text-xs tabular-nums leading-4 opacity-75">
-                                    {copy.usage(figure(formatUsd(credits * MUSD_PER_CREDIT)))}
+                                    {usage(figure(formatUsd(credits * MUSD_PER_CREDIT)))}
                                 </span>
                             ) : null}
                         </span>
                         {compact ? null : (
                             <span className="text-[13px] tabular-nums leading-[18px] opacity-75">
-                                {copy.usage(figure(formatUsd(credits * MUSD_PER_CREDIT)))}
+                                {usage(figure(formatUsd(credits * MUSD_PER_CREDIT)))}
                             </span>
                         )}
                     </div>
@@ -192,12 +191,12 @@ export const WalletCard = ({
                     )}
                 >
                     <span className="text-xs leading-4 opacity-75">
-                        {copy.rate(formatUsd(MUSD_PER_CREDIT))}
+                        {t("wallet.card.rate", {usd: formatUsd(MUSD_PER_CREDIT)})}
                     </span>
-                    {status === null ? null : (
+                    {statusNode === null ? null : (
                         <span className="inline-flex items-center gap-1.5 text-xs font-medium leading-4">
                             <span className={cn("size-1.5 rounded-full", STATUS_DOT[statusTone])} />
-                            {status}
+                            {statusNode}
                         </span>
                     )}
                 </div>

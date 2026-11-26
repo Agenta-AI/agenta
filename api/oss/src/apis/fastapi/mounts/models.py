@@ -23,7 +23,6 @@ class PublicMountCreate(Slug, Header):
     model_config = ConfigDict(extra="forbid")
 
     session_id: Optional[str] = None
-    agent_id: Optional[str] = None
     flags: MountFlags = Field(default_factory=MountFlags)
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
@@ -44,7 +43,6 @@ class MountQueryRequest(BaseModel):
 
 class AgentMountQueryRequest(BaseModel):
     artifact_id: str
-    name: str = "default"
 
 
 class ArchiveMount(BaseModel):

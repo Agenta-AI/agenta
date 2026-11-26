@@ -12,7 +12,10 @@ went with it.
 
 from __future__ import annotations
 
+import textwrap
+
 from ..skills import SkillFile, SkillTemplate
+from ..tools.models import AGENTA_TOOLS
 
 # Reserved slug of the platform default skill. The default agent config template embeds the
 # skill by this slug; the server-side StaticWorkflowCatalog resolves the slug to the
@@ -70,7 +73,8 @@ it: a misplaced or misspelled field inside an entry commits fine and only bites 
 next runs. Get the shape right from this reference before you commit.
 """
 
-_CONFIG_SCHEMA_FIELDS = """\
+_CONFIG_SCHEMA_FIELDS = (
+    """\
 
 ## The whole object
 
@@ -81,6 +85,9 @@ _CONFIG_SCHEMA_FIELDS = """\
   "tools": [],
   "mcps": [],
   "skills": [],
+  "has_session_drive": true,
+  "drives": [{ "slug": "my-agent-files" }],
+  "home_drive": "my-agent-files",
   "harness": { "kind": "pi_core" },
   "runner": { "kind": "sidecar", "permissions": { "default": "allow" } },
   "sandbox": { "kind": "local" }
@@ -182,7 +189,12 @@ read it when a revision carries one, never write a new one:
 - `agenta_tools` — which Agenta tools the agent gets in every run, not only here:
   `{ "type": "agenta_tools", "tools": { "get_current_session": "allow", "rename_session":
   "allow" } }`. Each value is `allow` or `ask`; a tool not listed is off. Keep this entry when
-  you edit `tools`; the author manages it in the Agenta tools section.
+  you edit `tools`; the author manages it in the Agenta tools section. Its selector key is
+  `agenta_tools`, so one tool is one `set` on
+  `[..., {"list":"tools","key":"agenta_tools"}, "tools", "<tool>"]`. The Agenta tools:
+"""
+    + textwrap.indent(textwrap.fill(", ".join(AGENTA_TOOLS) + ".", width=94), "  ")
+    + """
 
 ### mcps
 
@@ -260,7 +272,12 @@ the run:
   `permissions` (optional) is the security boundary: `{ "network": { "mode": "on"|"off"|
   "allowlist", "allowlist": ["<CIDR>"] }, "filesystem": "on"|"readonly"|"off", "enforcement":
   "strict"|"best_effort" }`.
+- `has_session_drive`, `drives` and `home_drive` — the folders your files persist in. `drives`
+  lists `{ "slug": "<slug>", "access": "read"|"read-write" }`, each at `drives/<slug>/`.
+  `home_drive` names the drive that holds your tools and app files, also at `agent-files/`.
+  Your own commit cannot change these; a person changes them.
 """
+)
 
 # The commit chapter: the read-then-commit loop, the target grammar, the seven operations, and the failure modes the
 # contracts (docs/design/agent-config-editing/contracts/) actually produce. Every example
@@ -510,6 +527,11 @@ _CONFIG_SCHEMA_REFERENCE = (
     _CONFIG_SCHEMA_INTRO_ORDERED + _CONFIG_SCHEMA_FIELDS + _CONFIG_SCHEMA_COMMIT_ORDERED
 )
 
+# The field chapter alone, without the self-edit commit steps.
+AGENT_CONFIG_FIELDS_REFERENCE = (
+    "# The agent config, field by field\n" + _CONFIG_SCHEMA_FIELDS
+)
+
 # Bundled reference file: the `inputs_fields` template language. Verified against the runtime
 # resolver (agenta.sdk.utils.resolvers.resolve_target_fields / resolve_json_selector) and the
 # triggers dispatcher context builder (api/oss/src/tasks/asyncio/triggers/dispatcher.py +
@@ -566,8 +588,8 @@ you want the agent to receive.
 On a provider event:
 
 - `event.event_type` — the provider trigger slug.
-- `event.attributes` — the provider's event payload (the GitHub issue, the Slack message). This
-  is the part you map into the run.
+- `event.attributes` — the provider's event payload (the GitHub issue, the Slack message). The
+  platform adds it to the message; map one field only to put it inside your instruction.
 
 ## The canonical pattern
 
@@ -581,15 +603,35 @@ A schedule that runs a fixed job every fire:
 { "messages": [ { "role": "user", "content": "Run the daily digest now." } ] }
 ```
 
-A subscription that hands the agent the provider payload alongside a fixed instruction (no
-interpolation, so the payload rides as a SIBLING key, not inlined into the message):
+Your agent reads only `messages`; any other input key never reaches it. On a subscription, the
+platform adds the event to the last user message by default: a header with `event.event_type`,
+then the JSON of `event.attributes`.
+
+A subscription with a fixed instruction (the event is added after it):
+
+```json
+{ "messages": [ { "role": "user", "content": "Triage the GitHub issue below." } ] }
+```
+
+To put one field inside the text, write the content as text parts with one selector per part:
 
 ```json
 {
-  "messages": [ { "role": "user", "content": "Triage the GitHub issue in inputs.event." } ],
-  "event": "$.event.attributes"
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        { "type": "text", "text": "Triage the GitHub issue titled: " },
+        { "type": "text", "text": "$.event.attributes.issue.title" }
+      ]
+    }
+  ]
 }
 ```
+
+On a subscription, a value inside `messages` that is not a string is sent as text: a number or
+an object as its JSON, and a selector that resolves to nothing as an empty string. A schedule
+sends its values as they are, so write schedule message text as strings.
 
 Passing no `inputs_fields` at all gives the agent the raw context object as inputs — fine for a
 smoke test, but a real agent should get an explicit `messages` entry so the run starts from an
@@ -618,7 +660,7 @@ fields exactly as shown here — top-level `name` / `data` / ... — not wrapped
 }
 ```
 
-`create_subscription` — a provider event, with the payload mapped alongside a fixed instruction:
+`create_subscription` — a provider event with a fixed instruction (the event is added to it):
 
 ```json
 {
@@ -630,9 +672,8 @@ fields exactly as shown here — top-level `name` / `data` / ... — not wrapped
     "trigger_config": { "owner": "agenta-ai", "repo": "agenta" },
     "inputs_fields": {
       "messages": [
-        { "role": "user", "content": "Triage the GitHub issue in inputs.event." }
-      ],
-      "event": "$.event.attributes"
+        { "role": "user", "content": "Triage the GitHub issue below." }
+      ]
     }
   }
 }
@@ -641,13 +682,13 @@ fields exactly as shown here — top-level `name` / `data` / ... — not wrapped
 Don't forget:
 
 - A selector must be the WHOLE leaf. `"Summarize $.event.attributes"` stays that literal text; put
-  the selector on its own key instead.
+  the selector in its own text part instead.
 - Give every trigger an explicit imperative `messages` entry so the run starts from a command, not
   raw context.
 - `schedule` is five fields, UTC, with a one-minute floor. Convert the user's timezone yourself
   before writing it.
-- Map the provider payload as a sibling key, such as `"event": "$.event.attributes"`, never inlined
-  into the message text.
+- Do not map the provider payload to a sibling key such as `"event"`: the agent never reads it. The
+  event is already in the message.
 """
 
 
@@ -1106,8 +1147,8 @@ means a new `plugin.json` `name`: change it, then zip and validate again.
 ## Steps
 
 1. Run `gh auth status`. If it fails, call `request_secret` with `env_var: "GITHUB_TOKEN"`
-   and tell the person to create a token at https://github.com/settings/tokens. Never ask
-   them to paste a token in the chat.
+   (and `rejected: true` when `GITHUB_TOKEN` is already set) and tell the person to create
+   a token at https://github.com/settings/tokens. Never ask them to paste a token in the chat.
 2. Fork and clone into `/tmp` with a shallow clone:
 
        cd /tmp && gh repo fork Agenta-AI/agenta --clone -- --depth 1

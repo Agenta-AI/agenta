@@ -7,6 +7,8 @@
  */
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import permissionDrawerCatalog from "@agenta/i18n/catalogs/entityUi.permissionDrawer"
 import {
     Select,
     SelectContent,
@@ -15,13 +17,14 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@agenta/ui/ui"
+import {CaretUpDown} from "@phosphor-icons/react"
 
 export interface PermissionPolicyOption {
     value: string
     /** Trigger label (antd's `optionLabelProp="title"`). */
     title: string
-    /** Second line in the dropdown row. */
-    help: string
+    /** Second line in the dropdown row. Omit for a one-line option. */
+    help?: string
     /** Glyph before the label, in the trigger and in the menu row. Omit for a text-only option. */
     icon?: ReactNode
     /** Draw a divider above this option (the integration drawer sets it on "Custom"). */
@@ -46,15 +49,15 @@ export interface PermissionPolicySelectProps {
     triggerClassName?: string
     /** Menu width override. The panel is pinned to the trigger, which wraps a compact chip's rows. */
     contentClassName?: string
-    /**
-     * What the TRIGGER says, where that differs from what the menu calls the selected value. An
-     * MCP tool row names the value in the menu ("Follow agent policy") and says what the run will
-     * do with it at rest ("Inherits ask"), so a row never shows a bare value with no provenance.
-     */
-    triggerTitle?: string
     size?: "sm" | "default"
     /** Which trigger edge the menu lines up with. A row's trailing chip opens leftward ("end"). */
     align?: "start" | "end"
+    /**
+     * The canvas trigger (F02 f6, F03 f7): no leading glyph and an up-down icon. "field" also
+     * shows the selected option's help line under its title (a 44 px field); "chip" is the 28 px
+     * per-tool control. Absent, the trigger is unchanged.
+     */
+    canvas?: "field" | "chip"
 }
 
 export function PermissionPolicySelect({
@@ -62,16 +65,17 @@ export function PermissionPolicySelect({
     onChange,
     options,
     disabled,
-    "aria-label": ariaLabel = "Permission policy",
+    "aria-label": ariaLabel,
     open,
     onOpenChange,
     container,
     triggerClassName = "w-full",
     contentClassName,
-    triggerTitle,
     size,
     align,
+    canvas,
 }: PermissionPolicySelectProps) {
+    const t = useT(permissionDrawerCatalog)
     const selected = options.find((option) => option.value === value)
     return (
         <Select
@@ -81,12 +85,36 @@ export function PermissionPolicySelect({
             open={open}
             onOpenChange={onOpenChange}
         >
-            <SelectTrigger className={triggerClassName} size={size} aria-label={ariaLabel}>
+            <SelectTrigger
+                className={triggerClassName}
+                size={size}
+                icon={
+                    canvas ? (
+                        <CaretUpDown
+                            aria-hidden
+                            size={canvas === "field" ? 14 : 12}
+                            className="ml-auto shrink-0 text-colorTextTertiary"
+                        />
+                    ) : undefined
+                }
+                aria-label={ariaLabel ?? t("entityUi.permissionDrawer.permissionPolicy")}
+            >
                 <SelectValue>
-                    <span className="flex min-w-0 items-center gap-2">
-                        {selected?.icon}
-                        <span className="truncate">{triggerTitle ?? selected?.title}</span>
-                    </span>
+                    {canvas === "field" ? (
+                        <span className="flex min-w-0 flex-col items-start text-left">
+                            <span className="max-w-full truncate leading-5">{selected?.title}</span>
+                            {selected?.help ? (
+                                <span className="max-w-full truncate text-[12px] leading-4 text-colorTextTertiary">
+                                    {selected.help}
+                                </span>
+                            ) : null}
+                        </span>
+                    ) : (
+                        <span className="flex min-w-0 items-center gap-2">
+                            {canvas ? null : selected?.icon}
+                            <span className="truncate">{selected?.title}</span>
+                        </span>
+                    )}
                 </SelectValue>
             </SelectTrigger>
             <SelectContent container={container} className={contentClassName} align={align}>
@@ -97,8 +125,9 @@ export function PermissionPolicySelect({
                             value={option.value}
                             disabled={option.disabled}
                             // Neutral rows: hover and the picked row share the accent wash, and the
-                            // check alone marks the value. The check sits on the title line.
-                            className="items-start px-2 py-1.5 data-[state=checked]:bg-transparent data-[state=checked]:font-normal data-[highlighted]:data-[state=checked]:bg-accent [&[data-highlighted]:not([data-state=checked])]:bg-accent [&>svg]:mt-1 [&>svg]:text-foreground"
+                            // check alone marks the value. The check (14 px) sits on the title line;
+                            // the title is 13/400, the help 12/16 (canvas F04 f8).
+                            className="items-start px-2 py-2 data-[state=checked]:bg-transparent data-[state=checked]:font-normal data-[highlighted]:data-[state=checked]:bg-accent [&[data-highlighted]:not([data-state=checked])]:bg-accent [&>svg]:mt-[3px] [&>svg]:size-3.5 [&>svg]:text-foreground"
                         >
                             <span className="flex items-start gap-2.5">
                                 {option.icon ? (
@@ -106,13 +135,15 @@ export function PermissionPolicySelect({
                                         {option.icon}
                                     </span>
                                 ) : null}
-                                <span className="flex min-w-0 flex-col gap-0.5">
-                                    <span className="whitespace-nowrap font-medium max-sm:text-xs">
+                                <span className="flex min-w-0 flex-col">
+                                    <span className="whitespace-nowrap text-[13px] leading-5 max-sm:text-xs">
                                         {option.title}
                                     </span>
-                                    <span className="text-xs leading-snug text-colorTextTertiary max-sm:text-[11px]">
-                                        {option.help}
-                                    </span>
+                                    {option.help ? (
+                                        <span className="text-[12px] leading-4 text-colorTextTertiary max-sm:text-[11px]">
+                                            {option.help}
+                                        </span>
+                                    ) : null}
                                 </span>
                             </span>
                         </SelectItem>

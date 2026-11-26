@@ -246,6 +246,19 @@ Provider or transport failure returns an agent-actionable error:
 The prompt permits one retry for a temporary failure. It tells the model not to repeat
 equivalent searches indefinitely and never to invent a tool key.
 
+One failure is not temporary: the platform refuses the call because the turn's run credential
+expired (HTTP 401 with reason `expired_signature`). Search then returns the same terminal
+error every runner tool call returns in that case:
+
+```json
+{
+  "code": "run_credential_expired",
+  "message": "The platform credential for this turn expired.",
+  "retryable": false,
+  "next_step": "Report that the platform credential for this turn expired, and stop retrying."
+}
+```
+
 ## `run_tool`
 
 ### Input

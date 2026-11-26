@@ -6,6 +6,7 @@ import {
     gatewayRefusalMessage,
     isNameTakenRefusal,
     credentialRefusalStatus,
+    gatewayRefusalStatus,
     isCredentialRefusal,
 } from "../../src/mcpEndpoint/core/refusal"
 
@@ -260,5 +261,36 @@ describe("which relay failures are the chosen server refusing a credential", () 
     it("is not a failure with no answer behind it", () => {
         expect(isCredentialRefusal(new Error("socket hang up"))).toBe(false)
         expect(isCredentialRefusal(bare(502, {}))).toBe(false)
+    })
+})
+
+describe("a refusal from the generated client", () => {
+    // The generated client throws with the parsed body on `body`, not on `response.data`.
+    const fernRefusal = {
+        statusCode: 409,
+        body: {
+            detail: {
+                code: "server_not_discovered",
+                message: "A project admin must connect this server once first.",
+            },
+        },
+    }
+
+    it("reads the code from the body", () => {
+        expect(gatewayRefusalCode(fernRefusal)).toBe("server_not_discovered")
+    })
+
+    it("reads the message from the body", () => {
+        expect(gatewayRefusalMessage(fernRefusal)).toBe(
+            "A project admin must connect this server once first.",
+        )
+    })
+
+    it("reads the status, so a refused credential mint is not read as no answer", () => {
+        expect(gatewayRefusalStatus({statusCode: 403, body: {detail: "Forbidden"}})).toBe(403)
+    })
+
+    it("knows our own unauthorised answer, so a lapsed session is not a refused credential", () => {
+        expect(isCredentialRefusal({statusCode: 401, body: {detail: "Unauthorized"}})).toBe(false)
     })
 })

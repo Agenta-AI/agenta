@@ -1,0 +1,9 @@
+{
+    "download": "下载 {{name}}",
+    "pause": "暂停 {{name}}",
+    "play": "播放 {{name}}",
+    "remove": "移除 {{name}}",
+    "retry": "重试",
+    "retryNamed": "重试 {{name}}",
+    "view": "查看 {{name}}"
+}

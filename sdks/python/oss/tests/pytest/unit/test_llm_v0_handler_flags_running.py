@@ -9,7 +9,6 @@ reads `request.flags` there at all — there is no `request` param).
 
 from __future__ import annotations
 
-from contextlib import nullcontext
 from itertools import product
 from types import SimpleNamespace
 
@@ -75,11 +74,6 @@ def fake_llm(monkeypatch):
         lambda model, connection=None: {"model": model, "api_key": "test-key"},
     )
     monkeypatch.setattr(handlers.mockllm, "acompletion", acompletion)
-    monkeypatch.setattr(
-        handlers.mockllm,
-        "user_aws_credentials_from",
-        lambda _settings: nullcontext(),
-    )
     return fake_litellm
 
 

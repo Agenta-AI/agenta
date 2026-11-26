@@ -139,6 +139,87 @@ describe("buildPiModelRegistrationPlan (an id Pi does not carry)", () => {
   });
 });
 
+/**
+ * A stand-in for Pi's anthropic table, in Pi's own order: the first model carries a fallback list
+ * and a thinking flag that belong to it alone.
+ */
+const FABLE: PiBuiltinModel = {
+  id: "claude-fable-5",
+  compat: {
+    forceAdaptiveThinking: true,
+    supportsStrictTools: true,
+    allowedFallbackModels: [{ provider: "anthropic", model: "claude-opus-5" }],
+  },
+};
+const HAIKU: PiBuiltinModel = {
+  id: "claude-haiku-4-5",
+  compat: { supportsStrictTools: true },
+  reasoning: true,
+  contextWindow: 200000,
+};
+const HAIKU_DATED: PiBuiltinModel = {
+  id: "claude-haiku-4-5-20251001",
+  compat: { supportsStrictTools: true },
+};
+const anthropicRegistry: PiBuiltinRegistry = {
+  hasProvider: (provider) => provider === "anthropic",
+  models: () => [FABLE, HAIKU, HAIKU_DATED],
+};
+
+describe("buildPiModelRegistrationPlan (compat borrowed from a sibling)", () => {
+  it("never gives an unknown model another model's fallback list", () => {
+    for (const model of ["anthropic/claude-haiku-9", "anthropic/claude-zeta-1"]) {
+      const compat: Record<string, unknown> | undefined = buildPiModelRegistrationPlan(piRequest(model), anthropicRegistry)
+        ?.models[0].compat;
+      assert.equal(compat?.allowedFallbackModels, undefined, model);
+      assert.equal(compat?.forceAdaptiveThinking, undefined, model);
+    }
+  });
+
+  it("borrows from the same family when one exists", () => {
+    const plan = buildPiModelRegistrationPlan(
+      piRequest("anthropic/claude-haiku-9"),
+      anthropicRegistry,
+    );
+    assert.deepEqual(plan?.models[0], {
+      id: "claude-haiku-9",
+      compat: { supportsStrictTools: true },
+    });
+  });
+
+  it("keeps only what every sibling shares when no family matches", () => {
+    const plan = buildPiModelRegistrationPlan(
+      piRequest("anthropic/claude-zeta-1"),
+      anthropicRegistry,
+    );
+    assert.deepEqual(plan?.models[0].compat, { supportsStrictTools: true });
+  });
+
+  it("drops a fallback list even when the only sibling has one", () => {
+    const registry: PiBuiltinRegistry = {
+      hasProvider: (provider) => provider === "anthropic",
+      models: () => [FABLE],
+    };
+    const plan = buildPiModelRegistrationPlan(
+      piRequest("anthropic/claude-new-1"),
+      registry,
+    );
+    assert.deepEqual(plan?.models[0].compat, {
+      forceAdaptiveThinking: true,
+      supportsStrictTools: true,
+    });
+  });
+
+  it("drops the base model's fallback list from a routing variant", () => {
+    const plan = buildPiModelRegistrationPlan(
+      piRequest("anthropic/claude-fable-5:fast"),
+      anthropicRegistry,
+    );
+    assert.equal(plan?.models[0].compat?.allowedFallbackModels, undefined);
+    assert.equal(plan?.models[0].compat?.forceAdaptiveThinking, true);
+  });
+});
+
 describe("buildPiModelRegistrationPlan (no plan — the cases that must stay untouched)", () => {
   it("writes NO entry for a model the provider already has built in", () => {
     assert.equal(
@@ -322,9 +403,9 @@ describe("models newer than the pinned Pi catalog", () => {
     );
   });
 
-  // Pi 0.99.1 carries Sonnet 5.5 and GPT-6.1 Sol itself, so the runner registers nothing for
-  // them either (Sonnet 5.5's runner-side entry was dropped with the 0.99.1 bump).
-  it("leaves Sonnet 5.5 and GPT-6.1 Sol to the pinned catalog, which prices them", async () => {
+  // Pi carries Sonnet 5.5, GPT-6.1 Sol (since 0.99.1) and Haiku 5.5 (since 1.x) itself, so the
+  // runner registers nothing for them.
+  it("leaves Sonnet 5.5, GPT-6.1 Sol and Haiku 5.5 to the pinned catalog, which prices them", async () => {
     const registry = await loadPiBuiltinRegistry();
     assert.ok(registry);
 
@@ -334,8 +415,17 @@ describe("models newer than the pinned Pi catalog", () => {
     assert.deepEqual(pickRates(sonnet?.cost), {
       input: 2,
       output: 10,
-      cacheRead: 0.2,
+      cacheRead: 0.1,
       cacheWrite: 2.5,
+    });
+    const haiku = registry
+      .models("anthropic")
+      .find((model) => model.id === "claude-haiku-5-5");
+    assert.deepEqual(pickRates(haiku?.cost), {
+      input: 0.1,
+      output: 0.5,
+      cacheRead: 0.01,
+      cacheWrite: 0.125,
     });
     const sol = registry
       .models("openai")
@@ -358,6 +448,81 @@ describe("models newer than the pinned Pi catalog", () => {
       buildPiModelRegistrationPlan(piRequest("openai/gpt-6.1-sol"), registry),
       undefined,
     );
+    assert.equal(
+      buildPiModelRegistrationPlan(
+        piRequest("anthropic/claude-haiku-5-5"),
+        registry,
+      ),
+      undefined,
+    );
+  });
+
+  // Pi 1.5.2 does not carry GPT-6.2 Sol or Astra. Each registers on its predecessor's request
+  // surface with its own prices, so a run is not priced at $0.
+  it("registers GPT-6.2 Sol and Astra on their predecessors' request surface with their own prices", async () => {
+    const registry = await loadPiBuiltinRegistry();
+    assert.ok(registry);
+    const cases: Array<[string, string, Record<string, unknown>]> = [
+      ["gpt-6.2-sol", "gpt-6.1-sol", { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 }],
+      ["gpt-6.2-astra", "gpt-6-astra", { input: 8, output: 40, cacheRead: 0.4, cacheWrite: 10 }],
+    ];
+    for (const [id, base, rates] of cases) {
+      const builtin: { compat?: unknown; contextWindow?: number } | undefined = registry
+        .models("openai")
+        .find((model) => model.id === base);
+      assert.ok(builtin, base);
+      const plan = buildPiModelRegistrationPlan(piRequest(`openai/${id}`), registry);
+      assert.equal(plan?.builtinProvider, "openai");
+      const entry = plan?.models[0];
+      assert.equal(entry?.id, id);
+      assert.deepEqual(entry?.compat, builtin.compat, id);
+      assert.equal(entry?.reasoning, true, id);
+      assert.deepEqual(pickRates(entry?.cost as Record<string, unknown>), rates, id);
+      assert.equal((entry?.cost as { tiers?: Array<{ inputTokensAbove: number }> })?.tiers?.[0]?.inputTokensAbove, 272000, id);
+      assert.equal(entry?.contextWindow, builtin.contextWindow, id);
+      // Effort `none` is rejected, as on the predecessor.
+      assert.equal(entry?.thinkingLevelMap?.off, null, id);
+    }
+  });
+
+  // Hy4 Flash is an OpenRouter default that Pi 1.5.2 does not carry. Without an entry it would
+  // register as a text-only 128K model and lose tool-result images.
+  it("registers Hy4 Flash with Hy4's image input and context, at its own price", async () => {
+    const registry = await loadPiBuiltinRegistry();
+    assert.ok(registry);
+    const builtin:
+      | { input?: unknown; reasoning?: boolean; contextWindow?: number; maxTokens?: number }
+      | undefined = registry.models("openrouter").find((model) => model.id === "tencent/hy4");
+    assert.ok(builtin);
+    const plan = buildPiModelRegistrationPlan(
+      piRequest("openrouter/tencent/hy4-flash"),
+      registry,
+    );
+    assert.equal(plan?.builtinProvider, "openrouter");
+    const entry = plan?.models[0];
+    assert.equal(entry?.id, "tencent/hy4-flash");
+    assert.deepEqual(entry?.input, builtin.input);
+    assert.ok((entry?.input as string[] | undefined)?.includes("image"));
+    assert.equal(entry?.reasoning, builtin.reasoning);
+    assert.equal(entry?.contextWindow, builtin.contextWindow);
+    assert.equal(entry?.maxTokens, builtin.maxTokens);
+    assert.deepEqual(pickRates(entry?.cost as Record<string, unknown>), {
+      input: 0.035,
+      output: 0.1405,
+      cacheRead: 0.0015,
+      cacheWrite: 0,
+    });
+  });
+
+  it("gives an unknown anthropic model no fallback list against the real table", async () => {
+    const registry = await loadPiBuiltinRegistry();
+    assert.ok(registry);
+    for (const model of ["anthropic/claude-haiku-9", "anthropic/claude-zeta-1"]) {
+      const compat: Record<string, unknown> | undefined = buildPiModelRegistrationPlan(piRequest(model), registry)
+        ?.models[0].compat;
+      assert.equal(compat?.allowedFallbackModels, undefined, model);
+      assert.equal(compat?.forceAdaptiveThinking, undefined, model);
+    }
   });
 
   it("lists only models the pinned catalog still lacks", async () => {
@@ -397,7 +562,7 @@ describe("models newer than the pinned Pi catalog", () => {
       const addition = additions.get(id);
       assert.ok(addition, `${id} has no SDK catalog addition`);
       assert.deepEqual(
-        known.cost,
+        pickRates(known.cost as unknown as Record<string, unknown>),
         {
           input: addition.pricing.input_per_mtok,
           output: addition.pricing.output_per_mtok,

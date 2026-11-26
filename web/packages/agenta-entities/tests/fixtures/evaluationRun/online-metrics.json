@@ -1,0 +1,183 @@
+{
+    "run": {
+        "id": "01a20000-0000-7000-8000-00000000a001",
+        "name": "Support replies (live)",
+        "status": "running",
+        "flags": {
+            "is_live": true,
+            "is_active": true,
+            "is_closed": false,
+            "has_queries": true,
+            "has_evaluators": true
+        },
+        "data": {
+            "steps": [
+                {
+                    "key": "query-5a1e",
+                    "type": "input",
+                    "origin": "custom",
+                    "references": {
+                        "query": {
+                            "id": "01a20000-0000-7000-8000-00000000q001",
+                            "slug": "support-traces"
+                        },
+                        "query_revision": {
+                            "id": "01a20000-0000-7000-8000-00000000q002",
+                            "version": "2"
+                        }
+                    }
+                },
+                {
+                    "key": "evaluator-7c2d",
+                    "type": "annotation",
+                    "origin": "auto",
+                    "references": {
+                        "evaluator": {
+                            "id": "01a20000-0000-7000-8000-00000000e001",
+                            "slug": "exact-match"
+                        },
+                        "evaluator_revision": {
+                            "id": "01a20000-0000-7000-8000-00000000e002",
+                            "version": "1"
+                        }
+                    }
+                }
+            ],
+            "mappings": [
+                {
+                    "column": {
+                        "kind": "annotation",
+                        "name": "success"
+                    },
+                    "step": {
+                        "key": "evaluator-7c2d",
+                        "path": "attributes.ag.data.outputs.success"
+                    }
+                }
+            ]
+        },
+        "meta": null,
+        "created_at": "2026-10-30T09:00:00+00:00",
+        "updated_at": "2026-10-30T09:30:00+00:00",
+        "created_by_id": "00000000-0000-4000-8000-000000000001"
+    },
+    "response": {
+        "count": 3,
+        "metrics": [
+            {
+                "id": "01a20000-0000-7000-8000-0000000m0003",
+                "run_id": "01a20000-0000-7000-8000-00000000a001",
+                "scenario_id": null,
+                "status": "success",
+                "timestamp": "2026-10-30T09:20:00+00:00",
+                "interval": 60,
+                "data": {
+                    "evaluator-7c2d": {
+                        "attributes.ag.data.outputs.success": {
+                            "type": "binary",
+                            "count": 4,
+                            "freq": [
+                                {
+                                    "value": true,
+                                    "count": 3,
+                                    "density": 0.75
+                                },
+                                {
+                                    "value": false,
+                                    "count": 1,
+                                    "density": 0.25
+                                }
+                            ],
+                            "uniq": [true, false]
+                        },
+                        "attributes.ag.metrics.duration.cumulative": {
+                            "type": "numeric/continuous",
+                            "count": 4,
+                            "max": 0.41,
+                            "min": 0.41,
+                            "sum": 1.64,
+                            "mean": 0.41,
+                            "range": 0.0
+                        }
+                    }
+                }
+            },
+            {
+                "id": "01a20000-0000-7000-8000-0000000m0001",
+                "run_id": "01a20000-0000-7000-8000-00000000a001",
+                "scenario_id": null,
+                "status": "success",
+                "timestamp": "2026-10-30T09:00:00+00:00",
+                "interval": 60,
+                "data": {
+                    "evaluator-7c2d": {
+                        "attributes.ag.data.outputs.success": {
+                            "type": "binary",
+                            "count": 2,
+                            "freq": [
+                                {
+                                    "value": true,
+                                    "count": 1,
+                                    "density": 0.5
+                                },
+                                {
+                                    "value": false,
+                                    "count": 1,
+                                    "density": 0.5
+                                }
+                            ],
+                            "uniq": [true, false]
+                        },
+                        "attributes.ag.metrics.duration.cumulative": {
+                            "type": "numeric/continuous",
+                            "count": 2,
+                            "max": 0.52,
+                            "min": 0.52,
+                            "sum": 1.04,
+                            "mean": 0.52,
+                            "range": 0.0
+                        }
+                    }
+                }
+            },
+            {
+                "id": "01a20000-0000-7000-8000-0000000m0002",
+                "run_id": "01a20000-0000-7000-8000-00000000a001",
+                "scenario_id": null,
+                "status": "success",
+                "timestamp": "2026-10-30T09:10:00+00:00",
+                "interval": 60,
+                "data": {
+                    "evaluator-7c2d": {
+                        "attributes.ag.data.outputs.success": {
+                            "type": "binary",
+                            "count": 4,
+                            "freq": [
+                                {
+                                    "value": true,
+                                    "count": 2,
+                                    "density": 0.5
+                                },
+                                {
+                                    "value": false,
+                                    "count": 2,
+                                    "density": 0.5
+                                }
+                            ],
+                            "uniq": [true, false]
+                        },
+                        "attributes.ag.metrics.duration.cumulative": {
+                            "type": "numeric/continuous",
+                            "count": 4,
+                            "max": 0.47,
+                            "min": 0.47,
+                            "sum": 1.88,
+                            "mean": 0.47,
+                            "range": 0.0
+                        }
+                    }
+                }
+            }
+        ]
+    }
+}

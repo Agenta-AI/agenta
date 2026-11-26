@@ -1,0 +1,89 @@
+import type {WorkspaceMember} from "@agenta/entities/organization"
+import {useT, type CatalogKey} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsMemberRolesCatalog from "@agenta/i18n/catalogs/settings.memberRoles"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+    SkeletonBlock,
+} from "@agenta/ui/ui"
+
+type RoleKey = CatalogKey<typeof settingsMemberRolesCatalog>
+
+const ROLE_KEYS: Record<string, RoleKey> = {
+    owner: "settings.memberRoles.owner",
+    admin: "settings.memberRoles.admin",
+    developer: "settings.memberRoles.developer",
+    editor: "settings.memberRoles.editor",
+    annotator: "settings.memberRoles.annotator",
+    viewer: "settings.memberRoles.viewer",
+    member: "settings.memberRoles.member",
+}
+
+/**
+ * "admin" reads as "Admin" in the table and in the picker. A role this app has no text for
+ * (a custom role) reads as its own name.
+ */
+export const memberRoleLabel = (role: string, t: (key: RoleKey) => string) => {
+    const key = Object.hasOwn(ROLE_KEYS, role) ? ROLE_KEYS[role] : undefined
+    if (key) return t(key)
+    return role ? role.charAt(0).toUpperCase() + role.slice(1) : "—"
+}
+
+/** The role a member holds. The API keeps one role per member, so the first one is it. */
+export const memberRole = (member: WorkspaceMember) => member.roles?.[0]?.role_name ?? ""
+
+/**
+ * A member's role: a label, or a picker for someone who may change it.
+ *
+ * Only a joined member gets a picker: an invitation has no membership for the role route to
+ * change. The owner's row is a label whatever the reader may do, because ownership moves by
+ * transfer and the API refuses to set or unset it here.
+ */
+export const MemberRoleCell = ({
+    member,
+    isOwner,
+    offeredRoles,
+    canChange,
+    pending = false,
+    onChange,
+}: {
+    member: WorkspaceMember
+    isOwner: boolean
+    /** The roles this organization may set, which never includes the owner role. */
+    offeredRoles: string[]
+    canChange: boolean
+    /** This member's change is in flight: the picker holds until it lands. */
+    pending?: boolean
+    onChange: (role: string) => void
+}) => {
+    const t = useT(commonCatalog, settingsMemberRolesCatalog)
+    const role = memberRole(member)
+    const joined = member.user.status === "member"
+
+    if (pending) return <SkeletonBlock active className="h-6 w-24 rounded-control-sm" />
+    if (!canChange || isOwner || !joined || offeredRoles.length === 0) {
+        return <span>{memberRoleLabel(role, t)}</span>
+    }
+
+    // A stored role the plan no longer offers (an editor after a move to Pro) matches no item, so
+    // it shows as the trigger's text until the reader picks one of the offered roles.
+    const offered = offeredRoles.includes(role)
+    return (
+        <Select value={offered ? role : undefined} onValueChange={onChange}>
+            <SelectTrigger size="sm" className="w-full" aria-label={t("common.role")}>
+                <SelectValue placeholder={memberRoleLabel(role, t)} />
+            </SelectTrigger>
+            <SelectContent>
+                {offeredRoles.map((entry) => (
+                    <SelectItem key={entry} value={entry}>
+                        {memberRoleLabel(entry, t)}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
+    )
+}

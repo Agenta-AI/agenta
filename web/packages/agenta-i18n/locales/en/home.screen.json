@@ -1,0 +1,8 @@
+{
+    "title": "Home",
+    "loading": "Loading home",
+    "untitledAgent": "Untitled agent",
+    "templatesError": "Could not load templates",
+    "agentsEmpty": "Agents you create will show up here.",
+    "agentsError": "Could not load your agents"
+}

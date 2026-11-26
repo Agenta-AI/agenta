@@ -98,8 +98,9 @@ export const useVaultSecret = () => {
 
     const handleModifyNamedSecret = useCallback(
         async (secret: NamedSecretRow) => {
-            await createCustomNamedSecret(secret)
+            const id = await createCustomNamedSecret(secret)
             vaultQuery.refetch()
+            return id
         },
         [createCustomNamedSecret, vaultQuery],
     )
@@ -123,6 +124,8 @@ export const useVaultSecret = () => {
 
     return {
         loading,
+        /** The list read failed and there is nothing cached to show. */
+        loadFailed: vaultQuery.isError && !vaultQuery.data,
         secrets: standardSecrets,
         customRowSecrets: customSecrets,
         namedSecrets,

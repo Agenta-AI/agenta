@@ -7,6 +7,8 @@
  */
 import {useEffect, useId, useMemo, useRef} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import chatElicitationCatalog from "@agenta/i18n/catalogs/chat.elicitation"
 import {dayjs, type ElicitationStep} from "@agenta/shared/utils"
 import {AutosizeTextarea, DatePicker, DateTimePicker, Input, SimpleTooltip} from "@agenta/ui/ui"
 import {Check, CircleNotch, Info} from "@phosphor-icons/react"
@@ -24,7 +26,7 @@ export const OPTIONS_MAX_H = 220
  * a bare `·` told the reader nothing and made a long list unreferenceable. */
 export const MAX_DIGIT_ROWS = 9
 
-const OTHER_LABEL = "Other — type a value"
+const tNow = createT(chatElicitationCatalog)
 
 export interface OptionRow {
     /** The value picked, or null for the trailing "Other" row. */
@@ -41,8 +43,8 @@ export const optionRowsFor = (step: ElicitationStep | null): OptionRow[] => {
     if (!step) return []
     if (step.kind === "boolean")
         return [
-            {value: "true", label: "Yes"},
-            {value: "false", label: "No"},
+            {value: "true", label: tNow("chat.elicitation.yes")},
+            {value: "false", label: tNow("chat.elicitation.no")},
         ]
     if (step.kind !== "enum" && step.kind !== "multiselect") return []
     if (!step.options?.length) return []
@@ -51,7 +53,9 @@ export const optionRowsFor = (step: ElicitationStep | null): OptionRow[] => {
         label: option.label,
         ...(option.description ? {description: option.description} : {}),
     }))
-    return step.allowOther ? [...rows, {value: null, label: OTHER_LABEL}] : rows
+    return step.allowOther
+        ? [...rows, {value: null, label: tNow("chat.elicitation.otherTypeValue")}]
+        : rows
 }
 
 /** The picked options on a multi-select, as a set of row indexes. */
@@ -137,6 +141,7 @@ export const ElicitationControl = ({
     onCursor,
     onSubmit,
 }: ElicitationControlProps) => {
+    const t = useT(chatElicitationCatalog)
     const rows = useMemo(() => optionRowsFor(step), [step])
     const multi = isMultiSelect(step)
     const selected = selectedRowFor(step, value)
@@ -291,7 +296,7 @@ export const ElicitationControl = ({
                                     ref={otherRef}
                                     data-elicitation-other
                                     value={otherText}
-                                    placeholder={OTHER_LABEL}
+                                    placeholder={t("chat.elicitation.otherTypeValue")}
                                     disabled={disabled}
                                     // Enter commits the typed value, as it does in the plain text
                                     // field: this row is a field too, only dressed as an option.
@@ -337,7 +342,7 @@ export const ElicitationControl = ({
                                 pending ? (
                                     <CircleNotch
                                         size={12}
-                                        aria-label="Sending"
+                                        aria-label={t("chat.elicitation.sending")}
                                         className="ml-auto shrink-0 animate-spin text-colorText"
                                     />
                                 ) : (
@@ -383,7 +388,7 @@ export const ElicitationControl = ({
                         value={current}
                         onChange={emit}
                         aria-label={step.label}
-                        placeholder="Pick a date"
+                        placeholder={t("chat.elicitation.pickDate")}
                         className="min-w-0 focus-visible:outline-none focus-visible:border-primary [&>span]:truncate"
                     />
                 ) : (
@@ -391,7 +396,7 @@ export const ElicitationControl = ({
                         value={current}
                         onChange={emit}
                         aria-label={step.label}
-                        placeholder="Pick a date and time"
+                        placeholder={t("chat.elicitation.pickDateTime")}
                         className="[&_button]:min-w-0 [&_button]:focus-visible:outline-none [&_button]:focus-visible:border-primary [&_span]:truncate"
                     />
                 )}
@@ -419,7 +424,7 @@ export const ElicitationControl = ({
                 value={String(value ?? "")}
                 // Enter is the newline here, as it is in any textarea. The key worth teaching is
                 // the one that leaves the step.
-                placeholder={touch ? undefined : "⌘/Ctrl+Enter to continue"}
+                placeholder={touch ? undefined : t("chat.elicitation.continueShortcut")}
                 // Capped: past this the card scrolls the textarea rather than growing the dock.
                 autoSize={{minRows: 3, maxRows: 8}}
                 onChange={(event) => onChange(event.target.value)}

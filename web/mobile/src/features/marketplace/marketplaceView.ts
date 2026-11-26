@@ -6,6 +6,38 @@ import {
     templateProviderSlugs,
     type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
+import {createT, formatLocale, type CatalogKey} from "@agenta/i18n"
+import marketplaceCatalog from "@agenta/i18n/catalogs/marketplace.page"
+
+const tNow = createT(marketplaceCatalog)
+
+type MarketplaceKey = CatalogKey<typeof marketplaceCatalog>
+
+const CATEGORY_KEYS: Record<string, MarketplaceKey> = {
+    [ALL_TEMPLATES_CATEGORY]: "marketplace.page.categoryAll",
+    Engineering: "marketplace.page.categoryEngineering",
+    Support: "marketplace.page.categorySupport",
+    Sales: "marketplace.page.categorySales",
+    Knowledge: "marketplace.page.categoryKnowledge",
+    Marketing: "marketplace.page.categoryMarketing",
+    Ops: "marketplace.page.categoryOps",
+}
+
+/** A category as the page shows it; the value stays the catalog's English name. */
+export const categoryText = (category: string): string => {
+    const key = Object.hasOwn(CATEGORY_KEYS, category) ? CATEGORY_KEYS[category] : undefined
+    return key ? tNow(key) : category
+}
+
+/** "GitHub, Linear and Slack" or "GitHub or GitLab"; Intl lists outside English. */
+const joinList = (names: string[], type: "conjunction" | "disjunction"): string => {
+    const locale = formatLocale()
+    if (locale) return new Intl.ListFormat(locale, {type}).format(names)
+    if (type === "disjunction") return names.join(" or ")
+    return names.length > 1
+        ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
+        : (names[0] ?? "")
+}
 
 /** An app a template connects, as a tile draws it. */
 export interface TemplateApp {
@@ -69,10 +101,21 @@ export const howItWorks = (template: AgentStarterTemplate): HowStep[] => [
 
 export const howStepKicker = (step: HowStep): string =>
     step.kind === "trigger"
-        ? "When"
-        : [`Step ${step.number}`, step.app.name, step.optional ? "Optional" : null]
+        ? tNow("marketplace.page.stepWhen")
+        : [
+              tNow("marketplace.page.stepNumber", {number: step.number}),
+              step.app.name,
+              step.optional ? tNow("marketplace.page.optional") : null,
+          ]
               .filter(Boolean)
               .join(" · ")
+
+/** A step's sentence. Catalog roles mostly omit the closing period; some already end in one. */
+export const howStepText = (step: HowStep): string => {
+    if (step.kind === "trigger") return step.text
+    const role = step.role.trim()
+    return /[.!?]$/.test(role) ? role : `${role}.`
+}
 
 export interface TemplateToolRow {
     name: string
@@ -105,38 +148,47 @@ export const templateConnects = (template: AgentStarterTemplate): TemplateConnec
         return {
             key: slot.key,
             apps,
-            label: apps.map((app) => app.name).join(" or "),
+            label: joinList(
+                apps.map((app) => app.name),
+                "disjunction",
+            ),
             required: slot.required,
         }
     })
 
-/** "GitHub", "GitHub and Slack", "GitHub, Linear and Slack". */
-const joinNames = (names: string[]) =>
-    names.length > 1
-        ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
-        : (names[0] ?? "")
-
 export interface SetupStep {
+    key: "use" | "connect" | "try"
     title: string
     text: string
 }
 
-/** What using a template leads to on this app: the setup screen, then the first session. */
+/** What using a template leads to on this app: the agent, its first session, then its accounts. */
 export const setupSteps = (template: AgentStarterTemplate): SetupStep[] => {
     const names = [
         ...new Set(template.connections.map((slot) => templateApp(slot.primary.slug).name)),
     ]
     return [
-        {title: "Use this template", text: "Opens setup for a new agent in this workspace."},
+        {
+            key: "use" as const,
+            title: tNow("marketplace.page.useTemplate"),
+            text: tNow("marketplace.page.setupUseText"),
+        },
         ...(names.length
             ? [
                   {
-                      title: `Connect ${joinNames(names)}`,
-                      text: "Each account connects from the setup screen.",
+                      key: "connect" as const,
+                      title: tNow("marketplace.page.setupConnectTitle", {
+                          apps: joinList(names, "conjunction"),
+                      }),
+                      text: tNow("marketplace.page.setupConnectText"),
                   },
               ]
             : []),
-        {title: "Try it", text: "Run it once in its first session to check the result."},
+        {
+            key: "try" as const,
+            title: tNow("marketplace.page.setupTryTitle"),
+            text: tNow("marketplace.page.setupTryText"),
+        },
     ]
 }
 
@@ -155,10 +207,10 @@ export const featuredTemplates = (all: readonly AgentStarterTemplate[]): AgentSt
 
 export type MarketplaceSort = "recommended" | "az" | "fewest-apps"
 
-export const SORT_LABELS: Record<MarketplaceSort, string> = {
-    recommended: "Recommended",
-    az: "A–Z",
-    "fewest-apps": "Fewest apps",
+export const SORT_LABELS: Record<MarketplaceSort, MarketplaceKey> = {
+    recommended: "marketplace.page.sortRecommended",
+    az: "marketplace.page.sortAz",
+    "fewest-apps": "marketplace.page.sortFewestApps",
 }
 
 export interface MarketplaceFilter {

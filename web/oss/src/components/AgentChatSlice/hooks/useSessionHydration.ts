@@ -8,7 +8,7 @@ import {
 } from "@agenta/chat/assets"
 import {useMountGeneration} from "@agenta/chat/hooks"
 import {withoutSharedSenderAcceptanceMessages} from "@agenta/chat/model"
-import {hasSessionChat, isSessionFresh} from "@agenta/chat/state"
+import {hasSessionChat, isSessionFresh, refreshSessionTurnsOnTurnEndAtom} from "@agenta/chat/state"
 import {
     fetchSessionInteractionStatesAtom,
     fetchSessionRecordsAtom,
@@ -291,6 +291,8 @@ export const useSessionHydration = ({
     // "nobody has read this yet" from "we are reading it right now" (#6296).
     const logReadsInFlightRef = useRef(0)
     const logReadCompletedAtRef = useRef<number | undefined>(undefined)
+    // Only an ended turn reads the session turns (the footer's figures).
+    const refreshSessionTurnsOnTurnEnd = useSetAtom(refreshSessionTurnsOnTurnEndAtom)
     const readLog = useCallback(
         (onRestored?: (t: SessionTranscript | null) => void): Promise<SessionTranscript | null> => {
             logReadsInFlightRef.current += 1
@@ -422,8 +424,12 @@ export const useSessionHydration = ({
             try {
                 const adopt = adoptServerTranscriptRef.current
                 const transcript = await readLog((fresh) => {
+                    if (fresh) refreshSessionTurnsOnTurnEnd({sessionId, messages: fresh.messages})
                     if (!cancelled && adopt(fresh, {armJump: false, generation})) grew = true
                 })
+                if (transcript) {
+                    refreshSessionTurnsOnTurnEnd({sessionId, messages: transcript.messages})
+                }
                 if (!cancelled && adopt(transcript, {armJump: false, generation})) grew = true
             } catch {
                 // `loadSessionMessages` already swallows + logs; keep polling regardless.
@@ -446,7 +452,7 @@ export const useSessionHydration = ({
         }
         // Deliberately NOT keyed on `adoptServerTranscript` — the poll reads it through the ref
         // above, so a re-render can't cancel a pending tick or reset the backoff.
-    }, [runningElsewhere, sessionId, mount])
+    }, [runningElsewhere, sessionId, mount, refreshSessionTurnsOnTurnEnd])
 
     // One final catch-up on the falling edge (#5624). The poll above dies with `runningElsewhere`,
     // discarding any pending tick, so a run that ends between ticks would leave the last records
@@ -460,14 +466,16 @@ export const useSessionHydration = ({
         const generation = mount.capture()
         const adopt = adoptServerTranscriptRef.current
         readLog((fresh) => {
+            if (fresh) refreshSessionTurnsOnTurnEnd({sessionId, messages: fresh.messages})
             if (!cancelled) adopt(fresh, {armJump: false, generation})
         }).then((transcript) => {
+            if (transcript) refreshSessionTurnsOnTurnEnd({sessionId, messages: transcript.messages})
             if (!cancelled) adopt(transcript, {armJump: false, generation})
         })
         return () => {
             cancelled = true
         }
-    }, [runningElsewhere, sessionId, mount])
+    }, [runningElsewhere, sessionId, mount, refreshSessionTurnsOnTurnEnd])
 
     // ── Stranded first send (#6042) ─────────────────────────────────────────────
     // A restored transcript whose tail is an unanswered user turn, with the backend idle and the
@@ -572,7 +580,10 @@ export const useSessionHydration = ({
                 })
             )
                 return false
+            // A refresh is how an observer sees a turn end. Only an ended turn reads the session
+            // turns (the footer's figures); a running turn's events do not.
             if (isSessionTranscript(transcript)) {
+                refreshSessionTurnsOnTurnEnd({sessionId, messages: transcript.messages})
                 return adoptOrConfirm(transcript)
             }
             // A tick usually lands inside the records query's stale window, so the shared cache would
@@ -580,10 +591,14 @@ export const useSessionHydration = ({
             revalidateSessionRecords(sessionId)
             let refreshed: SessionTranscript | null
             try {
-                refreshed = await readLog()
+                // The returned transcript can be the cached one; the callback gets the fresh read.
+                refreshed = await readLog((fresh) => {
+                    if (fresh) refreshSessionTurnsOnTurnEnd({sessionId, messages: fresh.messages})
+                })
             } catch {
                 return false
             }
+            if (refreshed) refreshSessionTurnsOnTurnEnd({sessionId, messages: refreshed.messages})
             // Adoption-point recheck: the entry check above only covers the window BEFORE this
             // fetch started. `loadSessionMessages` is a real network round trip, and a client-tool
             // settle can land while it's in flight — without re-checking here, that settle arrives
@@ -606,6 +621,7 @@ export const useSessionHydration = ({
             recordWatermarkRef,
             sequenceWatermarkRef,
             revalidateSessionRecords,
+            refreshSessionTurnsOnTurnEnd,
             readLog,
         ],
     )

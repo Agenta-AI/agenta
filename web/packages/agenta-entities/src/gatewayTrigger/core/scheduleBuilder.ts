@@ -17,6 +17,7 @@
  */
 
 import {describeCron, nextCronRuns, validateCron} from "./cron"
+import type {ScheduleText} from "./scheduleText"
 
 export type CronCadence = "hourly" | "daily" | "weekly" | "monthly" | "custom"
 
@@ -98,7 +99,8 @@ export function cronToBuilder(cron: string): {
     // Hourly: hour is "*" or "*/n", a single run minute, no day restriction.
     if (dom === "*" && dow === "*" && minutes?.length === 1) {
         const step = hour === "*" ? 1 : stepOfStar(hour)
-        if (step !== null) {
+        // The builder offers steps up to 23 hours; a larger one keeps the cron's own words.
+        if (step !== null && step <= 23) {
             return {
                 state: {
                     ...defaultBuilderState("hourly"),
@@ -120,7 +122,7 @@ export function cronToBuilder(cron: string): {
     }
     // Weekly: day-of-week list, no day-of-month.
     if (dom === "*" && dow !== "*") {
-        const weekdays = plainIntList(dow)
+        const weekdays = dayOfWeekList(dow)
         if (!weekdays) return custom()
         return {state: {...defaultBuilderState("weekly"), weekdays, times}, representable: true}
     }
@@ -151,40 +153,30 @@ export function timesFormCleanGrid(times: CronTimeOfDay[]): boolean {
 // description — the cadence phrase, the collapsed summary, and the next run
 // ---------------------------------------------------------------------------
 
-const DAY_ABBR = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-const MONTH_ABBR = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-]
-
 /**
  * The cadence on its own, with no run times — "Weekdays", "Every 3h at :00",
  * "Monthly on the 1st". Drives the cadence chips and feeds {@link summarizeSchedule}.
+ * `text` gives the words.
  */
-export function describeCadence(state: ScheduleBuilderState): string {
+export function describeCadence(state: ScheduleBuilderState, text: ScheduleText): string {
     switch (state.cadence) {
         case "custom":
-            return state.cron.trim() || describeCron(state.cron)
+            return state.cron.trim() || describeCron(state.cron, text)
         case "hourly": {
             const n = clampInt(state.everyNHours, 1, 23)
-            return `Every ${n}h at :${pad2(state.times[0]?.minute ?? 0)}`
+            return text.everyHours(n, pad2(state.times[0]?.minute ?? 0))
         }
         case "daily":
-            return "Daily"
+            return text.daily
         case "weekly":
-            return daysPhrase(state.weekdays)
+            return daysPhrase(state.weekdays, text)
         case "monthly":
-            return `Monthly on ${ordinalList(state.daysOfMonth)}`
+            return text.monthlyOn(
+                joinCapped(
+                    sortedUnique(state.daysOfMonth).map((day) => text.ordinal(day)),
+                    text,
+                ),
+            )
     }
 }
 
@@ -193,11 +185,20 @@ export function describeCadence(state: ScheduleBuilderState): string {
  * minute in the cadence phrase, and a raw expression speaks for itself, so neither
  * repeats the times.
  */
-export function summarizeSchedule(state: ScheduleBuilderState): string {
-    const cadence = describeCadence(state)
+export function summarizeSchedule(state: ScheduleBuilderState, text: ScheduleText): string {
+    const cadence = describeCadence(state, text)
     if (state.cadence === "custom") return cadence
-    if (state.cadence === "hourly") return `${cadence} UTC`
-    return `${cadence} at ${timesPhrase(state.times)} UTC`
+    if (state.cadence === "hourly") return text.utc(cadence)
+    return text.atTimesUtc(cadence, timesPhrase(state.times, text))
+}
+
+/**
+ * A cron in words: the builder's summary ("Weekdays at 09:00 UTC") when the builder can show the
+ * expression, else the longhand of {@link describeCron}.
+ */
+export function describeSchedule(cron: string, text: ScheduleText): string {
+    const {state, representable} = cronToBuilder(cron)
+    return representable ? summarizeSchedule(state, text) : describeCron(cron, text)
 }
 
 /**
@@ -207,19 +208,18 @@ export function summarizeSchedule(state: ScheduleBuilderState): string {
  */
 export function formatNextRun(
     cron: string,
+    text: ScheduleText,
     state?: ScheduleBuilderState,
     from: Date = new Date(),
 ): string {
     const next = nextCronRuns(cron, 1, from)[0]
     if (!next) return ""
 
-    const when = `${DAY_ABBR[next.getUTCDay()]} ${next.getUTCDate()} ${MONTH_ABBR[next.getUTCMonth()]}`
     const time = `${pad2(next.getUTCHours())}:${pad2(next.getUTCMinutes())}`
-    let line = `Next run ${when}, ${time} UTC · ${relativeFrom(next, from)}`
+    let line = text.nextRun(next, time, relativeFrom(next, from, text))
 
     if (state?.cadence === "hourly") {
-        const perDay = Math.ceil(24 / clampInt(state.everyNHours, 1, 23))
-        line += ` · ${plural(perDay, "run")} a day`
+        line = text.runsPerDay(line, Math.ceil(24 / clampInt(state.everyNHours, 1, 23)))
     }
     return line
 }
@@ -230,11 +230,12 @@ export function formatNextRun(
  */
 export function suggestScheduleName(
     state: ScheduleBuilderState,
+    text: ScheduleText,
     agentName?: string | null,
 ): string {
     const carriesOwnTime = state.cadence === "hourly" || state.cadence === "custom"
-    const cadence = describeCadence(state)
-    const withTime = carriesOwnTime ? cadence : `${cadence} ${timesPhrase(state.times)}`
+    const cadence = describeCadence(state, text)
+    const withTime = carriesOwnTime ? cadence : `${cadence} ${timesPhrase(state.times, text)}`
     const agent = agentName?.trim()
     return agent ? `${withTime} — ${agent}` : withTime
 }
@@ -276,6 +277,28 @@ function plainIntList(field: string): number[] | null {
     return sortedUnique(out)
 }
 
+/**
+ * The day-of-week field as sorted unique days (0 = Sunday), or null for syntax the builder cannot
+ * show. Accepts plain ranges ("1-5") as well as lists, and reads 7 as Sunday, as cron does: a
+ * weekday schedule written by hand is still a weekday schedule.
+ */
+function dayOfWeekList(field: string): number[] | null {
+    const out: number[] = []
+    for (const part of field.split(",")) {
+        const range = part.match(/^(\d)-(\d)$/)
+        if (range) {
+            const from = Number(range[1])
+            const to = Number(range[2])
+            if (from > to || to > 7) return null
+            for (let day = from; day <= to; day += 1) out.push(day % 7)
+            continue
+        }
+        if (!/^\d$/.test(part) || Number(part) > 7) return null
+        out.push(Number(part) % 7)
+    }
+    return sortedUnique(out)
+}
+
 function stepOfStar(field: string): number | null {
     const m = field.match(/^\*\/(\d+)$/)
     if (!m) return null
@@ -300,43 +323,29 @@ function pad2(n: number): string {
     return String(n).padStart(2, "0")
 }
 
-function timesPhrase(times: CronTimeOfDay[]): string {
-    return joinCapped(sortedTimes(times).map((t) => `${pad2(t.hour)}:${pad2(t.minute)}`))
+function timesPhrase(times: CronTimeOfDay[], text: ScheduleText): string {
+    return joinCapped(
+        sortedTimes(times).map((t) => `${pad2(t.hour)}:${pad2(t.minute)}`),
+        text,
+    )
 }
 
-function daysPhrase(days: number[]): string {
+function daysPhrase(days: number[], text: ScheduleText): string {
     const ds = sortedUnique(days)
-    if (ds.length === 7) return "Every day"
-    if (ds.length === 5 && [1, 2, 3, 4, 5].every((d) => ds.includes(d))) return "Weekdays"
-    return joinCapped(ds.map((d) => DAY_ABBR[d]))
-}
-
-function plural(n: number, word: string): string {
-    return `${n} ${word}${n === 1 ? "" : "s"}`
+    if (ds.length === 7) return text.everyDay
+    if (ds.length === 5 && [1, 2, 3, 4, 5].every((d) => ds.includes(d))) return text.weekdays
+    return joinCapped(
+        ds.map((d) => text.dayShort(d)),
+        text,
+    )
 }
 
 /** "in 40 minutes" / "in 3 hours" / "in 2 days", coarsening as the gap grows. */
-function relativeFrom(target: Date, from: Date): string {
+function relativeFrom(target: Date, from: Date, text: ScheduleText): string {
     const minutes = Math.max(1, Math.round((target.getTime() - from.getTime()) / 60_000))
-    if (minutes < 60) return `in ${plural(minutes, "minute")}`
-    if (minutes < 1440) return `in ${plural(Math.round(minutes / 60), "hour")}`
-    return `in ${plural(Math.round(minutes / 1440), "day")}`
-}
-
-function ordinalList(days: number[]): string {
-    return `the ${joinCapped(sortedUnique(days).map(ordinal))}`
-}
-
-function ordinal(n: number): string {
-    const suffixes = ["th", "st", "nd", "rd"]
-    const v = n % 100
-    return `${n}${suffixes[(v - 20) % 10] ?? suffixes[v] ?? suffixes[0]}`
-}
-
-function joinAnd(items: string[]): string {
-    if (items.length <= 1) return items[0] ?? ""
-    if (items.length === 2) return `${items[0]} and ${items[1]}`
-    return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`
+    if (minutes < 60) return text.relative(minutes, "minute")
+    if (minutes < 1440) return text.relative(Math.round(minutes / 60), "hour")
+    return text.relative(Math.round(minutes / 1440), "day")
 }
 
 /**
@@ -346,7 +355,7 @@ function joinAnd(items: string[]): string {
  */
 const LIST_CAP = 3
 
-function joinCapped(items: string[]): string {
-    if (items.length <= LIST_CAP) return joinAnd(items)
-    return `${items.slice(0, LIST_CAP).join(", ")} +${items.length - LIST_CAP}`
+function joinCapped(items: string[], text: ScheduleText): string {
+    if (items.length <= LIST_CAP) return text.join(items)
+    return `${text.enumerate(items.slice(0, LIST_CAP))} +${items.length - LIST_CAP}`
 }

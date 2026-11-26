@@ -28,11 +28,11 @@ import {
   type WorkspaceReader,
 } from "../../tools/workspace-reader.ts";
 import type { RelayExecutionAuthorizer } from "../../tools/relay.ts";
-import type {
-  ResolvedToolSpec,
-  RunContext,
-  ToolCallbackContext,
-} from "../../protocol.ts";
+import type { ResolvedToolSpec, RunContext } from "../../protocol.ts";
+import {
+  RunCredentialExpiredError,
+  type ToolCallbackRuntime,
+} from "../../tools/run-credential.ts";
 import type { AttachPermissionResponderInput } from "./acp-interactions.ts";
 
 /**
@@ -110,7 +110,7 @@ export function buildApprovedContentWiring(input: {
   isDaytona: boolean;
   workspaceCwd: string;
   sandbox: any;
-  callback: ToolCallbackContext | undefined;
+  callback: ToolCallbackRuntime | undefined;
   runContext: RunContext | undefined;
   permissionPlan: PermissionPlan;
   toolSpecs: ResolvedToolSpec[];
@@ -200,6 +200,9 @@ export function buildApprovedContentWiring(input: {
         }
         if (error instanceof CommitAuthorizationError) {
           return { ok: false, reason: error.message };
+        }
+        if (error instanceof RunCredentialExpiredError) {
+          return { ok: false, reason: error.message, detail: { ...error.envelope } };
         }
         throw error;
       }

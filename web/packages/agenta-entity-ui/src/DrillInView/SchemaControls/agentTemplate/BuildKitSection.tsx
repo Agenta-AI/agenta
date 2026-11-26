@@ -1,12 +1,16 @@
 import {buildKitDefaultPermission, type BuildKitUiState} from "@agenta/entities/workflow"
+import {createT, useT, type CatalogKey} from "@agenta/i18n"
+import buildKitCatalog from "@agenta/i18n/catalogs/entityUi.buildKit"
 
 import type {GatewayConnectionPermissions} from "../toolUtils"
 
-import {PermissionDrawerBody, type PermissionPresetOption} from "./IntegrationPermissionDrawer"
+import {PermissionDrawerBody, type PermissionPresetOption} from "./IntegrationPermissionList"
 import type {ItemDescriptor} from "./itemDescriptors"
 import {ItemRow} from "./ItemRow"
 import {PolicyGlyph} from "./PermissionGlyph"
 import type {PermissionPolicyOption} from "./PermissionPolicySelect"
+
+const tNow = createT(buildKitCatalog)
 
 export interface BuildKitTool {
     key: string
@@ -19,39 +23,79 @@ export interface BuildKitSectionProps {
     state: BuildKitUiState
     onChange: (next: BuildKitUiState) => void
     disabled?: boolean
+    /** A read-only view (a phone): the permissions show as text. */
+    readOnly?: boolean
     tools: BuildKitTool[]
 }
 
+type BuildKitKey = CatalogKey<typeof buildKitCatalog>
+
+/** A preset whose texts read the active language each time they are read. */
+const preset = (
+    value: PermissionPresetOption["value"],
+    label: BuildKitKey,
+    help: BuildKitKey,
+    extra: Partial<PermissionPresetOption> = {},
+): PermissionPresetOption => ({
+    value,
+    get label() {
+        return tNow(label)
+    },
+    get help() {
+        return tNow(help)
+    },
+    ...extra,
+})
+
 const presets: PermissionPresetOption[] = [
-    {value: "allow_all", label: "Allow all", help: "Tools run without asking."},
-    {value: "always_ask", label: "Ask all", help: "Ask before each tool runs."},
-    {value: "ask_writes", label: "Allow reads", help: "Read-only tools run; write tools ask."},
-    {value: "deny_all", label: "Deactivate", help: "Do not add the build kit to runs."},
-    {
-        value: "custom",
-        label: "Custom",
-        help: "Per-tool choices below.",
+    preset("allow_all", "entityUi.buildKit.presetAllowAll", "entityUi.buildKit.presetAllowAllHelp"),
+    preset("always_ask", "entityUi.buildKit.presetAskAll", "entityUi.buildKit.presetAskAllHelp"),
+    preset(
+        "ask_writes",
+        "entityUi.buildKit.presetAllowReads",
+        "entityUi.buildKit.presetAllowReadsHelp",
+    ),
+    preset(
+        "deny_all",
+        "entityUi.buildKit.presetDeactivate",
+        "entityUi.buildKit.presetDeactivateKitHelp",
+    ),
+    preset("custom", "entityUi.buildKit.presetCustom", "entityUi.buildKit.presetCustomHelp", {
         disabled: true,
         separatorBefore: true,
-    },
-]
-export const buildKitToolOptions: PermissionPolicyOption[] = [
-    {
-        value: "allow",
-        title: "Allow",
-        help: "Run without asking.",
-        icon: <PolicyGlyph value="allow" />,
-    },
-    {value: "ask", title: "Ask", help: "Ask before running.", icon: <PolicyGlyph value="ask" />},
-    {
-        value: "deny",
-        title: "Deactivate",
-        help: "Remove this tool from the run.",
-        icon: <PolicyGlyph value="deny" />,
-    },
+    }),
 ]
 
-export function BuildKitSection({state, onChange, disabled, tools}: BuildKitSectionProps) {
+/** A per-tool option whose texts read the active language each time they are read. */
+const toolOption = (
+    value: "allow" | "ask" | "deny",
+    title: BuildKitKey,
+    help: BuildKitKey,
+): PermissionPolicyOption => ({
+    value,
+    get title() {
+        return tNow(title)
+    },
+    get help() {
+        return tNow(help)
+    },
+    icon: <PolicyGlyph value={value} />,
+})
+
+export const buildKitToolOptions: PermissionPolicyOption[] = [
+    toolOption("allow", "entityUi.buildKit.toolAllow", "entityUi.buildKit.toolAllowHelp"),
+    toolOption("ask", "entityUi.buildKit.toolAsk", "entityUi.buildKit.toolAskHelp"),
+    toolOption("deny", "entityUi.buildKit.toolDeactivate", "entityUi.buildKit.toolDeactivateHelp"),
+]
+
+export function BuildKitSection({
+    state,
+    onChange,
+    disabled,
+    readOnly,
+    tools,
+}: BuildKitSectionProps) {
+    const t = useT(buildKitCatalog)
     const platform = tools.filter((tool) => tool.op)
     const permissions: GatewayConnectionPermissions = {
         default: "allow",
@@ -82,16 +126,18 @@ export function BuildKitSection({state, onChange, disabled, tools}: BuildKitSect
     return (
         <div className="flex min-h-0 flex-col">
             <div className="flex flex-col gap-1">
-                <span className="text-sm font-medium">Playground build kit</span>
+                <span className="text-sm font-medium">
+                    {t("entityUi.buildKit.playgroundBuildKit")}
+                </span>
                 <span className="text-xs text-colorTextDescription">
-                    Tools the assistant uses only while you build in the playground. They are not
-                    available in Slack, Telegram, WhatsApp, automations or the API. Saved in this
-                    browser.
+                    {t("entityUi.buildKit.playgroundBuildKitHint")}
                 </span>
             </div>
             <PermissionDrawerBody
                 flush
                 catalogKey="playground-build-kit"
+                // "Deactivate" turns a tool off; it is not a refusal, so it is not red (L8-22).
+                plainDeny
                 catalog={{
                     status: "ready",
                     complete: true,
@@ -102,7 +148,7 @@ export function BuildKitSection({state, onChange, disabled, tools}: BuildKitSect
                         readOnly: tool.readOnly,
                     })),
                 }}
-                emptyLabel="No build kit tools available."
+                emptyLabel={t("entityUi.buildKit.noBuildKitTools")}
                 permissions={state.enabled ? permissions : {default: "deny", tools: {}}}
                 onChangePermissions={() => undefined}
                 onChangeToolPermission={(op, permission) => {
@@ -143,22 +189,24 @@ export function BuildKitSection({state, onChange, disabled, tools}: BuildKitSect
                     },
                 }}
                 disabled={disabled}
-                lockedTool={() => (state.enabled ? null : "The build kit is deactivated.")}
+                valuesAsText={readOnly}
+                lockedTool={() =>
+                    state.enabled ? null : t("entityUi.buildKit.buildKitDeactivated")
+                }
                 toolOptions={buildKitToolOptions}
-                writeLabel="Write"
-                readOnlyLabel="Read-only"
+                writeLabel={t("entityUi.buildKit.writeGroup")}
+                readOnlyLabel={t("entityUi.buildKit.readOnlyGroup")}
                 banner={
                     !state.enabled ? (
                         <span className="text-xs text-colorTextDescription">
-                            The build kit is off. Its tools, skills and sandbox permissions will not
-                            be added to the next run. The agent's own tools remain available.
+                            {t("entityUi.buildKit.buildKitOff")}
                         </span>
                     ) : null
                 }
                 footNote={
                     <div className="flex flex-col gap-2">
                         <span className="text-xs text-colorTextDescription">
-                            Included while the build kit is active
+                            {t("entityUi.buildKit.includedWhileActive")}
                         </span>
                         {tools
                             .filter((tool) => !tool.op)

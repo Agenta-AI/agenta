@@ -7,6 +7,8 @@
  */
 import {lazy, Suspense, useRef} from "react"
 
+import {useT} from "@agenta/i18n"
+import customProviderFormCatalog from "@agenta/i18n/catalogs/entityUi.customProviderForm"
 import type {LlmProvider} from "@agenta/shared/types"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Button, Spinner} from "@agenta/ui/ui"
@@ -28,17 +30,22 @@ export interface ConfigureProviderDrawerProps {
     initialProviderKind?: string
 }
 
-const ConfigureProviderDrawerTitle = () => (
-    <div className="flex items-center justify-between">
-        <span className="text-sm font-medium">Configure provider</span>
-        <Button variant="link" size="sm" asChild>
-            <a href={HOW_TO_USE_URL} target="_blank" rel="noreferrer" className="no-underline">
-                <LinkSimple size={14} />
-                How to use
-            </a>
-        </Button>
-    </div>
-)
+const ConfigureProviderDrawerTitle = () => {
+    const t = useT(customProviderFormCatalog)
+    return (
+        <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">
+                {t("entityUi.customProviderForm.configureProvider")}
+            </span>
+            <Button variant="link" size="sm" asChild>
+                <a href={HOW_TO_USE_URL} target="_blank" rel="noreferrer" className="no-underline">
+                    <LinkSimple size={14} />
+                    {t("entityUi.customProviderForm.howToUse")}
+                </a>
+            </Button>
+        </div>
+    )
+}
 
 export const ConfigureProviderDrawer = ({
     open,
@@ -46,6 +53,7 @@ export const ConfigureProviderDrawer = ({
     selectedProvider,
     initialProviderKind,
 }: ConfigureProviderDrawerProps) => {
+    const t = useT(customProviderFormCatalog)
     const formRef = useRef<CustomProviderFormHandle | null>(null)
 
     const handleClose = () => {
@@ -62,10 +70,10 @@ export const ConfigureProviderDrawer = ({
             footer={
                 <div className="flex justify-end items-center gap-2 py-2 px-3">
                     <Button variant="outline" onClick={handleClose}>
-                        Cancel
+                        {t("entityUi.customProviderForm.cancel")}
                     </Button>
                     <Button variant="default" onClick={() => formRef.current?.submit()}>
-                        Submit
+                        {t("entityUi.customProviderForm.submit")}
                     </Button>
                 </div>
             }

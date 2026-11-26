@@ -1,0 +1,19 @@
+{
+    "noParameters": "Keine Parameter zum Anzeigen",
+    "viewForm": "Formular",
+    "variant": "Variante",
+    "type": "Typ",
+    "slug": "Slug",
+    "deployment": "Bereitstellung",
+    "details": "Details",
+    "dateCreated": "Erstellungsdatum",
+    "createdBy": "Erstellt von",
+    "note": "Notiz",
+    "loadError": "Diese Revision konnte nicht geladen werden",
+    "notAvailable": "Diese Revision ist nicht mehr verfügbar.",
+    "titleRevision": "Revision",
+    "titleDeployment": "Bereitstellung",
+    "titleEvaluator": "Evaluator",
+    "previousRevision": "Vorherige Revision",
+    "nextRevision": "Nächste Revision"
+}

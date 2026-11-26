@@ -166,13 +166,20 @@ class StreamConsumer:
                     if remaining_ms <= 0:
                         break
 
-                    accumulated_messages = await self.redis.xreadgroup(
-                        groupname=self.consumer_group,
-                        consumername=self.consumer_name,
-                        streams={self.stream_name: ">"},
-                        count=self.max_batch_size,
-                        block=max(10, int(remaining_ms)),
-                    )
+                    try:
+                        accumulated_messages = await self.redis.xreadgroup(
+                            groupname=self.consumer_group,
+                            consumername=self.consumer_name,
+                            streams={self.stream_name: ">"},
+                            count=self.max_batch_size,
+                            block=max(10, int(remaining_ms)),
+                        )
+                    except Exception as e:
+                        # Redis already delivered `batch` to this consumer, and a later
+                        # read with ">" never returns it again. Keep it, so the caller
+                        # processes and acknowledges it.
+                        log.error(f"{self.log_prefix} Failed to accumulate batch: {e}")
+                        break
 
                     if accumulated_messages:
                         batch.extend(accumulated_messages[0][1])

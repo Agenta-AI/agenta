@@ -22,6 +22,7 @@ from sqlalchemy.exc import IntegrityError
 
 from oss.src.utils.logging import get_module_logger
 
+from oss.src.core.sharing.dtos import AgentReadScope
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.core.skills.exceptions import (
@@ -77,7 +78,9 @@ class SourceScanResult(BaseModel):
 class ImportedSkill(BaseModel):
     path_in_repo: str
     workflow_id: Optional[str] = None
+    workflow_slug: Optional[str] = None
     name: Optional[str] = None
+    description: Optional[str] = None
 
 
 class SkippedSkill(BaseModel):
@@ -176,6 +179,7 @@ class SkillImportService:
         """
         heads = await self.workflows_service.query_workflow_head_revisions(
             project_id=project_id,
+            read_scope=AgentReadScope(owner_user_id=None),
             workflow_revision_query=WorkflowRevisionQuery(
                 flags=WorkflowRevisionQueryFlags(is_skill=True),
             ),
@@ -186,6 +190,7 @@ class SkillImportService:
 
         artifacts = await self.workflows_service.query_workflows(
             project_id=project_id,
+            read_scope=AgentReadScope(owner_user_id=None),
             workflow_refs=[Reference(id=artifact_id) for artifact_id in artifact_ids],
         )
 
@@ -368,7 +373,9 @@ class SkillImportService:
                 ImportedSkill(
                     path_in_repo=candidate.path_in_repo,
                     workflow_id=str(created.id),
+                    workflow_slug=created.slug,
                     name=skill.name,
+                    description=skill.description,
                 )
             )
 

@@ -1,5 +1,8 @@
 import * as React from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 import {X} from "@phosphor-icons/react"
 import {ChevronDown, LoaderCircle} from "lucide-react"
 
@@ -79,6 +82,8 @@ export interface ComboboxProps extends Pick<SelectTriggerProps, "size" | "varian
     defaultOpen?: boolean
     /** Portal target for the dropdown; defaults to document.body. */
     container?: HTMLElement | null
+    /** The trailing icon in place of the chevron (the canvas up-down icon, for one). */
+    icon?: React.ReactElement | null
 }
 
 type RenderRow =
@@ -89,8 +94,8 @@ export function Combobox({
     options,
     value,
     onChange,
-    placeholder = "Select",
-    emptyText = "No results",
+    placeholder: placeholderProp,
+    emptyText: emptyTextProp,
     allowClear = false,
     disabled = false,
     loading = false,
@@ -101,10 +106,14 @@ export function Combobox({
     contentClassName,
     defaultOpen = false,
     container,
+    icon,
     id,
     "aria-label": ariaLabel,
     "aria-labelledby": ariaLabelledby,
 }: ComboboxProps) {
+    const t = useT(listControlsCatalog, commonCatalog)
+    const placeholder = placeholderProp ?? t("ui.listControls.select")
+    const emptyText = emptyTextProp ?? t("ui.listControls.noResults")
     const [open, setOpen] = React.useState(defaultOpen)
     const [query, setQuery] = React.useState("")
     const [activeIndex, setActiveIndex] = React.useState(0)
@@ -298,13 +307,13 @@ export function Combobox({
                     ) : (
                         <span className="relative flex shrink-0 items-center">
                             {/* antd Select's closed arrow is a single down chevron (not an up/down caret). */}
-                            <ChevronDown className={cn("size-3", adornmentColor)} />
+                            {icon ?? <ChevronDown className={cn("size-3", adornmentColor)} />}
                             {showClear ? (
                                 <button
                                     type="button"
                                     data-combobox-clear
                                     tabIndex={-1}
-                                    aria-label="Clear selection"
+                                    aria-label={t("common.clearSelection")}
                                     // antd stacks the clear ON the arrow at `opacity: 0` and only
                                     // reveals it on hover (select/style/index.js L22-27, L67).
                                     className={cn(
@@ -329,7 +338,7 @@ export function Combobox({
                 container={container}
                 // The popup is the listbox; name the Radix Popover dialog wrapper so it isn't an
                 // unnamed dialog, and stop it stealing focus from the input (activedescendant pattern).
-                aria-label={ariaLabel ?? "Suggestions"}
+                aria-label={ariaLabel ?? t("ui.listControls.suggestions")}
                 onOpenAutoFocus={(e) => e.preventDefault()}
                 onCloseAutoFocus={(e) => e.preventDefault()}
                 className={cn(
@@ -341,7 +350,7 @@ export function Combobox({
                     id={listId}
                     ref={listRef}
                     role="listbox"
-                    aria-label={ariaLabel ?? "Suggestions"}
+                    aria-label={ariaLabel ?? t("ui.listControls.suggestions")}
                     className="max-h-[300px] overflow-y-auto"
                 >
                     {items.length === 0 ? (

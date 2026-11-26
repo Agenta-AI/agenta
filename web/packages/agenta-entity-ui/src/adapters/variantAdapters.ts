@@ -9,16 +9,27 @@
  */
 import {syncPromptInputKeysInParameters} from "@agenta/entities/runnable"
 import {isLocalDraftId, getVersionLabel, formatLocalDraftLabel} from "@agenta/entities/shared"
-import {workflowMolecule, type Workflow} from "@agenta/entities/workflow"
+import {
+    workflowMolecule,
+    workflowRevisionRefsByVariantAtomFamily,
+    workflowVariantNewestVersionAtomFamily,
+    type Workflow,
+} from "@agenta/entities/workflow"
 import {classifyAgentChanges, buildCommitSummaryMessage} from "@agenta/entities/workflow/commitDiff"
+import {createT, textVersionAtom} from "@agenta/i18n"
+import commitModalCatalog from "@agenta/i18n/catalogs/entityUi.commitModal"
 import {stripAgentaMetadataDeep, stripEmptyCollectionsDeep} from "@agenta/shared/utils"
 import {atom} from "jotai"
 
+import {commitDiffTextNow} from "../changes/commitDiffText"
 import {
     createAndRegisterEntityAdapter,
+    getEntityTypeLabel,
     type CommitContext,
     type EntityModalAdapter,
 } from "../modals"
+
+const tNow = createT(commitModalCatalog)
 
 // ============================================================================
 // DATA ATOM
@@ -60,9 +71,21 @@ function buildGenericCommitContext(
     remoteData: Record<string, unknown> | null,
     version: number | undefined,
     isLocalDraft: boolean,
+    newestVersion: number | undefined,
 ): CommitContext {
     const currentVersion = version ?? 0
-    const targetVersion = currentVersion + 1
+    // The server numbers a commit after the variant's newest revision, not after the one the
+    // commit starts from.
+    const latestVersion = Math.max(currentVersion, newestVersion ?? 0)
+    const targetVersion = latestVersion + 1
+
+    // A brand-new prompt has no saved side to compare: listing its template as "changes" misleads.
+    if (isLocalDraft && remoteData === null) {
+        return {
+            versionInfo: {currentVersion, targetVersion, latestVersion},
+            suggestedMessage: "First version",
+        }
+    }
 
     // Diff the whole data object; parameters keep metadata-strip + input-key sync. Empty
     // collections are dropped so an add-then-remove (`skills: []` vs an absent key) doesn't read
@@ -92,21 +115,22 @@ function buildGenericCommitContext(
         ? classifyAgentChanges(
               (localSide as Record<string, unknown>).parameters,
               (remoteSide as Record<string, unknown>).parameters,
+              commitDiffTextNow(),
           )
         : []
     const suggestedMessage = sections.length ? buildCommitSummaryMessage(sections) : undefined
 
     const descriptions: string[] = []
-    if (hasDiff) descriptions.push("Configuration modified")
+    if (hasDiff) descriptions.push(tNow("entityUi.commitModal.configurationModified"))
     if (isLocalDraft && descriptions.length === 0) {
-        descriptions.push("New draft variant")
+        descriptions.push(tNow("entityUi.commitModal.newDraftVariant"))
     }
 
     return {
         versionInfo: {
             currentVersion,
             targetVersion,
-            latestVersion: currentVersion,
+            latestVersion,
         },
         changesSummary:
             hasDiff || isLocalDraft
@@ -129,17 +153,29 @@ function buildGenericCommitContext(
  */
 const variantCommitContextAtom = (revisionId: string, _metadata?: Record<string, unknown>) =>
     atom((get): CommitContext | null => {
+        // The context holds translated text, so it is rebuilt when that text can change.
+        get(textVersionAtom)
         const isLocalDraft = isLocalDraftId(revisionId)
         const localData = get(workflowMolecule.selectors.data(revisionId))
         const remoteData = get(workflowMolecule.selectors.serverData(revisionId))
 
         if (!localData) return null
 
+        const variantId = localData.workflow_variant_id ?? localData.variant_id ?? null
+        // The revision list hides archived revisions; the server still numbers after them.
+        const newestVersion = variantId
+            ? Math.max(
+                  get(workflowRevisionRefsByVariantAtomFamily(variantId))[0]?.version ?? 0,
+                  get(workflowVariantNewestVersionAtomFamily(variantId)) ?? 0,
+              )
+            : undefined
+
         return buildGenericCommitContext(
             (localData.data as Record<string, unknown> | null) ?? null,
             (remoteData?.data as Record<string, unknown> | null) ?? null,
             localData.version ?? undefined,
             isLocalDraft,
+            newestVersion,
         )
     })
 
@@ -191,7 +227,7 @@ export const variantModalAdapter: EntityModalAdapter<Workflow> = createAndRegist
         const version = entity.version ?? 0
         return `${name} ${getVersionLabel(version)}`
     },
-    getDisplayLabel: (count) => (count === 1 ? "Variant" : "Variants"),
+    getDisplayLabel: (count) => getEntityTypeLabel("variant", count),
     deleteAtom: variantDeleteAtom,
     dataAtom: workflowDataAtom,
     canDelete: () => true,

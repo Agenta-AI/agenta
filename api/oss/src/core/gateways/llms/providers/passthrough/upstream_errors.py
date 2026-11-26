@@ -16,6 +16,7 @@ from oss.src.core.gateways.llms.errors import (
     UPSTREAM_ERROR,
     classify_upstream_error,
     connection_lost_message,
+    google_error,
     upstream_error_message,
 )
 
@@ -60,6 +61,17 @@ async def relay_upstream_errors(
             code=(holder.get("code") or holder.get("type")) if holder else None,
             message=said,
         )
+        if protocol == LLMProtocol.GEMINI:
+            # Rebuilt whole in Google's shape: Vertex's own fields name the project.
+            payload = google_error(
+                status=status,
+                message=upstream_error_message(
+                    code=code, provider_message=said, built_in=not quote_upstream
+                ),
+            )
+            if scanner.detects(_dumps(payload)):
+                raise echo_refusal
+            return payload
         if holder is None:
             payload = _error_payload(protocol, code=code, event=False)
             holder = _error_holder(payload)
@@ -108,23 +120,51 @@ async def relay_upstream_errors(
 
     # The platform's own upstream is trusted with memory, and an oversized event of its own may
     # be an error that names its cloud project, so it is never relayed unread.
-    relay = _SseRelay(lambda data: marked(data, None), relay_oversized=quote_upstream)
+    relay = _SseRelay(
+        lambda data: marked(data, None),
+        relay_oversized=quote_upstream,
+        finished=_gemini_finished
+        if protocol == LLMProtocol.GEMINI
+        else _marker_finished,
+    )
     try:
         async for chunk in body:
             if relayed := relay.feed(chunk):
                 yield relayed
+        if protocol == LLMProtocol.GEMINI and relay.holds_partial_event():
+            # The upstream closed inside an event. Google's client fails on the half event
+            # ("Incomplete JSON segment") with words Pi does not retry, so the half event is
+            # dropped and the caller gets the error event a broken connection gets.
+            relay.drop()
+            if not relay.finished:
+                yield _connection_lost_event(protocol)
+            return
         if relayed := relay.flush():
+            # Google's client also refuses a whole last event that has no blank line after
+            # it, so the native door ends that event before relaying it.
+            if protocol == LLMProtocol.GEMINI and relayed.strip():
+                relayed += b"\n\n"
             yield relayed
     except httpx.TransportError:
         # The upstream broke off after it started answering. The half event it was in the
         # middle of is dropped, and the caller gets one error event instead.
         if not relay.finished:
-            error = _error_payload(protocol, code=UPSTREAM_ERROR, event=True)
-            _error_holder(error)["message"] = connection_lost_message()
-            name = (
-                b"" if protocol == LLMProtocol.CHAT_COMPLETIONS else b"event: error\n"
-            )
-            yield name + b"data: " + _dumps(error) + b"\n\n"
+            yield _connection_lost_event(protocol)
+
+
+def _connection_lost_event(protocol: LLMProtocol) -> bytes:
+    """The one error event a stream that broke off before its end closes with."""
+    if protocol == LLMProtocol.GEMINI:
+        error = google_error(status=None, message=connection_lost_message())
+    else:
+        error = _error_payload(protocol, code=UPSTREAM_ERROR, event=True)
+        _error_holder(error)["message"] = connection_lost_message()
+    name = (
+        b""
+        if protocol in (LLMProtocol.CHAT_COMPLETIONS, LLMProtocol.GEMINI)
+        else b"event: error\n"
+    )
+    return name + b"data: " + _dumps(error) + b"\n\n"
 
 
 class _SseRelay:
@@ -135,10 +175,15 @@ class _SseRelay:
     """
 
     def __init__(
-        self, mark: Callable[[Any], Dict[str, Any]], *, relay_oversized: bool = True
+        self,
+        mark: Callable[[Any], Dict[str, Any]],
+        *,
+        relay_oversized: bool = True,
+        finished: Optional[Callable[[bytes], bool]] = None,
     ) -> None:
         self._mark = mark
         self._relay_oversized = relay_oversized
+        self._finished = finished or _marker_finished
         self._buffer = b""
         self.finished = False
 
@@ -160,11 +205,17 @@ class _SseRelay:
         rest, self._buffer = self._buffer, b""
         return self._event(rest) if rest else b""
 
+    def holds_partial_event(self) -> bool:
+        """Whether the held bytes are an event cut short: some text, but no data that parses."""
+        if not self._buffer.strip():
+            return False
+        return not isinstance(_event_data(self._buffer), (dict, list))
+
+    def drop(self) -> None:
+        self._buffer = b""
+
     def _event(self, event: bytes) -> bytes:
-        # Token deltas are the bulk of a stream: they are matched as bytes, never parsed.
-        self.finished = self.finished or any(
-            marker in event for marker in _TERMINAL_MARKERS
-        )
+        self.finished = self.finished or self._finished(event)
         if b"error" not in event:
             return event
         data = _event_data(event)
@@ -172,6 +223,23 @@ class _SseRelay:
             return event
         self.finished = True
         return _with_data(event, self._mark(data))
+
+
+def _marker_finished(event: bytes) -> bool:
+    """Whether an event ends its stream. Token deltas are the bulk of a stream: they are
+    matched as bytes, never parsed."""
+    return any(marker in event for marker in _TERMINAL_MARKERS)
+
+
+def _gemini_finished(event: bytes) -> bool:
+    """Whether a native Gemini event ends its stream: it has no `[DONE]`, and its last event
+    names a `finishReason`. Only an event that mentions one is parsed."""
+    if b"finishReason" not in event:
+        return False
+    data = _event_data(event)
+    candidates = data.get("candidates") if isinstance(data, dict) else None
+    first = candidates[0] if isinstance(candidates, list) and candidates else None
+    return isinstance(first, dict) and bool(first.get("finishReason"))
 
 
 def _event_data(event: bytes) -> Any:

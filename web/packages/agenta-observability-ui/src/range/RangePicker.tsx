@@ -1,5 +1,7 @@
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useMemo, useState, type KeyboardEvent} from "react"
 
+import {useT} from "@agenta/i18n"
+import rangeCatalog from "@agenta/i18n/catalogs/observabilityUi.range"
 import {ANALYTICS_RANGE_PRESETS, type SortResult, type SortTypes} from "@agenta/observability"
 import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
@@ -12,7 +14,13 @@ import {
     PopoverTrigger,
     type DateRangeValue,
 } from "@agenta/ui/ui"
-import {CalendarBlankIcon, CaretDownIcon, CaretRightIcon, ClockIcon} from "@phosphor-icons/react"
+import {
+    CalendarBlankIcon,
+    CaretDownIcon,
+    CaretRightIcon,
+    CheckIcon,
+    ClockIcon,
+} from "@phosphor-icons/react"
 
 import {
     formatRangeLabel,
@@ -48,6 +56,32 @@ export interface RangePickerProps {
 
 const EMPTY_DRAFT: DateRangeValue = {}
 
+const ITEM_SELECTOR = '[role="menuitemradio"]'
+
+// Arrow keys, Home and End move focus between the menu rows.
+const moveMenuFocus = (event: KeyboardEvent<HTMLDivElement>) => {
+    const keys = ["ArrowDown", "ArrowUp", "Home", "End"]
+    if (!keys.includes(event.key)) return
+    const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>(ITEM_SELECTOR))
+    if (!items.length) return
+    event.preventDefault()
+    const current = items.indexOf(document.activeElement as HTMLElement)
+    const last = items.length - 1
+    const next =
+        event.key === "Home"
+            ? 0
+            : event.key === "End"
+              ? last
+              : event.key === "ArrowDown"
+                ? current >= last
+                    ? 0
+                    : current + 1
+                : current <= 0
+                  ? last
+                  : current - 1
+    items[next]?.focus()
+}
+
 /**
  * The observability/analytics time-range picker: the ten shared presets plus an explicit
  * start/end, replacing the antd `Sort` popover.
@@ -71,6 +105,7 @@ export const RangePicker = ({
     container,
     className,
 }: RangePickerProps) => {
+    const t = useT(rangeCatalog)
     const [open, setOpen] = useState(false)
     const [customOpen, setCustomOpen] = useState(false)
     const [draft, setDraft] = useState<DateRangeValue>(EMPTY_DRAFT)
@@ -115,15 +150,15 @@ export const RangePicker = ({
             // CONTROL_RESET — preflight is off app-wide, so the button reset is per-control.
             "box-border w-full cursor-pointer border-0 border-solid font-[inherit]",
             "flex items-center justify-between gap-2 rounded-control-sm px-2 py-1 text-left",
-            "text-field-sm text-foreground hover:bg-secondary",
+            "text-field-sm text-foreground hover:bg-accent",
             // `cn` from `@agenta/ui/styles` is a plain CONCATENATOR, not tailwind-merge: an
             // unconditional `bg-transparent` here did not lose to the conditional `bg-secondary`,
             // both landed, and CSS order left every row transparent — so the active range showed
             // no highlight at all. Make the base conditional instead of relying on a merge.
-            isSelected ? "bg-secondary" : "bg-transparent",
+            isSelected ? "bg-accent font-medium" : "bg-transparent",
             // These rows are real <button>s (prod's were inert <div>s), so they take focus — and
             // with preflight off an unstyled one shows the UA's blue ring. Use the kit's.
-            "outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus-ring",
+            "outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
         )
 
     return (
@@ -159,9 +194,28 @@ export const RangePicker = ({
                 )}
             </PopoverTrigger>
 
-            <PopoverContent align="start" container={container} className="w-auto p-1">
+            <PopoverContent
+                align="start"
+                container={container}
+                className="w-auto p-1"
+                onOpenAutoFocus={(event) => {
+                    // Focus the applied range, so the keyboard starts from it.
+                    const target = event.currentTarget as HTMLElement | null
+                    const row = target?.querySelector<HTMLElement>(
+                        `${ITEM_SELECTOR}[aria-checked="true"]`,
+                    )
+                    if (!row) return
+                    event.preventDefault()
+                    row.focus()
+                }}
+            >
                 <section className="flex items-stretch gap-1">
-                    <div role="menu" aria-label="Time range" className="flex w-[224px] flex-col">
+                    <div
+                        role="menu"
+                        aria-label={t("observabilityUi.range.timeRange")}
+                        className="flex w-[224px] flex-col"
+                        onKeyDown={moveMenuFocus}
+                    >
                         {presets.map((preset) => (
                             <button
                                 key={preset.label}
@@ -172,6 +226,9 @@ export const RangePicker = ({
                                 className={rowClassName(selected === preset.label)}
                             >
                                 {presetRowLabel(preset.label)}
+                                {selected === preset.label ? (
+                                    <CheckIcon size={12} aria-hidden />
+                                ) : null}
                             </button>
                         ))}
 
@@ -187,7 +244,8 @@ export const RangePicker = ({
                                     className={rowClassName(selected === "custom")}
                                 >
                                     <span className="flex items-center gap-2">
-                                        <ClockIcon size={12} /> Define start and end time
+                                        <ClockIcon size={12} />{" "}
+                                        {t("observabilityUi.range.defineStartEnd")}
                                     </span>
                                     <CaretRightIcon size={12} />
                                 </button>
@@ -200,7 +258,7 @@ export const RangePicker = ({
                             <div className="w-px shrink-0 self-stretch bg-border" />
                             <div className="flex flex-col">
                                 <span className="px-2 pt-1 text-field-md font-medium text-foreground">
-                                    Start and end time
+                                    {t("observabilityUi.range.startEnd")}
                                 </span>
                                 <DateRangeCalendar
                                     value={draft}
@@ -217,14 +275,14 @@ export const RangePicker = ({
                                             setOpen(false)
                                         }}
                                     >
-                                        Cancel
+                                        {t("observabilityUi.range.cancel")}
                                     </Button>
                                     <Button
                                         size="sm"
                                         disabled={!draft.startTime && !draft.endTime}
                                         onClick={applyCustom}
                                     >
-                                        Apply
+                                        {t("observabilityUi.range.apply")}
                                     </Button>
                                 </div>
                             </div>

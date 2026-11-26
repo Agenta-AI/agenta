@@ -1,8 +1,10 @@
 from enum import Enum
 from typing import Any, Dict, Optional
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from oss.src.core.secrets.dtos import SecretOwner
 from oss.src.core.shared.dtos import (
     Header,
     Identifier,
@@ -64,6 +66,12 @@ class Connection(
     data: Optional[Json] = None
     #
     status: Optional[ConnectionStatus] = None
+    # A person's own connection: the person and their organization. A project
+    # connection carries None for both.
+    organization_id: Optional[UUID] = None
+    user_id: Optional[UUID] = None
+    # The person's default connection for the integration. Always false for a project.
+    is_default: bool = False
 
     @property
     def provider_connection_id(self) -> Optional[str]:
@@ -161,3 +169,12 @@ class ConnectionRefreshResponse(BaseModel):
     is_valid: Optional[bool] = None
     redirect_url: Optional[str] = None
     auth_config_id: Optional[str] = None
+
+
+def entity_for(*, owner: Optional[SecretOwner], project_id: Any) -> str:
+    """The provider-side user of a connection: its project, or for a person's own
+    connection `org:<organization id>:user:<user id>`. The format lives at Composio, so
+    changing it means every person connects again."""
+    if owner is not None:
+        return f"org:{owner.organization_id}:user:{owner.id}"
+    return str(project_id)

@@ -35,8 +35,8 @@ describe("catalog API parity", () => {
 })
 
 describe("catalog templates", () => {
-    it("has exactly 28 entries", () => {
-        expect(AGENT_TEMPLATES).toHaveLength(29)
+    it("has exactly 30 entries", () => {
+        expect(AGENT_TEMPLATES).toHaveLength(30)
     })
 
     it("has unique keys", () => {

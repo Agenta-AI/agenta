@@ -9,7 +9,6 @@
  * and an open drawer reporting a state the list has already moved past.
  */
 import {getSettingsTabDescription} from "@agenta/settings"
-import {TOUCH_TARGET_MINIMUM_PX, touchTargetHeight} from "@agenta/ui/ui"
 import {act, cleanup, fireEvent, render, screen, within} from "@testing-library/react"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -38,25 +37,18 @@ vi.mock("@agenta/entities/mcpEndpoint", async (importOriginal) => ({
     disconnectMcpEndpointAtom: atoms.disconnect,
 }))
 
-vi.mock("@agenta/entities/secret", () => ({customNamedSecretsAtom: atoms.secrets}))
+vi.mock("@agenta/entities/secret", () => ({
+    customNamedSecretsAtom: atoms.secrets,
+    // Unknown to the jotai stub below, so it reads as personal accounts off: no "Yours" group.
+    personalAccountsAccessAtom: {toString: () => "personalAccessAtom"},
+}))
 
-// The connect journey is a 566-line state machine over the network; the drawer reads the tool
-// list. Neither is this file's subject, so both are stubbed. The drawer stub reports the state
-// of whatever endpoint it is handed, which is what the by-key case asserts on.
+// The connect step and the server view are views of @agenta/entity-ui, opened here in a drawer
+// (`ViewDrawerHost`). Neither is this file's subject: the drawer host stands in for itself and
+// draws what it was asked to open, which is what these cases assert on.
 vi.mock("@agenta/entity-ui/mcpEndpoint", () => ({
-    // Records what it is handed, so a case can assert the reconnect reaches it. A journey
-    // opened without one is a blank sheet at address entry, which repairs nothing and invites
-    // a second connection (D131's remainder, after D132).
-    McpConnectJourney: ({
-        open,
-        reconnect,
-    }: {
-        open: boolean
-        reconnect?: {slug?: string; name?: string} | null
-    }) => {
-        if (open) opened.push(reconnect ?? null)
-        return open ? <div data-testid="mcp-connect-journey" /> : null
-    },
+    mcpConnectView: {id: "mcp.connect"},
+    mcpServerView: {id: "mcp.server"},
     McpConnectionDetail: ({
         endpoint,
         readOnly,
@@ -76,30 +68,33 @@ vi.mock("@agenta/entity-ui/mcpEndpoint", () => ({
                 <span data-testid="detail-secret">{endpoint.secret_id ?? "none"}</span>
             </div>
         ) : null,
-    // The drawer itself is WP4's and has its own suite; what this file pins is how Settings
-    // opens it, which is the read-only mode and no agent to remove the server from.
-    McpPermissionDrawer: ({
-        open,
-        slug,
-        status,
-        readOnly,
-        onRemove,
+}))
+
+vi.mock("@agenta/ui/view-stack", () => ({
+    ViewDrawerHost: ({
+        request,
     }: {
-        open: boolean
-        slug?: string
-        status?: string
-        readOnly?: boolean
-        onRemove?: () => void
-    }) =>
-        open ? (
+        request: {
+            view: {id: string}
+            params: {reconnect?: {slug?: string; name?: string} | null; connectionSlug?: string}
+            target: {kind: string}
+        }
+    }) => {
+        if (request.view.id === "mcp.connect") {
+            // Records what it is handed, so a case can assert the reconnect reaches it. A step
+            // opened without one starts at address entry, which repairs nothing and invites a
+            // second connection (D131's remainder, after D132).
+            opened.push(request.params.reconnect ?? null)
+            return <div data-testid="mcp-connect-journey" data-target={request.target.kind} />
+        }
+        return (
             <div
                 data-testid="mcp-permission-drawer"
-                data-slug={slug}
-                data-status={status ?? "unset"}
-                data-readonly={String(Boolean(readOnly))}
-                data-has-remove={String(onRemove !== undefined)}
+                data-slug={request.params.connectionSlug}
+                data-target={request.target.kind}
             />
-        ) : null,
+        )
+    },
 }))
 
 const setters = vi.hoisted(() => ({remove: vi.fn(), refresh: vi.fn(), disconnect: vi.fn()}))
@@ -292,12 +287,11 @@ describe("the auth cell", () => {
 })
 
 describe("the status cell", () => {
-    it("reads Connected for a usable connection, with no repair offered", () => {
+    it("reads Connected for a usable connection", () => {
         show([LINEAR])
         const cell = screen.getByTestId("mcp-connection-status")
         expect(within(cell).getByText("Connected")).toBeTruthy()
         expect(statusTone(cell)).toContain("text-colorSuccess")
-        expect(within(cell).queryByRole("button", {name: "Reconnect"})).toBeNull()
     })
 
     it("reads Not signed in for a connection the person disconnected", () => {
@@ -307,7 +301,7 @@ describe("the status cell", () => {
         expect(within(cell).queryByText("Login expired")).toBeNull()
     })
 
-    it("reads Login expired with an inline Reconnect when the grant was revoked", () => {
+    it("reads Login expired when the grant was revoked", () => {
         show([OCTOLENS])
         const cell = screen.getByTestId("mcp-connection-status")
         expect(within(cell).getByText("Login expired")).toBeTruthy()
@@ -315,7 +309,6 @@ describe("the status cell", () => {
         // colour is read as healthy, because the colour is what a scan picks up first.
         expect(statusTone(cell)).toContain("text-colorWarning")
         expect(statusTone(cell)).not.toContain("text-colorSuccess")
-        expect(within(cell).getByRole("button", {name: "Reconnect"})).toBeTruthy()
     })
 
     it("reads Not signed in for a connection whose first sign-in is under way", () => {
@@ -375,15 +368,12 @@ describe("the status cell", () => {
 
     it("opens the reconnect journey without also opening the connection", () => {
         show([OCTOLENS])
+        openRowMenu("Octolens")
         act(() => {
-            fireEvent.click(
-                within(screen.getByTestId("mcp-connection-status")).getByRole("button", {
-                    name: "Reconnect",
-                }),
-            )
+            fireEvent.click(screen.getByRole("menuitem", {name: "Reconnect"}))
         })
         expect(screen.getByTestId("mcp-connect-journey")).toBeTruthy()
-        // The row's own click opens the drawer; the link must not do both.
+        // The row's own click opens the drawer; the menu item must not do both.
         expect(screen.queryByTestId("mcp-connection-detail")).toBeNull()
     })
 })
@@ -442,24 +432,22 @@ describe("viewing a connection's tools", () => {
         })
         const drawer = screen.getByTestId("mcp-permission-drawer")
         expect(drawer.getAttribute("data-slug")).toBe("linear")
-        expect(drawer.getAttribute("data-readonly")).toBe("true")
-        // A Settings row belongs to no agent, so there is nothing to detach it from and the
-        // footer's "Remove from agent" link must not be offered.
-        expect(drawer.getAttribute("data-has-remove")).toBe("false")
+        // A Settings row belongs to no agent: the server view opens on the project's connection,
+        // read-only, with no agent to remove it from.
+        expect(drawer.getAttribute("data-target")).toBe("project")
     })
 
-    it("tells the drawer the connection's health rather than letting it assume", () => {
-        // The drawer defaults its health to connected, so a lapsed row would open a header
-        // claiming the server works.
-        // Two rows, and the second is the one asked about: a section that hands over whichever
-        // row it finds first passes every single-row fixture ever written (D154).
+    it("opens the server view on the row it was asked about", () => {
+        // The view reads the connection's health itself from the list. Two rows, and the second
+        // is the one asked about: a section that hands over whichever row it finds first passes
+        // every single-row fixture ever written (D154).
         show([LINEAR, OCTOLENS])
         openRowMenu("Octolens")
         act(() => {
             fireEvent.click(screen.getByRole("menuitem", {name: "View tools"}))
         })
-        expect(screen.getByTestId("mcp-permission-drawer").getAttribute("data-status")).toBe(
-            "login_expired",
+        expect(screen.getByTestId("mcp-permission-drawer").getAttribute("data-slug")).toBe(
+            "octolens",
         )
     })
 
@@ -656,67 +644,6 @@ describe("read-only", () => {
         const detail = screen.getByTestId("mcp-connection-detail")
         expect(detail.dataset.readonly).toBe("false")
         expect(detail.dataset.canListTools).toBe("true")
-    })
-})
-
-describe("touch targets", () => {
-    /** Control heights in px, restated here so this file does not lean on the kit for them. */
-    const SIZE_BY_CLASS_UNDER_TEST: Record<string, number> = {
-        "h-control-xs": 24,
-        "h-control-sm": 28,
-    }
-
-    /**
-     * The reach, derived here rather than asked of the helper.
-     *
-     * D126 shipped because the helper and its reader shared one assumption, so every site test
-     * asserted the class the helper had written rather than the box a finger gets. Reverting both
-     * together still leaves the site packages green for that reason. This case closes that: it reads
-     * the control's own size class, its own border class and its own `after` inset, and does the
-     * arithmetic with numbers written here. It never calls the helper, so a coordinated change to
-     * the helper and the reader cannot keep it passing.
-     *
-     * The size class is the border box and the inset is measured from inside the border, so the box
-     * at the edge a reader can see is `size - 2 x border + 2 x inset`.
-     */
-    const reachOf = (className: string) => {
-        const classes = className.split(/\s+/).filter(Boolean)
-        const size =
-            SIZE_BY_CLASS_UNDER_TEST[classes.find((c) => c in SIZE_BY_CLASS_UNDER_TEST) ?? ""]
-        const border = classes.includes("border-0") ? 0 : classes.includes("border") ? 1 : 0
-        const inset = classes
-            .map((c) => /^after:-inset-y-(?:\[(\d+)px\]|(\d+(?:\.\d+)?))$/.exec(c))
-            .find(Boolean)
-        const px = inset ? Number(inset[1] ?? Number(inset[2]) * 4) : 0
-        return {size, border, inset: px, reach: size - 2 * border + 2 * px}
-    }
-
-    it("gives the status cell's Reconnect a 44px hit area at its 24px height", () => {
-        // The repair offered where the problem is reported, on a phone. 24px is the control
-        // scale's smallest step and the row rhythm needs it, so the reach is an invisible box.
-        show([OCTOLENS])
-
-        const reconnect = screen.getByRole("button", {name: "Reconnect"})
-        expect(reconnect.className).toContain("h-control-xs")
-        expect(touchTargetHeight(reconnect.className)).toBe(TOUCH_TARGET_MINIMUM_PX)
-        // A tall enough control is no use if the cell beside it covers the control itself. At
-        // phone width the status cell's content overran its column and slid this link 49px under
-        // the actions cell, where the row menu's own hit area took 43 of its 70px. The Button
-        // already refuses to shrink, so the status text beside it is what has to give way: that
-        // is what the indicator's own `truncate` was for, and it could not act while the
-        // indicator's automatic minimum was its own text.
-        const indicator = document.querySelector('[data-testid="mcp-connection-status"] span')
-        expect(indicator, "no status indicator").not.toBeNull()
-        expect(indicator!.className).toContain("min-w-0")
-    })
-
-    it("measures 44px of reach without asking the helper for it", () => {
-        show([OCTOLENS])
-
-        const measured = reachOf(screen.getByRole("button", {name: "Reconnect"}).className)
-        expect(measured.size, "not the 24px control this case is about").toBe(24)
-        expect(measured.border, "not the bordered Button this case is about").toBe(1)
-        expect(measured.reach).toBe(44)
     })
 })
 

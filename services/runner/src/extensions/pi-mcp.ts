@@ -273,10 +273,19 @@ function allowedGatewayOrigins(): string[] {
     process.env.AGENTA_API_URL?.trim(),
   ]) {
     if (!base) continue;
+    let url: URL;
     try {
-      origins.push(new URL(base).origin);
+      url = new URL(base);
     } catch {
       // A malformed base configures nothing; it must not widen the check either.
+      continue;
+    }
+    origins.push(url.origin);
+    // The SDK's `parse_url` rewrites a loopback base to `host.docker.internal` when it writes
+    // the gateway URL for a container, so a stack configured with `localhost` sends that form.
+    if (url.hostname === "localhost" || url.hostname === "0.0.0.0") {
+      url.hostname = "host.docker.internal";
+      origins.push(url.origin);
     }
   }
   return origins;

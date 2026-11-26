@@ -53,7 +53,9 @@ describe("selectContextTarget", () => {
         ).toEqual({workspaceId: "w1", projectId: "p1"})
     })
 
-    it("drops a remembered pair whose workspace is gone, following desktop continuity", () => {
+    it("keeps a remembered project whose saved workspace id no group answers", () => {
+        // Workspace removal step 2: the saved id can be a legacy workspace id; the project
+        // id still finds the project, under its group's segment.
         expect(
             selectContextTarget(
                 input({
@@ -62,7 +64,7 @@ describe("selectContextTarget", () => {
                     desktopLastUsed: {w1: "p2"},
                 }),
             ),
-        ).toEqual({workspaceId: "w1", projectId: "p2"})
+        ).toEqual({workspaceId: "w1", projectId: "p1"})
     })
 
     it("decides nothing until the router is ready", () => {
@@ -157,5 +159,60 @@ describe("selectContextTarget", () => {
                 }),
             ),
         ).toEqual({workspaceId: "w2", projectId: "p3"})
+    })
+})
+
+describe("selectContextTarget after workspace removal step 2", () => {
+    // Groups route under the organization id; their rows keep the workspace id the API
+    // answered (a legacy id on an older pod, or in a pair saved before the upgrade).
+    const orgGroup = (organizationId: string, rows: [string, string][]): WorkspaceGroup => ({
+        workspaceId: organizationId,
+        projects: rows.map(([id, legacy]) => ({
+            ...project(id, organizationId),
+            legacy_workspace_id: legacy,
+        })),
+    })
+
+    it("resolves a remembered legacy pair to the organization id", () => {
+        expect(
+            selectContextTarget(
+                input({
+                    shortcut: {workspaceId: "W2", projectId: "P2"},
+                    groups: [
+                        orgGroup("O1", [
+                            ["P1", "W1"],
+                            ["P2", "W2"],
+                        ]),
+                    ],
+                }),
+            ),
+        ).toEqual({workspaceId: "O1", projectId: "P2"})
+    })
+
+    it("follows a desktop pair keyed by a legacy workspace id", () => {
+        expect(
+            selectContextTarget(
+                input({
+                    groups: [
+                        orgGroup("O1", [
+                            ["P1", "W1"],
+                            ["P2", "W2"],
+                        ]),
+                    ],
+                    desktopLastUsed: {W2: "P2"},
+                }),
+            ),
+        ).toEqual({workspaceId: "O1", projectId: "P2"})
+    })
+
+    it("scopes a link with a legacy workspace id to that organization", () => {
+        expect(
+            selectContextTarget(
+                input({
+                    workspaceId: "W3",
+                    groups: [orgGroup("O1", [["P1", "W1"]]), orgGroup("O2", [["P3", "W3"]])],
+                }),
+            ),
+        ).toEqual({workspaceId: "O2", projectId: "P3"})
     })
 })

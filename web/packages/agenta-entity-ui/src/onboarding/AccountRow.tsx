@@ -29,13 +29,17 @@ import {
     useToolIntegrationDetail,
 } from "@agenta/entities/gatewayTool"
 import {PROVIDERS, type DetectedAccount} from "@agenta/entities/workflow"
-import {HeightCollapse} from "@agenta/ui/height-collapse"
+import {useT} from "@agenta/i18n"
+import onboardingCatalog from "@agenta/i18n/catalogs/entityUi.onboarding"
 import {Button} from "@agenta/ui/ui"
-import {CaretDown, CheckCircle, Circle, Plugs} from "@phosphor-icons/react"
+import {CheckCircle, Plugs} from "@phosphor-icons/react"
 import clsx from "clsx"
 import Image from "next/image"
 
 import ConnectDrawer from "../gatewayTool/drawers/ConnectDrawer"
+
+import {SetupChoiceCard, SetupChoiceStrip} from "./SetupChoiceCard"
+import {SetupSection} from "./SetupSection"
 
 export interface AccountRowProps {
     account: DetectedAccount
@@ -85,6 +89,7 @@ const AccountRow = ({
     open = false,
     onToggle,
 }: AccountRowProps) => {
+    const t = useT(onboardingCatalog)
     // The provider this row is currently about. Everything below follows it.
     const active = selectedSlug ?? satisfiedVia ?? account.slug
     const {integration: detail} = useToolIntegrationDetail(active)
@@ -98,7 +103,6 @@ const AccountRow = ({
      * no "will use, connect next" limbo, and no revert bookkeeping.
      */
     const [drawerSlug, setDrawerSlug] = useState<string | null>(null)
-    const {integration: drawerDetail} = useToolIntegrationDetail(drawerSlug ?? active)
 
     useEffect(() => {
         // Report the provider the row is acting as, so gating counts the actual choice — and
@@ -123,10 +127,7 @@ const AccountRow = ({
         <ConnectDrawer
             open={connectOpen}
             integrationKey={drawerFor}
-            integrationName={drawerDetail?.name ?? providerLabel(drawerFor)}
-            integrationLogo={drawerDetail?.logo ?? PROVIDERS[drawerFor]?.logo ?? undefined}
-            integrationDescription={account.why}
-            authSchemes={drawerDetail?.auth_schemes ?? ["oauth"]}
+            description={account.why}
             onClose={() => {
                 setConnectOpen(false)
                 setDrawerSlug(null)
@@ -152,15 +153,23 @@ const AccountRow = ({
     const cardOptions = options.length ? options : [account.slug]
     const providerCards =
         onSelect && cardOptions.length ? (
-            <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-0.5">
+            <SetupChoiceStrip>
                 {cardOptions.map((slug) => {
                     const optionConnected = providerConnected?.(slug) ?? false
                     const inUse = slug === active && (optionConnected || connected)
                     return (
-                        <button
+                        <SetupChoiceCard
                             key={slug}
-                            type="button"
-                            aria-pressed={inUse}
+                            logo={PROVIDERS[slug]?.logo}
+                            label={providerLabel(slug)}
+                            sublabel={
+                                optionConnected ? (
+                                    <span className="text-[10px] text-[var(--ag-colorSuccess)]">
+                                        {t("entityUi.onboarding.connected")}
+                                    </span>
+                                ) : null
+                            }
+                            inUse={inUse}
                             onClick={() => {
                                 if (inUse) return
                                 if (optionConnected) {
@@ -170,140 +179,50 @@ const AccountRow = ({
                                 setDrawerSlug(slug)
                                 setConnectOpen(true)
                             }}
-                            className={clsx(
-                                "box-border flex min-h-[52px] min-w-[148px] shrink-0 cursor-pointer items-center gap-2.5 rounded-[10px] border border-solid bg-transparent px-3 py-2 text-left transition-colors",
-                                inUse
-                                    ? "border-[var(--ag-colorPrimary)]"
-                                    : "border-[var(--ag-colorBorderSecondary)] hover:border-[var(--ag-colorTextTertiary)]",
-                            )}
-                        >
-                            {PROVIDERS[slug]?.logo ? (
-                                <Image
-                                    src={PROVIDERS[slug].logo}
-                                    alt=""
-                                    width={18}
-                                    height={18}
-                                    unoptimized
-                                    className="shrink-0 object-contain"
-                                />
-                            ) : (
-                                <Plugs
-                                    size={18}
-                                    className="shrink-0 text-[var(--ag-colorTextSecondary)]"
-                                />
-                            )}
-                            <span className="flex min-w-0 flex-col">
-                                <span className="truncate text-xs font-medium text-[var(--ag-colorText)]">
-                                    {providerLabel(slug)}
-                                </span>
-                                {optionConnected ? (
-                                    <span className="text-[10px] text-[var(--ag-colorSuccess)]">
-                                        Connected
-                                    </span>
-                                ) : null}
-                            </span>
-                        </button>
+                        />
                     )
                 })}
-            </div>
+            </SetupChoiceStrip>
         ) : null
 
     if (accordion) {
-        const stateText = connected ? "Connected" : account.required ? "Required" : "Optional"
+        const stateText = connected
+            ? t("entityUi.onboarding.connected")
+            : account.required
+              ? t("entityUi.onboarding.required")
+              : t("entityUi.onboarding.optional")
         return (
-            <div
-                className={clsx(
-                    "border-x-0 border-b border-t-0 border-solid border-[var(--ag-colorSplit)] transition-colors last:border-b-0",
-                    open && blocking && "bg-[var(--ag-colorWarningBg)]",
-                )}
+            <SetupSection
+                icon={connected ? "done" : blocking ? "warning" : "idle"}
+                // A slot with a choice is titled by its NEED ("CRM"), never one provider —
+                // "HubSpot · Optional" over a HubSpot/Salesforce/Attio choice misleads. Once
+                // connected, the provider actually in use rides along.
+                title={account.needLabel ?? name}
+                titleExtra={account.needLabel && connected ? name : undefined}
+                state={stateText}
+                stateTone={connected ? "success" : blocking ? "warning" : "muted"}
+                open={open}
+                onToggle={onToggle}
+                highlight={blocking}
+                after={connectDrawer}
             >
-                <button
-                    type="button"
-                    onClick={onToggle}
-                    disabled={!onToggle}
-                    aria-expanded={onToggle ? open : undefined}
-                    className={clsx(
-                        "flex min-h-11 w-full items-center gap-2.5 border-0 bg-transparent px-1 py-1 text-left",
-                        onToggle ? "cursor-pointer" : "cursor-default",
-                    )}
-                >
-                    {connected ? (
-                        <CheckCircle
-                            size={15}
-                            weight="fill"
-                            className="shrink-0 text-[var(--ag-colorSuccess)]"
-                        />
-                    ) : (
-                        <Circle
-                            size={15}
-                            className={clsx(
-                                "shrink-0",
-                                blocking
-                                    ? "text-[var(--ag-colorWarning)]"
-                                    : "text-[var(--ag-colorTextTertiary)]",
-                            )}
-                        />
-                    )}
-                    {/* A slot with a choice is titled by its NEED ("CRM"), never one provider —
-                        "HubSpot · Optional" over a HubSpot/Salesforce/Attio choice misleads.
-                        Once connected, the provider actually in use rides along. */}
-                    <span className="truncate text-xs font-medium text-[var(--ag-colorText)]">
-                        {account.needLabel ?? name}
-                    </span>
-                    {account.needLabel && connected ? (
-                        <span className="shrink-0 truncate text-[11px] text-[var(--ag-colorTextSecondary)]">
-                            {name}
-                        </span>
-                    ) : null}
-                    <span
-                        className={clsx(
-                            "shrink-0 text-[11px]",
-                            connected
-                                ? "text-[var(--ag-colorSuccess)]"
-                                : blocking
-                                  ? "text-[var(--ag-colorWarning)]"
-                                  : "text-[var(--ag-colorTextTertiary)]",
-                        )}
-                    >
-                        {stateText}
-                    </span>
-                    <span className="flex-1" />
-                    {onToggle ? (
-                        <CaretDown
-                            size={13}
-                            className={clsx(
-                                "shrink-0 text-[var(--ag-colorTextTertiary)] transition-transform",
-                                open && "rotate-180",
-                            )}
-                        />
-                    ) : null}
-                </button>
-                <HeightCollapse open={open} fade>
-                    <div className="flex flex-col gap-2.5 pb-3 pl-[26px] pr-1">
-                        {account.why ? (
-                            <p className="m-0 text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
-                                {account.why}
-                            </p>
-                        ) : null}
-                        {providerCards}
-                        {/* Cards carry the connect action for a slot with a choice; only a
-                            single-provider slot still needs the plain Connect button. There is
-                            no Skip: leaving an optional slot unconnected IS the skip. */}
-                        {!connected && !providerCards ? (
-                            <div className="flex items-center gap-1">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setConnectOpen(true)}
-                                >
-                                    Connect
-                                </Button>
-                            </div>
-                        ) : null}
+                {account.why ? (
+                    <p className="m-0 text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
+                        {account.why}
+                    </p>
+                ) : null}
+                {providerCards}
+                {/* Cards carry the connect action for a slot with a choice; only a
+                    single-provider slot still needs the plain Connect button. There is no
+                    Skip: leaving an optional slot unconnected IS the skip. */}
+                {!connected && !providerCards ? (
+                    <div className="flex items-center gap-1">
+                        <Button variant="outline" size="sm" onClick={() => setConnectOpen(true)}>
+                            {t("entityUi.onboarding.connect")}
+                        </Button>
                     </div>
-                </HeightCollapse>
-                {connectDrawer}
-            </div>
+                ) : null}
+            </SetupSection>
         )
     }
 
@@ -343,16 +262,17 @@ const AccountRow = ({
                             at least stated, even where it cannot be taken. */}
                         {!onSelect && !connected && options.length ? (
                             <span className="shrink-0 text-[10px] text-[var(--ag-colorTextTertiary)]">
-                                or{" "}
-                                {options
-                                    .filter((slug) => slug !== active)
-                                    .map(providerLabel)
-                                    .join(" or ")}
+                                {t("entityUi.onboarding.orProviders", {
+                                    providers: options
+                                        .filter((slug) => slug !== active)
+                                        .map(providerLabel)
+                                        .join(t("entityUi.onboarding.orSeparator")),
+                                })}
                             </span>
                         ) : null}
                         {account.required ? (
                             <span className="shrink-0 rounded-full border border-solid border-[var(--ag-colorWarningBorder)] px-1.5 text-[10px] font-medium text-[var(--ag-colorWarning)]">
-                                Required
+                                {t("entityUi.onboarding.required")}
                             </span>
                         ) : null}
                     </div>
@@ -369,11 +289,11 @@ const AccountRow = ({
                     {connected ? (
                         <span className="flex items-center gap-1 text-xs font-medium text-[var(--ag-colorSuccess)]">
                             <CheckCircle size={13} weight="fill" />
-                            Connected
+                            {t("entityUi.onboarding.connected")}
                         </span>
                     ) : (
                         <Button variant="outline" size="sm" onClick={() => setConnectOpen(true)}>
-                            Connect
+                            {t("entityUi.onboarding.connect")}
                         </Button>
                     )}
                 </div>

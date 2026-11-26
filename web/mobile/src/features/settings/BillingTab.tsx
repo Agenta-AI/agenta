@@ -1,5 +1,8 @@
 import {useEffect, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import billingBillingTabCatalog from "@agenta/i18n/catalogs/billing.billingTab"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {ANALYTICS_COLOR_CSS} from "@agenta/observability-ui/analytics"
 import {fetchBillingUsage, useBillingCatalog, useBillingSubscription} from "@agenta/settings-ui"
 import {isBillingEnabled} from "@agenta/shared/api"
@@ -9,6 +12,7 @@ import {useQuery, useQueryClient} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
+import {useProjectPermission} from "../context/useProjectPermission"
 import {useWalletSummary} from "../wallet/useWalletSummary"
 import {dailyCredit, monthlyCredit} from "../wallet/walletCredits"
 import {formatCredits} from "../wallet/walletFormat"
@@ -27,6 +31,7 @@ import {useBillingPortal} from "./useBillingPortal"
 
 /** Plan & billing: the plan and what it grants, its limits, and where payments live. */
 export const BillingTab = ({projectId}: SettingsTabProps) => {
+    const t = useT(billingBillingTabCatalog, commonCatalog)
     const router = useRouter()
     const queryClient = useQueryClient()
     const billingEnabled = isBillingEnabled()
@@ -34,6 +39,9 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
     const [planChooserOpen, setPlanChooserOpen] = useState(false)
     const [cancelOpen, setCancelOpen] = useState(false)
     const portal = useBillingPortal(projectId)
+    // Reading the plan is open to every role; changing it, cancelling it and the payments portal
+    // are what the API keeps for `edit_billing`.
+    const canEditBilling = useProjectPermission(projectId, "edit_billing")
     const developerMode = useAtomValue(classicModeEnabledAtom)
 
     const usage = useQuery({
@@ -51,11 +59,11 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
 
     // "See plans" elsewhere lands here with the chooser open.
     useEffect(() => {
-        if (router.query.plans !== "1" || !billingEnabled) return
+        if (router.query.plans !== "1" || !billingEnabled || !canEditBilling) return
         setPlanChooserOpen(true)
         const {plans: _plans, ...rest} = router.query
         void router.replace({pathname: router.pathname, query: rest}, undefined, {shallow: true})
-    }, [router, billingEnabled])
+    }, [router, billingEnabled, canEditBilling])
 
     // A plan change moves the wallet's grants too.
     const refresh = () => {
@@ -67,7 +75,7 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
     if (usage.isError && subscription.isError)
         return (
             <BillingLoadError
-                message="We couldn't load your plan and its limits."
+                message={t("billing.billingTab.loadPlanAndLimitsError")}
                 onRetry={() => {
                     void usage.refetch()
                     void subscription.refetch()
@@ -84,9 +92,13 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
     const daily = enforced ? dailyCredit(enforced) : null
     const limits = planLimits(usage.data, {quotas: developerMode})
     const viewMembers = () =>
-        void router.replace({query: {...router.query, tab: "workspace"}}, undefined, {
-            shallow: true,
-        })
+        void router.replace(
+            {pathname: router.pathname, query: {...router.query, tab: "workspace"}},
+            undefined,
+            {
+                shallow: true,
+            },
+        )
 
     return (
         <div className="flex flex-col gap-10">
@@ -94,13 +106,13 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
             <div className="flex flex-col gap-2.5">
                 {subscription.isError ? (
                     <BillingLoadError
-                        message="We couldn't load your plan."
+                        message={t("billing.billingTab.loadPlanError")}
                         onRetry={() => void subscription.refetch()}
                     />
                 ) : null}
                 {usage.isError ? (
                     <BillingLoadError
-                        message="We couldn't load your plan limits."
+                        message={t("billing.billingTab.loadLimitsError")}
                         onRetry={() => void usage.refetch()}
                     />
                 ) : null}
@@ -114,9 +126,15 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
                                 isOnFreePlan={catalog.isOnFreePlan}
                                 isCustomPlan={catalog.isCustomPlan}
                                 onChangePlan={
-                                    billingEnabled ? () => setPlanChooserOpen(true) : undefined
+                                    billingEnabled && canEditBilling
+                                        ? () => setPlanChooserOpen(true)
+                                        : undefined
                                 }
-                                onCancel={billingEnabled ? () => setCancelOpen(true) : undefined}
+                                onCancel={
+                                    billingEnabled && canEditBilling
+                                        ? () => setCancelOpen(true)
+                                        : undefined
+                                }
                             />
                         ) : null}
                         {enforced ? (
@@ -132,9 +150,9 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
                     <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
                         {daily ? (
                             <PlanStatTile
-                                label="Daily free credits"
+                                label={t("billing.billingTab.dailyCredits")}
                                 value={formatCredits(daily.amount_musd)}
-                                note="Resets at midnight UTC"
+                                note={t("billing.billingTab.dailyCreditsNote")}
                             />
                         ) : null}
                         {limits.map((limit) => (
@@ -151,7 +169,7 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
                                             className="h-auto px-0"
                                             onClick={viewMembers}
                                         >
-                                            View
+                                            {t("common.view")}
                                         </Button>
                                     ) : null
                                 }
@@ -161,7 +179,7 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
                 ) : null}
             </div>
 
-            {billingEnabled ? (
+            {billingEnabled && canEditBilling ? (
                 <BillingPaymentsSection
                     onOpenPortal={portal.open}
                     opening={portal.opening}

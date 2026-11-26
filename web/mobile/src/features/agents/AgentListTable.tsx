@@ -1,12 +1,15 @@
 import {useCallback, useState} from "react"
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import agentsList from "@agenta/i18n/catalogs/agents.list"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {ListTable, type ListTableColumn, type ListTableView} from "@agenta/ui/list-table"
 
 import {AgentCardBody} from "./AgentCardBody"
 import type {AgentListGroup, AgentListRow} from "./agentListView"
 import {AgentRowCells} from "./AgentRowCells"
+import type {AgentRowActions} from "./useAgentRowActions"
 
 /**
  * The columns, shared by the header row and every body row so the two can never drift.
@@ -21,35 +24,32 @@ import {AgentRowCells} from "./AgentRowCells"
  * Every column reads from its own left edge, header and cells alike: nothing here is a number,
  * and a right-aligned word column has a ragged edge exactly where the eye starts.
  */
-const AGENT_COLUMN: ListTableColumn = {
-    key: "agent",
-    label: "Agent",
-    width: "minmax(160px,2fr)",
-}
-const OWNER_COLUMN: ListTableColumn = {
-    key: "owner",
-    label: "Created by",
-    width: "minmax(96px,1fr)",
-}
-const lastActiveColumn = (width: string): ListTableColumn => ({
-    key: "lastActive",
-    label: "Last active",
-    width,
-})
-const ACTIONS_COLUMN: ListTableColumn = {
-    key: "actions",
-    label: "Actions",
-    srOnly: true,
-    width: "24px",
-}
+type Translate = ReturnType<typeof useT<[typeof agentsList]>>
 
-const WIDE_COLUMNS: ListTableColumn[] = [
-    AGENT_COLUMN,
-    OWNER_COLUMN,
-    lastActiveColumn("96px"),
-    ACTIONS_COLUMN,
-]
-const NARROW_COLUMNS: ListTableColumn[] = [AGENT_COLUMN, lastActiveColumn("76px"), ACTIONS_COLUMN]
+const columnsFor = (narrow: boolean, t: Translate): ListTableColumn[] => {
+    const agent: ListTableColumn = {
+        key: "agent",
+        label: t("agents.list.columnAgent"),
+        width: "minmax(160px,2fr)",
+    }
+    const owner: ListTableColumn = {
+        key: "owner",
+        label: t("agents.list.columnOwner"),
+        width: "minmax(96px,1fr)",
+    }
+    const lastActive: ListTableColumn = {
+        key: "lastActive",
+        label: t("agents.list.columnLastActive"),
+        width: narrow ? "76px" : "minmax(96px,1fr)",
+    }
+    const actions: ListTableColumn = {
+        key: "actions",
+        label: t("agents.list.columnActions"),
+        srOnly: true,
+        width: "24px",
+    }
+    return narrow ? [agent, lastActive, actions] : [agent, owner, lastActive, actions]
+}
 
 /** Tailwind's `sm`. Below it Created by goes; the minima then fit a 375px screen — 76px is
  * what the "Last active" header needs to stay on one line beside a "15d ago" cell. */
@@ -70,17 +70,20 @@ export const AgentListTable = ({
     view,
     isLoading,
     onOpen,
+    actions,
     empty,
 }: {
     groups: AgentListGroup[]
     view: ListTableView
     isLoading: boolean
     onOpen: (row: AgentListRow) => void
+    actions: AgentRowActions
     empty: ReactNode
 }) => {
     // Picks the COLUMN SET, not a `display` value: header and body read one array. Asked as
     // "wide?" because the shared hook starts false before it reads the viewport, and a phone
     // is the common case here — the wide-first paint was visible.
+    const t = useT(agentsList)
     const narrow = !useMediaQuery(WIDE_QUERY)
 
     const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
@@ -96,7 +99,7 @@ export const AgentListTable = ({
 
     return (
         <ListTable
-            columns={narrow ? NARROW_COLUMNS : WIDE_COLUMNS}
+            columns={columnsFor(narrow, t)}
             minWidth={narrow ? NARROW_MIN_WIDTH : WIDE_MIN_WIDTH}
             view={view}
             // A card holds three lines of description; narrower than this they wrap to four
@@ -106,6 +109,13 @@ export const AgentListTable = ({
             // Affordable for the same reason: the minima fit every width this page is read at,
             // so the frame's own horizontal scroller was never doing anything.
             stickyHeader
+            // The first rows sit right under the header line, as drawn (A02, A03).
+            flushFirstRows
+            // As drawn (A03): quiet 12 px column names between two lines, 56 px rows with a light
+            // line under each that stays inside the table, and the cells 8 px in from its edge.
+            // 37 px: the table's top line sits above the 36 px header row.
+            headerClassName="h-[37px] border-t border-colorBorderSecondary px-2 text-[12px] font-normal text-colorTextTertiary"
+            rowClassName="mx-0 min-h-14 w-full rounded-[6px] border-b border-solid border-colorSplit px-2 py-0"
             loading={isLoading}
             groups={groups}
             rowKey={(row) => row.id}
@@ -113,8 +123,10 @@ export const AgentListTable = ({
             collapsedKeys={collapsed}
             onToggleGroup={toggleGroup}
             empty={empty}
-            renderRow={(row) => <AgentRowCells row={row} narrow={narrow} onOpen={onOpen} />}
-            renderCard={(row) => <AgentCardBody row={row} onOpen={onOpen} />}
+            renderRow={(row) => (
+                <AgentRowCells row={row} narrow={narrow} onOpen={onOpen} actions={actions} />
+            )}
+            renderCard={(row) => <AgentCardBody row={row} onOpen={onOpen} actions={actions} />}
         />
     )
 }

@@ -1,5 +1,8 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
+import {useDebounceInput} from "@agenta/shared/hooks"
 import {
     invalidateSkillsListCache,
     skillsListDataAtom,
@@ -12,7 +15,6 @@ import {
     NewSkillMenuButton,
     SkillCreateDrawer,
     SkillDetailDrawer,
-    SkillImportDrawer,
     useSkillCreateEntry,
     type SkillListItem,
 } from "@agenta/skills-ui"
@@ -20,11 +22,14 @@ import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
+import {PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
+import {agentEntryHref} from "../agents/agentEntry"
 import {useAgentOwners} from "../agents/useAgentOwners"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {FeatureOnboarding} from "../education/FeatureOnboarding"
@@ -67,14 +72,17 @@ export const SkillListScreen = ({
     projectId: string
 }) => {
     useBindProjectContext(projectId)
+    const t = useT(skillsListCatalog)
     const base = `/w/${workspaceId}/p/${projectId}`
     const query = useAtomValue(skillsListQueryAtom)
     const projectSkills = useAtomValue(skillsListDataAtom)
     const [search, setSearch] = useAtom(skillsSearchAtom)
+    // The search is a server query, so it waits for a pause in typing.
+    const [typed, setTyped] = useDebounceInput<string>(search, setSearch, 250, "")
     const setShowArchived = useSetAtom(skillsShowArchivedAtom)
     // One cached request, shared with the agents roster: a row names its author under a source
     // heading, and cannot from an id alone.
-    const {ownerNames} = useAgentOwners({workspaceId, projectId})
+    const {ownerNames} = useAgentOwners()
 
     // Grouping and the view mode are how a reader chose to read the list; the filters are a
     // question they were asking at the time, so only the first two survive a reload.
@@ -103,7 +111,9 @@ export const SkillListScreen = ({
             .map((item) => toSkillListRow(item, ownerNames.get(creators.get(item.id) ?? "")))
     }, [ownerNames, projectSkills])
     const repositories = useMemo(() => listRepositories(rows), [rows])
-    const groups = useMemo(() => deriveSkillList(rows, view), [rows, view])
+    // The group headings are text, so the groups are cut again when the language changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const groups = useMemo(() => deriveSkillList(rows, view), [rows, t, view])
 
     const term = search.trim()
     const isLoading = query.isPending
@@ -129,12 +139,29 @@ export const SkillListScreen = ({
         setDetailOpen(true)
     }, [])
     const closeDetail = useCallback(() => setDetailOpen(false), [])
-    // The drawer's Used-by names lead to the agent's own page.
-    const agentHref = useCallback((agentId: string) => `${base}/agents/${agentId}`, [base])
-    const [importOpen, setImportOpen] = useState(false)
-    const openImport = useCallback(() => setImportOpen(true), [])
-    const closeImport = useCallback(() => setImportOpen(false), [])
-    const {createOpen, upload, onWrite, onUpload, closeCreate} = useSkillCreateEntry()
+    // `?skill=<workflow slug>` opens that skill: the "skill registry" link of an agent's skill view.
+    const router = useRouter()
+    const linkedSkill = typeof router.query.skill === "string" ? router.query.skill : ""
+    const [openedLink, setOpenedLink] = useState("")
+    useEffect(() => {
+        if (!linkedSkill || linkedSkill === openedLink) return
+        setOpenedLink(linkedSkill)
+        // The drawer resolves the skill by its workflow slug, archived skills included, so a
+        // skill this list leaves out (archived, or not on this page) still opens.
+        setDetailSkill({
+            id: linkedSkill,
+            slug: linkedSkill,
+            workflowSlug: linkedSkill,
+            name: linkedSkill,
+            origin: "project",
+        })
+        setDetailOpen(true)
+    }, [linkedSkill, openedLink])
+    // The drawer's Used-by names lead to the agent.
+    const agentHref = useCallback((agentId: string) => agentEntryHref(base, agentId), [base])
+    // Each way of the New skill menu opens the one new skill view on that step.
+    const {createOpen, upload, start, onWrite, onUpload, onImport, closeCreate} =
+        useSkillCreateEntry()
 
     // The search narrows the query, so with no term an empty registry means the project has none.
     const projectEmpty =
@@ -151,7 +178,7 @@ export const SkillListScreen = ({
     const body = query.isError ? (
         // A failed fetch must not read as an empty project, so the error replaces the results
         // rather than sitting under a header row that is no longer describing anything.
-        <LoadError framed title="Could not load skills" onRetry={retry} />
+        <LoadError framed title={t("skills.list.loadFailed")} onRetry={retry} />
     ) : (
         <SkillListTable
             groups={groups}
@@ -165,7 +192,7 @@ export const SkillListScreen = ({
 
     return (
         <>
-            <PageTitle title="Skills" />
+            <PageTitle title={t("skills.list.pageTitle")} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
@@ -177,7 +204,7 @@ export const SkillListScreen = ({
                                 {/* From `sm`, 24px is the desktop page-title rung; on a phone it
                                     eats the row, so the title drops to the 16px body ramp. */}
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
-                                    Skills
+                                    {t("skills.list.pageTitle")}
                                 </h1>
                                 {projectEmpty ? null : (
                                     <HowThisWorksButton guide="skills" className="max-sm:hidden" />
@@ -185,8 +212,9 @@ export const SkillListScreen = ({
                                 <NewSkillMenuButton
                                     onWrite={onWrite}
                                     onUpload={onUpload}
-                                    onImport={openImport}
-                                    className="h-control-sm rounded-control-sm px-btn-sm text-btn-sm sm:h-control sm:rounded-control sm:px-btn sm:text-btn-md"
+                                    onImport={onImport}
+                                    // A 44 px tap area on a phone.
+                                    className={`h-control-sm rounded-control-sm px-btn-sm text-btn-sm sm:h-control sm:rounded-control sm:px-btn sm:text-btn-md ${PHONE_TOUCH_TARGET_CLASS}`}
                                 />
                             </div>
                         </div>
@@ -198,7 +226,7 @@ export const SkillListScreen = ({
                                 <SkillCreateOptions
                                     onWrite={onWrite}
                                     onUpload={onUpload}
-                                    onImport={openImport}
+                                    onImport={onImport}
                                 />
                             </FeatureOnboarding>
                         ) : (
@@ -208,9 +236,9 @@ export const SkillListScreen = ({
                                     the view switch takes the far edge, where it changes how the
                                     results are drawn rather than which ones are. */}
                                 <ListTableToolbar
-                                    search={search}
-                                    onSearchChange={setSearch}
-                                    searchPlaceholder="Search skills by name…"
+                                    search={typed}
+                                    onSearchChange={setTyped}
+                                    searchPlaceholder={t("skills.list.searchPlaceholder")}
                                     actions={
                                         <>
                                             <SkillFilterMenu
@@ -239,12 +267,12 @@ export const SkillListScreen = ({
                 skill={detailSkill}
                 agentHref={agentHref}
             />
-            <SkillImportDrawer open={importOpen} onClose={closeImport} projectId={projectId} />
             <SkillCreateDrawer
                 open={createOpen}
                 onClose={closeCreate}
                 projectId={projectId}
                 upload={upload}
+                start={start}
             />
         </>
     )

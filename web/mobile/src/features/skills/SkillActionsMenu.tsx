@@ -1,7 +1,10 @@
 import {useCallback, useState} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {projectIdAtom} from "@agenta/shared/state"
 import {SkillAgentPicker} from "@agenta/skills-ui"
+import {cn} from "@agenta/ui/styles"
 import {
     Button,
     DropdownMenu,
@@ -12,6 +15,7 @@ import {
     Popover,
     PopoverAnchor,
     PopoverContent,
+    touchTargetExpansion,
 } from "@agenta/ui/ui"
 import {
     Archive,
@@ -19,6 +23,7 @@ import {
     ArrowSquareOut,
     ArrowUUpLeft,
     DotsThreeVertical,
+    DownloadSimple,
     Plus,
 } from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -28,6 +33,8 @@ import {useConfirmModal} from "../settings/useConfirmModal"
 import type {SkillListRow} from "./skillListView"
 import {useSkillActions} from "./useSkillActions"
 import {useSkillUpdates} from "./useSkillUpdates"
+
+const tNow = createT(skillsListCatalog)
 
 /**
  * A skill's own actions — the row's only control, and a card's.
@@ -48,21 +55,20 @@ export const SkillActionsMenu = ({
     /** The row's own click already does this; the menu offers it in words. */
     onOpen: (row: SkillListRow) => void
 }) => {
+    const t = useT(skillsListCatalog)
     const projectId = useAtomValue(projectIdAtom) ?? ""
-    const {archive, restore} = useSkillActions()
+    const {archive, restore, download} = useSkillActions()
     const {check} = useSkillUpdates()
     const {confirm, modal} = useConfirmModal()
     const [agentsOpen, setAgentsOpen] = useState(false)
 
     const onArchive = useCallback(() => {
         confirm({
-            title: `Archive ${row.slug}?`,
-            message:
-                "It leaves the registry and agents can no longer run it. Its name stays reserved, " +
-                "and restoring it brings back its full history.",
+            title: tNow("skills.list.archiveTitle", {name: row.title}),
+            message: tNow("skills.list.archiveMessage"),
             onOk: () => archive(row.id),
         })
-    }, [archive, confirm, row.id, row.slug])
+    }, [archive, confirm, row.id, row.title])
 
     return (
         <>
@@ -77,8 +83,12 @@ export const SkillActionsMenu = ({
                                 type="button"
                                 size="icon-xs"
                                 variant="ghost"
-                                aria-label="Skill actions"
-                                className="hover:bg-foreground/10 dark:hover:bg-foreground/15"
+                                aria-label={t("skills.list.skillActions")}
+                                // Drawn at 24 px; the hit area reaches 44 px for a finger.
+                                className={cn(
+                                    "hover:bg-foreground/10 dark:hover:bg-foreground/15",
+                                    touchTargetExpansion({height: 24, width: 24}),
+                                )}
                             >
                                 <DotsThreeVertical aria-hidden className="size-3.5" weight="bold" />
                             </Button>
@@ -87,7 +97,7 @@ export const SkillActionsMenu = ({
                     <DropdownMenuContent align="end" className="w-[200px]">
                         <DropdownMenuItem onSelect={() => onOpen(row)}>
                             <ArrowSquareOut aria-hidden size={14} />
-                            Open skill
+                            {t("skills.list.openSkill")}
                         </DropdownMenuItem>
                         {row.archived ? null : (
                             <DropdownMenuItem
@@ -96,25 +106,31 @@ export const SkillActionsMenu = ({
                                 onSelect={() => requestAnimationFrame(() => setAgentsOpen(true))}
                             >
                                 <Plus aria-hidden size={14} />
-                                Add to agent
+                                {t("skills.list.addToAgent")}
                             </DropdownMenuItem>
                         )}
                         {row.origin === "imported" ? (
                             <DropdownMenuItem onSelect={() => void check([row.id])}>
                                 <ArrowsClockwise aria-hidden size={14} />
-                                Check for updates
+                                {t("skills.list.checkForUpdates")}
                             </DropdownMenuItem>
                         ) : null}
+                        {row.item.origin === "builtin" ? null : (
+                            <DropdownMenuItem onSelect={() => void download(row.id)}>
+                                <DownloadSimple aria-hidden size={14} />
+                                {t("skills.list.download")}
+                            </DropdownMenuItem>
+                        )}
                         <DropdownMenuSeparator />
                         {row.archived ? (
                             <DropdownMenuItem onSelect={() => void restore(row.id)}>
                                 <ArrowUUpLeft aria-hidden size={14} />
-                                Restore
+                                {t("skills.list.restore")}
                             </DropdownMenuItem>
                         ) : (
                             <DropdownMenuItem variant="destructive" onSelect={onArchive}>
                                 <Archive aria-hidden size={14} />
-                                Archive
+                                {t("skills.list.archive")}
                             </DropdownMenuItem>
                         )}
                     </DropdownMenuContent>
@@ -122,7 +138,7 @@ export const SkillActionsMenu = ({
                 <PopoverContent
                     align="end"
                     sideOffset={6}
-                    aria-label="Add to agent"
+                    aria-label={t("skills.list.addToAgent")}
                     className="flex w-[280px] flex-col gap-0 p-0"
                     onOpenAutoFocus={(event) => event.preventDefault()}
                     onFocusOutside={(event) => event.preventDefault()}

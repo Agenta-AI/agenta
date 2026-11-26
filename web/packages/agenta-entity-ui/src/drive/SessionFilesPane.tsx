@@ -12,13 +12,18 @@ import {useCallback, useEffect, useMemo, useRef} from "react"
 
 import {type DriveId} from "@agenta/entities/drive"
 import {useSessionDriveSummary} from "@agenta/entities/drive"
+import {createT} from "@agenta/i18n"
+import filesPaneCatalog from "@agenta/i18n/catalogs/entityUi.filesPane"
 import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
+import {clearQuoteReveal, getQuotes, useQuoteReveal} from "@agenta/ui/quote-selection"
 import {atom, useAtom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai-family"
 import dynamic from "next/dynamic"
 
+import {type DriveLinkItem} from "./driveLink"
+
 import {DriveExplorerSkeleton} from "./index"
-import {useDriveArtifactId} from "./index"
+import {useDriveArtifactId, useDriveRevisionId} from "./index"
 import {useDriveGeneration} from "./index"
 import {driveQuickLookAtomFamily} from "./index"
 import {filesDrawerStagedAtomFamily, resolveQuickLookPath} from "./index"
@@ -33,6 +38,12 @@ const DriveExplorer = dynamic(() => import("./DriveExplorer").then((m) => m.Driv
 // adding or switching tabs must not snap an open pane shut. Quick-look + staged drops stay
 // per-session (they are selection state) and latch this flag open via the effect below.
 export const sessionFilesPaneOpenAtomFamily = atomFamily((_scope: string) => atom(false))
+
+// This hook mounts more than once per session; each reveal opens the file once.
+const openedReveals = new Map<string, number>()
+
+// The id labels are built in a memo; they read the language when it runs.
+const tNow = createT(filesPaneCatalog)
 
 /** The pane's open/close/toggle — one hook so the splitter host, the session bar toggle, and
  * every opener (config Files section, context rail, inspector) drive the SAME state. */
@@ -49,6 +60,16 @@ export const useSessionFilesPane = (scope: string, sessionId: string) => {
         if (sessionRequested) setScopeOpen(true)
     }, [sessionRequested, setScopeOpen])
     const open = scopeOpen || sessionRequested
+    // A composer chip asked to show its comment: open its file; the comment layer opens the pin.
+    const reveal = useQuoteReveal(sessionId)
+    useEffect(() => {
+        if (!reveal || openedReveals.get(sessionId) === reveal.seq) return
+        openedReveals.set(sessionId, reveal.seq)
+        const quote = getQuotes(sessionId).find((held) => held.id === reveal.id)
+        if (quote?.source.kind === "preview")
+            setQuickLook({path: quote.source.displayPath, exact: true})
+        else clearQuoteReveal(sessionId, reveal.seq)
+    }, [reveal, sessionId, setQuickLook])
     const close = useCallback(() => {
         setScopeOpen(false)
         setQuickLook(null)
@@ -65,26 +86,36 @@ export function SessionFilesPane({
     closeControl = "collapse",
     expanded = false,
     onToggleExpand,
+    onSelectionChange,
+    readOnly = false,
+    touch = false,
 }: {
     scope: string
     sessionId: string
-    /** Who closes the pane: row 1's "»" (the desktop), the host's own session-bar toggle
-     * (`"none"` — `/m`, where the panel icon shows the open state and flips it), or a leading
-     * "»" (`"back"` — a phone, where the pane has the screen and that bar is off it). */
-    closeControl?: "collapse" | "back" | "none"
+    /** Every selection, for a host that mirrors it in the URL. */
+    onSelectionChange?: (item: DriveLinkItem) => void
+    /** Who closes the pane: row 1's "»" (the desktop), or the host (`"none"` — `/m`, where the
+     * panel icon shows the open state and flips it, and a phone header has the back arrow). */
+    closeControl?: "collapse" | "none"
     expanded?: boolean
     onToggleExpand?: () => void
+    /** Open and download only (a phone): the explorer offers no write. */
+    readOnly?: boolean
+    /** A touch screen (a phone): 44 px hit areas on the header and toolbar buttons. */
+    touch?: boolean
 }) {
     const {open, close} = useSessionFilesPane(scope, sessionId)
     const [quickLook] = useAtom(driveQuickLookAtomFamily(sessionId))
     const [staged, setStaged] = useAtom(filesDrawerStagedAtomFamily(sessionId))
     const artifactId = useDriveArtifactId()
+    const revisionId = useDriveRevisionId()
 
     // Summary drive (cheap) — DriveExplorer lazy-loads the rest. Gated on open (the agent-mount query
     // keys on artifactId, so a live id while collapsed would fetch the agent drive before it's shown).
     const drive = useSessionDriveSummary(
         open ? sessionId : "",
         open ? (artifactId ?? undefined) : undefined,
+        open ? (revisionId ?? undefined) : undefined,
     )
 
     // Every opener writes a fresh request, so the same path clicked twice still re-opens.
@@ -94,11 +125,17 @@ export function SessionFilesPane({
     const initialPath = useMemo(
         () =>
             quickLook
-                ? quickLook.path
-                    ? resolveQuickLookPath(drive.recents, quickLook.path)
-                    : ""
+                ? quickLook.path && !quickLook.exact
+                    ? resolveQuickLookPath(
+                          drive.recents,
+                          quickLook.path,
+                          drive.driveEntries,
+                          drive.homeSlug,
+                          drive.homeAtRoot,
+                      )
+                    : quickLook.path
                 : null,
-        [quickLook, drive.recents],
+        [quickLook, drive.recents, drive.driveEntries, drive.homeSlug, drive.homeAtRoot],
     )
 
     // Raw ids are a DEBUGGING affordance (wiring an SDK call, filing a bug), so they ride the same
@@ -110,9 +147,19 @@ export function SessionFilesPane({
                 ? []
                 : ([
                       drive.mount?.id
-                          ? {key: "mount", label: "Drive ID", value: drive.mount.id}
+                          ? {
+                                key: "mount",
+                                label: tNow("entityUi.filesPane.driveId"),
+                                value: drive.mount.id,
+                            }
                           : null,
-                      sessionId ? {key: "owner", label: "Session ID", value: sessionId} : null,
+                      sessionId
+                          ? {
+                                key: "owner",
+                                label: tNow("entityUi.filesPane.sessionId"),
+                                value: sessionId,
+                            }
+                          : null,
                   ].filter(Boolean) as DriveId[]),
         [inspectorEnabled, drive.mount?.id, sessionId],
     )
@@ -127,12 +174,14 @@ export function SessionFilesPane({
                 scope="session"
                 initialPath={initialPath}
                 initialPathSeq={initialPathSeq}
+                folderHint={quickLook?.folder ? initialPath : null}
+                onSelectionChange={onSelectionChange}
                 chrome
                 onClose={closeControl === "none" && !expanded ? undefined : close}
                 expanded={expanded}
                 onToggleExpand={onToggleExpand}
                 expandPlacement="before-options"
-                closeVariant={closeControl === "back" ? "back" : "collapse"}
+                closeVariant="collapse"
                 mirrored
                 // The rail starts closed: the grid + breadcrumb browse on their own, and the row-1
                 // toggle (or a search, which needs the rows) brings it in; the choice then sticks.
@@ -141,6 +190,8 @@ export function SessionFilesPane({
                 driveIds={driveIds}
                 stagedFiles={staged}
                 onStagedChange={setStaged}
+                readOnly={readOnly}
+                touch={touch}
             />
         </div>
     )

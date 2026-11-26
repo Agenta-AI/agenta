@@ -1,5 +1,8 @@
 import {type ReactNode, useState, useMemo, useCallback} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiTableCatalog from "@agenta/i18n/catalogs/ui.table"
 import {DownloadSimple, Eye, GearSix, Trash} from "@phosphor-icons/react"
 
 import {Button} from "../../../components/ui/button"
@@ -43,6 +46,7 @@ const TableSettingsDropdown = <RowType extends object>({
     renderColumnVisibilityContent,
     additionalMenuItems,
 }: TableSettingsDropdownProps<RowType>) => {
+    const t = useT(uiTableCatalog, commonCatalog)
     const [dropdownOpen, setDropdownOpen] = useState(false)
     const [columnVisibilityOpen, setColumnVisibilityOpen] = useState(false)
 
@@ -64,7 +68,7 @@ const TableSettingsDropdown = <RowType extends object>({
         // Column Visibility option
         items.push({
             key: "column-visibility",
-            label: "Column visibility",
+            label: t("ui.table.columnVisibility"),
             icon: <Eye size={16} />,
             onClick: handleOpenColumnVisibility,
         })
@@ -80,7 +84,7 @@ const TableSettingsDropdown = <RowType extends object>({
             items.push({type: "divider"})
             items.push({
                 key: "export",
-                label: isExporting ? "Exporting..." : "Export to CSV",
+                label: isExporting ? t("ui.table.exporting") : t("ui.table.exportToCsv"),
                 icon: <DownloadSimple size={16} />,
                 disabled: isExporting,
                 onClick: () => {
@@ -132,14 +136,14 @@ const TableSettingsDropdown = <RowType extends object>({
                 >
                     {/* Span keeps the tooltip trigger off the menu trigger's own element (see
                         SimpleTooltip) — hygiene, not the /evaluations loop fix. */}
-                    <SimpleTooltip title="Table settings">
+                    <SimpleTooltip title={t("ui.table.tableSettings")}>
                         <span className="inline-flex">
                             <DropdownMenuTrigger asChild>
                                 <Button
                                     className="rounded-control-round"
                                     size="icon"
                                     variant="ghost"
-                                    aria-label="Table settings"
+                                    aria-label={t("ui.table.tableSettings")}
                                     onClick={(e) => e.stopPropagation()}
                                 >
                                     <GearSix size={16} weight="bold" />

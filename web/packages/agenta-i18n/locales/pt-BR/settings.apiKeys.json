@@ -1,0 +1,14 @@
+{
+    "apiKey": "Chave de API",
+    "deleteKey": "Excluir chave",
+    "emptyDescription": "Gere uma chave para autenticar as requisições à API da Agenta a partir do seu código, de jobs de CI e de SDKs.",
+    "emptyTitle": "Nenhuma chave de API ainda",
+    "expired": "Expirada",
+    "expires": "Expira",
+    "generateKey": "Gerar chave",
+    "keyActions": "Ações da chave",
+    "lastUsed": "Último uso",
+    "never": "Nunca",
+    "neverUsed": "Nunca usada",
+    "noAccess": "Você não tem acesso às chaves de API neste projeto."
+}

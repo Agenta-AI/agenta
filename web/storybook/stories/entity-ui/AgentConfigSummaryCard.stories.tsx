@@ -59,3 +59,21 @@ export const Instructions: Story = {
         }),
     },
 }
+
+/** Skills by their readable titles: an inline skill, a registry reference and a built-in. */
+export const Skills: Story = {
+    args: {onEdit: undefined},
+    parameters: {
+        agenta: fixture({
+            llm: {model: "gpt-5"},
+            skills: [
+                {name: "laptop-replacement-policy", body: "..."},
+                {
+                    "@ag.embed": {"@ag.references": {workflow: {slug: "pr-review-9c1d"}}},
+                    name: "pr-review",
+                },
+                {"@ag.embed": {"@ag.references": {workflow: {slug: "__ag__web-search"}}}},
+            ],
+        }),
+    },
+}

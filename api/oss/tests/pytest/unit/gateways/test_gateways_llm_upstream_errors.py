@@ -5,6 +5,8 @@ that quotes what the model said, cleaned, and carries the code marker the runner
 reads (`upstream_error` or `upstream_rejected`). Nothing running: httpx.MockTransport.
 """
 
+from uuid import uuid4
+
 import json
 import time
 from typing import List, Optional
@@ -86,7 +88,7 @@ def _secret(key: str) -> ResolvedSecret:
             ),
             header=Header(name="openai"),
         ),
-        owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
+        owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=uuid4()),
         origin=SecretOrigin.VAULT,
     )
 
@@ -301,27 +303,6 @@ async def test_an_oversized_error_body_is_read_only_up_to_the_bound():
     assert json.loads(b"".join(chunks))["error"]["message"].startswith(
         'The model reported an error: "xxx'
     )
-
-
-@pytest.mark.asyncio
-async def test_the_retired_starter_credits_endpoint_relays_its_errors_unchanged():
-    body = {
-        "error": {"message": "Budget has been exceeded!", "type": "budget_exceeded"}
-    }
-    adapter = RelayLLMAdapter(
-        client=httpx.AsyncClient(
-            transport=httpx.MockTransport(lambda _: httpx.Response(400, json=body))
-        )
-    )
-    result = await adapter.relay_chat_completion(
-        route=_route(label="starter-credits"),
-        secret=None,
-        context=LLMCallContext(model="m", stream=False),
-        body=b'{"model": "m"}',
-        headers={},
-    )
-
-    assert json.loads(b"".join([chunk async for chunk in result.body])) == body
 
 
 def test_ordinary_words_before_a_colon_are_kept():

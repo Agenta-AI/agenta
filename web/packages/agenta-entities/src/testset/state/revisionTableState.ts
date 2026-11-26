@@ -144,8 +144,8 @@ export function createEffectiveColumnsAtomFamily(
             const baseColumns = get(baseColumnsAtomFamily(revisionId))
             const ops = get(pendingColumnOpsAtomFamily(revisionId))
 
-            // Start with base columns
-            let columns = [...baseColumns]
+            // Removals are read on the saved names, before renames, as on the server
+            let columns = baseColumns.filter((col) => !ops.remove.includes(col.key))
 
             // Apply renames
             for (const rename of ops.rename) {
@@ -160,9 +160,6 @@ export function createEffectiveColumnsAtomFamily(
                     return col
                 })
             }
-
-            // Remove deleted columns
-            columns = columns.filter((col) => !ops.remove.includes(col.key))
 
             // Add new columns
             for (const newKey of ops.add) {
@@ -241,7 +238,47 @@ export function createRowRefsAtomFamily(
 // ============================================================================
 
 /**
- * Add column reducer
+ * Applies pending column operations to the data of a saved row, the way the server applies the
+ * commit delta: a removed key is dropped and a renamed key takes its new name, both read on the
+ * saved key, in one pass that keeps the key order; then each added key that is missing is set
+ * to "". So `remove: ["a"]` with `rename: b -> a` gives the values of `b` under `a`, and
+ * `remove: ["a"]` with `add: ["a"]` gives an empty `a`.
+ *
+ * Only top-level keys change, as on the server. Returns the same object when nothing changes.
+ */
+export function applyColumnOps(
+    data: Record<string, unknown>,
+    ops: PendingColumnOps,
+): Record<string, unknown> {
+    if (ops.add.length === 0 && ops.remove.length === 0 && ops.rename.length === 0) return data
+    const removed = new Set(ops.remove)
+    const renamed = new Map(ops.rename.map(({oldKey, newKey}) => [oldKey, newKey]))
+    const result: Record<string, unknown> = {}
+    let changed = false
+    for (const [key, value] of Object.entries(data)) {
+        if (removed.has(key)) {
+            changed = true
+            continue
+        }
+        const name = renamed.get(key) ?? key
+        if (name !== key) changed = true
+        result[name] = value
+    }
+    for (const key of ops.add) {
+        if (!Object.hasOwn(result, key)) {
+            result[key] = ""
+            changed = true
+        }
+    }
+    return changed ? result : data
+}
+
+/**
+ * Add column reducer.
+ *
+ * The name joins the add list even when it is a removed saved column: the server removes the
+ * old values and then adds the column empty, as a user who deletes a column and adds it again
+ * expects. The caller checks that no current column has the name.
  */
 export const addColumnReducer = atom<
     null,
@@ -249,87 +286,72 @@ export const addColumnReducer = atom<
     void
 >(null, (get, set, {revisionId, columnKey}) => {
     const ops = get(pendingColumnOpsAtomFamily(revisionId))
-
-    // Don't add if already exists in add list
-    if (ops.add.includes(columnKey)) {
-        return
-    }
-
-    // If it was previously removed, un-remove it instead of adding
-    if (ops.remove.includes(columnKey)) {
-        set(pendingColumnOpsAtomFamily(revisionId), {
-            ...ops,
-            remove: ops.remove.filter((k) => k !== columnKey),
-        })
-        return
-    }
-
-    set(pendingColumnOpsAtomFamily(revisionId), {
-        ...ops,
-        add: [...ops.add, columnKey],
-    })
+    if (ops.add.includes(columnKey)) return
+    set(pendingColumnOpsAtomFamily(revisionId), {...ops, add: [...ops.add, columnKey]})
 })
 
 /**
- * Remove column reducer
+ * Remove column reducer. `columnKey` is the current name of the column.
+ *
+ * A column added in this session leaves the add list. A renamed saved column loses its rename
+ * and its saved name is removed, because the server reads removals on the saved names.
  */
 export const removeColumnReducer = atom<null, [{revisionId: string; columnKey: string}], void>(
     null,
     (get, set, {revisionId, columnKey}) => {
         const ops = get(pendingColumnOpsAtomFamily(revisionId))
 
-        // If it was pending add, just remove from add list
         if (ops.add.includes(columnKey)) {
             set(pendingColumnOpsAtomFamily(revisionId), {
                 ...ops,
-                add: ops.add.filter((k) => k !== columnKey),
+                add: ops.add.filter((key) => key !== columnKey),
             })
             return
         }
 
-        // Don't add if already in remove list
-        if (ops.remove.includes(columnKey)) return
-
+        const rename = ops.rename.find((candidate) => candidate.newKey === columnKey)
+        const savedKey = rename?.oldKey ?? columnKey
         set(pendingColumnOpsAtomFamily(revisionId), {
             ...ops,
-            remove: [...ops.remove, columnKey],
+            rename: rename ? ops.rename.filter((candidate) => candidate !== rename) : ops.rename,
+            remove: ops.remove.includes(savedKey) ? ops.remove : [...ops.remove, savedKey],
         })
     },
 )
 
 /**
- * Rename column reducer
+ * Rename column reducer. `oldKey` is the current name of the column.
+ *
+ * A column added in this session changes its name in the add list. A renamed saved column
+ * keeps one rename from its saved name, and a rename back to the saved name drops it. The
+ * caller checks that no current column has the new name.
  */
 export const renameColumnReducer = atom<
     null,
     [{revisionId: string; oldKey: string; newKey: string}],
     void
 >(null, (get, set, {revisionId, oldKey, newKey}) => {
+    if (oldKey === newKey) return
     const ops = get(pendingColumnOpsAtomFamily(revisionId))
 
-    // If renaming a pending add, update the add list instead
     if (ops.add.includes(oldKey)) {
         set(pendingColumnOpsAtomFamily(revisionId), {
             ...ops,
-            add: ops.add.map((k) => (k === oldKey ? newKey : k)),
+            add: ops.add.map((key) => (key === oldKey ? newKey : key)),
         })
         return
     }
 
-    // Check if already renamed - update the existing rename
-    const existingRenameIdx = ops.rename.findIndex(
-        (r) => r.oldKey === oldKey || r.newKey === oldKey,
-    )
-    if (existingRenameIdx >= 0) {
-        const existing = ops.rename[existingRenameIdx]
-        const updatedRenames = [...ops.rename]
-        updatedRenames[existingRenameIdx] = {
-            oldKey: existing.oldKey,
-            newKey,
-        }
+    const existing = ops.rename.find((candidate) => candidate.newKey === oldKey)
+    if (existing) {
         set(pendingColumnOpsAtomFamily(revisionId), {
             ...ops,
-            rename: updatedRenames,
+            rename:
+                existing.oldKey === newKey
+                    ? ops.rename.filter((candidate) => candidate !== existing)
+                    : ops.rename.map((candidate) =>
+                          candidate === existing ? {oldKey: existing.oldKey, newKey} : candidate,
+                      ),
         })
         return
     }

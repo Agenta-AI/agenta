@@ -1,0 +1,60 @@
+# Personal credentials and connection bindings (M7)
+
+Status: M7 shipped in v0.128.0 as the accounts package (#7942). It was built from `docs/design/accounts-package/spec.md`, which replaces the account parts of this change. Where this change and that spec disagree, the spec and the shipped code win. The main differences: each item has `account_source` (`agent` or `user`), not a `caller_account | project_default | specific` binding; a missing personal account leaves the item out of the run instead of refusing the run; a channel turn, an API-key run and a child run have no run person and use no personal account; and the durable-work edit rule shipped as "the last editor becomes the executing principal" (#7919), which the `durable-work-edits` spec below follows. M7 needed M6a and shipped without M9b.
+
+## Why
+
+Every credential belongs to a project or, after M5, to the organization. When Bob uses a shared agent, the agent cannot act with Bob's own Gmail, Claude login, or MCP account. `SecretMode.USER_REQUIRED` reads the project secret, and `SecretMode.USER_OPTIONAL` is a fallback.
+
+Agenta is multiplayer. An agent that a team shares must be able to act as each person who uses it, or as the project's shared account, and the builder must choose which one for each item.
+
+## What Changes
+
+The owner decided the scope on 2026-10-26 and the open rules of the first step on 2026-10-28. M7 can ship in one step or in several steps. This change specifies the first step and names the later steps.
+
+- MCP servers, Composio connections and custom secrets each belong to a person or to a project. For each agent and each such item, the builder picks "Each person's own account" or "The project's shared account".
+- Add the user owner (CONTRACT.md section 8) for provider keys, subscription logins, Composio connections, MCP servers, and MCP OAuth grants for a project's server. A user-owned credential is valid in every project of its organization where its owner runs. Only the owner sees, uses and manages it.
+- Personal MCP servers are in M7. A person adds an MCP server for their own use. An agent names one with the new MCP reference scope `user`.
+- Personal subscription logins are in M7. Organization subscription logins ship in M5 (`organization-credentials`), not here.
+- Give every agent connection an explicit binding. The first step offers two bindings: `caller_account` ("Each person's own account") and `project_default` ("The project's shared account"). Remove `SecretMode`. No binding falls back to another account.
+- `caller_account` uses the person behind the run: the human principal of a web run or a schedule, or the linked user of a channel turn. A run with no person is refused on a `caller_account` connection. Until M6a exists, every API-key run has no person.
+- Sign the bindings into the run credential.
+- Apply the shared-session rule of CONTRACT.md section 8.
+- A channel turn uses the linked user's own account. A channel turn from an unlinked user is refused on a `caller_account` connection when it runs. Saving or activating a channel binding is never refused for this.
+- Show per turn which account each connection used.
+- Add the edit rule for durable work (CONTRACT.md sections 5 and 6): a save through an edit route makes the editor the person a schedule, subscription or evaluation run runs as.
+- Delete a user's personal credentials when the user leaves the organization.
+- EE: an organization policy can forbid personal credentials.
+
+## Order
+
+M7 needs M3, M5 and M6a. It shipped without M9b (CONTRACT.md section 14). When M6a ships, a personal API key acts as its human and gets that human's own accounts. A service key has no person.
+
+## Later steps
+
+- Personal and organization custom secrets. They wait for hidden secrets: the sandbox gets a placeholder, and the real value is added outside the sandbox. Project custom secrets keep today's behavior until then.
+- The `specific` binding ("One fixed account"). It is not in the first step.
+- Organization-owned MCP servers, Composio connections and custom secrets. Only if they are easy to add; they are not required.
+
+## Capabilities
+
+### New Capabilities
+
+- `personal-credentials`: user-owned credentials, personal MCP servers, privacy, lifecycle, EE policy.
+- `connection-bindings`: bindings, the caller rule, signed claims.
+- `personal-credential-sessions`: the shared-session guard, the sticky mark, the channel-turn rule, the per-turn record.
+- `durable-work-edits`: who a schedule, subscription or evaluation run runs as after an edit.
+
+### Modified Capabilities
+
+None. M2, M3, M5 and M6 are not archived.
+
+## Non-goals
+
+- Agent-owned accounts (a switch that makes the agent run with a pinned account for everyone).
+- Tool settings per role.
+- Hosted MCP servers.
+- User-owned custom providers.
+- More than one personal account per service per user in one organization.
+- Composio event triggers on user-owned connections.
+- Per-turn credential switching in a shared session.

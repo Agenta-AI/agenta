@@ -1,3 +1,6 @@
+import {useT} from "@agenta/i18n"
+import educationGuidesCatalog from "@agenta/i18n/catalogs/education.guides"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {Button} from "@agenta/ui/ui"
 import {PlayCircle} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
@@ -13,18 +16,19 @@ export const HowThisWorksButton = ({
     guide: FeatureGuideKey
     className?: string
 }) => {
+    const t = useT(educationGuidesCatalog, navigationCatalog)
     const openGuide = useSetAtom(openFeatureGuideAtom)
-    const {title, headline, docsUrl, video} = FEATURE_GUIDES[guide]
+    const {title, headline, howItWorks, docsUrl, video} = FEATURE_GUIDES[guide]
     if (!video) return null
 
     return (
         <Button
             variant="ghost"
             className={className}
-            onClick={() => openGuide({title, headline, docsUrl, video})}
+            onClick={() => openGuide({title: t(title), headline: t(headline), docsUrl, video})}
         >
             <PlayCircle aria-hidden />
-            How {title.toLowerCase()} work
+            {t(howItWorks)}
         </Button>
     )
 }

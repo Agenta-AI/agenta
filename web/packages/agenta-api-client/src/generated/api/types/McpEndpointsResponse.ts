@@ -4,5 +4,5 @@ import type * as AgentaApi from "../index.js";
 
 export interface McpEndpointsResponse {
     count?: number | undefined;
-    endpoints?: AgentaApi.McpEndpoint[] | undefined;
+    endpoints?: AgentaApi.McpEndpointWithSignIn[] | undefined;
 }

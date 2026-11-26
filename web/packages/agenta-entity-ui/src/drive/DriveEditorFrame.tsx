@@ -2,6 +2,8 @@
 import {type KeyboardEvent, useCallback} from "react"
 
 import {type Mount} from "@agenta/entities/session"
+import {useT} from "@agenta/i18n"
+import drivePreviewCatalog from "@agenta/i18n/catalogs/entityUi.drivePreview"
 import {SkeletonBlock} from "@agenta/ui/ui"
 
 import {DownloadCard} from "./renderers"
@@ -37,11 +39,17 @@ export const DriveEditorPlaceholder = ({
     path: string
     failed: boolean
     lines: number
-}) =>
-    failed ? (
+}) => {
+    const t = useT(drivePreviewCatalog)
+    return failed ? (
         <div className="flex min-h-0 flex-1 flex-col p-4">
-            <DownloadCard mount={mount} path={path} title="Couldn't load this file's content" />
+            <DownloadCard
+                mount={mount}
+                path={path}
+                title={t("entityUi.drivePreview.couldNotLoadContent")}
+            />
         </div>
     ) : (
         <DriveEditorSkeleton lines={lines} />
     )
+}

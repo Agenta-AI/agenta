@@ -14,6 +14,8 @@
 import {memo, useCallback, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
+import {useT} from "@agenta/i18n"
+import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {Tag} from "@agenta/ui/components/presentational"
 import {
     Badge,
@@ -50,6 +52,7 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
     disabled = false,
     className,
 }: FieldsTagsEditorControlProps) {
+    const t = useT(schemaControlsCatalog)
     const [inputValue, setInputValue] = useState("")
     const fields = value ?? []
     const {detectFieldsFromTestcase, hasTestcaseData} = useFieldsDetection()
@@ -117,7 +120,7 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                                 </Tag>
                             </TooltipTrigger>
                             <TooltipContent>
-                                Aggregate score across all fields (auto-generated)
+                                {t("entityUi.schemaControls.aggregateScoreHint")}
                             </TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
@@ -133,7 +136,7 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                                 <span
                                     role="button"
                                     tabIndex={0}
-                                    aria-label={`Remove ${field}`}
+                                    aria-label={t("entityUi.schemaControls.removeField", {field})}
                                     onClick={() => handleRemoveField(field)}
                                     onKeyDown={(e) => {
                                         if (e.key === "Enter" || e.key === " ") {
@@ -151,7 +154,7 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
 
                     {fields.length === 0 && (
                         <span className="text-[var(--ant-color-text-secondary)] text-xs">
-                            Add fields to compare
+                            {t("entityUi.schemaControls.addFieldsToCompare")}
                         </span>
                     )}
                 </div>
@@ -162,8 +165,8 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                         <InputAffix
                             size="sm"
                             className="flex-1 font-mono"
-                            aria-label="Add field"
-                            placeholder="Add field (e.g., name or user.address.city)"
+                            aria-label={t("entityUi.schemaControls.addField")}
+                            placeholder={t("entityUi.schemaControls.addFieldPlaceholder")}
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
                             onKeyDown={handleInputKeyDown}
@@ -176,7 +179,7 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                                             </span>
                                         </TooltipTrigger>
                                         <TooltipContent>
-                                            Use dot notation for nested fields (e.g., user.name)
+                                            {t("entityUi.schemaControls.dotNotationHint")}
                                         </TooltipContent>
                                     </Tooltip>
                                 </TooltipProvider>
@@ -189,7 +192,7 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                             disabled={!inputValue.trim()}
                         >
                             <Plus size={12} />
-                            Add
+                            {t("entityUi.schemaControls.add")}
                         </Button>
                     </div>
                 )}
@@ -197,7 +200,7 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                 {/* Helper text + Detect from testcase button */}
                 <div className="flex items-start justify-between gap-3">
                     <span className="text-xs pt-0.5 text-colorTextDescription">
-                        Each field creates a column with value 0 (no match) or 1 (match)
+                        {t("entityUi.schemaControls.fieldColumnHint")}
                     </span>
                     {!disabled && detectFieldsFromTestcase && (
                         <Button
@@ -208,7 +211,7 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                             className="shrink-0 text-xs"
                         >
                             <MagnifyingGlass size={12} />
-                            Detect from testcase
+                            {t("entityUi.schemaControls.detectFromTestcase")}
                         </Button>
                     )}
                 </div>

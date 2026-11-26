@@ -23,6 +23,7 @@ import {
   TOOL_CALL_TIMEOUT_ENV,
   TOOL_CALL_GRACE_MS,
   commandTimeoutSeconds,
+  toolCallLimitMs,
   type Clock,
   type RunLimitKind,
 } from "../../src/engines/sandbox_agent/run-limits.ts";
@@ -516,5 +517,66 @@ describe("a slow tool call is stopped by its command, not by the turn (EU 2026-1
     assert.deepEqual(kinds, []);
     advance(1); // nothing in flight any more: idle applies again
     assert.deepEqual(kinds, ["idle"]);
+  });
+});
+
+describe("a tool with its own time budget gets that budget from the watchdog (#8271)", () => {
+  // Cloud and staging values: a 300 s tool-call limit, the 120 s grace, and a 420 s idle limit.
+  // A reference tool's spec carries a 30-minute budget.
+  const cloud = {
+    totalMs: 11 * 60 * 60_000,
+    idleMs: 420_000,
+    ttfbMs: 480_000,
+    toolCallMs: 300_000,
+    toolCallGraceMs: TOOL_CALL_GRACE_MS,
+  };
+  const REFERENCE_BUDGET_MS = 1_800_000;
+
+  it("does not end the turn over a reference call at the run's tool-call limit plus the grace", () => {
+    const { clock, advance } = fakeClock();
+    const limits = createRunLimits(cloud, { clock });
+    const trips: Array<[RunLimitKind, number]> = [];
+    limits.onTrip((_reason, kind, limitMs) => trips.push([kind, limitMs]));
+
+    limits.noteToolCallStart("call-child", REFERENCE_BUDGET_MS);
+    advance(300_000 + TOOL_CALL_GRACE_MS + 1);
+    assert.deepEqual(trips, [], "neither the tool-call watchdog nor the idle limit ends it");
+    advance(10 * 60_000); // a 10-minute child call in total, well past the old 420 s
+    assert.deepEqual(trips, []);
+    limits.noteToolCallEnd("call-child");
+    assert.deepEqual(trips, []);
+  });
+
+  it("still ends the turn over a reference call that runs past its own budget plus the grace", () => {
+    const { clock, advance } = fakeClock();
+    const limits = createRunLimits(cloud, { clock });
+    const trips: Array<[RunLimitKind, number]> = [];
+    limits.onTrip((_reason, kind, limitMs) => trips.push([kind, limitMs]));
+
+    limits.noteToolCallStart("call-child", REFERENCE_BUDGET_MS);
+    advance(REFERENCE_BUDGET_MS + TOOL_CALL_GRACE_MS - 1);
+    assert.deepEqual(trips, []);
+    advance(1);
+    assert.deepEqual(trips, [["tool-call", REFERENCE_BUDGET_MS]]);
+  });
+
+  it("keeps the run's tool-call limit for a tool without its own budget", () => {
+    const { clock, advance } = fakeClock();
+    const limits = createRunLimits(cloud, { clock });
+    const trips: Array<[RunLimitKind, number]> = [];
+    limits.onTrip((_reason, kind, limitMs) => trips.push([kind, limitMs]));
+
+    limits.noteToolCallStart("call-shell");
+    advance(300_000 + TOOL_CALL_GRACE_MS - 1);
+    assert.deepEqual(trips, []);
+    advance(1);
+    assert.deepEqual(trips, [["tool-call", 300_000]]);
+  });
+
+  it("never lets a tool's budget shorten the run's tool-call limit", () => {
+    assert.equal(toolCallLimitMs(300_000, undefined), 300_000);
+    assert.equal(toolCallLimitMs(300_000, 60_000), 300_000);
+    assert.equal(toolCallLimitMs(300_000, 1_800_000), 1_800_000);
+    assert.equal(toolCallLimitMs(1_800_000, 600_000), 1_800_000);
   });
 });

@@ -1,12 +1,37 @@
-import {useCallback, useEffect, useMemo, useRef} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {remapMessageShape} from "@agenta/entities/gatewayTrigger"
+import {
+    addsEventText,
+    eventFieldsFromSchema,
+    FALLBACK_MESSAGE_SHAPE,
+    getScheduleMessage,
+    latestDeliveryEvent,
+    misplacedMessageShape,
+    parseMessageTemplate,
+    remapMessageShape,
+    remapMessageTemplate,
+    renderMessagePreview,
+    templateSelectors,
+    useTriggerConnectionsQuery,
+    useTriggerEvent,
+    type EventField,
+} from "@agenta/entities/gatewayTrigger"
 import {extractInputPortsFromSchema} from "@agenta/entities/runnable"
 import {workflowLatestRevisionQueryAtomFamily} from "@agenta/entities/workflow"
-import {MessageComposer} from "@agenta/entity-ui/gatewayTrigger"
+import {
+    EventFieldTags,
+    EventMessageComposer,
+    MessageComposer,
+} from "@agenta/entity-ui/gatewayTrigger"
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
+import {Checkbox} from "@agenta/ui/ui"
+import {CaretRight, ChatCircle} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {AutomationField} from "./AutomationField"
+import type {Automation, AutomationKind} from "./automationModel"
+import {useRecentAutomationRuns} from "./useAutomationRuns"
 
 /**
  * What the agent is told on every run — the shared `MessageComposer`, over `data.inputs_fields`.
@@ -20,16 +45,38 @@ import {AutomationField} from "./AutomationField"
  * input schema, so a screen that knows the agent only from a list would otherwise see neither and
  * write a chat agent's instruction under "message", which the runner never reads. The field does
  * not wait for the revision — it lets the reader type and migrates the key when the shape lands.
+ *
+ * An event automation gets the pill composer, the event's field tags, the include-event
+ * checkbox and a preview of what the agent gets, filled from the newest recorded event.
  */
 export const AutomationInstructionField = ({
     agentId,
     inputsFields,
     onCommit,
+    kind,
+    connectionId,
+    eventKey,
+    includeEvent,
+    onChangeIncludeEvent,
+    automation,
+    error,
 }: {
     agentId: string | null
     inputsFields: unknown
     onCommit: (next: Record<string, unknown>) => void
+    kind: AutomationKind
+    /** Event automations only — where the catalog event is looked up. */
+    connectionId: string | null
+    eventKey: string | null
+    includeEvent: boolean
+    onChangeIncludeEvent: (next: boolean) => void
+    /** The saved automation whose deliveries fill the preview; null on the create screen. */
+    automation: Automation | null
+    /** Why the automation cannot be created yet; the create screen's only use. */
+    error?: string
 }) => {
+    const t = useT(automationsEditorCatalog)
+    const isEvent = kind === "event"
     const inputsText = useMemo(() => JSON.stringify(inputsFields ?? {}, null, 2), [inputsFields])
 
     const latest = useAtomValue(workflowLatestRevisionQueryAtomFamily(agentId ?? ""))
@@ -46,11 +93,13 @@ export const AutomationInstructionField = ({
         return Boolean(properties?.messages)
     }, [inputSchema, revision?.flags?.is_chat])
 
+    const ports = useMemo(() => extractInputPortsFromSchema(inputSchema ?? null), [inputSchema])
     const primaryKey = useMemo(() => {
         if (isChat) return "messages"
-        const ports = extractInputPortsFromSchema(inputSchema ?? null)
-        return ports.find((port) => port.type === "string")?.key ?? "message"
-    }, [inputSchema, isChat])
+        return (
+            ports.find((port) => port.type === "string")?.key ?? FALLBACK_MESSAGE_SHAPE.primaryKey
+        )
+    }, [isChat, ports])
 
     // The field is never locked. Before an agent is picked — or before its revision lands — the
     // message is typed under the completion key, and the migration below rewrites it into the
@@ -59,23 +108,37 @@ export const AutomationInstructionField = ({
     const resolving = Boolean(agentId) && !revision && latest.isPending
 
     // The revision can land after a message was typed, or an automation can have been saved under
-    // the wrong key before this resolved at all. Either way the stored shape is migrated to the
-    // one the agent takes, deleting the old key rather than leaving both.
+    // the wrong key before this resolved at all. Either way the stored shape is migrated to
+    // the one the agent takes, deleting the old key rather than leaving both. A saved automation
+    // opens with the shape already known, so the second case is found by reading the stored key,
+    // not by watching the shape change.
     const shape = useMemo(() => ({isChat, primaryKey}), [isChat, primaryKey])
     const previousShape = useRef(shape)
     useEffect(() => {
         const previous = previousShape.current
         previousShape.current = shape
         if (resolving) return
-        if (previous.isChat === shape.isChat && previous.primaryKey === shape.primaryKey) return
-        const next = remapMessageShape(inputsText, previous, shape)
+        const changed = previous.isChat !== shape.isChat || previous.primaryKey !== shape.primaryKey
+        const [read, remap] = isEvent
+            ? [parseMessageTemplate, remapMessageTemplate]
+            : [getScheduleMessage, remapMessageShape]
+        const from = changed
+            ? previous
+            : misplacedMessageShape(
+                  inputsText,
+                  shape,
+                  ports.map((port) => port.key),
+                  read,
+              )
+        if (!from) return
+        const next = remap(inputsText, from, shape)
         if (next === inputsText) return
         try {
             onCommit(JSON.parse(next) as Record<string, unknown>)
         } catch {
             // A mapping the composer cannot read is left exactly as it was.
         }
-    }, [inputsText, onCommit, resolving, shape])
+    }, [inputsText, isEvent, onCommit, ports, resolving, shape])
 
     const onChange = useCallback(
         (next: string) => {
@@ -90,14 +153,150 @@ export const AutomationInstructionField = ({
         [onCommit],
     )
 
+    if (isEvent) {
+        return (
+            <EventInstruction
+                inputsText={inputsText}
+                addsEvent={addsEventText(inputsFields ?? {})}
+                onChange={onChange}
+                isChat={isChat}
+                primaryKey={primaryKey}
+                connectionId={connectionId}
+                eventKey={eventKey}
+                includeEvent={includeEvent}
+                onChangeIncludeEvent={onChangeIncludeEvent}
+                automation={automation}
+                error={error}
+            />
+        )
+    }
+
     return (
-        <AutomationField label="Instruction">
+        <AutomationField label={t("automations.editor.instruction")} error={error}>
             <MessageComposer
                 inputsText={inputsText}
                 onChange={onChange}
                 isChat={isChat}
                 primaryKey={primaryKey}
             />
+        </AutomationField>
+    )
+}
+
+function EventInstruction({
+    inputsText,
+    addsEvent,
+    onChange,
+    isChat,
+    primaryKey,
+    connectionId,
+    eventKey,
+    includeEvent,
+    onChangeIncludeEvent,
+    automation,
+    error,
+}: {
+    inputsText: string
+    /** Whether the dispatcher adds the event to the stored inputs; see `addsEventText`. */
+    addsEvent: boolean
+    onChange: (next: string) => void
+    isChat: boolean
+    primaryKey: string
+    connectionId: string | null
+    eventKey: string | null
+    includeEvent: boolean
+    onChangeIncludeEvent: (next: boolean) => void
+    automation: Automation | null
+    error?: string
+}) {
+    const t = useT(automationsEditorCatalog)
+    // The catalog is keyed by integration, which the automation knows only through its connection.
+    const {connections} = useTriggerConnectionsQuery()
+    const integrationKey =
+        connections.find((connection) => connection.id === connectionId)?.integration_key ?? ""
+    const {event: catalogEvent} = useTriggerEvent(integrationKey, eventKey ?? "")
+    const fields = useMemo(
+        () => eventFieldsFromSchema(catalogEvent?.payload ?? null),
+        [catalogEvent?.payload],
+    )
+
+    const {runs} = useRecentAutomationRuns(automation)
+    const lastEvent = useMemo(() => latestDeliveryEvent(runs), [runs])
+
+    const template = parseMessageTemplate(inputsText, isChat, primaryKey)
+    const used = useMemo(() => new Set(templateSelectors(template ?? "")), [template])
+    const preview =
+        template === null
+            ? null
+            : renderMessagePreview(template, lastEvent, includeEvent && addsEvent)
+
+    const [showPreview, setShowPreview] = useState(false)
+    const insertApi = useRef<{insert: (selector: string) => void} | null>(null)
+    const onInsert = useCallback((field: EventField) => {
+        insertApi.current?.insert(field.selector)
+    }, [])
+
+    return (
+        <AutomationField label={t("automations.editor.instruction")} error={error}>
+            <div className="flex flex-col gap-3">
+                <EventMessageComposer
+                    inputsText={inputsText}
+                    onChange={onChange}
+                    isChat={isChat}
+                    primaryKey={primaryKey}
+                    insertApi={insertApi}
+                    fields={<EventFieldTags fields={fields} used={used} onInsert={onInsert} />}
+                />
+                <label className="flex cursor-pointer items-center gap-2 text-[13px] text-foreground">
+                    <Checkbox
+                        checked={includeEvent}
+                        onCheckedChange={(checked) => onChangeIncludeEvent(checked === true)}
+                    />
+                    {t("automations.editor.attachEvent")}
+                </label>
+                {/* A closed row, "What the agent gets · Preview ›"; the preview opens under it
+                    (F05 f4). */}
+                {preview === null ? null : (
+                    <div className="flex flex-col border-0 border-b border-solid border-colorSplit">
+                        <button
+                            type="button"
+                            aria-expanded={showPreview}
+                            onClick={() => setShowPreview((open) => !open)}
+                            className="flex h-10 w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-1 text-left"
+                        >
+                            <ChatCircle
+                                aria-hidden
+                                size={14}
+                                className="shrink-0 text-muted-foreground"
+                            />
+                            <span className="text-[13px] font-medium text-foreground">
+                                {t("automations.editor.whatAgentGets")}
+                            </span>
+                            {lastEvent ? (
+                                <span className="text-[13px] text-muted-foreground">
+                                    {t("automations.editor.fromLastEvent")}
+                                </span>
+                            ) : null}
+                            <span className="ml-auto truncate text-xs text-colorTextTertiary">
+                                {t("automations.editor.preview")}
+                            </span>
+                            <CaretRight
+                                aria-hidden
+                                size={10}
+                                weight="fill"
+                                className={`shrink-0 text-muted-foreground transition-transform ${
+                                    showPreview ? "rotate-90" : ""
+                                }`}
+                            />
+                        </button>
+                        {showPreview ? (
+                            <pre className="m-0 mb-3 max-h-[320px] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted px-3 py-2 font-[inherit] text-[13px] text-foreground">
+                                {preview}
+                            </pre>
+                        ) : null}
+                    </div>
+                )}
+            </div>
         </AutomationField>
     )
 }

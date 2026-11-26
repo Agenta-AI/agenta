@@ -1,0 +1,13 @@
+{
+    "seeLess": "收起",
+    "seeMore": "展开",
+    "viewAll": "查看全部…",
+    "yourConnections": "你的连接",
+    "orConnectNew": "或连接新应用",
+    "connectApp": "连接应用",
+    "integrationCount_other": "{{count}} 个集成",
+    "noIntegrations": "未找到集成",
+    "goBack": "返回",
+    "connect": "连接",
+    "itemCount_other": "{{count}} 项"
+}

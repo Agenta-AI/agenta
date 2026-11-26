@@ -318,8 +318,8 @@ describe("WhatsApp manage panel", () => {
         )
 
     it("shows the callback URL and verify token, and no Telegram-only sections", async () => {
-        const readAllowedUsers = vi.fn().mockResolvedValue([])
-        await renderPanel({readAllowedUsers})
+        const readAudience = vi.fn().mockResolvedValue([])
+        await renderPanel({readAudience})
         expect((byTestId("channels-whatsapp-webhook-url") as HTMLInputElement | null)?.value).toBe(
             WEBHOOK_URL,
         )
@@ -329,7 +329,7 @@ describe("WhatsApp manage panel", () => {
         expect(container.textContent).not.toContain("Allowed users")
         expect(container.textContent).not.toContain("Telegram")
         expect(byTestId("channels-behavior-group")).toBeNull()
-        expect(readAllowedUsers).not.toHaveBeenCalled()
+        expect(readAudience).not.toHaveBeenCalled()
     })
 
     it("replaces the access token alone, keeping the stored app secret", async () => {

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, TIMESTAMP, UUID
+from sqlalchemy import BigInteger, Column, Integer, Numeric, String, TIMESTAMP, UUID
 from sqlalchemy.dialects.postgresql import JSONB
 
 from oss.src.dbs.postgres.shared.dbas import (
@@ -42,3 +42,21 @@ class SessionTurnDBA(
 
     start_time = Column(TIMESTAMP(timezone=True), nullable=True)
     end_time = Column(TIMESTAMP(timezone=True), nullable=True)
+
+    # Run attribution (M2), written once as one group. Kinds and origins are validated by
+    # the DTO enums; plain varchar here.
+    principal_kind = Column(String, nullable=True)
+    principal_id = Column(UUID(as_uuid=True), nullable=True)
+    sender_user_id = Column(UUID(as_uuid=True), nullable=True)
+    sender_external_key = Column(String, nullable=True)
+    origin = Column(String, nullable=True)
+    origin_id = Column(String, nullable=True)
+    parent_run_id = Column(String, nullable=True)
+    approved_by = Column(JSONB(none_as_null=True), nullable=True)
+
+    # Usage of the turn. Null means unknown. `usage_source`: see SessionTurnUsageSource.
+    input_tokens = Column(BigInteger, nullable=True)
+    output_tokens = Column(BigInteger, nullable=True)
+    total_tokens = Column(BigInteger, nullable=True)
+    cost = Column(Numeric(18, 9), nullable=True)
+    usage_source = Column(String, nullable=True)

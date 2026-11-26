@@ -4,6 +4,10 @@
  * Renders a JSON array with navigation select and JSON editor.
  */
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiDrillInCatalog from "@agenta/i18n/catalogs/ui.drillIn"
+
 import {
     Select,
     SelectContent,
@@ -23,6 +27,7 @@ export function JsonArrayField({
     valueMode,
     setCurrentPath,
 }: JsonArrayFieldProps) {
+    const t = useT(uiDrillInCatalog, commonCatalog)
     const arrayItems = JSON.parse(stringValue) as unknown[]
     const originalWasString = typeof item.value === "string"
 
@@ -45,7 +50,7 @@ export function JsonArrayField({
                     onValueChange={(idx) => setCurrentPath([...fullPath, idx])}
                 >
                     <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Jump to item" />
+                        <SelectValue placeholder={t("ui.drillIn.jumpToItem")} />
                     </SelectTrigger>
                     <SelectContent>
                         {arrayItems.map((arrItem: unknown, idx: number) => (
@@ -75,7 +80,9 @@ export function JsonArrayField({
                 }}
             />
 
-            {arrayItems.length === 0 && <div className="text-sm text-gray-400">Empty array</div>}
+            {arrayItems.length === 0 && (
+                <div className="text-sm text-gray-400">{t("ui.drillIn.emptyArray")}</div>
+            )}
         </div>
     )
 }
