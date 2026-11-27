@@ -139,7 +139,7 @@ async def test_create_project_passes_no_workspace(monkeypatch):
     monkeypatch.setattr(projects_router, "get_memberships_service", lambda: _Service())
     monkeypatch.setattr(db_manager, "get_default_project_id_from_workspace", _default)
     monkeypatch.setattr(projects_router, "_require", _allow)
-    monkeypatch.setattr(projects_router, "is_ee", lambda: False)
+    monkeypatch.setattr(projects_router, "check_project_limit", _none)
     monkeypatch.setattr(projects_router, "_fetch_listing", _none)
     import oss.src.core.evaluators.defaults as evaluator_defaults
     import oss.src.core.environments.defaults as environment_defaults
@@ -176,10 +176,7 @@ def _organization(organization_id):
     )
 
 
-@pytest.mark.parametrize("edition", ["oss", "ee"])
-async def test_organizations_list_answers_the_organization_in_both_editions(
-    monkeypatch, edition
-):
+async def test_organizations_list_answers_the_organization(monkeypatch):
     import oss.src.routers.organization_router as organization_router
 
     organization_id = uuid4()
@@ -189,7 +186,6 @@ async def test_organizations_list_answers_the_organization_in_both_editions(
         reads.append("get_user_organizations")
         return [_organization(organization_id)]
 
-    monkeypatch.setattr(organization_router, "is_ee", lambda: edition == "ee")
     monkeypatch.setattr(db_manager, "get_user_organizations", _user_orgs)
     response = await organization_router.list_organizations(
         request=SimpleNamespace(state=SimpleNamespace(user_id=str(uuid4())))

@@ -4,7 +4,6 @@ from uuid import UUID
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.locking import acquire_lock, release_lock
-from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
 
 from oss.src.core.telemetry.service import schedule_install_ping
@@ -171,15 +170,14 @@ async def create_organization_for_signup(
 
     log.info("[scopes] Organization [%s] created", organization.id)
 
-    if is_ee():
-        from ee.src.core.organizations.service import (  # noqa: PLC0415
-            provision_signup_subscription,
-        )
+    from ee.src.core.organizations.service import (  # noqa: PLC0415
+        provision_signup_subscription,
+    )
 
-        await provision_signup_subscription(
-            organization,
-            organization_email=organization_email,
-        )
+    await provision_signup_subscription(
+        organization,
+        organization_email=organization_email,
+    )
 
     schedule_install_ping()
 
@@ -215,12 +213,11 @@ async def create_organization_for_user(
     ):
         raise OrganizationLimitReachedError(email=user.email, limit=max_owned)
 
-    if is_ee():
-        from ee.src.core.access.entitlements.service import (  # noqa: PLC0415
-            check_instance_organization_limit,
-        )
+    from ee.src.core.access.entitlements.service import (  # noqa: PLC0415
+        check_instance_organization_limit,
+    )
 
-        await check_instance_organization_limit()
+    await check_instance_organization_limit()
 
     organization = await create_organization(
         user=user,
@@ -230,12 +227,11 @@ async def create_organization_for_user(
 
     log.info("[scopes] Organization [%s] created", organization.id)
 
-    if is_ee():
-        from ee.src.core.organizations.service import (  # noqa: PLC0415
-            provision_user_subscription,
-        )
+    from ee.src.core.organizations.service import (  # noqa: PLC0415
+        provision_user_subscription,
+    )
 
-        await provision_user_subscription(organization, organization_email=user.email)
+    await provision_user_subscription(organization, organization_email=user.email)
 
     schedule_install_ping()
 
@@ -245,9 +241,6 @@ async def create_organization_for_user(
 async def _instance_has_room_for_an_organization(user_id) -> bool:
     """False when the instance is at its organization limit; sign-up then skips the
     personal organization instead of failing (a raise below deletes the new user)."""
-    if not is_ee():
-        return True
-
     from ee.src.core.access.entitlements.service import (  # noqa: PLC0415
         check_instance_organization_limit,
     )
@@ -272,8 +265,8 @@ async def create_accounts(
 ) -> UserDB:
     """Create a user account and, when allowed, a personal organization.
 
-    Subscription-backed org creation and the Loops marketing contact layer on
-    (EE) via `is_ee()` seams inside the org-creation flow / below.
+    Subscription-backed org creation and the Loops marketing contact come from
+    the `ee` code, called inside the org-creation flow and below.
     """
 
     user_dict = {
@@ -360,15 +353,14 @@ async def create_accounts(
                 exc_info=True,
             )
 
-        if is_ee():
-            try:
-                # Adds the contact to Loops for marketing emails.
-                from oss.src.utils import emailing  # noqa: PLC0415
+        try:
+            # Adds the contact to Loops for marketing emails.
+            from oss.src.utils import emailing  # noqa: PLC0415
 
-                await emailing.add_contact(email)
-            except Exception:
-                # A Loops failure must never fail sign-up.
-                log.warn("error adding contact to loops", exc_info=True)
+            await emailing.add_contact(email)
+        except Exception:
+            # A Loops failure must never fail sign-up.
+            log.warn("error adding contact to loops", exc_info=True)
 
         return user
 

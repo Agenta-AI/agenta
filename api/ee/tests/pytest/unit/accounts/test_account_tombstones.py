@@ -227,7 +227,6 @@ def deletion(monkeypatch, daos):
     async def _batch(*, org_ids, project_ids, user_ids):
         calls.append(("batch", list(user_ids)))
 
-    monkeypatch.setattr(m, "is_ee", lambda: True)
     monkeypatch.setattr(m, "_db_get_user_by_id", _user)
     monkeypatch.setattr(m, "_db_get_orgs_owned_by_user", _orgs)
     monkeypatch.setattr(m, "_ee_count_organization_members", _one_member)

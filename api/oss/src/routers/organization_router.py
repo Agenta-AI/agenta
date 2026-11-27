@@ -6,7 +6,6 @@ from fastapi import HTTPException, Request
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.services import db_manager
-from oss.src.utils.common import is_ee
 from oss.src.utils.common import APIRouter
 from oss.src.models.api.organization_models import (
     Organization,
@@ -41,22 +40,21 @@ from oss.src.core.memberships.service import get_memberships_service
 from oss.src.core.memberships.types import MemberNotFound, OrganizationNotFound
 
 
-if is_ee():
-    from ee.src.core.access.entitlements.service import (
-        check_entitlements,
-        scope_from,
-        Tracker,
-        Gauge,
-        Flag,
-        NOT_ENTITLED_RESPONSE,
-    )
-    from ee.src.core.organizations.service import (
-        update_organization as update_organization_ee,
-    )
-    from ee.src.core.organizations.exceptions import OrganizationSlugConflictError
-    from ee.src.core.access.entitlements.types import (
-        InstanceOrganizationLimitReachedError,
-    )
+from ee.src.core.access.entitlements.service import (
+    check_entitlements,
+    scope_from,
+    Tracker,
+    Gauge,
+    Flag,
+    NOT_ENTITLED_RESPONSE,
+)
+from ee.src.core.organizations.service import (
+    update_organization as update_organization_ee,
+)
+from ee.src.core.organizations.exceptions import OrganizationSlugConflictError
+from ee.src.core.access.entitlements.types import (
+    InstanceOrganizationLimitReachedError,
+)
 
 router = APIRouter()
 
@@ -189,25 +187,24 @@ async def invite_user_to_organization(
             payload[0], organization_id=organization_id
         )
 
-        if is_ee():
-            owner = await db_manager.get_organization_owner(organization_id)
-            owner_domain = owner.email.split("@")[-1].lower() if owner else ""
-            user_domain = payload[0].email.split("@")[-1].lower()
-            skip_meter = owner_domain != "agenta.ai" and user_domain == "agenta.ai"
+        owner = await db_manager.get_organization_owner(organization_id)
+        owner_domain = owner.email.split("@")[-1].lower() if owner else ""
+        user_domain = payload[0].email.split("@")[-1].lower()
+        skip_meter = owner_domain != "agenta.ai" and user_domain == "agenta.ai"
 
-            if not skip_meter:
-                # The route operates on the workspace selected by the
-                # path-param `{organization_id}`. Project the entitlement
-                # check onto the target org so the right org's user
-                # gauge gets the `+1`, not the caller's ambient org.
-                check, _, _ = await check_entitlements(  # type: ignore
-                    key=Gauge.USERS,  # type: ignore
-                    delta=1,
-                    scope=scope_from(organization_id=UUID(organization_id)),  # type: ignore
-                )
+        if not skip_meter:
+            # The route operates on the workspace selected by the
+            # path-param `{organization_id}`. Project the entitlement
+            # check onto the target org so the right org's user
+            # gauge gets the `+1`, not the caller's ambient org.
+            check, _, _ = await check_entitlements(  # type: ignore
+                key=Gauge.USERS,  # type: ignore
+                delta=1,
+                scope=scope_from(organization_id=UUID(organization_id)),  # type: ignore
+            )
 
-                if not check:
-                    return NOT_ENTITLED_RESPONSE(Tracker.GAUGES)
+            if not check:
+                return NOT_ENTITLED_RESPONSE(Tracker.GAUGES)
 
         invitation_response = await organization_service.invite_user_to_organization(
             payload=payload[0],
@@ -376,7 +373,6 @@ async def create_organization(
                 status_code=404,
             )
 
-        # OSS-owned; EE subscription provisioning layers in via is_ee() inside.
         from oss.src.services.commoners import (  # noqa: PLC0415
             create_organization_for_user,
         )
@@ -403,7 +399,7 @@ async def create_organization(
         ) from e
 
     except Exception as e:
-        if is_ee() and isinstance(e, InstanceOrganizationLimitReachedError):
+        if isinstance(e, InstanceOrganizationLimitReachedError):
             raise HTTPException(
                 status_code=403,
                 detail={"code": e.code, "message": e.message, "limit": e.limit},
@@ -445,32 +441,18 @@ async def update_organization(
         )
 
     try:
-        if is_ee():
-            # EE accepts slug/flags; flag changes are entitlement-gated and run
-            # through SSO/domain/auth-lockout validation in the EE service.
-            if payload.flags is not None:
-                check, _, _ = await check_entitlements(
-                    key=Flag.ACCESS,
-                    scope=scope_from(organization_id=UUID(organization_id)),
-                )
-                if not check:
-                    return NOT_ENTITLED_RESPONSE(Tracker.FLAGS)
+        # EE accepts slug/flags; flag changes are entitlement-gated and run
+        # through SSO/domain/auth-lockout validation in the EE service.
+        if payload.flags is not None:
+            check, _, _ = await check_entitlements(
+                key=Flag.ACCESS,
+                scope=scope_from(organization_id=UUID(organization_id)),
+            )
+            if not check:
+                return NOT_ENTITLED_RESPONSE(Tracker.FLAGS)
 
-            organization = await update_organization_ee(organization_id, payload)
-            return organization
-
-        organization = await db_manager.update_organization(
-            organization_id=organization_id,
-            values_to_update=payload.model_dump(exclude_unset=True),
-        )
-        return JSONResponse(
-            {
-                "id": str(organization.id),
-                "name": organization.name,
-                "description": organization.description,
-            },
-            status_code=200,
-        )
+        organization = await update_organization_ee(organization_id, payload)
+        return organization
 
     except ValueError:
         # Slug validation errors (format, immutability, personal org, etc.)
@@ -479,7 +461,7 @@ async def update_organization(
             status_code=400,
         )
     except Exception as exc:
-        if is_ee() and isinstance(exc, OrganizationSlugConflictError):
+        if isinstance(exc, OrganizationSlugConflictError):
             return JSONResponse(
                 {
                     "detail": "Slug already in use. Please select another slug or contact your administrator."

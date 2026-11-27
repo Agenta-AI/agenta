@@ -10,7 +10,6 @@ import time
 
 import pytest
 
-from oss.src.utils.common import is_ee
 from oss.tests.pytest.acceptance.sharing.support import (
     new_agent,
     poll,
@@ -36,12 +35,6 @@ def _events(project_id, resource_id):
 
 
 def test_sharing_change_publishes_before_and_after(sharing_cast):
-    if not is_ee():
-        pytest.skip(
-            "OSS stores no events: the events worker ingests only in EE "
-            "(EventsWorker.process_batch), so there is no stored event to read."
-        )
-
     alice = sharing_cast["alice"]
     agent = new_agent(alice, visibility="project")
 

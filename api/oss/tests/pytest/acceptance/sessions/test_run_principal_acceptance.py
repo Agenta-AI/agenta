@@ -14,7 +14,6 @@ from uuid import uuid4
 
 import pytest
 
-from oss.src.utils.common import is_ee
 from oss.tests.pytest.utils.membership_accounts import (
     add_project_member,
     create_project,
@@ -25,7 +24,7 @@ EXCHANGE = "/access/permissions/check"
 
 # EE: the owner's organization gets a plan with the RBAC entitlement. Without RBAC
 # every member passes by design; these tests check the role rule.
-_OWNER_PLAN = "cloud_v0_business" if is_ee() else None
+_OWNER_PLAN = "cloud_v0_business"
 
 
 def _first_id(values):
@@ -498,21 +497,20 @@ class TestWorkspaceRoutesWithKeys:
         )
         assert refused.status_code == 410, refused.text
 
-        if is_ee():
-            refused = admin_api(
-                "POST",
-                "/organizations/domains/",
-                json={"domain": f"m2-{uuid4().hex[:8]}.example.com"},
-                headers=other,
-            )
-            assert refused.status_code == 403, refused.text
-            # The default project's key passes the key rule; the route may still
-            # refuse on its own validation or entitlement, never with the
-            # permission refusal the other key got.
-            allowed = admin_api(
-                "POST",
-                "/organizations/domains/",
-                json={"domain": f"m2-{uuid4().hex[:8]}.example.com"},
-                headers=default,
-            )
-            assert allowed.text != refused.text, allowed.text
+        refused = admin_api(
+            "POST",
+            "/organizations/domains/",
+            json={"domain": f"m2-{uuid4().hex[:8]}.example.com"},
+            headers=other,
+        )
+        assert refused.status_code == 403, refused.text
+        # The default project's key passes the key rule; the route may still
+        # refuse on its own validation or entitlement, never with the
+        # permission refusal the other key got.
+        allowed = admin_api(
+            "POST",
+            "/organizations/domains/",
+            json={"domain": f"m2-{uuid4().hex[:8]}.example.com"},
+            headers=default,
+        )
+        assert allowed.text != refused.text, allowed.text

@@ -74,7 +74,6 @@ async def test_create_accounts_awaits_add_contact():
             "oss.src.core.auth.service.AuthService.enforce_domain_policies",
             new_callable=AsyncMock,
         ),
-        patch("oss.src.services.commoners.is_ee", return_value=True),
         patch(
             "oss.src.utils.emailing.add_contact", new_callable=AsyncMock
         ) as mock_add_contact,
@@ -113,7 +112,6 @@ async def test_create_accounts_survives_add_contact_failure():
             "oss.src.core.auth.service.AuthService.enforce_domain_policies",
             new_callable=AsyncMock,
         ),
-        patch("oss.src.services.commoners.is_ee", return_value=True),
         patch(
             "oss.src.utils.emailing.add_contact",
             new_callable=AsyncMock,
@@ -139,7 +137,19 @@ def _owner(monkeypatch):
     monkeypatch.setattr(
         auth_helper, "_get_posthog_string_entries", AsyncMock(return_value=set())
     )
-    monkeypatch.setattr(commoners, "is_ee", lambda: False)
+    # Keep the tests off the EE limit check and the subscription starts.
+    from ee.src.core.access.entitlements import service as entitlements_service
+    from ee.src.core.organizations import service as organizations_service
+
+    monkeypatch.setattr(
+        entitlements_service, "check_instance_organization_limit", AsyncMock()
+    )
+    monkeypatch.setattr(
+        organizations_service, "provision_user_subscription", AsyncMock()
+    )
+    monkeypatch.setattr(
+        organizations_service, "provision_signup_subscription", AsyncMock()
+    )
     install_ping = MagicMock()
     monkeypatch.setattr(commoners, "schedule_install_ping", install_ping)
 

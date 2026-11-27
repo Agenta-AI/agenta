@@ -1660,13 +1660,11 @@ async def test_admin_delete_of_a_workspace_alias_deletes_nothing():
 
 async def test_admin_delete_of_a_membership_alias_removes_the_member(monkeypatch):
     from oss.src.core.accounts.errors import AdminOwnerProtectedError
-    from oss.src.core.accounts import service as accounts_module
 
     import oss.src.core.memberships.service as memberships_module
     from oss.src.core.memberships.dtos import MembershipPolicy
     from oss.src.core.memberships.service import MembershipsService
 
-    monkeypatch.setattr(accounts_module, "is_ee", lambda: True)
     monkeypatch.setattr(
         memberships_module,
         "_memberships_service",
@@ -1717,8 +1715,6 @@ async def test_admin_alias_deletes_on_step1_code_change_nothing():
         code = f"""
 import asyncio, json
 from oss.src.core.accounts.service import PlatformAdminAccountsService
-from oss.src.core.accounts import service as accounts_module
-accounts_module.is_ee = lambda: True
 
 async def main():
     service = PlatformAdminAccountsService()

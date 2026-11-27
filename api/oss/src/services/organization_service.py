@@ -8,7 +8,6 @@ from fastapi import HTTPException
 from sqlalchemy.exc import NoResultFound
 
 from oss.src.utils.env import env
-from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.models.db_models import UserDB
 from oss.src.services import db_manager
@@ -295,7 +294,7 @@ async def invite_user_to_organization(
             detail="User is already a member of the workspace",
         )
 
-    if organization_id and is_ee():
+    if organization_id:
         from ee.src.core.organizations.service import (  # noqa: PLC0415
             assert_invite_domain_allowed,
         )

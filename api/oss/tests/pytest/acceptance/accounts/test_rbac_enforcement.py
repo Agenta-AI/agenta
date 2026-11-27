@@ -16,10 +16,9 @@ plan. The invite names `member`, which every plan offers.
 
 from uuid import uuid4
 
-from oss.src.utils.common import is_ee
 
 # EE: a plan with the RBAC entitlement, pinned like test_rbac_enforcement_ee.py does.
-_OWNER_PLAN = "cloud_v0_business" if is_ee() else None
+_OWNER_PLAN = "cloud_v0_business"
 
 
 def _create_account(admin_api, *, email, plan=None):

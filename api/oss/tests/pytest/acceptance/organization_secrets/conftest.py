@@ -14,7 +14,6 @@ from uuid import uuid4
 import pytest
 import requests
 
-from oss.src.utils.common import is_ee
 from oss.tests.pytest.utils.membership_accounts import (
     add_organization_member,
     add_project_member,
@@ -55,7 +54,7 @@ def _create(admin_api, *, email: str, password: str, plan: Optional[str]) -> dic
             }
         ],
     }
-    if is_ee() and plan:
+    if plan:
         account["subscription"] = {"plan": plan}
     response = admin_api(
         "POST", "/admin/simple/accounts/", json={"accounts": {"u": account}}
@@ -226,8 +225,6 @@ def gateway_on(org):
 
 @pytest.fixture(scope="module")
 def hobby_org(admin_api, ag_env):
-    if not is_ee():
-        pytest.skip("EE plans only")
     world = OrgWorld(
         admin_api, ag_env["api_url"], plan=HOBBY_PLAN, members={"editor": "editor"}
     )

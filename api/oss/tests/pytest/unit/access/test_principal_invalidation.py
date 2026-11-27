@@ -325,7 +325,7 @@ async def test_user_deletion_invalidates_user_keys_bindings_and_memberships(
         monkeypatch.setattr(
             module, "_member_organization_ids", AsyncMock(return_value=[])
         )
-        monkeypatch.setattr(module, "is_ee", lambda: False)
+        monkeypatch.setattr(module, "_ee_delete_user_memberships", AsyncMock())
 
         async def _delete(uid):
             order.append("delete")
@@ -353,7 +353,7 @@ async def test_user_deletion_invalidates_user_keys_bindings_and_memberships(
         service = module.PlatformAdminAccountsService.__new__(
             module.PlatformAdminAccountsService
         )
-        await service.delete_user(user_id=str(user_id))
+        await service.delete_user(user_id=str(user_id), write_tombstone=False)
     else:
         module = user_service_module
         monkeypatch.setattr(module, "read_user_principals_before_delete", _read)

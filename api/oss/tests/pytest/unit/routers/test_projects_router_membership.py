@@ -153,7 +153,7 @@ def routes(monkeypatch):
         service.create_project = state.create
         monkeypatch.setattr(memberships_module, "_memberships_service", service)
         monkeypatch.setattr(projects_router, "check_action_access", state.access)
-        monkeypatch.setattr(projects_router, "is_ee", lambda: False)
+        monkeypatch.setattr(projects_router, "check_project_limit", AsyncMock())
         monkeypatch.setattr(
             projects_router.db_manager,
             "get_default_project_id_from_workspace",

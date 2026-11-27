@@ -1,7 +1,6 @@
 """Who may manage organization credentials, and what the routes answer (M5, P3)."""
 
 import pytest
-from oss.src.utils.common import is_ee
 from oss.tests.pytest.utils.plans import plan_offers, skip_if_plan_offers
 from oss.tests.pytest.acceptance.organization_secrets.conftest import (
     HOBBY_PLAN,
@@ -236,7 +235,7 @@ def test_projects_route_limits(org):
         path,
         json={"availability": "selected_projects", "project_ids": [org.sales]},
     )
-    if not is_ee() or not plan_offers(org.admin_api, plan=RBAC_PLAN, flag="rbac"):
+    if not plan_offers(org.admin_api, plan=RBAC_PLAN, flag="rbac"):
         assert response.status_code == 403
         assert (
             org.call("PUT", path, json={"availability": "all_projects"}).status_code

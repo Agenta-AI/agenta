@@ -341,7 +341,7 @@ async def owner_organization_blocks_grants(
 
 
 async def check_api_key_creation(*, user_id: str, project_id: str) -> None:
-    """The API key seam, called from the OSS router through `is_ee()`. Never raises."""
+    """Called from the OSS API key router. Never raises."""
     try:
         await _get_fraud_service().check_api_key_creation(
             user_id=UUID(str(user_id)),

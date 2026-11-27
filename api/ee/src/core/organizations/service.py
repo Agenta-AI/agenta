@@ -208,7 +208,7 @@ async def assert_invite_domain_allowed(organization_id: str, email: str) -> None
     """EE-only: enforce verified-domain restriction on invites when an org has
     `domains_only` enabled. Raises HTTPException(400) when the invite is blocked.
 
-    Called from the OSS invite orchestrator via the `is_ee()` seam.
+    Called from the OSS invite orchestrator.
     """
 
     organization = await db_manager.get_organization(organization_id)
@@ -1131,7 +1131,7 @@ async def provision_signup_subscription(
     """Provision the signup subscription + seed the user gauge for a new org.
 
     Cloud (Stripe enabled) starts on the free plan, or on a reverse trial when the
-    pricing opts in; self-hosted gets the default plan. Called from the OSS signup flow via the `is_ee()` seam.
+    pricing opts in; self-hosted gets the default plan. Called from the OSS signup flow.
     """
 
     try:
@@ -1202,7 +1202,8 @@ async def provision_user_subscription(
 ) -> None:
     """Start the default plan + seed the user gauge for an explicitly-created org.
 
-    Entry point for `POST /organizations/`. Called from OSS via the `is_ee()` seam.
+    Entry point for `POST /organizations/`. Called from `create_organization_for_user`
+    in the OSS commoners service.
     """
 
     plan = get_default_plan()

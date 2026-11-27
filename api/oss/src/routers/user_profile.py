@@ -6,7 +6,6 @@ from fastapi.responses import JSONResponse
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 from oss.src.middlewares.auth import is_interactive_session
 
-from oss.src.utils.common import is_ee
 from oss.src.utils.common import APIRouter
 from oss.src.models.api.user_models import User
 from oss.src.models.api.user_models import UserUpdate
@@ -115,12 +114,6 @@ async def delete_user_account(request: Request):
     rejected: this is an irreversible destructive action, so a leaked or embedded
     integration key must not be enough to delete the owning account.
     """
-    if not is_ee():
-        raise HTTPException(
-            status_code=404,
-            detail="Self-serve account deletion is not available on this deployment.",
-        )
-
     if not await is_interactive_session(request):
         raise HTTPException(
             status_code=403,

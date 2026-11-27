@@ -107,7 +107,6 @@ def owner(monkeypatch):
     access = commoners.env.agenta.access
     monkeypatch.setattr(access, "allowed_owner_emails", None, raising=False)
     monkeypatch.setattr(access, "max_owned_organizations", None)
-    monkeypatch.setattr(commoners, "is_ee", lambda: True)
     monkeypatch.setattr(
         commoners, "is_auth_info_blocked", AsyncMock(return_value=False)
     )
@@ -171,7 +170,6 @@ def signup(monkeypatch):
     user = SimpleNamespace(id=uuid4(), email="new@example.com")
     access = commoners.env.agenta.access
     monkeypatch.setattr(access, "allowed_owner_emails", None, raising=False)
-    monkeypatch.setattr(commoners, "is_ee", lambda: True)
     monkeypatch.setattr(commoners, "acquire_lock", AsyncMock(return_value="lock"))
     monkeypatch.setattr(commoners, "release_lock", AsyncMock(return_value=True))
     monkeypatch.setattr(

@@ -7,8 +7,6 @@ the RBAC entitlement, so role checks apply.
 
 from uuid import uuid4
 
-from oss.src.utils.common import is_ee
-
 
 RBAC_PLAN = "cloud_v0_business"
 
@@ -31,8 +29,7 @@ def create_account(admin_api, *, email: str) -> dict:
             "seed_defaults": True,
         },
     }
-    if is_ee():
-        account["subscription"] = {"plan": RBAC_PLAN}
+    account["subscription"] = {"plan": RBAC_PLAN}
     resp = admin_api(
         "POST", "/admin/simple/accounts/", json={"accounts": {"u": account}}
     )

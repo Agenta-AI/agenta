@@ -12,16 +12,11 @@ from uuid import uuid4
 import pytest
 import requests
 
-from oss.src.utils.common import is_ee
 from oss.tests.pytest.utils.membership_accounts import (
     create_account,
     delete_account,
     first_id,
     unique_email,
-)
-
-pytestmark = pytest.mark.skipif(
-    not is_ee(), reason="EE only: OSS members open every project of the organization"
 )
 
 TIMEOUT = 60

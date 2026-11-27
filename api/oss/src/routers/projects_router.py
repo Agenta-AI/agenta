@@ -13,7 +13,7 @@ from oss.src.core.access.service import (
     invalidate_scope_after_delete,
     read_scope_principals_before_delete,
 )
-from oss.src.utils.common import is_ee, is_oss, APIRouter
+from oss.src.utils.common import APIRouter
 from oss.src.services import db_manager
 from oss.src.core.memberships.dtos import ProjectListing
 from oss.src.core.memberships.service import get_memberships_service
@@ -22,9 +22,8 @@ from oss.src.core.access.permissions.types import Permission, RequiredRole
 
 from oss.src.utils.logging import get_module_logger
 
-if is_ee():
-    from ee.src.core.access.entitlements.service import check_project_limit
-    from ee.src.core.access.entitlements.types import ProjectLimitReachedError
+from ee.src.core.access.entitlements.service import check_project_limit
+from ee.src.core.access.entitlements.types import ProjectLimitReachedError
 
 log = get_module_logger(__name__)
 
@@ -144,12 +143,6 @@ async def get_projects(
     if scope == "organization":
         return await _organization_projects(request)
     try:
-        if not (is_oss() or is_ee()):
-            return JSONResponse(
-                status_code=404,
-                content={"message": "No projects found."},
-            )
-
         listings = await get_memberships_service().list_for_user(
             user_id=UUID(str(request.state.user_id))
         )
@@ -242,14 +235,13 @@ async def create_project(
     if not project_name:
         raise HTTPException(status_code=400, detail="Project name cannot be empty")
 
-    if is_ee():
-        try:
-            await check_project_limit(UUID(str(organization_id)))
-        except ProjectLimitReachedError as e:
-            raise HTTPException(
-                status_code=403,
-                detail={"code": e.code, "message": e.message, "limit": e.limit},
-            ) from e
+    try:
+        await check_project_limit(UUID(str(organization_id)))
+    except ProjectLimitReachedError as e:
+        raise HTTPException(
+            status_code=403,
+            detail={"code": e.code, "message": e.message, "limit": e.limit},
+        ) from e
 
     scope = await get_memberships_service().create_project(
         organization_id=UUID(str(organization_id)),

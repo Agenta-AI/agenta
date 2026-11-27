@@ -5,7 +5,6 @@ With the default catalog: owners and admins create and rename; only owners delet
 
 import pytest
 
-from oss.src.utils.common import is_ee
 from oss.tests.pytest.utils.membership_accounts import RBAC_PLAN
 from oss.tests.pytest.utils.plans import project_limit
 
@@ -64,7 +63,7 @@ def test_admin_can_create_and_rename_a_project(admin_api, team):
     # The admin passes the permission check; a stack without a license key then refuses
     # a second project.
     resp = _create(admin_api, team, "admin", "admin-project")
-    if is_ee() and project_limit(admin_api, plan=RBAC_PLAN) == 1:
+    if project_limit(admin_api, plan=RBAC_PLAN) == 1:
         assert resp.status_code == 403, resp.text
         assert resp.json()["detail"]["code"] == "project_limit_reached"
     else:

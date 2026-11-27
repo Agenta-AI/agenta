@@ -3,6 +3,8 @@
 import json
 from uuid import uuid4
 
+from unittest.mock import AsyncMock
+
 import pytest
 
 import oss.src.services.commoners as commoners
@@ -33,7 +35,10 @@ async def test_signup_ignores_agenta_demos(monkeypatch):
     monkeypatch.setattr(commoners, "release_lock", _release_lock)
     # No organization creation allowlist match: only the demo enrollment could add rows.
     monkeypatch.setattr(commoners, "can_create_organization", lambda email: False)
-    monkeypatch.setattr(commoners, "is_ee", lambda: False)
+    # Keep sign-up off the Loops marketing contact.
+    from oss.src.utils import emailing
+
+    monkeypatch.setattr(emailing, "add_contact", AsyncMock())
 
     email = f"membership-signup-{uuid4().hex}@test.agenta.ai"
     user = None

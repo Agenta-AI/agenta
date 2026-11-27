@@ -214,14 +214,3 @@ async def test_create_project_goes_through_when_the_plan_read_fails(monkeypatch)
         await _create_project()
 
     create.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_oss_has_no_project_limit(monkeypatch):
-    _wire(monkeypatch, plan=HOBBY, projects=5)
-    monkeypatch.setattr(projects_router, "is_ee", lambda: False)
-
-    with pytest.raises(_Created):
-        await _create_project()
-
-    projects_router.db_manager.count_organization_projects.assert_not_awaited()

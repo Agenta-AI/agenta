@@ -14,14 +14,13 @@ from uuid import uuid4
 
 import pytest
 
-from oss.src.utils.common import is_ee
 from oss.tests.pytest.utils.plans import project_limit, skip_if_plan_offers
 from oss.tests.pytest.utils.membership_accounts import (
     add_project_member,
     create_project,
 )
 
-_OWNER_PLAN = "cloud_v0_pro" if is_ee() else None
+_OWNER_PLAN = "cloud_v0_pro"
 # Any trace id: the role check answers before the trace is looked up.
 _TRACE_ID = "0" * 31 + "1"
 
@@ -174,7 +173,6 @@ def test_admin_reads_trace_content(admin_api, team, method, path, body):
     assert resp.status_code == 200, (path, resp.status_code, resp.text)
 
 
-@pytest.mark.skipif(not is_ee(), reason="billing is EE")
 @pytest.mark.parametrize("method, path, body", _EE_DENIED_ROUTES)
 def test_member_cannot_change_billing(admin_api, team, method, path, body):
     # These 403 answers carry a gzip header over a plain body, so the body is not read.
@@ -183,7 +181,6 @@ def test_member_cannot_change_billing(admin_api, team, method, path, body):
     assert resp.status_code == 403, (path, resp.status_code)
 
 
-@pytest.mark.skipif(not is_ee(), reason="billing is EE")
 def test_admin_reads_credit_usage(admin_api, team):
     resp = _call(admin_api, team, "admin", "POST", "/wallets/usage/query", {})
     assert resp.status_code == 200, resp.text
@@ -197,7 +194,7 @@ def test_admin_reads_credit_usage(admin_api, team):
         ("POST", "/sessions/records/query", {"session_id": str(uuid4())}),
         ("POST", "/workflows/query", {}),
     ]
-    + ([("GET", "/wallets/summary", None)] if is_ee() else []),
+    + [("GET", "/wallets/summary", None)],
 )
 def test_member_keeps_what_a_run_needs(admin_api, team, method, path, body):
     resp = _call(admin_api, team, "member", method, path, body)
@@ -245,8 +242,7 @@ def test_member_cannot_invite_or_change_roles(admin_api, team):
 
 
 def test_roles_offered_without_rbac(admin_api, team):
-    if is_ee():
-        skip_if_plan_offers(admin_api, plan=_OWNER_PLAN, flag="rbac")
+    skip_if_plan_offers(admin_api, plan=_OWNER_PLAN, flag="rbac")
     resp = admin_api(
         "GET",
         "/access/roles",
@@ -270,8 +266,7 @@ def test_roles_offered_without_rbac(admin_api, team):
 
 
 def test_invite_takes_the_floor_role_and_refuses_owner(admin_api, team):
-    if is_ee():
-        skip_if_plan_offers(admin_api, plan=_OWNER_PLAN, flag="rbac")
+    skip_if_plan_offers(admin_api, plan=_OWNER_PLAN, flag="rbac")
     invite = f"/organizations/{team['organization_id']}/workspaces/{team['workspace_id']}/invite"
     for roles in (["owner"], ["viewer"]):
         refused = admin_api(
@@ -344,7 +339,7 @@ def test_member_creates_and_renames_a_project_but_cannot_delete_or_make_default(
         headers=team["headers"]["member"],
         json={"name": f"member-{uuid4().hex[:8]}"},
     )
-    if is_ee() and project_limit(admin_api, plan=_OWNER_PLAN) == 1:
+    if project_limit(admin_api, plan=_OWNER_PLAN) == 1:
         assert created.status_code == 403, created.text
         assert created.json()["detail"]["code"] == "project_limit_reached"
     else:

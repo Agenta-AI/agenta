@@ -10,7 +10,6 @@ import pytest
 from sqlalchemy import text
 
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
-from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
 from oss.tests.pytest.utils.postgres import require_core_uri
 
@@ -36,8 +35,6 @@ def _run(coro):
 
 @pytest.fixture(scope="module")
 def sso_secret(org):
-    if not is_ee():
-        pytest.skip("EE SSO")
     require_core_uri()  # module scope runs before the function-scoped database guard
     secret_id = uuid4()
     data = json.dumps(

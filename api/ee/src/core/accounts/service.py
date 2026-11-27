@@ -201,7 +201,7 @@ async def email_variant_blocks_grant(*, email: str) -> bool:
 async def write_account_tombstone(
     *, email: str, organization_ids: List[UUID]
 ) -> AccountTombstone:
-    """The deletion seam, called from the OSS accounts service through `is_ee()`.
+    """Called from the OSS accounts service when an account is deleted.
     Raises on failure."""
     return await _get_account_tombstones_service().record_deletion(
         email=email, organization_ids=organization_ids

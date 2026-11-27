@@ -13,7 +13,6 @@ import uuid as _uuid_mod
 from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
-from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.memberships.service import invalidate_access_caches
 from oss.src.core.access.dtos import PrincipalKind, PrincipalRef
@@ -63,30 +62,23 @@ from oss.src.models.db_models import (
     UserDB,
 )
 
-try:
-    from ee.src.core.subscriptions.service import (  # type: ignore[import]
-        SubscriptionsService as _EeSubscriptionsService,
-    )
-    from ee.src.dbs.postgres.subscriptions.dao import (  # type: ignore[import]
-        SubscriptionsDAO as _EeSubscriptionsDAO,
-    )
-    from ee.src.core.subscriptions.types import (  # type: ignore[import]
-        get_default_plan as _ee_get_default_plan,
-    )
-    from ee.src.core.access.controls import (  # type: ignore[import]
-        get_plans as _ee_get_plans,
-    )
+from ee.src.core.subscriptions.service import (  # type: ignore[import]
+    SubscriptionsService as _EeSubscriptionsService,
+)
+from ee.src.dbs.postgres.subscriptions.dao import (  # type: ignore[import]
+    SubscriptionsDAO as _EeSubscriptionsDAO,
+)
+from ee.src.core.subscriptions.types import (  # type: ignore[import]
+    get_default_plan as _ee_get_default_plan,
+)
+from ee.src.core.access.controls import (  # type: ignore[import]
+    get_plans as _ee_get_plans,
+)
 
-    from ee.src.core.accounts.service import (  # type: ignore[import]
-        write_account_tombstone as _ee_write_account_tombstone,
-        discard_account_tombstones as _ee_discard_account_tombstones,
-    )
-
-    _ee_subscription_service = _EeSubscriptionsService(
-        subscriptions_dao=_EeSubscriptionsDAO(),
-    )
-except ImportError:
-    pass
+from ee.src.core.accounts.service import (  # type: ignore[import]
+    write_account_tombstone as _ee_write_account_tombstone,
+    discard_account_tombstones as _ee_discard_account_tombstones,
+)
 
 # SuperTokens — imported lazily-style at module level to keep the import
 # unconditional; the service will only call these when ST is initialised.
@@ -175,6 +167,10 @@ from oss.src.core.accounts.errors import (
 )
 
 log = get_module_logger(__name__)
+
+_ee_subscription_service = _EeSubscriptionsService(
+    subscriptions_dao=_EeSubscriptionsDAO(),
+)
 
 # ---------------------------------------------------------------------------
 # Internal reference tracker
@@ -788,40 +784,39 @@ class PlatformAdminAccountsService:
                 org_create.name, org_create.slug, owner_id
             )
             # EE: provision subscription for the newly created org.
-            if is_ee():
-                try:
-                    sub_create = (dto.subscriptions or {}).get(org_ref)
-                    plan = sub_create.plan if sub_create else _ee_get_default_plan()  # type: ignore
-                    if plan not in _ee_get_plans():  # type: ignore
-                        raise AdminValidationError(
-                            f"Subscription plan '{plan}' for organization "
-                            f"'{org_ref}' is not in the effective plan set."
-                        )
-                    sub = await _ee_subscription_service.start_plan(
-                        organization_id=str(org_db.id),
-                        plan=plan,
+            try:
+                sub_create = (dto.subscriptions or {}).get(org_ref)
+                plan = sub_create.plan if sub_create else _ee_get_default_plan()  # type: ignore
+                if plan not in _ee_get_plans():  # type: ignore
+                    raise AdminValidationError(
+                        f"Subscription plan '{plan}' for organization "
+                        f"'{org_ref}' is not in the effective plan set."
                     )
-                    account.subscriptions = account.subscriptions or {}
-                    account.subscriptions[org_ref] = AdminSubscriptionRead(
-                        plan=plan,
-                        active=sub.active if sub else None,
+                sub = await _ee_subscription_service.start_plan(
+                    organization_id=str(org_db.id),
+                    plan=plan,
+                )
+                account.subscriptions = account.subscriptions or {}
+                account.subscriptions[org_ref] = AdminSubscriptionRead(
+                    plan=plan,
+                    active=sub.active if sub else None,
+                )
+            except Exception as exc:
+                log.error(
+                    "[admin] subscription provision failed for org %s: %s",
+                    org_db.id,
+                    exc,
+                )
+                errors.append(
+                    AdminStructuredError(
+                        code="subscription_provision_failed",
+                        message=f"Organization '{org_ref}' created but subscription provisioning failed.",
+                        details={
+                            "ref": org_ref,
+                            "organization_id": str(org_db.id),
+                        },
                     )
-                except Exception as exc:
-                    log.error(
-                        "[admin] subscription provision failed for org %s: %s",
-                        org_db.id,
-                        exc,
-                    )
-                    errors.append(
-                        AdminStructuredError(
-                            code="subscription_provision_failed",
-                            message=f"Organization '{org_ref}' created but subscription provisioning failed.",
-                            details={
-                                "ref": org_ref,
-                                "organization_id": str(org_db.id),
-                            },
-                        )
-                    )
+                )
             tracker.organizations[org_ref] = org_db.id
             account.organizations[org_ref] = _org_db_to_read_dto(org_db)
 
@@ -1099,17 +1094,16 @@ class PlatformAdminAccountsService:
         # before the batch lands discards the ones already written.
         tombstone_ids: List[UUID] = []
         try:
-            if is_ee():
-                for user_id in user_ids:
-                    user = await _db_get_user_by_id(user_id)
-                    if user is None:
-                        continue
-                    owned = await _db_get_orgs_owned_by_user(user_id)
-                    tombstone = await self._write_account_tombstone(
-                        email=str(user.email),
-                        organization_ids=[org.id for org in owned],
-                    )
-                    tombstone_ids.append(tombstone.id)
+            for user_id in user_ids:
+                user = await _db_get_user_by_id(user_id)
+                if user is None:
+                    continue
+                owned = await _db_get_orgs_owned_by_user(user_id)
+                tombstone = await self._write_account_tombstone(
+                    email=str(user.email),
+                    organization_ids=[org.id for org in owned],
+                )
+                tombstone_ids.append(tombstone.id)
 
             member_organization_ids = await _member_organization_ids(user_ids=user_ids)
             principals_snapshots = [
@@ -1489,7 +1483,7 @@ class PlatformAdminAccountsService:
             workspaces={"wrk": ws_create},
             projects={"prj": proj_create},
         )
-        if is_ee() and dto.owner:
+        if dto.owner:
             graph_dto.organization_memberships = {
                 "org_owner": AdminOrganizationMembershipCreate(
                     organization_ref=EntityRef(ref="org"),
@@ -1610,7 +1604,7 @@ class PlatformAdminAccountsService:
         # The tombstone first: without it the same email could sign up again and
         # collect the free credits once more, so no tombstone means no deletion.
         tombstone_ids: List[UUID] = []
-        if is_ee() and write_tombstone:
+        if write_tombstone:
             owned = await _db_get_orgs_owned_by_user(uid)
             tombstone = await self._write_account_tombstone(
                 email=str(user.email),
@@ -1631,8 +1625,7 @@ class PlatformAdminAccountsService:
                     org.id for org in await _db_get_orgs_owned_by_user(uid)
                 ]
             )
-            if is_ee():
-                await _ee_delete_user_memberships(uid)
+            await _ee_delete_user_memberships(uid)
 
             deleted_org_ids = await _db_delete_user_with_cascade(uid)
             await _invalidate_memberships(
@@ -1675,37 +1668,34 @@ class PlatformAdminAccountsService:
         organization_ids = [org.id for org in owned_orgs]
 
         # Refuse to delete a shared organization out from under its members.
-        if is_ee():
-            shared = [
-                (org.name or str(org.id))
-                for org in owned_orgs
-                if await _ee_count_organization_members(str(org.id)) > 1
-            ]
-            if shared:
-                raise AccountHasMembersError(shared)
+        shared = [
+            (org.name or str(org.id))
+            for org in owned_orgs
+            if await _ee_count_organization_members(str(org.id)) > 1
+        ]
+        if shared:
+            raise AccountHasMembersError(shared)
 
         # The tombstone before anything irreversible: a failed write returns an error
         # while billing and the login are still intact.
         tombstone_ids: List[UUID] = []
-        if is_ee():
-            tombstone = await self._write_account_tombstone(
-                email=email, organization_ids=organization_ids
-            )
-            tombstone_ids.append(tombstone.id)
+        tombstone = await self._write_account_tombstone(
+            email=email, organization_ids=organization_ids
+        )
+        tombstone_ids.append(tombstone.id)
 
         # Stop billing before the org rows disappear. Best effort.
-        if is_ee():
-            for org in owned_orgs:
-                try:
-                    await _ee_subscription_service.cancel_subscription(
-                        organization_id=str(org.id),
-                    )
-                except Exception:  # noqa: BLE001 - never block deletion on billing
-                    log.error(
-                        "[accounts] stripe cancel failed during account deletion",
-                        organization_id=str(org.id),
-                        exc_info=True,
-                    )
+        for org in owned_orgs:
+            try:
+                await _ee_subscription_service.cancel_subscription(
+                    organization_id=str(org.id),
+                )
+            except Exception:  # noqa: BLE001 - never block deletion on billing
+                log.error(
+                    "[accounts] stripe cancel failed during account deletion",
+                    organization_id=str(org.id),
+                    exc_info=True,
+                )
 
         # Remove the auth login first: the signup override is idempotent and
         # would otherwise recreate the account on the next sign-in.
@@ -1731,14 +1721,13 @@ class PlatformAdminAccountsService:
         )
 
         # Drop them from the marketing email list. Best effort.
-        if is_ee():
-            try:
-                await _delete_loops_contact(email)
-            except Exception:  # noqa: BLE001 - best effort
-                log.error(
-                    "[accounts] loops contact removal failed during account deletion",
-                    exc_info=True,
-                )
+        try:
+            await _delete_loops_contact(email)
+        except Exception:  # noqa: BLE001 - best effort
+            log.error(
+                "[accounts] loops contact removal failed during account deletion",
+                exc_info=True,
+            )
 
         return result
 
@@ -1834,8 +1823,6 @@ class PlatformAdminAccountsService:
         organization_id: str,
         membership_id: str,
     ) -> AdminDeleteResponse:
-        if not is_ee():
-            raise AdminNotImplementedError("delete_organization_membership")
         return await self._delete_ee_membership(
             membership_id=membership_id,
             scope_type="organization",
@@ -1859,8 +1846,6 @@ class PlatformAdminAccountsService:
         workspace_id: str,
         membership_id: str,
     ) -> AdminDeleteResponse:
-        if not is_ee():
-            raise AdminNotImplementedError("delete_workspace_membership")
         # The admin graph answers an organization membership for a workspace
         # membership; anything else is unknown.
         mid = _parse_uuid(membership_id, "membership_id")
@@ -1930,8 +1915,6 @@ class PlatformAdminAccountsService:
         project_id: str,
         membership_id: str,
     ) -> AdminDeleteResponse:
-        if not is_ee():
-            raise AdminNotImplementedError("delete_project_membership")
         return await self._delete_ee_membership(
             membership_id=membership_id,
             scope_type="project",
@@ -2242,8 +2225,6 @@ class PlatformAdminAccountsService:
         scope_type: str,
     ) -> AdminDeleteResponse:
         """Delete an EE membership by ID."""
-        if not is_ee():
-            raise AdminNotImplementedError(f"delete_{scope_type}_membership")
 
         mid = _parse_uuid(membership_id, "membership_id")
 

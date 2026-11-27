@@ -3,6 +3,8 @@
 from types import SimpleNamespace
 from uuid import uuid4
 
+from unittest.mock import AsyncMock
+
 import pytest
 
 import oss.src.core.memberships.service as memberships_module
@@ -68,7 +70,6 @@ async def test_member_writes_refuse_a_key_outside_the_default_project(
         "get_project_by_workspace",
         _get_project_by_workspace,
     )
-    monkeypatch.setattr(workspace_router, "is_ee", lambda: False)
 
     response = await workspace_router.remove_user_from_workspace(
         email="x@test.agenta.ai",
@@ -94,7 +95,6 @@ async def test_remove_user_by_a_non_admin_answers_403(monkeypatch, project):
         "get_project_by_workspace",
         _get_project_by_workspace,
     )
-    monkeypatch.setattr(workspace_router, "is_ee", lambda: False)
 
     response = await workspace_router.remove_user_from_workspace(
         email="x@test.agenta.ai",
@@ -183,7 +183,17 @@ def wired(monkeypatch, project):
         monkeypatch.setattr(
             workspace_router.db_manager, "get_user_with_email", _get_user_with_email
         )
-        monkeypatch.setattr(workspace_router, "is_ee", lambda: False)
+        # Keep the tests off the EE user gauge on a removal.
+        monkeypatch.setattr(
+            workspace_router.db_manager,
+            "get_organization_owner",
+            AsyncMock(return_value=None),
+        )
+        monkeypatch.setattr(
+            workspace_router,
+            "check_entitlements",
+            AsyncMock(return_value=(True, None, None)),
+        )
         return target
 
     return _wire

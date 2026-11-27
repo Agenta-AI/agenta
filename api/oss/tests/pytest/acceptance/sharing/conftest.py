@@ -19,7 +19,6 @@ from uuid import uuid4
 
 import pytest
 
-from oss.src.utils.common import is_ee
 from oss.tests.pytest.acceptance.sharing.support import (
     Caller,
     add_member,
@@ -135,7 +134,7 @@ _ROLES = {"alice": "editor", "bob": "editor", "carol": "viewer", "dana": "admin"
 
 
 def _rbac_params():
-    return [True, False] if is_ee() else [True]
+    return [True, False]
 
 
 def _install_mock_channel(cast: Cast) -> Installation:
@@ -206,7 +205,7 @@ def sharing_cast(request, ag_env, admin_api):
             admin_api,
             email=owner_email,
             password=password,
-            plan=(RBAC_PLAN if rbac else NO_RBAC_PLAN) if is_ee() else None,
+            plan=RBAC_PLAN if rbac else NO_RBAC_PLAN,
         )
         created.append(owner_email)
         cast = Cast(

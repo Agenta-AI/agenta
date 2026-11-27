@@ -12,7 +12,6 @@ from uuid import uuid4
 
 import pytest
 
-from oss.src.utils.common import is_ee
 from oss.tests.pytest.utils.plans import organization_limit
 
 
@@ -87,9 +86,6 @@ def _owner_key_headers(authed_api, admin_api, organization_id):
 
 @pytest.mark.usefixtures("cls_account")
 class TestOrganizationLifecycle:
-    @pytest.mark.skipif(
-        not is_ee(), reason="the organization limit runs on the enterprise path"
-    )
     def test_create_organization_is_refused_at_the_instance_limit(
         self, authed_api, admin_api
     ):

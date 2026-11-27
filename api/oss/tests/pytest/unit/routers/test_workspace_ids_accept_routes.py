@@ -65,35 +65,18 @@ async def test_organization_details_endpoint_without_workspaces(monkeypatch):
     assert details["default_workspace"]["updated_at"] == str(organization.updated_at)
 
 
-async def test_list_organizations_ee_keeps_empty_workspaces(monkeypatch):
+async def test_list_organizations_keeps_empty_workspaces(monkeypatch):
     organization = _organization()
 
     async def _orgs(user_id):
         # Two membership rows in one organization: one item.
         return [organization, organization]
 
-    monkeypatch.setattr(organization_router, "is_ee", lambda: True)
     monkeypatch.setattr(db_manager, "get_user_organizations", _orgs)
 
     response = await organization_router.list_organizations(request=_request())
 
     # Step 2: the organization where the workspace list goes (was []).
-    assert [o["workspaces"] for o in response] == [[str(organization.id)]]
-
-
-async def test_list_organizations_oss_lists_the_organization_id_for_a_member_without_workspace_row(
-    monkeypatch,
-):
-    organization = _organization()
-
-    async def _orgs(user_id):
-        return [organization]
-
-    monkeypatch.setattr(organization_router, "is_ee", lambda: False)
-    monkeypatch.setattr(db_manager, "get_user_organizations", _orgs)
-
-    response = await organization_router.list_organizations(request=_request())
-
     assert [o["workspaces"] for o in response] == [[str(organization.id)]]
 
 

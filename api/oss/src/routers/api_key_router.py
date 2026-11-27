@@ -2,7 +2,7 @@ from typing import List
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 
-from oss.src.utils.common import APIRouter, is_ee
+from oss.src.utils.common import APIRouter
 from oss.src.services import api_key_service
 from oss.src.models.api.api_models import ListAPIKeysResponse
 
@@ -90,15 +90,14 @@ async def create_api_key(
             status_code=403,
         )
 
-    if is_ee():
-        from ee.src.core.fraud.service import check_api_key_creation  # noqa: PLC0415
+    from ee.src.core.fraud.service import check_api_key_creation  # noqa: PLC0415
 
-        # Never raises and never blocks the key: a flagged account keeps the key and
-        # loses its free credits.
-        await check_api_key_creation(
-            user_id=request.state.user_id,
-            project_id=request.state.project_id,
-        )
+    # Never raises and never blocks the key: a flagged account keeps the key and
+    # loses its free credits.
+    await check_api_key_creation(
+        user_id=request.state.user_id,
+        project_id=request.state.project_id,
+    )
 
     api_key = await api_key_service.create_api_key(
         user_id=request.state.user_id,

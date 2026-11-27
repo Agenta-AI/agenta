@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.services import db_manager, organization_service
-from oss.src.utils.common import APIRouter, is_ee
+from oss.src.utils.common import APIRouter
 from oss.src.models.api.workspace_models import Workspace, UserRole
 
 from oss.src.core.access.permissions.service import (
@@ -25,12 +25,11 @@ from oss.src.core.access.service import ROLE_SCOPE, get_access_service
 from oss.src.core.access.types import RbacEntitlementUnavailable, RoleNotOffered
 from oss.src.utils.context import get_auth_scope
 
-if is_ee():
-    from ee.src.core.access.entitlements.service import (
-        check_entitlements,
-        scope_from,
-        Gauge,
-    )
+from ee.src.core.access.entitlements.service import (
+    check_entitlements,
+    scope_from,
+    Gauge,
+)
 
 
 router = APIRouter()
@@ -361,22 +360,21 @@ async def remove_user_from_workspace(
         if member is not None and member.role == "owner":
             raise _owner_protected()
 
-    if is_ee():
-        # Decrement the user gauge in the *target* workspace's owning org
-        # (loaded via the path-param `{workspace_id}`), not the caller's
-        # ambient org. The agenta.ai skip-meter exemption and the decrement
-        # must agree on which organization is being acted on.
-        owner = await db_manager.get_organization_owner(str(project.organization_id))
-        owner_domain = owner.email.split("@")[-1].lower() if owner else ""
-        user_domain = email.split("@")[-1].lower()
-        skip_meter = owner_domain != "agenta.ai" and user_domain == "agenta.ai"
+    # Decrement the user gauge in the *target* workspace's owning org
+    # (loaded via the path-param `{workspace_id}`), not the caller's
+    # ambient org. The agenta.ai skip-meter exemption and the decrement
+    # must agree on which organization is being acted on.
+    owner = await db_manager.get_organization_owner(str(project.organization_id))
+    owner_domain = owner.email.split("@")[-1].lower() if owner else ""
+    user_domain = email.split("@")[-1].lower()
+    skip_meter = owner_domain != "agenta.ai" and user_domain == "agenta.ai"
 
-        if not skip_meter:
-            await check_entitlements(  # type: ignore
-                key=Gauge.USERS,  # type: ignore
-                delta=-1,
-                scope=scope_from(organization_id=project.organization_id),  # type: ignore
-            )
+    if not skip_meter:
+        await check_entitlements(  # type: ignore
+            key=Gauge.USERS,  # type: ignore
+            delta=-1,
+            scope=scope_from(organization_id=project.organization_id),  # type: ignore
+        )
 
     try:
         await get_memberships_service().remove_member(
