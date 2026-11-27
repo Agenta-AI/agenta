@@ -10,7 +10,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 // Only the HTTP layer and the Fern edit call are fake: the run query, the edit request and its
 // body builder, and the candidate rule are the real package code.
-const fern = vi.hoisted(() => ({editSimpleEvaluation: vi.fn()}))
+const fern = vi.hoisted(() => ({editSimpleEvaluation: vi.fn(), queryMetrics: vi.fn()}))
 vi.mock("@agenta/sdk/resources", async (original) => ({
     ...(await original<typeof import("@agenta/sdk/resources")>()),
     getEvaluationsClient: () => fern,
@@ -244,6 +244,8 @@ beforeEach(() => {
     store.set(projectIdAtom, "pr")
     Object.values(http).forEach((fn) => fn.mockReset())
     fern.editSimpleEvaluation.mockReset()
+    fern.queryMetrics.mockReset()
+    fern.queryMetrics.mockResolvedValue({count: 0, metrics: []})
     toast.success.mockReset()
     toast.error.mockReset()
     permission.allowed = true
@@ -444,6 +446,35 @@ describe("run header: edit evaluation", () => {
         await mount()
         expect(host.querySelector("h1")?.textContent).toBe("Capitals check")
         expect(host.querySelector("[aria-label='Run actions']")).toBeNull()
+    })
+})
+
+describe("run header: meta line", () => {
+    it("Shows the status, the test set with its version and the created date under the title", async () => {
+        serveRun()
+        await mount()
+        const line = host.querySelector('[data-testid="run-meta-line"]')
+        expect(line?.textContent).toContain("Success")
+        expect(line?.querySelector('[data-testid="meta-testset-0"]')?.textContent).toMatch(
+            /^Test set .+ v3$/,
+        )
+        expect(line?.querySelector('[data-testid="meta-created"]')?.textContent).toContain("2026")
+    })
+
+    it("A finished run reads its per-test-case metrics once; a running run reads none", async () => {
+        serveRun()
+        await mount()
+        expect(fern.queryMetrics).toHaveBeenCalledTimes(1)
+        expect(fern.queryMetrics.mock.calls[0][0]).toMatchObject({
+            metrics: {scenario_ids: true},
+            windowing: {limit: 5000},
+        })
+        act(() => root.unmount())
+        root = createRoot(host)
+        fern.queryMetrics.mockClear()
+        serveRun({status: "running"})
+        await mount()
+        expect(fern.queryMetrics).not.toHaveBeenCalled()
     })
 })
 

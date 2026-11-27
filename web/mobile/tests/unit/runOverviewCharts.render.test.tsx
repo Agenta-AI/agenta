@@ -1,16 +1,17 @@
 // @vitest-environment jsdom
 import {act, createElement, type ReactNode} from "react"
 
+import {buildEvaluatorRows} from "@agenta/entities/evaluationRun"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {MetricCard} from "@/features/evaluation-run/overview/MetricCard"
-import {MetricCardsSection} from "@/features/evaluation-run/overview/MetricCardsSection"
+import {EvaluatorResultsSection} from "@/features/evaluation-run/overview/EvaluatorResultsSection"
 import {
     RunRadarCard,
     showsRadar,
     useRunRadar,
 } from "@/features/evaluation-run/overview/RunRadarCard"
+import type {OverviewMetric} from "@/features/evaluation-run/overview/useRunOverview"
 
 import {
     BOOLEAN,
@@ -21,13 +22,10 @@ import {
     RUN_ID,
 } from "./runOverviewFixtures"
 
-// The charts are tested in @agenta/ui. Here, record what each card hands them.
-const charts = vi.hoisted(() => ({bar: [] as unknown[], line: [] as unknown[]}))
-vi.mock("@agenta/ui/components/presentational/charts", () => ({
-    BarChart: (props: unknown) => {
-        charts.bar.push(props)
-        return null
-    },
+// The line and radar charts are tested in @agenta/ui. Here, record what the cards hand them.
+const charts = vi.hoisted(() => ({line: [] as unknown[]}))
+vi.mock("@agenta/ui/components/presentational/charts", async (original) => ({
+    ...(await original<typeof import("@agenta/ui/components/presentational/charts")>()),
     LineChart: (props: unknown) => {
         charts.line.push(props)
         return null
@@ -37,23 +35,35 @@ vi.mock("@agenta/ui/components/presentational/charts", () => ({
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
-interface BarProps {
-    data: {category: string; values: Record<string, number>}[]
-    series: {name: string}[]
-    yMax?: number
-    formatValue: (value: number) => string
-}
-
 let host: HTMLDivElement
 let root: Root
 const render = (node: ReactNode) => act(() => root.render(node))
-const lastBar = () => charts.bar.at(-1) as BarProps
+
+/** The results section with the rows the view builds from the same metrics. */
+const section = (props: {
+    runId: string
+    runName: string
+    online: boolean
+    human?: boolean
+    metrics: OverviewMetric[]
+    hasEvaluators: boolean
+    pending: boolean
+    error: Error | null
+    onRetry?: () => void
+}) =>
+    createElement(EvaluatorResultsSection, {
+        ...props,
+        rows: buildEvaluatorRows(
+            [{stepKey: "ev-step", evaluatorId: "ev-1", name: "Exact match"}],
+            props.metrics,
+            {runWideOnly: props.online},
+        ),
+    })
 
 beforeEach(() => {
     host = document.createElement("div")
     document.body.appendChild(host)
     root = createRoot(host)
-    charts.bar.length = 0
     charts.line.length = 0
     window.matchMedia = ((query: string) => ({
         matches: false,
@@ -68,43 +78,7 @@ afterEach(() => {
     host.remove()
 })
 
-const card = (metric: ReturnType<typeof evaluatorMetric>) =>
-    createElement(MetricCard, {metric, runId: RUN_ID})
-
-describe("overview charts", () => {
-    it("A boolean metric shows the true percent and a True and False chart", () => {
-        render(card(evaluatorMetric("attributes.ag.data.outputs.success", BOOLEAN)))
-        expect(host.textContent).toContain("75.00%")
-        const bar = lastBar()
-        expect(bar.data).toEqual([
-            {category: "True", values: {[RUN_ID]: 75}},
-            {category: "False", values: {[RUN_ID]: 25}},
-        ])
-        expect(bar.yMax).toBe(100)
-        expect(bar.series[0].name).toBe("Percentage")
-        expect(bar.formatValue(75)).toBe("75%")
-    })
-
-    it("A categorical metric charts counts by label", () => {
-        render(card(evaluatorMetric("attributes.ag.data.outputs.tone", CATEGORICAL)))
-        const bar = lastBar()
-        expect(bar.data.map((datum) => [datum.category, datum.values[RUN_ID]])).toEqual([
-            ["friendly", 3],
-            ["neutral", 2],
-            ["curt", 1],
-        ])
-        expect(bar.series[0].name).toBe("Count")
-        expect(bar.formatValue(2.6)).toBe("3")
-    })
-
-    it("A numeric metric charts the histogram with the metric as tooltip label", () => {
-        render(card(evaluatorMetric("attributes.ag.data.outputs.score", NUMERIC)))
-        expect(host.textContent).toContain("0.75")
-        const bar = lastBar()
-        expect(bar.data.map((datum) => datum.category)).toEqual(["0.5–0.75", "0.75–1"])
-        expect(bar.series[0].name).toBe("score")
-    })
-
+describe("overview states, radar and charts over time", () => {
     it("The overview shows a radar only with three axes or more, or while metrics load", () => {
         // Fewer axes: the summary takes the card's width and the metric cards carry the scores.
         expect(showsRadar(1, false)).toBe(false)
@@ -134,7 +108,7 @@ describe("overview charts", () => {
     it("A metrics load error shows the alert without the raw error text", () => {
         const log = vi.spyOn(console, "error").mockImplementation(() => undefined)
         render(
-            createElement(MetricCardsSection, {
+            section({
                 runId: RUN_ID,
                 runName: "Capitals check",
                 online: false,
@@ -153,7 +127,7 @@ describe("overview charts", () => {
         vi.spyOn(console, "error").mockImplementation(() => undefined)
         const retry = vi.fn()
         render(
-            createElement(MetricCardsSection, {
+            section({
                 runId: RUN_ID,
                 runName: "Capitals check",
                 online: false,
@@ -172,11 +146,11 @@ describe("overview charts", () => {
         expect(retry).toHaveBeenCalledTimes(1)
     })
 
-    it("A failed refresh keeps the cards, warns, and offers a retry", () => {
+    it("A failed refresh keeps the table, warns, and offers a retry", () => {
         vi.spyOn(console, "error").mockImplementation(() => undefined)
         const retry = vi.fn()
         render(
-            createElement(MetricCardsSection, {
+            section({
                 runId: RUN_ID,
                 runName: "Capitals check",
                 online: false,
@@ -189,7 +163,7 @@ describe("overview charts", () => {
         )
         expect(host.textContent).toContain("Unable to refresh evaluator metrics")
         expect(host.textContent).not.toContain("500")
-        expect(charts.bar).not.toHaveLength(0)
+        expect(host.querySelector('[data-testid="evaluator-ev-step"]')).not.toBeNull()
         const button = Array.from(host.querySelectorAll("button")).find(
             (node) => node.textContent === "Try again",
         )
@@ -203,7 +177,7 @@ describe("overview charts", () => {
             stats: {type: "categorical/single", frequency},
         })
         render(
-            createElement(MetricCardsSection, {
+            section({
                 runId: RUN_ID,
                 runName: "Capitals check",
                 online: true,
@@ -231,7 +205,7 @@ describe("overview charts", () => {
         ])
     })
 
-    it("An online run shows one time chart per metric", () => {
+    it("An online run shows the table, then one time chart per metric under Over time", () => {
         const point = (minute: number, trueCount: number) => ({
             timestamp: Date.UTC(2026, 9, 30, 9, minute),
             stats: {
@@ -243,7 +217,7 @@ describe("overview charts", () => {
             },
         })
         render(
-            createElement(MetricCardsSection, {
+            section({
                 runId: RUN_ID,
                 runName: "Capitals check",
                 online: true,
@@ -259,8 +233,9 @@ describe("overview charts", () => {
                 error: null,
             }),
         )
+        expect(host.querySelector("h2")?.textContent).toBe("Over time")
+        expect(host.querySelector('[data-testid="evaluator-ev-step"]')).not.toBeNull()
         expect(charts.line).toHaveLength(1)
-        expect(charts.bar).toHaveLength(0)
         const line = charts.line[0] as {points: unknown[]; yDomain?: number[]}
         expect(line.points).toEqual([
             {x: Date.UTC(2026, 9, 30, 9, 0), values: {[RUN_ID]: 0.25}},
@@ -283,7 +258,7 @@ describe("overview charts", () => {
             },
         })
         render(
-            createElement(MetricCardsSection, {
+            section({
                 runId: RUN_ID,
                 runName: "Capitals check",
                 online: true,
@@ -319,7 +294,7 @@ describe("overview charts", () => {
             ],
         }
         render(
-            createElement(MetricCardsSection, {
+            section({
                 runId: RUN_ID,
                 runName: "Capitals check",
                 online: true,
@@ -351,7 +326,7 @@ describe("overview charts", () => {
             },
         })
         render(
-            createElement(MetricCardsSection, {
+            section({
                 runId: RUN_ID,
                 runName: "Capitals check",
                 online: true,
@@ -376,7 +351,7 @@ describe("overview charts", () => {
 
     it("No evaluator metrics shows No evaluator metrics available", () => {
         render(
-            createElement(MetricCardsSection, {
+            section({
                 runId: RUN_ID,
                 runName: "Capitals check",
                 online: false,
@@ -387,6 +362,60 @@ describe("overview charts", () => {
             }),
         )
         expect(host.textContent).toContain("No evaluator metrics available")
-        expect(charts.bar).toHaveLength(0)
+    })
+
+    it("While metrics load, the table skeleton stands in for the rows", () => {
+        render(
+            section({
+                runId: RUN_ID,
+                runName: "Capitals check",
+                online: false,
+                metrics: [],
+                hasEvaluators: true,
+                pending: true,
+                error: null,
+            }),
+        )
+        expect(host.querySelector('[role="status"]')?.getAttribute("aria-label")).toBe(
+            "Preparing evaluator metrics",
+        )
+    })
+
+    it("A human run with evaluators and no annotations asks for annotations", () => {
+        render(
+            section({
+                runId: RUN_ID,
+                runName: "Capitals check",
+                online: false,
+                human: true,
+                metrics: [],
+                hasEvaluators: true,
+                pending: false,
+                error: null,
+            }),
+        )
+        expect(host.textContent).toContain("Annotate the scenarios of this run")
+    })
+
+    it("No radar card, no summary list and no metric cards on a finished run", () => {
+        render(
+            section({
+                runId: RUN_ID,
+                runName: "Capitals check",
+                online: false,
+                metrics: [
+                    evaluatorMetric("attributes.ag.data.outputs.success", BOOLEAN),
+                    evaluatorMetric("attributes.ag.data.outputs.tone", CATEGORICAL),
+                    evaluatorMetric("attributes.ag.data.outputs.score", NUMERIC),
+                ],
+                hasEvaluators: true,
+                pending: false,
+                error: null,
+            }),
+        )
+        expect(host.querySelector("svg")).toBeNull()
+        expect(host.textContent).not.toContain("Run summary")
+        expect(host.textContent).not.toContain("Over time")
+        expect(charts.line).toHaveLength(0)
     })
 })

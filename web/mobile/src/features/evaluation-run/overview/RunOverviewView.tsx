@@ -1,13 +1,19 @@
 import {useMemo} from "react"
 
-import type {RunHeader, RunQueryConfig, RunReferences} from "@agenta/entities/evaluationRun"
+import {
+    buildEvaluatorRows,
+    passedTestCases,
+    runFailures,
+    runTiles,
+    type PassedState,
+    type RunHeader,
+    type RunReferences,
+} from "@agenta/entities/evaluationRun"
 
-import {MetricCardsSection} from "./MetricCardsSection"
-import {RunRadarCard, showsRadar, useRunRadar} from "./RunRadarCard"
-import {buildRunSummaryRows} from "./runSummaryRows"
-import {RunSummaryTable} from "./RunSummaryTable"
-import type {OverviewMetric, OverviewNames} from "./useRunOverview"
-import type {RunReferenceLinks} from "./useRunReferenceLinks"
+import {EvaluatorResultsSection} from "./EvaluatorResultsSection"
+import {RunFailuresAlert} from "./RunFailuresAlert"
+import {RunMetaTiles} from "./RunMetaTiles"
+import type {OverviewMetric, OverviewNames, ScenarioMetricsState} from "./useRunOverview"
 
 export interface RunOverviewViewProps {
     runId: string
@@ -17,13 +23,11 @@ export interface RunOverviewViewProps {
     metricsPending: boolean
     metricsError: Error | null
     names: OverviewNames
-    links?: RunReferenceLinks
-    /** A live run's query; undefined while it loads. */
-    query?: RunQueryConfig | null
+    scenarioMetrics: ScenarioMetricsState
     onRetryMetrics?: () => void
 }
 
-/** The Overview tab: the run summary (with a radar when there are three metrics or more), then one card per evaluator metric. */
+/** The Overview tab: the meta tiles, then one table row per evaluator (and charts over time online). */
 export const RunOverviewView = ({
     runId,
     header,
@@ -32,47 +36,79 @@ export const RunOverviewView = ({
     metricsPending,
     metricsError,
     names,
-    links,
-    query,
+    scenarioMetrics,
     onRetryMetrics,
 }: RunOverviewViewProps) => {
+    const online = header.kind === "online"
+
     const rows = useMemo(
         () =>
-            buildRunSummaryRows({header, references, metrics, metricsPending, names, links, query}),
-        [header, references, metrics, metricsPending, names, links, query],
+            buildEvaluatorRows(
+                (references?.evaluators ?? []).map((evaluator) => ({
+                    stepKey: evaluator.stepKey,
+                    evaluatorId: evaluator.evaluatorId,
+                    name: names.evaluators[evaluator.evaluatorId] ?? evaluator.slug,
+                })),
+                metrics,
+                {runWideOnly: online},
+            ),
+        [references, names.evaluators, metrics, online],
     )
 
-    const radarRuns = useMemo(
-        () => [{id: runId, name: header.name, metrics}],
-        [runId, header.name, metrics],
-    )
-    const radar = useRunRadar(radarRuns)
-    const withRadar = showsRadar(radar.axes.length, metricsPending)
+    const failures = useMemo(() => {
+        if (scenarioMetrics.status !== "ready") return null
+        const evaluatorStepKeys = (references?.evaluators ?? []).map((e) => e.stepKey)
+        // The app step reports cost, duration and tokens; an evaluator step is never one.
+        const invocationStepKeys = [
+            ...new Set(
+                metrics.flatMap((metric) =>
+                    metric.kind === "invocation" &&
+                    metric.stepKey &&
+                    !evaluatorStepKeys.includes(metric.stepKey)
+                        ? [metric.stepKey]
+                        : [],
+                ),
+            ),
+        ]
+        return runFailures(scenarioMetrics.rows, {invocationStepKeys, evaluatorStepKeys})
+    }, [scenarioMetrics, references, metrics])
+
+    const tiles = useMemo(() => {
+        const binary = rows.flatMap((row) => row.metrics.filter((m) => m.kind === "binary"))
+        const counted =
+            scenarioMetrics.status === "ready"
+                ? passedTestCases(scenarioMetrics.rows, binary)
+                : null
+        const passed: PassedState =
+            scenarioMetrics.status === "ready"
+                ? counted
+                    ? {status: "ready", ...counted}
+                    : {status: "unavailable"}
+                : scenarioMetrics
+        return runTiles({
+            status: header.status,
+            online,
+            invocation: metrics.filter((metric) => metric.kind === "invocation"),
+            binaryStats: binary.map((metric) => metric.stats),
+            passed,
+            metricsPending,
+            failures,
+        })
+    }, [rows, scenarioMetrics, header.status, online, metrics, metricsPending, failures])
+
+    const failed = failures && failures.notRun + failures.evaluatorFailed > 0
 
     return (
         <div className="flex flex-col gap-6">
-            <section
-                aria-labelledby="run-overview-title"
-                className="box-border flex flex-col gap-4 rounded-lg border border-solid border-border bg-card p-4"
-            >
-                <header>
-                    <h2 id="run-overview-title" className="m-0 text-title text-foreground">
-                        Run summary
-                    </h2>
-                    <p className="m-0 text-body text-muted-foreground">
-                        What this run tested and its average results
-                    </p>
-                </header>
-                <div className={`grid grid-cols-1 gap-6 ${withRadar ? "lg:grid-cols-2" : ""}`}>
-                    <RunSummaryTable rows={rows} />
-                    {withRadar ? <RunRadarCard runs={radarRuns} radar={radar} /> : null}
-                </div>
-            </section>
-            <MetricCardsSection
+            {failed ? <RunFailuresAlert failures={failures} /> : null}
+            <RunMetaTiles tiles={tiles} online={online} />
+            <EvaluatorResultsSection
                 runId={runId}
                 runName={header.name}
-                online={header.kind === "online"}
+                online={online}
                 human={header.kind === "human"}
+                rows={rows}
+                noResultByStep={failures?.byStep}
                 metrics={metrics}
                 hasEvaluators={(references?.evaluators.length ?? 0) > 0}
                 pending={metricsPending}

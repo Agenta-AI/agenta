@@ -6,11 +6,12 @@ import {useAtomValue} from "jotai"
 import {RunCompareBar} from "./compare/RunCompareBar"
 import {RunActionsMenu} from "./RunActionsMenu"
 import {RunDetailsTitle} from "./RunDetailsTitle"
+import {RunMetaLine} from "./RunMetaLine"
 import {RunOnlineToggle} from "./RunOnlineToggle"
 
 /**
  * The page header: the nav button, the run name with its "⋮" menu, Stop or Resume on a live run,
- * and under them the run chips with the Compare entry.
+ * under them the run facts, then the run chips with the Compare entry.
  */
 export const RunDetailsHeader = ({
     projectId,
@@ -27,17 +28,20 @@ export const RunDetailsHeader = ({
 
     return (
         <div className="flex min-w-0 flex-col gap-3">
-            <div className="flex min-w-0 items-center gap-2">
-                {nav}
-                <div className="flex min-w-0 flex-1 items-center gap-1">
-                    <RunDetailsTitle name={header?.name ?? (settled ? "Evaluation" : null)} />
+            <div className="flex min-w-0 flex-col gap-1">
+                <div className="flex min-w-0 items-center gap-2">
+                    {nav}
+                    <div className="flex min-w-0 flex-1 items-center gap-1">
+                        <RunDetailsTitle name={header?.name ?? (settled ? "Evaluation" : null)} />
+                        {header ? (
+                            <RunActionsMenu projectId={projectId} runId={runId} header={header} />
+                        ) : null}
+                    </div>
                     {header ? (
-                        <RunActionsMenu projectId={projectId} runId={runId} header={header} />
+                        <RunOnlineToggle projectId={projectId} runId={runId} header={header} />
                     ) : null}
                 </div>
-                {header ? (
-                    <RunOnlineToggle projectId={projectId} runId={runId} header={header} />
-                ) : null}
+                {header ? <RunMetaLine runId={runId} header={header} /> : null}
             </div>
             {header ? (
                 <RunCompareBar projectId={projectId} runId={runId} runName={header.name} />
