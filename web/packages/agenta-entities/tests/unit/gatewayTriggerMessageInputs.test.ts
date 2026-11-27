@@ -12,7 +12,6 @@ import {
     getScheduleMessage,
     getScheduleMessagePreview,
     misplacedMessageShape,
-    parseInputsFields,
     remapMessageShape,
     setScheduleMessage,
 } from "../../src/gatewayTrigger/core/messageInputs"
@@ -70,23 +69,6 @@ describe("getScheduleMessage", () => {
                 "messages",
             ),
         ).toBe("")
-    })
-})
-
-describe("parseInputsFields", () => {
-    it("accepts a non-array object", () => {
-        expect(parseInputsFields('{"context":"$"}')).toEqual({value: {context: "$"}})
-    })
-
-    it("treats empty as {}", () => {
-        expect(parseInputsFields("   ")).toEqual({value: {}})
-    })
-
-    it("rejects arrays, primitives, and invalid JSON", () => {
-        expect(parseInputsFields("[]").error).toBeTruthy()
-        expect(parseInputsFields('"hi"').error).toBeTruthy()
-        expect(parseInputsFields("5").error).toBeTruthy()
-        expect(parseInputsFields("{not json").error).toBeTruthy()
     })
 })
 

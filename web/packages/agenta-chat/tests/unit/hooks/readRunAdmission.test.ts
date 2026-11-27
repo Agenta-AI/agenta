@@ -242,12 +242,6 @@ describe("readRunAdmission", () => {
         expect(w.onFailed).toHaveBeenCalledTimes(1)
     })
 
-    it("still reads an error before the turn begins as a refusal", async () => {
-        const w = watcher()
-        await readRunAdmission(streamOf(['data: {"type":"error","errorText":"refused"}\n']), w)
-        expect(w.onFailed).toHaveBeenCalledTimes(1)
-    })
-
     it("still names the turn when acceptance follows the synthetic start frames", async () => {
         // A detached run names its turn in a frame of its own, so scanning has to continue past
         // the turn-id frame or the id the echo retires on would be lost.

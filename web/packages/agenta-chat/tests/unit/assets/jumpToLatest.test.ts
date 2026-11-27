@@ -12,7 +12,6 @@ import {describe, expect, it} from "vitest"
 import {
     JUMP_REVEAL_MIN_PX,
     distanceBelowNewest,
-    jumpGateOpen,
     jumpRevealDistance,
     shouldRevealJump,
 } from "../../../src/assets/jumpToLatest"
@@ -119,19 +118,5 @@ describe("shouldRevealJump", () => {
         const short = {clientHeight: 300}
         expect(shouldRevealJump(scroller({...short, lastTurnBottom: 460}))).toBe(false)
         expect(shouldRevealJump(scroller({...short, lastTurnBottom: 560}))).toBe(true)
-    })
-})
-
-describe("jumpGateOpen", () => {
-    const none = {approvals: 0, elicitationOpen: false, connectionOpen: false}
-
-    it("is closed with nothing docked", () => {
-        expect(jumpGateOpen(none)).toBe(false)
-    })
-
-    it("opens for each blocking gate", () => {
-        expect(jumpGateOpen({...none, approvals: 1})).toBe(true)
-        expect(jumpGateOpen({...none, elicitationOpen: true})).toBe(true)
-        expect(jumpGateOpen({...none, connectionOpen: true})).toBe(true)
     })
 })

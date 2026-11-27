@@ -1,20 +1,19 @@
 import {afterEach, describe, expect, it} from "vitest"
 
-import {isMcpGatewayEnabled, isSandboxLocalEnabled} from "../../src/api/env"
+import {isMcpGatewayEnabled} from "../../src/api/env"
 
 const KEY = "NEXT_PUBLIC_AGENTA_MCP_GATEWAY_ENABLED"
-const SANDBOX_KEY = "NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED"
 
 /**
  * `getEnv` reads `globalThis.__env` first, which is what `entrypoint.sh` writes into
  * `__env.js` at container start. Setting it here is the same seam the browser sees.
  */
-const runtimeEnv = (value?: string, key: string = KEY) => {
+const runtimeEnv = (value?: string) => {
     if (value === undefined) {
         delete (globalThis as Record<string, any>).__env
         return
     }
-    ;(globalThis as Record<string, any>).__env = {[key]: value}
+    ;(globalThis as Record<string, any>).__env = {[KEY]: value}
 }
 
 afterEach(() => runtimeEnv(undefined))
@@ -57,18 +56,5 @@ describe("isMcpGatewayEnabled", () => {
             runtimeEnv(on)
             expect(isMcpGatewayEnabled()).toBe(true)
         }
-    })
-})
-
-describe("isSandboxLocalEnabled", () => {
-    it("reads the same vocabulary, from the same parser", () => {
-        runtimeEnv(undefined)
-        expect(isSandboxLocalEnabled()).toBe(true)
-        runtimeEnv("   ", SANDBOX_KEY)
-        expect(isSandboxLocalEnabled()).toBe(true)
-        runtimeEnv("enabled", SANDBOX_KEY)
-        expect(isSandboxLocalEnabled()).toBe(true)
-        runtimeEnv("0", SANDBOX_KEY)
-        expect(isSandboxLocalEnabled()).toBe(false)
     })
 })

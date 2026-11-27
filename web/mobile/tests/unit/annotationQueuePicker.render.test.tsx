@@ -17,6 +17,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 const fixture = vi.hoisted(() => ({
     queues: [] as {id: string; name: string; updated_at: string | null; data: {kind: string}}[],
+    pending: false,
     add: vi.fn(),
     success: vi.fn(),
     error: vi.fn(),
@@ -44,7 +45,7 @@ vi.mock("@agenta/entities/simpleQueue", async () => {
     return {
         simpleQueuesListDataAtom: makeAtom(() => fixture.queues),
         simpleQueuesListQueryAtom: makeAtom(() => ({
-            isPending: false,
+            isPending: fixture.pending,
             isError: false,
             refetch: vi.fn(),
         })),
@@ -80,6 +81,7 @@ vi.mock("@agenta/annotation-ui/add-to-queue", () => {
 })
 
 import AddToQueuePicker from "@/features/annotations/AddToQueuePicker"
+import {createQueueFollowUpAtom} from "@/features/annotations/createQueueFollowUpAtom"
 import {registerTraceDrawerSlots} from "@/features/observability/registerTraceDrawerSlots"
 
 const QUEUES = [
@@ -115,6 +117,7 @@ describe("annotation queue picker", () => {
 
     beforeEach(() => {
         fixture.queues = QUEUES
+        fixture.pending = false
         fixture.viewEnabled = true
         fixture.canEdit = true
         fixture.permissionCalls = []
@@ -160,6 +163,19 @@ describe("annotation queue picker", () => {
         expect(rowButtons()[0].textContent).toContain("Refunds")
     })
 
+    it("Search says when nothing matches", async () => {
+        await mount()
+        const input = document.querySelector("input") as HTMLInputElement
+        await act(async () => {
+            Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(
+                input,
+                "zzz",
+            )
+            input.dispatchEvent(new Event("input", {bubbles: true}))
+        })
+        expect(document.body.textContent).toContain("No matching queues")
+    })
+
     it("Picking a queue adds the traces and links to the queue", async () => {
         await mount({itemIds: ["t-1", "t-2"]})
         await act(async () => rowByName("Triage").click())
@@ -174,6 +190,15 @@ describe("annotation queue picker", () => {
         toast.onNavigate()
         // The router adds the /m base path; the picker passes the path without it.
         expect(fixture.push).toHaveBeenCalledWith("/w/w-1/p/p-1/annotations/q-1")
+    })
+
+    it("Picking a queue reports the added items and closes", async () => {
+        const onOpenChange = vi.fn()
+        const onItemsAdded = vi.fn()
+        await mount({onOpenChange, onItemsAdded, itemIds: ["t-1", "t-2"]})
+        await act(async () => rowByName("Triage").click())
+        expect(onItemsAdded).toHaveBeenCalled()
+        expect(onOpenChange).toHaveBeenCalledWith(false)
     })
 
     it("A failed add shows Couldn't add to the queue", async () => {
@@ -228,6 +253,37 @@ describe("annotation queue picker", () => {
         await act(async () => rowByName("Refunds").click())
         expect(onQueueSelected).toHaveBeenCalledWith(expect.objectContaining({id: "q-3"}))
         expect(fixture.add).not.toHaveBeenCalled()
+    })
+
+    it("New in picker mode hands the queue it creates to the caller", async () => {
+        const onQueueSelected = vi.fn()
+        await mount({itemIds: undefined, onQueueSelected})
+        const newButton = Array.from(document.querySelectorAll("button")).find(
+            (button) => button.textContent?.trim() === "New",
+        )
+        await act(async () => (newButton as HTMLElement).click())
+
+        // The create sheet runs this with the queue it made.
+        expect(store.get(createQueueFollowUpAtom)?.itemType).toBe("traces")
+        store.get(createQueueFollowUpAtom)?.run({id: "q-new", name: "Fresh"} as never)
+        expect(onQueueSelected).toHaveBeenCalledWith(expect.objectContaining({id: "q-new"}))
+    })
+
+    it("New with items to add leaves no follow-up: the sheet adds the items itself", async () => {
+        await mount()
+        const newButton = Array.from(document.querySelectorAll("button")).find(
+            (button) => button.textContent?.trim() === "New",
+        )
+        await act(async () => (newButton as HTMLElement).click())
+        expect(store.get(createQueueFollowUpAtom)).toBeNull()
+    })
+
+    it("The loading state shows rows that hold the list's shape", async () => {
+        fixture.queues = []
+        fixture.pending = true
+        await mount()
+        expect(document.querySelectorAll("li")).toHaveLength(0)
+        expect(document.querySelectorAll('[data-slot="skeleton-block"]').length).toBeGreaterThan(0)
     })
 
     it("Opening the trace drawer header picker loads no antd module", async () => {
