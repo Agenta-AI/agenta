@@ -5,27 +5,27 @@
         "features": [
             {
                 "id": "v0-131-1-one-image-self-hosted",
-                "title": "One image for self-hosted Agenta",
-                "body": "Open source and Enterprise installs now run the same images. A license key decides the plan. Without a key, an instance is on the Community plan, with 1 organization and 1 project per organization. Projects and organizations that you already have keep working. The limits apply only to new ones. Register your instance for a free key to remove the project limit.\n\nSelf-hosted telemetry is now anonymous, and you can turn it off. An instance sends a small amount of usage data to Agenta, never your prompts, traces, emails or names. To turn it off, set `AGENTA_TELEMETRY_ENABLED=false`. See [Telemetry](https://agenta.ai/docs/self-host/telemetry).\n\nTake a database dump before you upgrade, and read the [upgrade guide](https://agenta.ai/docs/self-host/upgrading#upgrading-to-0131-1).",
+                "title": "Easier upgrades and a free plan for self-hosted Agenta",
+                "body": "We keep working on self-hosted Agenta, and this release brings three changes to it.\n\nFirst, you can move from the open source edition to Enterprise without changing your images. Until now, there were two separate images, one for each edition, and now every install runs the same image, so you upgrade by adding a license key.\n\nSecond, we added a free Registered plan. An instance that is not registered can have 1 project, and when you register it from the app, you get a free key that removes the project limit. The [license keys page](https://agenta.ai/docs/self-host/license-keys#limits-by-plan) compares the plans.\n\nThird, we reworked self-hosted telemetry, so that each instance counts once and test installs no longer mix with real ones. The [Telemetry page](https://agenta.ai/docs/self-host/telemetry) lists what an instance sends and how to turn it off.",
                 "link": "https://agenta.ai/docs/changelog/v0-131-1-one-image-self-hosted"
             }
         ],
         "improvements": [
             {
                 "area": "Self-hosting",
-                "text": "The app tells you when a newer release or a security fix is out"
+                "text": "The app tells you when a new release or a security fix is out"
             },
             {
                 "area": "Self-hosting",
-                "text": "The Access & Security and Audit Log settings show the enterprise features, with a way to add a license key"
+                "text": "On the Community and Registered plans, the Access & Security and Audit Log settings show what Enterprise adds, and where to enter a key"
             },
             {
                 "area": "Helm",
-                "text": "The migration job can now run for up to one hour, up from 10 minutes"
+                "text": "The migration job can run for up to one hour, up from 10 minutes"
             },
             {
                 "area": "Helm",
-                "text": "An Enterprise Helm install pulls public images and needs no pull secret"
+                "text": "Enterprise Helm installs pull public images and need no pull secret"
             }
         ],
         "fixes": [],
