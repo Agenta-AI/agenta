@@ -17,7 +17,7 @@ import {useStageDrop} from "@agenta/entities/drive"
 import {driveHasMixedOrigins, type DriveRecentFile} from "@agenta/entities/drive"
 import {useT} from "@agenta/i18n"
 import driveRailCatalog from "@agenta/i18n/catalogs/entityUi.driveRail"
-import {CircleNotch} from "@phosphor-icons/react"
+import {Spinner} from "@agenta/ui/ui"
 import {useSetAtom} from "jotai"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
@@ -34,7 +34,7 @@ const Text = ({
     children,
     ...rest
 }: React.HTMLAttributes<HTMLSpanElement> & {type?: "secondary"}) => (
-    <span className={`text-colorTextSecondary ${className ?? ""}`} {...rest}>
+    <span className={`text-muted-foreground ${className ?? ""}`} {...rest}>
         {children}
     </span>
 )
@@ -151,7 +151,7 @@ export default function StorageSection({
     return (
         <div
             // Bled past the inset so a row's mark and time sit on the title's and icon's lines.
-            className={`-ml-2 -mr-1.5 flex flex-col gap-2 rounded-md transition-colors ${dropActive ? "bg-[var(--ant-color-primary-bg)]" : ""}`}
+            className={`-ml-2 -mr-1.5 flex flex-col gap-2 rounded-md transition-colors ${dropActive ? "bg-selected" : ""}`}
             {...stageDropProps}
         >
             <AnimatePresence mode="popLayout" initial={false}>
@@ -222,33 +222,33 @@ export default function StorageSection({
                             {/* One mount is in but another is still loading — a quiet hint, NOT a
                                 skeleton that would hide the files already shown. */}
                             {!showSkeleton && (drive.reconciling || drive.isFetching) ? (
-                                <div className="flex items-center gap-1.5 px-1.5 pt-1 text-xs text-colorTextTertiary">
-                                    <CircleNotch size={11} className="animate-spin" />
+                                <div className="flex items-center gap-1.5 px-1.5 pt-1 text-meta text-muted-foreground">
+                                    <Spinner aria-hidden className="size-3" />
                                     <span>{t("entityUi.driveRail.loadingMore")}</span>
                                 </div>
                             ) : null}
                         </div>
                     ) : phase === "error" ? (
-                        <Text type="secondary" className="!text-xs">
+                        <Text type="secondary" className="!text-meta">
                             {t("entityUi.driveRail.couldNotReachStore")}{" "}
                             {drive.retry ? (
                                 <DriveRetryButton onRetry={drive.retry} busy={drive.isFetching} />
                             ) : null}
                         </Text>
                     ) : phase === "no-session" ? (
-                        <Text type="secondary" className="!text-xs">
+                        <Text type="secondary" className="!text-meta">
                             {t("entityUi.driveRail.noConversationYet")}
                         </Text>
                     ) : phase === "no-changes" ? (
                         // Files exist in the drive, but none were written/edited in THIS conversation
                         // (the recents come from its record log) — surface the count, not "no files".
-                        <Text type="secondary" className="!text-xs">
+                        <Text type="secondary" className="!text-meta">
                             {t("entityUi.driveRail.noChangesBrowseAll", {
                                 total: `${drive.fileCount}${drive.fileCountCapped ? "+" : ""}`,
                             })}
                         </Text>
                     ) : (
-                        <Text type="secondary" className="!text-xs">
+                        <Text type="secondary" className="!text-meta">
                             {t("entityUi.driveRail.noFilesYetFirstRun")}
                         </Text>
                     )}

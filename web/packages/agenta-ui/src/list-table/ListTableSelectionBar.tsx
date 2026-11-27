@@ -26,7 +26,7 @@ export const ListTableSelectionBar = ({
     const t = useT(uiControlsCatalog, commonCatalog)
     return (
         <span role="status" className="col-[2/-1] flex min-w-0 items-center">
-            <span className="sticky left-0 flex shrink-0 items-center gap-2 text-[13px] font-medium text-foreground">
+            <span className="sticky left-0 flex shrink-0 items-center gap-2 text-label font-medium text-foreground">
                 <span className="shrink-0">{t("ui.controls.selectedCount", {count})}</span>
                 <Button type="button" size="xs" variant="ghost" onClick={onClear}>
                     {t("common.clear")}

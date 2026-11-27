@@ -64,13 +64,10 @@ export const CompareOverviewTab = ({
                 className="box-border flex flex-col gap-4 rounded-lg border border-solid border-border bg-card p-4"
             >
                 <header>
-                    <h2
-                        id="run-overview-title"
-                        className="m-0 text-base font-semibold text-foreground"
-                    >
+                    <h2 id="run-overview-title" className="m-0 text-title text-foreground">
                         Run summary
                     </h2>
-                    <p className="m-0 text-sm text-muted-foreground">
+                    <p className="m-0 text-body text-muted-foreground">
                         What the compared runs tested and their average results
                     </p>
                 </header>

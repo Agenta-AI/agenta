@@ -46,7 +46,7 @@ const addTrigger = (label: string) => (
     <button
         type="button"
         aria-label={label}
-        className="box-border border-0 bg-transparent p-0 cursor-pointer text-colorText !mx-0"
+        className="box-border border-0 bg-transparent p-0 cursor-pointer text-foreground !mx-0"
     >
         <Plus size={14} />
     </button>
@@ -144,7 +144,7 @@ const ArrayNodeComponent: FC<ArrayNodeProps> = (props) => {
                 <Input
                     defaultValue={k as string}
                     variant="ghost"
-                    className="w-32 text-xs font-semibold p-0"
+                    className="w-32 text-label p-0"
                     onBlur={(e) => {
                         const newKey = e.target.value.trim()
                         if (newKey && newKey !== k) {
@@ -186,7 +186,7 @@ const ArrayNodeComponent: FC<ArrayNodeProps> = (props) => {
                                     <button
                                         type="button"
                                         aria-label={t("ui.editor.removeItem")}
-                                        className="box-border border-0 bg-transparent p-0 cursor-pointer text-colorText"
+                                        className="box-border border-0 bg-transparent p-0 cursor-pointer text-foreground"
                                         onClick={() => removeItem(idx)}
                                     >
                                         <Trash size={14} />

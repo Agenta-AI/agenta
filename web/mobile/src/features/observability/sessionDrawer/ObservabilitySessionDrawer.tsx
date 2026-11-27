@@ -1,7 +1,9 @@
 import {useCallback, useLayoutEffect, useRef, useState} from "react"
 
-import {EnhancedDrawer} from "@agenta/ui/drawer"
+import {useT} from "@agenta/i18n"
+import sessionCatalog from "@agenta/i18n/catalogs/observability.sessionDrawer"
 import {useMediaQuery} from "@agenta/ui/hooks"
+import {Sheet, SheetContent, SheetTitle} from "@agenta/ui/ui"
 
 import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
 
@@ -28,6 +30,7 @@ const ObservabilitySessionDrawer = ({
     sessionId,
     onSelectSession,
 }: ObservabilitySessionDrawerProps) => {
+    const t = useT(sessionCatalog)
     const {spanId, close} = useSessionDrawerUrl()
     useBindWorkspaceMembers()
     // Below 720px the panel is as wide as the screen, so the tree has no room and widening does nothing.
@@ -49,44 +52,57 @@ const ObservabilitySessionDrawer = ({
     useLayoutEffect(() => {
         if (open) returnFocusTo.current = document.activeElement
     }, [open])
-    const afterOpenChange = useCallback((isOpen: boolean) => {
+    const afterClose = useCallback(() => {
         const target = returnFocusTo.current
-        if (isOpen || !(target instanceof HTMLElement) || !target.isConnected) return
+        if (!(target instanceof HTMLElement) || !target.isConnected) return
         returnFocusTo.current = null
         target.focus()
     }, [])
 
     return (
-        <EnhancedDrawer
-            closable={false}
-            title={null}
+        <Sheet
             open={open}
-            onClose={close}
-            afterOpenChange={afterOpenChange}
-            width={expanded ? EXPANDED_WIDTH : NORMAL_WIDTH}
-            styles={{body: {padding: 0}}}
-            destroyOnHidden
+            onOpenChange={(next) => {
+                if (!next) close()
+            }}
         >
-            {shownSessionId ? (
-                <div className="flex h-full min-h-0 flex-col" data-testid="session-drawer">
-                    <SessionDrawerHeader
-                        sessionId={shownSessionId}
-                        onSelectSession={onSelectSession}
-                        onClose={close}
-                        showWidthToggle={wide}
-                        expanded={expanded}
-                        onToggleWidth={() => setExpanded(!expanded)}
-                    />
-                    <SessionDrawerBody
-                        key={shownSessionId}
-                        sessionId={shownSessionId}
-                        linkedSpanId={spanId}
-                        narrow={!wide}
-                        annotationsBeside={annotationsBeside}
-                    />
+            <SheetContent
+                side="right"
+                style={{
+                    width: expanded ? EXPANDED_WIDTH : NORMAL_WIDTH,
+                    maxWidth: "calc(100% - 1rem)",
+                }}
+                onCloseAutoFocus={(e) => {
+                    e.preventDefault()
+                    afterClose()
+                }}
+            >
+                <SheetTitle className="sr-only">
+                    {t("observability.sessionDrawer.session")}
+                </SheetTitle>
+                <div className="min-h-0 flex-1 overflow-y-auto rounded-[inherit] p-0 text-field-md text-foreground">
+                    {shownSessionId ? (
+                        <div className="flex h-full min-h-0 flex-col" data-testid="session-drawer">
+                            <SessionDrawerHeader
+                                sessionId={shownSessionId}
+                                onSelectSession={onSelectSession}
+                                onClose={close}
+                                showWidthToggle={wide}
+                                expanded={expanded}
+                                onToggleWidth={() => setExpanded(!expanded)}
+                            />
+                            <SessionDrawerBody
+                                key={shownSessionId}
+                                sessionId={shownSessionId}
+                                linkedSpanId={spanId}
+                                narrow={!wide}
+                                annotationsBeside={annotationsBeside}
+                            />
+                        </div>
+                    ) : null}
                 </div>
-            ) : null}
-        </EnhancedDrawer>
+            </SheetContent>
+        </Sheet>
     )
 }
 

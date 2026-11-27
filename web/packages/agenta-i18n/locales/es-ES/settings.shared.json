@@ -5,8 +5,15 @@
     "rowActions": "Acciones de la fila",
     "seePlans": "Ver planes",
     "usedBy": "Lo usa {{names}}",
-    "yours": "Tuyo",
+    "yours": "Personal",
     "yoursEmptyBody": "Las cuentas que añadas aquí se usan en todos tus proyectos, cuando un agente usa la cuenta de cada persona.",
     "yoursEmptyBodyCount": "Las cuentas que añadas aquí se usan en tus {{projectCount}} proyectos, cuando un agente usa la cuenta de cada persona.",
-    "yoursEmptyTitle": "Todavía no tienes cuentas propias"
+    "yoursEmptyTitle": "Todavía no tienes cuentas propias",
+    "owner": "Propietario",
+    "ownerAll": "Todos",
+    "filterCategory": "Categoría",
+    "noMatchTitle": "Sin resultados",
+    "noMatchBody": "Prueba otra búsqueda o restablece los filtros.",
+    "resetFilters": "Restablecer filtros",
+    "noMatchSearchBody": "Prueba con otra búsqueda."
 }

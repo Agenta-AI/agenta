@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * The open session's sharing recheck: one read per open session per 60 s at most, whatever
- * asks for it (the poll, a window focus, a remount, the watch stream closing), and none once
+ * asks for it (the poll, a window focus, a remount), and none once
  * the session closes. Counted as requests to the Fern client, not as query options.
  */
 import {focusManager, QueryClient} from "@tanstack/react-query"
@@ -20,11 +20,7 @@ vi.mock("@agenta/sdk/resources", () => ({
     getLowPriorityMountsClient: vi.fn(),
 }))
 
-import {
-    recheckSessionSharing,
-    SESSION_SHARING_RECHECK_MS,
-    sessionSharingQueryAtomFamily,
-} from "../../src/sharing"
+import {SESSION_SHARING_RECHECK_MS, sessionSharingQueryAtomFamily} from "../../src/sharing"
 
 const PROJECT = "0190a3c4-0000-7000-8000-0000000000p1"
 const ALICE = "0190a3c4-0000-7000-8000-00000000a11c"
@@ -54,8 +50,6 @@ const nextSession = () => `0190a3c4-0000-7000-8000-${String(++session).padStart(
 const open = (sessionId: string) => store.sub(sessionSharingQueryAtomFamily(sessionId), () => {})
 const advance = (ms: number) => vi.advanceTimersByTimeAsync(ms)
 const requests = () => sharing.fetchSessionSharing.mock.calls.length
-const recheck = (sessionId: string) =>
-    recheckSessionSharing({queryClient: client, sessionId, projectId: PROJECT})
 
 beforeEach(() => {
     vi.useFakeTimers({shouldAdvanceTime: false})
@@ -192,72 +186,6 @@ describe("one sharing read per open session per 60 s", () => {
         await advance(0)
         close()
         await advance(5 * SESSION_SHARING_RECHECK_MS)
-        expect(requests()).toBe(1)
-    })
-})
-
-describe("a forced recheck (the watch stream closed)", () => {
-    it("inside the budget reads nothing, however often it is asked", async () => {
-        const sessionId = nextSession()
-        const close = open(sessionId)
-        await advance(0)
-
-        for (let i = 0; i < 5; i += 1) {
-            await recheck(sessionId)
-            await advance(5_000)
-        }
-        expect(requests()).toBe(1)
-        close()
-    })
-
-    it("after the budget reads once", async () => {
-        const sessionId = nextSession()
-        const close = open(sessionId)
-        await advance(0)
-        focusManager.setFocused(false)
-        await advance(SESSION_SHARING_RECHECK_MS + 5_000)
-
-        await recheck(sessionId)
-        await recheck(sessionId)
-        expect(requests()).toBe(2)
-        close()
-    })
-
-    it("a focus read and a recheck right after it make one read", async () => {
-        const sessionId = nextSession()
-        const close = open(sessionId)
-        await advance(0)
-        focusManager.setFocused(false)
-        await advance(SESSION_SHARING_RECHECK_MS + 5_000)
-        focusManager.setFocused(true)
-        // The focus read already ran; the stream closing right after it adds nothing.
-        await advance(0)
-        expect(requests()).toBe(2)
-        await recheck(sessionId)
-        await advance(30_000)
-        expect(requests()).toBe(2)
-        close()
-    })
-
-    it("a failed read counts against the budget too", async () => {
-        sharing.fetchSessionSharing.mockRejectedValue(notFound)
-        const sessionId = nextSession()
-        const close = open(sessionId)
-        await advance(0)
-        await recheck(sessionId)
-        await advance(20_000)
-        await recheck(sessionId)
-        expect(requests()).toBe(1)
-        close()
-    })
-
-    it("a closed session is never re-read", async () => {
-        const sessionId = nextSession()
-        const close = open(sessionId)
-        await advance(0)
-        close()
-        await advance(2 * SESSION_SHARING_RECHECK_MS)
-        await recheck(sessionId)
         expect(requests()).toBe(1)
     })
 })

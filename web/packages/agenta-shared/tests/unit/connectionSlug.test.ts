@@ -58,13 +58,13 @@ describe("connectionDisplayName", () => {
         ).toBe("Work account")
     })
 
-    it("reads a name that is only the slug as the app plus the slug's own suffix", () => {
+    it("reads a name that is only the slug as the app, never with the slug's suffix", () => {
         expect(
             connectionDisplayName(
                 {name: "youtube-main", slug: "youtube-main", integration_key: "youtube"},
                 "YouTube",
             ),
-        ).toBe("YouTube (main)")
+        ).toBe("YouTube")
     })
 
     it("reads a name that is only the integration key as the app", () => {
@@ -82,7 +82,7 @@ describe("connectionDisplayName", () => {
                 {name: null, slug: "github-7mx", integration_key: "github"},
                 "GitHub",
             ),
-        ).toBe("GitHub (7mx)")
+        ).toBe("GitHub")
     })
 
     it("falls back to the slug only when there is no name at all", () => {

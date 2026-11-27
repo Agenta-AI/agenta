@@ -70,7 +70,7 @@ const addedLabel = () =>
 const expectDeclaredToken = (label: Element | undefined, where: string) => {
     expect(label, `no Added label on ${where}`).toBeDefined()
     // The panel row draws it in the secondary text color, as canvas F02 f4 does.
-    expect(label!.className, where).toContain("text-colorTextSecondary")
+    expect(label!.className, where).toContain("text-muted-foreground")
     expect(label!.className, where).not.toContain("--ag-colorSuccessText")
 }
 

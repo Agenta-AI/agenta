@@ -64,7 +64,7 @@
     "stepWhen": "When",
     "subtitle": "Start from a working agent. Connect your apps, adjust the skills, and let it run.",
     "templateLoadError": "Could not load this template",
-    "title": "Agent Marketplace",
+    "title": "Templates",
     "toolsItCanUse": "Tools it can use",
     "useTemplate": "Use this template",
     "viewAll": "View all"

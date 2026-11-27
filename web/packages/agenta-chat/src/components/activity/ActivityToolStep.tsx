@@ -93,7 +93,7 @@ const Objct = ({text, onOpen}: {text: string; onOpen?: () => void}) =>
             role="link"
             tabIndex={0}
             // Above the row's widened hit area, or the click lands on the row.
-            className="relative z-10 cursor-pointer font-medium underline-offset-[3px] decoration-colorTextQuaternary hover:underline"
+            className="relative z-10 cursor-pointer font-medium underline-offset-[3px] decoration-muted-foreground hover:underline"
             onClick={(event) => {
                 event.stopPropagation()
                 onOpen()
@@ -151,7 +151,7 @@ const Sentence = ({
     if (state === "denied") return <>{withAction(t("chat.activity.youDenied", {action}))}</>
     if (state === "responded") return <>{withAction(t("chat.activity.youAnswered", {action}))}</>
     if (state === "failed" && display.activity.failed)
-        return <span className="text-colorError">{display.activity.failed}</span>
+        return <span className="text-destructive">{display.activity.failed}</span>
     const opens = display.detail ? onOpenFile : undefined
     if (before !== undefined && object) {
         return (
@@ -190,14 +190,14 @@ const FileChips = ({
     files: FileActivity[]
     onOpen: ((path: string) => void) | null
 }) => (
-    <div className="flex flex-wrap gap-1.5 pl-[38px]">
+    <div className="flex flex-wrap gap-1.5 pl-8">
         {files.map((file) =>
             onOpen ? (
                 <button
                     key={file.path}
                     type="button"
                     onClick={() => onOpen(file.path)}
-                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-solid border-colorBorderSecondary bg-transparent px-2 py-0.5 text-xs text-colorTextSecondary hover:bg-colorFillQuaternary"
+                    className="inline-flex cursor-pointer items-center gap-1 rounded-sm border-0 bg-secondary px-2 py-0.5 text-meta text-muted-foreground hover:bg-accent"
                 >
                     <FileText size={12} />
                     {basename(file.path)}
@@ -205,7 +205,7 @@ const FileChips = ({
             ) : (
                 <span
                     key={file.path}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-colorBorderSecondary px-2 py-0.5 text-xs text-colorTextSecondary"
+                    className="inline-flex items-center gap-1 rounded-sm bg-secondary px-2 py-0.5 text-meta text-muted-foreground"
                 >
                     <FileText size={12} />
                     {basename(file.path)}
@@ -275,7 +275,7 @@ const ActivityToolStepView = memo(({part, files, display, logo, appLabel, live}:
                 }
             />
             <span
-                className={`min-w-0 truncate text-sm text-colorText transition-colors group-hover/row:text-colorTextSecondary ${
+                className={`min-w-0 truncate text-label text-foreground transition-colors group-hover/row:text-muted-foreground ${
                     live || state === "running" || state === "queued" || state === "awaiting"
                         ? LIVE_TEXT_CLASS
                         : ""
@@ -285,7 +285,7 @@ const ActivityToolStepView = memo(({part, files, display, logo, appLabel, live}:
                 {others ? t("chat.activity.andOthers", {count: others}) : null}
             </span>
             {opensFile ? (
-                <ArrowSquareOut size={11} className="shrink-0 text-colorTextDisabled" />
+                <ArrowSquareOut size={12} className="shrink-0 text-muted-foreground" />
             ) : expandable ? (
                 <StepCaret open={open} />
             ) : null}
@@ -309,7 +309,7 @@ const ActivityToolStepView = memo(({part, files, display, logo, appLabel, live}:
             </StepRow>
             {chips.length ? <FileChips files={chips} onOpen={openFile} /> : null}
             <RevealCollapse open={open}>
-                <div id={panelId} className="flex min-w-0 flex-col gap-2 pl-[38px]">
+                <div id={panelId} className="flex min-w-0 flex-col gap-2 pl-8">
                     {everOpen ? (
                         <>
                             {hasInput ? (

@@ -9,7 +9,7 @@
 import {type ReactNode} from "react"
 
 /** Harden's own class for a blocked link. Kept literal so the two look identical. */
-const BLOCKED_LINK_CLASS = "text-gray-500"
+const BLOCKED_LINK_CLASS = "text-muted-foreground"
 
 export const BlockedChatLink = ({
     href,

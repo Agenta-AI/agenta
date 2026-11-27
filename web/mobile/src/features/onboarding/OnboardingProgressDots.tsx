@@ -62,7 +62,7 @@ export const OnboardingProgressDots = ({
                             animate={{width: index === current ? 22 : 6}}
                             transition={stepTransition}
                             className={cn(
-                                "block h-1.5 rounded-full transition-colors motion-reduce:transition-none",
+                                "block h-1.5 rounded-xs transition-colors motion-reduce:transition-none",
                                 index === current
                                     ? "bg-foreground"
                                     : index < current

@@ -16,13 +16,11 @@ import {cn} from "./utils"
  *   viewport  `position:fixed`, 24px inset from the anchored edges (antd `DEFAULT_OFFSET`),
  *             `pointer-events:none`
  *   card      `width: 384px` (`w-96`), `max-width: calc(100vw - 48px)`,
- *             `padding: paddingMD(20) paddingLG(24)`, `borderRadius: borderRadiusLG(10)`
- *             (`rounded-control-lg`), `background: colorBgElevated`, antd `boxShadow`
- *             (`shadow-dialog`), `margin-bottom: margin(16)`
- *   title     `colorTextHeading`, 16px/20px semibold — the app's overlay-title chrome
- *             (same as `AlertDialogTitle`), not antd's raw `fontSizeLG`/`lineHeightLG`
- *   desc      `fontSize`(12) `colorText`, `margin-top: marginXS(8)`
- *   icon      `fontSizeLG * lineHeightLG` box, coloured per type
+ *             `padding: paddingMD(20) paddingLG(24)`, `rounded-lg`, `bg-popover`,
+ *             `shadow-overlay`, `margin-bottom: 16px`
+ *   title     `text-title`, like `AlertDialogTitle`
+ *   desc      `text-body`, 8px under the title
+ *   icon      16px, the status color per type
  * `box-border` is required app-wide (preflight is OFF); `bg-transparent` on the native
  * close `<button>` for the same reason. `font-portal` because the stack is portalled to
  * `document.body`, outside the app's `font-sans` wrapper.
@@ -49,17 +47,17 @@ export type NotificationType = "success" | "info" | "warning" | "error"
 
 // antd notification icon colour per type — same semantic tokens as Alert/Toast.
 const notificationIconColor: Record<NotificationType, string> = {
-    success: "text-colorSuccess",
-    error: "text-colorError",
-    warning: "text-colorWarning",
+    success: "text-success",
+    error: "text-destructive",
+    warning: "text-warning",
     info: "text-info",
 }
 
 const notificationDefaultIcon: Record<NotificationType, React.ReactNode> = {
-    success: <CheckCircle weight="fill" className="size-[22px]" />,
-    error: <XCircle weight="fill" className="size-[22px]" />,
-    warning: <WarningCircle weight="fill" className="size-[22px]" />,
-    info: <Info weight="fill" className="size-[22px]" />,
+    success: <CheckCircle weight="fill" className="size-4" />,
+    error: <XCircle weight="fill" className="size-4" />,
+    warning: <WarningCircle weight="fill" className="size-4" />,
+    info: <Info weight="fill" className="size-4" />,
 }
 
 // antd slides each card in from the edge it is anchored to.
@@ -138,7 +136,7 @@ export function Notification({
             aria-live={ariaLive ?? (isError ? "assertive" : "polite")}
             className={cn(
                 "box-border pointer-events-auto relative mb-4 ml-auto w-96 max-w-[calc(100vw-48px)]",
-                "rounded-control-lg bg-colorBgElevated text-colorText shadow-dialog font-portal",
+                "rounded-lg bg-popover text-popover-foreground shadow-overlay font-portal",
                 "py-5 px-6",
                 "transition-[opacity,transform] duration-200 ease-out",
                 "data-[state=closed]:opacity-0 data-[state=open]:opacity-100 data-[state=open]:translate-x-0 data-[state=open]:translate-y-0",
@@ -165,7 +163,7 @@ export function Notification({
                             data-slot="notification-title"
                             // Same chrome as AlertDialogTitle (the app's overlay title).
                             className={cn(
-                                "m-0 text-base font-semibold leading-5 text-colorTextHeading",
+                                "m-0 text-title text-foreground",
                                 closable ? "pr-6" : undefined,
                             )}
                         >
@@ -175,8 +173,8 @@ export function Notification({
                     {description != null ? (
                         <div
                             data-slot="notification-description"
-                            // antd `-description`: fontSize 12, colorText, marginTop marginXS.
-                            className={cn("text-field-md text-colorText", title != null && "mt-2")}
+                            // Body text, 8px under the title.
+                            className={cn("text-body text-foreground", title != null && "mt-2")}
                         >
                             {description}
                         </div>
@@ -200,11 +198,11 @@ export function Notification({
                     // Same close-X chrome as AlertDialogContent's. `bg-transparent` + `box-border`
                     // are required on native buttons (preflight is OFF).
                     className={cn(
-                        "absolute right-[13px] top-[13px] box-border p-0 bg-transparent border-0 font-[inherit]",
+                        "absolute right-3 top-3 box-border p-0 bg-transparent border-0 font-[inherit]",
                         "flex size-7 items-center justify-center rounded-control-sm",
-                        "text-colorIcon cursor-pointer outline-none transition-colors",
-                        "hover:bg-fill-quaternary hover:text-colorIconHover",
-                        "focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-[-3px] focus-visible:outline-focus-ring",
+                        "text-muted-foreground cursor-pointer outline-none transition-colors",
+                        "hover:bg-accent hover:text-foreground",
+                        "focus-ring",
                     )}
                 >
                     {closeIcon ?? <X className="size-3.5" />}

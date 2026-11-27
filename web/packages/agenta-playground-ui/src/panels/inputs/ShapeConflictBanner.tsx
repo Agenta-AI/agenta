@@ -21,7 +21,7 @@ export const ShapeConflictBanner = ({conflicts, onAdopt}: ShapeConflictBannerPro
             type="warning"
             showIcon
             icon={<Warning />}
-            className="text-xs"
+            className="text-label font-normal"
             message={
                 <span className="font-normal">
                     {richText(

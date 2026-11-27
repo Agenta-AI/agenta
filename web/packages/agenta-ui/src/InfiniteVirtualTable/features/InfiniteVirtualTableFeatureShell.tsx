@@ -536,7 +536,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         const {onDelete, disabled, disabledTooltip, label = t("common.delete")} = deleteAction
         const button = (
             <Button
-                variant="destructive-outline"
+                variant="destructive-ghost"
                 className="flex items-center"
                 disabled={disabled}
                 onClick={onDelete}

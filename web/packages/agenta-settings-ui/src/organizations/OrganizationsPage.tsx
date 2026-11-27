@@ -135,7 +135,7 @@ export const OrganizationsPage = ({
                                     <StatusIndicator
                                         tone="success"
                                         label={t("settings.organizations.current")}
-                                        className="text-[13px]"
+                                        className="text-label"
                                     />
                                 ) : (
                                     <span className="text-muted-foreground">—</span>

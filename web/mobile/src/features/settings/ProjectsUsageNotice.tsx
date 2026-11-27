@@ -23,8 +23,8 @@ export const ProjectsUsageNotice = ({projectId}: {projectId: string}) => {
     if (!isInstanceAdmin || !projects || projects.limit === null) return null
 
     return (
-        <div className="bg-colorInfoBg ring-colorInfoBorder mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 ring-1 ring-inset">
-            <p className="text-foreground m-0 text-[13px]">
+        <div className="bg-info/10 ring-info/30 mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 ring-1 ring-inset">
+            <p className="text-foreground m-0 text-body-sm">
                 {t(
                     projects.count > projects.limit
                         ? "shell.limitRefusal.projectsUsageOverLimit"

@@ -216,7 +216,7 @@ const NavButton = ({side, onClick}: {side: "prev" | "next"; onClick: () => void}
                     : t("entityUi.drivePreview.nextFile")
             }
             onClick={onClick}
-            className={`absolute top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/40 text-white hover:bg-black/60 hover:text-white ${
+            className={`absolute top-1/2 z-10 -translate-y-1/2 rounded-md bg-black/40 text-white hover:bg-black/60 hover:text-white ${
                 side === "prev" ? "left-2 sm:left-4" : "right-2 sm:right-4"
             }`}
         >
@@ -261,11 +261,11 @@ const ViewerFrame = ({
         <DriveFileSourceContext.Provider value={local}>
             <div className="flex h-12 shrink-0 items-center gap-2 pl-4 pr-2">
                 <div className="flex min-w-0 flex-1 items-baseline gap-2">
-                    <DialogTitle className="truncate text-sm font-medium leading-6 text-white">
+                    <DialogTitle className="truncate text-label text-white">
                         {item.name}
                     </DialogTitle>
                     {count > 1 ? (
-                        <span className="shrink-0 text-xs tabular-nums text-white/60">
+                        <span className="shrink-0 text-meta tabular-nums text-white/60">
                             {t("entityUi.drivePreview.positionOfCount", {
                                 position: position + 1,
                                 total: count,

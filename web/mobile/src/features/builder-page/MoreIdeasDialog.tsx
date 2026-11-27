@@ -51,17 +51,18 @@ export const MoreIdeasDialog = ({
                 container={container}
                 showCloseButton={false}
                 // A flat 25 % dim with no blur (B02).
-                overlayClassName="bg-black/25 supports-[backdrop-filter]:backdrop-blur-none"
+                overlayClassName="bg-overlay supports-[backdrop-filter]:backdrop-blur-none"
                 // The dialog box takes the focus on open, not the search, so no focus ring shows.
                 onOpenAutoFocus={(event) => {
                     event.preventDefault()
                     ;(event.currentTarget as HTMLElement | null)?.focus()
                 }}
-                // 60 px from the top of the page: the positioner pads 16 px.
-                className="mt-11 flex h-[min(460px,calc(100%-44px))] max-w-[760px] flex-col gap-0 self-start overflow-hidden rounded-[12px] p-0 shadow-dialog sm:max-w-[760px]"
+                // 60 px from the top of the page (the positioner pads 16 px); a phone keeps the
+                // kit's bottom dock (COMPACT-04).
+                className="flex h-[min(80svh,560px)] max-w-content-md flex-col gap-0 overflow-hidden p-0 shadow-modal sm:mt-11 sm:h-[min(460px,calc(100%-44px))] sm:max-w-content-md sm:self-start sm:rounded-xl"
             >
-                <div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-4 py-3.5">
-                    <DialogTitle className="m-0 flex-1 text-sm font-semibold">
+                <div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-muted px-4 py-3">
+                    <DialogTitle className="m-0 flex-1 text-title">
                         {t("builder.page.moreIdeas")}
                     </DialogTitle>
                     <SearchInput
@@ -75,10 +76,11 @@ export const MoreIdeasDialog = ({
                             <MagnifyingGlass
                                 aria-hidden
                                 size={14}
-                                className="text-colorTextTertiary"
+                                className="text-muted-foreground"
                             />
                         }
-                        className="h-[30px] w-60 gap-2 rounded-[6px] border-colorBorderSecondary px-2 text-[13px] max-sm:w-40 md:text-[13px]"
+                        size="sm"
+                        className="w-60 gap-2 border-border-muted px-2 max-sm:w-40"
                     />
                     <DialogClose asChild>
                         <Button
@@ -95,7 +97,7 @@ export const MoreIdeasDialog = ({
                 <div className="flex min-h-0 flex-1 max-sm:flex-col">
                     <div
                         role="tablist"
-                        className="flex w-[200px] shrink-0 flex-col gap-[5px] overflow-y-auto border-0 border-r border-solid border-colorBorderSecondary p-2 max-sm:w-auto max-sm:flex-row max-sm:overflow-x-auto max-sm:overflow-y-hidden max-sm:border-r-0 max-sm:border-b max-sm:[scrollbar-width:none]"
+                        className="flex w-50 shrink-0 flex-col gap-1 overflow-y-auto border-0 border-r border-solid border-border-muted p-2 max-sm:w-auto max-sm:flex-row max-sm:overflow-x-auto max-sm:overflow-y-hidden max-sm:border-r-0 max-sm:border-b max-sm:[scrollbar-width:none]"
                     >
                         {(["all", ...IDEA_CATEGORIES] as const).map((key) => (
                             <button
@@ -105,10 +107,10 @@ export const MoreIdeasDialog = ({
                                 aria-selected={category === key}
                                 onClick={() => setCategory(key)}
                                 className={cn(
-                                    "flex h-8 shrink-0 cursor-pointer items-center whitespace-nowrap rounded-[6px] border-0 px-3 text-left text-[13px] leading-5 text-colorText max-sm:h-11",
+                                    "focus-ring flex h-8 shrink-0 cursor-pointer items-center whitespace-nowrap rounded-md border-0 px-3 text-left text-label text-foreground",
                                     category === key
-                                        ? "bg-colorBgContainer font-medium ring-1 ring-inset ring-colorBorderSecondary"
-                                        : "bg-transparent hover:bg-colorFillTertiary",
+                                        ? "bg-selected"
+                                        : "bg-transparent hover:bg-accent",
                                 )}
                             >
                                 <span className="truncate max-sm:overflow-visible">
@@ -119,11 +121,11 @@ export const MoreIdeasDialog = ({
                     </div>
                     <div className="min-w-0 flex-1 overflow-y-auto p-3">
                         {ideas.length === 0 ? (
-                            <p className="m-0 px-1 py-1 text-[13px] text-colorTextSecondary">
+                            <p className="m-0 px-1 py-1 text-body text-muted-foreground">
                                 {t("builder.page.noIdeaMatches")}
                             </p>
                         ) : (
-                            <div className="grid grid-cols-1 content-start gap-2.5 sm:grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
+                            <div className="grid grid-cols-1 content-start gap-2 sm:grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
                                 {ideas.map((entry) => (
                                     <button
                                         key={entry.key}
@@ -131,15 +133,15 @@ export const MoreIdeasDialog = ({
                                         data-testid="builder-idea"
                                         title={entry.prompt}
                                         onClick={() => onPick(entry.prompt)}
-                                        className="flex cursor-pointer flex-col gap-1 rounded-[10px] border border-solid border-colorBorderSecondary bg-colorBgContainer px-3 py-2.5 text-left hover:bg-colorFillTertiary"
+                                        className="focus-ring flex cursor-pointer flex-col gap-1 rounded-lg border border-solid border-border-muted bg-background px-3 py-2 text-left hover:bg-accent"
                                     >
-                                        <span className="text-[11px] leading-4 text-colorTextTertiary">
+                                        <span className="text-meta text-muted-foreground">
                                             {t(CATEGORY_LABELS[entry.category])}
                                         </span>
-                                        <span className="text-[13px] font-semibold leading-5 text-colorText">
+                                        <span className="text-label text-foreground">
                                             {entry.title}
                                         </span>
-                                        <span className="text-[12px] leading-4 text-colorTextSecondary">
+                                        <span className="text-meta text-muted-foreground">
                                             {entry.line}
                                         </span>
                                     </button>

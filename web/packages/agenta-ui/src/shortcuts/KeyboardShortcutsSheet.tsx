@@ -44,13 +44,9 @@ export const KeyboardShortcutsSheet = ({
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className={cn("max-w-[min(1040px,calc(100vw-2rem))] p-0", className)}>
-                <DialogHeader className="border-0 border-b border-solid border-colorBorderSecondary px-5 py-3.5">
-                    <DialogTitle className="text-sm">
-                        {t("navigation.items.keyboardShortcuts")}
-                    </DialogTitle>
-                    <DialogDescription className="text-xs">
-                        {t("navigation.chrome.shortcutsHint")}
-                    </DialogDescription>
+                <DialogHeader className="border-0 border-b border-solid border-border-muted px-5 py-3.5">
+                    <DialogTitle>{t("navigation.items.keyboardShortcuts")}</DialogTitle>
+                    <DialogDescription>{t("navigation.chrome.shortcutsHint")}</DialogDescription>
                 </DialogHeader>
                 {/* The height cap and the scrolling belong to the WRAPPER, never to the column box.
                     A multi-column element with a fixed height overflows sideways into extra columns
@@ -62,18 +58,18 @@ export const KeyboardShortcutsSheet = ({
                             <section key={group.id} className="mb-3.5 break-inside-avoid">
                                 {/* mt-0: the UA heading margin is kept at the top of column one and dropped at every column
                                 break, so without it the first group sits lower than the others. */}
-                                <h4 className="mb-1.5 mt-0 text-[10px] font-semibold uppercase tracking-wider text-colorTextTertiary">
+                                <h4 className="mb-1.5 mt-0 text-caption font-semibold uppercase tracking-wider text-muted-foreground">
                                     {group.title}
                                 </h4>
                                 {group.shortcuts.map((shortcut) => (
                                     <div
                                         key={shortcut.id}
-                                        className="flex items-center gap-3 py-0.5 text-xs text-colorTextSecondary"
+                                        className="flex items-center gap-3 py-0.5 text-label text-muted-foreground"
                                     >
                                         <span className="flex-1">
                                             {shortcut.label}
                                             {shortcut.when ? (
-                                                <span className="text-colorTextTertiary">
+                                                <span className="text-muted-foreground">
                                                     {" "}
                                                     — {shortcut.when}
                                                 </span>

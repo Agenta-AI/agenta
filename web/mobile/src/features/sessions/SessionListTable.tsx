@@ -7,10 +7,15 @@ import {useSessionFilterAtoms, useSessionPins, useSessionsList} from "@agenta/se
 import {SessionListLoadMore, type SessionMenuEntry} from "@agenta/sessions-ui"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useMediaQuery} from "@agenta/ui/hooks"
-import {ListTable, type ListTableColumn, type ListTableGroup} from "@agenta/ui/list-table"
-import {Button, PHONE_TOUCH_TARGET_CLASS, SimpleTooltip} from "@agenta/ui/ui"
+import {
+    LIST_COLUMN_WIDTH,
+    ListTable,
+    type ListTableColumn,
+    type ListTableGroup,
+} from "@agenta/ui/list-table"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {PlusIcon} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
-import {Plus} from "lucide-react"
 
 import {deriveSessionGroups, type SessionGrouping} from "./sessionListView"
 import {SessionRowCells} from "./SessionRowCells"
@@ -35,7 +40,7 @@ const SESSION_COLUMN: ListTableColumn = {
     get label() {
         return tNow("sessions.mobileList.columnSession")
     },
-    width: "minmax(160px,2fr)",
+    width: LIST_COLUMN_WIDTH.primary,
 }
 /**
  * Right-aligned, so the timestamp sits against the kebab at the row's end rather than floating in
@@ -65,29 +70,33 @@ const ACTIONS_COLUMN: ListTableColumn = {
 const WIDE_COLUMNS: ListTableColumn[] = [
     SESSION_COLUMN,
     {
-        key: "status",
-        get label() {
-            return tNow("sessions.mobileList.status")
-        },
-        width: "minmax(110px,1fr)",
-    },
-    {
         key: "agent",
         get label() {
             return tNow("sessions.mobileList.agent")
         },
-        width: "minmax(120px,1fr)",
+        width: LIST_COLUMN_WIDTH.name,
     },
-    updatedColumn("96px"),
+    {
+        key: "status",
+        get label() {
+            return tNow("sessions.mobileList.status")
+        },
+        width: LIST_COLUMN_WIDTH.secondary,
+    },
+    updatedColumn(LIST_COLUMN_WIDTH.time),
     ACTIONS_COLUMN,
 ]
-const NARROW_COLUMNS: ListTableColumn[] = [SESSION_COLUMN, updatedColumn("64px"), ACTIONS_COLUMN]
+const NARROW_COLUMNS: ListTableColumn[] = [
+    SESSION_COLUMN,
+    updatedColumn(LIST_COLUMN_WIDTH.timeCompact),
+    ACTIONS_COLUMN,
+]
 /** The Sessions page of one agent: every row has that agent, so there is no Agent column. */
 const LOCKED_AGENT_WIDE_COLUMNS = WIDE_COLUMNS.filter((column) => column.key !== "agent")
 
 /** Tailwind's `sm`. Below it the Agent column goes; the minima then fit a 375px screen. */
 const WIDE_QUERY = "(min-width: 640px)"
-const WIDE_MIN_WIDTH = 560
+const WIDE_MIN_WIDTH = 650
 const NARROW_MIN_WIDTH = 272
 
 /** What the screen's `useSessionRowMenu` supplies — bound here, resolved there. */
@@ -199,22 +208,21 @@ export const SessionListTable = ({
         (run: ListTableGroup<SessionRowVm>) => {
             if (group !== "agent" || !onNewSession || run.key === "pinned") return null
             const agentId = run.rows[0]?.agentId
-            if (!agentId || !agentNames.has(agentId)) return null
+            const agent = agentId ? agentNames.get(agentId) : undefined
+            if (!agentId || agent === undefined) return null
             return (
-                <SimpleTooltip
-                    title={t("sessions.mobileList.newSessionWith", {agent: run.label ?? ""})}
-                >
+                <SimpleTooltip title={t("sessions.mobileList.newSessionWith", {agent})}>
                     <Button
                         type="button"
                         variant="ghost"
                         size="icon-sm"
                         aria-label={t("sessions.mobileList.newSessionWith", {
-                            agent: run.label ?? "",
+                            agent,
                         })}
-                        className={`size-6 text-muted-foreground hover:text-foreground ${PHONE_TOUCH_TARGET_CLASS}`}
+                        className={`size-6 text-muted-foreground hover:text-foreground`}
                         onClick={() => onNewSession(agentId)}
                     >
-                        <Plus className="size-3.5" />
+                        <PlusIcon className="size-3.5" />
                     </Button>
                 </SimpleTooltip>
             )
@@ -256,7 +264,6 @@ export const SessionListTable = ({
                     // Compact for the same reason it is sticky: this is the long list.
                     density="compact"
                     // On a phone a row is a 44 px tap target (compact rows are 40 px).
-                    rowClassName="max-md:min-h-11"
                     // The page of one agent draws the light chevron on its headings (A02).
                     groupCaret={lockedAgentId ? "chevron" : "fill"}
                     loading={list.isPending}
@@ -265,7 +272,7 @@ export const SessionListTable = ({
                     onOpenRow={verbs.open}
                     collapsedKeys={collapsed}
                     onToggleGroup={toggleGroup}
-                    className="max-md:[&_button[aria-expanded]:not([aria-haspopup])]:min-h-11"
+                    className="pointer-coarse:[&_button[aria-expanded]:not([aria-haspopup])]:min-h-11"
                     groupActions={groupActions}
                     empty={
                         // Nothing while unsettled. An empty project gets the onboarding from the

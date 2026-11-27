@@ -18,6 +18,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
     Button,
+    ChoiceSwitch,
     LoadingButton,
     Select,
     SelectContent,
@@ -33,8 +34,8 @@ import {MemberPicker} from "./MemberPicker"
 import {PersonAvatar, personName, type SharingPerson} from "./people"
 import type {SharingWriteResult} from "./result"
 import {ROLE_COLUMN_CLASS, SessionGrantRoleMenu} from "./SessionGrantRoleMenu"
-import {ShareDisclosureNotice, type ShareDisclosureTarget} from "./ShareDisclosureNotice"
 import {SharingSurface} from "./SharingSurface"
+import {type ShareDisclosureTarget, useShareDisclosureText} from "./useShareDisclosureText"
 
 export interface SessionShareDialogProps {
     open: boolean
@@ -61,6 +62,8 @@ export interface SessionShareDialogProps {
     onOnlyMe: () => Promise<SharingWriteResult>
     /** Copies the link; answer `false` when the copy failed (the host says so, not the toast). */
     onCopyLink?: () => void | boolean | Promise<void | boolean>
+    /** Opens the project's members page, from the member list's empty state. */
+    onAddMembers?: () => void
     /** Shows a toast. */
     onNotify?: (message: string) => void
     /** Refetches the sharing state after a 409. */
@@ -97,6 +100,7 @@ export const SessionShareDialog = ({
     onSetVisibility,
     onOnlyMe,
     onCopyLink,
+    onAddMembers,
     onNotify,
     onReload,
     usesPersonalAccounts = false,
@@ -201,6 +205,7 @@ export const SessionShareDialog = ({
                           ? [nameOf(widening.userId)]
                           : picked.map((p) => personName(p)),
               }
+    const disclosureText = useShareDisclosureText(disclosureTarget, disclosure, providerLabel)
 
     const changeVisibility = (next: Visibility) => {
         if (next === visibility) return
@@ -225,17 +230,16 @@ export const SessionShareDialog = ({
         <>
             {isOwner && !nobodyAdded ? (
                 <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-error sm:mr-auto"
+                    variant="destructive-ghost"
+                    className="sm:mr-auto"
                     onClick={() => setStopOpen(true)}
                 >
                     {copy.stopSharing}
                 </Button>
             ) : null}
             {onCopyLink ? (
-                <Button variant="ghost" size="sm" onClick={() => void copyLink()}>
-                    <LinkIcon size={13} aria-hidden />
+                <Button variant="ghost" onClick={() => void copyLink()}>
+                    <LinkIcon aria-hidden />
                     {copy.copyLink}
                 </Button>
             ) : null}
@@ -279,7 +283,7 @@ export const SessionShareDialog = ({
                         ) : null}
 
                         {usesPersonalAccounts && isOwner ? (
-                            <p className="m-0 text-xs text-muted-foreground">
+                            <p className="m-0 text-meta text-muted-foreground">
                                 {copy.personalAccountsNote}
                             </p>
                         ) : null}
@@ -288,7 +292,6 @@ export const SessionShareDialog = ({
                             <div className="flex flex-col gap-2">
                                 <div className="flex items-start gap-2">
                                     <MemberPicker
-                                        projectName={projectName}
                                         members={members}
                                         search={membersSearch}
                                         onSearch={onMembersSearch}
@@ -310,25 +313,34 @@ export const SessionShareDialog = ({
                                         loading={membersLoading}
                                         error={membersError}
                                         disabled={saving === "invite"}
-                                    />
-                                    <Select
-                                        value={inviteRole}
-                                        onValueChange={(value) =>
-                                            setInviteRole(value as SessionRole)
+                                        onAddMembers={onAddMembers}
+                                        // The role the invite gives, inside the field (one control, not three).
+                                        end={
+                                            <Select
+                                                value={inviteRole}
+                                                onValueChange={(value) =>
+                                                    setInviteRole(value as SessionRole)
+                                                }
+                                            >
+                                                <SelectTrigger
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    aria-label={copy.inviteRoleLabel}
+                                                    className="-mr-1.5 h-control-xs w-auto shrink-0"
+                                                >
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="viewer">
+                                                        {sessionRoleCopy.viewer.label}
+                                                    </SelectItem>
+                                                    <SelectItem value="participant">
+                                                        {sessionRoleCopy.participant.label}
+                                                    </SelectItem>
+                                                </SelectContent>
+                                            </Select>
                                         }
-                                    >
-                                        <SelectTrigger className="w-auto shrink-0">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="viewer">
-                                                {sessionRoleCopy.viewer.label}
-                                            </SelectItem>
-                                            <SelectItem value="participant">
-                                                {sessionRoleCopy.participant.label}
-                                            </SelectItem>
-                                        </SelectContent>
-                                    </Select>
+                                    />
                                     <LoadingButton
                                         loading={saving === "invite"}
                                         disabled={picked.length === 0}
@@ -339,7 +351,7 @@ export const SessionShareDialog = ({
                                 </div>
                                 {inviteRole === "participant" &&
                                 picked.some((p) => p.can_run_sessions === false) ? (
-                                    <span className="text-xs text-muted-foreground">
+                                    <span className="text-meta text-muted-foreground">
                                         {copy.inviteViewOnly(
                                             joinNames(
                                                 picked
@@ -350,24 +362,25 @@ export const SessionShareDialog = ({
                                     </span>
                                 ) : null}
                                 {invalidIds.map((userId) => (
-                                    <p key={userId} className="m-0 text-xs text-error">
+                                    <p key={userId} className="m-0 text-meta text-destructive">
                                         {copy.invalidGrantee(nameOf(userId))}
                                     </p>
                                 ))}
                             </div>
                         ) : null}
 
-                        <section className="flex flex-col gap-1">
-                            <span className="text-xs font-medium text-muted-foreground">
+                        <section className="flex flex-col gap-2">
+                            <span className="text-label text-muted-foreground">
                                 {copy.peopleSection}
                             </span>
                             {owner || ownerId ? (
-                                <div className="flex items-center gap-2 py-1.5">
+                                <div className="flex h-row-double items-center gap-2">
                                     <PersonAvatar
+                                        size="default"
                                         person={owner ?? {user_id: ownerId ?? "", email: ""}}
                                     />
                                     <div className="flex min-w-0 flex-1 flex-col">
-                                        <span className="truncate text-sm font-medium">
+                                        <span className="truncate text-label">
                                             {owner ? personName(owner) : ownerId}{" "}
                                             {isOwner ? (
                                                 <span className="font-normal text-muted-foreground">
@@ -376,154 +389,136 @@ export const SessionShareDialog = ({
                                             ) : null}
                                         </span>
                                         {owner?.name ? (
-                                            <span className="truncate text-xs text-muted-foreground">
+                                            <span className="truncate text-meta text-muted-foreground">
                                                 {owner.email}
                                             </span>
                                         ) : null}
                                     </div>
-                                    <span className={`${ROLE_COLUMN_CLASS} px-1.5 text-sm`}>
+                                    <span
+                                        className={`${ROLE_COLUMN_CLASS} px-1.5 text-label text-muted-foreground`}
+                                    >
                                         {copy.ownerRole}
                                     </span>
                                 </div>
                             ) : null}
-                            {grants.length === 0 ? (
-                                <p className="m-0 py-1 pl-9 text-xs text-muted-foreground">
-                                    {copy.emptyGrants}
-                                </p>
-                            ) : (
-                                grants.map((grant) => {
-                                    const person = byId.get(grant.user_id) ?? {
-                                        user_id: grant.user_id,
-                                        email: "",
-                                    }
-                                    return (
-                                        <div
-                                            key={grant.user_id}
-                                            data-testid="session-grant-row"
-                                            className="flex items-center gap-2 py-1.5"
-                                        >
-                                            <PersonAvatar person={person} />
-                                            <div className="flex min-w-0 flex-1 flex-col">
-                                                <span className="truncate text-sm font-medium">
-                                                    {nameOf(grant.user_id)}
+                            {grants.map((grant) => {
+                                const person = byId.get(grant.user_id) ?? {
+                                    user_id: grant.user_id,
+                                    email: "",
+                                }
+                                return (
+                                    <div
+                                        key={grant.user_id}
+                                        data-testid="session-grant-row"
+                                        className="flex h-row-double items-center gap-2"
+                                    >
+                                        <PersonAvatar person={person} size="default" />
+                                        <div className="flex min-w-0 flex-1 flex-col">
+                                            <span className="truncate text-label">
+                                                {nameOf(grant.user_id)}
+                                            </span>
+                                            {person.name ? (
+                                                <span className="truncate text-meta text-muted-foreground">
+                                                    {person.email}
                                                 </span>
-                                                {person.name ? (
-                                                    <span className="truncate text-xs text-muted-foreground">
-                                                        {person.email}
-                                                    </span>
-                                                ) : null}
-                                                {grant.role === "participant" &&
-                                                person.can_run_sessions === false ? (
-                                                    <span className="text-xs text-muted-foreground">
-                                                        {copy.grantViewOnlyByRole}
-                                                    </span>
-                                                ) : null}
-                                            </div>
-                                            <span className={ROLE_COLUMN_CLASS}>
-                                                {isOwner ? (
-                                                    <SessionGrantRoleMenu
-                                                        role={grant.role}
-                                                        canSend={person.can_run_sessions !== false}
-                                                        personName={nameOf(grant.user_id)}
-                                                        saving={saving === grant.user_id}
-                                                        onChangeRole={(role) => {
-                                                            if (role === "participant") {
-                                                                setWidening({
-                                                                    kind: "raise",
-                                                                    userId: grant.user_id,
-                                                                })
-                                                            } else {
-                                                                void run(grant.user_id, () =>
-                                                                    onUpsertGrant(
-                                                                        grant.user_id,
-                                                                        role,
-                                                                    ),
-                                                                )
-                                                            }
-                                                        }}
-                                                        onRemove={() =>
+                                            ) : null}
+                                            {grant.role === "participant" &&
+                                            person.can_run_sessions === false ? (
+                                                <span className="text-meta text-muted-foreground">
+                                                    {copy.grantViewOnlyByRole}
+                                                </span>
+                                            ) : null}
+                                        </div>
+                                        <span className={ROLE_COLUMN_CLASS}>
+                                            {isOwner ? (
+                                                <SessionGrantRoleMenu
+                                                    role={grant.role}
+                                                    canSend={person.can_run_sessions !== false}
+                                                    personName={nameOf(grant.user_id)}
+                                                    saving={saving === grant.user_id}
+                                                    onChangeRole={(role) => {
+                                                        if (role === "participant") {
+                                                            setWidening({
+                                                                kind: "raise",
+                                                                userId: grant.user_id,
+                                                            })
+                                                        } else {
                                                             void run(grant.user_id, () =>
-                                                                onRevokeGrant(grant.user_id),
+                                                                onUpsertGrant(grant.user_id, role),
                                                             )
                                                         }
-                                                    />
-                                                ) : (
-                                                    <span className="px-1.5 text-sm">
-                                                        {
-                                                            sessionRoleCopy[
-                                                                person.can_run_sessions === false
-                                                                    ? "viewer"
-                                                                    : grant.role
-                                                            ].label
-                                                        }
-                                                    </span>
-                                                )}
-                                            </span>
-                                        </div>
-                                    )
-                                })
-                            )}
+                                                    }}
+                                                    onRemove={() =>
+                                                        void run(grant.user_id, () =>
+                                                            onRevokeGrant(grant.user_id),
+                                                        )
+                                                    }
+                                                />
+                                            ) : (
+                                                <span className="px-1.5 text-label">
+                                                    {
+                                                        sessionRoleCopy[
+                                                            person.can_run_sessions === false
+                                                                ? "viewer"
+                                                                : grant.role
+                                                        ].label
+                                                    }
+                                                </span>
+                                            )}
+                                        </span>
+                                    </div>
+                                )
+                            })}
                         </section>
 
                         <section className="flex flex-col gap-2">
-                            <span className="text-xs font-medium text-muted-foreground">
+                            <span className="text-label text-muted-foreground">
                                 {copy.generalSection}
                             </span>
-                            <div className="flex items-center gap-2.5">
-                                <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted">
-                                    {visibility === "private" ? (
-                                        <LockSimpleIcon size={14} aria-hidden />
-                                    ) : (
-                                        <UsersIcon size={14} aria-hidden />
-                                    )}
-                                </span>
-                                <div className="flex min-w-0 flex-1 flex-col items-start">
-                                    {isOwner ? (
-                                        <Select
-                                            value={visibility}
-                                            disabled={saving === "visibility"}
-                                            onValueChange={(value) =>
-                                                changeVisibility(value as Visibility)
-                                            }
-                                        >
-                                            <SelectTrigger
-                                                variant="ghost"
-                                                className="-ml-2 w-auto font-medium"
-                                                aria-label={copy.generalSection}
-                                            >
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="private">
-                                                    {copy.generalPrivate}
-                                                </SelectItem>
-                                                <SelectItem value="project">
-                                                    {copy.generalProject}
-                                                </SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    ) : (
-                                        <span className="text-sm font-medium">
+                            {isOwner ? (
+                                // Both choices in view, each with what it means.
+                                <ChoiceSwitch
+                                    aria-label={copy.generalSection}
+                                    value={visibility}
+                                    disabled={saving === "visibility"}
+                                    onChange={(value) => changeVisibility(value as Visibility)}
+                                    choices={[
+                                        {
+                                            value: "private",
+                                            label: copy.generalPrivate,
+                                            note: copy.generalPrivateDescription,
+                                        },
+                                        {
+                                            value: "project",
+                                            label: copy.generalProject,
+                                            note: copy.generalProjectDescription(projectName),
+                                        },
+                                    ]}
+                                />
+                            ) : (
+                                <div className="flex items-center gap-2.5">
+                                    <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted">
+                                        {visibility === "private" ? (
+                                            <LockSimpleIcon size={14} aria-hidden />
+                                        ) : (
+                                            <UsersIcon size={14} aria-hidden />
+                                        )}
+                                    </span>
+                                    <div className="flex min-w-0 flex-1 flex-col items-start">
+                                        <span className="text-label">
                                             {visibility === "private"
                                                 ? copy.generalPrivate
                                                 : copy.generalProject}
                                         </span>
-                                    )}
-                                    <p className="m-0 text-xs text-muted-foreground">
-                                        {visibility === "private"
-                                            ? copy.generalPrivateDescription
-                                            : copy.generalProjectDescription(projectName)}
-                                    </p>
+                                        <p className="m-0 text-meta text-muted-foreground">
+                                            {visibility === "private"
+                                                ? copy.generalPrivateDescription
+                                                : copy.generalProjectDescription(projectName)}
+                                        </p>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </section>
-
-                        {onCopyLink && nobodyAdded ? (
-                            <p className="m-0 flex items-start gap-1.5 text-xs text-muted-foreground">
-                                <LinkIcon size={13} className="mt-px shrink-0" aria-hidden />
-                                {copy.linkNobodyYet}
-                            </p>
-                        ) : null}
 
                         {notice === "failed" ? (
                             <Alert type="error" showIcon message={copy.saveFailed} />
@@ -532,17 +527,37 @@ export const SessionShareDialog = ({
                 )}
             </SharingSurface>
 
-            <ShareDisclosureNotice
+            <AlertDialog
                 open={writable && widening !== null}
                 onOpenChange={(next) => {
                     if (!next && !saving) setWidening(null)
                 }}
-                target={disclosureTarget}
-                disclosure={disclosure}
-                providerLabel={providerLabel}
-                onConfirm={() => void confirmWidening()}
-                confirming={saving !== null}
-            />
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{disclosureText.title}</AlertDialogTitle>
+                        <AlertDialogDescription>{disclosureText.body}</AlertDialogDescription>
+                        {disclosureText.personalAccounts.length ? (
+                            <ul className="m-0 list-none p-0 text-body text-muted-foreground">
+                                {disclosureText.personalAccounts.map((line) => (
+                                    <li key={line}>{line}</li>
+                                ))}
+                            </ul>
+                        ) : null}
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={saving !== null}>
+                            {disclosureText.cancelLabel}
+                        </AlertDialogCancel>
+                        <LoadingButton
+                            loading={saving !== null}
+                            onClick={() => void confirmWidening()}
+                        >
+                            {disclosureText.confirmLabel}
+                        </LoadingButton>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             <AlertDialog
                 open={writable && stopOpen}

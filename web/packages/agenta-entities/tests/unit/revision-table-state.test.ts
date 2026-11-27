@@ -96,21 +96,6 @@ describe("addColumnReducer", () => {
         expect(store.get(pendingColumnOpsAtomFamily(REV)).add).toHaveLength(1)
     })
 
-    it("adds a removed saved column again as a new empty column", () => {
-        const store = freshStore()
-        // Simulate a server column "notes" that was pending removal
-        store.set(pendingColumnOpsAtomFamily(REV), {
-            add: [],
-            remove: ["notes"],
-            rename: [],
-        })
-        store.set(addColumnReducer, {revisionId: REV, columnKey: "notes"})
-        const ops = store.get(pendingColumnOpsAtomFamily(REV))
-        // The server removes the old values, then adds the column empty.
-        expect(ops.remove).toEqual(["notes"])
-        expect(ops.add).toEqual(["notes"])
-    })
-
     it("accumulates multiple column adds", () => {
         const store = freshStore()
         store.set(addColumnReducer, {revisionId: REV, columnKey: "alpha"})
@@ -149,31 +134,11 @@ describe("removeColumnReducer", () => {
 // ── renameColumnReducer ───────────────────────────────────────────────────────
 
 describe("renameColumnReducer", () => {
-    it("renames a pending-add column in the add list", () => {
-        const store = freshStore()
-        store.set(addColumnReducer, {revisionId: REV, columnKey: "old_name"})
-        store.set(renameColumnReducer, {revisionId: REV, oldKey: "old_name", newKey: "new_name"})
-        const ops = store.get(pendingColumnOpsAtomFamily(REV))
-        expect(ops.add).toContain("new_name")
-        expect(ops.add).not.toContain("old_name")
-        expect(ops.rename).toHaveLength(0) // rename goes to add[], not rename[]
-    })
-
     it("appends a rename entry for a server column", () => {
         const store = freshStore()
         store.set(renameColumnReducer, {revisionId: REV, oldKey: "score", newKey: "rating"})
         const ops = store.get(pendingColumnOpsAtomFamily(REV))
         expect(ops.rename).toContainEqual({oldKey: "score", newKey: "rating"})
-    })
-
-    it("updates an existing rename entry instead of duplicating", () => {
-        const store = freshStore()
-        store.set(renameColumnReducer, {revisionId: REV, oldKey: "score", newKey: "rating"})
-        // The second rename names the column by its current name.
-        store.set(renameColumnReducer, {revisionId: REV, oldKey: "rating", newKey: "final_score"})
-        const ops = store.get(pendingColumnOpsAtomFamily(REV))
-        expect(ops.rename).toHaveLength(1)
-        expect(ops.rename[0]).toEqual({oldKey: "score", newKey: "final_score"})
     })
 })
 

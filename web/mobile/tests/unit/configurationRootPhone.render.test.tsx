@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
 /**
- * The panel's Configuration on a phone (M07): three tabs (no Channels), the version status at the
- * end of the tab row pinned to the session on the Agent tab only, and a tab switch that goes back
- * to the rows. On a wide window the status is in the Agent tab's footer (S02).
+ * The panel's Configuration on a phone (M07): three tabs (no Channels) and a tab switch that goes
+ * back to the rows. The version status is not here on any width: it lives in the session header.
  */
 import {act} from "react"
 
@@ -81,18 +80,11 @@ const mount = (api: AgentPanelApi, onCloseSection = vi.fn()) =>
 const tabs = () => [...host.querySelectorAll('[role="tab"]')].map((tab) => tab.textContent)
 
 describe("panel Configuration on a phone", () => {
-    it("shows three tabs and the version status at the end of the tab row", async () => {
+    it("shows three tabs, with no version status in the tab row", async () => {
         await mount(panel({}))
         expect(tabs()).toEqual(["Agent", "Automations", "Access"])
-        const status = host.querySelector('[data-testid="revision-status"]')!
-        expect(status.previousElementSibling?.getAttribute("role")).toBe("tablist")
-        expect(state.statusProps.at(-1)).toMatchObject({
-            revisionId: "rev-4",
-            historyWorkflowId: "support",
-            checkKey: "s1",
-            phone: true,
-            backTitle: "Configuration",
-        })
+        expect(host.querySelector('[data-testid="revision-status"]')).toBeNull()
+        expect(state.statusProps).toEqual([])
     })
 
     it("shows the Agent tab when the stored tab is Channels", async () => {
@@ -113,31 +105,16 @@ describe("panel Configuration on a phone", () => {
         expect(api.setConfigTab).toHaveBeenCalledWith("access")
     })
 
-    it("shows no version status on the Automations tab (M10)", async () => {
+    it("shows the Automations tab with no version status (M10)", async () => {
         await mount(panel({configTab: "automations"}))
         expect(host.querySelector('[data-testid="automations-tab"]')).not.toBeNull()
         expect(host.querySelector('[data-testid="revision-status"]')).toBeNull()
     })
 
-    it("on a wide window keeps four tabs and puts History and the status in the Agent tab footer", async () => {
+    it("on a wide window keeps four tabs, and no version status in the pane", async () => {
         await mount(panel({phone: false}))
         expect(tabs()).toEqual(["Agent", "Automations", "Channels", "Access"])
-        const status = host.querySelector('[data-testid="revision-status"]')!
-        // Not in the tab row: in the footer under the Agent tab's content (S02).
-        expect(host.querySelector('[role="tablist"]')!.parentElement!.contains(status)).toBe(false)
-        expect(host.querySelector('[role="tabpanel"]')!.contains(status)).toBe(true)
-        expect(state.statusProps.at(-1)).toMatchObject({
-            revisionId: "rev-4",
-            historyWorkflowId: "support",
-            // The footer status may draw the history drawer: it keeps the update action.
-            checkKey: "s1",
-            footer: true,
-        })
-        expect(state.statusProps.at(-1)?.onUpdate).toBeTypeOf("function")
-    })
-
-    it("on a wide window shows no footer on the Automations tab", async () => {
-        await mount(panel({phone: false, configTab: "automations"}))
+        expect(host.querySelector('[data-testid="agent-tab"]')).not.toBeNull()
         expect(host.querySelector('[data-testid="revision-status"]')).toBeNull()
     })
 })

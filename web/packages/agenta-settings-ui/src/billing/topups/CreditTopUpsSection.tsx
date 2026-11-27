@@ -94,7 +94,7 @@ export const CreditTopUpsSection = ({
     if (loadFailed) {
         body = (
             <div className="flex flex-wrap items-center gap-3">
-                <span className="text-xs text-colorTextSecondary">
+                <span className="text-meta text-muted-foreground">
                     {t("billing.topups.loadError")}
                 </span>
                 <Button size="sm" variant="outline" onClick={() => void offer.refetch()}>
@@ -106,7 +106,7 @@ export const CreditTopUpsSection = ({
         const days = offer.data?.packs[0]?.expiresAfterDays
         body = (
             <div className="flex flex-wrap items-center justify-between gap-3">
-                <span className="text-xs text-colorTextSecondary">
+                <span className="text-meta text-muted-foreground">
                     {days ? t("billing.topups.packsExpire", {days}) : t("billing.topups.packs")}
                 </span>
                 <Button size="sm" onClick={() => setPickerOpen(true)}>
@@ -117,7 +117,7 @@ export const CreditTopUpsSection = ({
     } else if (entry === "upgrade") {
         body = (
             <div className="flex flex-wrap items-center justify-between gap-3">
-                <span className="text-xs text-colorTextSecondary">
+                <span className="text-meta text-muted-foreground">
                     {t("billing.topups.paidPlansOnly")}
                 </span>
                 {onUpgrade ? (
@@ -133,15 +133,13 @@ export const CreditTopUpsSection = ({
         <section
             className={cn(
                 "flex w-full flex-col gap-2",
-                framed && "items-stretch rounded-lg bg-colorFillQuaternary p-4",
+                framed && "items-stretch rounded-lg bg-secondary p-4",
             )}
         >
             {framed ? (
-                <span className="text-xs font-medium text-colorText">
-                    {t("billing.topups.buyCredits")}
-                </span>
+                <span className="text-label text-foreground">{t("billing.topups.buyCredits")}</span>
             ) : (
-                <h3 className="m-0 text-sm font-medium">{t("billing.topups.buyCredits")}</h3>
+                <h3 className="m-0 text-label">{t("billing.topups.buyCredits")}</h3>
             )}
             {notice}
             {body}

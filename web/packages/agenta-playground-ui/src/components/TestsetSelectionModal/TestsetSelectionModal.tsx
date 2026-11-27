@@ -17,8 +17,8 @@
  * - No modal-local atoms that get lost on close
  */
 
-import {EnhancedModal} from "@agenta/ui/components/modal"
 import {modalSizes} from "@agenta/ui/styles"
+import {Dialog, DialogContent, DialogHeader, DialogTitle} from "@agenta/ui/ui"
 
 import {TestsetSelectionModalContent} from "./components/TestsetSelectionModalContent"
 import type {TestsetSelectionModalProps} from "./types"
@@ -52,43 +52,35 @@ export function TestsetSelectionModal({
     hasWarning,
     canExportData,
     onCreateAndLoad,
-    ...modalProps
 }: TestsetSelectionModalProps) {
     const modalTitle = mode === "load" ? "Load Testset" : "Edit Testcase Selection"
     const {width} = MODAL_SIZES[mode]
 
     return (
-        <EnhancedModal
-            {...modalProps}
-            open={open}
-            title={modalTitle}
-            width={width}
-            onCancel={onCancel}
-            footer={null}
-            styles={{
-                body: {
-                    flex: "1 1 auto",
-                    height: 620,
-                    overflow: "hidden",
-                },
-            }}
-        >
-            <TestsetSelectionModalContent
-                loadableId={loadableId}
-                connectedTestsetId={connectedTestsetId}
-                connectedRevisionId={connectedRevisionId}
-                mode={mode}
-                onConfirm={onConfirm}
-                onCancel={onCancel}
-                selectionMode={selectionMode}
-                renderCreateCard={renderCreateCard}
-                renderPreviewPanel={renderPreviewPanel}
-                warningMessage={warningMessage}
-                hasWarning={hasWarning}
-                canExportData={canExportData}
-                onCreateAndLoad={onCreateAndLoad}
-            />
-        </EnhancedModal>
+        <Dialog open={open} onOpenChange={(next) => !next && onCancel()}>
+            <DialogContent style={{maxWidth: width}}>
+                <DialogHeader>
+                    <DialogTitle>{modalTitle}</DialogTitle>
+                </DialogHeader>
+                <div className="h-155 min-h-0 flex-auto overflow-hidden">
+                    <TestsetSelectionModalContent
+                        loadableId={loadableId}
+                        connectedTestsetId={connectedTestsetId}
+                        connectedRevisionId={connectedRevisionId}
+                        mode={mode}
+                        onConfirm={onConfirm}
+                        onCancel={onCancel}
+                        selectionMode={selectionMode}
+                        renderCreateCard={renderCreateCard}
+                        renderPreviewPanel={renderPreviewPanel}
+                        warningMessage={warningMessage}
+                        hasWarning={hasWarning}
+                        canExportData={canExportData}
+                        onCreateAndLoad={onCreateAndLoad}
+                    />
+                </div>
+            </DialogContent>
+        </Dialog>
     )
 }
 

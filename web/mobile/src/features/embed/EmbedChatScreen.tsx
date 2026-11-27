@@ -31,7 +31,6 @@ export const EmbedChatScreen = ({
     const accentStyle = appearance?.accent
         ? ({
               "--primary": appearance.accent,
-              "--ag-colorPrimary": appearance.accent,
           } as CSSProperties)
         : undefined
 

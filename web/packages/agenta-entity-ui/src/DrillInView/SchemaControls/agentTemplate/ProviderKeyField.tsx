@@ -83,8 +83,8 @@ const ProviderKeyField = ({
         <div className="flex flex-col gap-3">
             {hideHeader ? (
                 hasKey ? (
-                    <span className="inline-flex items-center gap-1 text-xs text-[var(--ag-colorSuccess)]">
-                        <CheckCircle size={13} weight="fill" />
+                    <span className="inline-flex items-center gap-1 text-meta text-success">
+                        <CheckCircle size={12} weight="fill" />
                         {/* TODO(copy: owner) */}
                         {provider.keyPreview
                             ? t("entityUi.providerCredentials.keyConfiguredPreview", {
@@ -95,13 +95,13 @@ const ProviderKeyField = ({
                 ) : null
             ) : (
                 <div className="flex flex-col gap-0.5">
-                    <span className="text-[13px] font-semibold">{provider.title}</span>
-                    <span className="text-xs leading-snug text-colorTextDescription">
+                    <span className="text-label font-semibold">{provider.title}</span>
+                    <span className="text-meta leading-snug text-muted-foreground">
                         {tNow("entityUi.providerCredentials.standardProvider")}
                     </span>
                     {hasKey ? (
-                        <span className="mt-1 inline-flex items-center gap-1 text-xs text-[var(--ag-colorSuccess)]">
-                            <CheckCircle size={13} weight="fill" />
+                        <span className="mt-1 inline-flex items-center gap-1 text-meta text-success">
+                            <CheckCircle size={12} weight="fill" />
                             {/* TODO(copy: owner) */}
                             {provider.keyPreview
                                 ? t("entityUi.providerCredentials.keyConfiguredPreview", {
@@ -113,12 +113,12 @@ const ProviderKeyField = ({
                 </div>
             )}
             <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium" htmlFor={inputId}>
+                <label className="text-label font-medium" htmlFor={inputId}>
                     {/* TODO(copy: owner) */}
                     {hasKey
                         ? t("entityUi.providerCredentials.replaceKey")
                         : t("entityUi.providerCredentials.apiKey")}{" "}
-                    <span className="text-[var(--ag-colorError)]">*</span>
+                    <span className="text-destructive">*</span>
                 </label>
                 <div className="flex items-center gap-2">
                     <PasswordInput
@@ -143,7 +143,7 @@ const ProviderKeyField = ({
                             : t("entityUi.providerCredentials.save")}
                     </LoadingButton>
                 </div>
-                <span className="text-xs text-colorTextDescription">
+                <span className="text-meta text-muted-foreground">
                     {tNow("entityUi.providerCredentials.encryptedNote")}
                 </span>
             </div>

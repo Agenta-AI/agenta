@@ -42,8 +42,8 @@ export const SetupSection = ({
 }: SetupSectionProps) => (
     <div
         className={clsx(
-            "border-x-0 border-b border-t-0 border-solid border-[var(--ag-colorSplit)] transition-colors last:border-b-0",
-            open && highlight && "bg-[var(--ag-colorWarningBg)]",
+            "border-x-0 border-b border-t-0 border-solid border-border-muted transition-colors last:border-b-0",
+            open && highlight && "bg-warning/10",
         )}
     >
         <button
@@ -57,37 +57,31 @@ export const SetupSection = ({
             )}
         >
             {icon === "done" ? (
-                <CheckCircle
-                    size={15}
-                    weight="fill"
-                    className="shrink-0 text-[var(--ag-colorSuccess)]"
-                />
+                <CheckCircle size={15} weight="fill" className="shrink-0 text-success" />
             ) : (
                 <Circle
                     size={15}
                     className={clsx(
                         "shrink-0",
-                        icon === "warning"
-                            ? "text-[var(--ag-colorWarning)]"
-                            : "text-[var(--ag-colorTextTertiary)]",
+                        icon === "warning" ? "text-warning" : "text-muted-foreground",
                     )}
                 />
             )}
-            <span className="truncate text-xs font-medium text-[var(--ag-colorText)]">{title}</span>
+            <span className="truncate text-label font-medium text-foreground">{title}</span>
             {titleExtra ? (
-                <span className="shrink-0 truncate text-[11px] text-[var(--ag-colorTextSecondary)]">
+                <span className="shrink-0 truncate text-caption text-muted-foreground">
                     {titleExtra}
                 </span>
             ) : null}
             {state ? (
                 <span
                     className={clsx(
-                        "shrink-0 text-[11px]",
+                        "shrink-0 text-caption",
                         stateTone === "success"
-                            ? "text-[var(--ag-colorSuccess)]"
+                            ? "text-success"
                             : stateTone === "warning"
-                              ? "text-[var(--ag-colorWarning)]"
-                              : "text-[var(--ag-colorTextTertiary)]",
+                              ? "text-warning"
+                              : "text-muted-foreground",
                     )}
                 >
                     {state}
@@ -98,7 +92,7 @@ export const SetupSection = ({
                 <CaretDown
                     size={13}
                     className={clsx(
-                        "shrink-0 text-[var(--ag-colorTextTertiary)] transition-transform",
+                        "shrink-0 text-muted-foreground transition-transform",
                         open && "rotate-180",
                     )}
                 />

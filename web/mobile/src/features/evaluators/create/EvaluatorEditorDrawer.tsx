@@ -1,8 +1,21 @@
 import {isLocalDraftId} from "@agenta/entities/shared"
 import {invalidateEvaluatorsListCache} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {EditableRevisionDrawer} from "@agenta/playground-ui/panels/drawer"
 import {ChainTokenPathProvider} from "@agenta/playground-ui/panels/evaluator"
 import {message} from "@agenta/ui/app-message"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
 
 import {DrillInBridgeProvider} from "../../chat/DrillInBridgeProvider"
@@ -46,6 +59,7 @@ export const EvaluatorEditorDrawer = ({
     const canCommit = useProjectPermission(projectId, "edit_workflows")
     // A link out of the page (Open in playground) asks before unsaved edits are lost.
     const leaveDialog = usePlaygroundLeaveGuard()
+    const t = useT(commonCatalog)
     const local = isLocalDraftId(revisionId)
 
     return (
@@ -79,7 +93,53 @@ export const EvaluatorEditorDrawer = ({
                 />
             </ChainTokenPathProvider>
             <PlaygroundFocusDrawerHost />
-            {leaveDialog}
+            <AlertDialog
+                open={Boolean(leaveDialog.request)}
+                onOpenChange={(next) => {
+                    if (!next && !leaveDialog.pending) leaveDialog.close()
+                }}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{leaveDialog.request?.title ?? ""}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {leaveDialog.request?.message ?? ""}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {leaveDialog.error ? (
+                        <p className="m-0 text-body text-destructive">{leaveDialog.error}</p>
+                    ) : null}
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                variant="outline"
+                                onClick={leaveDialog.close}
+                                disabled={leaveDialog.pending}
+                            >
+                                {leaveDialog.request?.cancelText ?? t("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant={
+                                    leaveDialog.request?.danger === false
+                                        ? "default"
+                                        : "destructive"
+                                }
+                                disabled={leaveDialog.pending}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    void leaveDialog.runConfirm()
+                                }}
+                            >
+                                {leaveDialog.pending
+                                    ? t("common.working")
+                                    : (leaveDialog.request?.okText ?? t("common.confirm"))}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </DrillInBridgeProvider>
     )
 }

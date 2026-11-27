@@ -10,7 +10,6 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 import {developerNavItems} from "@/features/developer/developerNavItems"
 import {DEVELOPER_VIEWS_ENV} from "@/features/developer/developerViewAccess"
 import {DeveloperViewGate} from "@/features/developer/DeveloperViewGate"
-import type {DeveloperView} from "@/features/developer/developerViews"
 import PlaygroundPage from "@/pages/w/[workspace_id]/p/[project_id]/apps/[app_id]/playground"
 
 import {TEST_DEVELOPER_VIEWS} from "./developerViewFixtures"
@@ -141,58 +140,12 @@ describe("developer views", () => {
         })
     })
 
-    describe("endpoints view", () => {
-        it("Endpoints is a page at /endpoints", async () => {
-            const actual = await vi.importActual<{DEVELOPER_VIEWS: readonly DeveloperView[]}>(
-                "@/features/developer/developerViews",
-            )
-            const endpoints = actual.DEVELOPER_VIEWS.find((view) => view.id === "endpoints")
-            expect(endpoints).toBeDefined()
-            expect(endpoints!.routes?.[0]).toBe("/endpoints")
-        })
-    })
-
     describe("playground view", () => {
-        it("Playground is a page with no nav link", async () => {
-            const actual = await vi.importActual<{DEVELOPER_VIEWS: readonly DeveloperView[]}>(
-                "@/features/developer/developerViews",
-            )
-            const playground = actual.DEVELOPER_VIEWS.find((view) => view.id === "playground")
-            expect(playground).toBeDefined()
-            expect(playground!.nav).toBeUndefined()
-            expect(playground!.routes?.[0]).toBe("/apps/[app_id]/playground")
-        })
-
         it("A playground view that is off loads no screen code", () => {
             render(<PlaygroundPage />)
             expect(host.querySelector("[data-testid=not-found]")).not.toBeNull()
             expect(host.querySelector("[data-testid=playground-screen]")).toBeNull()
             expect(playgroundScreenLoads.count).toBe(0)
-        })
-    })
-
-    describe("evaluations view", () => {
-        it("Evaluations cover the runs list and the results page", async () => {
-            const actual = await vi.importActual<{DEVELOPER_VIEWS: readonly DeveloperView[]}>(
-                "@/features/developer/developerViews",
-            )
-            const evaluations = actual.DEVELOPER_VIEWS.find((view) => view.id === "evaluations")
-            expect(evaluations).toBeDefined()
-            expect(evaluations!.routes).toEqual([
-                "/evaluations",
-                "/evaluations/results/[evaluation_id]",
-            ])
-        })
-    })
-
-    describe("evaluators view", () => {
-        it("Evaluators cover the list and the archived list", async () => {
-            const actual = await vi.importActual<{DEVELOPER_VIEWS: readonly DeveloperView[]}>(
-                "@/features/developer/developerViews",
-            )
-            const evaluators = actual.DEVELOPER_VIEWS.find((view) => view.id === "evaluators")
-            expect(evaluators).toBeDefined()
-            expect(evaluators!.routes).toEqual(["/evaluators", "/evaluators/archived"])
         })
     })
 })

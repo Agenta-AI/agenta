@@ -32,9 +32,9 @@ export const ScenarioColumnSettings = ({
                     </span>
                 </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="max-h-[420px] w-[260px] overflow-y-auto p-2">
+            <PopoverContent align="end" className="max-h-105 w-65 overflow-y-auto p-2">
                 <div className="flex items-center justify-between px-1 pb-2">
-                    <span className="text-xs font-medium text-muted-foreground">Columns</span>
+                    <span className="text-meta text-muted-foreground">Columns</span>
                     {hiddenCount > 0 ? (
                         <Button size="sm" variant="ghost" onClick={() => setHidden(new Set())}>
                             Show all
@@ -47,7 +47,7 @@ export const ScenarioColumnSettings = ({
                         const check = columnGroupCheck(keys, hidden)
                         return (
                             <li key={option.key} className="flex flex-col gap-1">
-                                <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm font-medium hover:bg-accent/60">
+                                <label className="flex cursor-pointer items-center gap-2 rounded-sm px-1 py-1 text-label hover:bg-accent">
                                     <Checkbox
                                         checked={check}
                                         onCheckedChange={() =>
@@ -61,7 +61,7 @@ export const ScenarioColumnSettings = ({
                                 <ul className="m-0 flex list-none flex-col p-0 pl-6">
                                     {option.columns.map((column) => (
                                         <li key={column.key}>
-                                            <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm hover:bg-accent/60">
+                                            <label className="flex cursor-pointer items-center gap-2 rounded-sm px-1 py-1 text-label hover:bg-accent">
                                                 <Checkbox
                                                     aria-label={`${option.label}: ${column.label}`}
                                                     checked={!hidden.has(column.key)}

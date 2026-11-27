@@ -43,7 +43,7 @@ export const DrawerTitle = ({
         : t(KIND_LABELS[kind])
 
     return (
-        <SheetTitle className="flex min-w-0 items-baseline gap-2 text-sm">
+        <SheetTitle className="flex min-w-0 items-baseline gap-2 text-body">
             <span className="shrink-0 text-muted-foreground">{kindLabel}</span>
             {name ? <span className="min-w-0 truncate font-medium">{name}</span> : null}
             {version !== null ? (

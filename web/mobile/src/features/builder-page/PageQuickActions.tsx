@@ -1,13 +1,13 @@
 import {useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
-import {PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 
 import {AgentPicker} from "./AgentPicker"
 import type {PageKey} from "./ideas"
 import type {AgentRef} from "./paneAgent"
 
-// Drawn 30 px high; a phone gets a 44 px tap area around it.
-const buttonClass = `inline-flex h-[30px] shrink-0 cursor-pointer items-center whitespace-nowrap rounded-full border-0 bg-colorBgContainer px-3 text-[13px] leading-5 text-zinc-8 ring-1 ring-inset ring-colorBorderSecondary hover:bg-muted ${PHONE_TOUCH_TARGET_CLASS}`
+// The kit's small outline button, muted until hovered.
+const buttonClass = "shrink-0 text-muted-foreground hover:text-foreground"
 
 /** The quick actions that put a ready request in the composer, with no agent to pick. */
 const READY: {label: PageKey; request: PageKey}[] = [
@@ -35,18 +35,19 @@ export const PageQuickActions = ({
         <div
             // A phone shows one row that scrolls sideways. The 7 px above and below keep the
             // 44 px tap areas inside the scroll box, so it does not cut them.
-            className="flex flex-wrap justify-center gap-1.5 max-md:flex-nowrap max-md:justify-start max-md:overflow-x-auto max-md:py-[7px] max-md:[scrollbar-width:none]"
+            className="flex flex-wrap justify-center gap-1.5 max-md:flex-nowrap max-md:justify-start max-md:overflow-x-auto max-md:[scrollbar-width:none]"
             data-testid="builder-page-quick-actions"
         >
             {READY.map((action) => (
-                <button
+                <Button
                     key={action.label}
-                    type="button"
+                    variant="outline"
+                    size="sm"
                     className={buttonClass}
                     onClick={() => onFill(t(action.request))}
                 >
                     {t(action.label)}
-                </button>
+                </Button>
             ))}
             <AgentPicker
                 onPick={(agent) => {
@@ -54,14 +55,14 @@ export const PageQuickActions = ({
                     onFill(t("builder.page.readyOptimize", {agent: agent.name}))
                 }}
                 trigger={
-                    <button type="button" className={buttonClass}>
+                    <Button variant="outline" size="sm" className={buttonClass}>
                         {t("builder.page.quickOptimize")}
-                    </button>
+                    </Button>
                 }
             />
-            <button type="button" className={buttonClass} onClick={onMoreIdeas}>
+            <Button variant="outline" size="sm" className={buttonClass} onClick={onMoreIdeas}>
                 {t("builder.page.moreIdeas")}
-            </button>
+            </Button>
         </div>
     )
 }

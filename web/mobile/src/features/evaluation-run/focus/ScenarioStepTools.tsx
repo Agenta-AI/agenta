@@ -38,7 +38,7 @@ export const ScenarioStepTools = ({title, step}: {title: string; step: ScenarioS
                 return (
                     <Badge
                         key={id}
-                        variant="outlined"
+                        variant="default"
                         className="tabular-nums"
                         title={label}
                         aria-label={`${label} ${text}`}

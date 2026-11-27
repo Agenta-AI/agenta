@@ -51,7 +51,7 @@ export const CreditsTab = ({projectId}: {projectId: string}) => {
     if (summary.isError) return <WalletUsageError onRetry={() => void summary.refetch()} />
     if (!enforced)
         return (
-            <p className="text-muted-foreground m-0 text-[13px]">{t("wallet.credits.notInUse")}</p>
+            <p className="text-muted-foreground m-0 text-label">{t("wallet.credits.notInUse")}</p>
         )
 
     const dailyMusd = pace.data

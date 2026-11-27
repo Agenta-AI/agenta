@@ -13,5 +13,7 @@
     "noIdYet": "此连接还没有 ID。",
     "publish": "发布",
     "yourAgent": "你的 Agent",
-    "yourWorkspace": "你的工作区"
+    "yourWorkspace": "你的工作区",
+    "api": "API",
+    "disconnected": "已断开 {{platform}}"
 }

@@ -52,12 +52,12 @@ export const TestcaseRowMenu = ({
                         // The row opens the drawer on click; the menu must not.
                         onClick={(event) => event.stopPropagation()}
                     >
-                        <DotsThreeVertical aria-hidden className="size-3.5" weight="bold" />
+                        <DotsThreeVertical aria-hidden className="size-3.5" />
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                     align="end"
-                    className="w-[180px]"
+                    className="w-60"
                     onClick={(event) => event.stopPropagation()}
                     onCloseAutoFocus={(event) => {
                         if (!openingQueue.current) return

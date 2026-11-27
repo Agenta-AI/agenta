@@ -14,8 +14,8 @@ const ensureStyles = () => {
     const style = document.createElement("style")
     style.id = STYLE_ID
     style.textContent = `::highlight(${NAME}) {
-    background-color: color-mix(in srgb, var(--ag-colorPrimary, #1668dc) 16%, transparent);
-    text-decoration: underline 2px var(--ag-colorPrimary, #1668dc);
+    background-color: color-mix(in srgb, var(--primary, #1668dc) 16%, transparent);
+    text-decoration: underline 2px var(--primary, #1668dc);
     text-underline-offset: 3px;
 }`
     document.head.appendChild(style)

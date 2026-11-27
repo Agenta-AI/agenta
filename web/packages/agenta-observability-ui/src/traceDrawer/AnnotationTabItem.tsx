@@ -155,7 +155,7 @@ const AnnotationTabItem = ({annotations}: {annotations: AnnotationDto[]}) => {
                                     <span className="font-medium">{evaluatorName}</span>
                                 </EvaluatorDetailsPopover>
 
-                                <span className="text-colorTextSecondary capitalize">
+                                <span className="text-muted-foreground capitalize">
                                     {kind === "human"
                                         ? t("observabilityUi.traceSpan.evaluatorHuman")
                                         : kind === "auto"

@@ -312,10 +312,10 @@ export function VariableCard({
     }, [value])
 
     return (
-        <div className="agenta-variable-card flex flex-col gap-2 rounded-lg border border-solid border-[var(--ag-colorBorder)] bg-[var(--ag-colorBgContainer)] px-3 py-2 min-w-0">
+        <div className="agenta-variable-card flex flex-col gap-2 rounded-lg border border-solid border-border bg-background px-3 py-2 min-w-0">
             <div className="flex items-center justify-between gap-2 min-w-0">
                 <div className="flex items-center gap-2 min-w-0">
-                    <AntText className="font-mono text-[12px] leading-[20px] font-medium text-[var(--ag-c-1677FF)] truncate">
+                    <AntText className="font-mono text-meta leading-[20px] font-medium text-info truncate">
                         {name}
                     </AntText>
                     <TypeChip variant={chipVariant} value={value} />
@@ -327,7 +327,7 @@ export function VariableCard({
                         >
                             <Info
                                 size={12}
-                                className="text-gray-400 hover:text-gray-600 shrink-0 cursor-help"
+                                className="text-muted-foreground hover:text-foreground shrink-0 cursor-help"
                                 aria-label={`About ${name}`}
                             />
                         </Tooltip>
@@ -355,7 +355,7 @@ export function VariableCard({
                         <Tooltip title={`Synced from ${connectedSourceName}`} placement="top">
                             <Database
                                 size={14}
-                                className="text-gray-400 shrink-0"
+                                className="text-muted-foreground shrink-0"
                                 aria-label="Synced from testset"
                             />
                         </Tooltip>
@@ -396,12 +396,12 @@ export function VariableCard({
                         // SAME color as the warning Alert background, making
                         // the chip invisible (Arda screenshot 2026-06-01).
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                            <span className="text-[12px]">
+                            <span className="text-meta">
                                 The prompt now expects nested fields at{" "}
                                 {shapeConflicts.map((c, i) => (
                                     <span key={c.key}>
                                         {i > 0 ? ", " : ""}
-                                        <code className="font-mono text-xs bg-[var(--ag-colorBgContainer)] border border-solid border-[var(--ag-colorWarning)] text-[var(--ag-colorTextHeading)] px-1 rounded">
+                                        <code className="text-code bg-background border border-solid border-warning text-foreground px-1 rounded">
                                             {c.key}
                                         </code>
                                     </span>
@@ -478,18 +478,18 @@ function StashedPathsFooter({variableName, paths}: StashedPathsFooterProps) {
                 icon={expanded ? <CaretDown size={12} /> : <CaretRight size={12} />}
                 onClick={() => setExpanded((prev) => !prev)}
                 aria-expanded={expanded}
-                className="self-start max-w-full !h-auto !px-1 !whitespace-normal text-left text-[12px] !text-[var(--ag-rgba-051729-55)]"
+                className="self-start max-w-full !h-auto !px-1 !whitespace-normal text-left text-meta !text-muted-foreground"
             >
                 {summary}
             </Button>
             {expanded ? (
-                <div className="flex flex-col gap-1 pl-2 border-l-2 border-solid border-[var(--ag-colorBorderSecondary)]">
+                <div className="flex flex-col gap-1 pl-2 border-l border-solid border-border-muted">
                     {paths.map((p) => (
-                        <div key={p.path} className="flex items-baseline gap-2 text-[12px] py-0.5">
-                            <code className="font-mono text-xs text-[var(--ag-c-1677FF)] shrink-0">
+                        <div key={p.path} className="flex items-baseline gap-2 text-meta py-0.5">
+                            <code className="text-code text-info shrink-0">
                                 {variableName}.{p.path}
                             </code>
-                            <span className="text-[var(--ag-rgba-051729-55)] truncate font-mono text-xs">
+                            <span className="text-muted-foreground truncate text-code">
                                 {previewValue(p.value)}
                             </span>
                         </div>
@@ -718,7 +718,7 @@ function TextLeafEditor({mode, value, editable, originalType, onChange}: TextLea
             autoSize={{minRows: 2}}
             disabled={!editable}
             className={clsx(
-                "!p-0 !shadow-none !min-h-[40px] resize-none",
+                "!p-0 !shadow-none !min-h-10 resize-none",
                 mode === "markdown" && "prose-sm",
             )}
         />
@@ -767,7 +767,7 @@ function CodeLeafEditor({mode, value, editable, onChange}: CodeLeafEditorProps) 
             initialValue={buffer}
             handleChange={editable ? handleChange : undefined}
             editorType="borderless"
-            className="min-h-[60px] overflow-hidden !p-0 !border-transparent hover:!border-transparent focus:!border-transparent focus-within:!border-transparent [&.agenta-shared-editor]:!border-transparent"
+            className="min-h-15 overflow-hidden !p-0 !border-transparent hover:!border-transparent focus:!border-transparent focus-within:!border-transparent [&.agenta-shared-editor]:!border-transparent"
             disableDebounce
             disabled={!editable}
             state={editable ? "filled" : "readOnly"}

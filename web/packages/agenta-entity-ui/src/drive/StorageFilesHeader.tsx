@@ -2,13 +2,12 @@ import {useConfigDrive} from "@agenta/entities/drive"
 import {useT} from "@agenta/i18n"
 import driveRailCatalog from "@agenta/i18n/catalogs/entityUi.driveRail"
 import {ConfigRowTrailing} from "@agenta/ui/components/presentational"
-import {SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
-import {CircleNotch} from "@phosphor-icons/react"
+import {SimpleTooltip, SkeletonBlock, Spinner} from "@agenta/ui/ui"
 
 import {FilesPaneToggle} from "./FilesPaneToggle"
 import {useSessionFilesPane} from "./SessionFilesPane"
 
-const MUTED = "text-xs text-[var(--ag-colorTextTertiary)]"
+const MUTED = "text-meta text-muted-foreground"
 
 function StorageFilesToggle({scope, sessionId}: {scope: string; sessionId: string}) {
     const {open, toggle} = useSessionFilesPane(scope, sessionId)
@@ -39,14 +38,13 @@ export default function StorageFilesHeader({
         <div className="flex items-center gap-1.5">
             {drive.isLoading ? (
                 <ConfigRowTrailing reserve={false}>
-                    <SkeletonBlock className="h-[14px] w-[44px]" />
+                    <SkeletonBlock className="h-3.5 w-11" />
                 </ConfigRowTrailing>
             ) : drive.errored ? null : (
                 <ConfigRowTrailing reserve={false}>
                     {drive.isFetching ? (
-                        <CircleNotch
-                            size={11}
-                            className="animate-spin"
+                        <Spinner
+                            className="size-3"
                             aria-label={t("entityUi.driveRail.refreshing")}
                         />
                     ) : null}

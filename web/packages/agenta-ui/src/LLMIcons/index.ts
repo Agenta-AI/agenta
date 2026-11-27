@@ -14,11 +14,11 @@
 
 import Agenta from "./assets/Agenta"
 import AlephAlpha from "./assets/AlephAlpha"
-import Anthropic from "./assets/Anthropic"
 import AnyScale from "./assets/AnyScale"
 import Azure from "./assets/Azure"
 import Bedrock from "./assets/Bedrock"
 import Cerebus from "./assets/Cerebus"
+import Claude from "./assets/Claude"
 import DeepInfra from "./assets/DeepInfra"
 import Fireworks from "./assets/Fireworks"
 import Gemini from "./assets/Gemini"
@@ -51,7 +51,7 @@ export const LLMIconMap: Record<string, React.FC<{className?: string}>> = {
     "Aleph Alpha": AlephAlpha,
     Groq: Groq,
     "Mistral AI": Mistral,
-    Anthropic: Anthropic,
+    Anthropic: Claude,
     "Perplexity AI": Perplexity,
     "Together AI": Together,
     OpenRouter: OpenRouter,
@@ -71,7 +71,7 @@ export const LLMIconMap: Record<string, React.FC<{className?: string}>> = {
 export {
     Agenta,
     AlephAlpha,
-    Anthropic,
+    Claude,
     AnyScale,
     Azure,
     Bedrock,

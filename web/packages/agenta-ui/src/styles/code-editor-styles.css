@@ -26,28 +26,28 @@
         }
 
         /* Light theme (default) */
-        --editor-bg: #f8f9fb;
-        --editor-text: #2d2d2d;
-        --editor-line-number: #aaa;
-        --editor-gutter-bg: #f0f0f0;
-        --editor-gutter-border: #ddd;
+        --editor-bg: var(--background);
+        --editor-text: var(--foreground);
+        --editor-line-number: var(--muted-foreground);
+        --editor-gutter-bg: var(--muted);
+        --editor-gutter-border: var(--border-muted);
         --editor-selection-bg: rgb(171, 205, 252);
-        --editor-cursor: #000;
-        --editor-error-bg: rgba(217, 76, 74, 0.05);
-        --editor-error-border: #d94c4a;
+        --editor-cursor: var(--foreground);
+        --editor-error-bg: color-mix(in oklab, var(--destructive) 5%, transparent);
+        --editor-error-border: var(--destructive);
 
-        /* Syntax highlighting - Light theme (GitHub-inspired) */
-        --token-comment: #6a737d; /* muted gray */
-        --token-string: #032f62; /* dark blue for strings */
-        --token-keyword: #d73a49; /* red keywords */
-        --token-number: #005cc5; /* bright blue numbers */
-        --token-property: #6f42c1; /* purple mapping keys / properties */
-        --token-operator: #d73a49; /* match keyword red */
-        --token-punctuation: #24292e; /* near-black punctuation */
-        --token-function: #005cc5; /* blue functions */
-        --token-class-name: #e36209; /* orange classes */
-        --token-variable: #116329; /* green variables */
-        --token-plain: #2d2d2d;
+        /* Syntax colors come from the theme (code-* in theme.config.ts), in light and dark. */
+        --token-comment: var(--muted-foreground);
+        --token-string: var(--code-string, currentColor);
+        --token-keyword: var(--code-keyword, currentColor);
+        --token-number: var(--code-number, currentColor);
+        --token-property: var(--code-property, currentColor);
+        --token-operator: var(--code-keyword, currentColor);
+        --token-punctuation: var(--muted-foreground);
+        --token-function: var(--code-function, currentColor);
+        --token-class-name: var(--code-function, currentColor);
+        --token-variable: var(--foreground);
+        --token-plain: var(--foreground);
 
         /* Apply light theme variables */
         background-color: var(--editor-bg);
@@ -212,10 +212,10 @@
         }
         /* Theme tokens, not fixed greys: #ddd on #f0f0f0 is invisible against a dark editor. */
         &::-webkit-scrollbar-thumb {
-            background-color: var(--ag-colorFillSecondary);
+            background-color: var(--accent);
         }
         &::-webkit-scrollbar-track {
-            background-color: var(--ag-colorFillQuaternary);
+            background-color: var(--muted);
         }
 
         &:hover::-webkit-scrollbar {
@@ -297,18 +297,13 @@
 
     /* Validation error highlighting for individual tokens */
     .editor-code-highlight.validation-error {
-        /* Subtle background with gradient */
-        background: linear-gradient(
-            135deg,
-            rgba(220, 38, 38, 0.08) 0%,
-            rgba(220, 38, 38, 0.12) 100%
-        );
+        background: color-mix(in oklab, var(--destructive) 10%, transparent);
 
         /* Enhanced wavy underline */
-        border-bottom: 2px wavy #dc2626;
+        border-bottom: 1px wavy var(--destructive);
 
         /* Subtle text color adjustment */
-        color: #b91c1c;
+        color: var(--destructive);
 
         /* Positioning for pseudo-elements */
         position: relative;
@@ -319,29 +314,17 @@
         /* Subtle border radius for modern look */
         border-radius: 2px;
 
-        /* Optional: subtle box shadow for depth */
-        box-shadow: inset 0 0 0 1px rgba(220, 38, 38, 0.1);
     }
 
     /* Enhanced hover state */
     .editor-code-highlight.validation-error:hover {
-        background: linear-gradient(
-            135deg,
-            rgba(220, 38, 38, 0.15) 0%,
-            rgba(220, 38, 38, 0.2) 100%
-        );
-
-        /* Stronger border on hover */
-        box-shadow: inset 0 0 0 1px rgba(220, 38, 38, 0.2);
-
-        /* Slightly darker text */
-        color: #991b1b;
+        background: color-mix(in oklab, var(--destructive) 16%, transparent);
     }
 
     /* Focus state for accessibility */
     .editor-code-highlight.validation-error:focus {
-        outline: 2px solid rgba(220, 38, 38, 0.5);
-        outline-offset: 1px;
+        outline: 2px solid var(--ring);
+        outline-offset: 0;
     }
 
     /* Subtle animation for newly added errors */
@@ -364,12 +347,12 @@
         bottom: calc(100% + 12px);
         left: 50%;
         /* transform: translateX(-50%); */
-        background: rgba(0, 0, 0, 0.95);
-        color: white;
+        background: var(--foreground);
+        color: var(--background);
         padding: 4px 8px;
         border-radius: 6px;
-        font-size: 8px;
-        font-weight: 500;
+        font-size: 12px;
+        font-weight: 450;
         white-space: nowrap;
         z-index: 2147483647;
         pointer-events: none;
@@ -381,7 +364,7 @@
         bottom: calc(100% + 6px);
         left: 50%;
         border: 6px solid transparent;
-        border-top-color: rgba(0, 0, 0, 0.95);
+        border-top-color: var(--foreground);
         z-index: 2147483646;
         pointer-events: none;
     }
@@ -549,7 +532,7 @@
 
 .commit-diff,
 .compare-diff {
-    background: #f9f9fa;
+    background: var(--muted);
     aspect-ratio: 1.5;
     .editor-code {
         margin-top: 0px;
@@ -567,7 +550,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(255, 255, 255, 0.85);
+    background: color-mix(in oklab, var(--background) 85%, transparent);
     backdrop-filter: blur(2px);
     border-radius: inherit;
 }
@@ -577,7 +560,7 @@
     flex-direction: column;
     align-items: center;
     gap: 12px;
-    color: #555;
+    color: var(--muted-foreground);
     font-size: 13px;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
@@ -585,8 +568,8 @@
 .agenta-paste-spinner {
     width: 24px;
     height: 24px;
-    border: 2.5px solid #e0e0e0;
-    border-top-color: #888;
+    border: 2px solid var(--border-muted);
+    border-top-color: var(--muted-foreground);
     border-radius: 50%;
     animation: agenta-paste-spin 0.7s linear infinite;
 }
@@ -599,26 +582,6 @@
 
 /* === Dark theme === */
 .dark .code-editor .editor-code {
-    --editor-bg: #1e1e1e;
-    --editor-text: rgba(255, 255, 255, 0.85);
-    --editor-line-number: #6e7681;
-    --editor-gutter-bg: #181818;
-    --editor-gutter-border: #303030;
     --editor-selection-bg: rgba(56, 90, 140, 0.5);
-    --editor-cursor: #ffffff;
-    --editor-error-bg: rgba(255, 142, 140, 0.12);
-    --editor-error-border: #ff8e8c;
 
-    /* Syntax highlighting - Dark theme (GitHub-dark-inspired) */
-    --token-comment: #8b949e;
-    --token-string: #a5d6ff;
-    --token-keyword: #ff7b72;
-    --token-number: #79c0ff;
-    --token-property: #d2a8ff;
-    --token-operator: #ff7b72;
-    --token-punctuation: #c9d1d9;
-    --token-function: #79c0ff;
-    --token-class-name: #ffa657;
-    --token-variable: #7ee787;
-    --token-plain: rgba(255, 255, 255, 0.85);
 }

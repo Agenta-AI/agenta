@@ -18,10 +18,10 @@ export class TokenInputNode extends TextNode {
         const dom = document.createElement("span")
         dom.className = "token-input-node"
         dom.textContent = this.__text
-        dom.style.backgroundColor = "#f0e68c"
+        dom.style.backgroundColor = "var(--secondary)"
         dom.style.padding = "0 4px"
         dom.style.borderRadius = "4px"
-        dom.style.border = "1px dashed #d3d3d3"
+        dom.style.border = "1px dashed var(--border)"
         return dom
     }
 

@@ -18,6 +18,7 @@ vi.mock("@agenta/ui/ui", () => ({
     LoadingButton: ({children, onClick}: React.ComponentProps<"button">) => (
         <button onClick={onClick}>{children}</button>
     ),
+    PasswordInput: (props: React.ComponentProps<"input">) => <input {...props} />,
     Segmented: ({
         options,
         onChange,

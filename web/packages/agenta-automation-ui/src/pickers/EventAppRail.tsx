@@ -4,7 +4,7 @@ import {useTriggerCatalogIntegrations} from "@agenta/entities/gatewayTrigger"
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {SkeletonBlock} from "@agenta/ui/ui"
-import {Plug} from "lucide-react"
+import {PlugsIcon} from "@phosphor-icons/react"
 
 import {cn} from "../lib/utils"
 
@@ -54,7 +54,7 @@ export const EventAppRail = ({
         <div
             className={cn(
                 "flex min-h-0 shrink-0 flex-col",
-                full ? "w-full" : "w-1/3 border-0 border-r border-solid border-border pr-[9px]",
+                full ? "w-full" : "w-1/3 border-0 border-r border-solid border-border pr-2",
             )}
         >
             <div className="flex min-h-0 flex-1 flex-col gap-px overflow-y-auto overflow-x-hidden">
@@ -65,7 +65,7 @@ export const EventAppRail = ({
                         ))}
                     </div>
                 ) : apps.length === 0 ? (
-                    <p className="m-0 px-2 py-3 text-[12px] leading-snug text-muted-foreground">
+                    <p className="m-0 px-2 py-3 text-meta leading-snug text-muted-foreground">
                         {t("automations.editor.noConnectedApps")}
                     </p>
                 ) : (
@@ -76,8 +76,8 @@ export const EventAppRail = ({
                             aria-pressed={app.integrationKey === selectedKey}
                             onClick={() => onSelect(app)}
                             className={cn(
-                                "flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-2.5 text-left text-[13px] text-foreground hover:bg-accent lg:py-1.5",
-                                app.integrationKey === selectedKey && "bg-accent font-medium",
+                                "flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-label text-foreground hover:bg-accent",
+                                app.integrationKey === selectedKey && "bg-selected font-medium",
                             )}
                         >
                             <AppIcon
@@ -98,9 +98,9 @@ export const EventAppRail = ({
                     <button
                         type="button"
                         onClick={onConnectAnother}
-                        className="flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-2.5 text-left text-[13px] text-muted-foreground hover:bg-accent lg:py-1.5"
+                        className="flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-2.5 text-left text-label text-muted-foreground hover:bg-accent lg:py-1.5"
                     >
-                        <Plug aria-hidden className="size-3.5 shrink-0" />
+                        <PlugsIcon aria-hidden className="size-3.5 shrink-0" />
                         <span className="min-w-0 truncate">
                             {t("automations.editor.connectAnotherApp")}
                         </span>

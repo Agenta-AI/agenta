@@ -66,13 +66,13 @@ describe("OrganizationProjectsSection", () => {
     it("says every project and offers no choice in OSS", async () => {
         await render("all", {availability: "all_projects", projectIds: []})
         expect(text()).toContain("Projects that can use it")
-        expect(text()).toContain("Every project in Acme Corp.")
+        expect(text()).toContain("Every project in this organization.")
         expect(radios()).toHaveLength(0)
     })
 
     it("starts on All projects and disables Selected without the RBAC entitlement", async () => {
         await render("plan", {availability: "all_projects", projectIds: []})
-        expect(text()).toContain("Every project in Acme Corp, including new ones.")
+        expect(text()).toContain("Every project in this organization, including new ones.")
         expect(text()).toContain("Choosing projects is available on Business and Enterprise plans.")
         expect(text()).toContain("See plans")
         const [all, selected] = radios()

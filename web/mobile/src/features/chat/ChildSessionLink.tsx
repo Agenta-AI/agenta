@@ -35,7 +35,7 @@ export const ChildSessionLink = ({
         <Link
             href={sessionRoutePath(base, sessionId)}
             title={name}
-            className="text-colorText underline-offset-2 hover:underline"
+            className="text-foreground underline-offset-2 hover:underline"
         >
             {name}
         </Link>

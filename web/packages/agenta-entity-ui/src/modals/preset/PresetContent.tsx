@@ -57,7 +57,7 @@ export const PresetContent = memo(function PresetContent({
                 <div
                     role="listbox"
                     aria-label={t("entityUi.presetModal.presets")}
-                    className="h-[500px] overflow-y-auto"
+                    className="h-125 overflow-y-auto"
                 >
                     {filteredPresets.map((preset) => {
                         const selected = preset.key === selectedPresetKey
@@ -69,10 +69,10 @@ export const PresetContent = memo(function PresetContent({
                                 aria-selected={selected}
                                 onClick={() => onSelectPreset(String(preset.key))}
                                 className={cn(
-                                    "box-border flex w-full cursor-pointer items-center border-0 rounded-control-sm px-3 py-0 h-control text-left text-xs transition-colors",
+                                    "box-border flex w-full cursor-pointer items-center border-0 rounded-control-sm px-3 py-0 h-control text-left text-label transition-colors",
                                     selected
-                                        ? "bg-controlItemBgActive text-primary"
-                                        : "bg-transparent text-colorText hover:bg-muted",
+                                        ? "bg-selected text-foreground"
+                                        : "bg-transparent text-foreground hover:bg-accent",
                                 )}
                             >
                                 <span className="min-w-0 truncate">{preset.name}</span>
@@ -86,8 +86,8 @@ export const PresetContent = memo(function PresetContent({
 
             {/* Right content - preview */}
             <div className="flex flex-col gap-4 flex-1 h-full overflow-y-auto">
-                <div className="flex items-start justify-between gap-4 sticky top-0 z-10 bg-[var(--ag-c-FFFFFF)]">
-                    <span className="text-lg font-medium -mt-1 text-colorText">
+                <div className="flex items-start justify-between gap-4 sticky top-0 z-10 bg-popover">
+                    <span className="text-title font-medium -mt-1 text-foreground">
                         {t("entityUi.presetModal.selectPreset")}
                     </span>
                     {/* Was antd Radio.Button pair — Radio.Button maps to Segmented (Radio.md). */}

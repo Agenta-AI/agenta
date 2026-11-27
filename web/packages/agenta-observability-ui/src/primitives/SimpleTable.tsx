@@ -65,8 +65,8 @@ export const SimpleTable = <T,>({
                                 key={column.key}
                                 style={column.width ? {width: column.width} : undefined}
                                 className={clsx(
-                                    "text-left font-medium px-2 py-2 bg-colorFillTertiary",
-                                    bordered && "border border-solid border-colorBorderSecondary",
+                                    "text-left font-medium px-2 py-2 bg-secondary",
+                                    bordered && "border border-solid border-border-muted",
                                 )}
                             >
                                 {column.title}
@@ -88,7 +88,7 @@ export const SimpleTable = <T,>({
                                             className={clsx(
                                                 "px-2 py-2 align-top",
                                                 bordered &&
-                                                    "border border-solid border-colorBorderSecondary",
+                                                    "border border-solid border-border-muted",
                                             )}
                                         >
                                             {column.render
@@ -104,9 +104,8 @@ export const SimpleTable = <T,>({
                                     <td
                                         colSpan={columns.length}
                                         className={clsx(
-                                            "p-0 bg-colorFillTertiary",
-                                            bordered &&
-                                                "border border-solid border-colorBorderSecondary",
+                                            "p-0 bg-secondary",
+                                            bordered && "border border-solid border-border-muted",
                                         )}
                                     >
                                         {expandedRowRender(record)}

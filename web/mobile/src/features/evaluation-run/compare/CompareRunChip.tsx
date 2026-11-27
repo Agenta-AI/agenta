@@ -19,12 +19,12 @@ export const CompareRunChip = ({
     return (
         <span
             data-testid="compare-chip"
-            className="inline-flex min-w-0 items-center gap-1 rounded-md border border-solid px-2 py-0.5 text-xs text-foreground"
+            className="inline-flex min-w-0 items-center gap-1 rounded-md border border-solid px-2 py-0.5 text-label text-foreground"
             style={compareChipStyle(slot)}
         >
             <span
                 aria-hidden
-                className="size-2 shrink-0 rounded-full"
+                className="size-2 shrink-0 rounded-xs"
                 style={{backgroundColor: compareColor(slot)}}
             />
             <span className="truncate">{name}</span>

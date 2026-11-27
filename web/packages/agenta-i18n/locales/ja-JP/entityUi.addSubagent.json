@@ -12,5 +12,7 @@
     "noAgentsMatch": "検索に一致するエージェントはありません",
     "noAgentsYet": "エージェントはまだありません",
     "tryDifferentName": "別の名前を試してください。",
-    "createAgentFirst": "エージェントを作成してから、ここに戻って追加してください。"
+    "createAgentFirst": "エージェントを作成してから、ここに戻って追加してください。",
+    "addedGroup": "追加済み",
+    "allAgents": "すべてのエージェント"
 }

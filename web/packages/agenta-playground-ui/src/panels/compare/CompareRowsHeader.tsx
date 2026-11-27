@@ -27,7 +27,7 @@ export const RevisionLabel = ({revisionId}: {revisionId: string}) => {
 const OutputHeader = ({revisionId}: {revisionId: string}) => (
     <div
         data-testid={`compare-output-header-${revisionId}`}
-        className={`${REVISION_COLUMN} flex h-10 items-center gap-1.5 bg-background px-3 text-sm`}
+        className={`${REVISION_COLUMN} flex h-10 items-center gap-1.5 bg-background px-3 text-body`}
     >
         <RevisionLabel revisionId={revisionId} />
     </div>
@@ -41,7 +41,7 @@ export const CompareRowsHeader = ({revisionIds}: {revisionIds: string[]}) => {
     const t = useT(panelsCatalog)
     return (
         <div className="sticky top-0 z-[6] hidden min-w-fit md:flex border-0 border-b border-solid border-border">
-            <div className={`${LEAD_COLUMN} flex h-10 items-center px-3 text-sm font-medium`}>
+            <div className={`${LEAD_COLUMN} flex h-10 items-center px-3 text-label `}>
                 {t("playground.panels.input")}
             </div>
             {revisionIds.map((revisionId) => (
@@ -53,7 +53,7 @@ export const CompareRowsHeader = ({revisionIds}: {revisionIds: string[]}) => {
 
 /** The revision's name above its output in a stacked row, where the header row is hidden. */
 export const OutputLabel = ({revisionId}: {revisionId: string}) => (
-    <div className="mb-2 flex items-center gap-1.5 text-sm md:hidden">
+    <div className="mb-2 flex items-center gap-1.5 text-body md:hidden">
         <RevisionLabel revisionId={revisionId} />
     </div>
 )

@@ -28,12 +28,12 @@ const GenerationComparisonOutputHeader: React.FC<GenerationComparisonOutputHeade
     return (
         <div
             className={clsx(
-                "w-full h-[44px] border-0 border-b border-r border-solid border-colorBorderSecondary px-4 flex gap-2 items-center text-base font-medium bg-[var(--ag-c-FFFFFF)]",
+                "w-full h-11 border-0 border-b border-r border-solid border-border-muted px-4 flex gap-2 items-center text-title bg-background",
                 className,
             )}
         >
             <Typography>{variantLabel ?? data?.name ?? null}</Typography>
-            <Tag color="default" variant="filled" className="bg-[var(--ag-rgba-051729-06)]">
+            <Tag color="default" variant="filled" className="bg-secondary">
                 {label}
             </Tag>
         </div>

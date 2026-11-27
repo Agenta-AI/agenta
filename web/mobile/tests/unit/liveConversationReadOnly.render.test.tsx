@@ -26,7 +26,6 @@ const calls = vi.hoisted(() => ({
 }))
 const dialog = vi.hoisted(() => ({confirm: vi.fn()}))
 const modelSetup = vi.hoisted(() => ({blocked: false, loading: false, canFix: false}))
-const personalSetup = vi.hoisted(() => ({open: false}))
 
 const approval = {approvalId: "gate-1", toolName: "send_email"}
 
@@ -173,12 +172,6 @@ vi.mock("@agenta/entity-ui/needs-setup", () => ({
 }))
 vi.mock("@agenta/entity-ui/clientTools", () => ({
     SecretRequestDock: () => <div data-testid="secret-dock" />,
-}))
-vi.mock("@agenta/entity-ui/onboarding", () => ({
-    PersonalAccountsCard: () => <div data-testid="personal-card" />,
-}))
-vi.mock("@/features/chat/usePersonalSetupStep", () => ({
-    usePersonalSetupStep: () => ({open: personalSetup.open, items: [], pendingKeys: new Set()}),
 }))
 vi.mock("@agenta/shared/utils", () => ({isOnScreen: () => true, isOverlayOpen: () => false}))
 // The builder's approval choices load the entities package, which needs the real utils.
@@ -459,32 +452,6 @@ describe("the live chat for a reader who can send", () => {
         expect(calls.sendQueuedNow).toHaveBeenCalledWith("q1")
         await click("tool-answer")
         expect(calls.sendToolOutput).toHaveBeenCalled()
-    })
-})
-
-describe("the Connect your accounts card", () => {
-    const card = () => host.querySelector('[data-testid="personal-card"]')
-
-    beforeEach(() => {
-        personalSetup.open = true
-    })
-    afterEach(() => {
-        personalSetup.open = false
-    })
-
-    it("shows on a reloaded chat with no row yet, where sending stays off", async () => {
-        await render({readOnly: null, canSend: false, accessPending: false})
-        expect(card()).not.toBeNull()
-    })
-
-    it("waits for the row read, so it does not flash for a read-only reader", async () => {
-        await render({readOnly: null, canSend: false, accessPending: true})
-        expect(card()).toBeNull()
-    })
-
-    it("stays hidden for a read-only reader", async () => {
-        await render({readOnly: viewer, canSend: false, accessPending: false})
-        expect(card()).toBeNull()
     })
 })
 

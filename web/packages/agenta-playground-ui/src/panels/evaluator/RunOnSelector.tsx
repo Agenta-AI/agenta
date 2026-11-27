@@ -42,9 +42,9 @@ interface ModeOption {
     badge?: "default" | "soon"
 }
 
-const DATA: Step = {label: "playground.evaluator.stepData", variant: "blue", icon: Database}
-const EVALUATOR: Step = {label: "playground.evaluator.evaluator", variant: "purple", icon: Gavel}
-const SCORE: Step = {label: "playground.evaluator.stepScore", variant: "green"}
+const DATA: Step = {label: "playground.evaluator.stepData", variant: "info", icon: Database}
+const EVALUATOR: Step = {label: "playground.evaluator.evaluator", variant: "default", icon: Gavel}
+const SCORE: Step = {label: "playground.evaluator.stepScore", variant: "success"}
 
 const MODES: ModeOption[] = [
     {
@@ -64,8 +64,8 @@ const MODES: ModeOption[] = [
         description: "playground.evaluator.modeAppDescription",
         flow: [
             DATA,
-            {label: "playground.evaluator.stepApp", variant: "outlined", icon: AppWindow},
-            {label: "playground.evaluator.stepOutput", variant: "green"},
+            {label: "playground.evaluator.stepApp", variant: "default", icon: AppWindow},
+            {label: "playground.evaluator.stepOutput", variant: "success"},
             EVALUATOR,
             SCORE,
         ],
@@ -78,7 +78,7 @@ const MODES: ModeOption[] = [
         badge: "soon",
         description: "playground.evaluator.modeTraceDescription",
         flow: [
-            {label: "playground.evaluator.stepTrace", variant: "cyan", icon: TreeView},
+            {label: "playground.evaluator.stepTrace", variant: "info", icon: TreeView},
             EVALUATOR,
             SCORE,
         ],
@@ -92,14 +92,14 @@ const Flow = ({steps}: {steps: Step[]}) => {
             {steps.map((step, index) => (
                 <span key={`${step.label}-${index}`} className="flex items-center">
                     {index > 0 ? (
-                        <span aria-hidden className="px-1.5 text-xs text-muted-foreground">
+                        <span aria-hidden className="px-1.5 text-meta text-muted-foreground">
                             →
                         </span>
                     ) : null}
                     <Badge
                         variant={step.variant}
                         icon={step.icon ? <step.icon aria-hidden size={12} /> : undefined}
-                        className="rounded-full"
+                        className="rounded-md"
                     >
                         {t(step.label)}
                     </Badge>
@@ -143,7 +143,7 @@ export const RunOnSelector = ({
                 align="start"
                 className="w-[min(460px,calc(100vw-32px))] p-1.5"
             >
-                <p className="m-0 px-2.5 pb-1.5 pt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <p className="m-0 px-2.5 pb-1.5 pt-1 text-meta font-medium text-muted-foreground">
                     {t("playground.evaluator.runOnQuestion")}
                 </p>
                 <div role="listbox" aria-label={t("playground.evaluator.runOnAria")}>
@@ -164,7 +164,7 @@ export const RunOnSelector = ({
                                 }}
                                 className={cn(
                                     "flex w-full items-start gap-3 rounded-md border-0 bg-transparent p-2.5 text-left",
-                                    selected ? "bg-accent" : "hover:bg-accent/60",
+                                    selected ? "bg-selected" : "hover:bg-accent",
                                     disabled && "cursor-default opacity-55 hover:bg-transparent",
                                 )}
                             >
@@ -172,21 +172,21 @@ export const RunOnSelector = ({
                                     {selected ? <Check aria-hidden size={16} /> : null}
                                 </span>
                                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                    <span className="flex flex-wrap items-center gap-2 text-sm font-medium text-foreground">
-                                        <option.icon aria-hidden size={15} />
+                                    <span className="flex flex-wrap items-center gap-2 text-label text-foreground">
+                                        <option.icon aria-hidden size={16} />
                                         {t(option.label)}
                                         {option.badge === "default" ? (
-                                            <Badge variant="info" className="rounded-full">
+                                            <Badge variant="info">
                                                 {t("playground.evaluator.badgeDefault")}
                                             </Badge>
                                         ) : null}
                                         {option.badge === "soon" ? (
-                                            <Badge variant="gold" className="rounded-full">
+                                            <Badge variant="warning">
                                                 {t("playground.evaluator.badgeSoon")}
                                             </Badge>
                                         ) : null}
                                     </span>
-                                    <span className="text-xs leading-snug text-muted-foreground">
+                                    <span className="text-meta leading-snug text-muted-foreground">
                                         {t(option.description)}
                                     </span>
                                     <span className="mt-1.5">

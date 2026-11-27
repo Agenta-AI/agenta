@@ -1,10 +1,22 @@
 import {useEffect, useRef, useState} from "react"
 
 import type {CommitCreateFieldsConfig, CommitModeOption} from "@agenta/entity-ui/modals"
+import {useT} from "@agenta/i18n"
+import testsetsCatalog from "@agenta/i18n/catalogs/playground.testsets"
 import {useTestsetMenuModel} from "@agenta/playground-ui/hooks"
 import {TestsetMenu} from "@agenta/playground-ui/panels/runs"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
+import {
+    AlertDialog,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
 import {useAtomValue, useStore} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
@@ -20,20 +32,6 @@ import {PlaygroundTestsetDrop} from "./PlaygroundTestsetDrop"
 const LoadTestsetDialog = dynamic(
     () =>
         import("@agenta/playground-ui/panels/testsets").then((module) => module.LoadTestsetDialog),
-    {ssr: false},
-)
-const KeepDraftRowsDialog = dynamic(
-    () =>
-        import("@agenta/playground-ui/panels/testsets").then(
-            (module) => module.KeepDraftRowsDialog,
-        ),
-    {ssr: false},
-)
-const UnsavedTestsetDialog = dynamic(
-    () =>
-        import("@agenta/playground-ui/panels/testsets").then(
-            (module) => module.UnsavedTestsetDialog,
-        ),
     {ssr: false},
 )
 // The create dialog is the test sets page's own dialog; it downloads only when it opens.
@@ -53,6 +51,24 @@ const SYNC_MODES: CommitModeOption[] = [
     {id: "save-new", label: "Save as new test set"},
 ]
 
+// The unsaved-changes copy for each leave intent.
+const UNSAVED_COPY = {
+    disconnect: {
+        title: "playground.testsets.disconnectTitle",
+        question: "playground.testsets.disconnectQuestion",
+        note: "playground.testsets.disconnectNote",
+        discard: "playground.testsets.disconnectDiscard",
+        save: "playground.testsets.disconnectSave",
+    },
+    change: {
+        title: "playground.testsets.changeTitle",
+        question: "playground.testsets.changeQuestion",
+        note: "playground.testsets.changeNote",
+        discard: "playground.testsets.changeDiscard",
+        save: "playground.testsets.changeSave",
+    },
+} as const
+
 const SAVE_NEW_FIELDS: CommitCreateFieldsConfig = {
     modes: ["save-new"],
     nameLabel: "Test set name",
@@ -64,6 +80,7 @@ const SAVE_NEW_FIELDS: CommitCreateFieldsConfig = {
  * unsaved changes, or sync.
  */
 export const PlaygroundTestsetMenu = () => {
+    const t = useT(testsetsCatalog)
     const model = useTestsetMenuModel()
     const {dialog, loadableId} = model
     const [syncMode, setSyncMode] = useState("commit")
@@ -84,6 +101,10 @@ export const PlaygroundTestsetMenu = () => {
         }
     }, [])
     if (!loadableId) return null
+    const draftsTestsetName =
+        dialog?.kind === "keep-drafts"
+            ? dialog.testsetName?.trim() || t("playground.testsets.theTestSet")
+            : ""
 
     // The new test set loads the way a pick in the load dialog does, with all of its rows.
     const loadCreated = async (created: CreatedTestset): Promise<void> => {
@@ -135,23 +156,127 @@ export const PlaygroundTestsetMenu = () => {
                 />
             ) : null}
             {dialog?.kind === "keep-drafts" ? (
-                <KeepDraftRowsDialog
-                    draftCount={dialog.draftCount}
-                    testsetName={dialog.testsetName}
-                    chat={dialog.chat}
-                    onKeep={() => model.confirmKeepDrafts(true)}
-                    onDiscard={() => model.confirmKeepDrafts(false)}
-                    onCancel={model.close}
-                />
+                <AlertDialog
+                    open
+                    onOpenChange={(next) => {
+                        if (!next) model.close()
+                    }}
+                >
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>
+                                {dialog.chat
+                                    ? t("playground.testsets.replaceConversationTitle")
+                                    : t("playground.testsets.keepDraftsTitle")}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription asChild>
+                                <div className="flex flex-col gap-2">
+                                    {dialog.chat ? (
+                                        <>
+                                            <p className="m-0">
+                                                {t("playground.testsets.loadingReplaces", {
+                                                    name: draftsTestsetName,
+                                                })}
+                                            </p>
+                                            <p className="m-0">
+                                                {t("playground.testsets.chatOneAtATime")}
+                                            </p>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <p className="m-0">
+                                                {dialog.draftCount > 1
+                                                    ? t("playground.testsets.draftsMany", {
+                                                          count: dialog.draftCount,
+                                                      })
+                                                    : t("playground.testsets.draftsOne")}
+                                            </p>
+                                            <p className="m-0">
+                                                {dialog.draftCount > 1
+                                                    ? t("playground.testsets.keepThemAndLoad", {
+                                                          name: draftsTestsetName,
+                                                      })
+                                                    : t("playground.testsets.keepItAndLoad", {
+                                                          name: draftsTestsetName,
+                                                      })}
+                                            </p>
+                                        </>
+                                    )}
+                                </div>
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel asChild>
+                                <Button variant="outline" onClick={model.close}>
+                                    {t("playground.testsets.cancel")}
+                                </Button>
+                            </AlertDialogCancel>
+                            <Button
+                                variant="destructive"
+                                onClick={() => model.confirmKeepDrafts(false)}
+                            >
+                                {dialog.chat
+                                    ? t("playground.testsets.loadAndReplace")
+                                    : t("playground.testsets.discardDrafts")}
+                            </Button>
+                            {dialog.chat ? null : (
+                                <Button onClick={() => model.confirmKeepDrafts(true)}>
+                                    {t("playground.testsets.keepAndLoad")}
+                                </Button>
+                            )}
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             ) : null}
             {dialog?.kind === "unsaved" ? (
-                <UnsavedTestsetDialog
-                    intent={dialog.intent}
-                    saving={model.saving}
-                    onSave={() => void model.resolveUnsaved("save")}
-                    onDiscard={() => void model.resolveUnsaved("discard")}
-                    onCancel={model.close}
-                />
+                <AlertDialog
+                    open
+                    onOpenChange={(next) => {
+                        if (!next && !model.saving) model.close()
+                    }}
+                >
+                    <AlertDialogContent
+                        onEscapeKeyDown={(event) => {
+                            if (model.saving) event.preventDefault()
+                        }}
+                    >
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>
+                                {t(UNSAVED_COPY[dialog.intent].title)}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription asChild>
+                                <div className="flex flex-col gap-2">
+                                    <p className="m-0">{t(UNSAVED_COPY[dialog.intent].question)}</p>
+                                    <p className="m-0">{t(UNSAVED_COPY[dialog.intent].note)}</p>
+                                </div>
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel asChild>
+                                <Button
+                                    variant="outline"
+                                    onClick={model.close}
+                                    disabled={model.saving}
+                                >
+                                    {t("playground.testsets.cancel")}
+                                </Button>
+                            </AlertDialogCancel>
+                            <Button
+                                variant="destructive"
+                                onClick={() => void model.resolveUnsaved("discard")}
+                                disabled={model.saving}
+                            >
+                                {t(UNSAVED_COPY[dialog.intent].discard)}
+                            </Button>
+                            <Button
+                                onClick={() => void model.resolveUnsaved("save")}
+                                disabled={model.saving}
+                            >
+                                {t(UNSAVED_COPY[dialog.intent].save)}
+                            </Button>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             ) : null}
             {dialog?.kind === "sync" && model.connectedRevisionId ? (
                 <EntityCommitModal

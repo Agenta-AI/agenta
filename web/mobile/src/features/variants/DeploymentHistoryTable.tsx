@@ -88,11 +88,11 @@ export const DeploymentHistoryTable = ({
             selection={developer?.selection}
             renderRow={(row) => (
                 <>
-                    <span className="block truncate text-[13px] text-muted-foreground">
+                    <span className="block truncate text-label text-muted-foreground">
                         v{row.index}
                     </span>
                     {developer ? (
-                        <span className="block min-w-0 truncate text-[14px]">
+                        <span className="block min-w-0 truncate text-body">
                             <VariantDetailsWithStatus
                                 className="min-w-0 justify-start"
                                 variantName={variantLabel(row, variantNames)}
@@ -103,7 +103,7 @@ export const DeploymentHistoryTable = ({
                             />
                         </span>
                     ) : (
-                        <span className="block min-w-0 truncate text-[14px] font-medium text-foreground">
+                        <span className="block min-w-0 truncate text-body font-medium text-foreground">
                             {variantLabel(row, variantNames)}
                             {row.deployedRevisionVersion != null
                                 ? ` v${row.deployedRevisionVersion}`
@@ -112,13 +112,13 @@ export const DeploymentHistoryTable = ({
                     )}
                     {narrow ? null : (
                         <span
-                            className="block truncate text-[13px] text-muted-foreground"
+                            className="block truncate text-label text-muted-foreground"
                             title={row.message ?? undefined}
                         >
                             {row.message || "—"}
                         </span>
                     )}
-                    <span className="block truncate text-[13px] text-muted-foreground">
+                    <span className="block truncate text-label text-muted-foreground">
                         <FormattedDate
                             date={row.createdAt}
                             format={narrow ? "MMM D, YYYY" : "MMM D, YYYY h:mm A"}
@@ -126,7 +126,7 @@ export const DeploymentHistoryTable = ({
                         />
                     </span>
                     {narrow ? null : (
-                        <span className="block truncate text-[13px] text-muted-foreground">
+                        <span className="block truncate text-label text-muted-foreground">
                             <UserAuthorLabel
                                 userId={row.authorId}
                                 name={row.authorId ? authorNames.get(row.authorId) : null}

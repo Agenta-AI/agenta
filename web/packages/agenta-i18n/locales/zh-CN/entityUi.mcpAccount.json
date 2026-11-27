@@ -1,10 +1,7 @@
 {
     "chooseWhose": "选择 Agent 使用谁的 {{name}} 登录",
     "eachPersonsOwnNote": "每个人都使用自己的 {{name}} 登录。",
-    "oneShared": "一个共享登录",
     "oneSharedNote": "所有人都使用项目的登录。",
-    "sharedSignIn": "共享登录",
-    "sharedSignInNote": "无论谁发起，每次运行都使用此登录",
     "yourSignIn": "你的登录",
     "yourSignInNote": "你自己的运行使用的 {{name}} 登录",
     "notSignedInYet": "尚未登录",

@@ -13,7 +13,7 @@ export const SignInStep = ({
     children: ReactNode
 }) => (
     <li className="flex gap-3">
-        <span className="flex size-6 shrink-0 items-center justify-center rounded-full border border-solid border-border bg-background text-[12px] text-foreground">
+        <span className="flex size-6 shrink-0 items-center justify-center rounded-md border border-solid border-border bg-background text-meta text-foreground">
             {index}
         </span>
         <span
@@ -23,7 +23,7 @@ export const SignInStep = ({
                     : "flex min-w-0 flex-1 flex-col gap-1 pb-4"
             }
         >
-            <span className="text-sm font-medium leading-6 text-foreground">{title}</span>
+            <span className="text-body font-medium leading-6 text-foreground">{title}</span>
             {children}
         </span>
     </li>

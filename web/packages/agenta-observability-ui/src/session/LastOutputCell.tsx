@@ -1,8 +1,9 @@
 import {sessionLastOutputAtomFamily, sessionsLoadingAtom} from "@agenta/observability"
 import {sanitizeDataWithBlobUrls} from "@agenta/shared/utils"
 import {SmartCellContent} from "@agenta/ui/cell-renderers"
+import {SkeletonBlock} from "@agenta/ui/ui"
 
-import {SkeletonBlock} from "../primitives/SkeletonBlock"
+import {ONE_LINE_CELL} from "../cells/oneLineCell"
 
 import {useSessionAtomValue} from "./sessionCellStore"
 
@@ -10,7 +11,7 @@ export const LastOutputCell = ({sessionId}: {sessionId: string}) => {
     const isLoading = useSessionAtomValue(sessionsLoadingAtom)
     const lastOutput = useSessionAtomValue(sessionLastOutputAtomFamily(sessionId))
 
-    if (isLoading) return <SkeletonBlock />
+    if (isLoading) return <SkeletonBlock className="max-w-[160px]" />
     if (lastOutput === undefined) return ""
 
     const {data: sanitized} = sanitizeDataWithBlobUrls(lastOutput)
@@ -18,9 +19,9 @@ export const LastOutputCell = ({sessionId}: {sessionId: string}) => {
         <SmartCellContent
             value={sanitized}
             keyPrefix={`session-${sessionId}-output`}
-            maxLines={4}
+            maxLines={1}
             chatPreference="output"
-            className="max-w-[300px] h-[112px] overflow-hidden"
+            className={ONE_LINE_CELL}
         />
     )
 }

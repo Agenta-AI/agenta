@@ -9,8 +9,8 @@
  *
  * <EntityIconLabel
  *   icon={<Lightning weight="fill" />}
- *   iconBgColor="bg-blue-100"
- *   iconColor="text-blue-600"
+ *   iconBgColor="bg-secondary"
+ *   iconColor="text-muted-foreground"
  *   label="My App"
  *   version={3}
  *   subtitle="appRevision"
@@ -189,7 +189,7 @@ export function EntityIconLabel({
                     {extra}
                 </div>
                 {subtitle && (
-                    <span className={cn(textSizes.xs, "capitalize text-colorTextDescription")}>
+                    <span className={cn(textSizes.xs, "capitalize text-muted-foreground")}>
                         {subtitle}
                     </span>
                 )}

@@ -68,4 +68,4 @@ export const clippedEdges = (el: {
 }
 /** Centered reading column for the chat body. Caps line length / bubble width so a wide (maximized)
  * panel doesn't sprawl into oversized bubbles and over-spaced turns; freed side space is whitespace. */
-export const CHAT_COLUMN = "mx-auto w-full max-w-[880px]"
+export const CHAT_COLUMN = "mx-auto w-full max-w-content-md"

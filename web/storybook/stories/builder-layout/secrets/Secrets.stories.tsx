@@ -4,11 +4,12 @@ import {AgentPanelContext, type AgentPanelApi} from "@/features/agent-layout/age
 import {PanelViewChrome} from "@/features/agent-layout/PanelViewChrome"
 import type {AgentSecretBinding} from "@agenta/entities/secret"
 import {
-    SecretRemoveDialog,
     secretAttachView,
     secretFormView,
     type SecretAttachViewParams,
 } from "@agenta/entity-ui/secret"
+import {createT} from "@agenta/i18n"
+import agentSecretsCatalog from "@agenta/i18n/catalogs/entityUi.agentSecrets"
 import {userAtom} from "@agenta/shared/state"
 import {DrillInUIProvider} from "@agenta/ui/drill-in"
 import {
@@ -28,6 +29,7 @@ import {
     advancedView,
     agentaToolsView,
 } from "../../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/views/advancedViews"
+import {RemoveFromAgentDialog} from "../../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/views/RemoveFromAgentDialog"
 import {permissionPolicyOptionsForEnum} from "../../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/permissionPolicy"
 import type {StoryScope} from "../../../.storybook/decorators/withAgentaData"
 import {
@@ -78,6 +80,8 @@ const Open = <P,>({
     }, [])
     return null
 }
+
+const tSecrets = createT(agentSecretsCatalog)
 
 const PanelBox = ({children}: {children: React.ReactNode}) => (
     <AgentPanelContext.Provider value={panel}>
@@ -130,7 +134,15 @@ const SecretsFrame = ({frame, revisionId}: {frame: Frame; revisionId: string}) =
         )
     }
     if (frame === "remove")
-        return <SecretRemoveDialog onRemove={async () => undefined} onClose={() => undefined} />
+        return (
+            <RemoveFromAgentDialog
+                open
+                name="BILLING_API_KEY"
+                body={tSecrets("entityUi.agentSecrets.removeAttachmentBody")}
+                onConfirm={() => undefined}
+                onCancel={() => undefined}
+            />
+        )
     if (frame === "permissions")
         return (
             <PanelBox>

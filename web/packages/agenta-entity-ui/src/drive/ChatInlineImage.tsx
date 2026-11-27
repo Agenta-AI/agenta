@@ -33,7 +33,7 @@ const HOVER_REVEAL =
 const CORNER_ACTION = `absolute right-2 top-2 flex gap-1 ${HOVER_REVEAL}`
 
 const CORNER_BUTTON =
-    "flex size-7 cursor-pointer items-center justify-center rounded-md border-0 bg-background/90 p-0 text-foreground shadow-sm transition-colors hover:bg-background focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+    "flex size-7 cursor-pointer items-center justify-center rounded-md border-0 bg-background/90 p-0 text-foreground shadow-overlay transition-colors hover:bg-[image:linear-gradient(var(--accent),var(--accent))] focus-ring"
 
 /** The box an SVG holds until it loads, and keeps when it has no size of its own. */
 const SVG_FALLBACK_SIZE = {width: 320, height: 240}
@@ -95,7 +95,7 @@ function ChatInlineImageImpl({candidate}: {candidate: string}) {
                 data-holding={holding || undefined}
                 className={
                     holding
-                        ? "aspect-[4/3] w-[320px] max-w-full rounded-lg bg-muted motion-safe:animate-pulse"
+                        ? "aspect-[4/3] w-80 max-w-full rounded-lg bg-muted motion-safe:animate-pulse"
                         : "absolute h-0 w-0"
                 }
             />
@@ -170,7 +170,7 @@ function ChatInlineImageImpl({candidate}: {candidate: string}) {
             </div>
             {/* The name shows with the actions; a soft scrim keeps it legible on any image. */}
             <figcaption
-                className={`pointer-events-none absolute inset-x-0 bottom-0 flex min-w-0 items-center gap-1.5 bg-gradient-to-t from-black/60 to-transparent px-3 pb-2.5 pt-6 text-xs text-white ${HOVER_REVEAL}`}
+                className={`pointer-events-none absolute inset-x-0 bottom-0 flex min-w-0 items-center gap-1.5 bg-gradient-to-t from-black/60 to-transparent px-3 pb-2.5 pt-6 text-label text-white ${HOVER_REVEAL}`}
             >
                 <ImageIcon size={13} className="shrink-0" />
                 <span className="min-w-0 truncate font-medium">{name}</span>

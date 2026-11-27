@@ -23,19 +23,19 @@ const radioItemVariants = cva([
     // CONTROL_RESET — preflight is off app-wide (antd ships its own reset); see button.tsx.
     "box-border border-solid font-[inherit] p-0",
     // antd radio circle: 16px, 1px border colorBorder, bg colorBgContainer.
-    "size-control-check shrink-0 rounded-full border bg-background border-border",
+    "size-control-check shrink-0 rounded-round border bg-background border-border",
     "inline-flex items-center justify-center cursor-pointer transition-colors",
     // hover (enabled): border → colorPrimary.
-    "enabled:hover:border-primary",
+    "enabled:hover:border-foreground/60",
     // checked (antd v6): circle FILLED colorPrimary + colorPrimary border (dot is white — Indicator).
-    "enabled:data-[state=checked]:border-primary enabled:data-[state=checked]:bg-primary",
+    "enabled:data-[state=checked]:border-foreground enabled:data-[state=checked]:bg-foreground",
     // checked + hover: antd repaints the whole disc colorPrimaryHover and makes the border
     // transparent (the bg shows through the border box), so the 1px rim moves with the fill.
-    "enabled:data-[state=checked]:hover:bg-primary-hover enabled:data-[state=checked]:hover:border-transparent",
+    "enabled:data-[state=checked]:hover:bg-foreground/85 enabled:data-[state=checked]:hover:border-transparent",
     // focus (antd shared 4px focus outline): :focus-visible only, 1px offset.
-    "outline-none focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-1 focus-visible:outline-focus-ring",
+    "outline-none focus-ring",
     // disabled: bg colorBgContainerDisabled, border colorBorder (reverts even when checked; `enabled:` gates checked above).
-    "disabled:cursor-not-allowed disabled:bg-colorBgContainerDisabled disabled:border-colorBorder",
+    "disabled:cursor-not-allowed disabled:bg-secondary disabled:border-border",
 ])
 
 export type RadioGroupProps = React.ComponentProps<typeof RadioGroupPrimitive.Root>
@@ -63,7 +63,7 @@ function RadioGroupItem({
             <RadioGroupPrimitive.Indicator
                 data-slot="radio-group-indicator"
                 // antd v6 centered dot: white (colorTextLightSolid) on the filled circle; → colorTextDisabled when disabled.
-                className="size-control-dot rounded-full bg-primary-foreground [[data-slot=radio-group-item]:disabled_&]:bg-colorTextDisabled"
+                className="size-control-dot rounded-round bg-background [[data-slot=radio-group-item]:disabled_&]:bg-border-strong"
             />
         </RadioGroupPrimitive.Item>
     )

@@ -30,7 +30,7 @@ interface Bucket {
 }
 
 const Stat = ({label, value, danger}: {label: string; value: string; danger?: boolean}) => (
-    <span className="flex items-center gap-1 text-[13px]">
+    <span className="flex items-center gap-1 text-label">
         <span className="text-muted-foreground">{label}</span>
         <span
             className={`font-medium tabular-nums ${danger ? "text-destructive" : "text-foreground"}`}
@@ -53,8 +53,8 @@ const UsageCard = ({
         aria-label={title}
         className="box-border flex min-w-0 flex-col gap-1 rounded-lg border border-solid border-border bg-card px-5 py-4"
     >
-        <h3 className="m-0 text-[16px] font-semibold leading-[1.4] text-foreground">{title}</h3>
-        <div className="mb-2 flex min-h-[22px] flex-wrap items-center gap-x-4 gap-y-1">{stats}</div>
+        <h3 className="m-0 text-title text-foreground">{title}</h3>
+        <div className="mb-2 flex min-h-5.5 flex-wrap items-center gap-x-4 gap-y-1">{stats}</div>
         {children}
     </section>
 )
@@ -62,7 +62,7 @@ const UsageCard = ({
 /** A failed query is not an empty window: the reason shows once above the grid. */
 const EmptyChart = ({failed}: {failed: boolean}) => (
     <div
-        className="flex items-center justify-center gap-2 text-[13px] text-muted-foreground"
+        className="flex items-center justify-center gap-2 text-label text-muted-foreground"
         style={{height: CHART_HEIGHT}}
     >
         {failed ? (
@@ -98,7 +98,7 @@ export const AppUsageSection = ({appId}: {appId: string}) => {
         valueOf: (bucket: Bucket, key: string) => number,
         formatValue: (value: number) => string,
     ) => {
-        if (!data && busy) return <Skeleton className="h-[160px] w-full rounded-md" />
+        if (!data && busy) return <Skeleton className="h-40 w-full rounded-md" />
         if (!hasData) return <EmptyChart failed={failed} />
         // A metric no trace reported (no tokens, no cost) is no data, not a flat line at 0.
         if (!buckets.some((bucket) => series.some((s) => valueOf(bucket, s.key) !== 0)))
@@ -126,7 +126,7 @@ export const AppUsageSection = ({appId}: {appId: string}) => {
         <section aria-label="Usage" className="flex flex-col gap-4">
             <div className="flex justify-end">
                 <RangePicker
-                    type="text"
+                    variant="ghost"
                     disabled={busy}
                     value={range}
                     onChange={setRange}
@@ -136,7 +136,7 @@ export const AppUsageSection = ({appId}: {appId: string}) => {
                 />
             </div>
             {failed ? (
-                <div role="alert" className="text-[13px] text-destructive">
+                <div role="alert" className="text-label text-destructive">
                     {errorMessage}
                 </div>
             ) : null}

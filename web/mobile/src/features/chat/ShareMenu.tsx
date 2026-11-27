@@ -93,7 +93,7 @@ export const ShareMenu = ({
                                 variant="ghost"
                                 size="icon-sm"
                                 aria-label={t("chat.shareMenu.templates")}
-                                className="h-7 w-7 shrink-0 p-0"
+                                className="h-control-sm w-7 shrink-0 p-0"
                                 data-testid="template-menu-button"
                             >
                                 <ExportIcon size={14} />
@@ -131,7 +131,7 @@ export const ShareMenu = ({
                 </DropdownMenu>
             ) : null}
             {canRequestTemplate ? (
-                <span aria-hidden className="h-5 w-px shrink-0 bg-colorBorderSecondary" />
+                <span aria-hidden className="h-5 w-px shrink-0 bg-border-muted" />
             ) : null}
             {/* Who can see this agent: between Templates and Publish, at every width. */}
             <AgentPrivacyHost

@@ -1,6 +1,6 @@
 import {useT} from "@agenta/i18n"
 import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
-import {Download} from "lucide-react"
+import {DownloadSimpleIcon} from "@phosphor-icons/react"
 
 import {Button} from "../components/ui/button"
 
@@ -36,7 +36,7 @@ export const ListTableExportButton = <Row,>({
             disabled={rows.length === 0}
             onClick={() => downloadCsv(fileName, listTableToCsv(rows, columns))}
         >
-            <Download aria-hidden data-icon="inline-start" />
+            <DownloadSimpleIcon aria-hidden data-icon="inline-start" />
             {label}
         </Button>
     )

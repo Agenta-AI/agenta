@@ -39,10 +39,6 @@ export type {
 export {SearchableList} from "./SearchableList"
 export type {SearchableListProps, SearchableListVariant} from "./SearchableList"
 
-// Selection modal shell
-export {SelectionModalShell} from "./SelectionModalShell"
-export type {SelectionModalShellProps, SelectionModalSize} from "./SelectionModalShell"
-
 // Hierarchy level select
 export {HierarchyLevelSelect} from "./HierarchyLevelSelect"
 export type {HierarchyLevelSelectProps} from "./HierarchyLevelSelect"

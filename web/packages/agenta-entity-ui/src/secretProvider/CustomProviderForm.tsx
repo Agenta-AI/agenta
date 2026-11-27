@@ -72,7 +72,7 @@ const providerLabel = (kind: string): string =>
           : capitalize(kind)
 
 const FieldError = ({error}: {error?: string}) =>
-    error ? <span className="text-xs text-colorError">{error}</span> : null
+    error ? <span className="text-meta text-destructive">{error}</span> : null
 
 /** Render control based on field.attributes */
 const renderControl = (
@@ -100,7 +100,7 @@ const renderControl = (
     const isJson = a.kind === "json"
     return (
         <div className="flex flex-col gap-1">
-            <span className="font-medium text-colorText">
+            <span className="font-medium text-foreground">
                 {field.label}
                 {isRequired ? <span aria-hidden> *</span> : null}
             </span>
@@ -409,13 +409,13 @@ const CustomProviderForm = ({
         >
             <section className="flex flex-col gap-4">
                 {hasSelectedProvider && errorMessage && (
-                    <span className="mb-1 flex items-center gap-1 text-colorError">
+                    <span className="mb-1 flex items-center gap-1 text-destructive">
                         <WarningCircle size={16} /> {errorMessage.replace("Value error,", "")}
                     </span>
                 )}
 
                 <div className="flex flex-col gap-1">
-                    <span className="font-medium text-colorText">
+                    <span className="font-medium text-foreground">
                         {t("entityUi.customProviderForm.provider")}
                         <span aria-hidden> *</span>
                     </span>
@@ -450,7 +450,7 @@ const CustomProviderForm = ({
                                     </div>
 
                                     {field.note && (
-                                        <span className="text-[var(--ag-c-586673)] -mt-2">
+                                        <span className="text-muted-foreground -mt-2">
                                             {field.note}
                                         </span>
                                     )}
@@ -460,7 +460,7 @@ const CustomProviderForm = ({
 
                         <div className="flex flex-col gap-2">
                             <div className="w-full flex items-center justify-between">
-                                <span className="font-medium text-colorText">
+                                <span className="font-medium text-foreground">
                                     {t("entityUi.customProviderForm.models")}
                                 </span>
                                 <Button variant="outline" size="sm" onClick={() => addModel()}>
@@ -470,7 +470,7 @@ const CustomProviderForm = ({
                             </div>
 
                             {models.length === 0 ? (
-                                <span className="text-[var(--ag-c-586673)]">
+                                <span className="text-muted-foreground">
                                     {t("entityUi.customProviderForm.noCustomModels")}
                                 </span>
                             ) : (

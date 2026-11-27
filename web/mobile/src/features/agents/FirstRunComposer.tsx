@@ -6,7 +6,7 @@ import {useT} from "@agenta/i18n"
 import agentsFirstRun from "@agenta/i18n/catalogs/agents.firstRun"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {Button} from "@agenta/ui/ui"
-import {ArrowRight} from "lucide-react"
+import {ArrowRightIcon} from "@phosphor-icons/react"
 
 /**
  * The create surface's composer: describe an agent, send, and it exists.
@@ -57,7 +57,7 @@ export const FirstRunComposer = ({
                         onClick={() => void start(inputRef.current?.getMarkdown() ?? "")}
                     >
                         {creating ? t("agents.firstRun.creating") : t("agents.firstRun.create")}
-                        <ArrowRight size={14} />
+                        <ArrowRightIcon size={14} />
                     </Button>
                 }
             />

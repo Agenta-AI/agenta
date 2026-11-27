@@ -48,6 +48,9 @@ const BuilderPanel = dynamic(() => import("../builder/BuilderPanel").then((m) =>
     loading: ChatLoading,
 })
 
+/** How long the pane takes to slide out: the theme's duration-base. */
+const PANEL_EXIT_MS = 200
+
 /** The session column a pushed panel leaves at least (the header's name, session and icons). */
 const SESSION_COLUMN_MIN = 480
 
@@ -112,7 +115,9 @@ export const AgentLayoutBody = ({
     // A content the screen cannot show (no configuration, no builder) stays closed.
     // Files keeps its production open state (deep links, a file card, a staged drop open it) and
     // its own close. The panel shows Files exactly while that state is open.
-    const stored = state.content
+    // On a phone the panel covers the session: a reload opens the conversation, not the stored panel.
+    const openedHere = useRef(false)
+    const stored = phone && !openedHere.current ? null : state.content
     const content: PanelContent | null = files.open
         ? "files"
         : stored === "configuration" && canConfigure
@@ -164,7 +169,8 @@ export const AgentLayoutBody = ({
         if (restoredScope.current === restoreKey) return
         restoredScope.current = restoreKey
         filesWasOpen.current = files.open
-        if (stored === "files" && !files.open) files.openPane()
+        const onPhone = !window.matchMedia(`(min-width: ${PHONE_BELOW}px)`).matches
+        if (stored === "files" && !files.open && !onPhone) files.openPane()
     }, [panelKey, filesScope, stored, files])
 
     // Files opened or closed from anywhere moves the panel with it, at the stored width.
@@ -183,6 +189,7 @@ export const AgentLayoutBody = ({
 
     const setContent = useCallback(
         (next: PanelContent | null) => {
+            openedHere.current = true
             if (next === "files") {
                 if (!files.open) files.openPane()
             } else if (files.open) {
@@ -200,6 +207,11 @@ export const AgentLayoutBody = ({
 
     // The panel takes the focus when it opens, so Escape reaches it.
     const panelRef = useRef<HTMLDivElement>(null)
+    // A view that opened with the panel keeps the focus it took.
+    const focusPanel = useCallback(() => {
+        const panel = panelRef.current
+        if (panel && !panel.contains(document.activeElement)) panel.focus({preventScroll: true})
+    }, [])
     const toggle = useCallback(
         async (clicked: PanelContent) => {
             // A content this screen cannot show (a hidden agent, no builder yet) is not offered.
@@ -207,10 +219,10 @@ export const AgentLayoutBody = ({
             const next = nextPanelContent(content, clicked)
             if (!(await confirmLeave(next ? "swap" : "close"))) return false
             setContent(next)
-            if (next) requestAnimationFrame(() => panelRef.current?.focus({preventScroll: true}))
+            if (next) requestAnimationFrame(focusPanel)
             return true
         },
-        [confirmLeave, content, setContent, available],
+        [confirmLeave, content, setContent, available, focusPanel],
     )
     const close = useCallback(async () => {
         if (!(await confirmLeave("close"))) return false
@@ -265,9 +277,18 @@ export const AgentLayoutBody = ({
             if (!ok) return
             setContent("configuration")
             setState({configTab: "agent"})
-            requestAnimationFrame(() => panelRef.current?.focus({preventScroll: true}))
+            requestAnimationFrame(focusPanel)
         })
-    }, [revealRequest, canConfigure, content, confirmLeave, setContent, setState, setRevealRequest])
+    }, [
+        revealRequest,
+        canConfigure,
+        content,
+        confirmLeave,
+        setContent,
+        setState,
+        setRevealRequest,
+        focusPanel,
+    ])
 
     // "Create with AI" fills the composer. On a phone the panel covers it, so hand the screen back.
     const prefillRequest = useAtomValue(composerPrefillRequestAtom)
@@ -300,12 +321,30 @@ export const AgentLayoutBody = ({
         if (content && !mounted.has(content)) setMounted(new Set(mounted).add(content))
     }, [content, mounted])
 
-    const isFiles = content === "files"
+    // The last content stays drawn while the pane slides out, so it leaves with its content. Set
+    // during render: an effect would leave one frame with no pane, and the close would jump.
+    const [leaving, setLeaving] = useState<PanelContent | null>(null)
+    const [prevContent, setPrevContent] = useState(content)
+    if (content !== prevContent) {
+        setPrevContent(content)
+        const reduced =
+            typeof window !== "undefined" &&
+            window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        setLeaving(content === null && !reduced ? prevContent : null)
+    }
+    useEffect(() => {
+        if (!leaving) return undefined
+        const timer = window.setTimeout(() => setLeaving(null), PANEL_EXIT_MS)
+        return () => window.clearTimeout(timer)
+    }, [leaving])
+    const shown = content ?? leaving
+
+    const isFiles = shown === "files"
 
     const panelBody = (
         <>
             {mounted.has("files") || isFiles ? (
-                <div className={isFiles ? "flex h-full min-h-0 flex-col" : "hidden"}>
+                <div className={isFiles ? "ag-view-enter flex h-full min-h-0 flex-col" : "hidden"}>
                     {/* On a phone Files covers the session: the phone header returns to it. */}
                     {phone ? (
                         <PhoneScreenHeader
@@ -320,9 +359,9 @@ export const AgentLayoutBody = ({
                                 scope={filesScope}
                                 sessionId={sessionId}
                                 onSelectionChange={driveLink.onSelectionChange}
-                                // The header icon closes it on desktop, the phone header on a
-                                // phone.
-                                closeControl="none"
+                                // An X like the other pane contents on desktop; the phone
+                                // header's back on a phone.
+                                closeControl={phone ? "none" : "panel"}
                                 // Expand is the panel's widen, as in a wide Configuration view.
                                 expanded={!phone && wide}
                                 // A phone has no wider pane.
@@ -335,7 +374,11 @@ export const AgentLayoutBody = ({
                 </div>
             ) : null}
             {canConfigure && (mounted.has("configuration") || content === "configuration") ? (
-                <div className={content === "configuration" ? "h-full min-h-0" : "hidden"}>
+                <div
+                    className={
+                        shown === "configuration" ? "ag-view-enter h-full min-h-0" : "hidden"
+                    }
+                >
                     <ConfigurationContent
                         key={agentId}
                         agentId={agentId!}
@@ -348,7 +391,7 @@ export const AgentLayoutBody = ({
                 </div>
             ) : null}
             {available.builder && (mounted.has("builder") || content === "builder") ? (
-                <div className={content === "builder" ? "h-full min-h-0" : "hidden"}>
+                <div className={shown === "builder" ? "ag-view-enter h-full min-h-0" : "hidden"}>
                     {/* No page session id goes into the builder: it runs its own chat (design D6). */}
                     <BuilderPanel
                         agentId={agentId!}
@@ -396,6 +439,7 @@ export const AgentLayoutBody = ({
                 </div>
                 <AgentPanelFrame
                     open={open}
+                    present={shown !== null}
                     mode={mode}
                     width={width}
                     resize={resize}
