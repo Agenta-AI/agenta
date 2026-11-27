@@ -8,3 +8,7 @@
  */
 
 export const cn = (...args: unknown[]) => args.filter(Boolean).join(" ")
+export const Avatar = () => null
+export const AvatarFallback = () => null
+export const getAvatarColorStyle = () => ({})
+export const getInitials = (name: string) => name.slice(0, 2).toUpperCase()
