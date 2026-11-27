@@ -228,6 +228,77 @@ describe("BarChart", () => {
         render(<BarChart title="Scores" height={200} series={twoRuns} data={data} />)
         expect(screen.queryByRole("img")).toBeNull()
     })
+
+    const rates = [
+        {category: "Exact match", values: {v: 0.63}},
+        {
+            category: "Relevance judge with a long name: a long metric name that is cut here",
+            values: {v: 0.8},
+        },
+    ]
+
+    it("A value label shows above each bar and in the tooltip", () => {
+        const {container} = render(
+            <BarChart
+                title="Metrics"
+                height={200}
+                series={[{key: "v", name: "Run"}]}
+                data={rates}
+                yMax={1}
+                valueLabel={(value) => `${Math.round(value * 100)}%`}
+            />,
+        )
+        const labels = Array.from(container.querySelectorAll("text[data-value-label]"))
+        expect(labels.map((label) => label.textContent)).toEqual(["63%", "80%"])
+        fireEvent.focus(screen.getByRole("img", {name: "Metrics"}))
+        expect(screen.getByRole("tooltip").textContent).toContain("Run: 63%")
+    })
+
+    it("Without a value label no text sits above the bars", () => {
+        const {container} = render(
+            <BarChart
+                title="Metrics"
+                height={200}
+                series={[{key: "v", name: "Run"}]}
+                data={rates}
+            />,
+        )
+        expect(container.querySelectorAll("text[data-value-label]")).toHaveLength(0)
+    })
+
+    it("Vertical labels show every category, turned 90 degrees, and add room under the plot", () => {
+        const {container} = render(
+            <BarChart
+                title="Metrics"
+                height={200}
+                series={[{key: "v", name: "Run"}]}
+                data={rates}
+                verticalLabels
+            />,
+        )
+        const turned = Array.from(container.querySelectorAll("text[transform^='rotate(-90']"))
+        expect(turned.map((label) => label.textContent)).toEqual([
+            "Exact match",
+            "Relevance judge with a long name: a long metric nam…",
+        ])
+        expect(Number(container.querySelector("svg")?.getAttribute("height"))).toBeGreaterThan(200)
+    })
+
+    it("A bar color overrides the series color for that bar only", () => {
+        const {container} = render(
+            <BarChart
+                title="Metrics"
+                height={200}
+                series={[{key: "v", name: "Run", color: "var(--data-1)"}]}
+                data={rates}
+                barColor={(category) => (category === "Exact match" ? "var(--data-2)" : undefined)}
+            />,
+        )
+        expect(bars(container, "v").map((bar) => bar.getAttribute("fill"))).toEqual([
+            "var(--data-2)",
+            "var(--data-1)",
+        ])
+    })
 })
 
 describe("ChartLegend", () => {
