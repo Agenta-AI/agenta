@@ -60,6 +60,23 @@ The "Passed" tile SHALL show the share of test cases whose binary values are all
 - **WHEN** a test set run is running
 - **THEN** the page sends no `scenario_ids: true` request, and sends one when the run finishes
 
+### Requirement: Failed test cases
+
+When the per-test-case rows are available, the Overview tab SHALL show the test cases that did not run (the application step reported an error) and the test cases an evaluator failed on (an evaluator step reported an error), and the "Passed" tile SHALL count only the test cases that ran.
+
+#### Scenario: Some test cases did not run
+- **WHEN** a run of 100 test cases has 6 where the application returned an error and 3 more where one evaluator failed
+- **THEN** an alert above the tiles says "6 of 100 test cases did not run, because the application returned an error. 3 more test cases have no result from one evaluator, because the evaluator failed." with a "Show test cases" link to the Scenarios tab
+- **AND** the "Test cases" tile shows "94 of 100" and "6 did not run", the "Passed" tile counts over the test cases that ran ("16 of 94 that ran"), and the "Errors" tile shows "9" with "6 runs, 3 evaluator"
+
+#### Scenario: A test case with no result in a row
+- **WHEN** an evaluator failed on a test case that ran
+- **THEN** that evaluator's binary bar has a striped "no result" part for it, and it counts as neither passed nor failed
+
+#### Scenario: No failures
+- **WHEN** no step reported an error, or the per-test-case rows are not available
+- **THEN** the page shows no alert, and the "Test cases" and "Errors" tiles show the run-level values
+
 ### Requirement: One table row per evaluator
 
 The Overview tab SHALL show one table row per run step of type `annotation`, and every metric of that step SHALL be inside its row, one metric per output property, never merged.

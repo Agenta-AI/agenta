@@ -58,7 +58,7 @@ export function useCompareOverview(runIds: readonly string[]): CompareRunOvervie
                     slot,
                     header,
                     references,
-                    // Text metrics wait for the compare rebuild; the single-run table shows them.
+                    // Text metrics stay out of compare, as they do in the single-run table.
                     metrics: catalog
                         .filter(
                             (entry) =>

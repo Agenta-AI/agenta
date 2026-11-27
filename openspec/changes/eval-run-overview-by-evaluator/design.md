@@ -185,6 +185,12 @@ Up to six tiles, in this order.
 - A value that is not there shows "—", and "…" while it loads, as today (`M/overview/runSummaryRows.tsx:45-46`).
 - An online run labels the first tile "Traces", and its cost, duration and tokens lines say "per trace, average".
 
+Failed test cases (decision page question 5, built as the recommended option A; still open with Mahmoud):
+
+- The same per-test-case rows give the errors metric of each step for each test case. A test case "did not run" when an application step reported an error. An evaluator "failed" on a test case that ran when that evaluator step reported an error. The application steps are the steps with invocation metrics that are not evaluator steps.
+- When there is at least one such test case: a red alert above the tiles with the two counts and a "Show test cases" link to the Scenarios tab (the link does not filter the table); the "Test cases" tile shows "{ran} of {total}" and "{n} did not run"; "Passed" counts only the test cases that ran ("{passed} of {ran} that ran"); the "Errors" tile shows the failed test cases with "{runs} runs, {evaluator} evaluator", as on the canvas page "run with failed test cases". Each row shows a striped "no result" part for the test cases its evaluator failed on.
+- Without failures, or without the per-test-case rows, the tiles keep the run-level values above and no alert shows.
+
 ### 7. The meta line under the title
 
 | Option | Trade-off |

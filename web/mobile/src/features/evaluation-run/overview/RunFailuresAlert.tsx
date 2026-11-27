@@ -36,7 +36,7 @@ export const RunFailuresAlert = ({failures}: {failures: RunFailures}) => {
                     replace
                     className="text-label text-link no-underline hover:underline"
                 >
-                    {t("evaluations.runOverview.showFailed")}
+                    {t("evaluations.runOverview.showTestCases")}
                 </Link>
             }
         />

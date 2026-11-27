@@ -1,6 +1,6 @@
 import {useEffect} from "react"
 
-import {isAggregatableMetric, type EvaluatorRow} from "@agenta/entities/evaluationRun"
+import {isAggregatableMetric, metricKind, type EvaluatorRow} from "@agenta/entities/evaluationRun"
 import {useT} from "@agenta/i18n"
 import runOverviewCatalog from "@agenta/i18n/catalogs/evaluations.runOverview"
 import evaluationScreensCatalog from "@agenta/i18n/catalogs/evaluations.screens"
@@ -48,7 +48,10 @@ export const EvaluatorResultsSection = ({
     onRetry?: () => void
 }) => {
     const t = useT(evaluationScreensCatalog, annotateCatalog, runOverviewCatalog)
-    const evaluatorMetrics = metrics.filter((metric) => metric.kind === "evaluator")
+    // Text metrics have no row, so a run with only text metrics gets the empty state.
+    const evaluatorMetrics = metrics.filter(
+        (metric) => metric.kind === "evaluator" && metricKind(metric.stats) !== "text",
+    )
 
     useEffect(() => {
         if (error) console.error("[RunOverview] metrics failed to load", error)

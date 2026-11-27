@@ -1,6 +1,6 @@
 /**
- * Every per-test-case metric row of one run, read once the run has finished. It feeds only the
- * "Passed" tile of the overview. It does not poll: a running run would send a large request every
+ * Every per-test-case metric row of one run, read once the run has finished. It feeds the
+ * "Passed" tile and the failed test cases of the overview. It does not poll: a running run would send a large request every
  * few seconds. Online runs never read it (one row per trace, no upper bound).
  *
  * @packageDocumentation

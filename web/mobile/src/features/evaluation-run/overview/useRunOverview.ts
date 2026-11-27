@@ -75,7 +75,7 @@ export function useOverviewNames(ids: OverviewNameIds): OverviewNames {
 }
 
 /**
- * The per-test-case rows behind the "Passed" tile. They load once the run has finished; a running
+ * The per-test-case rows behind the "Passed" tile and the failed test cases. They load once the run has finished; a running
  * or online run never reads them, so they are not available there.
  */
 export type ScenarioMetricsState =
@@ -90,18 +90,15 @@ export function useRunOverview(runId: string) {
     const catalog = useAtomValue(runMetricCatalogAtomFamily(runId))
     const scenarioQuery = useAtomValue(runScenarioMetricsQueryAtomFamily(runId))
 
+    // Only the evaluator names: the test set, application and variant are in the header's meta line.
     const names = useOverviewNames({
         evaluatorIds: [
             ...catalog.flatMap((entry) => entry.evaluatorId ?? []),
             ...(references?.evaluators.map((evaluator) => evaluator.evaluatorId) ?? []),
         ],
-        testsetIds: references?.testsets.map((testset) => testset.testsetId) ?? [],
-        testsetRevisionIds:
-            references?.testsets.map((testset) =>
-                testset.version === null ? (testset.revisionId ?? "") : "",
-            ) ?? [],
-        applicationId: references?.applicationId ?? null,
-        revisionId: references?.revisionId ?? null,
+        testsetIds: [],
+        applicationId: null,
+        revisionId: null,
     })
 
     const metrics = useMemo<OverviewMetric[]>(

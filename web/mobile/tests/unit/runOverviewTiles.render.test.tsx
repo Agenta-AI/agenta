@@ -167,6 +167,13 @@ describe("run overview tiles", () => {
         expect(tile("cost")).toContain("per trace, average")
     })
 
+    it("An online run with only its latest time bucket shows no trace count", () => {
+        const bucketOnly = INVOCATION.map((metric) => ({...metric, statsAreRunWide: false}))
+        render(view({metrics: bucketOnly, kind: "online"}))
+        expect(tile("testCases")).toMatch(/^Traces—/)
+        expect(tile("cost")).toBe("Cost—per trace, average")
+    })
+
     it("Failed test cases show the alert, the ran count and the no result part of a cell", () => {
         const errors = (sum: number) => ({
             "attributes.ag.metrics.errors.cumulative": {type: "numeric/continuous", sum},
@@ -195,10 +202,10 @@ describe("run overview tiles", () => {
             "1 of 3 test cases did not run, because the application returned an error.",
         )
         expect(alert).toContain(
-            "1 more test cases have no result from one evaluator, because the evaluator failed.",
+            "1 more test case has no result from one evaluator, because the evaluator failed.",
         )
         expect(alert).toContain("A test case that did not run counts as neither passed nor failed.")
-        expect(host.querySelector('[role="alert"] a')?.textContent).toBe("Show failed test cases")
+        expect(host.querySelector('[role="alert"] a')?.textContent).toBe("Show test cases")
         expect(tile("testCases")).toBe("Test cases2 of 31 did not run")
         expect(tile("passed")).toContain("1 of 1 that ran")
         expect(tile("errors")).toBe("Errors21 runs, 1 evaluator")
@@ -298,5 +305,20 @@ describe("evaluator table", () => {
             "emptyNo results yet",
         )
         expect(host.querySelector('[data-testid="evaluator-notes"]')).toBeNull()
+    })
+
+    it("A run whose evaluators report only text metrics shows the empty state, not an empty table", () => {
+        render(
+            view({
+                metrics: [
+                    evaluatorMetric("attributes.ag.data.outputs.reason", {
+                        type: "string",
+                        count: 4,
+                    }),
+                ],
+            }),
+        )
+        expect(host.textContent).toContain("No metric values generated")
+        expect(host.querySelector('[data-testid^="evaluator-"]')).toBeNull()
     })
 })
