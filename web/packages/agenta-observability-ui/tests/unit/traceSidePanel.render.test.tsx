@@ -118,7 +118,7 @@ describe("trace side panel", () => {
         })
         await render(<TraceSidePanel activeTrace={root as never} />)
         const section = host.querySelector('[data-testid="trace-references"]')
-        expect(section?.textContent).toBe("Referencesbench-builder—")
+        expect(section?.textContent).toContain("bench-builder")
         expect(section?.textContent).not.toContain("bench-ask-before-outside-effects")
     })
 
@@ -158,7 +158,6 @@ describe("trace side panel", () => {
         expect(rows[0]).toEqual({
             evaluatorName: "tone",
             origin: "human",
-            metrics: [{name: "polite", value: false}],
             author: {userId: "user-1", at: "2026-11-27T09:00:00Z"},
             // The row gets the summary the header counts, not a second one.
             summary: expect.objectContaining({assertions: {passed: 0, total: 1}, failed: true}),

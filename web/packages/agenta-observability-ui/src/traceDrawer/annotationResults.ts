@@ -31,7 +31,6 @@ export interface AnnotationResultRowProps {
     evaluatorName: string
     /** How the annotation was made: `auto`, `human` or `custom`; null when not stored. */
     origin: string | null
-    metrics: AnnotationResultMetric[]
     author: AnnotationResultAuthor
     /**
      * The row rule's summary, with each kind read from the value (no run catalog here). The
@@ -43,6 +42,8 @@ export interface AnnotationResultRowProps {
 export interface AnnotationResult extends AnnotationResultRowProps {
     /** Unique in one span. */
     key: string
+    /** The metrics the summary is built from. */
+    metrics: AnnotationResultMetric[]
 }
 
 /** The Annotations header: the evaluator count and, with binary metrics, the passed count. */

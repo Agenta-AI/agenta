@@ -31,8 +31,8 @@ const Cell = ({label, children, wide}: {label: string; children: ReactNode; wide
 
 /**
  * The span's numbers in the side panel: label over value, two columns. A token breakdown (input,
- * cache read, cache write, output) is the shared `TokenBreakdownList`. A span with no cost or tokens draws no cell for them, and a running span
- * shows "Running" and no end.
+ * cache read, cache write, output) is the shared `TokenBreakdownList`. A span with no cost or
+ * tokens draws no cell for them, and a running span shows "Running" and no end.
  */
 const SpanMetricsGrid = ({span}: {span: TraceSpanNode}) => {
     const t = useT(drawerCatalog, valueViewCatalog)

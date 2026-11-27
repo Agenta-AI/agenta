@@ -32,7 +32,7 @@ describe("annotationResults", () => {
         expect(annotationResultsHeader(results).evaluators).toBe(1)
     })
 
-    it("gives one result per evaluator and origin, with its metrics and notes", () => {
+    it("gives one result per annotation, with its metrics and notes", () => {
         const results = annotationResults(
             [
                 annotation("faithfulness", "auto", {

@@ -66,7 +66,6 @@ export const SpanAnnotations = ({annotations}: {annotations: AnnotationDto[]}) =
                             key={result.key}
                             evaluatorName={result.evaluatorName}
                             origin={result.origin}
-                            metrics={result.metrics}
                             author={result.author}
                             summary={result.summary}
                         />
