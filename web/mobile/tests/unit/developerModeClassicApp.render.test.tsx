@@ -52,7 +52,8 @@ vi.mock("@agenta/ui/ui", async (importOriginal) => ({
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
-const BETA = "Use new beta developer mode"
+const CLASSIC_APP = "Use classic app (will be deprecated)"
+const OLD_BETA = "Use new beta developer mode"
 const assign = vi.fn()
 
 /** What /m's app shell mounts on every page (`ContextSync`). */
@@ -81,25 +82,29 @@ let root: Root | undefined
 let host: HTMLDivElement | undefined
 
 /**
- * Signs `u1` in with Developer Mode on or off as an explicit choice, and the beta switch as
- * stored, then renders the Preferences tab beside the cookie sync. `offered` is the deployment's
- * `AGENTA_BETA_DEVELOPER_MODE`, as `__env.js` carries it.
+ * Signs `u1` in with Developer Mode on or off as an explicit choice, and the "Use classic app"
+ * switch as stored, then renders the Preferences tab beside the cookie sync.
  */
 const renderPreferences = ({
     developerMode,
+    classicApp,
     beta,
     cookie,
-    offered = true,
 }: {
     developerMode: boolean
-    beta: boolean
+    classicApp?: boolean
+    /** The old "Use new beta developer mode" value, which nothing reads any more. */
+    beta?: boolean
     cookie?: "0" | "1"
-    offered?: boolean
 }) => {
     vi.stubGlobal("location", {...window.location, assign})
-    vi.stubGlobal("__env", offered ? {NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE: "true"} : {})
     if (cookie) document.cookie = `${CLASSIC_MODE_COOKIE}=${cookie}; path=/`
-    localStorage.setItem("agenta:settings:u1:beta-developer-mode", JSON.stringify(beta))
+    if (classicApp !== undefined) {
+        localStorage.setItem("agenta:settings:u1:classic-app", JSON.stringify(classicApp))
+    }
+    if (beta !== undefined) {
+        localStorage.setItem("agenta:settings:u1:beta-developer-mode", JSON.stringify(beta))
+    }
     const store = createStore()
     store.set(activeUserIdAtom, "u1")
     store.set(navSimplifiedOverrideAtom, !developerMode)
@@ -128,10 +133,11 @@ afterEach(() => {
     assign.mockReset()
 })
 
-describe("with Developer Mode and beta developer mode on", () => {
+describe("with Developer Mode on and the classic app off (the default)", () => {
     it("turns on every developer view and lists each page in the nav", () => {
-        const {store, switchFor} = renderPreferences({developerMode: true, beta: true})
-        expect(switchFor(BETA)!.getAttribute("aria-checked")).toBe("true")
+        const {store, switchFor} = renderPreferences({developerMode: true})
+        expect(switchFor(CLASSIC_APP)!.getAttribute("aria-checked")).toBe("false")
+        expect(switchFor(OLD_BETA)).toBeNull()
         expect(store.get(enabledDeveloperViewsAtom)).toEqual(TEST_DEVELOPER_VIEWS)
 
         const [section] = developerNavItems("/p", store.get(enabledDeveloperViewsAtom)!)
@@ -139,37 +145,53 @@ describe("with Developer Mode and beta developer mode on", () => {
     })
 
     it("stays in /m: the gate cookie says 0, so the next load of /m is not sent to /w", () => {
-        renderPreferences({developerMode: true, beta: true, cookie: "1"})
+        renderPreferences({developerMode: true, cookie: "1"})
         expect(readGateCookie()).toBe("0")
         expect(nextLoadOfM()).toEqual({kind: "pass"})
         expect(assign).not.toHaveBeenCalled()
     })
 
-    it("turning beta on stays in /m", () => {
-        const {switchFor} = renderPreferences({developerMode: true, beta: false, cookie: "1"})
+    it("ignores the old beta developer mode value", () => {
+        const {store} = renderPreferences({developerMode: true, beta: false})
+        expect(readGateCookie()).toBe("0")
+        expect(store.get(enabledDeveloperViewsAtom)).toEqual(TEST_DEVELOPER_VIEWS)
+    })
+
+    it("turning Developer Mode on stays in /m", () => {
+        const {switchFor} = renderPreferences({developerMode: false})
+        expect(switchFor(CLASSIC_APP)).toBeNull()
+        act(() => switchFor("Developer mode")!.click())
+        expect(assign).not.toHaveBeenCalled()
+        expect(readGateCookie()).toBe("0")
+        expect(switchFor(CLASSIC_APP)).not.toBeNull()
+    })
+
+    it("turning the classic app off again stays in /m", () => {
+        const {switchFor} = renderPreferences({developerMode: true, classicApp: true, cookie: "1"})
         expect(nextLoadOfM().kind).toBe("redirect")
 
-        act(() => switchFor(BETA)!.click())
+        act(() => switchFor(CLASSIC_APP)!.click())
         expect(assign).not.toHaveBeenCalled()
         expect(readGateCookie()).toBe("0")
         expect(nextLoadOfM()).toEqual({kind: "pass"})
     })
 })
 
-describe("with beta developer mode off", () => {
-    it("turning beta off sends the user to /w with Developer Mode on", () => {
-        const {store, switchFor} = renderPreferences({developerMode: true, beta: true})
-        act(() => switchFor(BETA)!.click())
+describe("with the classic app on", () => {
+    it("turning it on sends the user to /w with Developer Mode on", () => {
+        const {store, switchFor} = renderPreferences({developerMode: true})
+        act(() => switchFor(CLASSIC_APP)!.click())
         expect(assign).toHaveBeenCalledWith("/w")
         expect(readGateCookie()).toBe("1")
         expect(localStorage.getItem("agenta:onboarding:u1:nav-simplified-override")).toBe("false")
+        expect(localStorage.getItem("agenta:settings:u1:classic-app")).toBe("true")
         expect(store.get(enabledDeveloperViewsAtom)).toEqual([])
     })
-})
 
-describe("when the deployment does not offer beta developer mode", () => {
-    it("publishes 1 for Developer Mode with beta stored on, so /m sends the user to /w", () => {
-        renderPreferences({developerMode: true, beta: true, offered: false})
+    it("turning Developer Mode on sends the user to /w", () => {
+        const {switchFor} = renderPreferences({developerMode: false, classicApp: true})
+        act(() => switchFor("Developer mode")!.click())
+        expect(assign).toHaveBeenCalledWith("/w")
         expect(readGateCookie()).toBe("1")
         expect(nextLoadOfM()).toEqual({kind: "redirect", location: "/w"})
     })

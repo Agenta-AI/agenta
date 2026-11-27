@@ -37,12 +37,12 @@ vi.mock("@agenta/ui/ui", async (importOriginal) => ({
 
 /**
  * The same structure the /m Preferences tab test asserts: the two apps must not drift. This user
- * has Developer Mode on (the default here), so the beta developer mode switch shows under it.
+ * has Developer Mode on (the default here), so the "Use classic app" switch shows under it.
  */
 const EXPECTED_STRUCTURE = [
     {
-        title: "Feature Flags",
-        rows: ["Developer Mode", "Use new beta developer mode"],
+        title: "Feature flags",
+        rows: ["Developer mode", "Use classic app (will be deprecated)"],
     },
     {title: "Debugging", rows: ["Playground inspector", "Channel debug", "Agenta channel probe"]},
 ]
@@ -52,8 +52,6 @@ describe("Settings > Preferences", () => {
     let host: HTMLDivElement
 
     beforeEach(() => {
-        // The deployment offers beta developer mode (`AGENTA_BETA_DEVELOPER_MODE=true`).
-        vi.stubGlobal("__env", {NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE: "true"})
         host = document.createElement("div")
         document.body.append(host)
         root = createRoot(host)
@@ -91,7 +89,7 @@ describe("Settings > Preferences", () => {
 
     it("stores Developer Mode on the existing classic-mode key", () => {
         const developerMode = host.querySelector<HTMLButtonElement>(
-            '[role=switch][aria-label="Developer Mode"]',
+            '[role=switch][aria-label="Developer mode"]',
         )!
         act(() => developerMode.click())
         expect(localStorage.getItem("agenta:onboarding:u1:nav-simplified-override")).toBe("true")
