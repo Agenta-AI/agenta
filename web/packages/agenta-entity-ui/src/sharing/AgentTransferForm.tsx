@@ -129,16 +129,19 @@ export const AgentTransferForm = ({
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>{copy.transferTo(name)}</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            {isPrivate
-                                ? copy.transferPrivateWarning(name)
-                                : copy.transferShared(name)}
+                        {/* One description, so the dialog announces both warnings of a private agent. */}
+                        <AlertDialogDescription asChild>
+                            <div className="flex flex-col gap-2">
+                                <p className="m-0">
+                                    {isPrivate
+                                        ? copy.transferPrivateWarning(name)
+                                        : copy.transferShared(name)}
+                                </p>
+                                {isPrivate ? (
+                                    <p className="m-0">{copy.transferPrivateChats}</p>
+                                ) : null}
+                            </div>
                         </AlertDialogDescription>
-                        {isPrivate ? (
-                            <AlertDialogDescription>
-                                {copy.transferPrivateChats}
-                            </AlertDialogDescription>
-                        ) : null}
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel disabled={saving}>{copy.cancel}</AlertDialogCancel>
