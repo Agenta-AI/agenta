@@ -5,11 +5,12 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import uiTableCatalog from "@agenta/i18n/catalogs/ui.table"
 import {Copy, DotsThreeVertical, DownloadSimple} from "@phosphor-icons/react"
 
+import {CopyTooltip} from "../../components/composed/copy-tooltip"
 import {SimpleTooltip} from "../../components/composed/simple-tooltip"
-import {InitialsAvatar} from "../../components/presentational/avatar"
-import {CopyButton} from "../../components/presentational/CopyButton"
+import {getAvatarColorStyle, getInitials} from "../../components/presentational/avatar"
 import {StatusIndicator, type StatusTone} from "../../components/presentational/status"
 import {Tag, type TagProps} from "../../components/presentational/tag"
+import {Avatar, AvatarFallback} from "../../components/ui/avatar"
 import {Button} from "../../components/ui/button"
 import {
     DropdownMenu,
@@ -373,16 +374,20 @@ function createSlugColumn<T extends InfiniteTableRowBase>(def: SlugColumnDef<T>)
                     <span className="font-mono text-code-sm truncate" title={text}>
                         {text}
                     </span>
-                    <CopyButton
-                        text={text}
-                        buttonText={null}
-                        icon
-                        stopPropagation
-                        size="icon-sm"
-                        variant="ghost"
-                        className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
+                    <CopyTooltip
+                        copyText={text}
+                        title={tNow("common.copy")}
                         successMessage={`${title} copied`}
-                    />
+                    >
+                        <Button
+                            size="icon-sm"
+                            variant="ghost"
+                            aria-label={tNow("common.copy")}
+                            className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
+                        >
+                            <Copy size={14} />
+                        </Button>
+                    </CopyTooltip>
                 </div>
             )
         },
@@ -414,7 +419,11 @@ function createEntityColumn<T extends InfiniteTableRowBase>(def: EntityColumnDef
             const chips = getChips?.(record) ?? []
             return (
                 <div className="h-full flex items-center gap-2 min-w-0">
-                    {hideAvatar ? null : <InitialsAvatar size="small" name={name} />}
+                    {hideAvatar ? null : (
+                        <Avatar size="small" style={getAvatarColorStyle(name)}>
+                            <AvatarFallback>{getInitials(name)}</AvatarFallback>
+                        </Avatar>
+                    )}
                     <span className="truncate" title={name}>
                         {name}
                     </span>

@@ -23,13 +23,8 @@ export {LoadAllButton, LoadAllInline} from "./LoadAllButton"
 export type {LoadAllButtonProps, LoadAllInlineProps} from "./LoadAllButton"
 
 // Breadcrumb
-export {Breadcrumb, EntityBreadcrumb} from "./Breadcrumb"
-export type {
-    BreadcrumbProps,
-    EntityBreadcrumbProps,
-    BreadcrumbPathItem,
-    SelectionPathItem,
-} from "./Breadcrumb"
+export {EntityBreadcrumb} from "./EntityBreadcrumb"
+export type {EntityBreadcrumbProps, BreadcrumbPathItem} from "./EntityBreadcrumb"
 
 // Searchable list
 export {SearchableList} from "./SearchableList"

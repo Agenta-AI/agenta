@@ -1,12 +1,12 @@
 import {useCallback, useEffect, useLayoutEffect, useId, useMemo, useRef, useState} from "react"
 
 import {createT, useT, type CatalogKey} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import spanCatalog from "@agenta/i18n/catalogs/observabilityUi.traceSpan"
 import {messagesToText} from "@agenta/observability/traceDrawer"
 import {sanitizeDataWithBlobUrls} from "@agenta/shared/utils"
 import {getStringOrJson} from "@agenta/shared/utils"
-import {CopyButton} from "@agenta/ui/components/presentational"
-import {Segmented, SimpleTooltip} from "@agenta/ui/composed"
+import {CopyTooltip, Segmented, SimpleTooltip} from "@agenta/ui/composed"
 import {
     Editor as EditorWrapper,
     EditorProvider,
@@ -238,7 +238,7 @@ const AccordionTreePanel = ({
     defaultCollapsed = false,
     ...props
 }: AccordionTreePanelProps) => {
-    const t = useT(spanCatalog)
+    const t = useT(spanCatalog, commonCatalog)
 
     const {PrettyJsonView: PrettyJsonViewSlot} = getTraceDrawerReferences()
     const editorRef = useRef<HTMLDivElement>(null)
@@ -534,13 +534,19 @@ const AccordionTreePanel = ({
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                     ))}
-                                <CopyButton
-                                    text={copyText}
-                                    icon={true}
-                                    buttonText={null}
-                                    stopPropagation
-                                    size="icon-sm"
-                                />
+                                <CopyTooltip
+                                    copyText={copyText}
+                                    title={t("common.copy")}
+                                    successMessage={t("common.copiedToClipboard")}
+                                >
+                                    <Button
+                                        variant="outline"
+                                        size="icon-sm"
+                                        aria-label={t("common.copy")}
+                                    >
+                                        <CopyIcon size={14} />
+                                    </Button>
+                                </CopyTooltip>
                             </div>
                         </div>
                     </div>

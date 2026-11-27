@@ -44,11 +44,8 @@ import type {
 import {createT, useT} from "@agenta/i18n"
 import entityTableCatalog from "@agenta/i18n/catalogs/entityUi.entityTable"
 import {SmartCellContent} from "@agenta/ui/cell-renderers"
-import {
-    CollapsibleGroupHeader,
-    LoadingSkeleton,
-    TableEmptyState,
-} from "@agenta/ui/components/presentational"
+import {CollapsibleGroupHeader, TableEmptyState} from "@agenta/ui/components/presentational"
+import {SkeletonRows} from "@agenta/ui/composed"
 import {useSelectionState} from "@agenta/ui/hooks"
 import {bgColors, cn} from "@agenta/ui/styles"
 import {
@@ -662,7 +659,7 @@ export function EntityTable<
 
     // Loading state
     if (isLoading && rows.length === 0) {
-        return <LoadingSkeleton variant="paragraph" rows={loadingRows} />
+        return <SkeletonRows count={loadingRows} />
     }
 
     // Empty state

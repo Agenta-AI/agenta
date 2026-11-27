@@ -9,7 +9,6 @@ src/
 ├── components/              # Reusable UI components
 │   ├── selection/           # Selection UI (search, lists, pagination)
 │   ├── presentational/      # Pure display components (badges, labels, etc.)
-│   ├── modal/               # Modal layout components
 │   ├── EnhancedModal.tsx    # Modal wrapper with lazy rendering
 │   └── README.md
 ├── ChatMessage/             # Chat message editing components
@@ -70,19 +69,15 @@ Pure display components for entity information:
 - **RevisionLabel**: Revision details (version, date, message, author)
 - **EntityPathLabel**: Hierarchical paths ("App / Variant / v1")
 - **EntityNameWithVersion**: Entity name with version badge
-- **CopyButton**: Copy to clipboard with visual feedback
 - **SectionCard/ConfigBlock**: Section layout primitives
 - **MetadataHeader**: Label/value metadata display
 - **EditableText**: Inline editable text
 - **ExecutionMetricsDisplay**: Display latency, tokens, and cost metrics
 - **MappingStatusTag**: Mapping status indicator (auto, manual, missing, etc.)
-- **PathSelectorDropdown**: Path selection dropdown with source icons
 
-#### Modal Components (`components/modal/`)
+#### Modal Components
 
 - **EnhancedModal**: Modal wrapper with lazy rendering, auto-height
-- **ModalContent**: Standardized modal content layout
-- **ModalFooter**: Standardized modal footer with cancel/confirm
 
 ### ChatMessage
 
@@ -147,18 +142,14 @@ import {
     RevisionLabel,
     EntityPathLabel,
     EntityNameWithVersion,
-    CopyButton,
     SectionCard,
     MetadataHeader,
     EditableText,
     ExecutionMetricsDisplay,
     MappingStatusTag,
-    PathSelectorDropdown,
 
     // Modal
     EnhancedModal,
-    ModalContent,
-    ModalFooter,
 
     // Editor
     Editor,

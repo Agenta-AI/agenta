@@ -55,7 +55,8 @@ vi.mock("@agenta/ui/ui", () => {
         SelectValue: () => null,
     }
 })
-vi.mock("@agenta/ui/composed", () => {
+vi.mock("@agenta/ui/composed", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("@agenta/ui/composed")>()
     const Button = ({
         children,
         onClick,
@@ -75,6 +76,7 @@ vi.mock("@agenta/ui/composed", () => {
         )
     }
     return {
+        CopyTooltip: actual.CopyTooltip,
         EmptyState: ({
             title,
             description,

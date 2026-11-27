@@ -19,6 +19,7 @@ export {
 } from "./input-affix"
 export {CarouselDots, type CarouselDotsProps} from "./carousel-dots"
 export {SimpleTooltip, type SimpleTooltipProps} from "./simple-tooltip"
+export {CopyTooltip, type CopyTooltipProps, type CopyTooltipOverlayProps} from "./copy-tooltip"
 export {Divider, type DividerProps} from "./divider"
 export {Cascader, type CascaderOption, type CascaderProps} from "./cascader"
 export {

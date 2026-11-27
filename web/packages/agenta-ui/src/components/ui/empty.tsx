@@ -6,7 +6,7 @@ import {cn} from "./utils"
 
 /**
  * Empty — shadcn's composable empty state: Empty > EmptyHeader (EmptyMedia, EmptyTitle,
- * EmptyDescription) + EmptyContent. `EmptyState`/`EmptyPlaceholder` are the antd-shaped facades.
+ * EmptyDescription) + EmptyContent. Composed `EmptyState` is the antd-shaped facade.
  */
 function Empty({className, ...props}: React.ComponentProps<"div">) {
     return (

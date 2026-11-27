@@ -77,33 +77,14 @@ export {
     type SectionIndicatorTone,
 } from "./section"
 
-// ============================================================================
-// COPY BUTTON
-// ============================================================================
-
-export {CopyButton, type CopyButtonProps} from "./CopyButton"
-
-// ============================================================================
-// ENHANCED BUTTON
-// ============================================================================
-
-export {default as EnhancedButton, type EnhancedButtonProps} from "./EnhancedButton"
-export {default as EmptyPlaceholder, type EmptyPlaceholderProps} from "./EmptyPlaceholder"
-export {default as EmptyState, type EmptyStateProps} from "./EmptyState"
+export {VideoEmptyState, type VideoEmptyStateProps} from "./VideoEmptyState"
 export {LogoMarks, type LogoMark, type LogoMarksProps} from "./logo-marks"
 
 // ============================================================================
 // SELECT COMPONENTS
 // ============================================================================
 
-export {
-    SimpleDropdownSelect,
-    PathSelectorDropdown,
-    type SimpleDropdownSelectProps,
-    type DropdownMenuItem,
-    type PathSelectorDropdownProps,
-    type PathSelectorItem,
-} from "./select"
+export {SimpleDropdownSelect, type SimpleDropdownSelectProps, type DropdownMenuItem} from "./select"
 
 // ============================================================================
 // METADATA COMPONENTS
@@ -206,12 +187,7 @@ export {
 // SKELETON COMPONENTS
 // ============================================================================
 
-export {
-    AgentSectionCardsSkeleton,
-    AgentSectionRowsSkeleton,
-    LoadingSkeleton,
-    type LoadingSkeletonProps,
-} from "./skeleton"
+export {AgentSectionCardsSkeleton, AgentSectionRowsSkeleton} from "./skeleton"
 
 // ============================================================================
 // LAYOUT COMPONENTS
@@ -272,13 +248,7 @@ export {FormattedDate, type FormattedDateProps} from "./FormattedDate"
 // AVATAR COMPONENTS
 // ============================================================================
 
-export {
-    InitialsAvatar,
-    getColorPairFromStr,
-    getInitials,
-    type InitialsAvatarProps,
-    type ColorPair,
-} from "./avatar"
+export {getAvatarColorStyle, getColorPairFromStr, getInitials, type ColorPair} from "./avatar"
 
 // ============================================================================
 // BUTTON COMPONENTS

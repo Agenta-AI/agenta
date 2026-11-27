@@ -5,18 +5,17 @@ import {Meta} from "@storybook/addon-docs/blocks"
 # Presentational · Buttons
 
 App-specific button compositions — a base button plus a fixed icon, label, tooltip, or
-behaviour (copy, run, scroll-to-top). They wrap the `@agenta/ui` **Button** primitive rather
+behaviour (run, scroll-to-top). They wrap the `@agenta/ui` **Button** primitive rather
 than reinventing it.
 
 | Component                | What it is                                                 |
 | ------------------------ | ---------------------------------------------------------- |
 | **RunButton**            | Run / rerun / cancel / run-all action (via a `mode` prop). |
 | **CollapseToggleButton** | Expand/collapse chevron toggle with tooltip.               |
-| **CopyButton**           | Copy-to-clipboard with copied feedback state.              |
 | **DropdownButton**       | Split button + attached dropdown menu.                     |
 | **ScrollToTopButton**    | Floating back-to-top control.                              |
 
-_Removed: **AddButton** (trivial `<Button variant="outline"><Plus/>…</Button>` — inlined at call-sites) and **CopyButtonDropdown** (misnamed pass-through with no consumers — deleted)._
+_Removed: **AddButton** (trivial `<Button variant="outline"><Plus/>…</Button>` — inlined at call-sites), **CopyButtonDropdown** (misnamed pass-through with no consumers — deleted) and **CopyButton** (merged into **CopyTooltip** wrapping a `Button`)._
 
 **How to read these stories**
 

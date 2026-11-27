@@ -10,7 +10,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "The `@agenta/ui` Combobox — a searchable single-select with optional clear, loading, small and invalid states.\n\n**Used in:** 2 places, both inside `@agenta/ui` — `PathSelectorDropdown` (which itself has no call-sites) and the entity picker hierarchy-level select. No app file composes it directly.",
+                    "The `@agenta/ui` Combobox — a searchable single-select with optional clear, loading, small and invalid states.\n\n**Used in:** 1 place inside `@agenta/ui` — the entity picker hierarchy-level select. No app file composes it directly.",
             },
         },
     },

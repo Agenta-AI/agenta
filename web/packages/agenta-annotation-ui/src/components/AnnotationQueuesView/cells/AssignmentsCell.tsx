@@ -1,7 +1,8 @@
 import {memo, useMemo} from "react"
 
 import {useUserDisplayName} from "@agenta/entities/shared"
-import {InitialsAvatar} from "@agenta/ui"
+import {getAvatarColorStyle, getInitials} from "@agenta/ui/components/presentational"
+import {Avatar, AvatarFallback} from "@agenta/ui/ui"
 import {Tag, Tooltip, Typography} from "antd"
 
 /**
@@ -14,7 +15,9 @@ const UserTag = memo(function UserTag({userId}: {userId: string}) {
 
     return (
         <Tag className="!flex items-center gap-1.5 !pl-0.5">
-            <InitialsAvatar size={18} name={name} className="text-caption" />
+            <Avatar className="size-4.5 text-caption" style={getAvatarColorStyle(name)}>
+                <AvatarFallback>{getInitials(name)}</AvatarFallback>
+            </Avatar>
             {name}
         </Tag>
     )

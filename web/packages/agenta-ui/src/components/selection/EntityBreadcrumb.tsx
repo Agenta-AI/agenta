@@ -1,13 +1,13 @@
 /**
- * Breadcrumb Component
+ * EntityBreadcrumb Component
  *
  * Displays the current navigation path in a hierarchical selection.
  *
  * @example
  * ```tsx
- * import {Breadcrumb} from '@agenta/ui'
+ * import {EntityBreadcrumb} from '@agenta/ui/components/selection'
  *
- * <Breadcrumb
+ * <EntityBreadcrumb
  *   path={breadcrumb}
  *   onNavigate={navigateToLevel}
  *   rootLabel="All Apps"
@@ -42,7 +42,7 @@ export interface BreadcrumbPathItem {
     label: string
 }
 
-export interface BreadcrumbProps {
+export interface EntityBreadcrumbProps {
     /**
      * Current path items
      */
@@ -78,13 +78,13 @@ export interface BreadcrumbProps {
 /**
  * Breadcrumb navigation for hierarchical selection
  */
-export function Breadcrumb({
+export function EntityBreadcrumb({
     path,
     onNavigate,
     rootLabel: rootLabelProp,
     showHomeIcon = true,
     className,
-}: BreadcrumbProps) {
+}: EntityBreadcrumbProps) {
     const t = useT(navigationCatalog)
     const rootLabel = rootLabelProp ?? t("navigation.items.home")
     const items = [
@@ -134,8 +134,3 @@ export function Breadcrumb({
         </BreadcrumbRoot>
     )
 }
-
-// Also export with "Entity" prefix for backward compatibility
-export {Breadcrumb as EntityBreadcrumb}
-export type {BreadcrumbProps as EntityBreadcrumbProps}
-export type {BreadcrumbPathItem as SelectionPathItem}

@@ -10,7 +10,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "A loading placeholder with optional avatar, title and paragraph lines and an `active` shimmer. See the subcomponent tables below for `SkeletonAvatar` and `SkeletonBlock`.\n\n**Used in:** `Skeleton` in 3 places (`LoadingSkeleton`, the editor plugin fallback, and `SectionSkeleton` which is itself unused); `SkeletonBlock` in 2 (`LoadingSkeleton`, `ExecutionMetricsDisplay`); `SkeletonAvatar` only in `LoadingSkeleton`. `LoadingSkeleton` renders in exactly one place — the shared entity table.",
+                    "A loading placeholder with optional avatar, title and paragraph lines and an `active` shimmer. See the subcomponent tables below for `SkeletonAvatar` and `SkeletonBlock`.\n\n**Used in:** `Skeleton` in the editor plugin fallback and `SectionSkeleton`; `SkeletonBlock` in `SkeletonRows` (`@agenta/ui/composed`) and `ExecutionMetricsDisplay`.",
             },
         },
     },

@@ -7,9 +7,6 @@ import {afterEach, beforeEach, expect, it, vi} from "vitest"
 const {createApiKey} = vi.hoisted(() => ({createApiKey: vi.fn(async () => "NEW_KEY")}))
 vi.mock("@agenta/settings", () => ({createApiKey}))
 vi.mock("@agenta/ui/app-message", () => ({message: {success: vi.fn(), error: vi.fn()}}))
-vi.mock("@agenta/ui/components/presentational", () => ({
-    CopyButton: ({text}: {text: string}) => <button data-copy={text}>copy</button>,
-}))
 vi.mock("@agenta/ui/ui", () => ({
     Button: ({children, onClick}: React.ComponentProps<"button">) => (
         <button onClick={onClick}>{children}</button>
@@ -24,6 +21,7 @@ vi.mock("@agenta/ui/ui", () => ({
     }) => <button role="switch" aria-checked={checked} onClick={() => onCheckedChange(!checked)} />,
 }))
 vi.mock("@agenta/ui/composed", () => ({
+    CopyTooltip: ({children}: {children: React.ReactNode}) => <>{children}</>,
     LoadingButton: ({children, onClick}: React.ComponentProps<"button">) => (
         <button onClick={onClick}>{children}</button>
     ),

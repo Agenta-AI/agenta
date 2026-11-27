@@ -8,7 +8,7 @@ vi.mock("@agenta/entities/gatewayTrigger", () => ({
         references?: Record<string, {id?: string | null} | undefined> | null,
     ) => references?.application?.id ?? null,
 }))
-vi.mock("@agenta/ui", () => ({CopyButton: () => null}))
+vi.mock("@agenta/ui/composed", () => ({CopyTooltip: () => null}))
 vi.mock("@agenta/ui/ui", () => ({
     Badge: ({children}: {children: unknown}) => children,
     Button: ({children}: {children: unknown}) => children,

@@ -16,7 +16,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "The `@agenta/ui` Tooltip (Radix-based). Compose `Tooltip` > `TooltipTrigger` + `TooltipContent`. Prop tables for each part are below.\n\n**Used in:** 22 places — `CopyTooltip` plus nearly every presentational facade (`EnhancedButton`, `CollapseToggleButton`, `FieldHeader`, `MetadataHeader`, `FormattedDate`, `EditableText`, `FileAttachment`, `ExecutionMetricsDisplay`, `ConfigAccordionSection`, `Field`), the metric cell renderers, the editor token and markdown plugins, the LLM provider picker, and the drill-in toolbars.",
+                    "The `@agenta/ui` Tooltip (Radix-based). Compose `Tooltip` > `TooltipTrigger` + `TooltipContent`. Prop tables for each part are below.\n\n**Used in:** 22 places — `CopyTooltip` plus nearly every presentational facade (`CollapseToggleButton`, `FieldHeader`, `MetadataHeader`, `FormattedDate`, `EditableText`, `FileAttachment`, `ExecutionMetricsDisplay`, `ConfigAccordionSection`, `Field`), the metric cell renderers, the editor token and markdown plugins, the LLM provider picker, and the drill-in toolbars.",
             },
         },
     },

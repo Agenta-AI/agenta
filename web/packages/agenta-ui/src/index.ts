@@ -12,7 +12,7 @@
  *
  * ### Components
  * Reusable UI components including:
- * - Selection components (SearchInput, VirtualList, Breadcrumb, etc.)
+ * - Selection components (SearchInput, VirtualList, EntityBreadcrumb, etc.)
  * - Presentational components (VersionBadge, RevisionLabel, EntityPathLabel, etc.)
  * - Modal utilities (EnhancedModal)
  *
@@ -63,7 +63,7 @@ export {MarkdownPreview, type MarkdownPreviewProps} from "./MarkdownPreview"
 
 /**
  * All component exports including:
- * - Selection: SearchInput, ListItem, VirtualList, LoadMoreButton, LoadAllButton, Breadcrumb
+ * - Selection: SearchInput, ListItem, VirtualList, LoadMoreButton, LoadAllButton, EntityBreadcrumb
  * - Presentational: VersionBadge, RevisionLabel, EntityPathLabel, EntityNameWithVersion
  * - Modal: EnhancedModal
  */
@@ -280,7 +280,7 @@ export {useDefaultStoreAtomValue} from "./hooks"
 // COPY TOOLTIP - Tooltip with click-to-copy functionality
 // ============================================================================
 
-export {CopyTooltip, type CopyTooltipProps} from "./CopyTooltip"
+export {CopyTooltip, type CopyTooltipProps} from "./components/composed/copy-tooltip"
 
 // ============================================================================
 // CELL RENDERERS - Smart cell content rendering for tables

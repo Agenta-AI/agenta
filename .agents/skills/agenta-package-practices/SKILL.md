@@ -141,23 +141,18 @@ instead of raw antd `Modal` in package code. In `web/mobile`, and for new
 surfaces, compose `Dialog`/`Sheet` from `@agenta/ui/ui` directly.
 
 ```typescript
-import {EnhancedModal, ModalContent, ModalFooter} from "@agenta/ui"
+import {EnhancedModal} from "@agenta/ui"
 
-function MyModal({open, onClose}: {open: boolean; onClose: () => void}) {
+function MyModal({open, onClose, onConfirm}: MyModalProps) {
     return (
-        <EnhancedModal open={open} onCancel={onClose} title="Modal Title" footer={null}>
-            <ModalContent>{/* Main content */}</ModalContent>
-            <ModalFooter>
-                <Button onClick={onClose}>Cancel</Button>
-                <Button type="primary">Confirm</Button>
-            </ModalFooter>
+        <EnhancedModal open={open} onCancel={onClose} onOk={onConfirm} title="Modal Title">
+            {/* Main content */}
         </EnhancedModal>
     )
 }
 ```
 
-Why: consistent styling, proper scroll handling via `ModalContent`, standardized footer
-via `ModalFooter`, theme integration.
+Why: consistent styling, scroll handling inside the modal body, theme integration.
 
 ## Style utilities and presentational components
 

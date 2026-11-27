@@ -1,2 +1,1 @@
-export {InitialsAvatar, type InitialsAvatarProps} from "./InitialsAvatar"
-export {getColorPairFromStr, getInitials, type ColorPair} from "./utils"
+export {getAvatarColorStyle, getColorPairFromStr, getInitials, type ColorPair} from "./utils"

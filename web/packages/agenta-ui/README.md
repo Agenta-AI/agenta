@@ -31,8 +31,8 @@ import {
   SectionLabel,
   SectionHeaderRow,
   ConfigBlock,
-  // Copy button
-  CopyButton,
+  // Copy control (wrap a span, badge or copy-icon Button)
+  CopyTooltip,
 } from '@agenta/ui'
 
 // Import utilities

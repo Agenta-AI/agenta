@@ -31,6 +31,12 @@ export function getColorPairFromStr(value: string): ColorPair {
     return COLOR_PAIRS[index]
 }
 
+/** Inline fill + text colour for an initials `Avatar`, picked from the name. */
+export function getAvatarColorStyle(name: string): {backgroundColor: string; color: string} {
+    const pair = getColorPairFromStr(name || "")
+    return {backgroundColor: pair.backgroundColor, color: pair.textColor}
+}
+
 export function getInitials(name: string, limit = 2): string {
     try {
         return name

@@ -7,7 +7,7 @@ import clsx from "clsx"
 
 import {Button} from "../ui/button"
 
-export interface EmptyStateProps {
+export interface VideoEmptyStateProps {
     /** Cloudflare Stream video ID (preferred) */
     videoId?: string
     /** Fallback: URL to video (mp4) or image (gif/png/jpg) */
@@ -31,7 +31,7 @@ export interface EmptyStateProps {
 
 const VIDEO_ASPECT_RATIO = 16 / 9
 
-export const EmptyState = ({
+export const VideoEmptyState = ({
     videoId,
     previewUrl,
     previewAlt,
@@ -40,7 +40,7 @@ export const EmptyState = ({
     primaryCta,
     secondaryCta,
     className,
-}: EmptyStateProps) => {
+}: VideoEmptyStateProps) => {
     const [videoLoaded, setVideoLoaded] = useState(false)
     const [imageLoaded, setImageLoaded] = useState(false)
     const [loadError, setLoadError] = useState(false)
@@ -179,4 +179,4 @@ export const EmptyState = ({
     )
 }
 
-export default EmptyState
+export default VideoEmptyState
