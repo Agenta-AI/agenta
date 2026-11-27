@@ -6,6 +6,7 @@ import {detectValueShape} from "@agenta/shared/utils"
 import {cn, Segmented} from "@agenta/ui/ui"
 
 import {CopyValueButton, valueAsText} from "./CopyValueButton"
+import type {TurnActivity} from "./MessagesValue"
 import {ValueBody} from "./ValueField"
 
 /** The two modes of a full view. */
@@ -20,6 +21,8 @@ export interface ValueFullViewProps {
     label?: string
     defaultMode?: ValueViewMode
     className?: string
+    /** For a chat: the trace's tool steps per user exchange; Raw still shows the stored value. */
+    turnActivity?: TurnActivity[]
 }
 
 /**
@@ -32,6 +35,7 @@ export const ValueFullView = ({
     label,
     defaultMode = "formatted",
     className,
+    turnActivity,
 }: ValueFullViewProps) => {
     const t = useT(valueViewCatalog)
     const stateKey = useId()
@@ -70,7 +74,12 @@ export const ValueFullView = ({
                         {valueAsText(value)}
                     </pre>
                 ) : (
-                    <ValueBody value={value} unfolded stateKey={stateKey} />
+                    <ValueBody
+                        value={value}
+                        unfolded
+                        stateKey={stateKey}
+                        turnActivity={turnActivity}
+                    />
                 )}
             </div>
         </div>

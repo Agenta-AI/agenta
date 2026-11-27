@@ -4,6 +4,7 @@ import type {EvaluatorResultMetric, EvaluatorResultSummary} from "@agenta/entiti
 import {useT} from "@agenta/i18n"
 import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
 import {formatShapeNumber} from "@agenta/shared/utils"
+import {binaryWordKey, type BinaryWords} from "@agenta/ui/cell-renderers"
 import {Badge, Button, CollapseCaret, cn} from "@agenta/ui/ui"
 
 import {ValueField} from "./ValueField"
@@ -21,16 +22,28 @@ export interface EvaluatorResultRowProps {
     /** On expand, under the metrics: the step's duration, tokens and cost. */
     details?: ReactNode
     defaultOpen?: boolean
+    /** After the name: the origin word ("Human"). */
+    badge?: ReactNode
+    /** Under the row, shown closed too: the author and time ("By Dana, 2m ago"). */
+    byline?: ReactNode
+    /** `trueFalse` for a human evaluator: True / False, and never "X of Y passed". */
+    binaryWords?: BinaryWords
 }
 
 /** A metric value on the row or in the grid: Pass or Fail, a number, labels. */
-const MetricValue = ({metric}: {metric: EvaluatorResultMetric}) => {
+const MetricValue = ({
+    metric,
+    binaryWords,
+}: {
+    metric: EvaluatorResultMetric
+    binaryWords: BinaryWords
+}) => {
     const t = useT(valueViewCatalog)
     const {kind, value} = metric
     if (kind === "binary" && typeof value === "boolean") {
         return (
             <Badge variant={value ? "success" : "destructive"}>
-                {t(value ? "chat.valueView.pass" : "chat.valueView.fail")}
+                {t(binaryWordKey(value, binaryWords))}
             </Badge>
         )
     }
@@ -52,6 +65,13 @@ const MetricValue = ({metric}: {metric: EvaluatorResultMetric}) => {
     )
 }
 
+/** The first line of a closed row's first reason; none for a value that is not plain text. */
+const previewLine = (value: unknown): string | null => {
+    if (typeof value !== "string") return null
+    const line = value.trim().split("\n", 1)[0]?.trim()
+    return line && !/^[[{]/.test(line) ? line : null
+}
+
 /** A metric as plain text, the way `MetricValue` draws it: a list joined, no value as a dash. */
 const metricText = ({value}: EvaluatorResultMetric): string => {
     if (typeof value === "number") return formatShapeNumber(value)
@@ -59,8 +79,27 @@ const metricText = ({value}: EvaluatorResultMetric): string => {
     return Array.isArray(value) ? value.map(String).join(", ") : String(value)
 }
 
+const NamedMetric = ({
+    metric,
+    binaryWords,
+}: {
+    metric: EvaluatorResultMetric
+    binaryWords: BinaryWords
+}) => (
+    <span className="inline-flex items-center gap-1.5">
+        <span className="text-meta text-muted-foreground">{metric.name}</span>
+        <MetricValue metric={metric} binaryWords={binaryWords} />
+    </span>
+)
+
 /** What the collapsed row shows after the name. */
-const InlineMetrics = ({summary}: {summary: EvaluatorResultSummary}) => {
+const InlineMetrics = ({
+    summary,
+    binaryWords,
+}: {
+    summary: EvaluatorResultSummary
+    binaryWords: BinaryWords
+}) => {
     const t = useT(valueViewCatalog)
     const {inline} = summary
     if (summary.state === "pending") {
@@ -81,11 +120,21 @@ const InlineMetrics = ({summary}: {summary: EvaluatorResultSummary}) => {
     }
     if (inline.kind === "metrics") {
         return inline.metrics.map((metric) => (
-            <span key={metric.name} className="inline-flex items-center gap-1.5">
-                <span className="text-meta text-muted-foreground">{metric.name}</span>
-                <MetricValue metric={metric} />
-            </span>
+            <NamedMetric key={metric.name} metric={metric} binaryWords={binaryWords} />
         ))
+    }
+    // A human evaluator is not a pass count: its first two values, still green or red.
+    if (inline.kind === "passed" && binaryWords === "trueFalse") {
+        return (
+            <>
+                {summary.short.slice(0, 2).map((metric) => (
+                    <NamedMetric key={metric.name} metric={metric} binaryWords={binaryWords} />
+                ))}
+                <span className="text-meta text-muted-foreground">
+                    {t("chat.valueView.moreMetrics", {count: summary.short.length - 2})}
+                </span>
+            </>
+        )
     }
     if (inline.kind === "passed") {
         return (
@@ -119,8 +168,9 @@ const InlineMetrics = ({summary}: {summary: EvaluatorResultSummary}) => {
 /**
  * One evaluator of one test case or span as one row: its name, then its short metrics by their
  * own names, Pass or Fail only for true or false metrics. More than three short metrics read as
- * "X of Y passed" (or the first two and "+N more" with no binary metric) and open to a grid.
- * Reasons and JSON outputs show only on expand. Never red without a false metric or an error.
+ * "X of Y passed" (or the first two and "+N more" with no binary metric, or for a human
+ * evaluator) and open to a grid. A closed row shows the first line of its first reason; reasons
+ * and JSON outputs show in full on expand, as fields. Never red without a false metric or an error.
  */
 export const EvaluatorResultRow = ({
     name,
@@ -130,6 +180,9 @@ export const EvaluatorResultRow = ({
     actions,
     details,
     defaultOpen = false,
+    badge,
+    byline,
+    binaryWords = "passFail",
 }: EvaluatorResultRowProps) => {
     const t = useT(valueViewCatalog)
     const [open, setOpen] = useState(defaultOpen)
@@ -140,7 +193,14 @@ export const EvaluatorResultRow = ({
         summary.state === "error" ||
         (summary.state === "done" && (grid || summary.text.length > 0 || Boolean(details)))
 
-    const title = <span className="min-w-0 flex-1 truncate text-label">{name}</span>
+    const preview = summary.state === "done" && !open ? previewLine(summary.text[0]?.value) : null
+
+    const title = (
+        <span className="flex min-w-0 flex-1 items-center gap-1.5">
+            <span className="min-w-0 truncate text-label">{name}</span>
+            {badge}
+        </span>
+    )
     return (
         <div className="border-0 border-b border-solid border-border-muted">
             <div className="flex min-h-9 items-center gap-2 py-1">
@@ -164,10 +224,18 @@ export const EvaluatorResultRow = ({
                     </>
                 )}
                 <span className="flex flex-wrap items-center justify-end gap-2">
-                    <InlineMetrics summary={summary} />
+                    <InlineMetrics summary={summary} binaryWords={binaryWords} />
                 </span>
                 {actions}
             </div>
+            {preview ? (
+                <div className="-mt-1 truncate pb-2.5 pl-5 text-body-sm text-muted-foreground">
+                    {preview}
+                </div>
+            ) : null}
+            {byline ? (
+                <div className="-mt-1 pb-2.5 pl-5 text-meta text-muted-foreground">{byline}</div>
+            ) : null}
             {expandable && open ? (
                 <div id={regionId} className="flex flex-col gap-1 pb-2.5 pl-5 text-body-sm">
                     {summary.state === "error" ? (
@@ -203,7 +271,7 @@ export const EvaluatorResultRow = ({
                                     <span className="min-w-0 truncate text-meta text-muted-foreground">
                                         {metric.name}
                                     </span>
-                                    <MetricValue metric={metric} />
+                                    <MetricValue metric={metric} binaryWords={binaryWords} />
                                 </div>
                             ))}
                         </div>

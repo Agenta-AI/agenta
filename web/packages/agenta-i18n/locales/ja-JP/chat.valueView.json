@@ -33,5 +33,8 @@
     "openTrace": "トレースを開く",
     "errorLabel": "エラー",
     "passedLabel": "合格",
-    "assertionsValue": "{{passed}} / {{total}}"
+    "assertionsValue": "{{passed}} / {{total}}",
+    "valueTrue": "真",
+    "valueFalse": "偽",
+    "turnLabel": "ターン {{n}}"
 }

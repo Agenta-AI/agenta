@@ -30,5 +30,7 @@
     "trueValue": "是",
     "falseValue": "否",
     "durationValue": "耗时：{{duration}}",
-    "tokenCount_other": "{{tokens}} Token"
+    "tokenCount_other": "{{tokens}} Token",
+    "byNameAt": "{{name}}，{{time}}",
+    "byYouAt": "你，{{time}}"
 }

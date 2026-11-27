@@ -42,5 +42,8 @@
     "openTrace": "Open trace",
     "errorLabel": "error",
     "passedLabel": "Passed",
-    "assertionsValue": "{{passed}} of {{total}}"
+    "assertionsValue": "{{passed}} of {{total}}",
+    "valueTrue": "True",
+    "valueFalse": "False",
+    "turnLabel": "Turn {{n}}"
 }

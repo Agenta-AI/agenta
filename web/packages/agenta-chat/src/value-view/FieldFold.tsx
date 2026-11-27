@@ -8,6 +8,8 @@ import {ArrowsOut} from "@phosphor-icons/react"
 
 /** A folded field shows this many lines. */
 export const FOLD_LINES = 8
+/** A list of words shows this many chips before "+N". */
+export const CHIPS_SHOWN = 10
 
 const FADE_MASK = "linear-gradient(to bottom, black calc(100% - 40px), transparent 100%)"
 
@@ -19,6 +21,8 @@ export interface FieldFoldProps {
     onOpenFullView?: () => void
     /** Draw everything, with no fold (the full view). */
     unfolded?: boolean
+    /** Each change closes the fold again; the children stay mounted (an editor keeps its text). */
+    collapseSignal?: number
 }
 
 /** True when a text is long enough to fold: over 8 lines, or over 1,500 characters. */
@@ -29,10 +33,21 @@ export const needsFold = (text: string) =>
  * A long field: its first 8 lines with the end faded, then "Show all N lines", "Open full view"
  * and the size. "Show all" opens it in place.
  */
-export const FieldFold = ({text, children, onOpenFullView, unfolded = false}: FieldFoldProps) => {
+export const FieldFold = ({
+    text,
+    children,
+    onOpenFullView,
+    unfolded = false,
+    collapseSignal,
+}: FieldFoldProps) => {
     const t = useT(valueViewCatalog)
     const [open, setOpen] = useState(false)
+    const [seenSignal, setSeenSignal] = useState(collapseSignal)
     const regionId = useId()
+    if (collapseSignal !== seenSignal) {
+        setSeenSignal(collapseSignal)
+        setOpen(false)
+    }
     if (unfolded || !needsFold(text)) return <>{children}</>
 
     const lines = lineCount(text)

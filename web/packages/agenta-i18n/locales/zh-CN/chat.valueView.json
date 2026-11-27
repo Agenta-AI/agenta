@@ -33,5 +33,8 @@
     "openTrace": "打开追踪",
     "errorLabel": "错误",
     "passedLabel": "通过",
-    "assertionsValue": "{{passed}} / {{total}}"
+    "assertionsValue": "{{passed}} / {{total}}",
+    "valueTrue": "真",
+    "valueFalse": "假",
+    "turnLabel": "第 {{n}} 轮"
 }

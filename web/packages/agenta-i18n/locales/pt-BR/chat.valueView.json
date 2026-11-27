@@ -51,5 +51,8 @@
     "openTrace": "Abrir trace",
     "errorLabel": "erro",
     "passedLabel": "Aprovados",
-    "assertionsValue": "{{passed}} de {{total}}"
+    "assertionsValue": "{{passed}} de {{total}}",
+    "valueTrue": "Verdadeiro",
+    "valueFalse": "Falso",
+    "turnLabel": "Turno {{n}}"
 }

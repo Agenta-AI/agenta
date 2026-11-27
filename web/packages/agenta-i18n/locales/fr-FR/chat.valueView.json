@@ -51,5 +51,8 @@
     "openTrace": "Ouvrir la trace",
     "errorLabel": "erreur",
     "passedLabel": "Réussis",
-    "assertionsValue": "{{passed}} sur {{total}}"
+    "assertionsValue": "{{passed}} sur {{total}}",
+    "valueTrue": "Vrai",
+    "valueFalse": "Faux",
+    "turnLabel": "Tour {{n}}"
 }

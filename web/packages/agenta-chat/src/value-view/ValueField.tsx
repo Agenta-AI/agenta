@@ -9,8 +9,8 @@ import {Badge, Button, cn, Dialog, DialogContent, DialogTitle} from "@agenta/ui/
 import ChatMarkdown from "../components/ChatMarkdown"
 
 import {CopyValueButton} from "./CopyValueButton"
-import {FieldFold} from "./FieldFold"
-import {MessagesValue} from "./MessagesValue"
+import {CHIPS_SHOWN, FieldFold} from "./FieldFold"
+import {MessagesValue, type TurnActivity} from "./MessagesValue"
 import {ValueRows} from "./ValueRows"
 import {useValueViewOptions} from "./ValueViewProvider"
 
@@ -18,8 +18,6 @@ const ValueFullView = lazy(() =>
     import("./ValueFullView").then((module) => ({default: module.ValueFullView})),
 )
 
-/** A list of words shows this many chips before "+N". */
-const CHIPS_SHOWN = 10
 /** A word longer than this makes a list one item per line instead of chips. */
 const CHIP_MAX_CHARS = 40
 /** A table of objects shows this many rows before "Show all N". */
@@ -175,9 +173,11 @@ export interface ValueBodyProps {
     depth?: number
     /** Draw everything with no fold (the full view). */
     unfolded?: boolean
-    /** Keys the open state of long chat turns; unique per field on the screen. */
+    /** Keys the open state of long chat messages; unique per field on the screen. */
     stateKey: string
     onOpenFullView?: () => void
+    /** The trace's tool steps per user exchange, for a chat value. */
+    turnActivity?: readonly TurnActivity[]
 }
 
 /** One value drawn by its shape, at any depth of a field. */
@@ -187,6 +187,7 @@ export const ValueBody = ({
     unfolded = false,
     stateKey,
     onOpenFullView,
+    turnActivity,
 }: ValueBodyProps) => {
     const t = useT(valueViewCatalog)
     const {markdownClassName, markdownIcons} = useValueViewOptions()
@@ -271,10 +272,18 @@ export const ValueBody = ({
                         messages={drawn as unknown[]}
                         stateKey={stateKey}
                         unfolded={unfolded}
+                        turnActivity={turnActivity}
                     />
                 )
             case "message":
-                return <MessagesValue messages={[drawn]} stateKey={stateKey} unfolded={unfolded} />
+                return (
+                    <MessagesValue
+                        messages={[drawn]}
+                        stateKey={stateKey}
+                        unfolded={unfolded}
+                        turnActivity={turnActivity}
+                    />
+                )
             case "array-scalars":
                 return <ArrayScalars items={drawn as unknown[]} unfolded={unfolded} />
             case "array-objects":
@@ -321,6 +330,8 @@ export interface ValueFieldProps {
     /** The field's name: the title of its full view. */
     label?: string
     className?: string
+    /** For a chat: the trace's tool steps per user exchange, drawn in place of the stored calls. */
+    turnActivity?: TurnActivity[]
 }
 
 /**
@@ -328,13 +339,18 @@ export interface ValueFieldProps {
  * "Open full view" for long text. The view around it draws the field's name and lays out
  * its fields.
  */
-export const ValueField = ({value, label, className}: ValueFieldProps) => {
+export const ValueField = ({value, label, className, turnActivity}: ValueFieldProps) => {
     const t = useT(valueViewCatalog)
     const stateKey = useId()
     const [fullView, setFullView] = useState(false)
     return (
         <div className={cn("min-w-0 text-body-sm", className)}>
-            <ValueBody value={value} stateKey={stateKey} onOpenFullView={() => setFullView(true)} />
+            <ValueBody
+                value={value}
+                stateKey={stateKey}
+                onOpenFullView={() => setFullView(true)}
+                turnActivity={turnActivity}
+            />
             {fullView ? (
                 <Dialog open onOpenChange={setFullView}>
                     <DialogContent className="flex max-h-[85vh] w-full max-w-3xl flex-col">
@@ -342,7 +358,12 @@ export const ValueField = ({value, label, className}: ValueFieldProps) => {
                             {label ?? t("chat.valueView.fullView")}
                         </DialogTitle>
                         <Suspense fallback={null}>
-                            <ValueFullView value={value} label={label} className="min-h-0 flex-1" />
+                            <ValueFullView
+                                value={value}
+                                label={label}
+                                className="min-h-0 flex-1"
+                                turnActivity={turnActivity}
+                            />
                         </Suspense>
                     </DialogContent>
                 </Dialog>

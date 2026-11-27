@@ -89,6 +89,9 @@ export {
     type AnalyticsResponse,
 } from "./core"
 
+// The turn rule: one turn per user exchange
+export {groupTraceTurns, type TraceTurn} from "./core"
+
 // Type definitions
 export type {
     TraceListParams,

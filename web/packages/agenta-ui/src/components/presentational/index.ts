@@ -267,6 +267,7 @@ export {
 // ============================================================================
 
 export {FormattedDate, type FormattedDateProps} from "./FormattedDate"
+export {BylineText, type BylineTextProps} from "./BylineText"
 
 // ============================================================================
 // AVATAR COMPONENTS

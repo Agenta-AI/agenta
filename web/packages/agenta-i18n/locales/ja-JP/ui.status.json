@@ -30,5 +30,7 @@
     "trueValue": "はい",
     "falseValue": "いいえ",
     "durationValue": "所要時間：{{duration}}",
-    "tokenCount_other": "{{tokens}} トークン"
+    "tokenCount_other": "{{tokens}} トークン",
+    "byNameAt": "{{name}}、{{time}}",
+    "byYouAt": "あなた、{{time}}"
 }

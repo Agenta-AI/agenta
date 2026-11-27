@@ -50,29 +50,56 @@ export const createReferenceLabels = (routes: ReferenceHrefs) => {
         )
     }
 
+    /** The variant of an application revision, read by revision id: its name, slug and version. */
+    const useRevision = (revisionId: string | null) => {
+        const data = useAtomValue(
+            useMemo(() => workflowMolecule.selectors.data(revisionId ?? ""), [revisionId]),
+        )
+        const query = useAtomValue(
+            useMemo(() => workflowMolecule.selectors.query(revisionId ?? ""), [revisionId]),
+        )
+        return {data: revisionId ? data : null, isPending: Boolean(revisionId) && query.isPending}
+    }
+
+    /**
+     * An application. With `revisionId` the chip also names the variant and its version, as
+     * "lead_scorer / with_site_text" v8. `href` replaces the link the routes build.
+     */
     const ApplicationReferenceLabel = (props: Props) => {
         const t = useT(referencesCatalog)
         const appId = str(props.applicationId)
+        const revisionId = str(props.revisionId)
         const query = useWorkflow(appId)
-        const href = useHref("app", appId ? {appId} : null)
+        const revision = useRevision(revisionId)
+        const routeHref = useHref("app", appId ? {appId} : null)
+        const href = str(props.href) ?? routeHref
         const fallback = str(props.label)
         if (!appId)
             return fallback ? <ReferenceChip kind="app" label={fallback} /> : <Placeholder />
-        if (query.isPending) return <ReferenceChipSkeleton />
+        if (query.isPending || revision.isPending) return <ReferenceChipSkeleton />
         const app = query.data
         // Only a lookup that worked and found nothing means deleted; a failed lookup keeps the slug.
         const deleted = !query.isError && !app
+        const appName = app?.name ?? app?.slug ?? fallback ?? appId
+        const variantName = revision.data?.name ?? revision.data?.slug ?? null
         return (
             <ReferenceChip
                 kind="app"
                 label={
                     deleted
                         ? t("observabilityUi.references.deleted")
-                        : (app?.name ?? app?.slug ?? fallback ?? appId)
+                        : variantName
+                          ? `${appName} / ${variantName}`
+                          : appName
                 }
                 href={href}
                 openExternally={props.openExternally === true}
-                identifiers={{slug: app?.slug ?? fallback, id: appId}}
+                identifiers={{
+                    slug: app?.slug ?? fallback,
+                    id: appId,
+                    version: revision.data?.version ?? null,
+                    revisionId,
+                }}
                 deleted={deleted}
             />
         )
@@ -120,7 +147,8 @@ export const createReferenceLabels = (routes: ReferenceHrefs) => {
     const EnvironmentReferenceLabel = (props: Props) => {
         const slug = str(props.environmentSlug) ?? str(props.label)
         const appId = str(props.applicationId)
-        const href = useHref("environment", appId && slug ? {appId, slug} : null)
+        const routeHref = useHref("environment", appId && slug ? {appId, slug} : null)
+        const href = str(props.href) ?? routeHref
         if (!slug) return <Placeholder />
         return (
             <ReferenceChip
@@ -172,7 +200,8 @@ export const createReferenceLabels = (routes: ReferenceHrefs) => {
             useMemo(() => latestRevisionForTestsetAtomFamily(testsetId ?? ""), [testsetId]),
         )
         const revisionId = str(props.revisionId) ?? latest?.id ?? null
-        const href = useHref("testset", testsetId ? {testsetId, revisionId} : null)
+        const routeHref = useHref("testset", testsetId ? {testsetId, revisionId} : null)
+        const href = str(props.href) ?? routeHref
         if (!testsetId) return <Placeholder />
         if (query.isPending) return <ReferenceChipSkeleton />
         const testset = query.data

@@ -23,6 +23,19 @@ import {Badge} from "../components/ui/badge"
 /** The kind of a metric, as `@agenta/entities` names it (`MetricKind`). */
 export type ValueCellMetricKind = "binary" | "numeric" | "categorical" | "text"
 
+/** The words of a binary metric: Pass / Fail, or True / False (a human evaluator's value). */
+export type BinaryWords = "passFail" | "trueFalse"
+
+/** The word for a binary metric value, as a catalog key. */
+export const binaryWordKey = (value: boolean, words: BinaryWords = "passFail") =>
+    words === "trueFalse"
+        ? value
+            ? "chat.valueView.valueTrue"
+            : "chat.valueView.valueFalse"
+        : value
+          ? "chat.valueView.pass"
+          : "chat.valueView.fail"
+
 export interface ValueCellProps {
     value: unknown
     /** Draw the value as a metric of this kind: Pass or Fail, a score, labels. */
@@ -31,6 +44,8 @@ export interface ValueCellProps {
     state?: "pending" | "error"
     /** Compact draws a binary metric as an icon and a score as a number; Comfortable as a badge and a bar. */
     density?: "compact" | "comfortable"
+    /** The words of a binary metric (the badge, or the icon's accessible name). */
+    binaryWords?: BinaryWords
     /** One line, or up to three lines of text. */
     lines?: 1 | 3
     className?: string
@@ -227,6 +242,7 @@ function MetricContent({
     kind,
     detected,
     density,
+    binaryWords,
     t,
 }: {
     value: unknown
@@ -234,11 +250,12 @@ function MetricContent({
     /** The shape of a `text` metric. */
     detected: DetectedValue | null
     density: "compact" | "comfortable"
+    binaryWords: BinaryWords
     t: T
 }) {
     if (value === undefined || value === null || value === "") return <Dash />
     if (kind === "binary" && typeof value === "boolean") {
-        const word = t(value ? "chat.valueView.pass" : "chat.valueView.fail")
+        const word = t(binaryWordKey(value, binaryWords))
         if (density === "compact") {
             const Icon = value ? Check : X
             return (
@@ -304,6 +321,7 @@ const ValueCell = memo(function ValueCell({
     metricKind,
     state,
     density = "comfortable",
+    binaryWords = "passFail",
     lines = 1,
     className,
 }: ValueCellProps) {
@@ -330,6 +348,7 @@ const ValueCell = memo(function ValueCell({
                 kind={metricKind}
                 detected={detected}
                 density={density}
+                binaryWords={binaryWords}
                 t={t}
             />
         )

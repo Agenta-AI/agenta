@@ -34,5 +34,7 @@
     "durationValue": "Duração: {{duration}}",
     "tokenCount_one": "{{tokens}} token",
     "tokenCount_many": "{{tokens}} tokens",
-    "tokenCount_other": "{{tokens}} tokens"
+    "tokenCount_other": "{{tokens}} tokens",
+    "byNameAt": "Por {{name}}, {{time}}",
+    "byYouAt": "Por você, {{time}}"
 }
