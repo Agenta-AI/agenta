@@ -6,6 +6,7 @@ import {useIsPhone} from "@agenta/ui/phone"
 
 import {useAgentRow} from "../agent-layout/useAgentRow"
 import {useBindProjectContext} from "../context/useBindProjectContext"
+import {PAGE_GUTTERS_BLEED} from "../page-layout/pageFrame"
 import {PageLayout} from "../page-layout/PageLayout"
 
 import {AgentBuilderButton} from "./AgentBuilderButton"
@@ -35,7 +36,7 @@ export const AgentChannelsScreen = ({
             actions={<AgentBuilderButton />}
         >
             {/* On a phone the channel rows run edge to edge (M13). */}
-            <div className={phone ? "-mx-4" : undefined}>
+            <div className={phone ? PAGE_GUTTERS_BLEED : undefined}>
                 <AgentChannels
                     agentId={agentId}
                     workspaceId={workspaceId}

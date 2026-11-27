@@ -8,6 +8,9 @@
 export const PAGE_GUTTERS =
     "box-border w-full px-4 @min-[640px]/page:px-8 @min-[960px]/page:px-page-margin"
 
+/** Takes back the gutters, for rows that run edge to edge. */
+export const PAGE_GUTTERS_BLEED = "-mx-4 @min-[640px]/page:-mx-8 @min-[960px]/page:-mx-page-margin"
+
 /** The content caps; lists use `lg`, item pages and Home `md`, settings and forms `sm`; `full` is a
  * developer view's uncapped table (beta developer mode). */
 export const PAGE_WIDTH = {
