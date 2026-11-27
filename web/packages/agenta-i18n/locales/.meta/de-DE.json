@@ -7610,6 +7610,7 @@
         "outputLabel": "457f4957af84",
         "providers": "996c32b35f21",
         "selectProvider": "71e2ca7b1c9f",
+        "signInToPick": "881b992b4002",
         "via": "4d327af41f96"
     },
     "ui.loadError": {

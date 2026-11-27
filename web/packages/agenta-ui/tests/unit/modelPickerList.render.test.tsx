@@ -51,7 +51,6 @@ const groups: ProviderGroup[] = [
 
 const renderList = (props: Partial<Parameters<typeof ModelPickerList>[0]> = {}) => {
     const onChange = vi.fn()
-    const onSignIn = vi.fn()
     const onManage = vi.fn()
     render(
         <ModelPickerList
@@ -59,22 +58,21 @@ const renderList = (props: Partial<Parameters<typeof ModelPickerList>[0]> = {}) 
             onChange={onChange}
             searchPlaceholder="Search models"
             selectedKey="a:sonnet"
-            disabledGroupAction={{label: "Sign in", onClick: onSignIn}}
             onManageProviders={onManage}
             {...props}
         />,
     )
-    return {onChange, onSignIn, onManage}
+    return {onChange, onManage}
 }
 
 describe("ModelPickerList", () => {
-    it("shows each group with its tag and harness line, and the raw id under the name", () => {
+    it("shows each group with its tag and harness, and each model by its name only", () => {
         renderList()
         expect(screen.getByText("Agenta")).toBeTruthy()
         expect(screen.getByText("Built-in")).toBeTruthy()
         expect(screen.getByText("via Claude Code")).toBeTruthy()
-        expect(screen.getByText("claude-sonnet-5-5")).toBeTruthy()
-        expect(screen.getByText("google/gemini-3.8-flash")).toBeTruthy()
+        expect(screen.queryByText("claude-sonnet-5-5")).toBeNull()
+        expect(screen.queryByText("google/gemini-3.8-flash")).toBeNull()
         expect(screen.getByText("Manage model providers")).toBeTruthy()
         const picked = screen.getByRole("button", {pressed: true})
         expect(picked.textContent).toContain("Claude Sonnet 5.5")
@@ -89,11 +87,19 @@ describe("ModelPickerList", () => {
         )
     })
 
-    it("a group that needs a sign-in shows its state and its action instead of models", () => {
-        const {onSignIn} = renderList()
-        expect(screen.getByText("Sign in needed")).toBeTruthy()
-        fireEvent.click(screen.getByText("Sign in"))
-        expect(onSignIn).toHaveBeenCalledWith(expect.objectContaining({key: "claude-sub"}))
+    it("leaves out a group that needs a sign-in", () => {
+        renderList()
+        expect(screen.queryByText("Claude subscription")).toBeNull()
+        expect(screen.queryByText("Sign in needed")).toBeNull()
+    })
+
+    it("search still matches the raw id it does not show", () => {
+        renderList()
+        fireEvent.change(screen.getByPlaceholderText("Search models"), {
+            target: {value: "google/gemini"},
+        })
+        expect(screen.getByText("Gemini 3.8 Flash")).toBeTruthy()
+        expect(screen.queryByText("Claude Sonnet 5.5")).toBeNull()
     })
 
     it("a search with no match shows the production empty text", () => {
@@ -104,29 +110,32 @@ describe("ModelPickerList", () => {
         expect(screen.getByText("No data")).toBeTruthy()
     })
 
-    it("the panel puts the harness on its own line and draws no logo", () => {
-        renderList()
-        const head = screen.getByText("Anthropic").parentElement as HTMLElement
-        expect(head.textContent).toBe("AnthropicOrganization")
-        expect(head.querySelector("svg")).toBeNull()
-        // The harness line is text only: no glyph tile.
-        expect(screen.getByText("via Claude Code").querySelector("svg")).toBeNull()
+    it("with only a signed-out subscription, says to sign in again from Manage model providers", () => {
+        renderList({options: [groups[2]], layout: "popover"})
+        expect(
+            screen.getByText(
+                "Your subscription needs a new sign-in. Open Manage model providers to sign in again.",
+            ),
+        ).toBeTruthy()
+        expect(screen.queryByText("No data")).toBeNull()
     })
 
-    it("the popover draws one head line: logo, name, tag, and the harness at the right", () => {
-        renderList({layout: "popover"})
-        const head = screen.getByText("Anthropic").parentElement as HTMLElement
-        expect(head.textContent).toBe("AnthropicOrganizationvia Claude Code")
-        expect(head.querySelector("svg")).not.toBeNull()
-    })
+    it.each(["panel", "popover"] as const)(
+        "the %s draws one head row: logo, name, tag, and the harness",
+        (layout) => {
+            renderList({layout})
+            const head = screen.getByText("Anthropic").parentElement as HTMLElement
+            expect(head.textContent).toBe("AnthropicOrganizationvia Claude Code")
+            expect(head.querySelector("svg")).not.toBeNull()
+            // The harness sits on the head row only: no second line for it.
+            expect(screen.getAllByText("via Claude Code")).toHaveLength(1)
+        },
+    )
 
-    it("draws each model as one menu row, with the raw id on the name's line (ROW-02)", () => {
+    it("draws each model as one menu row (ROW-02)", () => {
         renderList({layout: "popover"})
         const row = screen.getByText("Gemini 3.8 Flash").closest("button") as HTMLElement
         expect(row.className).toContain("min-h-8")
-        expect(screen.getByText("google/gemini-3.8-flash").parentElement).toBe(
-            screen.getByText("Gemini 3.8 Flash").parentElement,
-        )
     })
 
     it("draws Manage model providers as one more menu row, not an outlined button", () => {

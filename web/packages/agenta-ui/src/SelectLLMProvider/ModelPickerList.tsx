@@ -23,11 +23,9 @@ import type {ProviderGroup, ProviderOption, ProviderSection} from "./types"
 import {getProviderIcon, optionMatchesSearch} from "./utils"
 
 /**
- * "panel": the Model view (F01 f2). Each group head is the name and its tag, with "via <harness>"
- * on its own line, and "Manage model providers" sits on a band across the view's full width. The
- * list sets its own 16px side gutter, so the view gives it the full width.
- * "popover": the composer's list (P1a). Each group head is one line, logo, name and tag, with
- * "via <harness>" at the right.
+ * Both layouts draw one group head row: logo, name, tag, and "via <harness>" at the right.
+ * "panel": the Model view (F01 f2); the list sets its own 16px side gutter, so the view gives it
+ * the full width. "popover": the composer's list (P1a), with tighter rows.
  */
 export type ModelPickerListLayout = "panel" | "popover"
 
@@ -111,6 +109,8 @@ const ModelPickerList = ({
             ),
         [options, term],
     )
+    // Nothing to pick but a signed-out subscription: say where it is fixed.
+    const onlySignedOut = !term && options.length > 0 && options.every((group) => group.disabled)
     const listRef = useRef<HTMLDivElement | null>(null)
     const popover = layout === "popover"
     const isSelected = (option: ProviderOption) =>
@@ -131,7 +131,7 @@ const ModelPickerList = ({
                     aria-pressed={selected}
                     disabled={disabled}
                     onClick={() => onChange(option.value, option)}
-                    // A 32 px menu row: the raw id on the same line, after the name (ROW-02).
+                    // A 32 px menu row: the readable name, then its hint (ROW-02).
                     className={clsx(
                         MENU_ITEM,
                         "border-0 bg-transparent text-left font-[inherit] hover:bg-accent aria-pressed:bg-accent disabled:cursor-not-allowed disabled:opacity-60",
@@ -284,7 +284,7 @@ const ModelPickerList = ({
                     groups.map(renderGroup)
                 ) : (
                     <p className="m-0 px-3 py-4 text-body text-muted-foreground">
-                        {t("ui.controls.noData")}
+                        {onlySignedOut ? t("ui.llmProvider.signInToPick") : t("ui.controls.noData")}
                     </p>
                 )}
             </div>
