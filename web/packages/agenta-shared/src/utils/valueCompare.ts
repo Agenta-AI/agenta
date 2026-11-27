@@ -48,7 +48,7 @@ const same = (a: unknown, b: unknown): boolean => {
         const keys = Object.keys(a)
         return (
             keys.length === Object.keys(b).length &&
-            keys.every((key) => key in b && same(a[key], b[key]))
+            keys.every((key) => Object.hasOwn(b, key) && same(a[key], b[key]))
         )
     }
     return false
@@ -69,11 +69,11 @@ function compareObjects(
 ): CompareRow[] {
     const keys = [
         ...Object.keys(output),
-        ...Object.keys(expected).filter((key) => !(key in output)),
+        ...Object.keys(expected).filter((key) => !Object.hasOwn(output, key)),
     ]
     return keys.map((key): CompareRow => {
-        const inOutput = key in output
-        const inExpected = key in expected
+        const inOutput = Object.hasOwn(output, key)
+        const inExpected = Object.hasOwn(expected, key)
         const left = inOutput ? parsed(output[key]) : undefined
         const right = inExpected ? parsed(expected[key]) : undefined
         if (isRecord(left) && isRecord(right)) {

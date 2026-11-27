@@ -56,6 +56,19 @@ describe("compareWithExpected", () => {
         expect(result).toMatchObject({compared: 3, matched: 2})
     })
 
+    it("counts an expected key named like an object method as missing", () => {
+        const comparison = compareWithExpected(
+            {tier: "gold"},
+            {tier: "gold", constructor: "Widget"},
+        )
+        expect(comparison?.compared).toBe(2)
+        expect(comparison?.matched).toBe(1)
+        expect(comparison?.rows.map((row) => [row.key, row.status])).toContainEqual([
+            "constructor",
+            "missing",
+        ])
+    })
+
     it("gives null when a side is not an object", () => {
         expect(compareWithExpected("plain answer", {a: 1})).toBeNull()
         expect(compareWithExpected({a: 1}, "not json")).toBeNull()
