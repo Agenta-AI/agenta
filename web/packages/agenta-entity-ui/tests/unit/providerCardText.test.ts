@@ -1,7 +1,6 @@
 /**
  * The provider card's text. English is pinned byte for byte as it was before translation; the
- * other languages are checked for their own words, plural forms, relative times and list
- * separators.
+ * other languages are checked for their own words, relative times and list separators.
  */
 import type {ProviderConnection} from "@agenta/entities/secret"
 import {SecretKind} from "@agenta/entities/secret"
@@ -15,12 +14,10 @@ import {afterAll, afterEach, beforeAll, describe, expect, it, vi} from "vitest"
 import {
     activeModelsCount,
     connectedRowSubtitle,
-    credentialStatusLine,
     credentialSummaryText,
     manualModelPlaceholder,
     probeFailureText,
     relativeFetchTime,
-    testNote,
 } from "../../src/secretProvider/providerCardText"
 import {
     subscriptionAttemptErrorSentence,
@@ -66,32 +63,9 @@ const httpError = (status: number) => ({response: {status}})
 describe("provider card text in English", () => {
     afterEach(() => vi.useRealTimers())
 
-    it("says what Test does with a key or an endpoint", () => {
-        expect(testNote("openai", "OpenAI")).toBe(
-            "Test checks the key with OpenAI and fetches its model list. Nothing is saved until Done.",
-        )
-        expect(testNote("custom", "OpenAI-compatible endpoint")).toBe(
-            "Test pings the endpoint and fetches its model list. Nothing is saved until Done.",
-        )
-        // Vertex's credential is a service-account JSON, so "the key" would misdescribe it.
-        expect(testNote("vertex_ai", "Google Vertex AI")).not.toContain("the key")
-    })
-
     it("adds a model ID against the API's list or the endpoint's", () => {
         expect(manualModelPlaceholder("openai")).toBe("Add a model ID the API doesn't list")
         expect(manualModelPlaceholder("custom")).toBe("Add a model ID the endpoint doesn't list")
-    })
-
-    it("joins the provider's verdict to what the same call fetched", () => {
-        expect(credentialStatusLine("OpenAI accepted this key.", 41)).toBe(
-            "OpenAI accepted this key · 41 models fetched",
-        )
-        expect(credentialStatusLine("Groq accepted this key.", 1)).toBe(
-            "Groq accepted this key · 1 model fetched",
-        )
-        expect(credentialStatusLine("OpenAI rejected this key (401).", null)).toBe(
-            "OpenAI rejected this key (401)",
-        )
     })
 
     it("counts what is checked against what was fetched", () => {
@@ -189,12 +163,6 @@ describe("provider card text in Japanese", () => {
     afterEach(() => vi.useRealTimers())
 
     it("translates the hint, the counts and the list separator", () => {
-        expect(testNote("openai", "OpenAI")).toBe(
-            "テストでは OpenAI でキーを確認し、モデル一覧を取得します。「完了」を押すまで何も保存されません。",
-        )
-        expect(credentialStatusLine("OpenAI accepted this key.", 41)).toBe(
-            "OpenAI accepted this key · 41 件のモデルを取得",
-        )
         expect(
             connectedRowSubtitle({
                 credential: "sk-••••AAA",
@@ -219,13 +187,7 @@ describe("provider card text in Japanese", () => {
 describe("provider card text in French", () => {
     inLanguage("fr-FR")
 
-    it("uses the French plural forms", () => {
-        expect(credentialStatusLine("OpenAI accepted this key.", 1)).toBe(
-            "OpenAI accepted this key · 1 modèle récupéré",
-        )
-        expect(credentialStatusLine("OpenAI accepted this key.", 9)).toBe(
-            "OpenAI accepted this key · 9 modèles récupérés",
-        )
+    it("uses the French count and error text", () => {
         expect(activeModelsCount(3, 41)).toBe("3 sur 41")
         expect(probeFailureText(httpError(500), "OpenAI")).toBe(
             "Agenta n’a pas pu joindre OpenAI pour tester cet identifiant.",

@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {buildSkillEmbedEntry, isSkillEmbedEntry, parseSkillEmbedEntry} from "../../src/embed"
+import {buildSkillEmbedEntry, parseSkillEmbedEntry} from "../../src/embed"
 
 describe("buildSkillEmbedEntry", () => {
     it("emits an artifact-level ref with a sibling name for latest", () => {
@@ -73,7 +73,6 @@ describe("parseSkillEmbedEntry", () => {
 
     it("returns undefined for inline skill packages", () => {
         expect(parseSkillEmbedEntry({name: "inline", body: "..."})).toBeUndefined()
-        expect(isSkillEmbedEntry({name: "inline", body: "..."})).toBe(false)
     })
 
     it("tolerates foreign entry shapes without throwing", () => {

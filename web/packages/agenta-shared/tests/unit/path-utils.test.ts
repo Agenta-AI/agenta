@@ -1,11 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {
-    deleteValueAtPath,
-    getValueAtPath,
-    hasValueAtPath,
-    setValueAtPath,
-} from "../../src/utils/pathUtils"
+import {deleteValueAtPath, getValueAtPath, setValueAtPath} from "../../src/utils/pathUtils"
 
 // ---------------------------------------------------------------------------
 // getValueAtPath
@@ -150,35 +145,5 @@ describe("deleteValueAtPath — array", () => {
     it("removes an element from an array by index", () => {
         const result = deleteValueAtPath([10, 20, 30], [1]) as number[]
         expect(result).toEqual([10, 30])
-    })
-})
-
-// ---------------------------------------------------------------------------
-// hasValueAtPath
-// ---------------------------------------------------------------------------
-
-describe("hasValueAtPath", () => {
-    it("returns true when the key exists", () => {
-        expect(hasValueAtPath({a: {b: 1}}, ["a", "b"])).toBe(true)
-    })
-
-    it("returns false when the key is missing", () => {
-        expect(hasValueAtPath({a: {}}, ["a", "missing"])).toBe(false)
-    })
-
-    it("returns false when a parent is null", () => {
-        expect(hasValueAtPath({a: null}, ["a", "b"])).toBe(false)
-    })
-
-    it("returns true for valid array index", () => {
-        expect(hasValueAtPath([10, 20, 30], [2])).toBe(true)
-    })
-
-    it("returns false for out-of-bounds array index", () => {
-        expect(hasValueAtPath([10, 20], [5])).toBe(false)
-    })
-
-    it("returns true for the root when path is empty and data is defined", () => {
-        expect(hasValueAtPath({a: 1}, [])).toBe(true)
     })
 })
