@@ -1069,7 +1069,11 @@ class VaultConnectionResolver:
                 agent_id=context.agent_id,
             )
         except GatewayCredentialsError as exc:
-            raise ConnectionResolutionError(str(exc)) from exc
+            raise ConnectionResolutionError(
+                str(exc),
+                status_code=exc.status_code,
+                failure_code=exc.failure_code,
+            ) from exc
 
     async def _resolve_organization_subscription(
         self,

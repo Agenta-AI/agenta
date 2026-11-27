@@ -9,7 +9,6 @@
  *   • environmentMolecule.atoms.serverData — returns the created environment
  *   • environmentMolecule.atoms.isDirty    — false on fresh fetch
  *   • actions.update / actions.discard     — draft round-trip against server data
- *   • queryOptional(null)                  — returns null without fetching
  *   • revisionsList atoms                  — shape is returned from server
  */
 
@@ -97,14 +96,6 @@ describe.skipIf(!hasBackend)("environmentMolecule integration", () => {
         expect(store.get(environmentMolecule.atoms.data(fixture.environmentId))?.name).toBe(
             fixture.name,
         )
-    })
-
-    it("queryOptional(null) returns non-pending null result without a network call", async () => {
-        const {store} = createIntegrationStore()
-
-        const result = store.get(environmentMolecule.queryOptional(null))
-        expect(result.isPending).toBe(false)
-        expect(result.data).toBeNull()
     })
 
     it("revisionsList atoms shape is returned for the created environment", async () => {

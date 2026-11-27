@@ -100,20 +100,13 @@ describe("normalizeValueForComparison", () => {
     // ── Primitives ────────────────────────────────────────────────────────────
 
     describe("primitives", () => {
-        it("converts numbers to string", () => {
-            expect(normalizeValueForComparison(42)).toBe("42")
-        })
-
-        it("converts true to string", () => {
-            expect(normalizeValueForComparison(true)).toBe("true")
-        })
-
-        it("converts false to string", () => {
-            expect(normalizeValueForComparison(false)).toBe("false")
-        })
-
-        it("converts 0 to string", () => {
-            expect(normalizeValueForComparison(0)).toBe("0")
+        it.each([
+            [42, "42"],
+            [true, "true"],
+            [false, "false"],
+            [0, "0"],
+        ])("converts %s to string", (value, expected) => {
+            expect(normalizeValueForComparison(value)).toBe(expected)
         })
     })
 })

@@ -24,6 +24,19 @@ class AgentConnectionError(Exception):
 class ConnectionResolutionError(AgentConnectionError):
     """Raised when a connection cannot be resolved into a credential plan."""
 
+    def __init__(
+        self,
+        message: str = "",
+        *,
+        status_code: Optional[int] = None,
+        failure_code: Optional[str] = None,
+    ) -> None:
+        super().__init__(message)
+        if status_code is not None:
+            self.status_code = status_code
+        if failure_code:
+            self.failure_code = failure_code
+
 
 class EndpointResolutionError(ConnectionResolutionError):
     """Raised when a chosen custom connection cannot resolve to a usable base URL.

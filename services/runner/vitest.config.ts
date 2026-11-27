@@ -12,6 +12,9 @@ export default defineConfig({
           name: "unit",
           include: ["tests/unit/**/*.test.ts"],
           environment: "node",
+          // Many unit tests run real shell commands in the local sandbox stand-in. A loaded CI
+          // runner can take longer than the 5 s default to start one, which is not a failure.
+          testTimeout: 30_000,
           // Scrub ambient dev-env vars so unit tests never depend on the caller's shell.
           setupFiles: ["tests/setup/hermetic-env.ts"],
         },

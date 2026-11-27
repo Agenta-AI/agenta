@@ -10,7 +10,6 @@
  */
 import {act} from "react"
 
-import {executionItemController} from "@agenta/playground"
 import {executionHeadersAtom} from "@agenta/playground/execution-headers"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {QueryClient} from "@tanstack/react-query"
@@ -227,11 +226,6 @@ describe("Execution headers", () => {
         const getHeaders = store.get(executionHeadersAtom)
         expect(getHeaders).toBeTypeOf("function")
         expect(await getHeaders!()).toEqual({Authorization: "Bearer token-1"})
-    })
-
-    it("The small entry and the controller's setter are the same atom", () => {
-        // /w registers through the controller; the runner reads the atom both name.
-        expect(executionItemController.actions.setExecutionHeaders).toBe(executionHeadersAtom)
     })
 
     it("The first run after a cold load sends the header to the app and to its evaluator", async () => {

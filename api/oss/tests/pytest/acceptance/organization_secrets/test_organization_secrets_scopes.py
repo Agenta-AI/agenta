@@ -220,7 +220,7 @@ def company_mock(org):
 
 
 def test_the_gateway_uses_an_organization_key_only_when_named(
-    org, company_mock, gateway_on
+    org, mock_llm_on, company_mock
 ):
     # Marketing has no key of its own: the unnamed call does NOT use the company key.
     assert _relay(org, "/gateways/llms/standard/mock/v1").status_code != 200
@@ -287,7 +287,7 @@ def _refused_as_echo(response, value):
     assert value not in response.text
 
 
-def test_each_scope_answers_its_own_row_for_one_slug(org, gateway_on):
+def test_each_scope_answers_its_own_row_for_one_slug(org, mock_llm_on):
     slug = unique("same-slug")
     _company_custom(org, slug=slug)
     own = _project_custom(org, slug=slug, project=org.sales, echo=True)
@@ -310,7 +310,7 @@ def test_each_scope_answers_its_own_row_for_one_slug(org, gateway_on):
         org.call("DELETE", f"/secrets/{own['id']}", as_="editor", project=org.sales)
 
 
-def test_an_upstream_echoing_the_organization_key_is_refused(org, gateway_on):
+def test_an_upstream_echoing_the_organization_key_is_refused(org, mock_llm_on):
     slug = unique("echo-company")
     _company_custom(org, slug=slug, echo=True)
     _refused_as_echo(
@@ -318,7 +318,7 @@ def test_an_upstream_echoing_the_organization_key_is_refused(org, gateway_on):
     )
 
 
-def test_an_organization_custom_provider_serves_with_no_endpoint_row(org, gateway_on):
+def test_an_organization_custom_provider_serves_with_no_endpoint_row(org, mock_llm_on):
     slug = unique("custom-company")
     _company_custom(org, slug=slug)
     response = _relay(org, f"/gateways/llms/organization/{slug}/v1")
@@ -332,7 +332,7 @@ def test_an_organization_custom_provider_serves_with_no_endpoint_row(org, gatewa
     assert slug not in {e.get("slug") for e in endpoints.json().get("endpoints", [])}
 
 
-def test_a_pinned_organization_credential_never_substitutes(org, gateway_on):
+def test_a_pinned_organization_credential_never_substitutes(org, mock_llm_on):
     slug = unique("pinned")
     created = org.call(
         "POST",
@@ -379,7 +379,7 @@ def test_a_pinned_organization_credential_never_substitutes(org, gateway_on):
         org.call("DELETE", f"/secrets/{own['id']}", as_="editor", project=org.marketing)
 
 
-def test_ee_limit_to_sales(org, admin_api, gateway_on):
+def test_ee_limit_to_sales(org, admin_api, mock_llm_on):
     if not is_ee():
         pytest.skip("EE limit")
     skip_unless_plan_offers(admin_api, plan=RBAC_PLAN, flags=("rbac",))

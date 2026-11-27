@@ -23,7 +23,7 @@ import {
     type SidebarShellProps,
     useSidebarResize,
 } from "@agenta/navigation"
-import {Alert} from "@agenta/ui/ui"
+import {Alert, ResizeEdgeLine} from "@agenta/ui/ui"
 import clsx from "clsx"
 import {useAtom, useSetAtom} from "jotai"
 import {useReducedMotion} from "motion/react"
@@ -375,8 +375,11 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
             // Width lives in --ag-sidebar-w so a drag can repaint it without a React render;
             // data-resizing kills CSS transitions while the drag's own rAF loop paints the width.
             className={[
-                // No border: the muted surface already sets the rail apart (SURF-01).
+                // The right edge line is an allowed border on an area edge (SURF-01, SURF-07). The
+                // handle's 2px line covers it on hover and while dragging.
                 "group/rail relative [&[data-resizing=true]_*]:!transition-none",
+                // The phone sheet has its own edge, so only the docked rail draws the line.
+                isOverlay ? "" : "border-0 border-r border-solid border-border-muted",
                 // Claim the sheet's height; left to its content the frame collapses to the column.
                 // The corners follow the floating sheet's, so the rail's surface cannot square them.
                 isOverlay ? "h-full rounded-[inherit]" : "",
@@ -462,15 +465,16 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                 drag the rail out of alignment with the sheet that frames it. */}
             {!onDismiss && (
                 <div
-                    // Invisible 9px grab strip straddling the hairline; the ::after IS the
-                    // hairline, tinted only while hovering or dragging. Also on the icon rail: dragging
-                    // it out opens the rail.
-                    className="absolute inset-y-0 -right-1 z-10 w-[9px] cursor-col-resize touch-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-transparent after:transition-colors hover:after:bg-border group-data-[resizing=true]/rail:after:bg-border-strong"
+                    // Invisible 8px grab strip centred on the border's inner edge; its line is the shared
+                    // resize edge (SURF-07). Also on the icon rail: dragging it out opens the rail.
+                    className="group absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize touch-none"
                     role="separator"
                     aria-orientation="vertical"
                     aria-label={t("navigation.chrome.resizeSidebar")}
                     {...handleProps}
-                />
+                >
+                    <ResizeEdgeLine className="group-data-[resizing=true]/rail:bg-border-strong" />
+                </div>
             )}
         </div>
     )

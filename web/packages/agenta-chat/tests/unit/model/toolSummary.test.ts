@@ -5,7 +5,6 @@ import {
     isNotHandledOutput,
     isSettled,
     rowSummary,
-    stripFence,
     summarizeOutput,
     type ToolSummaryDisplay,
 } from "../../../src/model/toolSummary"
@@ -92,16 +91,6 @@ describe("isSettled", () => {
         expect(isSettled("input-streaming")).toBe(false)
         expect(isSettled("approval-requested")).toBe(false)
         expect(isSettled("approval-responded")).toBe(false)
-    })
-})
-
-describe("stripFence", () => {
-    it("strips a markdown code fence spanning the whole string", () => {
-        expect(stripFence('```json\n{"a":1}\n```')).toBe('{"a":1}')
-    })
-
-    it("leaves a string with no wrapping fence untouched", () => {
-        expect(stripFence("plain text")).toBe("plain text")
     })
 })
 

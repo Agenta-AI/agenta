@@ -20,7 +20,7 @@ vi.mock("@agenta/shared/state", async () => {
 
 const {fetchSingleOrg} = await import("../../src/organization/api")
 const {acceptWorkspaceInvite} = await import("../../src/organization/workspaceApi")
-const {isSafeIdSegment, toSafeIdSegment} = await import("../../src/organization/idSegments")
+const {toSafeIdSegment} = await import("../../src/organization/idSegments")
 
 /** Ids the endpoints really see, and the shapes that redirect the request somewhere else. */
 const ACCEPTED = [
@@ -46,17 +46,6 @@ const REJECTED = [
     "org:1",
     "org@host",
 ]
-
-describe("isSafeIdSegment", () => {
-    it("accepts the id shapes these endpoints serve", () => {
-        for (const id of ACCEPTED) expect({id, safe: isSafeIdSegment(id)}).toEqual({id, safe: true})
-    })
-
-    it("rejects every shape that would move the request", () => {
-        for (const id of REJECTED)
-            expect({id, safe: isSafeIdSegment(id)}).toEqual({id, safe: false})
-    })
-})
 
 describe("toSafeIdSegment", () => {
     it("returns a real id unchanged", () => {

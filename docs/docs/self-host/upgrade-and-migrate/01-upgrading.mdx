@@ -28,7 +28,7 @@ On an open source database, the first start adds tables and rows, and this canno
 
 Pull the new images and restart, as in the [standard upgrade](#standard-upgrade-process) or the [Helm chart upgrade](#helm-chart-upgrade). Keep your compose files, Helm values and Railway template as they are. You do not change images, env files or databases.
 
-Do not change `AGENTA_LICENSE`. It picks the default database names (`agenta_oss_*` or `agenta_ee_*`), not the plan. A different value points the install at other, empty databases.
+Do not change or remove `AGENTA_LICENSE`. It picks the default database names (`agenta_oss_*` or `agenta_ee_*`), not the plan. A different value, or no value, can point the install at other, empty databases.
 
 ### What the first start does on an open source database
 
@@ -171,10 +171,11 @@ Creating and renaming a project needs the owner or admin role. Deleting a projec
 
 ### Enterprise: run the preflight before the upgrade
 
-The upgrade adds a unique index on project memberships. It stops when the database holds two membership rows for the same user and project. Before you upgrade, run the preflight from a checkout of the new release, with `POSTGRES_URI_CORE` set to your core database:
+The upgrade adds a unique index on project memberships. It stops when the database holds two membership rows for the same user and project. Before you upgrade, run the preflight from a checkout of the new release, with `POSTGRES_URI_CORE` set to your core database. In 0.124.0 the preflight reads `AGENTA_LICENSE` to run the Enterprise steps, so keep `AGENTA_LICENSE=ee` in this command:
 
 ```bash
 cd api
+export POSTGRES_URI_CORE=postgresql+asyncpg://username:password@localhost:5432/agenta_ee_core
 AGENTA_LICENSE=ee uv run --no-sync python -m entrypoints.memberships_check --apply
 ```
 
@@ -188,7 +189,8 @@ The same unique index is added on open source. If the upgrade stops with `projec
 
 ```bash
 cd api
-AGENTA_LICENSE=oss uv run --no-sync python -m entrypoints.memberships_check --apply
+export POSTGRES_URI_CORE=postgresql+asyncpg://username:password@localhost:5432/agenta_oss_core
+uv run --no-sync python -m entrypoints.memberships_check --apply
 ```
 
 It keeps the oldest row of each duplicate pair and prints each deleted row with its role. Use `--report` first to see what it would change.
@@ -508,7 +510,7 @@ For full details, see the [Deploy on Kubernetes](/self-host/guides/deploy-to-kub
 
 ### PostgreSQL major-version upgrade
 
-Agenta's Docker Compose and Helm deployments pin PostgreSQL to major version 17. If your existing Docker Compose deployment was created with an older major version, do not upgrade by only changing the image tag while reusing the same Postgres data volume.
+Agenta's Docker Compose deployment pins PostgreSQL to major version 17. The Helm chart pins the bundled PostgreSQL image to major version 18. If your existing Docker Compose deployment was created with an older major version, do not upgrade by only changing the image tag while reusing the same Postgres data volume.
 
 PostgreSQL data directories are tied to the major version that created them. A newer major version container cannot start against an older major version data directory. Use a backup and restore flow instead.
 
@@ -593,6 +595,10 @@ Open the Agenta web UI and confirm that existing projects, prompts, traces, and 
 #### Kubernetes / Helm
 
 The Helm chart uses the Bitnami PostgreSQL subchart. These commands use the default release and namespace from the Kubernetes guide: `agenta`.
+
+The chart pins the bundled image `bitnami/postgresql` by digest in `postgresql.image.digest`. The pinned image runs PostgreSQL 18, and it does not change on a pod restart. Before you upgrade, run the version check below. If the server reports PostgreSQL 17, do not upgrade by changing the image. Use the backup and restore flow described here. Do not change `postgresql.image` to a different major version without a dump and restore.
+
+The digest has priority over `postgresql.image.tag`. If you set your own `postgresql.image.tag` or mirror the image in a private registry, also set `postgresql.image.digest` to your own digest, or to an empty string, or Helm ignores your tag. The `run.sh` launcher upgrades with `--reuse-values`, which keeps the values of the first install. A release that was installed before this pin keeps its old image setting until you pass `--reset-then-reuse-values` to `helm upgrade`. That flag does not replace a digest you set yourself. To check, run `helm get values agenta -n agenta`. If `postgresql.image.digest` is in the output, that value stays in use.
 
 Check the current Postgres version:
 

@@ -2,18 +2,18 @@
 /**
  * The conversation lifetime (design D6, task 7.2, QA plan T4): a move from a session to an agent
  * page changes the page file, so the conversation unmounts. When the person comes back, the remount
- * puts back the composer text, the transcript position and an open quick action, by session id.
+ * puts back the composer text and the transcript position, by session id.
  *
  * The probe mounts the real pieces the conversation uses for that state: the composer draft
- * (`@agenta/chat`), the transcript window with the auto-scroll, and the quick action atom, on a
- * scroller whose height is its rendered rows. A running answer is the chat registry's job
+ * (`@agenta/chat`) and the transcript window with the auto-scroll, on a scroller whose height is
+ * its rendered rows. A running answer is the chat registry's job
  * (`@agenta/chat` keeps a streaming `Chat` across a remount, tested there).
  */
 import {act, type RefObject, useMemo} from "react"
 
 import {useComposerDraft} from "@agenta/chat/hooks"
 import type {RichChatInputHandle} from "@agenta/editor/rich-chat-input"
-import {createStore, Provider, useAtom} from "jotai"
+import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -26,7 +26,6 @@ vi.mock("@agenta/chat/hooks", async () => ({
 }))
 vi.mock("@agenta/entities/session", () => ({isSessionFresh: () => false}))
 
-import {conversationQuickActionAtomFamily} from "@/features/chat/conversationQuickAction"
 import {useTranscriptAutoScroll} from "@/features/chat/useTranscriptAutoScroll"
 import {useTranscriptWindow} from "@/features/chat/useTranscriptWindow"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
@@ -37,8 +36,6 @@ const VIEWPORT_PX = 700
 
 let composerText = ""
 let initialDraft: string | undefined
-let quickAction: string | null = null
-let setQuickAction: (next: string | null) => void = () => undefined
 
 const Conversation = ({sessionId, count}: {sessionId: string; count: number}) => {
     const turns = useMemo(() => Array.from({length: count}, (_, i) => i), [count])
@@ -47,7 +44,6 @@ const Conversation = ({sessionId, count}: {sessionId: string; count: number}) =>
         [],
     )
     initialDraft = useComposerDraft({sessionId, richInputRef: inputRef}).initialDraft
-    ;[quickAction, setQuickAction] = useAtom(conversationQuickActionAtomFamily(sessionId))
     const autoScroll = useTranscriptAutoScroll(turns, sessionId)
     return (
         <div ref={autoScroll.ref} onScroll={autoScroll.onScroll} data-testid="scroller">
@@ -137,7 +133,7 @@ const readerScrollsTo = async (top: number) => {
 }
 
 describe("leave the session for an agent page and come back", () => {
-    it("restores the composer text, the transcript position and the open quick action", async () => {
+    it("restores the composer text and the transcript position", async () => {
         await mount("session-a")
         // The tail of 12 turns, pinned to the latest.
         expect(firstRow()).toBe("28")
@@ -148,7 +144,6 @@ describe("leave the session for an agent page and come back", () => {
         expect(firstRow()).toBe("16")
         await readerScrollsTo(700)
         composerText = "make the greeting shorter"
-        await act(async () => setQuickAction("test"))
 
         await leave()
         expect(scroller()).toBeNull()
@@ -157,7 +152,6 @@ describe("leave the session for an agent page and come back", () => {
         expect(initialDraft).toBe("make the greeting shorter")
         expect(firstRow()).toBe("16")
         expect(scroller()?.scrollTop).toBe(700)
-        expect(quickAction).toBe("test")
     })
 
     it("keeps the same turns on screen when an answer arrived while away", async () => {
@@ -211,13 +205,11 @@ describe("leave the session for an agent page and come back", () => {
         await mount("session-e")
         composerText = "text for e"
         await readerScrollsTo(300)
-        await act(async () => setQuickAction("improve"))
         await leave()
 
         composerText = ""
         await mount("session-f")
         expect(initialDraft).toBeUndefined()
         expect(scroller()?.scrollTop).toBe(500)
-        expect(quickAction).toBeNull()
     })
 })

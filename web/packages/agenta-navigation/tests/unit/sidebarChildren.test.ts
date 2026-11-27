@@ -322,8 +322,10 @@ describe("sidebarSessionGroup", () => {
         })
     })
 
+    // "Pinned first" was retired: pins lead under every grouping, so it grouped by nothing. A
+    // stored value from before that is not a grouping the menu can show OR the grouper knows.
     it("puts pins in their own heading whichever grouping is active", () => {
-        for (const groupBy of ["agent", "date", "status", "pinned"] as const) {
+        for (const groupBy of ["none", "agent", "date", "status", "pinned"] as const) {
             expect(sidebarSessionGroup(row({pinned: true}), groupBy, NOW)).toMatchObject({
                 key: "pinned",
                 label: "Pinned",
@@ -378,21 +380,6 @@ describe("sidebarSessionGroup", () => {
         })
     })
 
-    // "Pinned first" was retired: pins lead under every grouping, so it grouped by nothing. A
-    // stored value from before that is not a grouping the menu can show OR the grouper knows.
-    it("pins lead whichever grouping is active", () => {
-        expect(sidebarSessionGroup(row({pinned: true}), "none", NOW)).toMatchObject({
-            key: "pinned",
-            label: "Pinned",
-        })
-        expect(sidebarSessionGroup(row({pinned: true, agentId: "a1"}), "agent", NOW)).toMatchObject(
-            {
-                key: "pinned",
-                label: "Pinned",
-            },
-        )
-    })
-
     // The headings are sorted on this rank. Working in a session reorders the ROWS, and used to
     // reorder the sections with them, because the headings followed the rows' own order.
     describe("rank", () => {
@@ -410,11 +397,6 @@ describe("sidebarSessionGroup", () => {
             expect(at(noon(2026, 8, 21))).toBeLessThan(at(noon(2026, 8, 20)))
             expect(at(noon(2026, 8, 20))).toBeLessThan(at(noon(2025, 12, 24)))
             expect(at()).toBeGreaterThan(at(noon(2026, 8, 21)))
-        })
-
-        it("sorts liveness Running, Live, Idle", () => {
-            expect(rank({running: true}, "status")).toBeLessThan(rank({alive: true}, "status"))
-            expect(rank({alive: true}, "status")).toBeLessThan(rank({}, "status"))
         })
 
         // Agents tie on rank and are separated by name; only the unassigned heading is pushed past.

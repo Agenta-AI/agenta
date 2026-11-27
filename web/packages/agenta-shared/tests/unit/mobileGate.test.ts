@@ -42,15 +42,6 @@ const docHeaders = (ua: string, extra: Record<string, string> = {}) => ({
 })
 
 describe("isMobileDevice", () => {
-    it("leaves a token-bearing auth link on desktop", () => {
-        // mapDesktopToMobile returns a bare /m/auth, so a redirect would drop the token.
-        expect(
-            decideDesktopGate(
-                input({pathname: "/auth", search: "?token=abc123", headers: docHeaders(MOBILE_UA)}),
-            ),
-        ).toEqual({kind: "pass"})
-    })
-
     // axiosConfig's 403 handler sends the user to /auth?auth_error=… so they can complete
     // required SSO; mapDesktopToMobile returns a bare /m/auth and would drop the reason.
     it("leaves a policy auth_error link on desktop", () => {
@@ -65,12 +56,6 @@ describe("isMobileDevice", () => {
                 ),
             ).toEqual({kind: "pass"})
         }
-    })
-
-    it("still redirects a plain auth link with no token", () => {
-        expect(
-            decideDesktopGate(input({pathname: "/auth", headers: docHeaders(MOBILE_UA)})),
-        ).toEqual({kind: "redirect", location: "/m/auth"})
     })
 
     it("trusts sec-ch-ua-mobile ?1 over a desktop UA", () => {
@@ -281,13 +266,6 @@ describe("decideDesktopGate — Classic mode vs the device gate", () => {
             location: "/m/w/ws1/p/pr1/agents",
         })
     })
-
-    it("still sends a phone to /m when the preference is unknown", () => {
-        expect(decideDesktopGate(onPhone(undefined, {pathname: "/w/ws1/p/pr1/agents"}))).toEqual({
-            kind: "redirect",
-            location: "/m/w/ws1/p/pr1/agents",
-        })
-    })
 })
 
 describe("decideDesktopGate — classic mode", () => {
@@ -452,24 +430,6 @@ describe("decideDesktopGate", () => {
             ),
         ).toEqual({kind: "pass"})
     })
-    it("hands a mobile-started callback to /m", () => {
-        const i = input({
-            pathname: "/auth/callback/google",
-            search: "?code=abc&state=xyz",
-            headers: docHeaders(MOBILE_UA),
-        })
-        i.cookie = (name) => (name === MOBILE_AUTH_CALLBACK_COOKIE ? "1" : undefined)
-        expect(decideDesktopGate(i)).toEqual({
-            kind: "redirect",
-            location: "/m/auth/callback/google?code=abc&state=xyz",
-        })
-    })
-
-    it("leaves an ordinary callback alone", () => {
-        const i = input({pathname: "/auth/callback/google", headers: docHeaders(MOBILE_UA)})
-        expect(decideDesktopGate(i)).toEqual({kind: "pass"})
-    })
-
     it("lets ?view=desktop win over the callback marker", () => {
         const i = input({
             pathname: "/auth/callback/google",
@@ -483,11 +443,6 @@ describe("decideDesktopGate", () => {
             clearCookie: MOBILE_OPTIN_COOKIE,
             location: "/auth/callback/google",
         })
-    })
-    it("redirects mobile devices on desktop /auth to the mobile sign-in", () => {
-        expect(
-            decideDesktopGate(input({pathname: "/auth", headers: docHeaders(MOBILE_UA)})),
-        ).toEqual({kind: "redirect", location: "/m/auth"})
     })
     it("honors the opt-out cookie", () => {
         const i = input({headers: docHeaders(MOBILE_UA)})

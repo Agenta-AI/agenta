@@ -434,3 +434,68 @@ async def test_an_organization_connection_never_falls_back_to_the_vault(
             context=_context(),
         )
     assert routes.paths() == [RESOLVE_PATH]
+
+
+@pytest.mark.parametrize(
+    "http_status, refusal_code, expected_normalized_code",
+    [
+        (403, "policy_denied", 424),
+        (403, "access_denied", 403),
+        (422, "endpoint_inactive", 422),
+    ],
+)
+async def test_gateway_credentials_refusal_preserves_status_and_failure_code(
+    http_status: int,
+    refusal_code: str,
+    expected_normalized_code: int,
+    platform,
+    monkeypatch,
+):
+    from agenta.sdk.middlewares.running.normalizer import NormalizerMiddleware
+
+    _Routes(
+        {
+            RESOLVE_PATH: _Response(
+                200,
+                {
+                    "connection": {
+                        "namespace": "standard",
+                        "name": "openai",
+                        "provider_key": "openai",
+                        "deployment_kind": "standard",
+                        "model": "gpt-5.5",
+                    }
+                },
+            ),
+            CREDENTIALS_PATH: _Response(http_status, _envelope(refusal_code, "denied")),
+        }
+    ).install(monkeypatch, connections, platform_connection)
+
+    with pytest.raises(ConnectionResolutionError) as raised:
+        await VaultConnectionResolver(platform).resolve(
+            model=_model(), context=_context()
+        )
+
+    assert getattr(raised.value, "status_code", None) == http_status
+    assert getattr(raised.value, "failure_code", None) == refusal_code
+
+    normalizer = NormalizerMiddleware.__new__(NormalizerMiddleware)
+    normalizer._correlation_ids = lambda: (None, None, None)
+    normalized = await normalizer._normalize_exception(raised.value)
+    assert normalized.status.code == expected_normalized_code
+    assert normalized.status.failure_code == refusal_code
+
+
+async def test_gateway_credentials_transport_failure_without_codes(
+    platform, monkeypatch
+):
+    async def _boom(**_kwargs):
+        raise platform_connection.GatewayCredentialsError("network down")
+
+    monkeypatch.setattr(platform, "gateway_authorization", _boom)
+
+    with pytest.raises(ConnectionResolutionError) as raised:
+        await VaultConnectionResolver(platform)._gateway_credentials(_context())
+
+    assert getattr(raised.value, "status_code", None) is None
+    assert getattr(raised.value, "failure_code", None) is None
