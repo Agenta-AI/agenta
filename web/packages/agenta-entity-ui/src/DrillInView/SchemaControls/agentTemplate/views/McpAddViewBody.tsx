@@ -152,6 +152,16 @@ const McpAddViewBody = ({target, nav}: ViewProps<McpAddViewParams>) => {
         setDeleteBusy(true)
         try {
             await deleteEndpoint(endpoint.id)
+            // A deleted server also leaves this agent, so the agent keeps no broken reference.
+            if (deleting?.added) {
+                const slug = deleting.slug
+                writer.update((agent) => ({
+                    ...agent,
+                    mcps: mcpsOf(agent).filter(
+                        (item) => readMcpConnectionSlug(item as Record<string, unknown>) !== slug,
+                    ),
+                }))
+            }
             setDeleting(null)
         } catch {
             message.error(t("entityUi.integrationDrawer.deleteFailed"))
