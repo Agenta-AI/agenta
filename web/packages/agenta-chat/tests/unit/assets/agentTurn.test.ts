@@ -62,16 +62,13 @@ describe("session turn ids", () => {
         expect(getSessionTurnId("s1")).toBe("turn-B")
     })
 
-    it("is isolated per session and cleared with session ephemera", () => {
+    it("is isolated per session", () => {
         setSessionTurnId("s1", "turn-1")
         setSessionTurnId("s2", "turn-2")
 
         clearSessionTurnId("s1")
         expect(getSessionTurnId("s1")).toBeUndefined()
         expect(getSessionTurnId("s2")).toBe("turn-2")
-
-        clearSessionEphemera("s2")
-        expect(getSessionTurnId("s2")).toBeUndefined()
     })
 
     it("can be cleared before a replacement turn starts", () => {

@@ -224,6 +224,29 @@ def gateway_on(org):
         )
 
 
+def mock_llm_disabled(org) -> bool:
+    """True when the deployment has no mock LLM in its gateway catalogue.
+
+    The mock LLM exists only where `AGENTA_GATEWAYS_MOCKS_ENABLED` is on (the compose dev
+    stacks and the API integration job). A Railway preview runs without it, and it also
+    refuses the plain http mock address as a custom provider URL.
+    """
+    response = org.call("GET", "/gateways/llms/endpoints/")
+    if response.status_code != 200:
+        return True
+    endpoints = (response.json() or {}).get("endpoints") or []
+    return not any(item.get("provider_key") == "mock" for item in endpoints)
+
+
+@pytest.fixture(scope="module")
+def mock_llm_on(org, gateway_on):
+    if mock_llm_disabled(org):
+        pytest.skip(
+            "the deployment runs without the mock LLM (AGENTA_GATEWAYS_MOCKS_ENABLED); "
+            "this test needs it"
+        )
+
+
 @pytest.fixture(scope="module")
 def hobby_org(admin_api, ag_env):
     if not is_ee():

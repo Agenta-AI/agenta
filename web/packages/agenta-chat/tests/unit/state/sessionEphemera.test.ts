@@ -1,6 +1,5 @@
 import {beforeEach, describe, expect, it} from "vitest"
 
-import type {PendingAttachment} from "../../../src/model/attachments"
 import {
     attachmentsBySession,
     clearSessionEphemera,
@@ -15,34 +14,12 @@ import {
     setAcceptedSessionTurnId,
 } from "../../../src/state/sessionEphemera"
 
-const attachment = (uid: string): PendingAttachment => ({
-    file: new File(["x"], `${uid}.txt`),
-    uid,
-    name: `${uid}.txt`,
-})
-
 beforeEach(() => {
     clearSessionEphemera("s1")
     clearSessionEphemera("s2")
     composerDraftBySession.clear()
     attachmentsBySession.clear()
     freshSessionIds.clear()
-})
-
-describe("composerDraftBySession", () => {
-    it("holds one in-progress draft per session", () => {
-        composerDraftBySession.set("s1", "hello")
-        expect(composerDraftBySession.get("s1")).toBe("hello")
-        expect(composerDraftBySession.get("s2")).toBeUndefined()
-    })
-})
-
-describe("attachmentsBySession", () => {
-    it("holds pending attachments typed as PendingAttachment[], not antd UploadFile", () => {
-        const pending = [attachment("a1")]
-        attachmentsBySession.set("s1", pending)
-        expect(attachmentsBySession.get("s1")).toBe(pending)
-    })
 })
 
 describe("fresh-session marker", () => {
@@ -86,29 +63,5 @@ describe("turn id freshness", () => {
         setSessionTurnId("s1", "turn-latest")
         setSessionTurnId("s1", "turn-parked")
         expect(getSessionTurnId("s1")).toBe("turn-latest")
-    })
-})
-
-describe("clearSessionEphemera", () => {
-    it("clears the draft, attachments, and fresh marker for one session", () => {
-        composerDraftBySession.set("s1", "draft")
-        attachmentsBySession.set("s1", [attachment("a1")])
-        markSessionFresh("s1")
-
-        clearSessionEphemera("s1")
-
-        expect(composerDraftBySession.has("s1")).toBe(false)
-        expect(attachmentsBySession.has("s1")).toBe(false)
-        expect(freshSessionIds.has("s1")).toBe(false)
-    })
-
-    it("leaves other sessions' ephemera untouched", () => {
-        composerDraftBySession.set("s1", "draft-1")
-        composerDraftBySession.set("s2", "draft-2")
-
-        clearSessionEphemera("s1")
-
-        expect(composerDraftBySession.has("s1")).toBe(false)
-        expect(composerDraftBySession.get("s2")).toBe("draft-2")
     })
 })

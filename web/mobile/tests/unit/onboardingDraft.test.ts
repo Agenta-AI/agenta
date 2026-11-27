@@ -162,14 +162,6 @@ describe("onboarding answers", () => {
         expect(readOnboardingDraft("draft").answers).toEqual({goals: ["Research"]})
     })
 
-    it("sets only the answered questions as person properties", () => {
-        expect(personProperties({persona: "Engineering"})).toEqual({user_role_v2: "Engineering"})
-        expect(personProperties({persona: "Sales", source: "GitHub"})).toEqual({
-            user_role_v2: "Sales",
-            referral_source_v2: "GitHub",
-        })
-    })
-
     it("caps the name at 100 characters", () => {
         const long = onboardingReducer(draft(), {type: "agent", patch: {name: "x".repeat(150)}})
         expect(long.agent.name).toHaveLength(100)

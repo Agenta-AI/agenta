@@ -40,7 +40,6 @@ vi.mock("@/features/annotations/useQueueDelete", () => ({
         cancel: vi.fn(),
     }),
 }))
-vi.mock("@/features/annotations/QueueDeleteDialog", () => ({QueueDeleteDialog: () => null}))
 vi.mock("@/features/annotations/CreateQueueSheetHost", () => ({CreateQueueSheetHost: () => null}))
 vi.mock("@/features/annotations/QueueListTable", () => ({
     QueueListTable: ({rows, empty}: {rows: {id: string}[]; empty: React.ReactNode}) =>

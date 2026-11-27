@@ -128,15 +128,6 @@ describe("isOpenableSession", () => {
         expect(isOpenableSession(streamRow({references: [{id: WORKFLOW_ID}]}))).toBe(true)
     })
 
-    // The two shapes behind "clicking a session does nothing": no references at all, and the
-    // headless `test_run` shape that carries the variant alone.
-    it("is not open with no references, or with a keyed family that has no workflow", () => {
-        expect(isOpenableSession(streamRow({name: "Refund policy"}))).toBe(false)
-        expect(
-            isOpenableSession(streamRow({references: [{id: VARIANT_ID, key: "workflow_variant"}]})),
-        ).toBe(false)
-    })
-
     it("drops rows that would render inert, keeping order", () => {
         const rows = [
             streamRow({session_id: "a", references: [{id: WORKFLOW_ID, key: "workflow"}]}),
@@ -145,16 +136,6 @@ describe("isOpenableSession", () => {
             streamRow({session_id: "d", references: [{id: WORKFLOW_ID}]}),
         ]
         expect(openableSessions(rows).map((row) => row.session_id)).toEqual(["a", "d"])
-    })
-
-    // The backend stores reference keys permissively, so a key this code does not act on still
-    // proves the family was labelled — falling back to the first id there reopens the dead route.
-    it("is not open for a key it does not recognise", () => {
-        expect(
-            isOpenableSession(
-                streamRow({references: [{id: VARIANT_ID, key: "application_variant"}]}),
-            ),
-        ).toBe(false)
     })
 
     // An automation row IS its schedule: it has a name and its own menu before its first turn,

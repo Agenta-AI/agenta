@@ -72,13 +72,15 @@ jobs:
           cd docs
           pnpm dlx "wrangler@${WRANGLER_VERSION}" deploy \
             --config wrangler.production.jsonc 2>&1 | tee /tmp/wrangler.log
-          url=$(grep -oiE 'https://[a-z0-9.-]+\.workers\.dev' /tmp/wrangler.log | head -1)
-          if [ -z "$url" ]; then
-            echo "::error::Could not extract deployed URL from wrangler output"
+          # Production is served only through the agenta.ai/docs routes, so
+          # wrangler prints no workers.dev address. Check that the routes were
+          # deployed, then verify the public address.
+          if ! grep -q 'agenta.ai/docs\* (zone name: agenta.ai)' /tmp/wrangler.log; then
+            echo "::error::wrangler did not deploy the agenta.ai/docs routes"
             exit 1
           fi
           # Use the directory index's canonical URL, not its /docs redirect.
-          echo "url=${url}/docs/" >> "$GITHUB_OUTPUT"
+          echo "url=https://agenta.ai/docs/" >> "$GITHUB_OUTPUT"
 
       - name: Verify production serves the docs
         run: |

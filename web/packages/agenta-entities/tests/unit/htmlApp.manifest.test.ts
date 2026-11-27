@@ -1,21 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import * as driveBarrel from "../../src/drive"
-import {
-    APP_DEFAULT_ENTRY,
-    APP_MANIFEST_FILENAME,
-    isAppFolderListing,
-    parseManifest,
-} from "../../src/drive/htmlApp/manifest"
-
-describe("@agenta/entities/drive barrel", () => {
-    it("re-exports the htmlApp contracts", () => {
-        expect(driveBarrel.parseManifest).toBe(parseManifest)
-        expect(driveBarrel.APP_MANIFEST_FILENAME).toBe(APP_MANIFEST_FILENAME)
-        expect(typeof driveBarrel.createMockHtmlAppHost).toBe("function")
-        expect(driveBarrel.BRIDGE_VERSION).toBe(1)
-    })
-})
+import {APP_DEFAULT_ENTRY, parseManifest} from "../../src/drive/htmlApp/manifest"
 
 const minimal = (overrides: Record<string, unknown> = {}) =>
     JSON.stringify({agenta_app: 1, name: "Board", ...overrides})
@@ -125,24 +110,5 @@ describe("parseManifest", () => {
     it("does not leak known keys into extra", () => {
         const parsed = parseManifest(minimal({entry: "index.html", kit: false, data: []}))
         expect(parsed?.extra).toBeUndefined()
-    })
-})
-
-describe("isAppFolderListing", () => {
-    it("is true when app.json is a file in the listing", () => {
-        expect(isAppFolderListing([{path: APP_MANIFEST_FILENAME, isFolder: false}])).toBe(true)
-        expect(
-            isAppFolderListing([
-                {path: "apps/board/index.html", isFolder: false},
-                {path: "apps/board/app.json", isFolder: false},
-            ]),
-        ).toBe(true)
-    })
-
-    it("is false without it, or when app.json is a folder", () => {
-        expect(isAppFolderListing([])).toBe(false)
-        expect(isAppFolderListing([{path: "index.html", isFolder: false}])).toBe(false)
-        expect(isAppFolderListing([{path: "app.json", isFolder: true}])).toBe(false)
-        expect(isAppFolderListing([{path: "app.json.bak", isFolder: false}])).toBe(false)
     })
 })

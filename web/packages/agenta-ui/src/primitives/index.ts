@@ -4,6 +4,7 @@
  * `FieldHelp`, `DialogScope`). Only shadcn registry components live here; components built
  * from them are in `@agenta/ui/composed`.
  */
+export {ResizeEdgeLine} from "./resize-edge"
 export {Badge, badgeVariants, statusBadgeVariant, type BadgeProps, type BadgeVariant} from "./badge"
 export {
     Button,

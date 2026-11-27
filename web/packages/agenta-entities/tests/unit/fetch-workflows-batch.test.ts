@@ -38,6 +38,7 @@ describe("fetchWorkflowsBatch", () => {
             workflow_refs: [{id: "a"}, {id: "b"}, {id: "c"}],
             grouping: {by: "artifact", get: "latest"},
         })
+        expect(post.mock.calls[0][2]).toEqual({params: {project_id: "proj-1"}})
         expect([...result.entries()].map(([id, rev]) => [id, rev.id])).toEqual([
             ["a", "a-v4"],
             ["b", "b-v2"],

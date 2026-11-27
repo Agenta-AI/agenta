@@ -51,11 +51,6 @@ vi.mock("@agenta/entities/workflow", async (original) => {
 vi.mock("../../src/DrillInView/SchemaControls/TriggerManagementSection", () => ({
     useAgentTriggers: () => ({count: 0}),
 }))
-vi.mock("../../src/DrillInView/SchemaControls/agentTemplate/AgentSecretsSection", () => ({
-    AgentSecretsSection: ({localDraftDirty}: {localDraftDirty?: boolean}) => (
-        <div data-testid="custom-secrets" data-draft-dirty={String(localDraftDirty)} />
-    ),
-}))
 vi.mock("../../src/DrillInView/components/MoleculeDrillInContext", async (original) => ({
     ...(await original<object>()),
     useOptionalDrillIn: () => (fixture.revision ? {entityId: fixture.revision} : null),
