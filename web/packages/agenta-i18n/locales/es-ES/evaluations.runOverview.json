@@ -10,6 +10,7 @@
     "errorsSplit": "{{runs}} ejecuciones, {{evaluator}} evaluador",
     "evaluator": "Evaluador",
     "evaluatorFailedAlert_one": "{{count}} caso de prueba más no tiene resultado de un evaluador porque el evaluador falló.",
+    "evaluatorFailedAlert_many": "{{count}} casos de prueba más no tienen resultado de un evaluador porque el evaluador falló.",
     "evaluatorFailedAlert_other": "{{count}} casos de prueba más no tienen resultado de un evaluador porque el evaluador falló.",
     "failed": "Fallidos",
     "mean": "media",
