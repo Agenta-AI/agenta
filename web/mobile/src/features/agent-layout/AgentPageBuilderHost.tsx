@@ -118,6 +118,7 @@ export const AgentPageBuilderHost = ({
                     </div>
                     <AgentPanelFrame
                         open={open}
+                        present={open}
                         mode={mode}
                         width={width}
                         resize={resize}
