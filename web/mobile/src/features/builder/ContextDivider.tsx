@@ -10,14 +10,20 @@ import {Robot} from "@phosphor-icons/react"
  */
 export const ContextDivider = ({text}: {text: string}) => {
     const t = useT(builderContextCatalog)
+    const label = `${t("builder.context.title")}: ${text}`
     return (
         <div
             data-testid="builder-context-divider"
+            role="separator"
+            aria-label={label}
             className="sticky top-0 z-10 flex w-full min-w-0 items-center gap-3 bg-background py-2"
         >
             <span aria-hidden className="h-px min-w-4 flex-1 bg-border-muted" />
-            <SimpleTooltip title={`${t("builder.context.title")}: ${text}`}>
-                <span className="flex min-w-0 max-w-[80%] items-center gap-1.5 text-meta text-muted-foreground">
+            <SimpleTooltip title={label}>
+                <span
+                    tabIndex={0}
+                    className="focus-ring flex min-w-0 max-w-[80%] items-center gap-1.5 rounded-sm text-meta text-muted-foreground"
+                >
                     <Robot aria-hidden size={12} className="shrink-0" />
                     <span className="truncate">{text}</span>
                 </span>

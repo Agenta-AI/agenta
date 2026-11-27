@@ -339,8 +339,8 @@ const TurnRowInner = ({
             <ChangeResults parts={turn.message.parts} finished={!runOpen} latest={turn.isLast} />
             {answered ? (
                 <div {...quoteProps} className="flex min-w-0 flex-col gap-3">
-                    {/* A turn with no timeline row signs its answer above the text instead. */}
-                    {builderChat && !activity.steps.length && !live && !runFailure ? (
+                    {/* No timeline row (no step, run settled, no failure): sign the answer here. */}
+                    {builderChat && !activity.steps.length && !runOpen && !runFailure ? (
                         <div className="-mb-2 flex items-center gap-1.5 text-meta text-muted-foreground">
                             <BuilderIcon size={12} aria-hidden />
                             {t("builder.page.builder")}
@@ -498,7 +498,7 @@ const TurnRowInner = ({
     // The host's accessory (the builder's context divider) sits in the transcript column, above the turn.
     return accessory ? (
         <>
-            <div className="contents">{accessory}</div>
+            {accessory}
             {row}
         </>
     ) : (

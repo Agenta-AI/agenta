@@ -4,31 +4,40 @@ import type {UIMessage} from "ai"
 
 import {chipText, usePageLabel} from "./chipText"
 import {ContextDivider} from "./ContextDivider"
-import {sentContextOf, type PageContext} from "./pageContext"
+import {pagePartKey, sentContextOf, type PageContext} from "./pageContext"
 
-/** What the builder was looking at: the agent and its page part. */
-const contextKey = (context: PageContext | null, label: (c: PageContext) => string | null) =>
-    context ? `${context.agent.id}\u0000${label(context) ?? ""}` : ""
+type PagedContext = PageContext & {page: NonNullable<PageContext["page"]>}
 
-/** The divider above a sent message, when its context differs from the previous sent message's. */
-export const SentContextDivider = ({
-    message,
-    previous,
-}: {
-    message: UIMessage
-    previous: UIMessage | null
-}) => {
-    const pageLabel = usePageLabel()
+/** The context of a message sent with a page part; a message sent with the chip removed has none. */
+const pagedContextOf = (message: UIMessage): PagedContext | null => {
+    if (message.role !== "user") return null
     const context = sentContextOf(message)
-    // A message sent with the chip removed carries the agent only: no page part, no divider.
-    if (!context?.page) return null
-    const label = (c: PageContext) => pageLabel(c.page)
-    const before = previous ? sentContextOf(previous) : null
-    if (contextKey(context, label) === contextKey(before, label)) return null
-    return <ContextDivider text={chipText(context.agent.name, label(context))} />
+    return context?.page ? (context as PagedContext) : null
 }
 
-/** The `userMessageAccessory` of a builder chat. */
-export const sentContextDivider = (message: UIMessage, previous: UIMessage | null): ReactNode => (
-    <SentContextDivider message={message} previous={previous} />
-)
+/** What the builder was looking at, by ids, so names that load late or repeat never count. */
+const contextKey = (context: PagedContext) =>
+    `${context.agent.id}\u0000${pagePartKey(context.page)}`
+
+/** The divider text: the agent and the page part's label. */
+export const SentContextDivider = ({context}: {context: PagedContext}) => {
+    const pageLabel = usePageLabel()
+    return <ContextDivider text={chipText(context.agent.name, pageLabel(context.page))} />
+}
+
+/**
+ * The `userMessageAccessory` of a builder chat: a divider when the message's context differs from
+ * the last earlier shown message sent with one. The first shown one always gets its divider.
+ */
+export const sentContextDivider = (message: UIMessage, earlier: UIMessage[]): ReactNode => {
+    const context = pagedContextOf(message)
+    if (!context) return null
+    for (let at = earlier.length - 1; at >= 0; at--) {
+        const before = pagedContextOf(earlier[at])
+        if (!before) continue
+        return contextKey(before) === contextKey(context) ? null : (
+            <SentContextDivider context={context} />
+        )
+    }
+    return <SentContextDivider context={context} />
+}
