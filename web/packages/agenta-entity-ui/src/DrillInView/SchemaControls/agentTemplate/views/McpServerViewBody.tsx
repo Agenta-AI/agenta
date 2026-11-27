@@ -201,7 +201,8 @@ const AgentServer = ({
                     disabled={writer.readOnly}
                     account={
                         <McpAccountBlock
-                                        source={readMcpAccountSource(entry)}
+                            endpoint={endpoint}
+                            source={readMcpAccountSource(entry)}
                             onChange={(source) =>
                                 update((current) => withMcpAccountSource(current, source))
                             }
