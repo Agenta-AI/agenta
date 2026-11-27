@@ -26,7 +26,7 @@ overrides:
   source-map-js@<1.2.2: ^1.2.2
   tar: 7.5.21
   undici: 8.12.2
-  zod@>=4.0.0 <4.6.6: 4.6.6
+  zod@<4.6.6: 4.6.6
 
 patchedDependencies:
   '@agentclientprotocol/sdk@0.16.1':
@@ -2631,9 +2631,6 @@ packages:
     peerDependencies:
       zod: 4.6.6
 
-  zod@3.25.76:
-    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
-
   zod@4.6.6:
     resolution: {integrity: sha512-4UmzQUF5fxvfcYHlbjBmejU+w+hbDnWFx4aS8kBx7nPBHcO2SqPbpAG8snbdg+Xse4pRefR98hgjFgIMCI/UhA==}
 
@@ -2657,9 +2654,9 @@ snapshots:
     dependencies:
       zod: 4.6.7
 
-  '@agentclientprotocol/sdk@0.26.0(zod@3.25.76)':
+  '@agentclientprotocol/sdk@0.26.0(zod@4.6.6)':
     dependencies:
-      zod: 3.25.76
+      zod: 4.6.6
 
   '@agentclientprotocol/sdk@2.8.0(zod@4.6.7)':
     dependencies:
@@ -4962,8 +4959,8 @@ snapshots:
 
   pi-acp@0.0.29(patch_hash=f9deb01a2d67a755607fe78552ef0dbfe7242e93d3c8e30bdc7b6fb0140d37f0):
     dependencies:
-      '@agentclientprotocol/sdk': 0.26.0(zod@3.25.76)
-      zod: 3.25.76
+      '@agentclientprotocol/sdk': 0.26.0(zod@4.6.6)
+      zod: 4.6.6
 
   picocolors@1.1.1: {}
 
@@ -5378,8 +5375,6 @@ snapshots:
   zod-to-json-schema@3.25.2(zod@4.6.7):
     dependencies:
       zod: 4.6.7
-
-  zod@3.25.76: {}
 
   zod@4.6.6: {}
 
