@@ -1,28 +1,32 @@
 import {useEffect} from "react"
 
+import {isAggregatableMetric, type EvaluatorRow} from "@agenta/entities/evaluationRun"
 import {useT} from "@agenta/i18n"
+import runOverviewCatalog from "@agenta/i18n/catalogs/evaluations.runOverview"
 import evaluationScreensCatalog from "@agenta/i18n/catalogs/evaluations.screens"
 import annotateCatalog from "@agenta/i18n/catalogs/observability.annotate"
 import {Alert, Button} from "@agenta/ui/ui"
 
-import {ChartSkeleton} from "../states/ChartSkeleton"
+import {EvaluatorTableSkeleton} from "../states/EvaluatorTableSkeleton"
 import {OverviewEmpty} from "../states/OverviewEmpty"
 
-import {MetricCard} from "./MetricCard"
+import {EvaluatorTable} from "./EvaluatorTable"
 import {TemporalMetricCard} from "./TemporalMetricCard"
 import type {OverviewMetric} from "./useRunOverview"
 
 const GRID = "grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3"
 
 /**
- * One card per evaluator metric: a distribution for a finished run, a time chart for an online
- * run. Invocation metrics stay in the summary table.
+ * The evaluator results: one table row per evaluator step, and for an online run its charts over
+ * time under "Over time". Also the loading, empty and error states of the metrics.
  */
-export const MetricCardsSection = ({
+export const EvaluatorResultsSection = ({
     runId,
     runName,
     online,
     human = false,
+    rows,
+    noResultByStep,
     metrics,
     hasEvaluators,
     pending,
@@ -34,20 +38,23 @@ export const MetricCardsSection = ({
     online: boolean
     /** A human run's scores come from annotations, so its empty state asks for them. */
     human?: boolean
+    rows: readonly EvaluatorRow[]
+    /** By step key: the test cases that ran where the evaluator failed. */
+    noResultByStep?: Readonly<Record<string, number>>
     metrics: readonly OverviewMetric[]
     hasEvaluators: boolean
     pending: boolean
     error: Error | null
     onRetry?: () => void
 }) => {
-    const t = useT(evaluationScreensCatalog, annotateCatalog)
-    const cards = metrics.filter((metric) => metric.kind === "evaluator")
+    const t = useT(evaluationScreensCatalog, annotateCatalog, runOverviewCatalog)
+    const evaluatorMetrics = metrics.filter((metric) => metric.kind === "evaluator")
 
     useEffect(() => {
         if (error) console.error("[RunOverview] metrics failed to load", error)
     }, [error])
 
-    if (cards.length === 0 && error) {
+    if (evaluatorMetrics.length === 0 && error) {
         return (
             <Alert
                 type="error"
@@ -63,16 +70,10 @@ export const MetricCardsSection = ({
             />
         )
     }
-    if (cards.length === 0 && pending) {
-        return (
-            <div aria-busy className={GRID}>
-                {[0, 1, 2].map((index) => (
-                    <ChartSkeleton key={index} label="Preparing evaluator metrics" height={220} />
-                ))}
-            </div>
-        )
+    if (evaluatorMetrics.length === 0 && pending) {
+        return <EvaluatorTableSkeleton label="Preparing evaluator metrics" />
     }
-    if (cards.length === 0) {
+    if (evaluatorMetrics.length === 0) {
         if (online) {
             return (
                 <OverviewEmpty
@@ -102,8 +103,12 @@ export const MetricCardsSection = ({
         )
     }
 
+    const overTime = online
+        ? evaluatorMetrics.filter((metric) => isAggregatableMetric(metric.stats))
+        : []
+
     return (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-6">
             {error ? (
                 <Alert
                     type="error"
@@ -118,20 +123,24 @@ export const MetricCardsSection = ({
                     }
                 />
             ) : null}
-            <div className={GRID}>
-                {cards.map((metric) =>
-                    online ? (
-                        <TemporalMetricCard
-                            key={metric.id}
-                            metric={metric}
-                            runId={runId}
-                            runName={runName}
-                        />
-                    ) : (
-                        <MetricCard key={metric.id} metric={metric} runId={runId} />
-                    ),
-                )}
-            </div>
+            <EvaluatorTable rows={rows} noResultByStep={noResultByStep} />
+            {overTime.length > 0 ? (
+                <section aria-labelledby="run-over-time" className="flex flex-col gap-3">
+                    <h2 id="run-over-time" className="m-0 text-subtitle text-foreground">
+                        {t("evaluations.runOverview.overTime")}
+                    </h2>
+                    <div className={GRID}>
+                        {overTime.map((metric) => (
+                            <TemporalMetricCard
+                                key={metric.id}
+                                metric={metric}
+                                runId={runId}
+                                runName={runName}
+                            />
+                        ))}
+                    </div>
+                </section>
+            ) : null}
         </div>
     )
 }

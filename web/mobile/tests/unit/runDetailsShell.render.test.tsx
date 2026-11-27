@@ -244,7 +244,7 @@ describe("run details page", () => {
         await mount()
         await flush()
 
-        expect(host.textContent).toContain("Run summary")
+        expect(host.querySelector('[data-testid="tile-testCases"]')).not.toBeNull()
         expect(http.patch).not.toHaveBeenCalled()
         expect(http.put).not.toHaveBeenCalled()
         expect(http.delete).not.toHaveBeenCalled()

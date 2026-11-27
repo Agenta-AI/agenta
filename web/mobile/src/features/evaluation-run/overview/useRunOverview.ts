@@ -1,10 +1,11 @@
-import {useMemo} from "react"
+import {useEffect, useMemo} from "react"
 
 import {
     runLevelMetricsQueryAtomFamily,
     runMetricCatalogAtomFamily,
-    runQueryConfigQueryAtomFamily,
     runReferencesAtomFamily,
+    runScenarioMetricsQueryAtomFamily,
+    type EvaluationMetric,
     type RunMetricEntry,
 } from "@agenta/entities/evaluationRun"
 import {testsetQueryAtomFamily, testsetRevisionHeaderAtomFamily} from "@agenta/entities/testset"
@@ -73,20 +74,27 @@ export function useOverviewNames(ids: OverviewNameIds): OverviewNames {
     return useAtomValue(namesAtom)
 }
 
-const NO_QUERY = {queryId: "", revisionId: null}
+/**
+ * The per-test-case rows behind the "Passed" tile. They load once the run has finished; a running
+ * or online run never reads them, so they are not available there.
+ */
+export type ScenarioMetricsState =
+    | {status: "pending"}
+    | {status: "unavailable"}
+    | {status: "ready"; rows: EvaluationMetric[]}
 
-/** Everything the Overview tab of one run reads. Compare runs are a later step. */
+/** Everything the Overview tab of one run reads. The run facts are in the header's meta line. */
 export function useRunOverview(runId: string) {
     const references = useAtomValue(runReferencesAtomFamily(runId))
     const metricsQuery = useAtomValue(runLevelMetricsQueryAtomFamily(runId))
     const catalog = useAtomValue(runMetricCatalogAtomFamily(runId))
-    // A live run's trace query, at the revision the run stored; a run without one reads nothing.
-    const queryConfig = useAtomValue(
-        runQueryConfigQueryAtomFamily(references?.queries[0] ?? NO_QUERY),
-    )
+    const scenarioQuery = useAtomValue(runScenarioMetricsQueryAtomFamily(runId))
 
     const names = useOverviewNames({
-        evaluatorIds: catalog.flatMap((entry) => entry.evaluatorId ?? []),
+        evaluatorIds: [
+            ...catalog.flatMap((entry) => entry.evaluatorId ?? []),
+            ...(references?.evaluators.map((evaluator) => evaluator.evaluatorId) ?? []),
+        ],
         testsetIds: references?.testsets.map((testset) => testset.testsetId) ?? [],
         testsetRevisionIds:
             references?.testsets.map((testset) =>
@@ -111,13 +119,28 @@ export function useRunOverview(runId: string) {
         [catalog, names.evaluators],
     )
 
+    useEffect(() => {
+        if (scenarioQuery.isError) {
+            console.error("[RunOverview] per-test-case metrics failed to load", scenarioQuery.error)
+        }
+    }, [scenarioQuery.isError, scenarioQuery.error])
+
+    const scenarioMetrics: ScenarioMetricsState = scenarioQuery.isSuccess
+        ? {status: "ready", rows: scenarioQuery.data}
+        : scenarioQuery.fetchStatus === "fetching"
+          ? {status: "pending"}
+          : {status: "unavailable"}
+
     return {
         references,
         metrics,
         metricsPending: metricsQuery.isPending,
         metricsError: metricsQuery.isError ? metricsQuery.error : null,
         names,
-        query: queryConfig.isPending ? undefined : (queryConfig.data ?? null),
-        onRetryMetrics: () => void metricsQuery.refetch(),
+        scenarioMetrics,
+        onRetryMetrics: () => {
+            void metricsQuery.refetch()
+            if (scenarioQuery.isError) void scenarioQuery.refetch()
+        },
     }
 }
