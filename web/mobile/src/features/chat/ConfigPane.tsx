@@ -1,6 +1,6 @@
 import {useContext} from "react"
 
-import {AgentEditorContext, SectionListLayoutContext} from "@agenta/entity-ui/drill-in"
+import {AgentEditorContext} from "@agenta/entity-ui/drill-in"
 import {AgentBuildPanel} from "@agenta/playground-ui/agent-build"
 import {cn} from "@agenta/ui/styles"
 
@@ -25,27 +25,11 @@ export const ConfigPane = ({
      * (`panel-side`, LAYOUT-04, ALIGN-01).
      */
     inset?: boolean
-    /**
-     * A wide host (the builder page pane, B03): the sections are full-width 45 px rows in a
-     * centered 760 px column.
-     */
+    /** A wide host (the builder page pane): the sections sit in a centered 760 px column. */
     column?: boolean
 }) => {
     // The edit right comes from the container (ConfigurationContent), which its open views share.
     const readOnly = useContext(AgentEditorContext)?.readOnly ?? false
-
-    const panel = (
-        <AgentBuildPanel
-            className={column ? "mx-auto w-full max-w-content-md" : undefined}
-            revisionId={entityId}
-            disabled={readOnly}
-            // Automations and files have their own places in the panel.
-            operations={false}
-            stickyHeaderTop={0}
-            // The operational sections (and their drawers) live in the Automations tab.
-            automationDrawer={null}
-        />
-    )
 
     return (
         // On a phone the size container lets a section screen fill the pane (its primary action at
@@ -58,14 +42,16 @@ export const ConfigPane = ({
                 inset && "px-1",
             )}
         >
-            {/* Only the wide host sets a layout: the Configuration page sets "page" above this. */}
-            {column ? (
-                <SectionListLayoutContext.Provider value="pane">
-                    {panel}
-                </SectionListLayoutContext.Provider>
-            ) : (
-                panel
-            )}
+            <AgentBuildPanel
+                className={column ? "mx-auto w-full max-w-content-md" : undefined}
+                revisionId={entityId}
+                disabled={readOnly}
+                // Automations and files have their own places in the panel.
+                operations={false}
+                stickyHeaderTop={0}
+                // The operational sections (and their drawers) live in the Automations tab.
+                automationDrawer={null}
+            />
         </div>
     )
 }

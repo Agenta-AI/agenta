@@ -218,7 +218,7 @@ export const BuilderPage = ({
     const [dragWidth, setDragWidth] = useState<number | null>(null)
     const chatColumn = (
         <section aria-label={title} className="flex h-full min-h-0 min-w-0 flex-col">
-            <header className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-border-muted px-3 md:pl-4">
+            <header className="flex h-12 shrink-0 items-center gap-2 px-3 md:pl-4">
                 <NavDrawer
                     workspaceId={workspaceId}
                     projectId={projectId}
@@ -234,7 +234,7 @@ export const BuilderPage = ({
                         userId={userId}
                     />
                 ) : (
-                    <span className="min-w-0 flex-1 truncate text-title text-foreground">
+                    <span className="min-w-0 flex-1 truncate text-btn-sm font-medium text-foreground">
                         {title}
                     </span>
                 )}

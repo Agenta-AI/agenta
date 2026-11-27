@@ -149,6 +149,7 @@ vi.mock("@agenta/chat/assets", () => ({
     resolveStopExecution: vi.fn(),
     shouldShowStopControl: () => false,
     restoreRefusedSend: vi.fn(),
+    scrollEdgeMask: () => "none",
 }))
 vi.mock("@agenta/chat/state", () => ({getSessionTurnId: () => null, runKey: () => ""}))
 vi.mock("@agenta/entities/session", async () => {
@@ -299,15 +300,13 @@ vi.mock("@/features/chat/Composer", () => ({
     },
 }))
 const composerSeen = vi.hoisted(() => ({inputRef: undefined as undefined | {current: unknown}}))
-vi.mock("@/features/chat/TranscriptTurns", async () => {
-    const {useContext} = await import("react")
-    const {UserMessageAccessoryContext} = await import("@/features/chat/userMessageAccessory")
-    const Accessory = () => {
-        const read = useContext(UserMessageAccessoryContext) as ((id: string) => ReactNode) | null
-        return <div data-testid="accessory">{read ? read("m1") : "none"}</div>
-    }
-    return {TranscriptTurns: () => <Accessory />}
-})
+vi.mock("@/features/chat/TranscriptTurns", () => ({
+    TranscriptTurns: ({
+        readUserMessageAccessory: read,
+    }: {
+        readUserMessageAccessory: ((id: string, firstShownId?: string) => ReactNode) | null
+    }) => <div data-testid="accessory">{read ? read("m1") : "none"}</div>,
+}))
 vi.mock("@/features/chat/useApprovalActions", () => ({
     useApprovalActions: () => ({phase: "idle", errorText: null, respond: calls.steerRespond}),
 }))

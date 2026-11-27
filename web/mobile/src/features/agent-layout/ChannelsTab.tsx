@@ -1,17 +1,19 @@
+import {useContext} from "react"
+
 import {useT} from "@agenta/i18n"
 import agentLayoutPanelCatalog from "@agenta/i18n/catalogs/agentLayout.panel"
 import {cn} from "@agenta/ui/styles"
 import dynamic from "next/dynamic"
 
-import {useAgentPanel} from "./agentPanelContext"
 import {PaneBackView} from "./PaneBackView"
+import {PanelChromeContext} from "./PanelViewChrome"
 
 // Loaded when the tab first opens: the channel views are not part of the session screen.
 const AgentChannels = dynamic(() =>
     import("../agent-pages/AgentChannels").then((m) => m.AgentChannels),
 )
 
-/** The Channels tab of the agent's right panel: the same view as the agent's Channels page. */
+/** The Channels tab of the agent pane: the same view as the agent's Channels page. */
 export const ChannelsTab = ({
     agentId,
     workspaceId,
@@ -24,7 +26,7 @@ export const ChannelsTab = ({
     className?: string
 }) => {
     const t = useT(agentLayoutPanelCatalog)
-    const panel = useAgentPanel()
+    const {phone} = useContext(PanelChromeContext)
     return (
         // A flex column, so an open view fills it and its footer sits at the bottom.
         <div className={cn("flex h-full min-h-0 flex-col overflow-y-auto p-4", className)}>
@@ -34,7 +36,7 @@ export const ChannelsTab = ({
                 projectId={projectId}
                 // An open channel view takes the pane header's back link; a phone keeps its sheet.
                 renderOpenView={
-                    panel.phone
+                    phone
                         ? undefined
                         : (view) => (
                               <PaneBackView

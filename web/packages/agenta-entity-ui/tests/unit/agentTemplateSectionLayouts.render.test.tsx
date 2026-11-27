@@ -1,7 +1,6 @@
 /**
- * The three layouts of the agent's sections. Null is the panel (canvas F01): inset 40 px rows, no
- * summary on an empty section. "pane" is the builder page pane (canvas B03): full-width 45 px
- * rows that keep "None". "page" is the Configuration page (canvas A04): one card per section.
+ * The layouts of the agent's sections. Null is the panel (canvas F01): section cards with 40 px
+ * rows and no summary on an empty section. "page" is the Configuration page (canvas A04).
  */
 import {act, createElement} from "react"
 
@@ -78,14 +77,10 @@ const headerRow = (key: string) =>
 const section = (key: string) => container.querySelector(`[data-config-section=${key}]`)!
 
 describe("AgentTemplateSectionList layouts", () => {
-    it("pane: full-width 45 px rows that keep None and tint a marked header", () => {
-        renderList("pane")
-        const list = section("subagents").parentElement!
-        expect(list.className).toContain("-mx-4")
-        expect(list.className).not.toContain("gap-1.5")
-        expect(headerRow("subagents").className).toContain("h-[45px]")
-        expect(headerRow("subagents").className).toContain("px-4")
-        expect(section("subagents").textContent).toContain("None")
+    it("panel: 40 px card rows with no summary when empty, and a tinted marked header", () => {
+        renderList(null)
+        expect(headerRow("subagents").className).toContain("h-10")
+        expect(section("subagents").textContent).not.toContain("None")
         expect(headerRow("skills").className).toContain("bg-info/10")
         expect(headerRow("subagents").className).not.toContain("bg-info/10")
     })

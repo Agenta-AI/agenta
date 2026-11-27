@@ -8,11 +8,12 @@ import agentPagesPhoneCatalog from "@agenta/i18n/catalogs/agentPages.phone"
 import {BuilderIcon} from "@agenta/ui/agent-icon"
 import {PhoneScreenHeader} from "@agenta/ui/phone"
 import {cn} from "@agenta/ui/styles"
-import {BackLink, Button, Tabs, TabsList, TabsTrigger} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 
 import {ConfigPane} from "../chat/ConfigPane"
 
 import {AccessTab} from "./AccessTab"
+import {AGENT_CONFIG_TABPANEL_ID, AgentConfigTabs, agentConfigTabId} from "./AgentConfigTabs"
 import {useAgentPanel} from "./agentPanelContext"
 import type {ConfigTab} from "./agentPanelState"
 import {AutomationsTab} from "./AutomationsTab"
@@ -63,36 +64,15 @@ export const ConfigurationRoot = ({
         panel.setConfigTab(tab)
         setTabSwitched(true)
     }
-    // The kit Tabs (TabsList, 32 px) inside the pane header. Selection runs on click, so a key
-    // press moves focus and Enter or Space selects (one Tab stop for the row).
-    const tabTriggers = (
-        <TabsList
-            className={cn(
-                // In the 320 px pane four tabs and Close do not fit: the row scrolls, never overlaps.
-                "ag-scroll-no-bar min-w-0 shrink justify-start overflow-x-auto",
-                // The full header height, so the underline sits on the header's bottom line.
-                "h-auto self-stretch",
-            )}
-        >
-            {tabs.map((tab) => (
-                <TabsTrigger
-                    key={tab.key}
-                    value={tab.key}
-                    id={`agent-config-tab-${tab.key}`}
-                    aria-controls="agent-config-tabpanel"
-                    className="flex-none"
-                    onClick={() => selectTab(tab.key)}
-                >
-                    {t(`agentLayout.panel.${tab.label}`)}
-                </TabsTrigger>
-            ))}
-        </TabsList>
-    )
-    const tabRow = (className: string, trailing: ReactNode) => (
-        <Tabs value={configTab} activationMode="manual" className={className}>
-            {tabTriggers}
-            {trailing}
-        </Tabs>
+    const tabRow = (back: PaneBack | null, trailing?: ReactNode) => (
+        <AgentConfigTabs
+            tabs={tabs.map((tab) => ({key: tab.key, label: t(`agentLayout.panel.${tab.label}`)}))}
+            value={configTab}
+            onSelect={selectTab}
+            phone={panel.phone}
+            back={back}
+            trailing={trailing}
+        />
     )
     return (
         <div className="ag-panel-raised flex h-full min-h-0 flex-col">
@@ -124,39 +104,18 @@ export const ConfigurationRoot = ({
                             }
                         />
                         {/* The tabs; History lives in the More sheet on a phone. */}
-                        {tabRow(
-                            "box-border h-10 shrink-0 flex-row items-center justify-between gap-1 border-0 border-b border-solid border-border-muted pl-1.5 pr-4",
-                            null,
-                        )}
+                        {tabRow(null)}
                     </>
                 )
-            ) : paneBack ? (
-                // The same header as a Configuration view: the way back, then Close.
-                <div className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-border-muted pl-2 pr-3">
-                    <div className="flex min-w-0 flex-1 items-center pl-1.5">
-                        <BackLink
-                            size="bar"
-                            title={paneBack.title}
-                            onClick={paneBack.onBack}
-                            className="max-w-full"
-                        >
-                            <span className="truncate">{paneBack.title}</span>
-                        </BackLink>
-                    </div>
-                    <PanelCloseButton />
-                </div>
             ) : (
                 // The pane header: the session bar's 48 px, the tab text on the pane's 24 px line.
-                tabRow(
-                    "box-border h-12 shrink-0 flex-row items-center justify-between gap-2 border-0 border-b border-solid border-border-muted pl-3.5 pr-3",
-                    <PanelCloseButton />,
-                )
+                tabRow(paneBack, <PanelCloseButton onClose={() => void panel.close()} />)
             )}
             <PaneBackContext.Provider value={setPaneBack}>
                 <div
-                    id="agent-config-tabpanel"
+                    id={AGENT_CONFIG_TABPANEL_ID}
                     role="tabpanel"
-                    aria-labelledby={`agent-config-tab-${configTab}`}
+                    aria-labelledby={agentConfigTabId(configTab)}
                     className={cn("min-h-0 flex-1", tabSwitched && "ag-view-enter-children")}
                 >
                     {configTab === "agent" ? (

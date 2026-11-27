@@ -7,7 +7,7 @@ import {useSectionListLayout} from "./sectionListLayout"
 
 /**
  * Loading placeholder for the agent's sections, in the shape of each layout: the panel's cards,
- * the page's titled cards, and divided rows for the pane and the phone. Shown while the revision/schema is still loading so the panel holds
+ * the page's titled cards, and divided rows for the phone. Shown while the revision/schema is still loading so the panel holds
  * its real shape instead of the generic prompt-config pulse boxes. Triggers/Mounts are NOT
  * config sections — their loading shape is `AgentOperationsSkeleton` (sibling regions).
  */
@@ -130,9 +130,7 @@ const AgentConfigSkeleton = () => {
         >
             {layout === "page" ? (
                 <PageSkeleton />
-            ) : layout === null && !phone ? (
-                <PanelSkeleton />
-            ) : (
+            ) : phone ? (
                 ROWS.map((row, i) => (
                     <SkeletonSectionRow
                         key={i}
@@ -142,6 +140,8 @@ const AgentConfigSkeleton = () => {
                         divider={i < ROWS.length - 1}
                     />
                 ))
+            ) : (
+                <PanelSkeleton />
             )}
         </div>
     )

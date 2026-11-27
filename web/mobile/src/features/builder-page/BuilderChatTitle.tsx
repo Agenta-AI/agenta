@@ -16,7 +16,8 @@ import {useRouter} from "next/router"
 import {builderChatHref} from "../builder/builderChatHref"
 import {SessionRowMenu} from "../sessions/SessionRowMenu"
 
-const titleClass = "min-w-0 flex-1 truncate text-title text-foreground"
+// The session header's agent name: the kit small button text, medium weight.
+const titleClass = "min-w-0 flex-1 truncate text-btn-sm font-medium text-foreground"
 
 /** A saved builder chat's title and its "⋯" menu: the session row's actions (B03). */
 export const BuilderChatTitle = ({

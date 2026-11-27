@@ -320,6 +320,15 @@ const TurnRowInner = ({
                 streamedHere={streamedHereRef.current}
                 runStartedAt={runStartedAt}
                 renderClientTool={renderClientTool}
+                // The builder signs its answer on the timeline's row (S03, M05).
+                leading={
+                    builderChat ? (
+                        <>
+                            <BuilderIcon size={12} aria-hidden />
+                            {t("builder.page.builder")}
+                        </>
+                    ) : undefined
+                }
                 failure={
                     runFailure
                         ? describeRunFailure({...runFailure, can: NO_WAYS_OUT}).failure
@@ -330,8 +339,8 @@ const TurnRowInner = ({
             <ChangeResults parts={turn.message.parts} finished={!runOpen} latest={turn.isLast} />
             {answered ? (
                 <div {...quoteProps} className="flex min-w-0 flex-col gap-3">
-                    {/* The builder signs its answers (S03, M05): 12 px, secondary, above the text. */}
-                    {builderChat ? (
+                    {/* No timeline row (no step, run settled, no failure): sign the answer here. */}
+                    {builderChat && !activity.steps.length && !runOpen && !runFailure ? (
                         <div className="-mb-2 flex items-center gap-1.5 text-meta text-muted-foreground">
                             <BuilderIcon size={12} aria-hidden />
                             {t("builder.page.builder")}
@@ -394,13 +403,7 @@ const TurnRowInner = ({
     const attachmentStrip = files.length ? (
         <AttachmentStrip files={files} align={turn.isUser ? "end" : "start"} />
     ) : null
-    const header =
-        accessory || attachmentStrip ? (
-            <>
-                {accessory}
-                {attachmentStrip}
-            </>
-        ) : null
+    const header = attachmentStrip
     // Attachments with no words paint no bubble; an assistant turn always paints its fold line.
     const hasBubbleContent =
         !turn.isUser ||
@@ -448,7 +451,7 @@ const TurnRowInner = ({
         )
     }
 
-    return (
+    const row = (
         <div
             className={`${mobileTurnRowClass} ${turn.isUser ? "justify-end" : "justify-start"}`}
             {...rowMarkers}
@@ -491,6 +494,15 @@ const TurnRowInner = ({
                 </div>
             ) : null}
         </div>
+    )
+    // The host's accessory (the builder's context divider) sits in the transcript column, above the turn.
+    return accessory ? (
+        <>
+            {accessory}
+            {row}
+        </>
+    ) : (
+        row
     )
 }
 
