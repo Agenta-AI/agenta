@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import {Cascader} from "@agenta/ui/ui"
+import {Cascader} from "@agenta/ui/composed"
 import {PencilSimple} from "@phosphor-icons/react"
 import {Input, Typography} from "antd"
 

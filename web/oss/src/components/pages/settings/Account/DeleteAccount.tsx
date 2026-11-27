@@ -1,10 +1,10 @@
 import {deleteAccount} from "@agenta/entities/profile"
 import {AccountPage} from "@agenta/settings-ui"
-import {EnhancedModal} from "@agenta/ui/components/modal"
 import {Trash} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
 import {message} from "antd"
 
+import {EnhancedModal} from "@/oss/components/LegacyKit"
 import {useSession} from "@/oss/hooks/useSession"
 import {useProfileData} from "@/oss/state/profile"
 

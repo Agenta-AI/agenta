@@ -2,13 +2,13 @@ import {
     SAVE_AS_TEMPLATE_MESSAGE,
     SHARE_TEMPLATE_IN_MARKETPLACE_MESSAGE,
 } from "@agenta/entities/workflow"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {
     Button,
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
-    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {Export} from "@phosphor-icons/react"
 

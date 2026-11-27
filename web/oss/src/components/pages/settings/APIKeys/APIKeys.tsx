@@ -2,9 +2,9 @@ import {useCallback, useState} from "react"
 
 import {useApiKeys} from "@agenta/settings"
 import {ApiKeysPage} from "@agenta/settings-ui"
-import {EnhancedModal} from "@agenta/ui/components/modal"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
+import {EnhancedModal} from "@/oss/components/LegacyKit"
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {useOrgData} from "@/oss/state/org"

@@ -1,5 +1,6 @@
-import {EnhancedModal} from "@agenta/ui/components/modal"
 import dynamic from "next/dynamic"
+
+import {EnhancedModal} from "@/oss/components/LegacyKit"
 
 import {CustomWorkflowModalProps} from "./types"
 

@@ -10,8 +10,9 @@ import {
     withShortcutKey,
     type MenuSelect,
 } from "@agenta/sessions-ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {ArrowLineRight, PencilSimple, X, XSquare} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"

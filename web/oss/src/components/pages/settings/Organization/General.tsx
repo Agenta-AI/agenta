@@ -8,13 +8,13 @@ import {
     updateOrganization,
 } from "@agenta/entities/organization"
 import {OrganizationsPage} from "@agenta/settings-ui"
-import {InitialsAvatar} from "@agenta/ui"
-import {EnhancedModal} from "@agenta/ui/components/modal"
 import {Trash} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
 import {App, Form, Input, Select, Typography} from "antd"
 import clsx from "clsx"
 
+import {EnhancedModal} from "@/oss/components/LegacyKit"
+import {InitialsAvatar} from "@/oss/components/LegacyKit"
 import {getUsernameFromEmail} from "@/oss/lib/helpers/utils"
 import {resetOrganizationData, useOrgData} from "@/oss/state/org"
 import {clearWorkspaceOrgCache} from "@/oss/state/org/selectors/org"
