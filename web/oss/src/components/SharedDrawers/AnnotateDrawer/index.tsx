@@ -2,11 +2,11 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {AnnotationDto} from "@agenta/entities/annotation/dto"
 import {humanEvaluatorsListDataAtom, type Workflow} from "@agenta/entities/workflow"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {atom, useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useLocalStorage} from "usehooks-ts"
 
+import {EnhancedDrawer} from "@/oss/components/LegacyKit"
 import {getProjectValues} from "@/oss/state/project"
 
 import {AnnotateDrawerSteps} from "./assets/enum"

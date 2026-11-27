@@ -18,7 +18,6 @@ import {
     WebhookSubscriptionEditRequest,
 } from "@agenta/entities/webhook"
 import {WEBHOOK_TEST_FAILURE_MESSAGE, handleTestResult} from "@agenta/entities/webhook"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {BookOpen} from "@phosphor-icons/react"
 import {
     Button,
@@ -33,6 +32,8 @@ import {
     Typography,
 } from "antd"
 import {useAtom, useSetAtom} from "jotai"
+
+import {EnhancedDrawer} from "@/oss/components/LegacyKit"
 
 import {WEBHOOK_SCHEMA, EVENT_OPTIONS} from "./assets/constants"
 import {RequestPreview} from "./RequestPreview"

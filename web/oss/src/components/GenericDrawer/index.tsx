@@ -1,8 +1,9 @@
 import {useState} from "react"
 
-import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
 import {Button, Flex, Splitter} from "antd"
+
+import {EnhancedDrawer} from "@/oss/components/LegacyKit"
 
 import {GenericDrawerProps} from "./types"
 

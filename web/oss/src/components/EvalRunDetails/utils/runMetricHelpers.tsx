@@ -1,6 +1,8 @@
 import type {ReactNode} from "react"
 
-import {bgColors, cn, textColors} from "@agenta/ui"
+import {cn} from "@agenta/ui"
+
+import {bgColors, textColors} from "@/oss/components/LegacyKit"
 
 import type {EvaluationTableColumn} from "../atoms/table"
 
