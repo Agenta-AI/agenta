@@ -31,6 +31,7 @@ import {dismissSoftKeyboardAfterSend} from "@agenta/ui/hooks"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import type {FileUIPart} from "ai"
 import {AnimatePresence, motion} from "motion/react"
+import dynamic from "next/dynamic"
 
 import {ContentRail} from "@/components/ContentRail"
 import {useMotionPresets} from "@/lib/motion/presets"
@@ -44,7 +45,13 @@ import {ComposerModelPanel} from "./ComposerModelPanel"
 import {useConversationRole} from "./conversationRole"
 import {sendRefusalRejections} from "./sessionReadOnly"
 import {useComposerPrefill} from "./useComposerPrefill"
-import {useOpenModelSetup} from "./useOpenModelSetup"
+import {useManageModelProviders} from "./useManageModelProviders"
+
+// Loaded on the first "Manage model providers" that the pane cannot take.
+const ProvidersDrawer = dynamic(
+    () => import("./RunErrorProviderDrawer").then((m) => m.RunErrorProviderDrawer),
+    {ssr: false},
+)
 
 /**
  * The mobile composer shell — the SAME `ChatComposer` the desktop dock renders (lazy rich
@@ -210,12 +217,12 @@ export const Composer = ({
         closePicker()
         richInputRef.current?.insertText("/")
     }, [closePicker, richInputRef])
-    // "Manage model providers" under the model list opens the pane's Model view, not a drawer.
-    const openModelSetup = useOpenModelSetup()
+    const providers = useManageModelProviders()
+    const openManageProviders = providers.open
     const openProviders = useCallback(() => {
         closePicker()
-        openModelSetup()
-    }, [closePicker, openModelSetup])
+        openManageProviders()
+    }, [closePicker, openManageProviders])
     // No button while the model needs setup, or with no model or no list to pick from.
     const modelButtonModel =
         !modelButtonHidden && slash.modelGroups.length > 0 ? slash.currentModel : null
@@ -545,6 +552,7 @@ export const Composer = ({
                     </AnimatePresence>
                 </div>
             </ContentRail>
+            {providers.drawerOpen ? <ProvidersDrawer open onClose={providers.closeDrawer} /> : null}
         </div>
     )
 }
