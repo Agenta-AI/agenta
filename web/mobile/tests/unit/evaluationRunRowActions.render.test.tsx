@@ -7,7 +7,7 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {RunRowMenu} from "@/features/evaluations/list/RunRowMenu"
-import {useRunRowActions} from "@/features/evaluations/list/useRunRowActions"
+import {useRunRowActions, type RunRowActions} from "@/features/evaluations/list/useRunRowActions"
 
 import {makeRun} from "./evaluationRunsFixtures"
 
@@ -48,9 +48,31 @@ let host: HTMLDivElement
 let root: Root
 let client: QueryClient
 
+// The screen draws the hook's confirm request as an alert; this draws the same state.
+const ConfirmSurface = ({dialog}: {dialog: RunRowActions["confirmDialog"]}) =>
+    dialog.request
+        ? createElement(
+              "div",
+              {role: "alertdialog"},
+              createElement("h2", null, dialog.request.title),
+              createElement("div", null, dialog.request.message),
+              dialog.error ? createElement("p", null, dialog.error) : null,
+              createElement(
+                  "button",
+                  {disabled: dialog.pending, onClick: () => void dialog.runConfirm()},
+                  dialog.request.okText ?? "OK",
+              ),
+          )
+        : null
+
 const Host = ({run}: {run: EvaluationRun}) => {
     const actions = useRunRowActions({projectId: "pr", base: "/w/ws/p/pr"})
-    return createElement("div", null, createElement(RunRowMenu, {run, actions}), actions.modal)
+    return createElement(
+        "div",
+        null,
+        createElement(RunRowMenu, {run, actions}),
+        createElement(ConfirmSurface, {dialog: actions.confirmDialog}),
+    )
 }
 
 const settle = () =>

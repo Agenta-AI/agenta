@@ -2,14 +2,14 @@
 /**
  * The Automations tab on a phone (M10, M11): each row has a switch that acts at once, a viewer
  * gets no switch and no "Add automation", and "Add automation" is a full-width button that opens
- * a bottom sheet with "App trigger", "Scheduled trigger", "Create with AI" and "Cancel". A run
- * row of the run history is 44 px high on a phone.
+ * the new-automation form bound to the agent (no sheet of kinds: the form offers the switch).
+ * A run row of the run history keeps the desktop height on a phone.
  */
 import {act, createElement} from "react"
 
 import {AutomationRunRow} from "@agenta/automation-ui"
+import {triggerScheduleDrawerAtom} from "@agenta/entities/gatewayTrigger"
 import {AgentOperationsSections} from "@agenta/entity-ui/drill-in"
-import {composerPrefillRequestAtom} from "@agenta/shared/state"
 import {getDefaultStore} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -95,12 +95,6 @@ const renderTab = (props: Record<string, unknown> = {}) =>
 const addButton = () =>
     container.querySelector("[data-testid=phone-primary-action] button") as HTMLButtonElement | null
 
-const openSheet = async () => {
-    act(() => addButton()?.click())
-    await flush()
-    return document.querySelector("[data-testid=bottom-sheet-menu]") as HTMLElement
-}
-
 describe("Automations tab on a phone", () => {
     it("turns an automation off from its switch at once", async () => {
         triggers.setScheduleActive.mockResolvedValue(undefined)
@@ -138,59 +132,33 @@ describe("Automations tab on a phone", () => {
         renderTab({phone: false})
         expect(container.querySelector("[role=switch]")).toBe(null)
         expect(addButton()).toBe(null)
-        // No header bar: the bordered "Add automation" button sits at the top right (F05 f1).
+        // No header bar: the bordered "Add automation" button opens the form, not a menu (F05 f1).
         const add = [...container.querySelectorAll("button")].find(
             (button) => button.textContent === "Add automation",
         )
-        expect(add?.getAttribute("aria-haspopup")).toBe("menu")
+        expect(add).toBeDefined()
+        expect(add?.getAttribute("aria-haspopup")).toBe(null)
     })
 })
 
-describe("Add automation bottom sheet", () => {
-    it("lists the three entries with their lines and Cancel", async () => {
-        renderTab()
-        const sheet = await openSheet()
-        const rows = [...sheet.querySelectorAll("[role=menuitem]")].map((row) => row.textContent)
-        expect(rows).toEqual([
-            "App triggerReact to an event from a connected app",
-            "Scheduled triggerRun on a recurring schedule",
-            "Create with AIDescribe it and let AI set it up",
-        ])
-        expect(sheet.textContent).toContain("Cancel")
-    })
-
-    it("opens the schedule form bound to the agent", async () => {
+describe("Add automation on a phone", () => {
+    it("opens the schedule form bound to the agent in the host", async () => {
         const onAddAutomation = vi.fn()
         renderTab({onAddAutomation})
-        const sheet = await openSheet()
-        const row = [...sheet.querySelectorAll("[role=menuitem]")][1] as HTMLButtonElement
-        act(() => row.click())
-        expect(onAddAutomation).toHaveBeenCalledWith("schedule", {application: {id: "app-1"}})
-    })
-
-    it("puts the starter in the composer from Create with AI and sends nothing", async () => {
-        const onAddAutomation = vi.fn()
-        renderTab({onAddAutomation})
-        const sheet = await openSheet()
-        const row = [...sheet.querySelectorAll("[role=menuitem]")][2] as HTMLButtonElement
-        act(() => row.click())
-        expect(getDefaultStore().get(composerPrefillRequestAtom)?.text).toBe(
-            "I want an automation that",
-        )
-        expect(onAddAutomation).not.toHaveBeenCalled()
-    })
-
-    it("closes on Cancel and changes nothing", async () => {
-        const onAddAutomation = vi.fn()
-        renderTab({onAddAutomation})
-        const sheet = await openSheet()
-        const cancel = [...sheet.querySelectorAll("button")].find(
-            (button) => button.textContent === "Cancel",
-        ) as HTMLButtonElement
-        act(() => cancel.click())
+        act(() => addButton()?.click())
         await flush()
+        expect(onAddAutomation).toHaveBeenCalledWith("schedule", {application: {id: "app-1"}})
         expect(document.querySelector("[data-testid=bottom-sheet-menu]")).toBe(null)
-        expect(onAddAutomation).not.toHaveBeenCalled()
+    })
+
+    it("opens the schedule drawer bound to the agent without a host", async () => {
+        renderTab()
+        act(() => addButton()?.click())
+        await flush()
+        expect(getDefaultStore().get(triggerScheduleDrawerAtom)).toMatchObject({
+            defaultReferences: {application: {id: "app-1"}},
+            defaultBoundLabel: "Support triage",
+        })
     })
 })
 

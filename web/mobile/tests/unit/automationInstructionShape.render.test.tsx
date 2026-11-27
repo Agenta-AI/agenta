@@ -58,6 +58,9 @@ vi.mock("@agenta/entities/runnable", async () => ({
 }))
 vi.mock("@agenta/ui/ui", () => ({
     Checkbox: () => null,
+    // The kit field row: its label, then the control.
+    Field: ({label, children}: {label?: string; children?: ReactNode}) =>
+        createElement("div", null, label, children),
     Tooltip: ({children}: {children?: unknown}) => children,
     TooltipTrigger: ({children}: {children?: unknown}) => children,
     TooltipContent: () => null,

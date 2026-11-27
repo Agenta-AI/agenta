@@ -37,6 +37,21 @@ beforeAll(() => {
         style.textContent = css
         document.head.append(style)
     }
+    // jsdom's selector engine throws on a relative `:has(+ ...)`; those rules are not under test.
+    const dropHas = (rules: CSSRuleList, remove: (index: number) => void) => {
+        for (let index = rules.length - 1; index >= 0; index--) {
+            const rule = rules[index]
+            const group = rule as CSSRule & {
+                cssRules?: CSSRuleList
+                deleteRule?: (i: number) => void
+            }
+            if ((rule as CSSStyleRule).selectorText?.includes(":has(")) remove(index)
+            else if (group.cssRules && group.deleteRule)
+                dropHas(group.cssRules, (inner) => group.deleteRule!(inner))
+        }
+    }
+    for (const sheet of [...document.styleSheets])
+        dropHas(sheet.cssRules, (index) => sheet.deleteRule(index))
     document.body.innerHTML = `
         <div id="playground" data-playground>${MESSAGE}</div>
         <div id="elsewhere">${MESSAGE}</div>`
