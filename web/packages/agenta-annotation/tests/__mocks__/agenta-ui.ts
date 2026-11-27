@@ -8,6 +8,7 @@
  */
 
 export const InitialsAvatar = () => null
+export const BylineText = () => null
 export const cn = (...args: unknown[]) => args.filter(Boolean).join(" ")
 export const textColors = {}
 export const bgColors = {}

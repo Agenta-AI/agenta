@@ -28,6 +28,15 @@ export interface OpenRunPayload {
     runId: string
 }
 
+/**
+ * The evaluators a host adds to a run's form or hides from it (the Annotate panel's picker).
+ * `added` are not in the run yet; `hidden` are slugs of the run's evaluators.
+ */
+export interface FormEvaluators {
+    added: EvaluatorStepRef[]
+    hidden: string[]
+}
+
 export interface ApplyRouteStatePayload {
     view?: SessionView
     scenarioId?: string | null

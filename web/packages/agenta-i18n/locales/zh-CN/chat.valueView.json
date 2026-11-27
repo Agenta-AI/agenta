@@ -37,5 +37,6 @@
     "assertionsValue": "{{passed}} / {{total}}",
     "valueTrue": "真",
     "valueFalse": "假",
-    "turnLabel": "第 {{n}} 轮"
+    "turnLabel": "第 {{n}} 轮",
+    "systemPrompt": "系统提示词"
 }

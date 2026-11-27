@@ -43,6 +43,7 @@ export type {
     UpdateMetricPayload,
     SubmitAnnotationsPayload,
     EvaluatorStepRef,
+    FormEvaluators,
     EvaluatorResolutionState,
     SessionView,
     ScenarioEvaluatorKey,

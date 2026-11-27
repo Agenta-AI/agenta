@@ -132,4 +132,36 @@ describe("the annotation form panel", () => {
         await act(async () => patchSession({hasPendingChanges: {"s-1": true}}))
         expect(button("Update")?.disabled).toBe(false)
     })
+
+    it("draws the host's section actions at the end of each evaluator header, outside its toggle", async () => {
+        const remove = vi.fn()
+        await act(async () =>
+            root.render(
+                <Provider store={fakeStore}>
+                    <AnnotationFormPanel
+                        scenarioId="s-1"
+                        runId="run-1"
+                        sectionActions={(slug) => (
+                            <button type="button" onClick={() => remove(slug)}>
+                                Remove
+                            </button>
+                        )}
+                    />
+                </Provider>,
+            ),
+        )
+        const action = button("Remove")!
+        const toggle = host.querySelector("[data-slot=accordion-trigger]")!
+        expect(toggle.contains(action)).toBe(false)
+        expect(toggle.getAttribute("aria-expanded")).toBe("true")
+        await act(async () => action.click())
+        expect(remove).toHaveBeenCalledWith("tone")
+        // The click does not fold the section.
+        expect(toggle.getAttribute("aria-expanded")).toBe("true")
+    })
+
+    it("draws no action without sectionActions", async () => {
+        await render()
+        expect(button("Remove")).toBeUndefined()
+    })
 })

@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState} from "react"
+import {useEffect, useMemo, useState, type ReactNode} from "react"
 
 import {annotationFormController, annotationSessionController} from "@agenta/annotation"
 import {
@@ -33,18 +33,22 @@ type FormScope = {queueId: string; runId?: never} | {runId: string; queueId?: ne
  * The form for one scenario: one open section per evaluator, its metrics as fields. With
  * `showSubmit` (the annotate sheets, the run's Annotate tab) it carries its own submit button; in
  * the queue focus view the footer has it. `readOnly` shows the values without the button.
+ * `sectionActions` draws the host's controls at the end of each evaluator header.
  */
 export const AnnotationFormPanel = ({
     scenarioId,
     showSubmit = false,
     readOnly = false,
     onSaved,
+    sectionActions,
     ...scope
 }: FormScope & {
     scenarioId: string
     showSubmit?: boolean
     readOnly?: boolean
     onSaved?: OnAnnotationsSaved
+    /** At the end of each evaluator header, outside its toggle: the host's actions. */
+    sectionActions?: (slug: string) => ReactNode
 }) => {
     const inRun = Boolean(scope.runId)
     const {metrics, evaluators, evaluatorResolution, updateMetric} =
@@ -128,22 +132,29 @@ export const AnnotationFormPanel = ({
                             value={evaluator.slug}
                             className="border-0 border-b border-solid border-border"
                         >
-                            <AccordionTrigger className="bg-muted px-3 py-2.5">
-                                <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                                    <span
-                                        className="min-w-0 truncate"
-                                        title={evaluator.name ?? evaluator.slug}
-                                    >
-                                        {evaluator.name ?? evaluator.slug}
+                            <div className="flex items-center bg-muted [&>[data-slot=accordion-header]]:min-w-0 [&>[data-slot=accordion-header]]:flex-1">
+                                <AccordionTrigger className="bg-muted px-3 py-2.5">
+                                    <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                                        <span
+                                            className="min-w-0 truncate"
+                                            title={evaluator.name ?? evaluator.slug}
+                                        >
+                                            {evaluator.name ?? evaluator.slug}
+                                        </span>
+                                        <span
+                                            className="min-w-0 max-w-[40%] truncate text-meta text-muted-foreground"
+                                            title={evaluator.slug}
+                                        >
+                                            {evaluator.slug}
+                                        </span>
                                     </span>
-                                    <span
-                                        className="min-w-0 max-w-[40%] truncate text-meta text-muted-foreground"
-                                        title={evaluator.slug}
-                                    >
-                                        {evaluator.slug}
-                                    </span>
-                                </span>
-                            </AccordionTrigger>
+                                </AccordionTrigger>
+                                {sectionActions ? (
+                                    <div className="flex shrink-0 items-center pr-2">
+                                        {sectionActions(evaluator.slug)}
+                                    </div>
+                                ) : null}
+                            </div>
                             <AccordionContent className="[&>div]:px-3 [&>div]:py-3">
                                 <AnnotationEvaluatorSection
                                     slug={evaluator.slug}

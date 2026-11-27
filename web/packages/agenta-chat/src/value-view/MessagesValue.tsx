@@ -1,10 +1,10 @@
-import {useMemo, useState, type ReactNode} from "react"
+import {useId, useMemo, useState, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
 import {readValueMessage, type ValueMessage} from "@agenta/shared/utils"
 import {AttachmentGrid, FileAttachment, ImageAttachment} from "@agenta/ui/components/presentational"
-import {Button} from "@agenta/ui/ui"
+import {Button, CollapseCaret} from "@agenta/ui/ui"
 import type {ToolUIPart} from "ai"
 
 import {ActivityTimeline} from "../components/activity/ActivityTimeline"
@@ -13,6 +13,7 @@ import {CollapsibleMessageBody} from "../components/CollapsibleMessageBody"
 import ToolIOBlock from "../components/ToolIOBlock"
 import type {ActivityStep} from "../model/activitySteps"
 
+import {sizeText} from "./FieldFold"
 import {useValueViewOptions} from "./ValueViewProvider"
 
 /** Over this many messages, the middle ones fold into "N more messages". */
@@ -181,6 +182,47 @@ const Attachments = ({message}: {message: ValueMessage}) =>
         </AttachmentGrid>
     )
 
+/** A system message folded to one line, "System prompt · SIZE", that opens on click. */
+const SystemPrompt = ({
+    text,
+    defaultOpen,
+    children,
+}: {
+    text: string
+    defaultOpen: boolean
+    children: ReactNode
+}) => {
+    const t = useT(valueViewCatalog)
+    const [open, setOpen] = useState(defaultOpen)
+    const regionId = useId()
+    return (
+        <div className="flex min-w-0 flex-col gap-1.5">
+            <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                aria-expanded={open}
+                aria-controls={regionId}
+                className="h-auto min-w-0 self-start gap-1.5 px-0 text-meta text-muted-foreground hover:bg-transparent aria-expanded:bg-transparent"
+                onClick={() => setOpen((next) => !next)}
+            >
+                <CollapseCaret open={open} />
+                <span className="min-w-0 truncate">
+                    {`${t("chat.valueView.systemPrompt")} · ${sizeText(t, text)}`}
+                </span>
+            </Button>
+            {open ? (
+                <div
+                    id={regionId}
+                    className="rounded-lg bg-muted px-3 py-2 text-body text-muted-foreground"
+                >
+                    {children}
+                </div>
+            ) : null}
+        </div>
+    )
+}
+
 const MessageItemView = ({
     item,
     stateKey,
@@ -192,7 +234,7 @@ const MessageItemView = ({
     stateKey: string
     activity?: ItemActivity
     storedTools: boolean
-    /** The full view: long messages are not clamped. */
+    /** The full view: long messages are not clamped, the system prompt is open. */
     unfolded: boolean
 }) => {
     const t = useT(valueViewCatalog)
@@ -237,7 +279,7 @@ const MessageItemView = ({
     }
     return (
         <div className="flex min-w-0 flex-col gap-2">
-            {message.role !== "assistant" ? (
+            {message.role !== "assistant" && message.role !== "system" ? (
                 <span className="text-meta text-muted-foreground">{message.role}</span>
             ) : null}
             {activity ? <TraceActivity activity={activity} /> : null}
@@ -257,9 +299,9 @@ const MessageItemView = ({
                 : null}
             {message.text ? (
                 message.role === "system" ? (
-                    <div className="rounded-lg bg-muted px-3 py-2 text-body text-muted-foreground">
+                    <SystemPrompt text={message.text} defaultOpen={unfolded}>
                         {markdown(message.text)}
-                    </div>
+                    </SystemPrompt>
                 ) : (
                     markdown(message.text)
                 )

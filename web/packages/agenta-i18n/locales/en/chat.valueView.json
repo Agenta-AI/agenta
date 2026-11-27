@@ -47,5 +47,6 @@
     "assertionsValue": "{{passed}} of {{total}}",
     "valueTrue": "True",
     "valueFalse": "False",
-    "turnLabel": "Turn {{n}}"
+    "turnLabel": "Turn {{n}}",
+    "systemPrompt": "System prompt"
 }
