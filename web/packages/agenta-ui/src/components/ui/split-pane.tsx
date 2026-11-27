@@ -393,15 +393,15 @@ export function SplitPane({
                 transition: `flex-basis ${slideMs}ms ${PANE_SLIDE_CURVE}, height ${slideMs}ms ${PANE_SLIDE_CURVE}`,
             }}
         >
-            {/* Centre hairline — strengthens to the border tone on hover/drag. A hidden bar
+            {/* Centre hairline — 1px muted at rest, the shared 2px resize line on hover/drag (SURF-07). A hidden bar
                 paints nothing: the box no longer clips, so this has to be gated explicitly. */}
             {barHidden ? null : (
                 <span
                     aria-hidden
                     className={cn(
-                        "absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border-muted transition-colors duration-150",
-                        resizable && "group-hover:bg-border",
-                        dragging && "bg-border",
+                        "absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border-muted transition-[background-color,width] duration-150",
+                        resizable && "group-hover:w-0.5 group-hover:bg-border-strong",
+                        dragging && "w-0.5 bg-border-strong",
                     )}
                 />
             )}

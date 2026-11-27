@@ -9,6 +9,7 @@ import {type DriveDrop} from "@agenta/entities/drive"
 import {type DriveTreePaneState} from "@agenta/entities/drive"
 import {useT} from "@agenta/i18n"
 import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
+import {ResizeEdgeLine} from "@agenta/ui/ui"
 import {motion} from "motion/react"
 
 export function DriveTreePane({
@@ -91,7 +92,7 @@ export function DriveTreePane({
                 </motion.div>
             </motion.div>
             {/* Resize handle — a WIDE invisible hit target straddling the tree's right edge, with a
-                    thin 1px line that only lights up on hover/drag (the tree's own border is the resting
+                    shared 2px resize line that shows on hover/drag (the tree's own border is the resting
                     divider). Only while the tree is shown (nothing to resize when collapsed). */}
             {treeVisible ? (
                 <div
@@ -103,9 +104,7 @@ export function DriveTreePane({
                     onPointerUp={onTreeHandleUp}
                     className="group relative z-10 -mx-1 w-2 shrink-0 cursor-col-resize touch-none"
                 >
-                    <div
-                        className={`absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${treeDragging ? "bg-border-strong" : "bg-transparent group-hover:bg-border-strong"}`}
-                    />
+                    <ResizeEdgeLine active={treeDragging} />
                 </div>
             ) : null}
             {/* The content column is the reading surface; the rail sits on the layout tone. */}

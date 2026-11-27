@@ -13,7 +13,7 @@ import {
 import {useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {cn} from "@agenta/ui/styles"
-import {DialogScope} from "@agenta/ui/ui"
+import {DialogScope, ResizeEdgeLine} from "@agenta/ui/ui"
 
 /**
  * push = beside the page; overlay = over the page's right side (under 1100 px or widened);
@@ -103,8 +103,10 @@ export const AgentPanelFrame = ({
             resize.onCommit(stored)
         })
     }
+    const [dragging, setDragging] = useState(false)
     const startDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
         if (!resize) return
+        setDragging(true)
         const pointerId = event.pointerId
         const startX = event.clientX
         const startWidth = shownWidth
@@ -116,6 +118,7 @@ export const AgentPanelFrame = ({
             window.removeEventListener("pointermove", move)
             window.removeEventListener("pointerup", up)
             window.removeEventListener("pointercancel", cancel)
+            setDragging(false)
         }
         const up = (e: PointerEvent) => {
             if (e.pointerId !== pointerId) return
@@ -219,10 +222,12 @@ export const AgentPanelFrame = ({
                         aria-valuenow={shownWidth}
                         aria-label={tControls("ui.controls.resizePanes")}
                         tabIndex={0}
-                        className="absolute inset-y-0 -left-1 z-30 w-2 cursor-col-resize touch-none"
+                        className="group absolute inset-y-0 -left-1 z-30 w-2 cursor-col-resize touch-none outline-none"
                         onPointerDown={startDrag}
                         onKeyDown={keyResize}
-                    />
+                    >
+                        <ResizeEdgeLine active={dragging} />
+                    </div>
                 ) : null}
                 <div
                     ref={panelRef}

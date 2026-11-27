@@ -6,6 +6,7 @@
 export {BackLink} from "./back-link"
 export {PageToolbar} from "./page-toolbar"
 export {RightPane, RightPaneHost, type RightPaneProps} from "./right-pane"
+export {ResizeEdgeLine} from "./resize-edge"
 export {Badge, badgeVariants, statusBadgeVariant, type BadgeProps, type BadgeVariant} from "./badge"
 export {
     Button,
