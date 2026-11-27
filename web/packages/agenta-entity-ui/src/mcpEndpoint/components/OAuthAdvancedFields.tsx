@@ -11,9 +11,9 @@ import {useRef, useState, type ReactElement, type ReactNode} from "react"
 import type {MCPTokenEndpointAuthMethod} from "@agenta/entities/mcpEndpoint"
 import {createT, useT, type CatalogKey} from "@agenta/i18n"
 import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
-import {copyToClipboard, HeightCollapse} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {ConfigRowCaret} from "@agenta/ui/components/presentational"
+import {HeightCollapse} from "@agenta/ui/layout"
 import {
     Button,
     Checkbox,
@@ -25,6 +25,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@agenta/ui/ui"
+import {copyToClipboard} from "@agenta/ui/utils"
 import {Copy, SlidersHorizontal} from "@phosphor-icons/react"
 
 import {HintedField} from "./HintedField"

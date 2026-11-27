@@ -9,7 +9,7 @@ export default defineConfig({
             // Must precede the "@agenta/ui" stub so the subpath matches first.
             "@agenta/ui/diff": path.resolve(
                 __dirname,
-                "../agenta-ui/src/Editor/utils/diffUtils.ts",
+                "../agenta-ui/src/editor/editor/utils/diffUtils.ts",
             ),
             // Colour maths + a stub catalog, so the agent icon atoms run without the picker.
             "@agenta/ui/agent-icon": path.resolve(
@@ -21,6 +21,10 @@ export default defineConfig({
                 "tests/__mocks__/agenta-ui-app-message.ts",
             ),
             "@agenta/ui/ui": path.resolve(__dirname, "tests/__mocks__/agenta-ui.ts"),
+            "@agenta/ui/components/presentational": path.resolve(
+                __dirname,
+                "tests/__mocks__/agenta-ui.ts",
+            ),
             // Stub @agenta/ui so Vitest doesn't transform the entire antd tree.
             // Entity tests only exercise Jotai atoms — no React rendering needed.
             "@agenta/ui": path.resolve(__dirname, "tests/__mocks__/agenta-ui.ts"),

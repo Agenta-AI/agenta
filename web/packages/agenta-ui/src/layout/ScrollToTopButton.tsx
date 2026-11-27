@@ -1,0 +1,43 @@
+import {type RefObject, useEffect, useState} from "react"
+
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+import {ArrowUp} from "@phosphor-icons/react"
+
+import {Button} from "../primitives/button"
+
+interface ScrollToTopButtonProps {
+    scrollRef: RefObject<HTMLDivElement | null>
+}
+
+export default function ScrollToTopButton({scrollRef}: ScrollToTopButtonProps) {
+    const t = useT(uiControlsCatalog)
+    const [visible, setVisible] = useState(false)
+
+    useEffect(() => {
+        const el = scrollRef.current
+        if (!el) return
+
+        const onScroll = () => {
+            setVisible(el.scrollTop > 300)
+        }
+        el.addEventListener("scroll", onScroll, {passive: true})
+        return () => el.removeEventListener("scroll", onScroll)
+    }, [scrollRef])
+
+    if (!visible) return null
+
+    return (
+        <div className="sticky bottom-4 flex justify-end pointer-events-none">
+            <Button
+                size="icon"
+                variant="outline"
+                aria-label={t("ui.controls.scrollToTop")}
+                className="rounded-control-round pointer-events-auto shadow-overlay"
+                onClick={() => scrollRef.current?.scrollTo({top: 0, behavior: "smooth"})}
+            >
+                {<ArrowUp size={16} />}
+            </Button>
+        </div>
+    )
+}

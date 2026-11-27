@@ -4,12 +4,12 @@ import * as React from "react"
 import {act, cleanup, fireEvent, render, screen, within} from "@testing-library/react"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {ListTable} from "../../src/list-table/ListTable"
-import {ListTableColumnsMenu} from "../../src/list-table/ListTableColumnsMenu"
-import {ListTableExportButton} from "../../src/list-table/ListTableExportButton"
-import {ListTableLoadMore} from "../../src/list-table/ListTableLoadMore"
-import type {ListTableColumn, ListTableGroup} from "../../src/list-table/types"
-import {useListTableColumnVisibility} from "../../src/list-table/useListTableColumnVisibility"
+import {ListTable} from "../../src/data/list-table/ListTable"
+import {ListTableColumnsMenu} from "../../src/data/list-table/ListTableColumnsMenu"
+import {ListTableExportButton} from "../../src/data/list-table/ListTableExportButton"
+import {ListTableLoadMore} from "../../src/data/list-table/ListTableLoadMore"
+import type {ListTableColumn, ListTableGroup} from "../../src/data/list-table/types"
+import {useListTableColumnVisibility} from "../../src/data/list-table/useListTableColumnVisibility"
 
 /**
  * The opt-in list features: CSV export, the column visibility menu, and the "Load more" row that

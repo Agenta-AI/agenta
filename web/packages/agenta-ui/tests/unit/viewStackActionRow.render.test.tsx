@@ -9,7 +9,7 @@ import {
     useViewTitle,
     ViewStackHost,
     type ViewDef,
-} from "../../src/view-stack"
+} from "../../src/shell/view-stack"
 
 const Body = () => {
     useViewTitle("list")

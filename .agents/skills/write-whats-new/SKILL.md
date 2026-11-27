@@ -64,7 +64,7 @@ app already has, never from new art:
 
 - Channel logos from `web/packages/agenta-settings-ui/src/channels/icons.tsx`
   (Slack, Telegram, WhatsApp, Discord, Teams).
-- Model provider logos from `web/packages/agenta-ui/src/LLMIcons/` (Gemini, Anthropic, OpenAI,
+- Model provider logos from `web/packages/agenta-ui/src/icons/llm-icons/` (Gemini, Anthropic, OpenAI,
   Mistral and others), next to chips with the model names.
 - The builder's ribbon animation (`web/mobile/src/features/builder-page/hero/`).
 - Language names as chips, each in its own language.

@@ -3,7 +3,7 @@ import {createElement} from "react"
 import {renderToStaticMarkup} from "react-dom/server"
 import {assert, describe, expect, it} from "vitest"
 
-import {ConfigAccordionSection} from "../../src/components/presentational/section/ConfigAccordionSection"
+import {ConfigAccordionSection} from "../../src/layout/section/ConfigAccordionSection"
 
 const renderSection = (preserveTitle = false) =>
     renderToStaticMarkup(

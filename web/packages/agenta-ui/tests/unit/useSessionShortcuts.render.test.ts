@@ -15,7 +15,7 @@ import {afterEach, describe, expect, it, vi} from "vitest"
 import {
     useSessionShortcuts,
     type UseSessionShortcutsParams,
-} from "../../src/shortcuts/useSessionShortcuts"
+} from "../../src/shell/shortcuts/useSessionShortcuts"
 
 const sessions = [{id: "s1"}, {id: "s2"}, {id: "s3"}]
 

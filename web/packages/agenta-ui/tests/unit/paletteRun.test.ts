@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {isSameRun, readRun, runPatternFor} from "../../src/RichChatInput/assets/palette"
+import {isSameRun, readRun, runPatternFor} from "../../src/editor/rich-chat-input/assets/palette"
 
 const FILE_RUN = runPatternFor("@", true)
 const COMMAND_RUN = runPatternFor("/", false)

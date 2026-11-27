@@ -16,74 +16,50 @@ This is an internal workspace package. Add it to your `package.json`:
 
 ## Usage
 
-```typescript
-// Import components
-import {
-  InfiniteVirtualTable,
-  useTableManager,
-  SearchInput,
-  VirtualList,
-  VersionBadge,
-  RevisionLabel,
-  // Section layout primitives
-  SectionCard,
-  SectionLabel,
-  SectionHeaderRow,
-  ConfigBlock,
-  // Copy control (wrap a span, badge or copy-icon Button)
-  CopyTooltip,
-} from '@agenta/ui'
+Import from a subpath. The root barrel (`@agenta/ui`) re-exports the whole kit, the table and
+the Lexical editors included, so one root import pulls all of it in.
 
-// Import utilities
-import { copyToClipboard, cn } from '@agenta/ui'
+```typescript
+import {Button, Dialog} from "@agenta/ui/ui"
+import {CopyTooltip, EmptyState} from "@agenta/ui/composed"
+import {HeightCollapse, PageLayout, SectionCard} from "@agenta/ui/layout"
+import {VersionBadge, RevisionLabel} from "@agenta/ui/components/presentational"
+import {SearchInput, VirtualList} from "@agenta/ui/components/selection"
+import {InfiniteVirtualTable, useTableManager} from "@agenta/ui/table"
+import {cn} from "@agenta/ui/styles"
+import {copyToClipboard} from "@agenta/ui/utils"
 ```
 
 ## Subpath Exports
 
-**Always use subpath imports for better tree-shaking.** Importing from the root barrel (`@agenta/ui`) pulls the entire dependency graph, which increases bundle size (especially Lexical Editor ~500KB+).
+| Subpath | Folder | Key Exports |
+|---------|--------|-------------|
+| `@agenta/ui/ui` | `src/primitives` | shadcn primitives (`Button`, `Dialog`, `Sheet`, ...) |
+| `@agenta/ui/composed` | `src/composed` | Parts built on the primitives (`EmptyState`, `Segmented`, `SplitPane`, ...) |
+| `@agenta/ui/layout` | `src/layout` | `PageLayout`, `PageTitle`, `HeightCollapse`, page width classes, panel layouts, config sections |
+| `@agenta/ui/icons` | `src/icons` | `GitHubMark`, `LogoMarks` |
+| `@agenta/ui/llm-icons` | `src/icons/llm-icons` | `LLMIconMap`, provider icons |
+| `@agenta/ui/agent-icon` | `src/icons/agent-icon` | `AgentIcon`, `AgentIconPicker` |
+| `@agenta/ui/components` | `src/patterns` | Selection and presentational components, `EntityCard`, `DropdownButton` |
+| `@agenta/ui/components/presentational` | `src/patterns/presentational` | Presentational components |
+| `@agenta/ui/table` | `src/data/infinite-virtual-table` | `InfiniteVirtualTable`, paginated store utilities |
+| `@agenta/ui/list-table` | `src/data/list-table` | `ListTable` |
+| `@agenta/ui/cell-renderers` | `src/data/cell-renderers` | `SmartCellContent`, `JsonCellContent`, ... |
+| `@agenta/ui/editor` | `src/editor/editor` | `Editor`, `DiffView`, `MarkdownPreview`, JSON parsing utilities |
+| `@agenta/ui/shared-editor` | `src/editor/shared-editor` | `SharedEditor`, `useDebounceInput` |
+| `@agenta/ui/chat-message` | `src/editor/chat-message` | `ChatMessageEditor`, `ChatMessageList` |
+| `@agenta/ui/select-llm-provider` | `src/patterns/select-llm-provider` | `SelectLLMProviderBase` |
+| `@agenta/ui/app-message` | `src/composed/feedback` | `AppMessageContext` (default), `message`, `modal`, `notification` |
+| `@agenta/ui/styles` | `src/foundation/utils` | `cn`, `layoutSizes` |
 
-| Subpath | Description | Key Exports |
-|---------|-------------|-------------|
-| `@agenta/ui` | Main exports | Presentational components, utilities, `cn` |
-| `@agenta/ui/table` | Virtual table | `InfiniteVirtualTable`, paginated store utilities |
-| `@agenta/ui/editor` | Lexical editor | `Editor`, `DiffView`, JSON parsing utilities |
-| `@agenta/ui/shared-editor` | Shared editor | `SharedEditor`, `useDebounceInput` |
-| `@agenta/ui/chat-message` | Chat messages | `ChatMessageEditor`, `ChatMessageList`, message types/schemas |
-| `@agenta/ui/llm-icons` | LLM icons | `LLMIconMap`, provider icons |
-| `@agenta/ui/select-llm-provider` | Provider selector | `SelectLLMProvider` |
-| `@agenta/ui/app-message` | App messages | `AppMessageContext` (default), `message`, `modal`, `notification` |
-| `@agenta/ui/cell-renderers` | Cell renderers | Table cell content components (`SmartCellContent`, `JsonCellContent`, ...) |
-
-### Usage Examples
-
-```typescript
-// Main exports (presentational components, utilities)
-import {cn, SectionCard} from "@agenta/ui"
-
-// Table components (avoids pulling Lexical)
-import {InfiniteVirtualTable, createPaginatedEntityStore} from "@agenta/ui/table"
-
-// Editor components (only when needed)
-import {Editor, DiffView, tryParsePartialJson} from "@agenta/ui/editor"
-
-// Chat message components
-import {ChatMessageEditor, ChatMessageList} from "@agenta/ui/chat-message"
-import type {SimpleChatMessage} from "@agenta/ui/chat-message"
-
-// App message context (toast notifications)
-import AppMessageContext, {message} from "@agenta/ui/app-message"
-
-// Cell renderers for tables
-import {SmartCellContent, JsonCellContent} from "@agenta/ui/cell-renderers"
-```
+`package.json` `exports` lists the full set.
 
 ## Documentation
 
 See [src/README.md](./src/README.md) for detailed documentation on:
 
-- **InfiniteVirtualTable** - High-performance virtualized table with infinite scroll
-- **Components** - Selection, presentational, and modal components
-- **Utilities** - Clipboard, styling, and helper functions
+- The nine folders of `src/` and their layer order
+- The module READMEs (table, editors, selection, presentational, utilities)
 
 ## Development
 

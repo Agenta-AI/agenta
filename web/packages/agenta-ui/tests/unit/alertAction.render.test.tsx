@@ -2,8 +2,8 @@
 import {cleanup, render, screen} from "@testing-library/react"
 import {afterEach, describe, expect, it} from "vitest"
 
-import {Alert} from "../../src/components/ui/alert"
-import {Button} from "../../src/components/ui/button"
+import {Alert} from "../../src/primitives/alert"
+import {Button} from "../../src/primitives/button"
 
 /**
  * The expired-login banner is a message with a control on the same line. Without a slot for it,

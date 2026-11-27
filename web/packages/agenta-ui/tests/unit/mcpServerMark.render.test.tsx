@@ -2,7 +2,7 @@
 import {cleanup, render} from "@testing-library/react"
 import {afterEach, describe, expect, it} from "vitest"
 
-import {McpServerMark} from "../../src/agent-icon/McpServerMark"
+import {McpServerMark} from "../../src/icons/agent-icon/McpServerMark"
 
 afterEach(cleanup)
 

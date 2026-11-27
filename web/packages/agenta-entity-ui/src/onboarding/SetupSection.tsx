@@ -4,7 +4,7 @@
  */
 import type {ReactNode} from "react"
 
-import {HeightCollapse} from "@agenta/ui/height-collapse"
+import {HeightCollapse} from "@agenta/ui/layout"
 import {CaretDown, CheckCircle, Circle} from "@phosphor-icons/react"
 import clsx from "clsx"
 

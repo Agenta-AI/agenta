@@ -7,7 +7,7 @@
  */
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-import {copyToClipboard} from "../../src/utils/copyToClipboard"
+import {copyToClipboard} from "../../src/foundation/utils/copyToClipboard"
 
 const setClipboard = (value: unknown) =>
     Object.defineProperty(navigator, "clipboard", {value, configurable: true})

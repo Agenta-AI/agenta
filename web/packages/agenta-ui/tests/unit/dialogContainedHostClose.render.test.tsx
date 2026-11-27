@@ -4,7 +4,7 @@ import * as React from "react"
 import {act, cleanup, render} from "@testing-library/react"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-import {Dialog, DialogContent, DialogTitle} from "../../src/components/ui/dialog"
+import {Dialog, DialogContent, DialogTitle} from "../../src/primitives/dialog"
 
 // A contained dialog must close with its host drawer, or it outlives it as a page-level modal.
 afterEach(cleanup)

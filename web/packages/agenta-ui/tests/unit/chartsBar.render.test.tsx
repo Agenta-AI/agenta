@@ -2,7 +2,7 @@
 import {cleanup, fireEvent, render, screen, within} from "@testing-library/react"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {BarChart, ChartLegend} from "../../src/components/presentational/charts"
+import {BarChart, ChartLegend} from "../../src/patterns/presentational/charts"
 
 import {numbersOf, stubChartWidth} from "./chartsTestUtils"
 

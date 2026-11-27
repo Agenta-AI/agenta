@@ -1,0 +1,223 @@
+export {createInfiniteTableStore} from "./createInfiniteTableStore"
+export type {InfiniteTableStore} from "./createInfiniteTableStore"
+export {createInfiniteDatasetStore} from "./createInfiniteDatasetStore"
+export type {InfiniteDatasetStore, InfiniteDatasetStoreConfig} from "./createInfiniteDatasetStore"
+export {createTableColumns} from "./columns/createTableColumns"
+export {buildEntityColumns} from "./columns/buildEntityColumns"
+export type {BuildEntityColumnsOptions} from "./columns/buildEntityColumns"
+export {createComponentCell, createColumnVisibilityAwareCell} from "./columns/cells"
+export * from "./columns/types"
+export {default as useInfiniteTablePagination} from "./hooks/useInfiniteTablePagination"
+export {useTableManager, shouldIgnoreRowClick} from "./hooks/useTableManager"
+export type {
+    UseTableManagerConfig,
+    UseTableManagerReturn,
+    TableSearchConfig,
+} from "./hooks/useTableManager"
+export {useTableActions} from "./hooks/useTableActions"
+export type {TableActionsConfig, TableActionsReturn} from "./hooks/useTableActions"
+export {
+    createStandardColumns,
+    createTextColumn,
+    createDateColumn,
+    createUserColumn,
+    createMonoColumn,
+    createSlugColumn,
+    createEntityColumn,
+    createActionsColumn,
+    configureUserReference,
+    formatDateCell,
+} from "./columns/createStandardColumns"
+export type {
+    StandardColumnDef,
+    TextColumnDef,
+    DateColumnDef,
+    UserColumnDef,
+    MonoColumnDef,
+    SlugColumnDef,
+    EntityColumnDef,
+    EntityChip,
+    ActionsColumnDef,
+    ActionItem,
+} from "./columns/createStandardColumns"
+// Table store helpers
+export {createTableRowHelpers, createSimpleTableStore, createTableMetaAtom} from "./helpers"
+export type {
+    TableRowHelpersConfig,
+    CreateSkeletonRowParams,
+    MergeRowParams,
+    TableRowHelpers,
+    DateRangeFilter,
+    BaseTableMeta,
+    SimpleTableStoreConfig,
+    SimpleTableStore,
+} from "./helpers"
+export {
+    default as InfiniteVirtualTable,
+    InfiniteVirtualTableStoreProvider,
+    useVirtualTableScrollContainer,
+    useColumnVisibilityControls,
+} from "./InfiniteVirtualTable"
+export {default as ColumnVisibilityTrigger} from "./components/ColumnVisibilityTrigger"
+export {default as ColumnVisibilityMenuTrigger} from "./components/columnVisibility/ColumnVisibilityMenuTrigger"
+export {default as ColumnVisibilityPopoverContent} from "./components/columnVisibility/ColumnVisibilityPopoverContent"
+export {default as TableSettingsDropdown} from "./components/columnVisibility/TableSettingsDropdown"
+export {default as FiltersPopoverTrigger} from "./components/filters/FiltersPopoverTrigger"
+export {default as TableShell} from "./components/TableShell"
+export {default as TableDescription} from "./components/TableDescription"
+export type {TableDescriptionProps} from "./components/TableDescription"
+export {InfiniteVirtualTableFeatureShell, useInfiniteTableFeaturePagination} from "./features"
+export type {
+    TableScopeConfig,
+    TableFeaturePagination,
+    TableFeatureExportOptions,
+    InfiniteVirtualTableFeatureProps,
+    TableTabItem,
+    TableTabsConfig,
+    TableDeleteConfig,
+    TableExportConfig,
+} from "./features"
+export {default as ColumnVisibilityHeader} from "./components/ColumnVisibilityHeader"
+export {default as ColumnVisibilityProvider} from "./providers/ColumnVisibilityProvider"
+export {useColumnVisibilityContext} from "./context/ColumnVisibilityContext"
+export {useExpandableRows} from "./hooks/useExpandableRows"
+export {useEditableTable} from "./hooks/useEditableTable"
+export type {
+    EditableTableColumn,
+    EditableTableConfig,
+    EditableTableState,
+    EditableTableActions,
+} from "./hooks/useEditableTable"
+export {useRowHeight, createRowHeightAtom, DEFAULT_ROW_HEIGHT_CONFIG} from "./hooks/useRowHeight"
+export type {
+    RowHeightSize,
+    RowHeightOption,
+    RowHeightConfig,
+    UseRowHeightResult,
+} from "./hooks/useRowHeight"
+export {useRowHeightFeature} from "./hooks/useRowHeightFeature"
+export type {RowHeightFeatureConfig, UseRowHeightFeatureResult} from "./hooks/useRowHeightFeature"
+export {useTypeChipFeature} from "./hooks/useTypeChipFeature"
+export type {UseTypeChipFeatureResult} from "./hooks/useTypeChipFeature"
+export {RowHeightContext, useRowHeightContext} from "./context/RowHeightContext"
+export type {RowHeightContextValue} from "./context/RowHeightContext"
+export * from "./types"
+export {isColumnGroupDef} from "./columnDef"
+export type {
+    ColumnDef,
+    ColumnDefs,
+    ColumnGroupDef,
+    ColumnAlign,
+    ColumnFixed,
+    ColumnEllipsis,
+    ColumnRowScope,
+    ColumnDataIndex,
+    ColumnSortOrder,
+    ColumnCellProps,
+    ColumnRenderResult,
+    RenderedColumnCell,
+    ColumnFilterItem,
+    ColumnTitle,
+    ColumnTitleContext,
+    ColumnCompareFn,
+    ColumnSorterConfig,
+} from "./columnDef"
+export {toAntdColumns, fromAntdColumns} from "./antdColumns"
+// ANTD_SELECTOR is deliberately NOT exported: it is an internal fallback, and with the antd
+// table gone these selectors match nothing in our own DOM. No consumer used it.
+export {AVT, stampTableDom, type AvtClass} from "./tableDom"
+export {renderTableMenuItems, type TableMenuItem} from "./tableMenu"
+export type {VisibilityRegistrationHandler} from "./components/ColumnVisibilityHeader"
+
+// Shared hooks for cell renderers
+export {useDefaultStoreAtomValue} from "../../foundation/hooks/useDefaultStoreAtomValue"
+
+// Additional exports
+export {default as SkeletonLine} from "./components/common/SkeletonLine"
+export {ResizableTitle} from "./components/common/ResizableTitle"
+export {useTableExport, EXPORT_RESOLVE_SKIP} from "./hooks/useTableExport"
+export type {TableExportColumnContext} from "./hooks/useTableExport"
+
+// Alias for backward compatibility
+export {default as ColumnVisibilityPopoverContentBase} from "./components/columnVisibility/ColumnVisibilityPopoverContent"
+export type {
+    ColumnVisibilityNodeMeta,
+    ColumnVisibilityNodeMetaResolver,
+} from "./components/columnVisibility/ColumnVisibilityPopoverContent"
+
+// NOTE: Internal atoms (columnWidths, columnHiddenKeys) are NOT exported.
+// They are implementation details used internally by the table components.
+
+// Column visibility getters (used by components that need viewport-aware rendering)
+export {
+    getColumnViewportVisibilityAtom,
+    getColumnUserVisibilityAtom,
+    getColumnEffectiveVisibilityAtom,
+} from "./atoms/columnVisibility"
+
+// ============================================================================
+// PAGINATED STORE
+// ============================================================================
+
+export {
+    createPaginatedEntityStore,
+    type PaginatedEntityRow,
+    type PaginatedEntityMeta,
+    type PaginatedEntityStore,
+    type PaginatedEntityStoreConfig,
+    type PaginatedEntityRowConfig,
+    type PaginatedFetchParams,
+    type PaginatedControllerParams,
+    type PaginatedControllerState,
+    type PaginatedControllerAction,
+    type PaginatedState,
+    type PaginatedCombinedState,
+    // List counts types
+    type TotalCountMode,
+    type ListCountsConfig,
+    type EntityListCounts,
+} from "./paginated"
+
+// ============================================================================
+// ENTITY TABLE HOOK
+// ============================================================================
+
+export {useEntityTableState} from "./hooks/useEntityTableState"
+export type {
+    UseEntityTableStateOptions,
+    UseEntityTableStateResult,
+} from "./hooks/useEntityTableState"
+
+// ============================================================================
+// GROUPED TREE DATA
+// ============================================================================
+
+export {useGroupedTreeData} from "./hooks/useGroupedTreeData"
+export type {
+    GroupableRow,
+    GroupedTreeDataConfig,
+    GroupExpandState,
+    GroupedTreeDataResult,
+} from "./hooks/useGroupedTreeData"
+
+// ============================================================================
+// TYPE CHIP UTILITIES
+// ============================================================================
+
+export {defaultHeaderVariant, detectColumnTypes} from "./utils/detectColumnTypes"
+export type {ColumnTypeInfo, ColumnTypePrimitive, ColumnRenderHint} from "./utils/detectColumnTypes"
+export {
+    VirtualTable,
+    type VirtualTableProps,
+    type VirtualTableHandle,
+} from "./components/VirtualTable"
+export {
+    distributeColumnWidths,
+    type DistributableColumn,
+    type DistributeArgs,
+} from "./distributeColumnWidths"
+export {
+    default as useVirtualTableRowSelection,
+    type VirtualTableRowSelectionProps,
+} from "./hooks/useVirtualTableRowSelection"
+export {toTanstackColumns, sourceOf, type ColumnMeta} from "./tanstackColumns"

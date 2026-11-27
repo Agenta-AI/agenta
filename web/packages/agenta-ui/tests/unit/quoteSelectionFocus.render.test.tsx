@@ -5,17 +5,19 @@ import {cleanup, fireEvent, render, screen} from "@testing-library/react"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 vi.mock("@agenta/shared/utils", () => ({generateId: () => "quote-scroll-test"}))
-vi.mock("../../src/QuoteSelection/useQuoteHighlights", () => ({useDraftHighlight: () => {}}))
+vi.mock("../../src/editor/quote-selection/useQuoteHighlights", () => ({
+    useDraftHighlight: () => {},
+}))
 
 const state = vi.hoisted(() => ({candidate: null as unknown, dismiss: vi.fn()}))
-vi.mock("../../src/QuoteSelection/useQuoteSelection", () => ({
+vi.mock("../../src/editor/quote-selection/useQuoteSelection", () => ({
     useQuoteSelection: () => ({candidate: state.candidate, dismiss: state.dismiss}),
     renderedSelection: () => ({before: "", rendered: "Selected passage"}),
     rectIn: () => ({top: 150, left: 200, bottom: 170, width: 100}),
 }))
 
-import {QuoteSelectionLayer} from "../../src/QuoteSelection/QuoteSelectionLayer"
-import {clearQuotes, getQuotes, registerQuoteSubmit} from "../../src/QuoteSelection/store"
+import {QuoteSelectionLayer} from "../../src/editor/quote-selection/QuoteSelectionLayer"
+import {clearQuotes, getQuotes, registerQuoteSubmit} from "../../src/editor/quote-selection/store"
 
 const sessionId = "quote-scroll-session"
 

@@ -2,7 +2,7 @@ import React, {ComponentProps, useCallback, useEffect, useMemo, useRef, useState
 
 import type {SimpleChatMessage} from "@agenta/playground"
 import {getAttachments} from "@agenta/shared/utils"
-import {message, modal} from "@agenta/ui"
+import {message, modal} from "@agenta/ui/app-message"
 import {
     ChatMessageEditor as MessageEditor,
     MessageAttachments,

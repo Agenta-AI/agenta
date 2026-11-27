@@ -2,7 +2,7 @@ import type {Meta, StoryObj} from "@storybook/nextjs"
 
 // Progress is not exported from the `@agenta/ui/ui` barrel yet, so the story imports
 // the primitive directly by path.
-import {Progress} from "../../packages/agenta-ui/src/components/ui/progress"
+import {Progress} from "../../packages/agenta-ui/src/primitives/progress"
 
 const meta = {
     title: "@agenta/ui/Primitives/Feedback/Progress",

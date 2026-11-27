@@ -22,7 +22,7 @@ import {
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
 import {richText, useT} from "@agenta/i18n"
 import providerDrawerCatalog from "@agenta/i18n/catalogs/entityUi.providerDrawer"
-import {Tag} from "@agenta/ui"
+import {Tag} from "@agenta/ui/components/presentational"
 import {Checkbox} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 

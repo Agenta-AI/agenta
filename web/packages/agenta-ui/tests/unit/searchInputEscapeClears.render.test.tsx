@@ -4,7 +4,7 @@ import {useState, type KeyboardEvent} from "react"
 import {cleanup, fireEvent, render, screen} from "@testing-library/react"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-import {SearchInput} from "../../src/components/composed/input-affix"
+import {SearchInput} from "../../src/composed/controls/input-affix"
 
 afterEach(cleanup)
 

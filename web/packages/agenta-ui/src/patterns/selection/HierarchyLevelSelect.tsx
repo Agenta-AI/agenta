@@ -1,0 +1,332 @@
+/**
+ * HierarchyLevelSelect Component
+ *
+ * A generic select component for hierarchy level selection with support for:
+ * - Rich label rendering
+ * - Search filtering
+ * - Loading states
+ * - Custom placeholders
+ *
+ * This is a generic UI component that can be used by any entity selection system.
+ *
+ * @example
+ * ```tsx
+ * import { HierarchyLevelSelect } from '@agenta/ui'
+ *
+ * <HierarchyLevelSelect
+ *   items={apps}
+ *   selectedId={selectedAppId}
+ *   onSelect={setSelectedAppId}
+ *   getItemId={(app) => app.id}
+ *   getItemLabel={(app) => app.name}
+ *   label="Application"
+ *   showLabel
+ *   isLoading={isLoading}
+ * />
+ * ```
+ */
+
+import React, {useMemo} from "react"
+
+import {activeLanguageAtom, useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+import levelSelectCatalog from "@agenta/i18n/catalogs/ui.levelSelect"
+import {useAtomValue} from "jotai"
+
+import {cn} from "../../foundation/utils/cn"
+import {Combobox, type ComboboxOption, type ComboboxOptionGroup} from "../../primitives/combobox"
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
+export interface HierarchyLevelSelectProps<T> {
+    /**
+     * Items to display in the select
+     */
+    items: T[]
+
+    /**
+     * Currently selected item ID
+     */
+    selectedId: string | null
+
+    /**
+     * Callback when selection changes
+     */
+    onSelect: (id: string | null) => void
+
+    /**
+     * Get unique ID from item
+     */
+    getItemId: (item: T) => string
+
+    /**
+     * Get string label from item (used for search filtering)
+     */
+    getItemLabel: (item: T) => string
+
+    /**
+     * Get rich label node from item (optional, for display)
+     */
+    getItemLabelNode?: (item: T) => React.ReactNode
+
+    /**
+     * Get placeholder node (optional, for consistent height)
+     */
+    getPlaceholderNode?: (text: string) => React.ReactNode
+
+    /**
+     * Label text for the select
+     */
+    label?: string
+
+    /**
+     * Show label above the select
+     * @default false
+     */
+    showLabel?: boolean
+
+    /**
+     * Custom placeholder text
+     */
+    placeholder?: string
+
+    /**
+     * Select size
+     * @default "default"
+     */
+    size?: "sm" | "default" | "lg"
+
+    /**
+     * Whether the select is disabled
+     * @default false
+     */
+    disabled?: boolean
+
+    /**
+     * Whether the select is loading
+     * @default false
+     */
+    isLoading?: boolean
+
+    /**
+     * Whether there is an error
+     * @default false
+     */
+    isError?: boolean
+
+    /**
+     * Whether the level is enabled (has required parent selection)
+     * @default true
+     */
+    isEnabled?: boolean
+
+    /**
+     * Whether to show auto-select indicator
+     * @default false
+     */
+    showAutoIndicator?: boolean
+
+    /**
+     * Whether the current selection was auto-selected
+     * @default false
+     */
+    isAutoSelected?: boolean
+
+    /**
+     * Previous level's label (for "Select X first" placeholder)
+     */
+    prevLevelLabel?: string
+
+    /**
+     * Not found content when list is empty
+     */
+    notFoundContent?: React.ReactNode
+
+    /**
+     * Allow clearing the selection
+     * @default true
+     */
+    allowClear?: boolean
+
+    /**
+     * Get a group key for this item (for grouped select rendering).
+     * Items with the same key are grouped under a shared header.
+     * Return null/undefined for ungrouped items.
+     */
+    getGroupKey?: (item: T) => string | null | undefined
+
+    /**
+     * Map a group key to a human-readable display label.
+     * Falls back to the key itself if not provided.
+     */
+    getGroupLabel?: (key: string) => string
+
+    /**
+     * Additional class name for the container
+     */
+    className?: string
+}
+
+type HierarchyLevelSelectLeafOption = ComboboxOption
+type HierarchyLevelSelectGroupOption = ComboboxOptionGroup
+
+// ============================================================================
+// COMPONENT
+// ============================================================================
+
+/**
+ * HierarchyLevelSelect
+ *
+ * Renders a select dropdown for a single hierarchy level.
+ *
+ * Features:
+ * - Rich label rendering via getItemLabelNode
+ * - Placeholder from getPlaceholderNode for consistent height
+ * - Search filtering using getItemLabel
+ * - Loading state
+ * - Error state
+ * - Auto-select indicator
+ */
+export function HierarchyLevelSelect<T>({
+    items,
+    selectedId,
+    onSelect,
+    getItemId,
+    getItemLabel,
+    getItemLabelNode,
+    getPlaceholderNode,
+    getGroupKey,
+    getGroupLabel,
+    label,
+    showLabel = false,
+    placeholder,
+    size = "default",
+    disabled = false,
+    isLoading = false,
+    isError = false,
+    isEnabled = true,
+    showAutoIndicator = false,
+    isAutoSelected = false,
+    prevLevelLabel,
+    notFoundContent,
+    allowClear = true,
+    className,
+}: HierarchyLevelSelectProps<T>) {
+    const t = useT(uiControlsCatalog, levelSelectCatalog)
+    const language = useAtomValue(activeLanguageAtom)
+    // A level name reads lowercase inside the sentence; German keeps its capitalized nouns.
+    const inSentence = (name: string) => (language === "de-DE" ? name : name.toLowerCase())
+    const selectFirst = prevLevelLabel
+        ? t("ui.levelSelect.selectLabelFirst", {label: inSentence(prevLevelLabel)})
+        : t("ui.levelSelect.selectPreviousFirst")
+    // Build placeholder text
+    const defaultPlaceholder = isLoading
+        ? t("ui.levelSelect.loading")
+        : isEnabled
+          ? label
+              ? t("ui.levelSelect.selectLabel", {label: inSentence(label)})
+              : t("ui.levelSelect.selectItem")
+          : selectFirst
+
+    const effectivePlaceholderText = placeholder ?? defaultPlaceholder
+
+    // Build placeholder - use getPlaceholderNode if available for consistent height
+    const effectivePlaceholder = useMemo(() => {
+        if (getPlaceholderNode) {
+            return getPlaceholderNode(effectivePlaceholderText)
+        }
+        return effectivePlaceholderText
+    }, [getPlaceholderNode, effectivePlaceholderText])
+
+    // Build options - use getItemLabelNode for rich rendering, keep string label for search
+    // When getGroupKey is provided, produce Ant Design grouped option structure
+    const options = useMemo(() => {
+        const buildOption = (item: T): HierarchyLevelSelectLeafOption => {
+            const stringLabel = getItemLabel(item)
+            const labelNode = getItemLabelNode?.(item)
+            return {
+                value: getItemId(item),
+                label: labelNode ?? stringLabel,
+                searchValue: stringLabel,
+            }
+        }
+
+        if (!getGroupKey) {
+            return items.map(buildOption)
+        }
+
+        // Group items by key, preserving insertion order
+        const groups = new Map<string, T[]>()
+        for (const item of items) {
+            const key = getGroupKey(item) ?? "__ungrouped__"
+            const group = groups.get(key)
+            if (group) {
+                group.push(item)
+            } else {
+                groups.set(key, [item])
+            }
+        }
+
+        // If only one group exists and it's ungrouped, return flat
+        if (groups.size === 1 && groups.has("__ungrouped__")) {
+            return items.map(buildOption)
+        }
+
+        return Array.from(groups.entries()).map(
+            ([key, groupItems]): HierarchyLevelSelectGroupOption => ({
+                label:
+                    key === "__ungrouped__"
+                        ? t("ui.levelSelect.otherGroup")
+                        : (getGroupLabel?.(key) ?? key),
+                options: groupItems.map(buildOption),
+            }),
+        )
+    }, [items, getItemId, getItemLabel, getItemLabelNode, getGroupKey, getGroupLabel, t])
+
+    // Handle change
+    const handleChange = (value: string | undefined) => {
+        onSelect(value ?? null)
+    }
+
+    // Get not found content based on state
+    const getNotFoundContentText = () => {
+        if (notFoundContent) return notFoundContent
+        if (isLoading) return t("ui.levelSelect.loading")
+        if (isError) return t("ui.levelSelect.loadError")
+        if (!isEnabled) return selectFirst
+        return t("ui.levelSelect.noItems")
+    }
+
+    return (
+        <div className={cn("flex flex-col min-w-0", className)}>
+            {showLabel && label && (
+                <span className="text-meta mb-1 block text-muted-foreground">
+                    {label}
+                    {showAutoIndicator && isAutoSelected && (
+                        <span className="ml-1 text-muted-foreground">
+                            {t("ui.controls.autoSelected")}
+                        </span>
+                    )}
+                </span>
+            )}
+            <Combobox
+                className="w-full"
+                aria-label={label ?? placeholder}
+                placeholder={effectivePlaceholder}
+                value={selectedId ?? undefined}
+                onChange={handleChange}
+                loading={isLoading}
+                disabled={disabled || !isEnabled || isLoading}
+                invalid={isError}
+                options={options}
+                size={size}
+                emptyText={getNotFoundContentText()}
+                allowClear={allowClear}
+            />
+        </div>
+    )
+}
+
+export default HierarchyLevelSelect

@@ -1,4 +1,4 @@
-import {GitHubMark} from "@agenta/ui/github-mark"
+import {GitHubMark} from "@agenta/ui/icons"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 const meta = {title: "Primitives/GitHubMark", component: GitHubMark} satisfies Meta<

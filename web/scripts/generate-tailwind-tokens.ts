@@ -9,7 +9,7 @@
  *
  * SAFETY: writes to $GEN_OUT (default: a scratch dir), never the live
  * theme-variables.css, so it can't collide with in-flight edits. Pass
- * GEN_OUT=packages/agenta-ui/src/styles to actually regenerate (Phase 3, when the tree is
+ * GEN_OUT=packages/agenta-ui/src/foundation/styles to actually regenerate (Phase 3, when the tree is
  * quiet). theme-variables.css moved there so BOTH apps import one generated token layer —
  * shared components reference `--ag-*` literally, and mobile silently had 98 of them undefined
  * while it lived under oss/.
@@ -29,7 +29,7 @@ const WEB = pathResolve(HERE, "..") // web
 const OSS = pathResolve(WEB, "oss")
 // The live token layer lives in @agenta/ui (see the header note) — both apps import it.
 // Left pointing at oss/ it would regenerate a file nothing reads.
-const CURRENT_CSS = pathResolve(WEB, "packages/agenta-ui/src/styles/theme-variables.css")
+const CURRENT_CSS = pathResolve(WEB, "packages/agenta-ui/src/foundation/styles/theme-variables.css")
 const OUT = process.env.GEN_OUT
     ? pathResolve(WEB, process.env.GEN_OUT)
     : pathResolve(process.env.SCRATCH || "/tmp", "theme-gen")

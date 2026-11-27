@@ -5,6 +5,10 @@ import {defineConfig} from "vitest/config"
 export default defineConfig({
     resolve: {
         alias: {
+            "@agenta/ui/components/presentational": path.resolve(
+                __dirname,
+                "tests/__mocks__/agenta-ui.ts",
+            ),
             "@agenta/ui": path.resolve(__dirname, "tests/__mocks__/agenta-ui.ts"),
         },
     },

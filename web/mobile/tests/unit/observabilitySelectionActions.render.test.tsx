@@ -89,7 +89,9 @@ vi.mock("@agenta/observability-ui", async (importOriginal) => {
         ),
     }
 })
-vi.mock("@agenta/ui", () => ({PageLayout: ({children}: {children: ReactNode}) => <>{children}</>}))
+vi.mock("@agenta/ui/layout", () => ({
+    PageLayout: ({children}: {children: ReactNode}) => <>{children}</>,
+}))
 vi.mock("@agenta/ui/hooks", () => ({useIsNarrowScreen: () => false}))
 vi.mock("@/components/PageTitle", () => ({PageTitle: () => null}))
 vi.mock("@/components/ScreenScaffold", () => ({

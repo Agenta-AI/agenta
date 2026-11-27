@@ -10,7 +10,7 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import triggerConnectCatalog from "@agenta/i18n/catalogs/entityUi.triggerConnect"
 import {getAgentaApiUrl, getAgentaWebUrl, getHostQueryClient} from "@agenta/shared/api"
 import {defaultConnectionName, generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
-import {message} from "@agenta/ui"
+import {message} from "@agenta/ui/app-message"
 import {Divider, LoadingButton} from "@agenta/ui/composed"
 import {
     Button,

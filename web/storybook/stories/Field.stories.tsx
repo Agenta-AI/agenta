@@ -1,8 +1,8 @@
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 // Field/Label aren't on the @agenta/ui barrel yet → relative source imports.
-import {Field} from "../../packages/agenta-ui/src/components/ui/field"
-import {Input} from "../../packages/agenta-ui/src/components/ui/input"
+import {Field} from "../../packages/agenta-ui/src/primitives/field"
+import {Input} from "../../packages/agenta-ui/src/primitives/input"
 
 const meta = {
     title: "@agenta/ui/Primitives/Forms/Field",

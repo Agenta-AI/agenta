@@ -3,7 +3,7 @@ import type {Meta, StoryObj} from "@storybook/nextjs"
 
 // Barrel is off-limits for this component (not exported from @agenta/ui/ui yet) — import direct.
 
-import {EmptyState} from "../../packages/agenta-ui/src/components/composed/empty-state"
+import {EmptyState} from "../../packages/agenta-ui/src/composed/feedback/empty-state"
 
 const meta = {
     title: "@agenta/ui/Primitives/Display/EmptyState",

@@ -4,7 +4,7 @@ import {describe, expect, it} from "vitest"
 import {
     getColumnViewportVisibilityAtom,
     setColumnViewportVisibilityAtom,
-} from "../../src/InfiniteVirtualTable/atoms/columnVisibility"
+} from "../../src/data/infinite-virtual-table/atoms/columnVisibility"
 
 /**
  * The viewport visibility state is a `Map` of `Map`s, and immer only drafts those once

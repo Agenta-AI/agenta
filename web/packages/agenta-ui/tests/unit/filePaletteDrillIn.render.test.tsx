@@ -13,8 +13,8 @@ import {createRef} from "react"
 import {act, cleanup, render} from "@testing-library/react"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-import {RichChatInput, type RichChatInputHandle} from "../../src/RichChatInput"
-import type {PaletteSpec} from "../../src/RichChatInput/assets/palette"
+import {RichChatInput, type RichChatInputHandle} from "../../src/editor/rich-chat-input"
+import type {PaletteSpec} from "../../src/editor/rich-chat-input/assets/palette"
 
 afterEach(cleanup)
 

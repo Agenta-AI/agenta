@@ -9,7 +9,7 @@
 import {renderToStaticMarkup} from "react-dom/server"
 import {describe, expect, it} from "vitest"
 
-import {Field} from "../../src/components/ui/field"
+import {Field} from "../../src/primitives/field"
 
 /** The rendered field, as a DOM tree so ids can be followed the way a reader follows them. */
 const render = (element: React.ReactElement): HTMLElement => {

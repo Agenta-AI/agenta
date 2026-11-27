@@ -1,0 +1,124 @@
+/**
+ * MetadataHeader Component
+ *
+ * A header component for displaying metadata information with a label and value.
+ * Used for tool response messages, function names, and other metadata displays.
+ *
+ * @example
+ * ```tsx
+ * import { MetadataHeader } from '@agenta/ui'
+ *
+ * // Function name and call ID
+ * <MetadataHeader
+ *   label="get_weather"
+ *   labelTooltip="Function name"
+ *   value="call_abc123"
+ *   valueTooltip="Tool call ID"
+ * />
+ *
+ * // Simple label only
+ * <MetadataHeader label="Response" />
+ * ```
+ */
+
+import React from "react"
+
+import {cn} from "../../../foundation/utils/cn"
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../../primitives/tooltip"
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
+export interface MetadataHeaderProps {
+    /**
+     * Primary label (e.g., function name)
+     */
+    label?: string | null
+    /**
+     * Tooltip for the label
+     */
+    labelTooltip?: string
+    /**
+     * Secondary value (e.g., tool call ID)
+     */
+    value?: string | null
+    /**
+     * Tooltip for the value
+     */
+    valueTooltip?: string
+    /**
+     * Maximum width for value truncation
+     * @default 200
+     */
+    maxValueWidth?: number
+    /**
+     * Additional CSS class name
+     */
+    className?: string
+}
+
+// ============================================================================
+// COMPONENT
+// ============================================================================
+
+/**
+ * Displays metadata information with a label and optional value.
+ * Supports tooltips and truncation for long values.
+ */
+export function MetadataHeader({
+    label,
+    labelTooltip,
+    value,
+    valueTooltip,
+    maxValueWidth = 200,
+    className,
+}: MetadataHeaderProps) {
+    if (!label && !value) return null
+
+    return (
+        <div
+            className={cn(
+                "w-full justify-between text-label px-1 py-1 flex items-center text-muted-foreground",
+                className,
+            )}
+        >
+            {label &&
+                (labelTooltip ? (
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <span className="font-medium text-muted-foreground">{label}</span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">{labelTooltip}</TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                ) : (
+                    <span className="font-medium text-muted-foreground">{label}</span>
+                ))}
+            {value &&
+                (valueTooltip ? (
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <span
+                                    className="font-mono truncate text-muted-foreground"
+                                    style={{maxWidth: maxValueWidth}}
+                                >
+                                    {value}
+                                </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">{valueTooltip}</TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                ) : (
+                    <span
+                        className="font-mono truncate text-muted-foreground"
+                        style={{maxWidth: maxValueWidth}}
+                    >
+                        {value}
+                    </span>
+                ))}
+        </div>
+    )
+}

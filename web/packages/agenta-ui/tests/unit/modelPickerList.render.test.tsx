@@ -2,8 +2,8 @@
 import {cleanup, fireEvent, render, screen} from "@testing-library/react"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-import ModelPickerList from "../../src/SelectLLMProvider/ModelPickerList"
-import type {ProviderGroup} from "../../src/SelectLLMProvider/types"
+import ModelPickerList from "../../src/patterns/select-llm-provider/ModelPickerList"
+import type {ProviderGroup} from "../../src/patterns/select-llm-provider/types"
 
 afterEach(cleanup)
 

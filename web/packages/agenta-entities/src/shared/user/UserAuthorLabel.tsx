@@ -19,7 +19,7 @@
  * ```
  */
 
-import {getAvatarColorStyle, getInitials} from "@agenta/ui"
+import {getAvatarColorStyle, getInitials} from "@agenta/ui/components/presentational"
 import {Avatar, AvatarFallback} from "@agenta/ui/ui"
 
 import {useUserDisplayName, useIsCurrentUser} from "./atoms"

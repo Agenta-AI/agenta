@@ -14,8 +14,8 @@ import {
     type CommitSubmitParams,
     type CommitSubmitResult,
 } from "@agenta/entity-ui"
-import {PageLayout} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
+import {PageLayout} from "@agenta/ui/layout"
 import {Spinner} from "@agenta/ui/ui"
 import {Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"

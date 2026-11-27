@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {inputVariants} from "../../src/components/ui/input"
+import {inputVariants} from "../../src/primitives/input"
 
 /**
  * A borderless field sits inside a frame that is its visual edge (the session search palette's

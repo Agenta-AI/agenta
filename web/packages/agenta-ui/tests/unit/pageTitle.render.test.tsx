@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import {cleanup, render} from "@testing-library/react"
 import type {ReactNode} from "react"
+
+import {cleanup, render} from "@testing-library/react"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-import {PageTitle} from "../../src/page-title"
+import {PageTitle} from "../../src/layout/page-title"
 
 /**
  * The whole fix for the flapping tab title is the `undefined` vs `""`/`null` distinction: a title

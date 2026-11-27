@@ -2,7 +2,6 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {createT, useT} from "@agenta/i18n"
 import testcaseCatalog from "@agenta/i18n/catalogs/entityUi.testcase"
-import {copyToClipboard} from "@agenta/ui"
 import {
     DrillInContent,
     DrillInRootToolbar,
@@ -14,6 +13,7 @@ import {
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
+import {copyToClipboard} from "@agenta/ui/utils"
 import deepEqual from "fast-deep-equal"
 
 import {

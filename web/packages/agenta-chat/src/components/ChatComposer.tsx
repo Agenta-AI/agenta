@@ -13,7 +13,7 @@ import {useT} from "@agenta/i18n"
 import chatChatComposerCatalog from "@agenta/i18n/catalogs/chat.chatComposer"
 import {isOverlayOpen} from "@agenta/shared/utils"
 import {SimpleTooltip} from "@agenta/ui/composed"
-import {HeightCollapse} from "@agenta/ui/height-collapse"
+import {HeightCollapse} from "@agenta/ui/layout"
 import {
     registerQuoteSubmit,
     removeQuote,

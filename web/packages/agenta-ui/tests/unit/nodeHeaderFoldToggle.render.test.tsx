@@ -6,7 +6,7 @@
 import {cleanup, fireEvent, render, screen} from "@testing-library/react"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-import NodeHeader from "../../src/Editor/form/shared/NodeHeader"
+import NodeHeader from "../../src/editor/editor/form/shared/NodeHeader"
 
 afterEach(cleanup)
 

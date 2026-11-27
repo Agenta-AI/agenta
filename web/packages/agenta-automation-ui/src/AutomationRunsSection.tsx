@@ -5,7 +5,7 @@ import {scheduleTextNow} from "@agenta/entity-ui/gatewayTrigger"
 import {createT, formatDate, textVersionAtom, useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import automationsPanelCatalog from "@agenta/i18n/catalogs/automations.panel"
-import {ConfigAccordionSection} from "@agenta/ui/config-accordion"
+import {ConfigAccordionSection} from "@agenta/ui/layout"
 import {CalendarBlank, ClockCounterClockwise, Play} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 

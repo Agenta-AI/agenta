@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 
 /* The design system: theme variables on :root and .dark, and their Tailwind mapping. Both are
-   GENERATED from @agenta/ui/src/design/theme.config.ts (`pnpm generate:theme`). See web/DESIGN.md. */
+   GENERATED from @agenta/ui/src/foundation/design/theme.config.ts (`pnpm generate:theme`). See web/DESIGN.md. */
 @import "@agenta/ui/design/theme.css";
 @import "@agenta/ui/design/theme.tailwind.css";
 @import "@agenta/auth-ui/auth.css";

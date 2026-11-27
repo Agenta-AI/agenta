@@ -1,0 +1,269 @@
+import * as React from "react"
+
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import {XIcon} from "@phosphor-icons/react"
+import * as DialogPrimitive from "@radix-ui/react-dialog"
+
+import {cn} from "../foundation/utils/cn"
+
+import {Button} from "./button"
+import {useDialogScope} from "./dialog-scope"
+
+/**
+ * Dialog — the shadcn dialog on Radix, styled through the token bridge.
+ * antd Modal mapping: onCancel→onOpenChange(false), getContainer→container, closable→showCloseButton.
+ */
+
+// Lets a contained DialogContent close its own Root when the host panel closes.
+const DialogRootContext = React.createContext<{
+    open?: boolean
+    onOpenChange?: (open: boolean) => void
+}>({})
+
+function Dialog(props: React.ComponentProps<typeof DialogPrimitive.Root>) {
+    const {open, onOpenChange} = props
+    const root = React.useMemo(() => ({open, onOpenChange}), [open, onOpenChange])
+    return (
+        <DialogRootContext.Provider value={root}>
+            <DialogPrimitive.Root data-slot="dialog" {...props} />
+        </DialogRootContext.Provider>
+    )
+}
+
+// A contained dialog lives in its host panel (a drawer), so it closes when the panel does.
+function useCloseWithContainer(container: HTMLElement | null | undefined, enabled: boolean) {
+    const root = React.useContext(DialogRootContext)
+    const rootRef = React.useRef(root)
+    React.useLayoutEffect(() => {
+        rootRef.current = root
+    })
+    // Layout effect: the swap-out case must close before paint, not flash a page-level modal.
+    React.useLayoutEffect(() => {
+        if (!enabled || !container) return
+        const closeIfHostClosed = () => {
+            const {open, onOpenChange} = rootRef.current
+            if (open && container.getAttribute("data-state") === "closed") onOpenChange?.(false)
+        }
+        closeIfHostClosed()
+        const observer = new MutationObserver(closeIfHostClosed)
+        observer.observe(container, {attributes: true, attributeFilter: ["data-state"]})
+        return () => {
+            observer.disconnect()
+            // Callers can swap the container out in the same render that closes it.
+            closeIfHostClosed()
+        }
+    }, [container, enabled])
+}
+
+function DialogTrigger(props: React.ComponentProps<typeof DialogPrimitive.Trigger>) {
+    return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />
+}
+
+function DialogPortal(props: React.ComponentProps<typeof DialogPrimitive.Portal>) {
+    return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />
+}
+
+function DialogClose(props: React.ComponentProps<typeof DialogPrimitive.Close>) {
+    return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
+}
+
+// The one scrim behind dialogs and sheets (`overlay`).
+const OVERLAY_CLASS = "fixed inset-0 isolate z-50 bg-overlay"
+
+function DialogOverlay({
+    className,
+    ...props
+}: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
+    return (
+        <DialogPrimitive.Overlay
+            data-slot="dialog-overlay"
+            className={cn(
+                OVERLAY_CLASS,
+                "data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out",
+                className,
+            )}
+            {...props}
+        />
+    )
+}
+
+function DialogContent({
+    className,
+    children,
+    container: containerProp,
+    contained = false,
+    onInteractOutside,
+    onEscapeKeyDown,
+    showCloseButton = true,
+    closeIcon,
+    overlayClassName,
+    ...props
+}: React.ComponentProps<typeof DialogPrimitive.Content> & {
+    /** Portal target; defaults to document.body. */
+    container?: HTMLElement | null
+    /** Mask and centre inside `container` (positioned), not the page; use with a non-modal Dialog. */
+    contained?: boolean
+    /** Renders the top-right close XIcon. */
+    showCloseButton?: boolean
+    /** Replaces the default XIcon icon. */
+    closeIcon?: React.ReactNode
+    /** Extra backdrop classes, e.g. a darker mask for a media lightbox. */
+    overlayClassName?: string
+}) {
+    const t = useT(commonCatalog)
+    // Opened inside a DialogScope (a side pane), it covers that region, not the window.
+    const scope = useDialogScope()
+    const container = containerProp ?? scope
+    const scoped = !containerProp && Boolean(scope)
+    useCloseWithContainer(container, contained)
+    return (
+        <DialogPortal container={container}>
+            <DialogOverlay className={cn(scoped && "absolute", overlayClassName)} />
+            {/* Flex-centred, not transform-centred: the zoom keyframes would overwrite a translate. */}
+            <div
+                data-slot="dialog-positioner"
+                // p-4 keeps a phone-width modal off the viewport edges.
+                className={cn(
+                    "fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none",
+                    // Contained: follow the container's corners, so the mask never squares them.
+                    contained && "absolute rounded-[inherit]",
+                    scoped && "absolute",
+                )}
+            >
+                {/* A non-modal Root renders no Radix overlay, so the contained mask is a plain layer. */}
+                {contained && (
+                    <div
+                        data-slot="dialog-overlay"
+                        className={cn(
+                            OVERLAY_CLASS,
+                            "absolute z-0 pointer-events-auto animate-overlay-in rounded-[inherit]",
+                        )}
+                    />
+                )}
+                <DialogPrimitive.Content
+                    data-slot="dialog-content"
+                    onInteractOutside={(event) => {
+                        onInteractOutside?.(event)
+                        // Contained: the rest of the page stays live and never answers the dialog.
+                        if (contained) event.preventDefault()
+                    }}
+                    onEscapeKeyDown={(event) => {
+                        onEscapeKeyDown?.(event)
+                        // Contained: Esc closes only from inside the container.
+                        if (contained && !container?.contains(event.target as Node | null)) {
+                            event.preventDefault()
+                        }
+                    }}
+                    className={cn(
+                        // font-portal: portalled to <body>, outside the app font scope (preflight off).
+                        "relative pointer-events-auto font-portal",
+                        "box-border flex max-h-full w-full max-w-[520px] flex-col gap-4 overflow-y-auto",
+                        "rounded-xl bg-popover p-4 text-body text-popover-foreground outline-none shadow-modal",
+                        "data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out",
+                        className,
+                    )}
+                    {...props}
+                >
+                    {children}
+                    {showCloseButton && (
+                        <DialogPrimitive.Close data-slot="dialog-close-x" asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="absolute right-2 top-2"
+                                aria-label={t("common.close")}
+                            >
+                                {closeIcon ?? <XIcon />}
+                            </Button>
+                        </DialogPrimitive.Close>
+                    )}
+                </DialogPrimitive.Content>
+            </div>
+        </DialogPortal>
+    )
+}
+
+function DialogHeader({className, ...props}: React.ComponentProps<"div">) {
+    return (
+        <div
+            data-slot="dialog-header"
+            className={cn("flex flex-col gap-2", className)}
+            {...props}
+        />
+    )
+}
+
+function DialogFooter({
+    className,
+    showCloseButton = false,
+    children,
+    ...props
+}: React.ComponentProps<"div"> & {
+    /** Appends an outline "Close" button that dismisses the dialog. */
+    showCloseButton?: boolean
+}) {
+    const t = useT(commonCatalog)
+    return (
+        <div
+            data-slot="dialog-footer"
+            // Full-bleed muted band (-m undoes the content's p-4); stacked on a phone, a row from sm.
+            // border-0 first: preflight is off, so `border-solid` alone would paint every side.
+            className={cn(
+                "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl p-4 sm:flex-row sm:justify-end",
+                "border-0 border-t border-solid border-border-muted",
+                "bg-[color:color-mix(in_srgb,var(--secondary)_50%,transparent)]",
+                className,
+            )}
+            {...props}
+        >
+            {children}
+            {showCloseButton && (
+                <DialogPrimitive.Close asChild>
+                    <Button variant="outline">{t("common.close")}</Button>
+                </DialogPrimitive.Close>
+            )}
+        </div>
+    )
+}
+
+function DialogTitle({className, ...props}: React.ComponentProps<typeof DialogPrimitive.Title>) {
+    return (
+        <DialogPrimitive.Title
+            data-slot="dialog-title"
+            // m-0 resets the UA <h2> margin (preflight off).
+            className={cn("m-0 text-title", className)}
+            {...props}
+        />
+    )
+}
+
+function DialogDescription({
+    className,
+    ...props
+}: React.ComponentProps<typeof DialogPrimitive.Description>) {
+    return (
+        <DialogPrimitive.Description
+            data-slot="dialog-description"
+            // m-0 resets the UA <p> margin (preflight off).
+            className={cn(
+                "m-0 text-body text-muted-foreground [&_a]:underline [&_a]:underline-offset-[3px] [&_a:hover]:text-foreground",
+                className,
+            )}
+            {...props}
+        />
+    )
+}
+
+export {
+    Dialog,
+    DialogTrigger,
+    DialogPortal,
+    DialogOverlay,
+    DialogContent,
+    DialogClose,
+    DialogHeader,
+    DialogFooter,
+    DialogTitle,
+    DialogDescription,
+}

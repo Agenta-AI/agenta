@@ -7,7 +7,7 @@ import {
     type WorkflowTypeColor,
     type WorkflowType,
 } from "@agenta/entities/workflow"
-import {cn} from "@agenta/ui"
+import {cn} from "@agenta/ui/styles"
 import {
     Badge,
     Tooltip,

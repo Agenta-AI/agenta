@@ -10,17 +10,13 @@ import {
     useAutoRefresh,
 } from "@agenta/observability-ui"
 import {AddActionsDropdown, deleteTraceModalAtom} from "@agenta/observability-ui"
-import {PageLayout} from "@agenta/ui"
 import {useIsNarrowScreen} from "@agenta/ui/hooks"
+import {PageLayout} from "@agenta/ui/layout"
 import {ChatsIcon, NetworkIcon} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
-
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {projectHomeUrl} from "@/lib/context"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useProjectPermissionState} from "../context/useProjectPermission"
@@ -42,6 +38,10 @@ import {TracesList} from "./TracesList"
 import {TracesTable} from "./TracesTable"
 import {useObservabilityTab, type ObservabilityTab} from "./useObservabilityTab"
 import {useTracesExportBinding} from "./useTracesExportBinding"
+
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {projectHomeUrl} from "@/lib/context"
 
 // Loaded on the first session opened, so the page everyone opens does not carry the drawer.
 const ObservabilitySessionDrawer = dynamic(

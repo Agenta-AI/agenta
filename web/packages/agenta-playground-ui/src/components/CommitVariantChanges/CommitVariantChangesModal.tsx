@@ -11,8 +11,8 @@ import type {
 import {createT, useT} from "@agenta/i18n"
 import commitCatalog from "@agenta/i18n/catalogs/playground.commit"
 import {playgroundController} from "@agenta/playground"
-import {environmentColors} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
+import {environmentColors} from "@agenta/ui/components/presentational"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {CommitVariantChangesModalProps} from "./types"

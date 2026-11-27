@@ -1,0 +1,43 @@
+import {useT} from "@agenta/i18n"
+import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
+import {DownloadSimpleIcon} from "@phosphor-icons/react"
+
+import {Button} from "../../primitives/button"
+
+import {downloadCsv, listTableToCsv} from "./csv"
+import type {ListTableCsvColumn} from "./types"
+
+/**
+ * Saves the rows the list passes as a CSV file. For the toolbar's `actions` slot, or the
+ * selection bar's bulk actions with the selected rows. Disabled when there is nothing to save.
+ */
+export const ListTableExportButton = <Row,>({
+    rows,
+    columns,
+    fileName,
+    label: labelProp,
+    className,
+}: {
+    rows: readonly Row[]
+    columns: ListTableCsvColumn<Row>[]
+    /** `.csv` is added when missing. */
+    fileName: string
+    label?: string
+    className?: string
+}) => {
+    const t = useT(listControlsCatalog)
+    const label = labelProp ?? t("ui.listControls.exportCsv")
+    return (
+        <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={className}
+            disabled={rows.length === 0}
+            onClick={() => downloadCsv(fileName, listTableToCsv(rows, columns))}
+        >
+            <DownloadSimpleIcon aria-hidden data-icon="inline-start" />
+            {label}
+        </Button>
+    )
+}

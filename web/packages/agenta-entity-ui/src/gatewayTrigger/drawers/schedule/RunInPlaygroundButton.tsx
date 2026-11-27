@@ -4,7 +4,7 @@ import {useCallback, useMemo, useRef, useState} from "react"
 import {createT, useT} from "@agenta/i18n"
 import triggerScheduleCatalog from "@agenta/i18n/catalogs/entityUi.triggerSchedule"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
-import {message} from "@agenta/ui"
+import {message} from "@agenta/ui/app-message"
 import {
     Button,
     Popover,

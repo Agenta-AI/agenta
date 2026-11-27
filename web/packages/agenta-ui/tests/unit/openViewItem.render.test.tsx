@@ -19,7 +19,7 @@ import {
     type ViewProps,
     type ViewStack,
     type ViewTarget,
-} from "../../src/view-stack"
+} from "../../src/shell/view-stack"
 
 afterEach(cleanup)
 

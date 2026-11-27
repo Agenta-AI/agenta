@@ -1,0 +1,96 @@
+import {useState} from "react"
+
+import {useT} from "@agenta/i18n"
+import uiStatusCatalog from "@agenta/i18n/catalogs/ui.status"
+import {dayjs} from "@agenta/shared/utils"
+import {Check, Copy} from "@phosphor-icons/react"
+
+import {cn} from "../../foundation/utils/cn"
+import {copyToClipboard} from "../../foundation/utils/copyToClipboard"
+import {Badge} from "../../primitives/badge"
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../primitives/tooltip"
+
+export interface FormattedDateProps {
+    date: string | number | Date | null | undefined
+    format?: string
+    fallback?: string
+    asTag?: boolean
+    className?: string
+}
+
+function getRawDateString(date: string | number | Date): string {
+    if (typeof date === "string") return date
+    if (typeof date === "number") return new Date(date).toISOString()
+    return date.toISOString()
+}
+
+export function FormattedDate({
+    date,
+    format = "MMM D, YYYY h:mm A",
+    fallback = "-",
+    asTag = false,
+    className,
+}: FormattedDateProps) {
+    const t = useT(uiStatusCatalog)
+    const [copied, setCopied] = useState(false)
+
+    if (date == null) {
+        return <span className={cn("text-muted-foreground", className)}>{fallback}</span>
+    }
+
+    const parsed = dayjs(date)
+    if (!parsed.isValid()) {
+        return <span className={cn("text-muted-foreground", className)}>{fallback}</span>
+    }
+
+    const formatted = parsed.format(format)
+    const rawValue = getRawDateString(date)
+
+    const handleCopy = async (e: React.MouseEvent) => {
+        e.stopPropagation()
+        const success = await copyToClipboard(rawValue)
+        if (success) {
+            setCopied(true)
+            setTimeout(() => setCopied(false), 2000)
+        }
+    }
+
+    const icon = copied ? (
+        <Check size={12} className="flex-shrink-0" />
+    ) : (
+        <Copy
+            size={12}
+            className="flex-shrink-0 opacity-0 group-hover/date:opacity-100 transition-opacity pointer-coarse:opacity-100"
+        />
+    )
+
+    const tooltipTitle = copied
+        ? t("ui.status.copiedBang")
+        : t("ui.status.clickToCopy", {value: rawValue})
+
+    const inner = (
+        <TooltipProvider delayDuration={400}>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <span
+                        className={cn(
+                            "group/date inline-flex items-center gap-1 cursor-pointer",
+                            !asTag && className,
+                        )}
+                        onClick={handleCopy}
+                    >
+                        {formatted}
+                        {icon}
+                    </span>
+                </TooltipTrigger>
+                <TooltipContent>{tooltipTitle}</TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+    )
+
+    if (asTag) {
+        return <Badge className={cn("bg-secondary", className)}>{inner}</Badge>
+    }
+
+    return inner
+}

@@ -8,8 +8,8 @@ import {
     AlertDialogContent,
     AlertDialogFooter,
     AlertDialogTitle,
-} from "../../src/components/ui/alert-dialog"
-import {Button} from "../../src/components/ui/button"
+} from "../../src/primitives/alert-dialog"
+import {Button} from "../../src/primitives/button"
 
 /**
  * How a Button picks its size on the canvas scale (design decision D1): a surface can give its

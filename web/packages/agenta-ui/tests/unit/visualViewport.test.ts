@@ -13,7 +13,7 @@ import {
     keyboardInset,
     viewportHeightOverride,
     type VisualViewportSample,
-} from "../../src/hooks/useVisualViewport"
+} from "../../src/foundation/hooks/useVisualViewport"
 
 /** A 844pt iPhone viewport, the numbers iOS reports with no keyboard. */
 const sample = (over: Partial<VisualViewportSample> = {}): VisualViewportSample => ({

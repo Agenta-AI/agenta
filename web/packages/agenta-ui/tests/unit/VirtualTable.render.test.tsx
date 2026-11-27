@@ -2,8 +2,8 @@
 import {cleanup, render} from "@testing-library/react"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-import type {ColumnDefs} from "../../src/InfiniteVirtualTable/columnDef"
-import {VirtualTable} from "../../src/InfiniteVirtualTable/components/VirtualTable"
+import type {ColumnDefs} from "../../src/data/infinite-virtual-table/columnDef"
+import {VirtualTable} from "../../src/data/infinite-virtual-table/components/VirtualTable"
 
 /**
  * React reports a missing `key` through console.error, and only ONCE per component type per

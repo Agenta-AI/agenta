@@ -1,0 +1,116 @@
+/**
+ * ImagePreview Component
+ *
+ * A clickable image thumbnail that opens the @agenta/ui `Dialog` with a larger preview.
+ * Handles base64 data URIs, blob URLs, and regular image URLs with safety validation.
+ *
+ * @example
+ * ```tsx
+ * import { ImagePreview } from '@agenta/ui'
+ *
+ * <ImagePreview
+ *   src="https://example.com/image.jpg"
+ *   alt="Preview"
+ *   size={48}
+ *   isValidPreview={true}
+ * />
+ * ```
+ */
+
+import {useCallback, useMemo, useState} from "react"
+import type {MouseEvent} from "react"
+
+import {MagnifyingGlassPlus} from "@phosphor-icons/react"
+
+import {Dialog, DialogContent, DialogTitle} from "../../../primitives/dialog"
+
+import ImageWithFallback from "./ImageWithFallback"
+import {resolveSafeImagePreviewSrc} from "./utils"
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
+export interface ImagePreviewProps {
+    /** thumbnail & full preview source */
+    src: string
+    /** alt text */
+    alt?: string
+    /** square thumbnail size in px (default 48) */
+    size?: number
+    /** optional className for thumbnail */
+    className?: string
+    /** optional boolean to disable the preview */
+    isValidPreview?: boolean
+}
+
+// ============================================================================
+// COMPONENT
+// ============================================================================
+
+/**
+ * Small clickable image thumbnail that opens the @agenta/ui Dialog with a larger preview.
+ */
+const ImagePreview = ({
+    src,
+    alt = "Preview",
+    size = 48,
+    className = "",
+    isValidPreview = true,
+}: ImagePreviewProps) => {
+    const [open, setOpen] = useState(false)
+
+    const imageURL = useMemo(() => {
+        return resolveSafeImagePreviewSrc(src)
+    }, [src])
+
+    const stopPropagation = useCallback((event?: {stopPropagation?: () => void}) => {
+        event?.stopPropagation?.()
+    }, [])
+
+    const handleOpen = useCallback(
+        (event: MouseEvent<HTMLDivElement>) => {
+            stopPropagation(event)
+            setOpen(true)
+        },
+        [stopPropagation],
+    )
+
+    return (
+        <>
+            <div
+                className={`relative group rounded overflow-hidden cursor-pointer flex-shrink-0 ${className}`}
+                style={{width: size, height: size}}
+                onClick={handleOpen}
+                onMouseDown={stopPropagation}
+                onMouseUp={stopPropagation}
+            >
+                <ImageWithFallback
+                    src={imageURL}
+                    alt={alt}
+                    className="w-full h-full object-cover group-hover:opacity-80 transition duration-200"
+                />
+                <div className="absolute inset-0 bg-overlay/0 group-hover:bg-overlay transition duration-200" />
+                <div className="absolute inset-0 flex items-center justify-center text-background opacity-0 group-hover:opacity-100 transition duration-200 pointer-coarse:opacity-100">
+                    <MagnifyingGlassPlus size={16} weight="bold" />
+                </div>
+            </div>
+            <Dialog open={open} onOpenChange={setOpen}>
+                <DialogContent className="gap-0 p-2" style={{width: 800, maxWidth: "90vw"}}>
+                    {/* Title-less preview: a visually-hidden title keeps the dialog accessible. */}
+                    <DialogTitle className="sr-only">{alt}</DialogTitle>
+                    {isValidPreview && imageURL && (
+                        // The same checked source and component as the thumbnail.
+                        <ImageWithFallback
+                            src={imageURL}
+                            alt={alt}
+                            className="h-full max-h-150 w-full max-w-full object-contain"
+                        />
+                    )}
+                </DialogContent>
+            </Dialog>
+        </>
+    )
+}
+
+export default ImagePreview

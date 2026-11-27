@@ -5,9 +5,9 @@ import {act} from "react"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it} from "vitest"
 
-import ChatMessagesCellContent from "../../src/CellRenderers/ChatMessagesCellContent"
-import {ROLE_COLOR_CLASSES, THEME_ROLE_COLOR_CLASSES} from "../../src/CellRenderers/constants"
-import {RoleColorClassesProvider} from "../../src/CellRenderers/roleColorClasses"
+import ChatMessagesCellContent from "../../src/data/cell-renderers/ChatMessagesCellContent"
+import {ROLE_COLOR_CLASSES, THEME_ROLE_COLOR_CLASSES} from "../../src/data/cell-renderers/constants"
+import {RoleColorClassesProvider} from "../../src/data/cell-renderers/roleColorClasses"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 const MESSAGES = [

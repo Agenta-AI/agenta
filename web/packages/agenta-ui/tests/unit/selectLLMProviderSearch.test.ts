@@ -1,7 +1,7 @@
 import {describe, expect, it} from "vitest"
 
-import type {ProviderGroup, ProviderOption} from "../../src/SelectLLMProvider/types"
-import {optionMatchesSearch} from "../../src/SelectLLMProvider/utils"
+import type {ProviderGroup, ProviderOption} from "../../src/patterns/select-llm-provider/types"
+import {optionMatchesSearch} from "../../src/patterns/select-llm-provider/utils"
 
 const option: ProviderOption = {
     label: "gpt-5.6-sol",

@@ -5,14 +5,10 @@ import {
 } from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import marketplaceCatalog from "@agenta/i18n/catalogs/marketplace.page"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {LoadingButton} from "@agenta/ui/composed"
+import {pageContentWidthClass} from "@agenta/ui/layout"
 import {useAtomValue, useSetAtom} from "jotai"
-
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {useScrollFade} from "@/lib/useScrollFade"
 
 import {useNewAgentAction} from "../agents/useNewAgentAction"
 import {useBindProjectContext} from "../context/useBindProjectContext"
@@ -22,6 +18,10 @@ import {PageBackBar} from "../page-layout/PageBackBar"
 import {TemplateNotFound} from "./states/TemplateNotFound"
 import {TemplatePageSkeleton} from "./states/TemplatePageSkeleton"
 import {TemplatePage} from "./TemplatePage"
+
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {useScrollFade} from "@/lib/useScrollFade"
 
 const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
 

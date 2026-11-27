@@ -12,7 +12,7 @@ import {
     ViewStackHost,
     type ViewChromeProps,
     type ViewDef,
-} from "../../src/view-stack"
+} from "../../src/shell/view-stack"
 
 afterEach(cleanup)
 

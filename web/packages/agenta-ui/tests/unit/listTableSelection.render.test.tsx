@@ -4,8 +4,8 @@ import * as React from "react"
 import {cleanup, fireEvent, render, screen} from "@testing-library/react"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-import {ListTable} from "../../src/list-table/ListTable"
-import type {ListTableGroup, ListTableSelection} from "../../src/list-table/types"
+import {ListTable} from "../../src/data/list-table/ListTable"
+import type {ListTableGroup, ListTableSelection} from "../../src/data/list-table/types"
 
 /**
  * Opt-in row selection in the list frame: a checkbox column, select all, and an "N selected" bar

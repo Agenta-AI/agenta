@@ -3,7 +3,7 @@ import {describe, expect, it} from "vitest"
 import {
     distributeColumnWidths,
     type DistributableColumn,
-} from "../../src/InfiniteVirtualTable/distributeColumnWidths"
+} from "../../src/data/infinite-virtual-table/distributeColumnWidths"
 
 const col = (key: string, width: number, extra: Partial<DistributableColumn> = {}) => ({
     key,

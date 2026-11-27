@@ -316,7 +316,7 @@ class (evaluators showing "default", SDK-created apps showing "--" or hex slugs)
 When adding or changing UI elements, implement appearance and interaction states for both light and dark themes, and verify both before considering the work complete.
 
 **Theme and design rules.** `web/mobile` (and every package screen rendered at `/m`) takes its
-values from `packages/agenta-ui/src/design/theme.config.ts` and its rules from `rules.json` in the same
+values from `packages/agenta-ui/src/foundation/design/theme.config.ts` and its rules from `rules.json` in the same
 folder; `DESIGN.md` (in `web/`) has the principles and the layout. Use the
 theme variable names (`bg-muted`, `text-label`, `border-border-muted`), never raw hex. Old
 antd-era names (`bg-colorBgContainer`, `var(--ag-color*)`) still resolve through `globals.css`;

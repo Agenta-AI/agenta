@@ -2,7 +2,7 @@
  * generate-shadcn-tokens.ts — bridge the workspace theme source of truth
  * (web/oss/src/styles/theme/palette.ts) into shadcn/ui CSS variables, light + dark.
  *
- * web/mobile no longer reads the output: its theme is @agenta/ui's src/design/theme.config.ts
+ * web/mobile no longer reads the output: its theme is @agenta/ui's src/foundation/design/theme.config.ts
  * (`pnpm generate:theme`). The only reader left is the marketing website's demo
  * frame (web/website/src/components/workspace-demo/theme.js). Delete this script
  * and its output once the website moves to @agenta/ui's theme.css.

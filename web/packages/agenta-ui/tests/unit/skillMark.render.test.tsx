@@ -2,7 +2,7 @@
 import {cleanup, render} from "@testing-library/react"
 import {afterEach, describe, expect, it} from "vitest"
 
-import {SkillMark} from "../../src/agent-icon/SkillMark"
+import {SkillMark} from "../../src/icons/agent-icon/SkillMark"
 
 afterEach(cleanup)
 

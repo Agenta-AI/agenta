@@ -46,7 +46,7 @@ vi.mock("@agenta/observability-ui", () => ({
     useAutoRefresh: (refresh: () => Promise<void>) => ({refresh, refreshTrigger: 0}),
 }))
 // Renders the tabs the screen declares, so a test can switch between them.
-vi.mock("@agenta/ui", () => ({
+vi.mock("@agenta/ui/layout", () => ({
     PageLayout: ({
         children,
         headerTabsProps,

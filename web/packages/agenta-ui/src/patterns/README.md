@@ -1,0 +1,148 @@
+# Patterns
+
+Domain-neutral blocks built from the kit (`@agenta/ui/components`).
+
+## Structure
+
+```
+patterns/
+├── selection/           # Selection UI components
+│   ├── SearchInput.tsx      # Search input with clear button
+│   ├── ListItem.tsx         # Generic list item
+│   ├── VirtualList.tsx      # Virtualized list (@tanstack/react-virtual)
+│   ├── LoadMoreButton.tsx   # Pagination button
+│   ├── LoadAllButton.tsx    # Load all with progress
+│   ├── EntityBreadcrumb.tsx # Navigation breadcrumb
+│   └── index.ts
+├── presentational/      # Pure display components
+│   ├── version/             # VersionBadge
+│   ├── revision/            # RevisionLabel, AuthorLabel
+│   ├── entity/              # EntityPathLabel, EntityNameWithVersion
+│   ├── metadata/            # MetadataHeader
+│   ├── attachments/         # ImageAttachment, FileAttachment, AttachmentGrid
+│   ├── field/               # FieldHeader
+│   ├── editable/            # EditableText
+│   └── index.ts
+└── index.ts
+```
+
+## Quick Start
+
+```tsx
+import {
+    // Selection
+    SearchInput,
+    ListItem,
+    VirtualList,
+    LoadMoreButton,
+    EntityBreadcrumb,
+
+    // Presentational
+    VersionBadge,
+    RevisionLabel,
+    EntityPathLabel,
+    EntityNameWithVersion,
+    SectionCard,
+    MetadataHeader,
+    EditableText,
+} from "@agenta/ui/components"
+```
+
+`SectionCard` and the other config sections live in `src/layout/section/` (`@agenta/ui/layout`);
+the presentational barrel re-exports them.
+
+## Selection Components
+
+Building blocks for list selection UIs with search, virtual scrolling, and pagination.
+
+| Component          | Description                                         |
+| ------------------ | --------------------------------------------------- |
+| `SearchInput`      | Search input with clear button and keyboard support |
+| `ListItem`         | Generic list item with click/navigate variants      |
+| `VirtualList`      | Virtualized list using @tanstack/react-virtual      |
+| `LoadMoreButton`   | Pagination button with count display                |
+| `LoadAllButton`    | Load all pages with progress indicator              |
+| `EntityBreadcrumb` | Navigation breadcrumb with back button              |
+
+## Presentational Components
+
+Pure display components with no data fetching or business logic.
+
+| Component               | Description                                       |
+| ----------------------- | ------------------------------------------------- |
+| `VersionBadge`          | Version number in "vX" format                     |
+| `RevisionLabel`         | Revision details (version, date, message, author) |
+| `EntityPathLabel`       | Hierarchical paths ("App / Variant / v1")         |
+| `EntityNameWithVersion` | Entity name with version badge                    |
+| `SectionCard`           | Card container for section content                |
+| `SectionHeaderRow`      | Header row with left/right content                |
+| `ConfigBlock`           | Configuration block with title                    |
+| `MetadataHeader`        | Label/value metadata display                      |
+| `EditableText`          | Inline editable text                              |
+| `ImageAttachment`       | Image preview with remove button                  |
+| `FileAttachment`        | File badge with remove button                     |
+| `AttachmentGrid`        | Grid layout for attachments                       |
+| `FieldHeader`           | Field header with copy/markdown toggle            |
+
+## Modals
+
+Build a modal from the `Dialog` primitive in `@agenta/ui/ui` (`Dialog`, `DialogContent`,
+`DialogHeader`, `DialogTitle`, `DialogFooter`). Radix mounts the content only while the dialog
+is open and unmounts it after it closes.
+
+### Modal Pattern: Content Extraction
+
+For optimal performance, extract modal content into a separate component so data layer logic
+only runs when the modal is displayed:
+
+```tsx
+// ❌ Bad: Data logic runs even when modal is closed
+function MyModal({open, onClose}) {
+    // These hooks run on every render, even when open=false
+    const data = useAtomValue(someDataAtom)
+    const items = useAtomValue(someListAtom)
+
+    return (
+        <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+            <DialogContent>
+                <MyContent data={data} items={items} />
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+// ✅ Good: Data logic only runs when modal is open
+function MyModal({open, onClose, ...props}) {
+    return (
+        <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+            <DialogContent>
+                <MyModalContent {...props} onClose={onClose} />
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+// Content component - only rendered when modal is open
+function MyModalContent({onClose, ...props}) {
+    // These hooks only run when the modal is actually visible
+    const data = useAtomValue(someDataAtom)
+    const items = useAtomValue(someListAtom)
+
+    return <div>{/* Modal content using data */}</div>
+}
+```
+
+**Benefits:**
+
+- Data subscriptions only active when modal is visible
+- No wasted processing when modal is closed
+- Cleaner separation of concerns (modal chrome vs content)
+- Better performance for pages with many modals
+
+## Adding New Components
+
+1. **Selection components**: Add to `selection/` folder
+2. **Pure display components**: Add to `presentational/` with subfolder if needed
+3. **Standalone components**: Add directly to `components/` folder
+
+Always export from the appropriate `index.ts` file.

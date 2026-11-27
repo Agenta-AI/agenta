@@ -14,7 +14,7 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
-import {useLexicalComposerContext} from "@agenta/ui"
+import {useLexicalComposerContext} from "@agenta/ui/editor"
 import {Combobox} from "@agenta/ui/ui"
 import {$isCodeNode, getCodeLanguageOptions, getLanguageFriendlyName} from "@lexical/code"
 import {$getNodeByKey, $getRoot} from "lexical"

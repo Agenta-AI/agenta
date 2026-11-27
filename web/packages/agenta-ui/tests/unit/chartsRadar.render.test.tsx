@@ -2,7 +2,7 @@
 import {cleanup, fireEvent, render, screen} from "@testing-library/react"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {RadarChart, type RadarAxis} from "../../src/components/presentational/charts"
+import {RadarChart, type RadarAxis} from "../../src/patterns/presentational/charts"
 
 import {numbersOf, stubChartWidth} from "./chartsTestUtils"
 

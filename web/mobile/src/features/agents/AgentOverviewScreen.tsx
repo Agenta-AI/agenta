@@ -4,11 +4,8 @@ import {revealConfigPaneAtom} from "@agenta/chat/state"
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import agentsOverview from "@agenta/i18n/catalogs/agents.overview"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
+import {pageContentWidthClass} from "@agenta/ui/layout"
 import {useAtomValue, useSetAtom} from "jotai"
-
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useStartBlankSession} from "../chat/useStartBlankSession"
 import {useBindProjectContext} from "../context/useBindProjectContext"
@@ -23,6 +20,9 @@ import {AgentOverviewTitle} from "./AgentOverviewTitle"
 import {AgentNotFound} from "./states/AgentNotFound"
 import {useAgentOverviewAccess} from "./useAgentOverviewAccess"
 import {useAgentPublishPanel} from "./useAgentPublishPanel"
+
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 /** One agent's overview: who it is, a composer, its activity in tabs, and its own state in a rail. */
 export const AgentOverviewScreen = ({

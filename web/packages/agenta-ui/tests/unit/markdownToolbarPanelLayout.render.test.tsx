@@ -2,7 +2,7 @@
 import {cleanup, render, screen} from "@testing-library/react"
 import {afterEach, describe, expect, it} from "vitest"
 
-import {EditorProvider, MarkdownToolbar} from "../../src/Editor"
+import {EditorProvider, MarkdownToolbar} from "../../src/editor/editor"
 
 afterEach(cleanup)
 

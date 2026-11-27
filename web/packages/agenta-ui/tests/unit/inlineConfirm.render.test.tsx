@@ -4,8 +4,8 @@ import * as React from "react"
 import {act, cleanup, fireEvent, render, screen} from "@testing-library/react"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-import {InlineConfirm} from "../../src/components/composed/inline-confirm"
-import {SkeletonRows} from "../../src/components/composed/skeleton-rows"
+import {InlineConfirm} from "../../src/composed/feedback/inline-confirm"
+import {SkeletonRows} from "../../src/composed/feedback/skeleton-rows"
 
 /**
  * The confirm step for a destructive action that is only meaningful next to the thing it acts on:

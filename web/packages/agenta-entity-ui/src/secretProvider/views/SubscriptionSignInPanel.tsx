@@ -9,7 +9,7 @@
  */
 import {useEffect, useRef, useState} from "react"
 
-import {copyToClipboard} from "@agenta/ui"
+import {copyToClipboard} from "@agenta/ui/utils"
 
 import {useOrganizationProjectsDraft} from "../useOrganizationProjectsDraft"
 import {useSubscriptionSignIn} from "../useSubscriptionSignIn"

@@ -2,7 +2,8 @@ import {useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode} f
 
 import {createT} from "@agenta/i18n"
 import chatActivityCatalog from "@agenta/i18n/catalogs/chat.activity"
-import {AgentActivityDots, HeightCollapse, type AgentActivityFormat} from "@agenta/ui"
+import {AgentActivityDots, type AgentActivityFormat} from "@agenta/ui/components/presentational"
+import {HeightCollapse} from "@agenta/ui/layout"
 import {FileText} from "@phosphor-icons/react"
 import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"

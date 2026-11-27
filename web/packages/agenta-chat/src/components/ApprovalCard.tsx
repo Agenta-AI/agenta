@@ -23,7 +23,7 @@ import chatChangeCardStatesCatalog from "@agenta/i18n/catalogs/chat.changeCardSt
 import {canonicalClientToolName} from "@agenta/shared/clientTools"
 import {isOnScreen, isOverlayOpen, shortcutAria} from "@agenta/shared/utils"
 import {AutosizeTextarea, LoadingButton} from "@agenta/ui/composed"
-import {HeightCollapse} from "@agenta/ui/height-collapse"
+import {HeightCollapse} from "@agenta/ui/layout"
 import {useIsPhone} from "@agenta/ui/phone"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Button, Checkbox} from "@agenta/ui/ui"

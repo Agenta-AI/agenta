@@ -82,7 +82,7 @@ basics.
 - API or SDK changes: run `ruff format` then `ruff check --fix` within the SDK or API
   folder (from the repo root: `ruff format` then `ruff check`). Fix all errors before
   committing. Details: `api/AGENTS.md`.
-- Theme changes: every value comes from `web/packages/agenta-ui/src/design/theme.config.ts`. See
+- Theme changes: every value comes from `web/packages/agenta-ui/src/foundation/design/theme.config.ts`. See
   `web/DESIGN.md`, "Working with the system". `web/oss/src/styles/theme/palette.ts`
   feeds only legacy generated files (`pnpm generate:tailwind-tokens` in `web`).
 

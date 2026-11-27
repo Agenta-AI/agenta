@@ -4,7 +4,7 @@ import {useState} from "react"
 import {act, cleanup, fireEvent, render, screen} from "@testing-library/react"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {RightPane, RightPaneHost} from "../../src/components/composed/right-pane"
+import {RightPane, RightPaneHost} from "../../src/composed/layout/right-pane"
 
 /** A controllable `matchMedia`: the expanded-window query follows `wide`. */
 let wide = true
@@ -121,7 +121,7 @@ describe("RightPane", () => {
     it("docked, takes the focus when it opens, unless focusOnOpen is false", () => {
         const Page = ({focusOnOpen}: {focusOnOpen?: boolean}) => (
             <RightPaneHost>
-                {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+                {}
                 <input aria-label="name" autoFocus />
                 <RightPane
                     open

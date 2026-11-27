@@ -8,7 +8,7 @@ import {
     readCommandRun,
     runFollowsBoundary,
     type SlashCommandSection,
-} from "../../src/RichChatInput/assets/slashCommands"
+} from "../../src/editor/rich-chat-input/assets/slashCommands"
 
 const section = (key: string, labels: string[]): SlashCommandSection => ({
     key,

@@ -4,9 +4,9 @@ import * as React from "react"
 import {cleanup, render, screen} from "@testing-library/react"
 import {afterEach, describe, expect, it} from "vitest"
 
-import {InputAffix} from "../../src/components/composed/input-affix"
-import {ListTable} from "../../src/list-table/ListTable"
-import type {ListTableColumn, ListTableGroup} from "../../src/list-table/types"
+import {InputAffix} from "../../src/composed/controls/input-affix"
+import {ListTable} from "../../src/data/list-table/ListTable"
+import type {ListTableColumn, ListTableGroup} from "../../src/data/list-table/types"
 
 /** Small screens and touch never grow a shared control. */
 
