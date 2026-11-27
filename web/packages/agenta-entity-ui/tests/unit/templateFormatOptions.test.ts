@@ -11,9 +11,7 @@
 
 import {describe, it, expect} from "vitest"
 
-import {
-    buildTemplateFormatOptions,
-} from "../../src/DrillInView/SchemaControls/templateFormatOptions"
+import {buildTemplateFormatOptions} from "../../src/DrillInView/SchemaControls/templateFormatOptions"
 
 describe("buildTemplateFormatOptions", () => {
     it("offers only mustache and jinja2 to a new (mustache) prompt", () => {

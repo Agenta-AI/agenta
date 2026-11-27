@@ -12,7 +12,7 @@
  * `cacheHits === scenarioIds.length`).
  */
 
-import {QueryClient} from "@tanstack/query-core"
+import {QueryClient} from "@tanstack/react-query"
 import {getDefaultStore} from "jotai/vanilla"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {afterEach, beforeEach, describe, expect, it} from "vitest"

@@ -37,9 +37,9 @@ const subjectRun: RunReferenceStep[] = [
 describe("collectRoleReferenceKeys", () => {
     it("reads role-keyed references off each step", () => {
         expect([...collectRoleReferenceKeys(graderRun, "application")]).toEqual([APP])
-        expect(
-            [...collectRoleReferenceKeys(graderRun, "evaluator")].sort(),
-        ).toEqual([EVALUATOR, "with-reasoning"].sort())
+        expect([...collectRoleReferenceKeys(graderRun, "evaluator")].sort()).toEqual(
+            [EVALUATOR, "with-reasoning"].sort(),
+        )
         expect([...collectRoleReferenceKeys(graderRun, "testset")]).toEqual(["ts-1"])
     })
 
@@ -85,9 +85,9 @@ describe("isSubjectRun / grader distinction", () => {
 
 describe("evaluateRunReferencePredicate ops", () => {
     it("eq matches the role's id", () => {
-        expect(
-            evaluateRunReferencePredicate({role: "evaluator", id: EVALUATOR}, graderRun),
-        ).toBe(true)
+        expect(evaluateRunReferencePredicate({role: "evaluator", id: EVALUATOR}, graderRun)).toBe(
+            true,
+        )
     })
 
     it("ne is the complement", () => {

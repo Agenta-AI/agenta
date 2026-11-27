@@ -3,6 +3,7 @@ import {describe, expect, it, vi} from "vitest"
 import {
     canRestoreRefusedSend,
     restoreRefusedDraft,
+    restoreHeldRefusedSend,
     restoreRefusedSend,
 } from "../../src/assets/refusedMessageRecovery"
 
