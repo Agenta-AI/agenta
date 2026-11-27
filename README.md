@@ -244,7 +244,7 @@ If Agenta is useful to you, star the repository and tell us what you build.
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-106-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-107-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -391,6 +391,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     </tr>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/TbhVishal"><img src="https://avatars.githubusercontent.com/u/146272351?v=4&size=100" width="100px" height="100px" alt="Vishal Sharma"/><br /><sub><b>Vishal Sharma</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=TbhVishal" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/mvanhorn"><img src="https://avatars.githubusercontent.com/u/455140?v=4&size=100" width="100px" height="100px" alt="Matt Van Horn"/><br /><sub><b>Matt Van Horn</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=mvanhorn" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
