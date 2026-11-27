@@ -230,6 +230,37 @@ describe("a command runs at most once (Codex R4 duplicate launch)", () => {
     expect(readFileSync(`${ws.inSandbox(ws.cwd)}/effects.txt`, "utf-8")).toBe("side-effect\n");
   });
 
+  it("takes the claim once even when the sandbox's mkdir does not fail on an existing folder (uutils mkdir)", async () => {
+    // uutils `mkdir` (Ubuntu 26.04) can report success to two racing calls. This stand-in for it
+    // never fails on an existing folder, so a claim taken with `mkdir` would be taken twice.
+    const shims = mkdtempSync(join(tmpdir(), "mkdir-shim-"));
+    const real = execSync("command -v mkdir").toString().trim();
+    writeFileSync(join(shims, "mkdir"), `#!/bin/sh\nexec ${real} -p "$@"\n`, { mode: 0o755 });
+    const path = process.env.PATH;
+    process.env.PATH = `${shims}:${path}`;
+    try {
+      const { ws, local } = await warm();
+      const run = local.run.bind(local);
+      let lost = false;
+      local.run = async (command, options) => {
+        const r = await run(command, options);
+        if (isLaunch(command) && !lost) {
+          lost = true;
+          // The side effect proves the supervisor took its claim and started the command.
+          const effects = `${ws.inSandbox(ws.cwd)}/effects.txt`;
+          for (let i = 0; i < 250 && !existsSync(effects); i += 1) await sleep(20);
+          throw new Error("socket hang up (injected: the command started, the answer was lost)");
+        }
+        return r;
+      };
+      const r = await ws.bash("echo side-effect >> effects.txt; echo done");
+      expect(r.outcome).toEqual({ kind: "exited", exitCode: 0 });
+      expect(readFileSync(`${ws.inSandbox(ws.cwd)}/effects.txt`, "utf-8")).toBe("side-effect\n");
+    } finally {
+      process.env.PATH = path;
+    }
+  });
+
   it("retries a launch that provably never started, exactly once", async () => {
     const { ws, local } = await warm();
     let failures = 1;
@@ -363,7 +394,7 @@ describe("a poll that races the supervisor's start", () => {
     const shims = join(base, "shims");
     mkdirSync(shims);
     const cat = join(shims, "cat");
-    writeFileSync(cat, `#!/bin/bash\n/usr/bin/cat "$@"; status=$?\nif [ "$1" = "${dir}/pgid" ] && [ ! -e "${dir}/claim" ]; then echo ${liveGroup} > "${dir}/pgid"; mkdir "${dir}/claim"; fi\nexit $status\n`);
+    writeFileSync(cat, `#!/bin/bash\n/usr/bin/cat "$@"; status=$?\nif [ "$1" = "${dir}/pgid" ] && [ ! -e "${dir}/claim" ]; then echo ${liveGroup} > "${dir}/pgid"; : > "${dir}/claim"; fi\nexit $status\n`);
     chmodSync(cat, 0o755);
     const answer = execSync(pollScript(dir, outputPath, 0), { env: { ...process.env, PATH: `${shims}:${process.env.PATH}` } }).toString();
     const poll = parsePoll(answer);

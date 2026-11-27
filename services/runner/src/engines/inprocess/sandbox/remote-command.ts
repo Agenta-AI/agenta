@@ -7,9 +7,9 @@
  * and in the output file:
  *
  * - `pgid`: the command's process group, written (atomically) BEFORE the attempt is claimed.
- * - `claim/`: taken with an atomic `mkdir` by whoever decides the attempt first. The supervisor
- *   runs the command only if it takes the claim. A Stop that takes it first proves the command
- *   never ran and never will, and a late supervisor then exits without running anything.
+ * - `claim`: an empty file, created exclusively (`takeClaim`) by whoever decides the attempt first.
+ *   The supervisor runs the command only if it takes the claim. A Stop that takes it first proves
+ *   the command never ran and never will, and a late supervisor then exits without running anything.
  * - `cancelled`: written by a Stop that took the claim.
  * - `exit`: the exit code, written when the command ends, before `pgid` is removed.
  * - the output file (`outputPath`): stdout and stderr together, as the command wrote them. It stays
@@ -31,7 +31,7 @@
  *
  * A launch whose answer is lost, or a supervisor that has not claimed its attempt in time, is
  * decided by taking the claim from outside: winning proves the command never started, so the caller
- * may retry; losing means it started, and polling follows it. A claim is a folder on the sandbox's
+ * may retry; losing means it started, and polling follows it. A claim is a file on the sandbox's
  * disk, so it proves something only on that sandbox: an attempt that could not be decided carries
  * the sandbox's id, and is decided only on that same sandbox (`settleAttempt`).
  *
@@ -139,6 +139,13 @@ export interface RemoteCommandOptions {
 /** Every script runs under bash, whatever shell the sandbox's plain command call uses. */
 const bash = (script: string) => `bash -c ${shellQuote(script)}`;
 
+/**
+ * Take the attempt's claim: exactly one caller succeeds. Bash's noclobber (`set -C`) creates a
+ * missing file with O_EXCL, so the claim does not depend on the sandbox's `mkdir`: two racing calls
+ * of uutils `mkdir` (Ubuntu 26.04) can both succeed, and a command then ran twice.
+ */
+const takeClaim = '( set -C; : > "$d/claim" ) 2>/dev/null';
+
 /** Most output bytes one poll reads back. */
 export const OUTPUT_CHUNK_BYTES = 256 * 1024;
 const POLL_FAILURES_BEFORE_UNKNOWN = 5;
@@ -177,7 +184,7 @@ export function launchScript(
     `d=${d}`,
     // The group is `timeout`'s (the session leader), not this shell's own pid.
     `read -r _ _ _ _ pg _ < /proc/$$/stat && echo $pg > "$d/pgid.tmp" && mv -f "$d/pgid.tmp" "$d/pgid" || exit 1`,
-    `mkdir "$d/claim" 2>/dev/null || { rm -f "$d/pgid"; exit 0; }`,
+    `${takeClaim} || { rm -f "$d/pgid"; exit 0; }`,
     `cd ${shellQuote(cwd)} 2>/dev/null || cd /`,
     `bash -c ${shellQuote(command)} > ${out} 2>&1 < /dev/null`,
     `code=$?`,
@@ -210,7 +217,7 @@ export function launchScript(
 export function pollScript(dir: string, outputPath: string, offset: number): string {
   return bash([
     `d=${shellQuote(dir)}; f=${shellQuote(outputPath)}; off=${offset}; max=${OUTPUT_CHUNK_BYTES}`,
-    `c=0; [ -d "$d/claim" ] && [ ! -f "$d/cancelled" ] && c=1`,
+    `c=0; [ -e "$d/claim" ] && [ ! -f "$d/cancelled" ] && c=1`,
     `a=0; pg=$(cat "$d/pgid" 2>/dev/null); [ -n "$pg" ] && kill -0 -- "-$pg" 2>/dev/null && a=1`,
     `x=-; u=-; [ -f "$d/exit" ] && read -r x u < "$d/exit"; u=\${u:-0}`,
     `s=$(stat -c %s "$f" 2>/dev/null || echo 0)`,
@@ -227,7 +234,7 @@ function claimLines(dir: string): string[] {
   return [
     `d=${shellQuote(dir)}`,
     `mkdir -p "$d" 2>/dev/null`,
-    `if mkdir "$d/claim" 2>/dev/null; then : > "$d/cancelled"; echo never-started; exit 0; fi`,
+    `if ${takeClaim}; then : > "$d/cancelled"; echo never-started; exit 0; fi`,
     `[ -f "$d/cancelled" ] && { echo never-started; exit 0; }`,
   ];
 }
