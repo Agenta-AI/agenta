@@ -58,6 +58,7 @@ overrides:
   'pbkdf2@<3.1.7': '3.1.7'
   'smol-toml@<1.9.0': '>=1.9.0 <2'
   'http-cache-semantics@<=4.2.0': '>=4.3.0 <5'
+  'katex@<0.18.2': '0.18.2'
   # Single query-core instance: keep in lockstep with @tanstack/react-query 5.100.9.
   '@tanstack/query-core': '5.100.9'
   # Single immer instance. `enableMapSet()` is a per-instance switch, so a second copy
