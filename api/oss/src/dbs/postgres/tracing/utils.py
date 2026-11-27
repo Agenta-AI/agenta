@@ -1093,8 +1093,8 @@ def build_specs_values(
             s.vmax,
             (s.edge if s.edge is not None else True),
             isinstance(s, ScoreMetricSpec),
-            getattr(s, "declared_min", None),
-            getattr(s, "declared_max", None),
+            s.declared_min if isinstance(s, ScoreMetricSpec) else None,
+            s.declared_max if isinstance(s, ScoreMetricSpec) else None,
         )
         for idx, s in enumerate(metric_specs)
     ]

@@ -171,6 +171,22 @@ METRICS_STEP_TYPES = {"invocation", "annotation"}
 DEFAULT_REFRESH_INTERVAL = 1  # minute(s)
 
 
+def _metric_spec(metric: Dict[str, Any]) -> MetricSpec:
+    """A continuous evaluator score gets the fixed-range bin rule; the rest do not."""
+    path = metric.get("path") or "*"
+    if (
+        metric.get("score")
+        and metric.get("type") == MetricType.NUMERIC_CONTINUOUS.value
+    ):
+        return ScoreMetricSpec(
+            type=MetricType.NUMERIC_CONTINUOUS,
+            path=path,
+            declared_min=metric.get("minimum"),
+            declared_max=metric.get("maximum"),
+        )
+    return MetricSpec(type=MetricType(metric.get("type")), path=path)
+
+
 def _first_reference_id(
     references: dict[str, Reference],
     *keys: str,
@@ -1594,13 +1610,14 @@ class EvaluationsService:
                 if metrics_keys:
                     metrics_keys_by_step[step.key] = metrics_keys
 
-                # Evaluator outputs carry the declared range (or None);
-                # DEFAULT_METRICS (cost, duration, tokens, errors) do not.
+                # Evaluator outputs are scores and carry the declared range (or
+                # None); DEFAULT_METRICS (cost, duration, tokens, errors) are not.
                 steps_metrics_keys[step.key] += [
                     {
                         "path": "attributes.ag.data.outputs."
                         + metric_key.get("path", ""),
                         "type": metric_key.get("type", ""),
+                        "score": True,
                         "minimum": metric_key.get("minimum"),
                         "maximum": metric_key.get("maximum"),
                     }
@@ -1662,21 +1679,7 @@ class EvaluationsService:
                     ),
                 )
 
-                specs = [
-                    ScoreMetricSpec(
-                        type=MetricType.NUMERIC_CONTINUOUS,
-                        path=metric.get("path") or "*",
-                        declared_min=metric.get("minimum"),
-                        declared_max=metric.get("maximum"),
-                    )
-                    if metric.get("type") == MetricType.NUMERIC_CONTINUOUS.value
-                    and "minimum" in metric
-                    else MetricSpec(
-                        type=MetricType(metric.get("type")),
-                        path=metric.get("path") or "*",
-                    )
-                    for metric in step_metrics_keys
-                ]
+                specs = [_metric_spec(metric) for metric in step_metrics_keys]
 
                 # log.info(f"[METRICS] Step '{step_key}': {len(specs)} metric specs")
                 steps_specs[step_key] = specs
@@ -1820,7 +1823,7 @@ class EvaluationsService:
         project_id: UUID,
         user_id: UUID,
         run: EvaluationRun,
-        inferred_metrics_keys_by_step: Dict[str, List[Dict[str, str]]],
+        inferred_metrics_keys_by_step: Dict[str, List[Dict[str, Any]]],
         inferred_schemas_by_step: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> None:
         existing_mappings = list(run.data.mappings or [])

@@ -1,8 +1,7 @@
-"""The tracing layer reads the tracing database; identity is settled on core.
+"""The tracing layer: the guard settles identity on core, and the cases read tracing.
 
-Copied from `integration/access/conftest.py` with `deployment_databases` widened to the
-tracing database, plus the engine reset of `integration/sessions/test_records_turn_span_dao.py`:
-each test gets a fresh analytics engine bound to its own event loop.
+Each test gets a fresh analytics engine, because the engine singleton binds its pool to the
+event loop of the first test that touches it.
 """
 
 import pytest
