@@ -25,9 +25,9 @@
     "exception": "Ausnahme",
     "noteUser": "Benutzer",
     "noteNote": "Notiz",
-    "evaluatorHuman": "menschlicher Evaluator",
-    "evaluatorAuto": "automatischer Evaluator",
-    "evaluatorCustom": "benutzerdefinierter Evaluator",
+    "evaluatorHuman": "Mensch",
+    "evaluatorAuto": "Automatisch",
+    "evaluatorCustom": "Benutzerdefiniert",
     "evaluatorOther": "{{kind}}-Evaluator",
     "evaluatorId": "Evaluator-ID",
     "evaluatorType": "Evaluator-Typ",
@@ -48,5 +48,13 @@
     "panelInputs": "Eingaben",
     "panelParameters": "Parameter",
     "panelOutputs": "Ausgaben",
-    "panelInternals": "Interne Daten"
+    "panelInternals": "Interne Daten",
+    "sectionInput": "Eingabe",
+    "sectionOutput": "Ausgabe",
+    "sectionParameters": "Parameter",
+    "sectionInternals": "Interna",
+    "hideStackTrace": "Stacktrace ausblenden",
+    "waitingForOutput": "Läuft, wartet auf die Ausgabe",
+    "showStackTrace_one": "Stacktrace anzeigen, {{count}} Zeile",
+    "showStackTrace_other": "Stacktrace anzeigen, {{count}} Zeilen"
 }

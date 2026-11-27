@@ -132,7 +132,7 @@ describe("trace drawer references on /m", () => {
         )
     })
 
-    it("A playground run's trace links its app and its variant revision, as on /w", async () => {
+    it("A playground run's trace shows one application chip for its variant revision", async () => {
         configureTraceDrawerReferences({
             ApplicationReferenceLabel: (props) => (
                 <TraceReferenceLabel kind="ApplicationReferenceLabel" {...props} />
@@ -154,15 +154,15 @@ describe("trace drawer references on /m", () => {
             anchor.textContent,
             anchor.getAttribute("href"),
         ])
+        // One chip per entity: the application, its variant and its version are one chip.
         expect(links).toEqual([
-            ["Capital finder", "/w/ws-1/p/proj-1/apps/app-1/overview"],
             [
                 expect.stringContaining("default"),
                 "/w/ws-1/p/proj-1/variants?app=app-1&revisionId=rev-1",
             ],
         ])
-        expect(host.textContent).toContain("Applications")
-        expect(host.textContent).toContain("Variants")
+        expect(host.textContent).toContain("Application")
+        expect(host.textContent).toContain("v3")
     })
 
     it("A test set shows its name and opens its latest revision", async () => {

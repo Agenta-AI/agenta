@@ -26,6 +26,7 @@ vi.mock("@agenta/annotation-ui/add-to-queue", () => ({
 }))
 
 vi.mock("@agenta/entities/trace", () => ({
+    extractAgData: () => null,
     fetchAllPreviewTraces: vi.fn(),
     isSpansResponse: () => false,
     isTracesResponse: () => false,
@@ -43,6 +44,10 @@ vi.mock("@agenta/observability", () => ({
     useObservability: () => observability.value,
 }))
 vi.mock("@agenta/observability/traceDrawer", () => ({
+    closeTraceDrawerAtom: atom(null, () => undefined),
+    getTraceDrawerPlaygroundActions: () => ({}),
+    traceDrawerBaseAppURLAtom: atom(""),
+    traceDrawerNavigate: () => undefined,
     setTraceDrawerTraceAtom: atom(null, () => undefined),
     traceDrawerBackTargetAtom: atom(null),
     traceDrawerIsLinkedViewAtom: atom(false),
@@ -59,10 +64,15 @@ vi.mock("@agenta/ui/copy-tooltip", () => ({
     CopyTooltip: ({children}: {children: ReactNode}) => <>{children}</>,
 }))
 vi.mock("@agenta/ui/table", () => ({renderTableMenuItems: () => null}))
+vi.mock("@agenta/ui/utils", () => ({copyToClipboard: () => undefined}))
 vi.mock("@agenta/ui/ui", () => ({
-    Button: ({children}: {children?: ReactNode}) => <button>{children}</button>,
+    Button: ({children, ...props}: {children?: ReactNode; "aria-label"?: string}) => (
+        <button aria-label={props["aria-label"]}>{children}</button>
+    ),
     DropdownMenu: ({children}: {children: ReactNode}) => <>{children}</>,
     DropdownMenuContent: () => null,
+    DropdownMenuItem: () => null,
+    DropdownMenuSeparator: () => null,
     DropdownMenuTrigger: ({children}: {children: ReactNode}) => <>{children}</>,
     SimpleTooltip: ({children}: {children: ReactNode}) => <>{children}</>,
 }))
@@ -73,7 +83,7 @@ import {
     getTraceDrawerReferences,
     type AddToQueuePopoverSlotProps,
 } from "../../src/traceDrawer/referenceSlots"
-import TraceHeader from "../../src/traceDrawer/TraceHeader"
+import TraceTopBarActions from "../../src/traceDrawer/TraceTopBarActions"
 
 const defaultPicker = getTraceDrawerReferences().AddToQueuePopover
 
@@ -102,17 +112,9 @@ afterEach(async () => {
     configureTraceDrawerReferences({AddToQueuePopover: defaultPicker})
 })
 
-const headerProps = {
-    traceId: "trace-1",
-    traceTabs: "trace",
-    filters: [],
-    sort: {},
-    limit: 10,
-    setSelectedTraceId: () => undefined,
-    setTraceParam: () => undefined,
-    setSpanParam: () => undefined,
-    setTraceDrawerTrace: () => undefined,
-} as unknown as React.ComponentProps<typeof TraceHeader>
+const span = {trace_id: "trace-1", span_id: "span-1"} as unknown as React.ComponentProps<
+    typeof TraceTopBarActions
+>["activeTrace"]
 
 const Registered = vi.fn(({children, itemIds, itemType}: AddToQueuePopoverSlotProps) => (
     <div data-testid="registered-picker" data-type={itemType} data-ids={(itemIds ?? []).join(",")}>
@@ -120,14 +122,15 @@ const Registered = vi.fn(({children, itemIds, itemType}: AddToQueuePopoverSlotPr
     </div>
 ))
 
-it("The trace header renders the registered add to queue picker", async () => {
+it("The trace view's top bar renders the registered add to queue picker", async () => {
     configureTraceDrawerReferences({AddToQueuePopover: Registered})
-    const node = await mount(<TraceHeader {...headerProps} />)
+    const node = await mount(<TraceTopBarActions activeTrace={span} />)
     const picker = node.querySelector('[data-testid="registered-picker"]')
     expect(picker).not.toBeNull()
     expect(picker?.getAttribute("data-type")).toBe("traces")
     expect(picker?.getAttribute("data-ids")).toBe("trace-1")
-    expect(picker?.textContent).toContain("Add to queue")
+    // The picker opens beside the More menu, from its "Add to annotation queue" item.
+    expect(picker?.querySelector('button[aria-label="More actions"]')).not.toBeNull()
     expect(node.querySelector('[data-testid="default-picker"]')).toBeNull()
 })
 
@@ -143,7 +146,7 @@ it("The observability actions render the registered add to queue picker", async 
 })
 
 it("Without a registration the default picker is used", async () => {
-    const header = await mount(<TraceHeader {...headerProps} />)
+    const header = await mount(<TraceTopBarActions activeTrace={span} />)
     expect(header.querySelector('[data-testid="default-picker"]')).not.toBeNull()
     expect(header.querySelector('[data-testid="registered-picker"]')).toBeNull()
 })

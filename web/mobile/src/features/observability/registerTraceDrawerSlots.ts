@@ -3,6 +3,7 @@ import {createElement, type ComponentType} from "react"
 import {bindTraceDrawerProjectURLAtom} from "@agenta/observability/traceDrawer"
 import {
     type AddToQueuePopoverSlotProps,
+    type AnnotationResultRowProps,
     configureTraceDrawerReferences,
     type TraceDrawerReferenceSlots,
 } from "@agenta/observability-ui/traceDrawer"
@@ -38,6 +39,13 @@ const HeaderAction = dynamic<AddToQueuePopoverSlotProps>(
     {ssr: false},
 )
 
+// A span's annotations as evaluator result rows. The row draws markdown, so it loads with the
+// first span that has an annotation, not with the drawer.
+const AnnotationResultRow = dynamic<AnnotationResultRowProps>(
+    () => import("./TraceAnnotationResultRow"),
+    {ssr: false},
+)
+
 // The reference chips (names, links, hovercard) share one chunk, loaded when a trace with
 // references first shows. Each slot only names its kind.
 const ReferenceLabel = dynamic<{kind: TraceReferenceKind} & Record<string, unknown>>(
@@ -58,6 +66,7 @@ export const registerTraceDrawerSlots = () => {
         AddToQueuePopover: HeaderAction,
         AddToTestsetButton: HeaderAction as unknown as Slot,
         AnnotateDrawerButton: HeaderAction as unknown as Slot,
+        AnnotationResultRow,
         ApplicationReferenceLabel: referenceSlot("ApplicationReferenceLabel"),
         VariantReferenceLabel: referenceSlot("VariantReferenceLabel"),
         EnvironmentReferenceLabel: referenceSlot("EnvironmentReferenceLabel"),

@@ -65,6 +65,8 @@ type AccordionTreePanelProps = {
     enableSearch?: boolean
     viewModePreset?: "default" | "message"
     defaultCollapsed?: boolean
+    /** The stored data only: JSON or YAML, no readable or decoded views (the Raw mode). */
+    rawOnly?: boolean
 } & React.HTMLAttributes<HTMLDivElement>
 
 /**
@@ -233,6 +235,7 @@ const AccordionTreePanel = ({
     enableSearch = false,
     viewModePreset = "default",
     defaultCollapsed = false,
+    rawOnly = false,
     ...props
 }: AccordionTreePanelProps) => {
     const t = useT(spanCatalog)
@@ -284,6 +287,7 @@ const AccordionTreePanel = ({
         (!isStringValue && isObjectOrArrayValue)
 
     const availableViewModes = useMemo<PanelViewMode[]>(() => {
+        if (rawOnly) return ["json", "yaml"]
         if (viewModePreset === "message") {
             const modes: PanelViewMode[] = ["text", "markdown"]
             if (hasStructuredValue) {
@@ -300,7 +304,7 @@ const AccordionTreePanel = ({
         }
 
         return ["json", "yaml", "decoded-json", "pretty-json"]
-    }, [viewModePreset, isStringValue, hasStructuredValue, parsedStructuredString])
+    }, [rawOnly, viewModePreset, isStringValue, hasStructuredValue, parsedStructuredString])
     const [panelViewMode, setPanelViewMode] = useState<PanelViewMode>(() =>
         getDefaultJsonViewMode(availableViewModes),
     )
@@ -534,7 +538,7 @@ const AccordionTreePanel = ({
                                 <CopyButton
                                     text={copyText}
                                     icon={true}
-                                    buttonText={null}
+                                    buttonText=""
                                     stopPropagation
                                     size="icon-sm"
                                 />

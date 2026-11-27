@@ -1,37 +1,48 @@
 import {useMemo} from "react"
 
-import {useT, type CatalogKey} from "@agenta/i18n"
+import {useT} from "@agenta/i18n"
+import referencesCatalog from "@agenta/i18n/catalogs/observabilityUi.references"
 import drawerCatalog from "@agenta/i18n/catalogs/observabilityUi.traceDrawer"
 import {useEvaluatorNavigation} from "@agenta/observability/traceDrawer"
 import {linksAndReferencesAtom, traceDrawerProjectURLAtom} from "@agenta/observability/traceDrawer"
 import {projectIdAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 
-import {getTraceDrawerReferences} from "./referenceSlots"
+import {
+    mergeReferenceChips,
+    type MergedReferenceChip,
+    type TraceReference,
+} from "../references/mergeReferenceChips"
 
-const titleClass = "text-label"
+import {getTraceDrawerReferences} from "./referenceSlots"
 
 // The side panel hugs the right edge of the screen, so hovercards open leftward.
 const HOVERCARD_PLACEMENT = "bottomRight" as const
 
-const LABEL_KEYS: Record<string, CatalogKey<typeof drawerCatalog>> = {
-    evaluator: "observabilityUi.traceDrawer.refEvaluators",
-    application: "observabilityUi.traceDrawer.refApplications",
-    application_variant: "observabilityUi.traceDrawer.refVariants",
-    workflow: "observabilityUi.traceDrawer.refApplications",
-    workflow_variant: "observabilityUi.traceDrawer.refVariants",
-    environment: "observabilityUi.traceDrawer.refEnvironments",
-    testset: "observabilityUi.traceDrawer.refTestSets",
+const LABEL_KEYS = {
+    app: "observabilityUi.references.application",
+    environment: "observabilityUi.references.environment",
+    evaluator: "observabilityUi.references.evaluator",
+    testcase: "observabilityUi.references.testCase",
+    testset: "observabilityUi.references.testSet",
+} as const
+
+/** The merged reference chips of the open trace: one per entity. Empty when it has none. */
+export const useTraceReferenceChips = (): MergedReferenceChip[] => {
+    const linksAndReferences = useAtomValue(linksAndReferencesAtom)
+    return useMemo(
+        () => mergeReferenceChips((linksAndReferences?.references ?? []) as TraceReference[]),
+        [linksAndReferences?.references],
+    )
 }
 
-interface ReferenceEntry extends Record<string, unknown> {
-    key?: string
-    id?: string
-    slug?: string
-}
-
+/**
+ * The References section of the side panel: one chip per entity (an application with its
+ * variant and version, an environment, an evaluator, a test case), each beside its label. The
+ * chips are the host's reference slots, with their hover cards and links.
+ */
 const TraceReferences = () => {
-    const t = useT(drawerCatalog)
+    const t = useT(drawerCatalog, referencesCatalog)
     const {
         ApplicationReferenceLabel,
         EnvironmentReferenceLabel,
@@ -39,76 +50,62 @@ const TraceReferences = () => {
         TestsetTag,
         VariantReferenceLabel,
     } = getTraceDrawerReferences()
-
-    const linksAndReferences = useAtomValue(linksAndReferencesAtom)
     const projectURL = useAtomValue(traceDrawerProjectURLAtom)
     const projectId = useAtomValue(projectIdAtom)
     const {buildEvaluatorTarget} = useEvaluatorNavigation()
+    const chips = useTraceReferenceChips()
+    const appChip = chips.find((chip) => chip.kind === "app")
 
-    // The store hands these back as unknown-valued bags; this component reads them as
-    // identified references, so name that shape once instead of casting at every read.
-    const references = (linksAndReferences?.references ?? []) as ReferenceEntry[]
+    if (!chips.length) return null
 
-    const applicationReference = useMemo(
-        () =>
-            references.find((ref) => ref?.key === "application") ??
-            references.find((ref) => ref?.key === "workflow"),
-        [references],
-    )
-
-    // Find testset_revision reference to get the specific revision ID for testset navigation
-    // Evaluations store both testset (with testset ID) and testset_revision (with revision ID)
-    const testsetRevisionReference = useMemo(
-        () => references.find((ref) => ref?.key === "testset_revision"),
-        [references],
-    )
-
-    // Find application_revision reference to get the revision ID for variant lookup.
-    // Traces store both application_variant (with variant ID) and application_revision (with revision ID).
-    // The workflowMolecule resolves by revision ID, so we need the revision reference.
-    const applicationRevisionReference = useMemo(
-        () =>
-            references.find((ref) => ref?.key === "application_revision") ??
-            references.find((ref) => ref?.key === "workflow_revision"),
-        [references],
-    )
-
-    const groupedReferences = useMemo(() => {
-        // Only kinds this panel can show, so a trace with none of them gets the empty state.
-        const validReferences = references?.filter(
-            (reference) =>
-                (reference?.id || reference?.slug) && LABEL_KEYS[reference?.key || "other"],
-        )
-
-        return validReferences?.reduce<Record<string, ReferenceEntry[]>>((acc, reference) => {
-            const key = LABEL_KEYS[reference?.key || "other"]
-            if (!acc[key]) acc[key] = []
-            acc[key].push(reference)
-            return acc
-        }, {})
-    }, [references])
-
-    const renderReferenceTag = ({key, id, slug}: {key: string; id?: string; slug?: string}) => {
-        switch (key) {
-            case "application":
-            case "workflow":
+    const renderChip = (chip: MergedReferenceChip) => {
+        const id = chip.entity?.id ?? undefined
+        const slug = chip.entity?.slug ?? undefined
+        switch (chip.kind) {
+            case "app": {
+                // With a revision, the variant chip names the variant and its version and links
+                // to it; without one, the application chip.
+                const revisionId = chip.revision?.id
+                if (!revisionId) {
+                    return (
+                        <ApplicationReferenceLabel
+                            applicationId={id ?? null}
+                            projectId={projectId}
+                            projectURL={projectURL}
+                            label={slug}
+                            openExternally
+                            hovercardPlacement={HOVERCARD_PLACEMENT}
+                        />
+                    )
+                }
+                const applicationId = id || slug
+                const href =
+                    projectURL && applicationId
+                        ? `${projectURL}/apps/${encodeURIComponent(
+                              applicationId,
+                          )}/variants?revisionId=${encodeURIComponent(revisionId)}`
+                        : undefined
                 return (
-                    <ApplicationReferenceLabel
-                        applicationId={id ?? null}
+                    <VariantReferenceLabel
+                        revisionId={revisionId}
                         projectId={projectId}
-                        projectURL={projectURL}
-                        label={slug}
+                        showVersionPill
+                        href={href}
+                        fallbackLabel={chip.variant?.slug ?? slug}
                         openExternally
                         hovercardPlacement={HOVERCARD_PLACEMENT}
                     />
                 )
-            case "testset":
+            }
+            case "environment":
                 return (
-                    <TestsetTag
-                        testsetId={id as string}
-                        revisionId={testsetRevisionReference?.id}
+                    <EnvironmentReferenceLabel
+                        environmentId={id}
+                        environmentSlug={slug}
+                        applicationId={appChip?.entity?.id}
                         projectId={projectId}
                         projectURL={projectURL}
+                        label={slug}
                         openExternally
                         hovercardPlacement={HOVERCARD_PLACEMENT}
                     />
@@ -125,80 +122,36 @@ const TraceReferences = () => {
                         hovercardPlacement={HOVERCARD_PLACEMENT}
                     />
                 )
-            case "environment":
+            case "testcase":
+            case "testset":
                 return (
-                    <EnvironmentReferenceLabel
-                        environmentId={id}
-                        environmentSlug={slug}
-                        applicationId={applicationReference?.id}
+                    <TestsetTag
+                        testsetId={id}
+                        revisionId={chip.revision?.id ?? undefined}
+                        testcaseId={chip.testcase?.id ?? undefined}
                         projectId={projectId}
                         projectURL={projectURL}
-                        label={slug}
                         openExternally
                         hovercardPlacement={HOVERCARD_PLACEMENT}
                     />
                 )
-            case "application_variant":
-            case "workflow_variant": {
-                const applicationId = applicationReference?.id || applicationReference?.slug
-                // Use the revision ID from application_revision reference for molecule lookup.
-                // The variant reference stores a variant ID, but the molecule resolves by revision ID.
-                const revisionId = applicationRevisionReference?.id || id
-                const href =
-                    projectURL && applicationId && revisionId
-                        ? `${projectURL}/apps/${encodeURIComponent(
-                              applicationId,
-                          )}/variants?revisionId=${encodeURIComponent(revisionId)}`
-                        : null
-
-                return (
-                    <VariantReferenceLabel
-                        revisionId={revisionId}
-                        projectId={projectId}
-                        showVersionPill
-                        href={href || undefined}
-                        fallbackLabel={slug}
-                        openExternally
-                        hovercardPlacement={HOVERCARD_PLACEMENT}
-                    />
-                )
-            }
-            default:
-                return null
         }
     }
 
-    if (!Object.keys(groupedReferences ?? {}).length) {
-        return (
-            <span className="text-muted-foreground">
-                {t("observabilityUi.traceDrawer.noReferences")}
-            </span>
-        )
-    }
-
     return (
-        <div className="flex flex-col gap-3 items-start w-full">
-            {Object.entries(groupedReferences || {}).map(([labelKey, refs]) => {
-                return (
-                    <div key={labelKey} className="flex flex-col gap-1.5 items-start w-full">
-                        <span className={titleClass}>
-                            {t(labelKey as CatalogKey<typeof drawerCatalog>)}
-                        </span>
-                        <div className="flex flex-col gap-1">
-                            {refs?.map((ref, index) => {
-                                const tag = renderReferenceTag({
-                                    key: ref.key as string,
-                                    id: ref?.id,
-                                    slug: ref?.slug,
-                                })
-                                if (!tag) return null
-                                return <span key={`${ref.key}-${ref?.id || index}`}>{tag}</span>
-                            })}
-                        </div>
+        <section className="flex flex-col gap-2" data-testid="trace-references">
+            <h3 className="m-0 text-label">{t("observabilityUi.traceDrawer.references")}</h3>
+            <dl className="m-0 grid grid-cols-[88px_minmax(0,1fr)] items-center gap-x-2 gap-y-2">
+                {chips.map((chip) => (
+                    <div key={chip.kind} className="contents">
+                        <dt className="text-meta text-muted-foreground">
+                            {t(LABEL_KEYS[chip.kind])}
+                        </dt>
+                        <dd className="m-0 min-w-0">{renderChip(chip)}</dd>
                     </div>
-                )
-            })}
-        </div>
+                ))}
+            </dl>
+        </section>
     )
 }
 

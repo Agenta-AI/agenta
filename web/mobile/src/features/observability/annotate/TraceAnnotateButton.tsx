@@ -34,7 +34,8 @@ export const TraceAnnotateButton = (props: Record<string, unknown>) => {
     return (
         <>
             <Button
-                variant="outline"
+                // The trace view's top bar passes "default": Annotate is its primary action.
+                variant={props.variant === "default" ? "default" : "outline"}
                 size="sm"
                 disabled={!traceId || !spanId}
                 onClick={() => setOpen(true)}

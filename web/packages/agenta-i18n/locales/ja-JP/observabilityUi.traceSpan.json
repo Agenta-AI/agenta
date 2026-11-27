@@ -25,9 +25,9 @@
     "exception": "例外",
     "noteUser": "ユーザー",
     "noteNote": "メモ",
-    "evaluatorHuman": "人間の評価器",
-    "evaluatorAuto": "自動評価器",
-    "evaluatorCustom": "カスタム評価器",
+    "evaluatorHuman": "人間",
+    "evaluatorAuto": "自動",
+    "evaluatorCustom": "カスタム",
     "evaluatorOther": "{{kind}} 評価器",
     "evaluatorId": "評価器 ID",
     "evaluatorType": "評価器の種類",
@@ -48,5 +48,12 @@
     "panelInputs": "入力",
     "panelParameters": "パラメータ",
     "panelOutputs": "出力",
-    "panelInternals": "内部データ"
+    "panelInternals": "内部データ",
+    "sectionInput": "入力",
+    "sectionOutput": "出力",
+    "sectionParameters": "パラメーター",
+    "sectionInternals": "内部データ",
+    "hideStackTrace": "スタックトレースを隠す",
+    "waitingForOutput": "実行中、出力を待っています",
+    "showStackTrace_other": "スタックトレースを表示（{{count}} 行）"
 }

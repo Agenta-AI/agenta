@@ -25,9 +25,9 @@
     "exception": "异常",
     "noteUser": "用户",
     "noteNote": "备注",
-    "evaluatorHuman": "人工评测器",
-    "evaluatorAuto": "自动评测器",
-    "evaluatorCustom": "自定义评测器",
+    "evaluatorHuman": "人工",
+    "evaluatorAuto": "自动",
+    "evaluatorCustom": "自定义",
     "evaluatorOther": "{{kind}} 评测器",
     "evaluatorId": "评测器 ID",
     "evaluatorType": "评测器类型",
@@ -48,5 +48,12 @@
     "panelInputs": "输入",
     "panelParameters": "参数",
     "panelOutputs": "输出",
-    "panelInternals": "内部数据"
+    "panelInternals": "内部数据",
+    "sectionInput": "输入",
+    "sectionOutput": "输出",
+    "sectionParameters": "参数",
+    "sectionInternals": "内部数据",
+    "hideStackTrace": "隐藏堆栈跟踪",
+    "waitingForOutput": "运行中，正在等待输出",
+    "showStackTrace_other": "显示堆栈跟踪，共 {{count}} 行"
 }

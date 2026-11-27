@@ -25,9 +25,9 @@
     "exception": "Excepción",
     "noteUser": "Usuario",
     "noteNote": "Nota",
-    "evaluatorHuman": "evaluador humano",
-    "evaluatorAuto": "evaluador automático",
-    "evaluatorCustom": "evaluador personalizado",
+    "evaluatorHuman": "Humano",
+    "evaluatorAuto": "Automático",
+    "evaluatorCustom": "Personalizado",
     "evaluatorOther": "evaluador {{kind}}",
     "evaluatorId": "ID del evaluador",
     "evaluatorType": "Tipo de evaluador",
@@ -48,5 +48,14 @@
     "panelInputs": "entradas",
     "panelParameters": "parámetros",
     "panelOutputs": "salidas",
-    "panelInternals": "datos internos"
+    "panelInternals": "datos internos",
+    "sectionInput": "Entrada",
+    "sectionOutput": "Salida",
+    "sectionParameters": "Parámetros",
+    "sectionInternals": "Datos internos",
+    "hideStackTrace": "Ocultar el seguimiento de pila",
+    "waitingForOutput": "En curso, esperando la salida",
+    "showStackTrace_one": "Mostrar el seguimiento de pila, {{count}} línea",
+    "showStackTrace_many": "Mostrar el seguimiento de pila, {{count}} líneas",
+    "showStackTrace_other": "Mostrar el seguimiento de pila, {{count}} líneas"
 }

@@ -25,9 +25,9 @@
     "exception": "Exception",
     "noteUser": "User",
     "noteNote": "Note",
-    "evaluatorHuman": "human evaluator",
-    "evaluatorAuto": "auto evaluator",
-    "evaluatorCustom": "custom evaluator",
+    "evaluatorHuman": "Human",
+    "evaluatorAuto": "Auto",
+    "evaluatorCustom": "Custom",
     "evaluatorOther": "{{kind}} evaluator",
     "evaluatorId": "Evaluator ID",
     "evaluatorType": "Evaluator Type",
@@ -48,5 +48,13 @@
     "panelInputs": "inputs",
     "panelParameters": "parameters",
     "panelOutputs": "outputs",
-    "panelInternals": "internals"
+    "panelInternals": "internals",
+    "sectionInput": "Input",
+    "sectionOutput": "Output",
+    "sectionParameters": "Parameters",
+    "sectionInternals": "Internals",
+    "hideStackTrace": "Hide stack trace",
+    "waitingForOutput": "Running, waiting for output",
+    "showStackTrace_one": "Show stack trace, {{count}} line",
+    "showStackTrace_other": "Show stack trace, {{count}} lines"
 }

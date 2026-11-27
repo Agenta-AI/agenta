@@ -25,9 +25,9 @@
     "exception": "Exceção",
     "noteUser": "Usuário",
     "noteNote": "Nota",
-    "evaluatorHuman": "avaliador humano",
-    "evaluatorAuto": "avaliador automático",
-    "evaluatorCustom": "avaliador personalizado",
+    "evaluatorHuman": "Humano",
+    "evaluatorAuto": "Automático",
+    "evaluatorCustom": "Personalizado",
     "evaluatorOther": "avaliador {{kind}}",
     "evaluatorId": "ID do avaliador",
     "evaluatorType": "Tipo de avaliador",
@@ -48,5 +48,14 @@
     "panelInputs": "entradas",
     "panelParameters": "parâmetros",
     "panelOutputs": "saídas",
-    "panelInternals": "dados internos"
+    "panelInternals": "dados internos",
+    "sectionInput": "Entrada",
+    "sectionOutput": "Saída",
+    "sectionParameters": "Parâmetros",
+    "sectionInternals": "Dados internos",
+    "hideStackTrace": "Ocultar o stack trace",
+    "waitingForOutput": "Em execução, aguardando a saída",
+    "showStackTrace_one": "Mostrar o stack trace, {{count}} linha",
+    "showStackTrace_many": "Mostrar o stack trace, {{count}} linhas",
+    "showStackTrace_other": "Mostrar o stack trace, {{count}} linhas"
 }

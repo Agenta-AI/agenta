@@ -25,9 +25,9 @@
     "exception": "Exception",
     "noteUser": "Utilisateur",
     "noteNote": "Note",
-    "evaluatorHuman": "évaluateur humain",
-    "evaluatorAuto": "évaluateur automatique",
-    "evaluatorCustom": "évaluateur personnalisé",
+    "evaluatorHuman": "Humain",
+    "evaluatorAuto": "Auto",
+    "evaluatorCustom": "Personnalisé",
     "evaluatorOther": "évaluateur {{kind}}",
     "evaluatorId": "ID de l’évaluateur",
     "evaluatorType": "Type d’évaluateur",
@@ -48,5 +48,14 @@
     "panelInputs": "entrées",
     "panelParameters": "paramètres",
     "panelOutputs": "sorties",
-    "panelInternals": "données internes"
+    "panelInternals": "données internes",
+    "sectionInput": "Entrée",
+    "sectionOutput": "Sortie",
+    "sectionParameters": "Paramètres",
+    "sectionInternals": "Données internes",
+    "hideStackTrace": "Masquer la pile d’appels",
+    "waitingForOutput": "En cours, en attente de la sortie",
+    "showStackTrace_one": "Afficher la pile d’appels, {{count}} ligne",
+    "showStackTrace_many": "Afficher la pile d’appels, {{count}} lignes",
+    "showStackTrace_other": "Afficher la pile d’appels, {{count}} lignes"
 }
