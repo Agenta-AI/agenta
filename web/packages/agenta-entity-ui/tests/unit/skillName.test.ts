@@ -3,7 +3,6 @@ import {describe, expect, it} from "vitest"
 
 import {ITEM_KINDS} from "../../src/DrillInView/SchemaControls/agentTemplate/itemKinds"
 import {
-    isValidSkillName,
     skillDraftError,
     skillNameError,
     slugifySkillName,
@@ -18,7 +17,6 @@ describe("skillNameError", () => {
     it("rejects capitalised names — the reported break", () => {
         expect(skillNameError("Weather")).toBe("Lowercase, digits and hyphens only.")
         expect(skillNameError("My Skill")).toBe("Lowercase, digits and hyphens only.")
-        expect(isValidSkillName("Weather")).toBe(false)
     })
 
     it("keeps the message to one short line — the fix is offered as a separate action", () => {
@@ -35,7 +33,6 @@ describe("skillNameError", () => {
     it("rejects surrounding whitespace, which the form stores untrimmed", () => {
         expect(skillNameError("weather ")).toBe("No leading or trailing spaces.")
         expect(skillNameError(" weather")).toBe("No leading or trailing spaces.")
-        expect(isValidSkillName("weather ")).toBe(false)
         expect(skillDraftError({name: "weather ", description: "d", body: "b"})).toBe(
             "No leading or trailing spaces.",
         )
@@ -57,7 +54,6 @@ describe("skillNameError", () => {
         // pydantic's `name: str` refuses 123 outright, but String(123) is "123", a valid slug.
         for (const value of [123, 1.2, true, {}, []])
             expect(skillNameError(value), JSON.stringify(value)).toBe("Must be text.")
-        expect(isValidSkillName(123)).toBe(false)
         expect(skillDraftError({name: 123, description: "d", body: "b"})).toBe("Must be text.")
         expect(skillDraftError({name: "ok", description: 5, body: "b"})).toBe(
             "Description must be text.",
@@ -78,7 +74,6 @@ describe("skillNameError", () => {
     it("stays quiet on an untouched empty field but still reports it as invalid", () => {
         expect(skillNameError("", {touched: false})).toBeUndefined()
         expect(skillNameError("")).toBe("Required.")
-        expect(isValidSkillName("")).toBe(false)
     })
 })
 

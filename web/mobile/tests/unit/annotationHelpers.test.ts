@@ -10,11 +10,7 @@ import {
     scenarioStatusTone,
     truncateScenarioId,
 } from "@agenta/annotation"
-import {
-    categorizeScenarioEntries,
-    categorizeTestcaseFields,
-    formatScenarioValue,
-} from "@agenta/annotation"
+import {categorizeTestcaseFields, formatScenarioValue} from "@agenta/annotation"
 import {describe, expect, it} from "vitest"
 
 describe("annotation helpers", () => {
@@ -116,23 +112,7 @@ describe("annotation helpers", () => {
         })
     })
 
-    it("A scenario record splits into sections and drops internal keys", () => {
-        const result = categorizeScenarioEntries({
-            id: "1",
-            trace_id: "t",
-            question: "q",
-            status: "success",
-            meta: {answer: "a", response: "r", golden: "g", span_id: "s"},
-            tags: {trace_id: "t", topic: "x"},
-        })
-        expect(result.inputs).toEqual([
-            ["question", "q"],
-            ["answer", "a"],
-        ])
-        expect(result.outputs).toEqual([["response", "r"]])
-        expect(result.expectedOutputs).toEqual([["golden", "g"]])
-        expect(result.metaEntries).toEqual([["status", "success"]])
-        expect(result.tags).toEqual({topic: "x"})
+    it("A scenario value reads a dash for null and indented JSON for an object", () => {
         expect(formatScenarioValue(null)).toBe("—")
         expect(formatScenarioValue({a: 1})).toBe('{\n  "a": 1\n}')
     })

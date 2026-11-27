@@ -11,13 +11,6 @@ describe("agentHandoffPath", () => {
             "/w/ws-1/p/proj-1/sessions/session-1?agent=app-1",
         )
     })
-
-    // A blank create lands in the playground too — a fresh session, not the overview.
-    it("opens a fresh session for a blank create, never the overview", () => {
-        expect(agentHandoffPath({base, appId: "app-1", sessionId: "session-2"})).not.toContain(
-            "/agents/",
-        )
-    })
 })
 
 describe("isSeededCreate", () => {

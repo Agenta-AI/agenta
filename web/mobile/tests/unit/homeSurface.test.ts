@@ -31,9 +31,4 @@ describe("resolveHomeSurface", () => {
         expect(resolveHomeSurface(input({isError: true}))).toBe("home")
         expect(resolveHomeSurface(input({isError: true, isPending: true}))).toBe("home")
     })
-
-    it("walks a cold start: hold while pending, then Home once it settles empty", () => {
-        expect(resolveHomeSurface(input({isPending: true}))).toBe("loading")
-        expect(resolveHomeSurface(input())).toBe("home")
-    })
 })

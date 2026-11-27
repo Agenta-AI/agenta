@@ -7,6 +7,7 @@ import {createPortal} from "react-dom"
 
 import {COMPACT_WINDOW_QUERY, useIsExpandedWindow, useWindowMatch} from "../../hooks/useWindowMatch"
 import {Button} from "../ui/button"
+import {ResizeEdgeLine} from "../ui/resize-edge"
 import {Sheet, SheetContent, SheetTitle} from "../ui/sheet"
 import {cn} from "../ui/utils"
 
@@ -201,13 +202,7 @@ export function RightPaneHost({children}: {children: React.ReactNode}) {
                             className="group absolute inset-y-0 left-0 z-sticky w-2 -translate-x-1/2 cursor-col-resize touch-none outline-none"
                         >
                             {/* A 2px line on hover, focus and drag; the 8px strip is the target. */}
-                            <span
-                                aria-hidden
-                                className={cn(
-                                    "absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-transparent transition-colors group-hover:bg-ring group-focus-visible:bg-ring",
-                                    resizing && "bg-ring",
-                                )}
-                            />
+                            <ResizeEdgeLine active={resizing} />
                         </div>
                     ) : null}
                 </div>

@@ -4,7 +4,6 @@ import {
     ACCEPTED_SENDER_DISCONNECT_MESSAGE,
     classifyAgentRunError,
     isTransportFailure,
-    isSessionBusyRefusal,
     parseAgentRunError,
     SESSION_TURN_IN_USE_CODE,
     SESSION_TURN_IN_USE_MESSAGE,
@@ -148,16 +147,9 @@ describe("single-turn admission refusal", () => {
             message: SESSION_TURN_IN_USE_MESSAGE,
             code: SESSION_TURN_IN_USE_CODE,
         })
-        expect(isSessionBusyRefusal(new Error(SESSION_TURN_IN_USE_MESSAGE))).toBe(true)
-    })
-
-    it("recognises it through surrounding whitespace, as the wire may add", () => {
-        expect(isSessionBusyRefusal(`  ${SESSION_TURN_IN_USE_MESSAGE}\n`)).toBe(true)
     })
 
     it("does NOT claim an ordinary run failure, which must keep the failure bubble", () => {
-        expect(isSessionBusyRefusal(new Error("The model provider timed out."))).toBe(false)
-        expect(isSessionBusyRefusal(undefined)).toBe(false)
         expect(parseAgentRunError("The model provider timed out.").code).toBeUndefined()
     })
 

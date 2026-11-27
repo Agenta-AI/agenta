@@ -261,4 +261,67 @@ describe("splitInputsVisibility", () => {
             expect(unreferencedColumns).toEqual([{name: "expected_output", value: undefined}])
         })
     })
+
+    describe("native values", () => {
+        it("preserves native object/array values by reference (no clone, no stringify)", () => {
+            const geo = {region: "Pacific"}
+            const {inputs} = splitInputsVisibility({
+                referencedKeys: ["geo"],
+                testcaseData: {geo},
+            })
+            expect(inputs[0].value).toBe(geo)
+        })
+
+        it("preserves native value types in unreferenced (no stringify)", () => {
+            const profile = {name: "Ada"}
+            const {unreferencedColumns} = splitInputsVisibility({
+                referencedKeys: [],
+                testcaseData: {profile, tags: ["a", "b"]},
+            })
+
+            expect(unreferencedColumns[0].value).toBe(profile)
+            expect(unreferencedColumns[1].value).toEqual(["a", "b"])
+        })
+    })
+
+    describe("edge cases", () => {
+        it("empty referenced + empty testcase → empty result", () => {
+            expect(splitInputsVisibility({referencedKeys: [], testcaseData: {}})).toEqual({
+                inputs: [],
+                unreferencedColumns: [],
+            })
+        })
+
+        it("empty referenced + non-empty testcase → all rows go to unreferenced", () => {
+            const {inputs, unreferencedColumns} = splitInputsVisibility({
+                referencedKeys: [],
+                testcaseData: {a: 1, b: 2},
+            })
+            expect(inputs).toEqual([])
+            expect(unreferencedColumns).toEqual([
+                {name: "a", value: 1},
+                {name: "b", value: 2},
+            ])
+        })
+
+        it("non-empty referenced + empty testcase → all referenced are plain missing inputs", () => {
+            const {inputs, unreferencedColumns} = splitInputsVisibility({
+                referencedKeys: ["x", "y"],
+                testcaseData: {},
+            })
+            expect(inputs).toEqual([
+                {name: "x", value: undefined},
+                {name: "y", value: undefined},
+            ])
+            expect(unreferencedColumns).toEqual([])
+        })
+
+        it("does NOT mutate the inputs (referenced list and testcase data are untouched)", () => {
+            const refs = ["a", "b"]
+            const data = {a: 1, c: 3}
+            splitInputsVisibility({referencedKeys: refs, testcaseData: data})
+            expect(refs).toEqual(["a", "b"])
+            expect(data).toEqual({a: 1, c: 3})
+        })
+    })
 })

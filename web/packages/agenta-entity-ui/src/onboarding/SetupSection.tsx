@@ -52,15 +52,15 @@ export const SetupSection = ({
             disabled={!onToggle}
             aria-expanded={onToggle ? open : undefined}
             className={clsx(
-                "flex min-h-11 w-full items-center gap-2.5 border-0 bg-transparent px-1 py-1 text-left",
+                "flex min-h-row-single w-full items-center gap-2 border-0 bg-transparent px-0 py-1 text-left",
                 onToggle ? "cursor-pointer" : "cursor-default",
             )}
         >
             {icon === "done" ? (
-                <CheckCircle size={15} weight="fill" className="shrink-0 text-success" />
+                <CheckCircle size={16} weight="fill" className="shrink-0 text-success" />
             ) : (
                 <Circle
-                    size={15}
+                    size={16}
                     className={clsx(
                         "shrink-0",
                         icon === "warning" ? "text-warning" : "text-muted-foreground",
@@ -90,7 +90,7 @@ export const SetupSection = ({
             <span className="flex-1" />
             {onToggle ? (
                 <CaretDown
-                    size={13}
+                    size={12}
                     className={clsx(
                         "shrink-0 text-muted-foreground transition-transform",
                         open && "rotate-180",
@@ -100,7 +100,7 @@ export const SetupSection = ({
         </button>
         {children ? (
             <HeightCollapse open={open} fade>
-                <div className="flex flex-col gap-2.5 pb-3 pl-[26px] pr-1">{children}</div>
+                <div className="flex flex-col gap-2 pb-3 pl-6 pr-1">{children}</div>
             </HeightCollapse>
         ) : null}
         {after}

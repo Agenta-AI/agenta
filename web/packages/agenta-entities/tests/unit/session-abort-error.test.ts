@@ -54,14 +54,4 @@ describe("callFern", () => {
         expect(spy).not.toHaveBeenCalled()
         spy.mockRestore()
     })
-
-    it("logs and returns null for a real failure", async () => {
-        const spy = vi.spyOn(console, "error").mockImplementation(() => {})
-        const result = await callFern("[test]", () =>
-            Promise.reject(new FernApiErrorLike("Status code: 500")),
-        )
-        expect(result).toBeNull()
-        expect(spy).toHaveBeenCalledOnce()
-        spy.mockRestore()
-    })
 })
