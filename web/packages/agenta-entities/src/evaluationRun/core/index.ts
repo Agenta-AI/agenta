@@ -118,7 +118,6 @@ export {
 export {
     buildMetricsChart,
     defaultChartSelection,
-    METRICS_CHART_DEFAULT_COUNT,
     type ChartMetric,
     type MetricsChartModel,
     type MetricsChartRun,

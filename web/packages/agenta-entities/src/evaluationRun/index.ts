@@ -155,7 +155,6 @@ export {
     // Overview: the "Metrics" chart and its picker
     buildMetricsChart,
     defaultChartSelection,
-    METRICS_CHART_DEFAULT_COUNT,
     type ChartMetric,
     type MetricsChartModel,
     type MetricsChartRun,

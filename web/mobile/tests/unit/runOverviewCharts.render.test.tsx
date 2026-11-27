@@ -413,8 +413,7 @@ describe("overview states, radar and charts over time", () => {
                 error: null,
             }),
         )
-        expect(host.querySelector("svg[aria-label^='Evaluator scores']")).toBeNull()
-        // The "Metrics" chart replaces them.
+        // The "Metrics" card is the only chart card.
         expect(host.querySelector("section[aria-labelledby='run-metrics-chart']")).not.toBeNull()
         expect(host.textContent).not.toContain("Run summary")
         expect(host.textContent).not.toContain("Over time")

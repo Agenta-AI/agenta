@@ -33,6 +33,8 @@ const MIN_BAR = 2
 /** Room above the plot for a value label. */
 const VALUE_LABEL_ROOM = 14
 const VALUE_LABEL_FONT_SIZE = 10
+/** `CHAR_WIDTH` is for the axis font; a value label is a little smaller. */
+const VALUE_LABEL_CHAR_WIDTH = (CHAR_WIDTH * VALUE_LABEL_FONT_SIZE) / CHART_FONT_SIZE
 /** Vertical x labels are cut after this many characters. */
 const VERTICAL_LABEL_MAX = 52
 /** Width of one character of a vertical label; `CHAR_WIDTH` is a safe upper bound for fitting. */
@@ -78,6 +80,8 @@ export function BarChart({
     const y = linearScale([low, high], [plotBottom, top])
     const baseline = y(0)
     const bands = bandLayout(plotWidth, data.length, series.length)
+    /** The width a value label may take: its bar's share of the group. */
+    const barRoom = bands.groupWidth / Math.max(1, series.length)
     const labels = verticalLabels
         ? {every: 1, maxChars: VERTICAL_LABEL_MAX}
         : xLabelEvery(bands.groupWidth, longest)
@@ -154,7 +158,7 @@ export function BarChart({
                                     d={barPath(barX, bands.barWidth, stubbed, baseline)}
                                     fill={colorOf(datum, s.key, seriesIndex)}
                                 />
-                                {label && label.length * CHAR_WIDTH * 0.9 <= bands.groupWidth ? (
+                                {label && label.length * VALUE_LABEL_CHAR_WIDTH <= barRoom ? (
                                     <text
                                         data-value-label={s.key}
                                         x={barX + bands.barWidth / 2}

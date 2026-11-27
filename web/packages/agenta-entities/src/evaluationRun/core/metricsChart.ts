@@ -8,7 +8,7 @@
 import {chartValue, isUnitScale, type EvaluatorRow} from "./evaluatorRows"
 
 /** The picker shows at most this many metrics by default. */
-export const METRICS_CHART_DEFAULT_COUNT = 16
+const METRICS_CHART_DEFAULT_COUNT = 16
 
 /** The evaluator rows of one run. Compare passes one entry per run. */
 export interface MetricsChartRun {
@@ -17,12 +17,18 @@ export interface MetricsChartRun {
 }
 
 export interface ChartMetric {
-    /** `{evaluatorId or stepKey}:{metricKey}`: the same metric in every run. */
+    /**
+     * `{evaluatorId or stepKey}:{metricKey}`: the same metric in every run that has the evaluator
+     * id (a step key can differ between runs).
+     */
     id: string
     evaluatorName: string
     /** The metric label, without the evaluator name. */
     label: string
-    /** The bar name: the evaluator name, plus the metric label when the evaluator has several. */
+    /**
+     * The bar name: the evaluator name, plus the metric label when the evaluator has several.
+     * Unique in the model ("(2)", "(3)" on a repeated name), so the charts can key by it.
+     */
     name: string
     /** A binary value is a pass rate; a numeric value is a mean on 0 to 1. */
     kind: "binary" | "numeric"
@@ -82,18 +88,21 @@ export function buildMetricsChart(runs: readonly MetricsChartRun[]): MetricsChar
         if (va === null || vb === null) return va === null ? (vb === null ? 0 : 1) : -1
         return va - vb || a.name.localeCompare(b.name)
     })
+    const seen = new Map<string, number>()
+    for (const metric of metrics) {
+        const count = (seen.get(metric.name) ?? 0) + 1
+        seen.set(metric.name, count)
+        if (count > 1) metric.name = `${metric.name} (${count})`
+    }
     // A metric on the scale in one run and off it in another is in the chart.
     const offScale = [...offScaleIds].filter((id) => !byId.has(id)).length
     return {metrics, offScale}
 }
 
 /**
- * The default selection of the picker: every metric when there are at most `count`, else the
- * `count` lowest. `metrics` is ordered lowest first (see {@link buildMetricsChart}).
+ * The default selection of the picker: every metric when there are at most 16, else the 16
+ * lowest. `metrics` is ordered lowest first (see {@link buildMetricsChart}).
  */
-export function defaultChartSelection(
-    metrics: readonly ChartMetric[],
-    count = METRICS_CHART_DEFAULT_COUNT,
-): string[] {
-    return metrics.slice(0, count).map((metric) => metric.id)
+export function defaultChartSelection(metrics: readonly ChartMetric[]): string[] {
+    return metrics.slice(0, METRICS_CHART_DEFAULT_COUNT).map((metric) => metric.id)
 }

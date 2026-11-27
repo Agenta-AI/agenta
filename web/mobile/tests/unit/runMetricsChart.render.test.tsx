@@ -221,6 +221,16 @@ describe("Metrics chart", () => {
         )
     })
 
+    it("A run with only scores off the scale keeps the card with the line that counts them", () => {
+        renderChart([row("Rating", [metric("stars", "numeric", numeric(3.5, 1, 5))])])
+        expect(host.querySelector("section")).not.toBeNull()
+        expect(barCount()).toBe(0)
+        expect(trigger()).toBeUndefined()
+        expect(host.textContent).toBe(
+            "Metrics1 metric is not on a 0 to 1 scale and is not in the chart.",
+        )
+    })
+
     it("Categorical and text metrics are left out, and a run with no chartable metric has no card", () => {
         renderChart([
             row("Tone", [

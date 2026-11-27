@@ -3,7 +3,7 @@ import {useMemo, useState} from "react"
 import {
     buildMetricsChart,
     defaultChartSelection,
-    type EvaluatorRow,
+    type MetricsChartRun,
 } from "@agenta/entities/evaluationRun"
 import {useT} from "@agenta/i18n"
 import runOverviewCatalog from "@agenta/i18n/catalogs/evaluations.runOverview"
@@ -15,10 +15,8 @@ import {MetricPicker} from "./MetricPicker"
 import {chartValueText, KIND_COLOR, runColor} from "./metricsChartText"
 
 /** One run of the chart. Compare passes one entry per run; the first one orders the metrics. */
-export interface ChartRun {
-    key: string
+export interface ChartRun extends MetricsChartRun {
     name: string
-    rows: readonly EvaluatorRow[]
 }
 
 type Plot = "bars" | "radar"
@@ -36,10 +34,7 @@ const BAR_AXIS = 48
 export const MetricsChart = ({runs}: {runs: readonly ChartRun[]}) => {
     const t = useT(runOverviewCatalog)
     const narrow = useIsNarrowScreen()
-    const model = useMemo(
-        () => buildMetricsChart(runs.map((run) => ({key: run.key, rows: run.rows}))),
-        [runs],
-    )
+    const model = useMemo(() => buildMetricsChart(runs), [runs])
     const [chosen, setChosen] = useState<ReadonlySet<string> | null>(null)
     const [plot, setPlot] = useState<Plot>("bars")
 
@@ -50,7 +45,9 @@ export const MetricsChart = ({runs}: {runs: readonly ChartRun[]}) => {
     const single = runs.length === 1
     const firstKey = runs[0]?.key ?? ""
 
-    if (model.metrics.length === 0) return null
+    // Only scores off the 0 to 1 scale: the card keeps the note that says why there is no chart.
+    const empty = model.metrics.length === 0
+    if (empty && model.offScale === 0) return null
 
     const toggle = (id: string) => {
         const next = new Set(selected)
@@ -59,24 +56,26 @@ export const MetricsChart = ({runs}: {runs: readonly ChartRun[]}) => {
         setChosen(next)
     }
 
-    const kindById = new Map(picked.map((metric) => [metric.name, metric.kind]))
+    const kindByName = new Map(picked.map((metric) => [metric.name, metric.kind]))
     const series = runs.map((run, index) => ({
         key: run.key,
         name: run.name,
         color: single ? KIND_COLOR.numeric : runColor(index),
     }))
-    const notes = [
-        chosen === null
-            ? model.metrics.length > picked.length
-                ? t("evaluations.runOverview.chartLowestMetrics", {
-                      selected: picked.length,
-                      total: model.metrics.length,
-                  })
-                : t("evaluations.runOverview.chartEveryMetric")
-            : null,
-        t("evaluations.runOverview.chartUnitScale"),
-        canRadar ? null : t("evaluations.runOverview.radarNeedsThree"),
-    ].filter(Boolean)
+    const notes = empty
+        ? []
+        : [
+              chosen === null
+                  ? model.metrics.length > picked.length
+                      ? t("evaluations.runOverview.chartLowestMetrics", {
+                            selected: picked.length,
+                            total: model.metrics.length,
+                        })
+                      : t("evaluations.runOverview.chartEveryMetric")
+                  : null,
+              t("evaluations.runOverview.chartUnitScale"),
+              canRadar ? null : t("evaluations.runOverview.radarNeedsThree"),
+          ].filter(Boolean)
     const kinds = single
         ? (["binary", "numeric"] as const).filter((kind) =>
               picked.some((metric) => metric.kind === kind),
@@ -93,30 +92,34 @@ export const MetricsChart = ({runs}: {runs: readonly ChartRun[]}) => {
                     <h2 id="run-metrics-chart" className="m-0 text-subtitle text-foreground">
                         {t("evaluations.runOverview.metrics")}
                     </h2>
-                    <p className="m-0 text-meta text-muted-foreground">{notes.join(" ")}</p>
+                    {notes.length > 0 ? (
+                        <p className="m-0 text-meta text-muted-foreground">{notes.join(" ")}</p>
+                    ) : null}
                 </div>
-                <div className="flex items-center gap-2">
-                    <Segmented
-                        size="sm"
-                        aria-label={t("evaluations.runOverview.chartType")}
-                        value={shown}
-                        onChange={(value) => setPlot(value as Plot)}
-                        options={[
-                            {value: "bars", label: t("evaluations.runOverview.chartBars")},
-                            {
-                                value: "radar",
-                                label: t("evaluations.runOverview.chartRadar"),
-                                disabled: !canRadar,
-                            },
-                        ]}
-                    />
-                    <MetricPicker
-                        metrics={model.metrics}
-                        selected={selected}
-                        valueKey={firstKey}
-                        onToggle={toggle}
-                    />
-                </div>
+                {empty ? null : (
+                    <div className="flex items-center gap-2">
+                        <Segmented
+                            size="sm"
+                            aria-label={t("evaluations.runOverview.chartType")}
+                            value={shown}
+                            onChange={(value) => setPlot(value as Plot)}
+                            options={[
+                                {value: "bars", label: t("evaluations.runOverview.chartBars")},
+                                {
+                                    value: "radar",
+                                    label: t("evaluations.runOverview.chartRadar"),
+                                    disabled: !canRadar,
+                                },
+                            ]}
+                        />
+                        <MetricPicker
+                            metrics={model.metrics}
+                            selected={selected}
+                            valueKey={firstKey}
+                            onToggle={toggle}
+                        />
+                    </div>
+                )}
             </div>
             {shown === "radar" ? (
                 <RadarChart
@@ -137,7 +140,7 @@ export const MetricsChart = ({runs}: {runs: readonly ChartRun[]}) => {
                         ),
                     }))}
                     formatAxisValue={(raw, axis) =>
-                        chartValueText(kindById.get(axis.name) ?? "numeric", raw)
+                        chartValueText(kindByName.get(axis.name) ?? "numeric", raw)
                     }
                 />
             ) : picked.length > 0 ? (
@@ -156,11 +159,11 @@ export const MetricsChart = ({runs}: {runs: readonly ChartRun[]}) => {
                             values: metric.values,
                         }))}
                         valueLabel={(value, category) =>
-                            chartValueText(kindById.get(category) ?? "numeric", value)
+                            chartValueText(kindByName.get(category) ?? "numeric", value)
                         }
                         barColor={
                             single
-                                ? (category) => KIND_COLOR[kindById.get(category) ?? "numeric"]
+                                ? (category) => KIND_COLOR[kindByName.get(category) ?? "numeric"]
                                 : undefined
                         }
                     />

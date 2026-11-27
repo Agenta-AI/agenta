@@ -3,7 +3,6 @@ import {describe, expect, it} from "vitest"
 import {
     buildMetricsChart,
     defaultChartSelection,
-    METRICS_CHART_DEFAULT_COUNT,
     type EvaluatorRow,
     type EvaluatorRowMetric,
     type MetricStats,
@@ -94,6 +93,25 @@ describe("metrics chart values", () => {
         expect(metrics[0]).toMatchObject({evaluatorName: "Judge", label: "Score"})
     })
 
+    it("Two evaluators with one name get unique bar names", () => {
+        const {metrics} = buildMetricsChart([
+            {
+                key: "run",
+                rows: [
+                    {...row("Judge", [metric("ok", "binary", binary(1, 3))]), evaluatorId: "a"},
+                    {
+                        ...row("Judge", [metric("score", "numeric", numeric(0.5, 0, 1))]),
+                        evaluatorId: "b",
+                    },
+                ],
+            },
+        ])
+        expect(metrics.map((m) => [m.name, m.kind])).toEqual([
+            ["Judge", "binary"],
+            ["Judge (2)", "numeric"],
+        ])
+    })
+
     it("Scores off the 0 to 1 scale are counted and left out; categorical metrics are left out", () => {
         const model = buildMetricsChart([
             {
@@ -155,7 +173,7 @@ describe("metric picker default", () => {
     it("With more than 16 metrics the 16 lowest are picked", () => {
         const metrics = many(54)
         const picked = defaultChartSelection(metrics)
-        expect(picked).toHaveLength(METRICS_CHART_DEFAULT_COUNT)
+        expect(picked).toHaveLength(16)
         expect(picked).toEqual(metrics.slice(0, 16).map((m) => m.id))
         // E53 has the lowest pass rate (1 of 54).
         expect(picked[0]).toBe("E53-id:attributes.ag.data.outputs.ok")
