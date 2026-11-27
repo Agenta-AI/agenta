@@ -126,7 +126,9 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
     if (!phone) {
         const brokenOf = (platform: ChannelPlatform) => {
             const mine = agentConnectionsOf(connections, platform)
-            const broken = mine.find((c) => summarizeConnection(platform, c, agentId).needsAttention)
+            const broken = mine.find(
+                (c) => summarizeConnection(platform, c, agentId).needsAttention,
+            )
             return broken ? summarizeConnection(platform, broken, agentId).sub : null
         }
         const connectedItems: SettingsCatalogItem[] = connected.map(({platform, summary}) => {
