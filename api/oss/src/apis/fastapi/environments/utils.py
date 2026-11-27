@@ -5,7 +5,6 @@ from datetime import datetime
 
 from fastapi import Query
 
-from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.shared.dtos import (
@@ -46,7 +45,7 @@ async def ensure_environment_deploy_allowed(
     environment_id: Optional[UUID],
     environments_service: EnvironmentsService,
 ) -> None:
-    if not is_ee() or not environment_id:
+    if not environment_id:
         return
 
     environment = await environments_service.fetch_environment(

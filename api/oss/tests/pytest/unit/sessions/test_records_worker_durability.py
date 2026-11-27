@@ -459,14 +459,13 @@ async def test_describe_message_survives_an_undecodable_payload():
 
 
 def _fake_ee(monkeypatch, *, allowed=True, raises=False):
-    """Run the EE quota branch of `process_batch` without an EE build."""
+    """Answer the quota check of `process_batch` without the entitlements service."""
 
     async def check_entitlements(**_):
         if raises:
             raise RuntimeError("entitlements unreachable")
         return allowed, None, None
 
-    monkeypatch.setattr(records_worker, "is_ee", lambda: True)
     monkeypatch.setattr(
         records_worker, "check_entitlements", check_entitlements, raising=False
     )

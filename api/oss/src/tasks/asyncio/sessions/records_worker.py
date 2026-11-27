@@ -14,15 +14,13 @@ from oss.src.core.sessions.records.streaming import (
     publish_durable_event,
 )
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
-from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
 
-log = get_module_logger(__name__)
+from ee.src.core.access.entitlements.service import check_entitlements, scope_from
+from ee.src.core.access.entitlements.types import Counter
 
-if is_ee():
-    from ee.src.core.access.entitlements.service import check_entitlements, scope_from
-    from ee.src.core.access.entitlements.types import Counter
+log = get_module_logger(__name__)
 
 
 # The marker the runner stamps on its terminal record when the turn stopped to wait for a
@@ -400,52 +398,51 @@ class RecordsWorker(StreamConsumer):
         org_deferred: set = set()
         events_per_org: Dict[UUID, int] = {}
 
-        if is_ee():
-            for project_batch in batches:
-                org_id = project_batch["organization_id"]
-                if org_id is None:
-                    continue
-                events_per_org[org_id] = events_per_org.get(org_id, 0) + len(
-                    project_batch["entries"]
-                )
+        for project_batch in batches:
+            org_id = project_batch["organization_id"]
+            if org_id is None:
+                continue
+            events_per_org[org_id] = events_per_org.get(org_id, 0) + len(
+                project_batch["entries"]
+            )
 
-            for org_id, delta in events_per_org.items():
-                if delta <= 0:
-                    org_allowed[org_id] = True
-                    continue
-
-                try:
-                    quota_allowed, _, _ = await check_entitlements(  # type: ignore
-                        key=Counter.RECORDS_INGESTED,  # type: ignore
-                        delta=delta,
-                        scope=scope_from(organization_id=org_id),  # type: ignore
-                    )
-                except Exception:
-                    log.error(
-                        "[RECORDS] L2 quota check failed",
-                        organization_id=str(org_id),
-                        exc_info=True,
-                    )
-                    org_allowed[org_id] = False
-                    org_deferred.add(org_id)
-                    continue
-
-                if not quota_allowed:
-                    log.warning(
-                        "[RECORDS] Quota exceeded, dropping org batch",
-                        organization_id=str(org_id),
-                        delta=delta,
-                    )
-                    org_allowed[org_id] = False
-                    continue
-
+        for org_id, delta in events_per_org.items():
+            if delta <= 0:
                 org_allowed[org_id] = True
+                continue
+
+            try:
+                quota_allowed, _, _ = await check_entitlements(  # type: ignore
+                    key=Counter.RECORDS_INGESTED,  # type: ignore
+                    delta=delta,
+                    scope=scope_from(organization_id=org_id),  # type: ignore
+                )
+            except Exception:
+                log.error(
+                    "[RECORDS] L2 quota check failed",
+                    organization_id=str(org_id),
+                    exc_info=True,
+                )
+                org_allowed[org_id] = False
+                org_deferred.add(org_id)
+                continue
+
+            if not quota_allowed:
+                log.warning(
+                    "[RECORDS] Quota exceeded, dropping org batch",
+                    organization_id=str(org_id),
+                    delta=delta,
+                )
+                org_allowed[org_id] = False
+                continue
+
+            org_allowed[org_id] = True
 
         for project_batch in batches:
             org_id = project_batch["organization_id"]
             entries: List[Tuple[bytes, Any]] = project_batch["entries"]
 
-            if is_ee() and org_id and not org_allowed.get(org_id, True):
+            if org_id and not org_allowed.get(org_id, True):
                 if org_id in org_deferred:
                     # The meter was unreachable, not exceeded. Leave the entries pending so a
                     # transient entitlements outage does not delete a conversation.

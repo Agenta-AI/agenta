@@ -85,9 +85,7 @@ def _make_batch(
 # Patch shims for EE entitlements
 #
 # `EventsWorker` imports `check_entitlements`, `scope_from`, and
-# `Counter` at module top under `if is_ee():`. The OSS test runner has
-# `is_ee()` False, so those imports never happened. We attach our fakes
-# to the worker module namespace and toggle the module-level `is_ee`.
+# `Counter` at module top. We replace them in the worker module namespace.
 # ---------------------------------------------------------------------------
 
 
@@ -121,7 +119,6 @@ async def test_l2_allows_under_quota_and_ingests_org_batch():
         return True, None, None
 
     with (
-        patch("oss.src.tasks.asyncio.events.worker.is_ee", return_value=True),
         patch(
             "oss.src.tasks.asyncio.events.worker.check_entitlements",
             new=_fake_check,
@@ -164,7 +161,6 @@ async def test_l2_over_quota_drops_org_batch():
         return False, None, None
 
     with (
-        patch("oss.src.tasks.asyncio.events.worker.is_ee", return_value=True),
         patch(
             "oss.src.tasks.asyncio.events.worker.check_entitlements",
             new=_fake_check,
@@ -210,7 +206,6 @@ async def test_l2_per_org_delta_aggregates_across_projects():
         return True, None, None
 
     with (
-        patch("oss.src.tasks.asyncio.events.worker.is_ee", return_value=True),
         patch(
             "oss.src.tasks.asyncio.events.worker.check_entitlements",
             new=_fake_check,
@@ -237,33 +232,6 @@ async def test_l2_per_org_delta_aggregates_across_projects():
 
 
 @pytest.mark.asyncio
-async def test_l2_skipped_on_oss_and_not_persisted():
-    """OSS (is_ee=False) → no Counter check AND no ingest.
-
-    Persisting the `events` table is the (EE-gated) audit log, so OSS must not
-    write events. The batch is still returned in `allowed` so webhooks dispatch
-    normally — OSS gets webhooks without an audit trail.
-    """
-    org_id = uuid4()
-    proj_id = uuid4()
-    payload = _make_event_message(organization_id=org_id, project_id=proj_id)
-    batch = _make_batch([payload])
-
-    worker = _make_worker(ingest_return=1)
-
-    with patch("oss.src.tasks.asyncio.events.worker.is_ee", return_value=False):
-        total, processed_ids, allowed = await worker.process_batch(batch)
-
-    # Nothing persisted in OSS...
-    assert total == 0
-    worker.service.ingest.assert_not_called()
-    # ...but the batch is still allowed through for webhook dispatch, and the
-    # message is ACKed so it doesn't linger in the PEL.
-    assert len(allowed) == 1
-    assert len(processed_ids) == 1
-
-
-@pytest.mark.asyncio
 async def test_l2_check_failure_drops_org_batch():
     """Entitlements adapter raises → drop the org's events conservatively."""
     org_id = uuid4()
@@ -277,7 +245,6 @@ async def test_l2_check_failure_drops_org_batch():
         raise RuntimeError("meters DB unavailable")
 
     with (
-        patch("oss.src.tasks.asyncio.events.worker.is_ee", return_value=True),
         patch(
             "oss.src.tasks.asyncio.events.worker.check_entitlements",
             new=_fake_check,

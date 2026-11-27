@@ -6,16 +6,15 @@ from redis.asyncio import Redis
 
 from oss.src.core.events.service import EventsService
 from oss.src.core.events.streaming import deserialize_event
-from oss.src.utils.common import is_ee
 from oss.src.utils import heartbeat
 from oss.src.utils.logging import get_module_logger
 from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
 
+from ee.src.core.access.entitlements.service import check_entitlements, scope_from
+from ee.src.core.access.entitlements.types import Counter
+
 log = get_module_logger(__name__)
 
-if is_ee():
-    from ee.src.core.access.entitlements.service import check_entitlements, scope_from
-    from ee.src.core.access.entitlements.types import Counter
 
 if TYPE_CHECKING:
     from oss.src.tasks.asyncio.webhooks.dispatcher import WebhooksDispatcher
@@ -136,61 +135,59 @@ class EventsWorker(StreamConsumer):
         org_allowed: Dict[UUID, bool] = {}
         events_per_org: Dict[UUID, int] = {}
 
-        if is_ee():
-            for project_batch in batches:
-                org_id = project_batch["organization_id"]
-                if org_id is None:
-                    continue
-                events_per_org[org_id] = events_per_org.get(org_id, 0) + len(
-                    project_batch["events"]
-                )
+        for project_batch in batches:
+            org_id = project_batch["organization_id"]
+            if org_id is None:
+                continue
+            events_per_org[org_id] = events_per_org.get(org_id, 0) + len(
+                project_batch["events"]
+            )
 
-            for org_id, delta in events_per_org.items():
-                if delta <= 0:
-                    org_allowed[org_id] = True
-                    continue
-
-                try:
-                    # L2: authoritative counter check + adjust. Charge the
-                    # full per-org delta in one call so the meter advances
-                    # atomically.
-                    quota_allowed, _, _ = await check_entitlements(  # type: ignore
-                        key=Counter.EVENTS_INGESTED,  # type: ignore
-                        delta=delta,
-                        scope=scope_from(organization_id=org_id),  # type: ignore
-                    )
-                except Exception:
-                    # On error, drop the org's events to stay conservative.
-                    # Matches the tracing worker's safety stance.
-                    log.error(
-                        "[EVENTS] L2 quota check failed",
-                        organization_id=str(org_id),
-                        exc_info=True,
-                    )
-                    org_allowed[org_id] = False
-                    continue
-
-                if not quota_allowed:
-                    log.warning(
-                        "[EVENTS] Quota exceeded, dropping org batch",
-                        organization_id=str(org_id),
-                        delta=delta,
-                    )
-                    org_allowed[org_id] = False
-                    continue
-
+        for org_id, delta in events_per_org.items():
+            if delta <= 0:
                 org_allowed[org_id] = True
+                continue
+
+            try:
+                # L2: authoritative counter check + adjust. Charge the
+                # full per-org delta in one call so the meter advances
+                # atomically.
+                quota_allowed, _, _ = await check_entitlements(  # type: ignore
+                    key=Counter.EVENTS_INGESTED,  # type: ignore
+                    delta=delta,
+                    scope=scope_from(organization_id=org_id),  # type: ignore
+                )
+            except Exception:
+                # On error, drop the org's events to stay conservative.
+                # Matches the tracing worker's safety stance.
+                log.error(
+                    "[EVENTS] L2 quota check failed",
+                    organization_id=str(org_id),
+                    exc_info=True,
+                )
+                org_allowed[org_id] = False
+                continue
+
+            if not quota_allowed:
+                log.warning(
+                    "[EVENTS] Quota exceeded, dropping org batch",
+                    organization_id=str(org_id),
+                    delta=delta,
+                )
+                org_allowed[org_id] = False
+                continue
+
+            org_allowed[org_id] = True
 
         for project_batch in batches:
             org_id = project_batch["organization_id"]
-            if is_ee() and org_id and not org_allowed.get(org_id, True):
+            if org_id and not org_allowed.get(org_id, True):
                 continue
 
-            if is_ee():
-                total_ingested += await self.service.ingest(
-                    project_id=project_batch["project_id"],
-                    events=[msg.to_event() for msg in project_batch["events"]],
-                )
+            total_ingested += await self.service.ingest(
+                project_id=project_batch["project_id"],
+                events=[msg.to_event() for msg in project_batch["events"]],
+            )
             allowed_batches.append(project_batch)
 
         return total_ingested, processed_ids, allowed_batches

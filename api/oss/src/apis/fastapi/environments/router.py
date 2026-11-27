@@ -5,7 +5,6 @@ from fastapi import APIRouter, Body, Request, status, Depends, HTTPException
 from fastapi.encoders import jsonable_encoder
 from pydantic import ValidationError
 
-from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 
@@ -1379,25 +1378,24 @@ class SimpleEnvironmentsRouter:
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
         # If guarded, require DEPLOY_ENVIRONMENTS permission
-        if is_ee():
-            environment = await self.environments_service.fetch_environment(
-                project_id=UUID(request.state.project_id),
-                environment_ref=Reference(id=environment_id),
-            )
-            is_guarded = False
-            if environment and environment.flags:
-                flags = environment.flags
-                if isinstance(flags, EnvironmentFlags):
-                    is_guarded = bool(getattr(flags, "is_guarded", False))
-                elif isinstance(flags, dict):
-                    is_guarded = bool(flags.get("is_guarded", False))
-            if is_guarded:
-                if not await check_action_access(  # type: ignore
-                    user_uid=request.state.user_id,
-                    project_id=request.state.project_id,
-                    permission=Permission.DEPLOY_ENVIRONMENTS,  # type: ignore
-                ):
-                    raise FORBIDDEN_EXCEPTION  # type: ignore
+        environment = await self.environments_service.fetch_environment(
+            project_id=UUID(request.state.project_id),
+            environment_ref=Reference(id=environment_id),
+        )
+        is_guarded = False
+        if environment and environment.flags:
+            flags = environment.flags
+            if isinstance(flags, EnvironmentFlags):
+                is_guarded = bool(getattr(flags, "is_guarded", False))
+            elif isinstance(flags, dict):
+                is_guarded = bool(flags.get("is_guarded", False))
+        if is_guarded:
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.DEPLOY_ENVIRONMENTS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(environment_id) != str(simple_environment_edit_request.environment.id):
             return SimpleEnvironmentResponse()
@@ -1440,21 +1438,20 @@ class SimpleEnvironmentsRouter:
             return SimpleEnvironmentResponse()
 
         # If guarded, require DEPLOY_ENVIRONMENTS permission
-        if is_ee():
-            is_guarded = False
-            if environment.flags:
-                flags = environment.flags
-                if isinstance(flags, EnvironmentFlags):
-                    is_guarded = bool(getattr(flags, "is_guarded", False))
-                elif isinstance(flags, dict):
-                    is_guarded = bool(flags.get("is_guarded", False))
-            if is_guarded:
-                if not await check_action_access(  # type: ignore
-                    user_uid=request.state.user_id,
-                    project_id=request.state.project_id,
-                    permission=Permission.DEPLOY_ENVIRONMENTS,  # type: ignore
-                ):
-                    raise FORBIDDEN_EXCEPTION  # type: ignore
+        is_guarded = False
+        if environment.flags:
+            flags = environment.flags
+            if isinstance(flags, EnvironmentFlags):
+                is_guarded = bool(getattr(flags, "is_guarded", False))
+            elif isinstance(flags, dict):
+                is_guarded = bool(flags.get("is_guarded", False))
+        if is_guarded:
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.DEPLOY_ENVIRONMENTS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
 
         environment = await self.environments_service.archive_environment(  # type: ignore
             project_id=UUID(request.state.project_id),

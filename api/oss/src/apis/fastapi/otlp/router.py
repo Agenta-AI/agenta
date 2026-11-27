@@ -12,7 +12,6 @@ from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions
-from oss.src.utils.common import is_ee
 
 from oss.src.apis.fastapi.otlp.models import CollectStatusResponse
 from oss.src.apis.fastapi.otlp.opentelemetry.otlp import parse_otlp_stream
@@ -22,8 +21,7 @@ from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
-if is_ee():
-    from ee.src.core.access.entitlements.service import check_entitlements, Counter
+from ee.src.core.access.entitlements.service import check_entitlements, Counter
 
 if TYPE_CHECKING:
     from oss.src.core.tracing.service import TracingService
@@ -214,7 +212,7 @@ class OTLPRouter:
         # -------------------------------------------------------------------- #
         # Layer 1 Soft Check: Validate quota using cached meter
         # -------------------------------------------------------------------- #
-        if is_ee() and spans:
+        if spans:
             try:
                 delta = sum(1 for span in spans if span.parent_id is None)
 

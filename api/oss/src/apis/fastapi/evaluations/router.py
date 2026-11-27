@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Request, Query, HTTPException, status as http_status
 
 from oss.src.core.access.dtos import PrincipalRef
-from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import (
     BadRequestException,
@@ -119,8 +118,7 @@ from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
-if is_ee():
-    from ee.src.core.access.entitlements.service import check_entitlements, Counter
+from ee.src.core.access.entitlements.service import check_entitlements, Counter
 
 
 log = get_module_logger(__name__)
@@ -597,18 +595,17 @@ class EvaluationsRouter:
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        if is_ee():
-            delta = len(runs_create_request.runs)
-            if delta:
-                allowed, _, _ = await check_entitlements(  # type: ignore
-                    key=Counter.EVALUATIONS_RUN,  # type: ignore
-                    delta=delta,
+        delta = len(runs_create_request.runs)
+        if delta:
+            allowed, _, _ = await check_entitlements(  # type: ignore
+                key=Counter.EVALUATIONS_RUN,  # type: ignore
+                delta=delta,
+            )
+            if not allowed:
+                raise HTTPException(
+                    status_code=http_status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="You have reached your monthly evaluations quota.",
                 )
-                if not allowed:
-                    raise HTTPException(
-                        status_code=http_status.HTTP_429_TOO_MANY_REQUESTS,
-                        detail="You have reached your monthly evaluations quota.",
-                    )
 
         try:
             runs = await self.evaluations_service.create_runs(
@@ -620,7 +617,7 @@ class EvaluationsRouter:
             )
         except Exception:
             # Internal error after the quota was charged — refund.
-            if is_ee() and runs_create_request.runs:
+            if runs_create_request.runs:
                 await check_entitlements(  # type: ignore
                     key=Counter.EVALUATIONS_RUN,  # type: ignore
                     delta=-len(runs_create_request.runs),
@@ -630,7 +627,7 @@ class EvaluationsRouter:
         # The DAO suppresses non-conflict exceptions and returns []
         # silently; refund the shortfall between charge and actual
         # creations so the meter only counts runs that landed.
-        if is_ee() and runs_create_request.runs:
+        if runs_create_request.runs:
             shortfall = len(runs_create_request.runs) - len(runs)
             if shortfall > 0:
                 await check_entitlements(  # type: ignore
@@ -2004,16 +2001,15 @@ class SimpleEvaluationsRouter:
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        if is_ee():
-            allowed, _, _ = await check_entitlements(  # type: ignore
-                key=Counter.EVALUATIONS_RUN,  # type: ignore
-                delta=1,
+        allowed, _, _ = await check_entitlements(  # type: ignore
+            key=Counter.EVALUATIONS_RUN,  # type: ignore
+            delta=1,
+        )
+        if not allowed:
+            raise HTTPException(
+                status_code=http_status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="You have reached your monthly evaluations quota.",
             )
-            if not allowed:
-                raise HTTPException(
-                    status_code=http_status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail="You have reached your monthly evaluations quota.",
-                )
 
         evaluation_create = evaluation_create_request.evaluation
 
@@ -2027,17 +2023,16 @@ class SimpleEvaluationsRouter:
             )
         except Exception:
             # Internal error after the quota was charged — refund.
-            if is_ee():
-                await check_entitlements(  # type: ignore
-                    key=Counter.EVALUATIONS_RUN,  # type: ignore
-                    delta=-1,
-                )
+            await check_entitlements(  # type: ignore
+                key=Counter.EVALUATIONS_RUN,  # type: ignore
+                delta=-1,
+            )
             raise
 
         # `create` returns None silently on malformed input (early-guard
         # `return None` paths). Refund the charge so the meter only counts
         # evaluations that actually landed.
-        if is_ee() and evaluation is None:
+        if evaluation is None:
             await check_entitlements(  # type: ignore
                 key=Counter.EVALUATIONS_RUN,  # type: ignore
                 delta=-1,
@@ -2741,16 +2736,15 @@ class SimpleQueuesRouter:
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        if is_ee():
-            allowed, _, _ = await check_entitlements(  # type: ignore
-                key=Counter.EVALUATIONS_RUN,  # type: ignore
-                delta=1,
+        allowed, _, _ = await check_entitlements(  # type: ignore
+            key=Counter.EVALUATIONS_RUN,  # type: ignore
+            delta=1,
+        )
+        if not allowed:
+            raise HTTPException(
+                status_code=http_status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="You have reached your monthly evaluations quota.",
             )
-            if not allowed:
-                raise HTTPException(
-                    status_code=http_status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail="You have reached your monthly evaluations quota.",
-                )
 
         try:
             queue = await self.simple_queues_service.create(
@@ -2762,16 +2756,15 @@ class SimpleQueuesRouter:
             )
         except Exception:
             # Internal error after the quota was charged — refund.
-            if is_ee():
-                await check_entitlements(  # type: ignore
-                    key=Counter.EVALUATIONS_RUN,  # type: ignore
-                    delta=-1,
-                )
+            await check_entitlements(  # type: ignore
+                key=Counter.EVALUATIONS_RUN,  # type: ignore
+                delta=-1,
+            )
             raise
 
         # `create` returns None silently on malformed input. Refund the
         # charge so the meter only counts queues that actually landed.
-        if is_ee() and queue is None:
+        if queue is None:
             await check_entitlements(  # type: ignore
                 key=Counter.EVALUATIONS_RUN,  # type: ignore
                 delta=-1,

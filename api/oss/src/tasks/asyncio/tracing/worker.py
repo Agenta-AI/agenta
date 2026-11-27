@@ -15,21 +15,19 @@ from oss.src.core.tracing.service import TracingService
 from oss.src.core.tracing.dtos import OTelFlatSpan
 from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.common import is_ee
 from oss.src.core.tracing.streaming import deserialize_span
 from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
+
+from ee.src.core.access.entitlements.service import (
+    check_entitlements,
+    scope_from,
+    Counter,
+)
 
 log = get_module_logger(__name__)
 
 RECOMPUTE_ATTEMPTS = 3
 RECOMPUTE_BACKOFF_S = 0.5
-
-if is_ee():
-    from ee.src.core.access.entitlements.service import (
-        check_entitlements,
-        scope_from,
-        Counter,
-    )
 
 
 class TracingWorker(StreamConsumer):
@@ -155,7 +153,7 @@ class TracingWorker(StreamConsumer):
             meter = None
             allowed = True
 
-            if is_ee() and delta > 0:
+            if delta > 0:
                 try:
                     # Layer 2: Authoritative DB check + adjust (cache=False for hard check)
                     allowed, meter, rollback = await check_entitlements(  # type: ignore

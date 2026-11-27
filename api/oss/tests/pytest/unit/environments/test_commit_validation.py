@@ -25,13 +25,7 @@ class _DummyRequest:
 
 
 def _patch_ee(monkeypatch):
-    monkeypatch.setattr(
-        "oss.src.apis.fastapi.environments.router.is_ee",
-        lambda: False,
-    )
-    # RBAC now enforces in both editions, so the handler's check_action_access
-    # runs regardless of is_ee(); stub it (these tests exercise commit
-    # validation, not access control).
+    # These tests exercise commit validation, not access control.
     monkeypatch.setattr(
         "oss.src.apis.fastapi.environments.router.check_action_access",
         AsyncMock(return_value=True),
