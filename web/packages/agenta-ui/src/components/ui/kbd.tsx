@@ -15,14 +15,14 @@ const kbdVariants = cva(
     {
         variants: {
             tone: {
-                chip: "ag-surface-chip text-[var(--ag-colorTextSecondary)] [[data-slot=tooltip-content]_&]:border-transparent [[data-slot=tooltip-content]_&]:bg-white/20 [[data-slot=tooltip-content]_&]:text-inherit",
-                inverse: "bg-white/20 text-inherit",
+                chip: "ag-surface-chip text-muted-foreground [[data-slot=tooltip-content]_&]:border-transparent [[data-slot=tooltip-content]_&]:bg-background/20 [[data-slot=tooltip-content]_&]:text-inherit",
+                inverse: "bg-background/20 text-inherit",
             },
             size: {
                 // Fixed height = min-width, so a single glyph is a square cap and a word
                 // (`Esc`) grows only sideways.
-                sm: "h-4 min-w-4 px-1 text-[10px]",
-                md: "h-5 min-w-5 px-1.5 text-[11px]",
+                sm: "h-4 min-w-4 px-1 text-caption",
+                md: "h-5 min-w-5 px-1.5 text-caption",
             },
         },
         defaultVariants: {tone: "chip", size: "sm"},

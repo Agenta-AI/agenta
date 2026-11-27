@@ -17,8 +17,6 @@ export const instructionsView = defineView<InstructionsViewParams>({
     readOnlyOnPhone: true,
     Component: lazyView(
         () => import("./InstructionsViewBody"),
-        <div className="p-4">
-            <MarkdownEditorSkeleton />
-        </div>,
+        <MarkdownEditorSkeleton framed={false} />,
     ),
 })

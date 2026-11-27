@@ -12,14 +12,17 @@ import {HeightCollapse} from "@agenta/ui"
  */
 const RevealCollapse = ({
     open,
+    animate,
     className,
     children,
 }: {
     open: boolean
+    /** False shows the change at once. */
+    animate?: boolean
     className?: string
     children: ReactNode
 }) => (
-    <HeightCollapse open={open} className={className} durationMs={240} fade inert>
+    <HeightCollapse open={open} animate={animate} className={className} fade inert>
         {children}
     </HeightCollapse>
 )

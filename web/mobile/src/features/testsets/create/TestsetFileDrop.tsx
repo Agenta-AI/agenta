@@ -44,7 +44,7 @@ export const TestsetFileDrop = ({
             <div className="flex min-w-0 flex-col gap-3">
                 <div className="flex min-w-0 items-center gap-2 rounded-md border border-solid border-border px-3 py-2">
                     <FileText aria-hidden size={18} className="shrink-0 text-muted-foreground" />
-                    <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                    <span className="min-w-0 flex-1 truncate text-label text-foreground">
                         {file.name}
                     </span>
                     <Button
@@ -75,7 +75,7 @@ export const TestsetFileDrop = ({
                 }}
                 onDragLeave={() => setDragging(false)}
                 onDrop={onDrop}
-                className={`flex w-full cursor-pointer flex-col items-center gap-2 rounded-lg border border-dashed bg-transparent px-4 py-8 text-sm text-foreground ${
+                className={`flex w-full cursor-pointer flex-col items-center gap-2 rounded-lg border border-dashed bg-transparent px-4 py-8 text-body text-foreground ${
                     dragging ? "border-primary bg-muted" : "border-border"
                 }`}
             >
@@ -99,7 +99,7 @@ export const TestsetFileDrop = ({
             />
             <FileFormatHint />
             {error ? (
-                <p role="alert" className="m-0 text-xs text-destructive">
+                <p role="alert" className="m-0 text-meta text-destructive">
                     {error}
                 </p>
             ) : null}

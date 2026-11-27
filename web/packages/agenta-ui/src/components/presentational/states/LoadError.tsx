@@ -3,7 +3,7 @@ import type {ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import loadErrorCatalog from "@agenta/i18n/catalogs/ui.loadError"
-import {RefreshCw, TriangleAlert} from "lucide-react"
+import {ArrowClockwiseIcon, WarningIcon} from "@phosphor-icons/react"
 
 import {cn} from "../../../utils/styles"
 import {Button} from "../../ui/button"
@@ -47,7 +47,7 @@ export const LoadError = ({
         >
             <EmptyHeader>
                 <EmptyMedia variant="icon" className="bg-destructive/10 text-destructive">
-                    <TriangleAlert />
+                    <WarningIcon />
                 </EmptyMedia>
                 <EmptyTitle>{title}</EmptyTitle>
                 {description ? <EmptyDescription>{description}</EmptyDescription> : null}
@@ -55,7 +55,7 @@ export const LoadError = ({
             {onRetry ? (
                 <EmptyContent>
                     <Button variant="outline" size="sm" onClick={onRetry}>
-                        <RefreshCw />
+                        <ArrowClockwiseIcon />
                         {retryLabel}
                     </Button>
                 </EmptyContent>

@@ -192,13 +192,11 @@ describe("D1 — the drawer at its default", () => {
         expect(text()).toContain("Connected")
     })
 
-    it("leads the header with the server tile, colored by the connection name", async () => {
-        // One server glyph for every server (decision 3); the canvas colors the tile (F03), and
-        // the name picks the color, so a server keeps it across the app.
+    it("leads the header with the neutral server Mark", async () => {
         await render()
 
         const tile = document.querySelector('[data-slot="icon-tile"]')
-        expect(tile?.getAttribute("data-tone")).toBe("solid")
+        expect(tile?.getAttribute("data-tone")).toBe("neutral")
         expect(tile?.getAttribute("data-size")).toBe("24")
         expect(tile?.querySelector("svg")).not.toBeNull()
     })

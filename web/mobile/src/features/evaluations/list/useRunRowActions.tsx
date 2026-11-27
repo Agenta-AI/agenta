@@ -31,7 +31,8 @@ export const useRunRowActions = ({projectId, base}: {projectId: string; base: st
     const canEdit = useProjectPermission(projectId, "edit_evaluation_runs")
     const testsetsViewOn = useDeveloperViewEnabled("testsets") === true
     const [, setRevisionId] = useRevisionParam()
-    const {confirm, modal} = useConfirmModal()
+    const confirmDialog = useConfirmModal()
+    const {confirm} = confirmDialog
     // The ref blocks a second click in the same tick, the state redraws the menu.
     const busyRef = useRef(new Set<string>())
     const [busy, setBusy] = useState<ReadonlySet<string>>(new Set())
@@ -170,8 +171,8 @@ export const useRunRowActions = ({projectId, base}: {projectId: string; base: st
         remove,
         removeRuns,
         isBusy: (runId: string) => busy.has(runId),
-        /** Render once, near the list: the delete confirm. */
-        modal,
+        /** The delete confirm; the screen draws it once, near the list. */
+        confirmDialog,
     }
 }
 

@@ -126,14 +126,12 @@ vi.mock("@agenta/ui/drill-in", async (original) => ({
     useDrillInUI: () => ({permissions: {canEditSecrets: true}}),
 }))
 
-import {advancedSection} from "../../src/DrillInView/SchemaControls/agentTemplate/sections/AdvancedSection"
 import {SecretsSectionBody} from "../../src/DrillInView/SchemaControls/agentTemplate/sections/SecretsSection"
 import {
     agentaToolsView,
     advancedView,
     executionView,
 } from "../../src/DrillInView/SchemaControls/agentTemplate/views/advancedViews"
-import {SecretRemoveDialog} from "../../src/secret/SecretRemoveDialog"
 import {secretAttachView} from "../../src/secret/views/secretAttachView"
 import {secretFormView} from "../../src/secret/views/secretFormView"
 import {secretFormDirty} from "../../src/secret/views/SecretFormViewBody"
@@ -254,14 +252,14 @@ afterEach(async () => {
     document.body.innerHTML = ""
 })
 
-describe("Attach a secret: the list and the scope tags", () => {
-    it("lists project secrets as Everyone, own secrets as Only me, and Create new secret last", async () => {
+describe("Attach a secret: the list and the owner chips", () => {
+    it("lists project secrets as Project, own secrets as Personal, and Create new secret last", async () => {
         await openIn(secretAttachView, {}, AGENT)
         await findByText("here:Attach a secret")
         expect(await options(secretSelect()!)).toEqual([
-            "billing-prodEveryone",
-            "github-botEveryone",
-            "my-github-tokenOnly me",
+            "billing-prodProject",
+            "github-botProject",
+            "my-github-tokenPersonal",
             "Create new secret",
         ])
         expect(document.body.textContent).not.toContain("Each person's own secret")
@@ -272,8 +270,8 @@ describe("Attach a secret: the list and the scope tags", () => {
         await openIn(secretAttachView, {}, AGENT)
         await findByText("here:Attach a secret")
         expect(await options(secretSelect()!)).toEqual([
-            "billing-prodEveryone",
-            "github-botEveryone",
+            "billing-prodProject",
+            "github-botProject",
             "Create new secret",
         ])
     })
@@ -283,7 +281,7 @@ describe("Attach a secret: the list and the scope tags", () => {
         fx.own = []
         await openIn(secretAttachView, {}, AGENT)
         await findByText("Name", "label")
-        expect(saveButton("Save & attach")).toBeTruthy()
+        expect(saveButton("Save and attach")).toBeTruthy()
     })
 })
 
@@ -405,7 +403,7 @@ describe("Attach a secret: the attach", () => {
     })
 })
 
-describe("Attach a secret: Save & attach", () => {
+describe("Attach a secret: Save and attach", () => {
     const fillNew = async () => {
         await openIn(secretAttachView, {}, AGENT)
         await findByText("here:Attach a secret")
@@ -426,9 +424,9 @@ describe("Attach a secret: Save & attach", () => {
 
     it("a new secret for everyone goes to the vault, then the agent attaches it", async () => {
         await fillNew()
-        await click(byText("Everyone in Acme Agency"))
+        await click(byText("Project"))
         expect(envField().value).toBe("CRM_TOKEN")
-        await click(saveButton("Save & attach"))
+        await click(saveButton("Save and attach"))
         await waitFor(() => expect(fx.commits).toHaveLength(1))
         expect(fx.order).toEqual(["vault", "commit"])
         expect(fx.saved[0]).toMatchObject({name: "CRM_TOKEN", content: "crm-value"})
@@ -440,7 +438,7 @@ describe("Attach a secret: Save & attach", () => {
 
     it("a new secret for me is the person's own, and the agent takes each person's value", async () => {
         await fillNew()
-        await click(saveButton("Save & attach"))
+        await click(saveButton("Save and attach"))
         await waitFor(() => expect(fx.commits).toHaveLength(1))
         expect(fx.saved[0]!.ownerKind).toBe("user")
         expect(fx.order).toEqual(["vault", "choice", "commit"])
@@ -453,8 +451,8 @@ describe("Attach a secret: Save & attach", () => {
     it("saved but not attached: says so, keeps the secret picked, and Attach retries", async () => {
         fx.commitError = "boom"
         await fillNew()
-        await click(byText("Everyone in Acme Agency"))
-        await click(saveButton("Save & attach"))
+        await click(byText("Project"))
+        await click(saveButton("Save and attach"))
         await findByText("Saved in vault; not attached. boom")
         fx.commitError = null
         await waitFor(() => expect(saveButton("Attach")?.disabled).toBe(false))
@@ -493,20 +491,31 @@ describe("The one secret form (Settings › Secrets)", () => {
 
 describe("Remove a secret attachment (F06 f3)", () => {
     it("a failure keeps the dialog open with the reason", async () => {
-        const onRemove = vi.fn(async () => {
-            throw new Error("conflict")
-        })
-        const onClose = vi.fn()
-        await mount(<SecretRemoveDialog onRemove={onRemove} onClose={onClose} />)
+        fx.commitError = "conflict"
+        await mount(
+            <SecretsSectionBody
+                revisionId="rev-1"
+                bindings={[
+                    {
+                        secret: {slug: "billing-prod"},
+                        binding: {type: "env" as const, name: "BILLING_API_KEY"},
+                    },
+                ]}
+                canEditSecrets
+                openAttach={() => undefined}
+            />,
+        )
+        await click(document.querySelector('button[aria-label="Remove"]'))
         expect(document.body.textContent).toContain("Remove this secret attachment?")
         expect(document.body.textContent).toContain(
             "The agent will lose access to this variable. The secret stays in the project vault.",
         )
         await click(saveButton("Remove"))
         await findByText("conflict")
-        expect(onClose).not.toHaveBeenCalled()
+        expect(document.body.textContent).toContain("Remove this secret attachment?")
+        expect(fx.commits).toHaveLength(0)
         await click(saveButton("Cancel"))
-        expect(onClose).toHaveBeenCalled()
+        await waitFor(() => expect(document.body.textContent).not.toContain("Remove this secret"))
     })
 })
 
@@ -600,38 +609,10 @@ describe("Advanced", () => {
         expect(tools.textContent).toContain("Agenta tools")
         expect(tools.textContent).toContain("· 2 tools")
         expect(document.querySelector('[data-testid="advanced-part-build-kit"]')).toBeNull()
-        // One bordered card (F04 f9), each row with the triangle caret.
+        // The Agent tab's section cards: a muted card with a Mark per part.
         expect(execution.parentElement).toBe(tools.parentElement)
-        expect(execution.parentElement?.className).toContain("border-colorBorderSecondary")
-        expect(execution.querySelector('[data-slot="collapse-caret"]')).not.toBeNull()
-    })
-
-    it("the Configuration page's Advanced card shows the same rows as the view", async () => {
-        writer.schema = sandboxSchema(["local", "daytona"])
-        await openIn(advancedView, {}, AGENT)
-        await findByText("", '[data-testid="advanced-part-execution"]')
-        const viewRows = [...document.querySelectorAll('[data-testid^="advanced-part-"]')].map(
-            (row) => row.textContent,
-        )
-        const opened: unknown[] = []
-        const section = advancedSection({
-            t: ((key: string) => key) as never,
-            mh: {hasAdvanced: true} as never,
-            sectionIndicator: () => undefined,
-            advancedChangeBody: null,
-            openAdvanced: (view) => opened.push(view),
-            schema: writer.schema as never,
-            config: writer.agent,
-            revisionId: "rev-1",
-        })
-        if (!section) throw new Error("no Advanced section")
-        await mount(<div data-testid="page-card">{section.pageContent}</div>)
-        const pageRows = [...document.querySelectorAll('[data-testid="page-card"] button')].map(
-            (row) => row.textContent,
-        )
-        expect(pageRows).toEqual(viewRows)
-        await click(document.querySelector('[data-testid="page-card"] button'))
-        expect(opened).toEqual([executionView])
+        expect(execution.querySelector("[data-section-card]")?.className).toContain("bg-muted")
+        expect(execution.querySelector('[data-slot="icon-tile"]')).not.toBeNull()
     })
 
     it("hides Execution with one sandbox", async () => {
@@ -688,9 +669,9 @@ describe("Advanced", () => {
         await findByText("here:Agenta tools")
         expect(document.querySelector('[role="combobox"]')).toBeNull()
         expect(document.querySelector('[aria-label="Default permission"]')).toBeNull()
-        // The default ("Deactivate") and the two tools ("Deactivate" each).
+        // The default ("Off") and the two tools ("Off" each).
         expect(
-            [...document.querySelectorAll("span")].filter((s) => s.textContent === "Deactivate"),
+            [...document.querySelectorAll("span")].filter((s) => s.textContent === "Off"),
         ).toHaveLength(3)
         expect(document.body.textContent).not.toContain("switches the default to Custom")
     })

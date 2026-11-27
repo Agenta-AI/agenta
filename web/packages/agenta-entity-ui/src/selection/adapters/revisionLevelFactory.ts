@@ -282,7 +282,7 @@ export function createRevisionLevel(
                 "div",
                 {className: "flex flex-col gap-0.5"},
                 // First row - placeholder text
-                React.createElement("span", {className: "text-zinc-400"}, placeholderText),
+                React.createElement("span", {className: "text-muted-foreground"}, placeholderText),
                 // Second row - invisible spacer for subtitle
                 React.createElement("span", {className: "invisible"}, "\u00A0"),
             )

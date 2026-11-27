@@ -41,9 +41,9 @@ import type {ConfigureTabKey, FallbackDetailState, PathSchema} from "./types"
 
 // antd's nav overrides, as classes: equal-width tabs across the header fill, no nav margin,
 // and the scrolling pane inset that used to live on `.ant-tabs-content-holder`.
-const CONFIGURE_TAB_LIST_CLS = "mb-0 flex w-full gap-0 bg-[var(--ag-c-F6F8FA)]"
+const CONFIGURE_TAB_LIST_CLS = "mb-0 flex w-full gap-0 bg-muted"
 const CONFIGURE_TAB_CLS = "flex-1 basis-0 justify-center"
-const CONFIGURE_PANE_CLS = "max-h-[452px] overflow-y-auto px-3 py-3"
+const CONFIGURE_PANE_CLS = "max-h-113 overflow-y-auto px-3 py-3"
 
 interface UseModelConfigurePopoverParams {
     activeData: {parameters?: Record<string, unknown>} | null
@@ -596,8 +596,8 @@ export function useModelConfigurePopover({
 
     const configurePopoverContent = useMemo(
         () => (
-            <div className="w-[320px] max-h-[550px] overflow-hidden rounded bg-[var(--ag-c-FFFFFF)]">
-                <div className="flex items-center justify-between gap-3 border-0 border-b border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-c-F6F8FA)] px-3 py-2">
+            <div className="w-[320px] max-h-[550px] overflow-hidden rounded-lg bg-popover">
+                <div className="flex items-center justify-between gap-3 border-0 border-b border-solid border-border-muted bg-muted px-3 py-2">
                     <div className="flex items-center gap-2 min-w-0">
                         {fallbackDetail && (
                             <Button
@@ -610,7 +610,7 @@ export function useModelConfigurePopover({
                                 <ArrowLeft size={16} />
                             </Button>
                         )}
-                        <span className="truncate text-sm font-medium">
+                        <span className="truncate text-label font-medium">
                             {fallbackDetail
                                 ? fallbackDetail.mode === "new"
                                     ? tNow("entityUi.playgroundConfig.addFallbackModel")
@@ -618,7 +618,7 @@ export function useModelConfigurePopover({
                                 : tNow("entityUi.playgroundConfig.configure")}
                         </span>
                         {fallbackDetail?.mode === "new" && (
-                            <span className="rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-600">
+                            <span className="rounded-sm bg-info/10 px-1.5 py-0.5 text-caption text-info">
                                 {tNow("entityUi.playgroundConfig.newBadge")}
                             </span>
                         )}

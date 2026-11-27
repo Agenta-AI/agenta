@@ -237,8 +237,8 @@ export class ValidationManager {
         lineElement.setAttribute("data-validation-error", primaryError.message)
         lineElement.setAttribute(VALIDATION_LINE_NUMBER_ATTR, String(lineNumber))
         lineElement.setAttribute("title", `🔴 [${primaryError.type}] ${primaryError.message}`)
-        lineElement.style.backgroundColor = "rgba(255, 165, 0, 0.15)"
-        lineElement.style.borderRight = "4px solid #ff8c00"
+        lineElement.style.backgroundColor = "color-mix(in oklab, var(--warning) 15%, transparent)"
+        lineElement.style.borderRight = "1px solid var(--warning)"
         lineElement.style.position = "relative"
     }
 

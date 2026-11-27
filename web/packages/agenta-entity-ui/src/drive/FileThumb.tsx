@@ -79,7 +79,7 @@ function FileThumbImpl({
     // it (object-cover), text/icon center within it. Fixed aspect → the tile height never depends
     // on whether the thumbnail has loaded, so the grid never reflows.
     const box =
-        "flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded bg-colorFillTertiary"
+        "flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded bg-secondary"
 
     // Image — a small downscaled webp data URL; skeleton until it resolves. (Animated gifs render
     // as a static first frame — acceptable for a tile.)
@@ -120,7 +120,7 @@ function FileThumbImpl({
     if (isText && snippet) {
         return (
             <div className={`${box} relative`}>
-                <pre className="absolute inset-0 m-0 overflow-hidden whitespace-pre-wrap break-all p-1.5 text-left font-mono text-[7px] leading-[1.35] text-colorTextTertiary">
+                <pre className="absolute inset-0 m-0 overflow-hidden whitespace-pre-wrap break-all p-1.5 text-left font-mono text-caption leading-[1.35] text-muted-foreground">
                     {snippet}
                 </pre>
             </div>
@@ -135,7 +135,7 @@ function FileThumbImpl({
     return (
         <div className={box}>
             {loadingThumb ? (
-                <div className="h-full w-full animate-pulse bg-colorFillSecondary" />
+                <div className="h-full w-full animate-pulse bg-secondary" />
             ) : (
                 driveFileIcon(file.path, 22)
             )}
@@ -181,7 +181,7 @@ export const DriveTileThumb = memo(function DriveTileThumb({
     if (!MEDIA_KINDS.has(kind) || failed) return <>{fallback}</>
 
     const box =
-        "flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md bg-colorFillTertiary max-md:h-11 max-md:w-11"
+        "flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md bg-secondary "
     if (isImage && imgUrl)
         return (
             <span className={box}>
@@ -208,7 +208,7 @@ export const DriveTileThumb = memo(function DriveTileThumb({
         )
     return isImage && !imgUrl ? (
         <span className={box}>
-            <span className="h-full w-full animate-pulse bg-colorFillSecondary" />
+            <span className="h-full w-full animate-pulse bg-secondary" />
         </span>
     ) : (
         <>{fallback}</>

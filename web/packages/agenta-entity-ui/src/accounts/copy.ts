@@ -37,22 +37,6 @@ export const ACCOUNT_COPY = {
     get addYourSecret() {
         return t("entityUi.accounts.addYourSecret")
     },
-    get whoCanUseIt() {
-        return t("entityUi.accounts.whoCanUseIt")
-    },
-    get onlyMe() {
-        return t("entityUi.accounts.onlyMe")
-    },
-    get onlyMeSecretNote() {
-        return t("entityUi.accounts.onlyMeSecretNote")
-    },
-    everyoneIn: (project?: string) =>
-        project === undefined
-            ? t("entityUi.accounts.everyoneInThisProject")
-            : t("entityUi.accounts.everyoneInProject", {project}),
-    get everyoneSecretNote() {
-        return t("entityUi.accounts.everyoneSecretNote")
-    },
     get userSecretRow() {
         return t("entityUi.accounts.userSecretRow")
     },

@@ -47,9 +47,9 @@ export const RevisionResultCard = ({entityId, children, className}: RevisionResu
                         <span className="ml-1 text-muted-foreground">v{version}</span>
                     ) : null}
                 </Badge>
-                {isDirty ? <Badge variant="draft">{t("playground.runs.draft")}</Badge> : null}
+                {isDirty ? <Badge variant="default">{t("playground.runs.draft")}</Badge> : null}
             </div>
-            <div className="min-w-0 rounded-lg border border-solid border-border px-3 pb-2 pt-6 text-sm">
+            <div className="min-w-0 rounded-lg border border-solid border-border px-3 pb-2 pt-6 text-body">
                 {children}
             </div>
         </div>

@@ -28,10 +28,11 @@ import {
 import {mcpAddView} from "../../src/DrillInView/SchemaControls/agentTemplate/views/mcpAddView"
 import {mcpServerView} from "../../src/DrillInView/SchemaControls/agentTemplate/views/mcpServerView"
 
-import {byText, click, findByText} from "./domHelpers"
+import {byText, click, findByText, waitFor} from "./domHelpers"
 
-const {writer, listeners, endpoints, access, toolReads} = vi.hoisted(() => ({
+const {writer, listeners, endpoints, access, toolReads, deletes} = vi.hoisted(() => ({
     access: {value: "on"},
+    deletes: [] as string[],
     toolReads: {
         count: 0,
         accountSources: [] as (string | undefined)[],
@@ -77,6 +78,9 @@ vi.mock("@agenta/entities/mcpEndpoint", async (importOriginal) => {
         ...original,
         mcpEndpointsQueryAtom: query,
         refreshMcpEndpointsAtom: jotaiAtom(null, () => undefined),
+        deleteMcpEndpointAtom: jotaiAtom(null, async (_get, _set, id: string) => {
+            deletes.push(id)
+        }),
         listMcpTools: async (
             _slug: string,
             _projectId?: string,
@@ -118,7 +122,7 @@ vi.mock("@agenta/entities/workflow", async (importOriginal) => ({
 // finish the connection as each owner would.
 vi.mock("../../src/DrillInView/SchemaControls/agentTemplate/views/McpConnectViewBody", async () => {
     const {createElement: h} = await import("react")
-    type Params = {
+    interface Params {
         reconnect?: {slug: string} | null
         owners?: string[]
         onConnected?: (endpoint: Record<string, string>) => void
@@ -211,6 +215,7 @@ beforeEach(() => {
     endpoints.rows = [endpoint("linear", "healthy"), endpoint("docs-search", "healthy")]
     writer.agent = {mcps: [linear]}
     writer.readOnly = false
+    deletes.length = 0
     access.value = "on"
     writer.update = vi.fn((next) => {
         writer.agent = next(writer.agent)
@@ -233,6 +238,24 @@ describe("Add MCP server view", () => {
         expect(mcps().map((item) => item.name)).toEqual(["linear", "docs_search"])
         await findByText("crumb:docs-search")
         expect(byText("crumb:Add MCP server")).toBeUndefined()
+    })
+
+    it("takes a deleted server off the agent too, so no broken reference stays", async () => {
+        await openIn(mcpAddView, {})
+        await findByText("crumb:Add MCP server")
+        // The added row (linear) holds the "Added" mark and its own menu.
+        let row: HTMLElement | null | undefined = byText("Added")
+        while (row && !row.textContent?.includes("linear")) row = row.parentElement
+        const linearMenu = row?.querySelector("[aria-label='Connection actions']")
+        await act(async () => {
+            linearMenu?.dispatchEvent(
+                new MouseEvent("pointerdown", {bubbles: true, cancelable: true, button: 0}),
+            )
+        })
+        await click(await findByText("Delete", "[role='menuitem']"))
+        await click(await findByText("Delete", "[role='alertdialog'] button"))
+        await waitFor(() => expect(deletes).toEqual(["id-linear"]))
+        expect(mcps()).toEqual([])
     })
 })
 

@@ -151,7 +151,7 @@ export const OnboardingQuestion = ({
                 <h1 id={headingId} tabIndex={-1} className={ONBOARDING_STYLE.headingClass}>
                     {title}
                 </h1>
-                <p className="text-muted-foreground m-0 text-[15px] leading-[22px]">{subtitle}</p>
+                <p className="text-muted-foreground m-0 text-body">{subtitle}</p>
             </div>
             <div role="group" aria-labelledby={headingId} className="flex flex-wrap gap-2">
                 {choices.map(({label, icon: Icon}, index) => {
@@ -166,15 +166,15 @@ export const OnboardingQuestion = ({
                             title={t("onboarding.flow.keyHint", {key})}
                             onClick={() => pickRef.current(label)}
                             className={cn(
-                                "inline-flex h-[42px] cursor-pointer items-center gap-2 rounded-lg border-0 pl-3.5 pr-4 text-sm font-medium transition-[background-color,color,opacity,box-shadow,scale] motion-reduce:transition-none",
+                                "inline-flex h-control cursor-pointer items-center gap-2 rounded-md border-0 pl-3 pr-4 text-label transition-[background-color,color,opacity,scale] motion-reduce:transition-none",
                                 FOCUS_RING,
                                 active
-                                    ? "bg-foreground text-background"
-                                    : "bg-background text-foreground ring-foreground/10 hover:ring-foreground/30 shadow-xs ring-1",
+                                    ? "bg-selected text-foreground ring-1 ring-border-strong"
+                                    : "bg-background text-foreground ring-1 ring-border hover:bg-[image:linear-gradient(var(--accent),var(--accent))]",
                                 picked !== null && (active ? "scale-[0.98]" : "opacity-45"),
                             )}
                         >
-                            {Icon ? <Icon size={17} /> : null}
+                            {Icon ? <Icon size={16} /> : null}
                             {questionText.choice(questionId, label)}
                         </button>
                     )
@@ -182,10 +182,7 @@ export const OnboardingQuestion = ({
             </div>
             {writeIn ? (
                 <div className="flex flex-col gap-2">
-                    <label
-                        className="text-[13px] font-medium leading-[18px]"
-                        htmlFor="onboarding-other"
-                    >
+                    <label className="text-label" htmlFor="onboarding-other">
                         {t("onboarding.flow.writeIn")}
                     </label>
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -203,12 +200,12 @@ export const OnboardingQuestion = ({
                                 event.preventDefault()
                                 continueRef.current()
                             }}
-                            className="h-9 sm:max-w-[420px]"
+                            className="sm:max-w-105"
                         />
                         <Button
                             onClick={() => continueRef.current()}
                             disabled={typed.trim().length === 0}
-                            className="max-sm:h-11 max-sm:w-full"
+                            className="max-sm:w-full"
                         >
                             {t("onboarding.flow.continue")}
                             <ArrowRight data-icon="inline-end" />
@@ -220,7 +217,7 @@ export const OnboardingQuestion = ({
                     <Button
                         onClick={() => continueRef.current()}
                         disabled={labels.length === 0}
-                        className="max-sm:h-11 max-sm:w-full"
+                        className="max-sm:w-full"
                     >
                         {t("onboarding.flow.continue")}
                         <ArrowRight data-icon="inline-end" />

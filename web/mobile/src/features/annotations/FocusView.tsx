@@ -71,12 +71,12 @@ export const FocusView = ({
                             testcaseId={testcaseRef.testcaseId}
                         />
                     </div>
-                    <div className="flex w-full shrink-0 flex-col overflow-hidden rounded-lg border border-solid border-border bg-background md:w-[300px] lg:w-[400px] xl:w-[450px]">
+                    <div className="flex w-full shrink-0 flex-col overflow-hidden rounded-lg border border-solid border-border bg-background md:w-75 lg:w-100 xl:w-112.5">
                         <AnnotationFormPanel scenarioId={scenarioId} queueId={queueId} />
                     </div>
                 </div>
             </div>
-            <div className="flex h-[55px] shrink-0 items-center border-0 border-t border-solid border-border bg-background px-3 sm:px-4">
+            <div className="flex h-14 shrink-0 items-center border-0 border-t border-solid border-border bg-background px-3 sm:px-4">
                 <FocusFooter scenarioId={scenarioId} submission={submission} />
             </div>
         </div>

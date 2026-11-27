@@ -133,9 +133,8 @@ export interface CatalogChooserProps<I, T, C> {
 
 function ItemTrailing({state}: {state: CatalogItemState}) {
     if (state === "pending") return <Spinner size="small" />
-    if (state === "selected")
-        return <Check size={13} className="shrink-0 text-[var(--ag-colorPrimary)]" />
-    return <Plus size={13} className="shrink-0 text-[var(--ag-colorTextTertiary)]" />
+    if (state === "selected") return <Check size={13} className="shrink-0 text-primary" />
+    return <Plus size={13} className="shrink-0 text-muted-foreground" />
 }
 
 function CatalogItemList<I, T, C>({
@@ -165,9 +164,7 @@ function CatalogItemList<I, T, C>({
             <InputAffix
                 allowClear
                 placeholder={props.itemsSearchPlaceholder ?? t("entityUi.catalogChooser.search")}
-                prefix={
-                    <MagnifyingGlass size={13} className="text-[var(--ag-colorTextTertiary)]" />
-                }
+                prefix={<MagnifyingGlass size={13} className="text-muted-foreground" />}
                 value={query}
                 onValueChange={setQuery}
             />
@@ -180,7 +177,7 @@ function CatalogItemList<I, T, C>({
                         <Spinner size="small" />
                     </div>
                 ) : items.length === 0 ? (
-                    <div className="px-2 py-4 text-xs text-[var(--ag-colorTextTertiary)]">
+                    <div className="px-2 py-4 text-meta text-muted-foreground">
                         {searching
                             ? t("entityUi.catalogChooser.noMatches", {query: query.trim()})
                             : props.emptyItemsText}
@@ -215,33 +212,33 @@ function CatalogItemList<I, T, C>({
                                     className={`flex w-full items-start gap-3 rounded-md border-0 bg-transparent px-2.5 py-2 text-left ${
                                         disabledRow
                                             ? "cursor-not-allowed opacity-60"
-                                            : "cursor-pointer hover:bg-[var(--ag-colorFillSecondary)]"
+                                            : "cursor-pointer hover:bg-accent"
                                     }`}
                                 >
                                     <span className="min-w-0 flex-1">
                                         <span className="flex items-center gap-1.5">
                                             <span
-                                                className={`min-w-0 truncate text-xs font-medium ${
+                                                className={`min-w-0 truncate text-label font-medium ${
                                                     deprecated
-                                                        ? "text-[var(--ag-colorTextTertiary)]"
-                                                        : "text-[var(--ag-colorText)]"
+                                                        ? "text-muted-foreground"
+                                                        : "text-foreground"
                                                 }`}
                                             >
                                                 {props.item.name(it) || props.item.key(it)}
                                             </span>
                                             {deprecated ? (
-                                                <span className="shrink-0 rounded bg-[var(--ag-colorFillSecondary)] px-1 py-px text-[9px] uppercase tracking-wide text-[var(--ag-colorWarningText)]">
+                                                <span className="shrink-0 rounded-sm bg-warning/10 px-1 py-px text-caption text-warning">
                                                     {t("entityUi.catalogChooser.deprecated")}
                                                 </span>
                                             ) : null}
                                             {readOnly ? (
-                                                <span className="shrink-0 rounded bg-[var(--ag-colorFillSecondary)] px-1 py-px text-[9px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                                                <span className="shrink-0 rounded-sm bg-secondary px-1 py-px text-caption text-muted-foreground">
                                                     {t("entityUi.catalogChooser.readOnly")}
                                                 </span>
                                             ) : null}
                                         </span>
                                         {description ? (
-                                            <span className="mt-1 line-clamp-2 text-xs leading-snug text-[var(--ag-colorTextTertiary)]">
+                                            <span className="mt-1 line-clamp-2 text-meta leading-snug text-muted-foreground">
                                                 {description}
                                             </span>
                                         ) : null}
@@ -250,7 +247,7 @@ function CatalogItemList<I, T, C>({
                                                 {categories.slice(0, 3).map((c) => (
                                                     <span
                                                         key={c}
-                                                        className="ag-drawer-tag rounded bg-[var(--ag-colorFillSecondary)] px-1.5 py-0.5 text-[12px] leading-none text-[var(--ag-colorTextTertiary)]"
+                                                        className="ag-drawer-tag rounded bg-secondary px-1.5 py-0.5 text-meta leading-none text-muted-foreground"
                                                     >
                                                         {c}
                                                     </span>
@@ -297,18 +294,18 @@ function ConnectionDetail<I, T, C>({
     const account = props.connection.name(connection) || props.connection.slug(connection) || ""
     const connectedAt = props.connection.connectedAt?.(connection) || ""
     return (
-        <div className="ag-drawer-card flex items-center gap-2.5 rounded-lg border border-solid border-[var(--ag-colorBorder)] px-3 py-2">
+        <div className="ag-drawer-card flex items-center gap-2.5 rounded-lg border border-solid border-border px-3 py-2">
             <AppLogo
                 logo={integration ? props.integration.logo(integration) : undefined}
                 size={20}
             />
             <div className="min-w-0 flex-1">
-                <div className="truncate text-xs font-medium">
+                <div className="truncate text-label font-medium">
                     {integration
                         ? props.integration.name(integration)
                         : props.connection.integrationKey(connection)}
                 </div>
-                <div className="truncate text-xs text-[var(--ag-colorTextTertiary)]">
+                <div className="truncate text-meta text-muted-foreground">
                     {account || props.connection.integrationKey(connection)}
                     {connectedAt
                         ? ` · ${t("entityUi.catalogChooser.connectedAt", {when: connectedAt})}`
@@ -316,14 +313,12 @@ function ConnectionDetail<I, T, C>({
                 </div>
             </div>
             <span
-                className={`inline-flex shrink-0 items-center gap-1 text-xs ${
-                    ready ? "text-[var(--ag-colorSuccess)]" : "text-[var(--ag-colorWarningText)]"
+                className={`inline-flex shrink-0 items-center gap-1 text-meta ${
+                    ready ? "text-success" : "text-warning"
                 }`}
             >
                 <span
-                    className={`h-1.5 w-1.5 rounded-full ${
-                        ready ? "bg-[var(--ag-colorSuccess)]" : "bg-[var(--ag-colorWarning)]"
-                    }`}
+                    className={`h-1.5 w-1.5 rounded-round ${ready ? "bg-success" : "bg-warning"}`}
                 />
                 {ready
                     ? t("entityUi.catalogAppCard.connected")
@@ -358,16 +353,16 @@ function ConnectionSwitcher<I, T, C>({
     const selectedId = props.connection.id(selectedConn)
 
     return (
-        <div className="ag-drawer-card rounded-lg border border-solid border-[var(--ag-colorBorder)] p-2.5">
+        <div className="ag-drawer-card rounded-lg border border-solid border-border p-2.5">
             <div className="mb-2 flex items-center gap-2.5">
                 <AppLogo
                     logo={integration ? props.integration.logo(integration) : undefined}
                     size={20}
                 />
-                <span className="min-w-0 flex-1 truncate text-xs font-medium">
+                <span className="min-w-0 flex-1 truncate text-label font-medium">
                     {integrationName}
                 </span>
-                <span className="shrink-0 text-xs text-[var(--ag-colorTextTertiary)]">
+                <span className="shrink-0 text-meta text-muted-foreground">
                     {t("entityUi.catalogChooser.accountCount", {count: connections.length})}
                 </span>
             </div>
@@ -394,29 +389,25 @@ function ConnectionSwitcher<I, T, C>({
                             aria-pressed={isCurrent}
                             className={`flex items-center gap-2 rounded-md border border-solid px-2 py-1.5 text-left ${
                                 isCurrent
-                                    ? "border-[var(--ag-colorPrimary)] bg-[var(--ag-colorPrimaryBg)]"
-                                    : "cursor-pointer border-[var(--ag-colorBorder)] bg-transparent hover:border-[var(--ag-colorPrimary)] hover:bg-[var(--ag-colorFillQuaternary)]"
+                                    ? "border-primary bg-selected"
+                                    : "cursor-pointer border-border bg-transparent hover:border-primary hover:bg-accent"
                             }`}
                         >
                             <span
-                                className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                                    ready
-                                        ? "bg-[var(--ag-colorSuccess)]"
-                                        : "bg-[var(--ag-colorWarning)]"
+                                className={`h-1.5 w-1.5 shrink-0 rounded-round ${
+                                    ready ? "bg-success" : "bg-warning"
                                 }`}
                             />
                             <span className="min-w-0 flex-1">
                                 <span
-                                    className={`block truncate text-xs font-medium ${
-                                        isCurrent
-                                            ? "text-[var(--ag-colorPrimary)]"
-                                            : "text-[var(--ag-colorText)]"
+                                    className={`block truncate text-label font-medium ${
+                                        isCurrent ? "text-primary" : "text-foreground"
                                     }`}
                                 >
                                     {primary}
                                 </span>
                                 {(secondary || connectedAt) && (
-                                    <span className="block truncate text-[12px] text-[var(--ag-colorTextTertiary)]">
+                                    <span className="block truncate text-meta text-muted-foreground">
                                         {secondary}
                                         {secondary && connectedAt ? " · " : ""}
                                         {connectedAt
@@ -427,12 +418,7 @@ function ConnectionSwitcher<I, T, C>({
                                     </span>
                                 )}
                             </span>
-                            {isCurrent && (
-                                <Check
-                                    size={12}
-                                    className="shrink-0 text-[var(--ag-colorPrimary)]"
-                                />
-                            )}
+                            {isCurrent && <Check size={12} className="shrink-0 text-primary" />}
                         </button>
                     )
                 })}
@@ -463,26 +449,20 @@ function AppRailItem({
             type="button"
             onClick={onClick}
             className={`ag-drawer-row flex w-full cursor-pointer items-center gap-2 rounded border-0 border-l-2 border-solid border-transparent px-2 py-1.5 text-left ${
-                active
-                    ? "ag-drawer-row-selected bg-[var(--ag-colorPrimaryBg)]"
-                    : "bg-transparent hover:bg-[var(--ag-colorFillTertiary)]"
+                active ? "ag-drawer-row-selected bg-selected" : "bg-transparent hover:bg-accent"
             }`}
         >
             <AppLogo logo={logo} size={18} />
             <span className="min-w-0 flex-1">
                 <span
-                    className={`block truncate text-xs ${
-                        active
-                            ? "font-medium text-[var(--ag-colorPrimary)]"
-                            : "text-[var(--ag-colorText)]"
+                    className={`block truncate text-label ${
+                        active ? "font-medium text-primary" : "text-foreground"
                     }`}
                 >
                     {name}
                 </span>
                 {sub && (
-                    <span className="block truncate text-[12px] text-[var(--ag-colorTextTertiary)]">
-                        {sub}
-                    </span>
+                    <span className="block truncate text-meta text-muted-foreground">{sub}</span>
                 )}
             </span>
             {state && (
@@ -490,10 +470,8 @@ function AppRailItem({
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <span
-                                className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                                    state === "active"
-                                        ? "bg-[var(--ag-colorSuccess)]"
-                                        : "bg-[var(--ag-colorWarning)]"
+                                className={`h-1.5 w-1.5 shrink-0 rounded-round ${
+                                    state === "active" ? "bg-success" : "bg-warning"
                                 }`}
                             />
                         </TooltipTrigger>
@@ -527,11 +505,11 @@ function ConnectInvite<I, T, C>({
                 logo={integration ? props.integration.logo(integration) : undefined}
                 size={32}
             />
-            <div className="text-xs font-medium">
+            <div className="text-label font-medium">
                 {name ?? t("entityUi.catalogChooser.thisApp")}
             </div>
             {description && (
-                <div className="max-w-[280px] text-xs leading-snug text-[var(--ag-colorTextTertiary)]">
+                <div className="max-w-[280px] text-meta leading-snug text-muted-foreground">
                     {description}
                 </div>
             )}
@@ -560,16 +538,12 @@ function CategoryRailRow({
             onClick={onClick}
             aria-pressed={active}
             className={`ag-drawer-row flex w-full cursor-pointer items-center rounded border-0 border-l-2 border-solid border-transparent px-2 py-1.5 text-left ${
-                active
-                    ? "ag-drawer-row-selected bg-[var(--ag-colorPrimaryBg)]"
-                    : "bg-transparent hover:bg-[var(--ag-colorFillTertiary)]"
+                active ? "ag-drawer-row-selected bg-selected" : "bg-transparent hover:bg-accent"
             }`}
         >
             <span
-                className={`min-w-0 flex-1 truncate text-xs ${
-                    active
-                        ? "font-medium text-[var(--ag-colorPrimary)]"
-                        : "text-[var(--ag-colorText)]"
+                className={`min-w-0 flex-1 truncate text-label ${
+                    active ? "font-medium text-primary" : "text-foreground"
                 }`}
             >
                 {label}
@@ -583,10 +557,7 @@ function CategoryRailSkeleton() {
     return (
         <>
             {Array.from({length: 6}).map((_, i) => (
-                <div
-                    key={i}
-                    className="mx-2 my-1 h-3 animate-pulse rounded bg-[var(--ag-colorFillQuaternary)]"
-                />
+                <div key={i} className="mx-2 my-1 h-3 animate-pulse rounded bg-secondary" />
             ))}
         </>
     )
@@ -597,10 +568,7 @@ function CatalogGridSkeleton() {
     return (
         <>
             {Array.from({length: 8}).map((_, i) => (
-                <div
-                    key={i}
-                    className="h-[112px] animate-pulse rounded-lg bg-[var(--ag-colorFillQuaternary)]"
-                />
+                <div key={i} className="h-28 animate-pulse rounded-lg bg-secondary" />
             ))}
         </>
     )
@@ -745,7 +713,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
     const railPresent = hasConnections || hasCategoryGroup
 
     return (
-        <div className={`flex h-full min-h-[260px] ${fullBleedRail ? "" : "gap-3"}`}>
+        <div className={`flex h-full min-h-65 ${fullBleedRail ? "" : "gap-3"}`}>
             {railPresent && (
                 <div
                     className={`ag-drawer-rail min-h-0 flex-col sm:flex sm:w-[220px] sm:shrink-0 ${
@@ -757,10 +725,10 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                         // own so scrolling categories never scrolls the connections away.
                         <div className="flex shrink-0 flex-col gap-0.5">
                             <div className="flex items-center justify-between px-2 pb-1.5 pt-0.5">
-                                <span className="text-[12px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                                <span className="text-meta text-muted-foreground">
                                     {t("entityUi.catalogChooser.yourConnections")}
                                 </span>
-                                <span className="shrink-0 text-[12px] text-[var(--ag-colorTextTertiary)]">
+                                <span className="shrink-0 text-meta text-muted-foreground">
                                     {connections.length}
                                 </span>
                             </div>
@@ -791,7 +759,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                 <button
                                     type="button"
                                     onClick={() => setShowAllConns((v) => !v)}
-                                    className="ml-2 mt-0.5 cursor-pointer self-start border-0 bg-transparent p-0 text-xs text-[var(--ag-colorPrimary)] hover:underline"
+                                    className="ml-2 mt-0.5 cursor-pointer self-start border-0 bg-transparent p-0 text-meta text-primary hover:underline"
                                 >
                                     {showAllConns
                                         ? t("entityUi.catalogChooser.showLess")
@@ -806,9 +774,9 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                     {hasCategoryGroup && (
                         <div className="flex min-h-0 flex-1 flex-col">
                             {hasConnections && (
-                                <div className="mx-2 my-2 shrink-0 border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)]" />
+                                <div className="mx-2 my-2 shrink-0 border-0 border-t border-solid border-border-muted" />
                             )}
-                            <div className="shrink-0 px-2 pb-1.5 text-[12px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                            <div className="shrink-0 px-2 pb-1.5 text-meta text-muted-foreground">
                                 {t("entityUi.catalogChooser.browseByCategory")}
                             </div>
                             <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pr-1">
@@ -840,7 +808,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
             <div
                 className={`min-h-0 min-w-0 flex-1 flex-col ${fullBleedRail ? "py-4 pr-6" : ""} ${
                     railPresent
-                        ? `border-0 border-solid border-[var(--ag-colorBorderSecondary)] sm:border-l ${
+                        ? `border-0 border-solid border-border-muted sm:border-l ${
                               fullBleedRail ? "sm:pl-5" : "sm:pl-3"
                           }`
                         : ""
@@ -850,7 +818,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                     <button
                         type="button"
                         onClick={() => setMobileView("rail")}
-                        className="mb-3 flex shrink-0 cursor-pointer items-center gap-1 self-start border-0 bg-transparent p-0 text-xs text-[var(--ag-colorTextSecondary)] hover:text-[var(--ag-colorText)] sm:hidden"
+                        className="mb-3 flex shrink-0 cursor-pointer items-center gap-1 self-start border-0 bg-transparent p-0 text-meta text-muted-foreground hover:text-foreground sm:hidden"
                     >
                         <ArrowLeft size={13} />{" "}
                         {hasConnections
@@ -863,7 +831,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                         <button
                             type="button"
                             onClick={() => setSelected(null)}
-                            className="mb-3 flex shrink-0 cursor-pointer items-center gap-1 self-start border-0 bg-transparent p-0 text-xs text-[var(--ag-colorTextSecondary)] hover:text-[var(--ag-colorText)]"
+                            className="mb-3 flex shrink-0 cursor-pointer items-center gap-1 self-start border-0 bg-transparent p-0 text-meta text-muted-foreground hover:text-foreground"
                         >
                             <ArrowLeft size={13} /> {t("entityUi.catalogChooser.back")}
                         </button>
@@ -897,12 +865,12 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                                     onClick={() =>
                                                         props.onReconnect?.(selectedConn)
                                                     }
-                                                    className="mt-2 flex w-full items-center justify-between gap-2 rounded-md border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-3 py-2 text-left disabled:cursor-wait"
+                                                    className="mt-2 flex w-full items-center justify-between gap-2 rounded-md border border-solid border-warning/30 bg-warning/10 px-3 py-2 text-left disabled:cursor-wait"
                                                 >
-                                                    <span className="text-xs text-[var(--ag-colorWarningText)]">
+                                                    <span className="text-meta text-warning">
                                                         {t("entityUi.catalogChooser.authPending")}
                                                     </span>
-                                                    <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-[var(--ag-colorPrimary)]">
+                                                    <span className="flex shrink-0 items-center gap-1 text-label font-medium text-primary">
                                                         {busy ? (
                                                             <Spinner size="small" />
                                                         ) : (
@@ -920,7 +888,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                             )
                                         })()}
                                     <div className="mb-2 mt-4 flex items-center justify-between gap-2">
-                                        <span className="text-[12px] uppercase tracking-wide text-[var(--ag-colorTextDescription)]">
+                                        <span className="text-meta text-muted-foreground">
                                             {props.itemsLabel}
                                         </span>
                                         {selectedIntegration && (
@@ -929,7 +897,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                                 onClick={() =>
                                                     setConnectIntegration(selectedIntegration)
                                                 }
-                                                className="cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--ag-colorPrimary)] hover:underline"
+                                                className="cursor-pointer border-0 bg-transparent p-0 text-meta text-primary hover:underline"
                                             >
                                                 {t("entityUi.catalogChooser.connectAnother")}
                                             </button>
@@ -959,12 +927,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                             allowClear
                             autoFocus
                             placeholder={t("entityUi.catalogChooser.searchApps")}
-                            prefix={
-                                <MagnifyingGlass
-                                    size={13}
-                                    className="text-[var(--ag-colorTextTertiary)]"
-                                />
-                            }
+                            prefix={<MagnifyingGlass size={13} className="text-muted-foreground" />}
                             value={searchInput}
                             onValueChange={setSearchInput}
                             onKeyDown={(e) => {
@@ -976,7 +939,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                             }}
                         />
                         <div className="mb-1 mt-2 flex items-center justify-between gap-2 px-0.5">
-                            <span className="text-[12px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                            <span className="text-meta text-muted-foreground">
                                 {searching
                                     ? t("entityUi.catalogChooser.results")
                                     : category
@@ -984,7 +947,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                       : t("entityUi.catalogChooser.allApps")}
                             </span>
                             {integrations.length > 0 && (
-                                <span className="shrink-0 text-[12px] text-[var(--ag-colorTextTertiary)]">
+                                <span className="shrink-0 text-meta text-muted-foreground">
                                     {typeof total === "number" && total > integrations.length
                                         ? t("entityUi.catalogChooser.countOfTotal", {
                                               shown: integrations.length,
@@ -1002,7 +965,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                 <CatalogGridSkeleton />
                             ) : integrationsError && integrations.length === 0 ? (
                                 <div className="col-span-full flex flex-col items-center gap-2 py-8 text-center">
-                                    <span className="text-xs text-[var(--ag-colorTextTertiary)]">
+                                    <span className="text-meta text-muted-foreground">
                                         {t("entityUi.catalogChooser.loadError")}
                                     </span>
                                     {refetchIntegrations && (
@@ -1015,7 +978,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                     )}
                                 </div>
                             ) : integrations.length === 0 ? (
-                                <div className="col-span-full flex flex-col items-center gap-2 py-8 text-center text-xs text-[var(--ag-colorTextTertiary)]">
+                                <div className="col-span-full flex flex-col items-center gap-2 py-8 text-center text-meta text-muted-foreground">
                                     {searching ? (
                                         <>
                                             <span>
@@ -1026,7 +989,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                             <button
                                                 type="button"
                                                 onClick={clearSearch}
-                                                className="cursor-pointer border-0 bg-transparent p-0 text-[var(--ag-colorPrimary)] hover:underline"
+                                                className="cursor-pointer border-0 bg-transparent p-0 text-primary hover:underline"
                                             >
                                                 {t("entityUi.catalogChooser.clearSearch")}
                                             </button>

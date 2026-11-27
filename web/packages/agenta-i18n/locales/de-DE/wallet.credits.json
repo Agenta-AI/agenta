@@ -19,7 +19,7 @@
     "ofAmount": "von {{amount}}",
     "purchased": "Gekauft",
     "remainingOfTotal": "{{remaining}} von {{total}}",
-    "remainingTitle": "Verbleibende Credits",
+    "remainingTitle": "Credits",
     "resets": "Wird am {{date}} zurückgesetzt",
     "resetsDaily": "Wird täglich zurückgesetzt",
     "statusEmpty": "Leer",

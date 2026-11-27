@@ -4,17 +4,16 @@ import {createT, useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import subagentViewsCatalog from "@agenta/i18n/catalogs/entityUi.subagentViews"
 import type {ConfigItemRef} from "@agenta/ui/view-stack"
-import {Robot} from "@phosphor-icons/react"
+import {Plus, Robot} from "@phosphor-icons/react"
 
 import {countSummary} from "../agentTemplateUtils"
 import {ConnectedSubagentList} from "../ConnectedSubagents"
 import {describeSubagent, toolReferenceSlug} from "../itemDescriptors"
-import {RemoveFromAgentDialog} from "../RemoveFromAgentDialog"
 import {SectionAddButton} from "../SectionAddButton"
-import {SectionPageAction} from "../SectionPageAction"
 import {savedSubagentSlugs, SubagentCurrentName} from "../SubagentAgent"
 import {findSubagentIndex, subagentItemRef, uniqueSlugRef} from "../subagentReference"
 import {SubagentList, type SubagentListProps} from "../ToolManagementList"
+import {RemoveFromAgentDialog} from "../views/RemoveFromAgentDialog"
 
 import type {AgentTemplateT, SectionIndicatorFor, SectionResult} from "./types"
 
@@ -69,8 +68,6 @@ export const subagentsSection = ({
         // Compact "+" for the header's `extra` slot. The header keeps a uniform height regardless of
         // this button: ConfigAccordionSection collapses the extra slot's vertical footprint (see its
         // `-my-2`), so no per-button sizing is needed here.
-        // Add MCP server and Add subagent are read only on a phone: the list shows, no add.
-        hideExtraOnPhone: true,
         extra:
             !disabled && openAddSubagents ? (
                 <SectionAddButton
@@ -78,10 +75,18 @@ export const subagentsSection = ({
                     onClick={openAddSubagents}
                 />
             ) : undefined,
-        pageAction:
-            !disabled && openAddSubagents ? (
-                <SectionPageAction action="add" onClick={openAddSubagents} />
-            ) : undefined,
+        emptyAction:
+            !disabled && openAddSubagents
+                ? {label: t("entityUi.agentTemplate.addSubagent"), onClick: openAddSubagents}
+                : undefined,
+        phoneAction:
+            !disabled && openAddSubagents
+                ? {
+                      label: t("entityUi.agentTemplate.addSubagent"),
+                      icon: <Plus className="size-3.5" />,
+                      onClick: openAddSubagents,
+                  }
+                : undefined,
         defaultOpen: subagentCount > 0,
         content: (
             <SubagentSectionBody
@@ -116,6 +121,7 @@ const SubagentSectionBody = ({
     removeSubagent: (item: ConfigItemRef) => void
     removeSubagentAt: (index: number) => void
 }) => {
+    const t = useT(subagentViewsCatalog)
     const [removing, setRemoving] = useState<{
         /** By slug when no other entry has it, so a write that drops a copied name keeps it. */
         item: ConfigItemRef | null
@@ -154,6 +160,15 @@ const SubagentSectionBody = ({
         }
         setRemoving(null)
     }
+    const dialog = (name: string) => (
+        <RemoveFromAgentDialog
+            open={removing !== null}
+            name={name}
+            body={t("entityUi.subagentViews.agentStays")}
+            onConfirm={confirmRemove}
+            onCancel={() => setRemoving(null)}
+        />
+    )
     return (
         <>
             {/* Only the connected list can resolve a reference's type and mark a non-agent. */}
@@ -162,53 +177,19 @@ const SubagentSectionBody = ({
             ) : (
                 <SubagentList {...listProps} />
             )}
-            {removing ? (
-                // The name the row shows: the agent's current name once it resolves.
-                workflowReference ? (
-                    <SubagentCurrentName
-                        bridge={workflowReference}
-                        slug={removing.slug}
-                        savedSlugs={savedSubagentSlugs(subagentItems)}
-                        fallback={removing.name}
-                    >
-                        {(name) => (
-                            <SubagentRemoveDialog
-                                name={name}
-                                onRemove={confirmRemove}
-                                onClose={() => setRemoving(null)}
-                            />
-                        )}
-                    </SubagentCurrentName>
-                ) : (
-                    <SubagentRemoveDialog
-                        name={removing.name}
-                        onRemove={confirmRemove}
-                        onClose={() => setRemoving(null)}
-                    />
-                )
-            ) : null}
+            {/* The agent's current name once it resolves. */}
+            {workflowReference && removing ? (
+                <SubagentCurrentName
+                    bridge={workflowReference}
+                    slug={removing.slug}
+                    savedSlugs={savedSubagentSlugs(subagentItems)}
+                    fallback={removing.name}
+                >
+                    {(name) => dialog(name)}
+                </SubagentCurrentName>
+            ) : (
+                dialog(removing?.name ?? "")
+            )}
         </>
-    )
-}
-
-/** "Remove {name} from this agent?" (F06 f2): the agent it calls stays in the project. */
-export const SubagentRemoveDialog = ({
-    name,
-    onRemove,
-    onClose,
-}: {
-    name: string
-    onRemove: () => void
-    onClose: () => void
-}) => {
-    const t = useT(subagentViewsCatalog)
-    return (
-        <RemoveFromAgentDialog
-            open
-            name={name}
-            description={t("entityUi.subagentViews.agentStays")}
-            onRemove={onRemove}
-            onClose={onClose}
-        />
     )
 }

@@ -1,7 +1,7 @@
 import {useT} from "@agenta/i18n"
 import chatMobileTurnCatalog from "@agenta/i18n/catalogs/chat.mobileTurn"
 import {Button} from "@agenta/ui/ui"
-import {AlertCircle} from "lucide-react"
+import {WarningCircleIcon} from "@phosphor-icons/react"
 
 import {ContentRail} from "@/components/ContentRail"
 
@@ -20,18 +20,18 @@ export const PendingTaskError = ({
     return (
         <div className="bg-background px-3 pt-2">
             <ContentRail>
-                <div className="flex min-w-0 flex-col gap-3 rounded-lg border border-colorErrorBorder bg-colorErrorBg px-3 py-2.5 sm:flex-row sm:items-start">
+                <div className="flex min-w-0 flex-col gap-3 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2.5 sm:flex-row sm:items-start">
                     <div role="alert" className="flex min-w-0 flex-1 items-start gap-2">
-                        <AlertCircle
+                        <WarningCircleIcon
                             aria-hidden="true"
-                            className="mt-0.5 size-4 shrink-0 text-colorErrorText"
+                            className="mt-0.5 size-4 shrink-0 text-destructive"
                         />
-                        <div className="min-w-0 space-y-1 text-xs">
-                            <p className="font-medium text-colorErrorText">
+                        <div className="min-w-0 space-y-1 text-body">
+                            <p className="font-medium text-destructive">
                                 {t("chat.mobileTurn.messageNotSent")}
                             </p>
                             {failureReason ? (
-                                <p className="break-words text-colorErrorText [overflow-wrap:anywhere]">
+                                <p className="break-words text-destructive [overflow-wrap:anywhere]">
                                     {failureReason}
                                 </p>
                             ) : null}

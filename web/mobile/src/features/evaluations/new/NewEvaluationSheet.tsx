@@ -1,6 +1,20 @@
 import {useCallback, useRef} from "react"
 
-import {Sheet, SheetContent} from "@agenta/ui/ui"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+    Sheet,
+    SheetContent,
+} from "@agenta/ui/ui"
 
 import {useDeveloperViewEnabled} from "../../developer/developerViewAccess"
 import {useConfirmModal} from "../../settings/useConfirmModal"
@@ -40,7 +54,9 @@ export const NewEvaluationSheet = ({
 }) => {
     const {start, isStarting} = useStartEvaluation({projectId, base})
     const evaluatorsViewOn = useDeveloperViewEnabled("evaluators") === true
-    const {confirm, modal} = useConfirmModal()
+    const t = useT(commonCatalog)
+    const confirmDialog = useConfirmModal()
+    const {confirm} = confirmDialog
     const hasInput = useRef(false)
 
     const handleInputChange = useCallback((next: boolean) => {
@@ -94,7 +110,53 @@ export const NewEvaluationSheet = ({
                     ) : null}
                 </SheetContent>
             </Sheet>
-            {modal}
+            <AlertDialog
+                open={Boolean(confirmDialog.request)}
+                onOpenChange={(next) => {
+                    if (!next && !confirmDialog.pending) confirmDialog.close()
+                }}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{confirmDialog.request?.title ?? ""}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {confirmDialog.request?.message ?? ""}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {confirmDialog.error ? (
+                        <p className="m-0 text-body text-destructive">{confirmDialog.error}</p>
+                    ) : null}
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                variant="outline"
+                                onClick={confirmDialog.close}
+                                disabled={confirmDialog.pending}
+                            >
+                                {confirmDialog.request?.cancelText ?? t("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant={
+                                    confirmDialog.request?.danger === false
+                                        ? "default"
+                                        : "destructive"
+                                }
+                                disabled={confirmDialog.pending}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    void confirmDialog.runConfirm()
+                                }}
+                            >
+                                {confirmDialog.pending
+                                    ? t("common.working")
+                                    : (confirmDialog.request?.okText ?? t("common.confirm"))}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     )
 }

@@ -47,5 +47,6 @@
     "untitledSession": "Unbenannte Sitzung",
     "waiting": "Wartend",
     "waitingCount": "Wartend {{count}}",
-    "yesterday": "Gestern"
+    "yesterday": "Gestern",
+    "pageDescription": "Deine Gespräche mit Agents. Öffne eines, um dort weiterzumachen, wo du aufgehört hast."
 }

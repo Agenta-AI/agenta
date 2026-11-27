@@ -19,8 +19,8 @@ export interface PhonePrimaryActionProps {
 }
 
 /**
- * The one primary action of a list screen on a phone, as a full-width 44 px button at the bottom
- * of the screen. Place it as the last child of the screen's column: it sticks to the bottom edge
+ * The one primary action of a list screen on a phone, as a full-width button at the bottom of the
+ * screen, clear of the home indicator (COMPACT-05). Place it as the last child of the screen's column: it sticks to the bottom edge
  * while the list scrolls. On the desktop the same action stays an outlined button at the top
  * right of the section, so a list renders this only on a phone (`useIsPhone`).
  */
@@ -35,7 +35,7 @@ export const PhonePrimaryAction = ({
     <div
         data-testid="phone-primary-action"
         className={cn(
-            "sticky bottom-0 mt-auto flex shrink-0 border-0 border-t border-solid border-colorBorderSecondary bg-colorBgContainer px-4 pb-6 pt-3",
+            "sticky bottom-0 mt-auto flex shrink-0 border-0 border-t border-solid border-border-muted bg-background px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-3",
             className,
         )}
     >

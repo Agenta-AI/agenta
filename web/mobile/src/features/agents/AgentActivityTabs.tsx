@@ -2,7 +2,6 @@ import type {ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import agentsActivity from "@agenta/i18n/catalogs/agents.activity"
-import {PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 
 import {FOCUS_RING} from "@/lib/interactive"
 import {cn} from "@/lib/utils"
@@ -10,12 +9,10 @@ import {cn} from "@/lib/utils"
 import type {AgentActivityTab} from "./agentActivityView"
 
 const TAB_BASE =
-    "box-border cursor-pointer appearance-none border-0 border-b-2 border-solid bg-transparent px-0.5 pb-2.5 font-[inherit] text-[15px] leading-none outline-none transition-colors " +
-    FOCUS_RING +
-    " " +
-    PHONE_TOUCH_TARGET_CLASS
-const TAB_ON = "border-b-foreground font-semibold text-foreground"
-const TAB_OFF = "border-b-transparent font-normal text-muted-foreground hover:text-foreground"
+    "box-border cursor-pointer appearance-none border-0 border-b-2 border-solid bg-transparent px-0.5 pb-2.5 font-[inherit] text-label outline-none transition-colors " +
+    FOCUS_RING
+const TAB_ON = "border-b-foreground text-foreground"
+const TAB_OFF = "border-b-transparent text-muted-foreground hover:text-foreground"
 
 const TABS: {key: AgentActivityTab; label: "tabSessions" | "tabAutomations"}[] = [
     {key: "sessions", label: "tabSessions"},
@@ -38,7 +35,7 @@ export const AgentActivityTabs = ({
     return (
         <div
             role="tablist"
-            className="mb-1.5 flex items-end gap-6 border-0 border-b border-solid border-b-[var(--ag-colorSplit)]"
+            className="mb-1.5 flex items-end gap-6 border-0 border-b border-solid border-b-border-muted"
         >
             {TABS.map((entry) => (
                 <button

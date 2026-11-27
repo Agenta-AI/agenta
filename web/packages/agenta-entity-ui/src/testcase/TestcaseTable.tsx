@@ -182,7 +182,7 @@ function EditedRowMarker({row}: {row: TestcaseTableRow}) {
     if (!row.__isNew && !draft) return null
     return (
         <span
-            className="pointer-events-none absolute inset-0 border-0 border-l-[3px] border-solid border-colorWarning bg-colorWarningBg"
+            className="pointer-events-none absolute inset-0 border-0 border-l-[3px] border-solid border-warning bg-warning/10"
             title={t("entityUi.testcase.unsavedChanges")}
         >
             <span className="sr-only">{t("entityUi.testcase.unsavedChanges")}</span>

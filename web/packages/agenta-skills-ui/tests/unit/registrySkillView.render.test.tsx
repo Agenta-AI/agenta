@@ -51,9 +51,14 @@ vi.mock("@agenta/entity-ui/agent", () => ({AgentChip: () => null}))
 // The editor is the entity-ui form; a textarea for the description stands in for it.
 vi.mock("@agenta/entity-ui/drill-in", () => ({
     SKILL_ACTION_ROW: "",
+    MarkdownBodySkeleton: () => null,
+    MarkdownToolbarSkeleton: () => null,
+    SkillBodySkeleton: () => null,
     SkillFormSkeleton: () => null,
+    SkillViewSkeleton: () => null,
     firstBadFile: () => undefined,
     skillFilesOf: () => [],
+    slugifySkillName: (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
     useSkillDownloadAction: () => [],
     // The form with no upload step open is the view's own form.
     useSkillViewForm: (form: ViewForm) => {

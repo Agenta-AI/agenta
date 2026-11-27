@@ -3,7 +3,7 @@
     "newChat": "Neuer Chat",
     "chats": "Chats",
     "chatsLoading": "Chats werden geladen…",
-    "chatsFailed": "Die Chats konnten nicht geladen werden.",
+    "chatsFailed": "Sitzungen konnten nicht geladen werden",
     "retry": "Erneut versuchen",
     "untitledChat": "Chat ohne Titel",
     "today": "Heute",
@@ -88,5 +88,6 @@
     "kindTool": "Tool",
     "kindApp": "App",
     "itemNotShown": "Dieses Element kann hier noch nicht angezeigt werden.",
-    "changedByBuilder": "Vom Builder geändert"
+    "changedByBuilder": "Vom Builder geändert",
+    "noChatsYet": "Noch keine Sitzungen. Starte eine mit „Neue Sitzung“."
 }

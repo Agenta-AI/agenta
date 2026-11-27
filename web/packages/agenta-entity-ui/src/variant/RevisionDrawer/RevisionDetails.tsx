@@ -18,7 +18,7 @@ import type {RevisionDrawerKind} from "./types"
 
 const DetailRow = ({label, children}: {label: string; children: ReactNode}) => (
     <div className="flex flex-col gap-1">
-        <div className="text-xs font-medium text-muted-foreground">{label}</div>
+        <div className="text-label font-medium text-muted-foreground">{label}</div>
         <div>{children}</div>
     </div>
 )
@@ -92,7 +92,7 @@ export const RevisionDetails = ({
 
     return (
         <div className="flex flex-col gap-4">
-            <h3 className="m-0 text-sm font-semibold">{t("entityUi.revisionDrawer.details")}</h3>
+            <h3 className="m-0 text-label font-semibold">{t("entityUi.revisionDrawer.details")}</h3>
             {kind === "deployment" && (
                 <VariantRow revisionId={revisionId} version={revision.version} />
             )}

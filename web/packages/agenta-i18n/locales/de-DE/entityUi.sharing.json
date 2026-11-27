@@ -7,6 +7,7 @@
     "panelTitle": "Wer diesen Agent sehen kann",
     "linePrivate": "Nur Sie können ihn in Agenta sehen und verwenden.",
     "lineProject": "Alle in {{project}} können ihn sehen und verwenden. Chats mit ihm bleiben privat: Teilen Sie jeden Chat über seine eigene Schaltfläche „Teilen“.",
+    "noteProject": "Alle in {{project}} können ihn sehen und verwenden.",
     "panelOwnerYou": "{{name}} (Sie), Eigentümer",
     "change": "Ändern",
     "whoSection": "Wer diesen Agent sehen kann",
@@ -16,6 +17,7 @@
     "ownerRole": "Eigentümer",
     "youSuffix": "(Sie)",
     "transferButton": "Eigentum übertragen",
+    "transferShort": "Übertragen",
     "done": "Fertig",
     "cancel": "Abbrechen",
     "makePrivateTitle": "{{agent}} privat machen?",
@@ -47,5 +49,6 @@
     "toastPrivate": "{{agent}} ist jetzt privat.",
     "toastShared": "{{agent}} ist jetzt mit dem Projekt geteilt.",
     "toastTransferred": "{{name}} ist jetzt Eigentümer von {{agent}}.",
-    "toastTookOwnership": "Sie sind jetzt Eigentümer von {{agent}}."
+    "toastTookOwnership": "Sie sind jetzt Eigentümer von {{agent}}.",
+    "transferPickerPlaceholder": "Neuen Eigentümer suchen"
 }

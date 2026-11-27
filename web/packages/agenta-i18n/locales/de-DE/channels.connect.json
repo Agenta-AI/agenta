@@ -99,5 +99,7 @@
     "whatsappNote": "Meta berechnet WhatsApp-Nachrichten direkt Ihrem Unternehmen.",
     "whatsappPricing": "WhatsApp-Preise",
     "yourAgent": "Ihr Agent",
-    "yourApp": "Ihre App"
+    "yourApp": "Ihre App",
+    "getLink": "Link abrufen",
+    "getLinkBody": "Rufen Sie einen einmaligen Link zu {{handle}} ab und öffnen Sie ihn dann in Telegram."
 }

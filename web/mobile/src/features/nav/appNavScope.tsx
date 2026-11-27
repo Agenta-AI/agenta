@@ -14,17 +14,13 @@ import type {
     SidebarSlotContext,
 } from "@agenta/navigation"
 import {SidebarBackButton, SidebarToggleButton} from "@agenta/navigation-ui"
-import {
-    TreeViewIcon,
-    DesktopIcon,
-    FlaskIcon,
-    LightningIcon,
-    RocketIcon,
-} from "@phosphor-icons/react"
+import {SkeletonBlock} from "@agenta/ui/ui"
+import {TreeViewIcon, DesktopIcon, FlaskIcon, RocketIcon, StackIcon} from "@phosphor-icons/react"
 import {atom, useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
+import {AgentSidebarHeader} from "../agent-sidebar/AgentSidebarHeader"
 import {useEnabledDeveloperViews} from "../developer/developerViewAccess"
 import type {DeveloperView} from "../developer/developerViews"
 import {evaluatorPlaygroundHref} from "../playground/playgroundUrl"
@@ -98,7 +94,7 @@ export const appNavItems = (
             {
                 key: "app-registry",
                 title: t("navigation.items.registry"),
-                icon: <LightningIcon size={16} />,
+                icon: <StackIcon size={16} />,
                 link: `${appURL}/variants`,
             },
         ],
@@ -133,7 +129,7 @@ export const appNavItems = (
 /** The switcher reads the app catalog, so its code and data load only inside an app. */
 const AppSwitcher = dynamic(() => import("./AppSwitcher").then((m) => m.AppSwitcher), {
     ssr: false,
-    loading: () => <span className="block h-8 w-full" aria-hidden />,
+    loading: () => <SkeletonBlock active className="h-row-dense w-full" />,
 })
 
 const ROUTE_SELECTION: SidebarSelection = {mode: "route"}
@@ -172,24 +168,15 @@ export const createMobileAppNavScope = (
                 onBack={() => void router.push(lastPath ?? `${projectURL}/prompts`)}
             />
         )
-        const toggle = <SidebarToggleButton onDismiss={onDismiss} />
-        const row =
-            "flex w-full shrink-0 items-center border-0 border-b border-solid border-[var(--ag-shell-line)]"
         return (
-            <>
-                {/* Collapsed, the toggle keeps the spot every collapsed rail gives it, and Back
-                    takes the next row; expanded, Back and the toggle share one row. */}
-                <div
-                    className={`${row} h-[45px] ${collapsed ? "justify-center" : "justify-between px-1.5"}`}
-                >
-                    {collapsed ? toggle : back}
-                    {!collapsed && toggle}
-                </div>
-                {collapsed && <div className={`${row} h-[45px] justify-center`}>{back}</div>}
-                <div className={`${row} h-[45px] ${collapsed ? "justify-center" : "px-2"}`}>
+            <AgentSidebarHeader
+                collapsed={collapsed}
+                back={back}
+                toggle={<SidebarToggleButton onDismiss={onDismiss} />}
+                switcher={
                     <AppSwitcher projectURL={projectURL} appId={appId} collapsed={collapsed} />
-                </div>
-            </>
+                }
+            />
         )
     }
 

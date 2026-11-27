@@ -24,7 +24,7 @@
     "groupUnknown": "不明",
     "groupWaiting": "待機中",
     "loadError": "エージェントを読み込めませんでした",
-    "noDescription": "説明なし",
+    "noDescription": "チャットしたりタスクを任せたりできるエージェントです。",
     "noMatchFiltersBody": "フィルターの条件を広げるか、アーカイブ済みのエージェントを含めてみてください。",
     "noMatchFiltersTitle": "これらの条件に一致するエージェントはありません",
     "noMatchSearchBody": "検索語を短くするか、フィルターを確認してください。フィルターもこの一覧を絞り込みます。",
@@ -33,12 +33,15 @@
     "ownerNone": "オーナーなし",
     "ownerYou": "あなた",
     "pageTitle": "エージェント",
-    "renameFailed": "このエージェントの名前を変更できませんでした",
     "restoreFailed": "このエージェントを復元できませんでした",
     "restored": "エージェントを復元しました",
     "searchPlaceholder": "名前でエージェントを検索…",
     "untitledAgent": "無題のエージェント",
     "viewArchived": "アーカイブ済みのエージェントを表示",
     "waitingBadge": "{{n}} 件待機中",
-    "waitingOnYou": "{{n}} 件があなたの対応を待っています"
+    "waitingOnYou": "{{n}} 件があなたの対応を待っています",
+    "pageDescription": "作成して会話するエージェントです。それぞれに独自の指示、ツール、スキルがあります。",
+    "noArchivedTitle": "アーカイブ済みのエージェントはありません",
+    "noArchivedBody": "アーカイブしたエージェントがここに表示されます。",
+    "backToActive": "アクティブに戻る"
 }

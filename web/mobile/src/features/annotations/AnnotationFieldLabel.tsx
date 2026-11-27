@@ -21,7 +21,7 @@ export const AnnotationFieldLabel = ({
     onClear: () => void
 }) => (
     <div className="flex min-h-7 items-center justify-between gap-2">
-        <label htmlFor={htmlFor} className="min-w-0 truncate text-sm text-foreground">
+        <label htmlFor={htmlFor} className="min-w-0 truncate text-label text-foreground">
             {label}
         </label>
         <div className="flex shrink-0 items-center gap-1">

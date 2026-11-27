@@ -42,7 +42,7 @@ export interface FilterRailLayoutProps {
 }
 
 const RAIL_CLASS =
-    "box-border flex w-full shrink-0 flex-col gap-6 overflow-y-auto border-x-0 border-y-0 border-solid border-colorBorderSecondary px-6 py-6 lg:w-[280px] lg:border-r lg:bg-colorFillQuaternary"
+    "box-border flex w-full shrink-0 flex-col gap-6 overflow-y-auto border-x-0 border-y-0 border-solid border-border-muted px-6 py-6 lg:w-[280px] lg:border-r lg:bg-secondary"
 
 export function FilterRailLayout({
     rail,

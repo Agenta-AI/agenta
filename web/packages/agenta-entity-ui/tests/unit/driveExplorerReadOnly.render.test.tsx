@@ -114,7 +114,7 @@ describe("DriveExplorer read only", () => {
         await renderExplorer(true)
         const menu = await folderMenu()
         for (const entry of WRITES) expect(menu).not.toHaveProperty(entry)
-        expect(menu["Download all.zip"]).toBe(true)
+        expect(menu["Download all"]).toBe(true)
     })
 
     it("offers the folder's writes when it is editable", async () => {
@@ -155,7 +155,7 @@ describe("DriveExplorer on a phone (M03)", () => {
         const menu = await folderMenu()
         expect(menu).toHaveProperty("Back")
         expect(menu).toHaveProperty("Forward")
-        expect(menu["Download all.zip"]).toBe(true)
+        expect(menu["Download all"]).toBe(true)
         const tree = document.querySelector('[role="menuitemcheckbox"]')
         expect(tree?.textContent).toContain("file tree")
     })

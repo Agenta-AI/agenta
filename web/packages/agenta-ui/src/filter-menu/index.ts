@@ -20,6 +20,6 @@ export type {
     FilterMenuToggle,
     FilterMenuTriggerProps,
 } from "./types"
-export {isFilterMenuToggle} from "./types"
+export {isFilterMenuNarrowed, isFilterMenuToggle} from "./types"
 export {FilterMenuToggleRow} from "./FilterMenuToggleRow"
 export {useFilterMenuView} from "./useFilterMenuView"

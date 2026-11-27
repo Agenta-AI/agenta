@@ -46,7 +46,7 @@ export const PanelScroll = ({children}: {children: ReactNode}) => (
  * header action is always secondary to the section's rows: muted at rest, full-strength on hover.
  */
 export const PANEL_ACTION_CLASS =
-    "inline-flex shrink-0 cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs !text-colorTextSecondary transition-colors hover:!text-colorText"
+    "inline-flex shrink-0 cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-label !text-muted-foreground transition-colors hover:!text-foreground"
 
 export interface PanelSectionProps {
     title: ReactNode
@@ -115,7 +115,7 @@ export const PanelSection = ({
                       // rail reads as one object against the page. Light only: dark restores
                       // colorBgElevated, where the tint would flatten into the page ground. The
                       // frame, the header and the body all state it, so no slot stays white.
-                      "shrink-0 overflow-clip rounded-xl border border-solid border-colorBorderSecondary bg-[var(--ag-surface-paper)] dark:bg-colorBgElevated"
+                      "shrink-0 overflow-clip rounded-xl border border-solid border-border-muted bg-[var(--ag-surface-paper)] dark:bg-background"
                     : ""
             } ${minHeightClassName ?? ""}`}
         >
@@ -123,18 +123,18 @@ export const PanelSection = ({
                 ref={headerRef}
                 className={`ag-panel-section-header flex shrink-0 items-center justify-between gap-2 ${
                     isRail
-                        ? `bg-[var(--ag-surface-paper)] px-4 pb-2 pt-4 dark:bg-colorBgElevated ${sticky ? "sticky top-0 z-10" : ""}`
+                        ? `bg-[var(--ag-surface-paper)] px-4 pb-2 pt-4 dark:bg-background ${sticky ? "sticky top-0 z-10" : ""}`
                         : `px-2 pb-2 pt-2 ${
                               // The page surface is colorBgContainer (#141414 dark / #fff light);
                               // colorBgLayout is pure black and paints a bar the page never uses.
-                              sticky ? "sticky top-0 z-10 bg-colorBgContainer" : ""
+                              sticky ? "sticky top-0 z-10 bg-background" : ""
                           }`
                 }`}
             >
                 <div className="flex min-w-0 items-center gap-2">
                     <h3
-                        className={`m-0 truncate text-base font-semibold ${
-                            isRail ? "text-colorText" : "text-colorTextSecondary"
+                        className={`m-0 truncate text-title ${
+                            isRail ? "text-foreground" : "text-muted-foreground"
                         }`}
                     >
                         {title}
@@ -150,9 +150,7 @@ export const PanelSection = ({
                 headings are transparent and rows scroll visibly THROUGH them. */}
             <div
                 className={`${
-                    isRail
-                        ? "bg-[var(--ag-surface-paper)] dark:bg-colorBgElevated"
-                        : "bg-colorBgContainer"
+                    isRail ? "bg-[var(--ag-surface-paper)] dark:bg-background" : "bg-background"
                 } ${bodyClassName ?? "flex flex-col gap-0.5 px-2 pb-3"}`}
             >
                 {children}

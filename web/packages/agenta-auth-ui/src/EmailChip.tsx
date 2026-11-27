@@ -13,14 +13,14 @@ export interface EmailChipProps {
 export const EmailChip = ({email, onChange}: EmailChipProps) => {
     const t = useT(authSharedCatalog)
     return (
-        <div className="flex h-8 max-w-full items-center gap-2 self-start rounded-lg border border-solid border-border bg-background py-0 pl-2.5 pr-1 text-[13px] leading-5 text-foreground">
+        <div className="flex h-8 max-w-full items-center gap-2 self-start rounded-md border border-solid border-border bg-background py-0 pl-2.5 pr-1 text-label leading-5 text-foreground">
             <EnvelopeSimple size={14} className="flex-none text-muted-foreground" />
             <span className="truncate">{email}</span>
             <Button
                 type="button"
                 variant="ghost"
                 size="xs"
-                className="flex-none text-[13px] font-medium text-muted-foreground hover:text-foreground"
+                className="flex-none text-label font-medium text-muted-foreground hover:text-foreground"
                 onClick={onChange}
             >
                 {t("auth.shared.change")}

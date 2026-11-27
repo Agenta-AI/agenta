@@ -26,7 +26,10 @@ export const UpgradeNotice = ({icon, title, description, action}: UpgradeNoticeP
                     {description}
                     <span className="mt-2 block">
                         {richText(t("settings.access.availableOnPlans"), {
-                            strong: (text) => <strong>{text}</strong>,
+                            // Plan names are emphasis, at the label weight (TYPE-04).
+                            strong: (text) => (
+                                <span className="font-medium text-foreground">{text}</span>
+                            ),
                         })}
                     </span>
                 </>

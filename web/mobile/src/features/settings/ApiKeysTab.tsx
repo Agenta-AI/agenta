@@ -6,6 +6,14 @@ import settingsApiKeysTabCatalog from "@agenta/i18n/catalogs/settings.apiKeysTab
 import {useApiKeys} from "@agenta/settings"
 import {ApiKeysPage} from "@agenta/settings-ui"
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
     Button,
     Dialog,
     DialogContent,
@@ -17,7 +25,6 @@ import {
 
 import {useProjectPermission} from "../context/useProjectPermission"
 
-import {ConfirmModal} from "./ConfirmModal"
 import type {SettingsTabProps} from "./settingsTabProps"
 import {useMobileSettingsAccess} from "./settingsTabs"
 
@@ -81,7 +88,7 @@ export const ApiKeysTab = ({workspaceId, projectId}: SettingsTabProps) => {
     return (
         <div className="flex flex-col gap-2">
             {error ? (
-                <p role="alert" className="text-destructive m-0 text-xs">
+                <p role="alert" className="text-destructive m-0 text-meta">
                     {error}
                 </p>
             ) : null}
@@ -101,16 +108,45 @@ export const ApiKeysTab = ({workspaceId, projectId}: SettingsTabProps) => {
                 }}
             />
 
-            <ConfirmModal
+            <AlertDialog
                 open={Boolean(pendingDelete)}
-                title={t("settings.apiKeysTab.deleteTitle")}
-                description={t("common.thisCannotBeUndone")}
-                body={t("settings.apiKeysTab.deleteBody")}
-                confirmLabel={t("common.delete")}
-                pending={keys.deleting}
-                onClose={() => answerDelete(false)}
-                onConfirm={() => answerDelete(true)}
-            />
+                onOpenChange={(next) => {
+                    if (!next && !keys.deleting) answerDelete(false)
+                }}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{t("settings.apiKeysTab.deleteTitle")}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t("common.thisCannotBeUndone")}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="text-body">{t("settings.apiKeysTab.deleteBody")}</div>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                variant="outline"
+                                onClick={() => answerDelete(false)}
+                                disabled={keys.deleting}
+                            >
+                                {t("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant="destructive"
+                                disabled={keys.deleting}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    answerDelete(true)
+                                }}
+                            >
+                                {keys.deleting ? t("common.working") : t("common.delete")}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             <Dialog
                 open={Boolean(createdKey)}
@@ -125,11 +161,11 @@ export const ApiKeysTab = ({workspaceId, projectId}: SettingsTabProps) => {
                             {t("settings.apiKeysTab.revealDescription")}
                         </DialogDescription>
                     </DialogHeader>
-                    <p className="m-0 break-all rounded-md border border-solid border-border bg-muted px-3 py-2 font-mono text-xs">
+                    <p className="m-0 break-all rounded-md border border-solid border-border bg-muted px-3 py-2 text-code-sm">
                         {createdKey}
                     </p>
                     {copyError ? (
-                        <p role="alert" className="text-destructive m-0 text-xs">
+                        <p role="alert" className="text-destructive m-0 text-meta">
                             {copyError}
                         </p>
                     ) : null}

@@ -94,10 +94,10 @@ export const DomainsSection = ({
     return (
         <section className="flex flex-col">
             <div className="mb-3">
-                <h2 className="m-0 text-[13px] font-medium leading-[18px] text-muted-foreground">
+                <h2 className="m-0 text-label font-medium text-muted-foreground">
                     {t("settings.access.verifiedDomains")}
                 </h2>
-                <p className="m-0 mt-1 text-xs text-muted-foreground">
+                <p className="m-0 mt-1 text-meta text-muted-foreground">
                     {t("settings.access.verifiedDomainsDescription")}
                 </p>
             </div>

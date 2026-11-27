@@ -16,7 +16,7 @@
     "couldNotReadTools": "No se han podido leer las herramientas de este servidor",
     "notConnectedYet": "{{name}} aún no está conectado, así que no se pueden listar sus herramientas.",
     "noAccess": "No tienes acceso a las herramientas de este servidor.",
-    "toolListUnreadable": "No se ha podido leer la lista de herramientas.",
+    "toolListUnreadable": "El servidor no ha respondido. Inténtalo de nuevo en un momento.",
     "connect": "Conectar",
     "retryTools": "Reintentar herramientas",
     "strandedRules": "Reglas para herramientas que el filtro de este servidor oculta. El agente no puede ejecutarse hasta que se eliminen.",

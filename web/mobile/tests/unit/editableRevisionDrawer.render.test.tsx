@@ -66,7 +66,15 @@ vi.mock("@/features/playground/PlaygroundFocusDrawerHost", () => ({
     PlaygroundFocusDrawerHost: () => null,
 }))
 vi.mock("@/features/playground/usePlaygroundLeaveGuard", () => ({
-    usePlaygroundLeaveGuard: () => null,
+    // No leave question is open: the guard's idle confirm state.
+    usePlaygroundLeaveGuard: () => ({
+        request: null,
+        pending: false,
+        error: null,
+        confirm: () => undefined,
+        close: () => undefined,
+        runConfirm: async () => undefined,
+    }),
 }))
 
 interface Revision {

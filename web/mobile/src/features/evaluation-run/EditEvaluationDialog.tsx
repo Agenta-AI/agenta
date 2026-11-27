@@ -161,7 +161,7 @@ export const EditEvaluationDialog = ({
                             {evaluators.map((evaluator, index) => (
                                 <li
                                     key={evaluator.revisionId ?? `${evaluator.name}-${index}`}
-                                    className="flex min-w-0 items-center gap-2 text-sm"
+                                    className="flex min-w-0 items-center gap-2 text-body"
                                 >
                                     <span className="truncate">{evaluator.name}</span>
                                     {evaluator.version === null ? null : (
@@ -176,7 +176,7 @@ export const EditEvaluationDialog = ({
                             {added.map((evaluator) => (
                                 <li
                                     key={evaluator.revisionId}
-                                    className="flex min-w-0 items-center gap-2 text-sm"
+                                    className="flex min-w-0 items-center gap-2 text-body"
                                 >
                                     <span className="truncate">{evaluator.name}</span>
                                     <VersionBadge

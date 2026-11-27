@@ -6,5 +6,7 @@
     "bots": "机器人",
     "connectedCount_other": "已连接 {{count}} 个",
     "numbers": "号码",
-    "workspaces": "工作区"
+    "workspaces": "工作区",
+    "addFirstWorkspace": "添加工作区",
+    "addFirstNumber": "添加号码"
 }

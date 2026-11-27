@@ -142,7 +142,7 @@ export const SignInScreen = () => {
             subheading = t("auth.signIn.ssoSubheading")
         }
         body = (
-            <div className="flex w-full flex-col gap-[22px]">
+            <div className="flex w-full flex-col gap-6">
                 {methods.password ? (
                     <EmailPasswordForm
                         message={message}
@@ -194,7 +194,7 @@ export const SignInScreen = () => {
         // On a cloud host the data-residency switch comes first: an account lives in one
         // region, and the wrong one signs nobody in.
         body = (
-            <div className="flex w-full flex-col gap-[22px]">
+            <div className="flex w-full flex-col gap-6">
                 {shouldShowRegionSelector() ? <RegionSelector /> : null}
                 {entry.providers.length ? (
                     <SocialAuthButtons
@@ -222,7 +222,7 @@ export const SignInScreen = () => {
                         promoted={entry.promotedEmail}
                     />
                 ) : null}
-                <p className="m-0 text-xs leading-[18px] text-muted-foreground [&_a]:text-muted-foreground [&_a]:no-underline [&_a:hover]:text-foreground [&_a:hover]:underline">
+                <p className="m-0 text-meta text-muted-foreground [&_a]:text-muted-foreground [&_a]:no-underline [&_a:hover]:text-foreground [&_a:hover]:underline">
                     {richText(t("auth.signIn.termsNotice"), {
                         terms: (text) => (
                             <a href={TERMS_URL} target="_blank" rel="noopener noreferrer">
@@ -241,13 +241,10 @@ export const SignInScreen = () => {
     }
 
     return (
-        <AuthShell
-            leaving={leaving}
-            header={<AgentaLogo className="h-[23px] w-auto text-foreground" />}
-        >
+        <AuthShell leaving={leaving} header={<AgentaLogo className="h-6 w-auto text-foreground" />}>
             <div
                 key={loading ? "loading" : flow.stage}
-                className={`flex flex-col gap-[22px] auth-step-${step.direction}`}
+                className={`flex flex-col gap-6 auth-step-${step.direction}`}
             >
                 {chip}
                 <header className="flex flex-col gap-1">

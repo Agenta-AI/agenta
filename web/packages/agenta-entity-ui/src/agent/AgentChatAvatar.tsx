@@ -28,7 +28,7 @@ export const AgentChatAvatar = ({workflowId, fallback, size = 16}: AgentChatAvat
     // `size-6` is the ChatBubbleAvatar box, so a custom mark lines up with an uncustomised one.
     return (
         <span
-            className={`flex size-6 shrink-0 items-center justify-center rounded-full ${chrome.className}`}
+            className={`flex size-6 shrink-0 items-center justify-center rounded-md ${chrome.className}`}
             style={chrome.style}
         >
             {chrome.glyph}

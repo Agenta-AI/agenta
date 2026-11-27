@@ -64,7 +64,7 @@ const CopyTooltip = ({
 
     const tooltipDisplay = isCopied ? (
         <div className="flex items-center gap-1">
-            <CheckCircle size={14} weight="fill" className="text-colorSuccess" />
+            <CheckCircle size={14} weight="fill" className="text-success" />
             <span>{t("common.copiedToClipboard")}</span>
         </div>
     ) : (

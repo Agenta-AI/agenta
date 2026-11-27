@@ -3,7 +3,6 @@ import {
     useContext,
     useEffect,
     useRef,
-    useState,
     type MutableRefObject,
     type ReactNode,
 } from "react"
@@ -46,8 +45,9 @@ import {ComposerModelPanel} from "./ComposerModelPanel"
 import {useConversationRole} from "./conversationRole"
 import {sendRefusalRejections} from "./sessionReadOnly"
 import {useComposerPrefill} from "./useComposerPrefill"
+import {useManageModelProviders} from "./useManageModelProviders"
 
-// Loaded on the first "Manage model providers": the provider list is not part of the chat's load.
+// Loaded on the first "Manage model providers" that the pane cannot take.
 const ProvidersDrawer = dynamic(
     () => import("./RunErrorProviderDrawer").then((m) => m.RunErrorProviderDrawer),
     {ssr: false},
@@ -217,12 +217,12 @@ export const Composer = ({
         closePicker()
         richInputRef.current?.insertText("/")
     }, [closePicker, richInputRef])
-    // "Manage model providers" under the model list opens the providers drawer.
-    const [providersOpen, setProvidersOpen] = useState(false)
+    const providers = useManageModelProviders()
+    const openManageProviders = providers.open
     const openProviders = useCallback(() => {
         closePicker()
-        setProvidersOpen(true)
-    }, [closePicker])
+        openManageProviders()
+    }, [closePicker, openManageProviders])
     // No button while the model needs setup, or with no model or no list to pick from.
     const modelButtonModel =
         !modelButtonHidden && slash.modelGroups.length > 0 ? slash.currentModel : null
@@ -382,11 +382,14 @@ export const Composer = ({
         // a phone (M01).
         <div
             className={cn(
-                "bg-background shrink-0 px-3 pt-2 pb-[calc(1.25rem+env(safe-area-inset-bottom))] md:px-4 md:pb-4",
-                // The builder pads 16 px on a phone too (M04).
-                builderChat && "px-4",
+                // 16 px each side on every window, as the transcript: the composer and the
+                // messages share one column and both edges (LAYOUT-02).
+                "bg-background shrink-0 px-4 pt-2 pb-[calc(1.25rem+env(safe-area-inset-bottom))] md:pb-4",
                 // B01: the ideas sit 10 px over the box, and 24 px stay under it.
                 pageNewChat && "md:pb-6 md:pt-0",
+                // A parked card holds the one primary action: Send goes quiet (ACT-01).
+                waitingOnUser &&
+                    "[--ag-composer-send-bg:var(--secondary)] [--ag-composer-send-fg:var(--foreground)] [--ag-composer-send-hover-bg:var(--accent)]",
                 className,
             )}
         >
@@ -437,7 +440,8 @@ export const Composer = ({
                                     initial="initial"
                                     animate="animate"
                                     exit="exit"
-                                    className="absolute inset-x-0 bottom-full z-50 mb-2"
+                                    // A normal popover over the model button, not the composer's width.
+                                    className="absolute bottom-full right-0 z-50 mb-2 w-popover-lg max-w-full"
                                 >
                                     {/* A pick writes the agent config; auto-save commits it. */}
                                     <ComposerModelPanel
@@ -465,7 +469,7 @@ export const Composer = ({
                             // panel, 34 px plus its 36 px chip row.
                             minHeightClassName={
                                 pageNewChat
-                                    ? "min-h-[60px]"
+                                    ? "min-h-15"
                                     : besideBuilder
                                       ? "min-h-[70px]"
                                       : undefined
@@ -481,16 +485,20 @@ export const Composer = ({
                             headerExtra={headerExtra}
                             beforeSend={
                                 modelButtonModel ? (
-                                    <ComposerModelButton
-                                        groups={slash.modelGroups}
-                                        selectedKey={slash.currentModelKey}
-                                        modelId={modelButtonModel}
-                                        open={slash.picker === "model"}
-                                        disabled={disabled}
-                                        onOpen={openModelPicker}
-                                        onClose={closePicker}
-                                        buttonRef={modelButtonRef}
-                                    />
+                                    <>
+                                        <ComposerModelButton
+                                            groups={slash.modelGroups}
+                                            selectedKey={slash.currentModelKey}
+                                            modelId={modelButtonModel}
+                                            open={slash.picker === "model"}
+                                            disabled={disabled}
+                                            onOpen={openModelPicker}
+                                            onClose={closePicker}
+                                            buttonRef={modelButtonRef}
+                                        />
+                                        {/* A 1px line sets the model off from Send, as in the session header. */}
+                                        <span aria-hidden className="h-4 w-px shrink-0 bg-border" />
+                                    </>
                                 ) : null
                             }
                             disabled={disabled}
@@ -544,9 +552,7 @@ export const Composer = ({
                     </AnimatePresence>
                 </div>
             </ContentRail>
-            {providersOpen ? (
-                <ProvidersDrawer open onClose={() => setProvidersOpen(false)} />
-            ) : null}
+            {providers.drawerOpen ? <ProvidersDrawer open onClose={providers.closeDrawer} /> : null}
         </div>
     )
 }

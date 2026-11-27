@@ -1,17 +1,15 @@
 import {Fragment} from "react"
 
 import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
-import {createT, useT} from "@agenta/i18n"
+import {createT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
 import {humanizeActionKey} from "@agenta/shared/utils"
-import {AppWindow, Plus, Wrench} from "@phosphor-icons/react"
+import {Plugs, Plus} from "@phosphor-icons/react"
 
 import type {IntegrationRow} from "../../toolUtils"
 import {countSummary} from "../agentTemplateUtils"
-import {CreateWithAIAddMenu} from "../CreateWithAIAddMenu"
-import {RemoveFromAgentDialog} from "../RemoveFromAgentDialog"
-import {SectionPageAction} from "../SectionPageAction"
+import {IntegrationLogoStack} from "../IntegrationLogoStack"
+import {SectionAddButton} from "../SectionAddButton"
 import {ToolManagementList, type ToolManagementListProps} from "../ToolManagementList"
 
 import type {AgentTemplateT, SectionIndicatorFor, SectionResult} from "./types"
@@ -31,7 +29,7 @@ export interface IntegrationsSectionParams {
     toolStatusFor: ToolManagementListProps["statusFor"]
     gatewayToolsEnabled: boolean
     openIntegrationRow: (row: IntegrationRow) => void
-    /** The row's bin: asks with {@link IntegrationRemoveDialog} before anything is removed. */
+    /** The row's bin: asks with the remove dialog before anything is removed. */
     askRemoveIntegration: (row: IntegrationRow) => void
 }
 
@@ -53,11 +51,18 @@ export const integrationsSection = ({
     hasTools &&
     (Boolean(openAddIntegration) || integrationCount > 0) && {
         key: "tools",
-        icon: <Wrench size={14} />,
+        icon: <Plugs size={14} />,
         title: t("entityUi.agentTemplate.integrations"),
-        // "None" when empty, as the canvas draws the phone (M07) and the builder pane (B03).
+        // "None" when empty, as the canvas draws the phone (M07).
         summary: countSummary(integrationCount, "integration") || tNow("common.none"),
         empty: integrationCount === 0,
+        // The connected apps' logos stand in for the count.
+        panelSummary: integrationRows.length ? (
+            <IntegrationLogoStack
+                rows={integrationRows}
+                label={countSummary(integrationCount, "integration")}
+            />
+        ) : undefined,
         // The phone row names the integrations (M07: "Zendesk").
         phoneSummary: integrationRows.length ? (
             <IntegrationNames rows={integrationRows} />
@@ -65,22 +70,18 @@ export const integrationsSection = ({
             tNow("common.none")
         ),
         indicator: sectionIndicator("tools"),
-        // "Create with AI" beside the view that adds one by hand.
+        // "+" opens "Add integration"; its first row is "Create with AI".
         extra:
             !disabled && openAddIntegration ? (
-                <CreateWithAIAddMenu
+                <SectionAddButton
                     label={t("entityUi.agentTemplate.addIntegration")}
-                    starterPrompt={t("entityUi.agentTemplate.integrationStarter")}
-                    onManual={openAddIntegration}
-                    manualTitle={t("entityUi.agentTemplate.browseIntegrations")}
-                    manualHint={t("entityUi.agentTemplate.browseIntegrationsHint")}
-                    manualIcon={<AppWindow size={14} />}
+                    onClick={openAddIntegration}
                 />
             ) : undefined,
-        pageAction:
-            !disabled && openAddIntegration ? (
-                <SectionPageAction action="add" onClick={openAddIntegration} />
-            ) : undefined,
+        emptyAction:
+            !disabled && openAddIntegration
+                ? {label: t("entityUi.agentTemplate.addIntegration"), onClick: openAddIntegration}
+                : undefined,
         // On a phone the one primary action at the bottom opens the catalog (M08).
         phoneAction:
             !disabled && openAddIntegration
@@ -120,32 +121,4 @@ const IntegrationNames = ({rows}: {rows: IntegrationRow[]}) => (
 const IntegrationName = ({slug}: {slug: string}) => {
     const {integration} = useToolIntegrationDetail(slug)
     return <>{integration?.name || humanizeActionKey(slug)}</>
-}
-
-/** The row bin's question (F06 f2): removing from the agent keeps the project connection. */
-export const IntegrationRemoveDialog = ({
-    row,
-    onRemove,
-    onClose,
-}: {
-    row: IntegrationRow
-    onRemove: () => void
-    onClose: () => void
-}) => {
-    const t = useT(integrationViewsCatalog)
-    const {integration} = useToolIntegrationDetail(row.integration)
-    return (
-        <RemoveFromAgentDialog
-            open
-            name={integration?.name || row.integration}
-            description={
-                // An entry with each person's own account names no project connection.
-                row.entry?.accountSource === "user"
-                    ? t("entityUi.integrationViews.accountsStay")
-                    : t("entityUi.integrationViews.connectionStays")
-            }
-            onRemove={onRemove}
-            onClose={onClose}
-        />
-    )
 }

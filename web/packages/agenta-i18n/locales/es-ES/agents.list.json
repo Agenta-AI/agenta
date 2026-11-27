@@ -24,7 +24,7 @@
     "groupUnknown": "Desconocido",
     "groupWaiting": "En espera",
     "loadError": "No se pudieron cargar los agentes",
-    "noDescription": "Sin descripción",
+    "noDescription": "Un agente con el que puedes chatear y al que puedes dar tareas.",
     "noMatchFiltersBody": "Prueba a ampliar los filtros o a incluir los agentes archivados.",
     "noMatchFiltersTitle": "Ningún agente coincide con estos filtros",
     "noMatchSearchBody": "Prueba con una búsqueda más corta o revisa los filtros: también acotan esta lista.",
@@ -33,12 +33,15 @@
     "ownerNone": "Sin propietario",
     "ownerYou": "Tú",
     "pageTitle": "Agentes",
-    "renameFailed": "No se pudo cambiar el nombre de este agente",
     "restoreFailed": "No se pudo restaurar este agente",
     "restored": "Agente restaurado",
     "searchPlaceholder": "Buscar agentes por nombre…",
     "untitledAgent": "Agente sin título",
     "viewArchived": "Ver agentes archivados",
     "waitingBadge": "{{n}} en espera",
-    "waitingOnYou": "{{n}} esperando tu respuesta"
+    "waitingOnYou": "{{n}} esperando tu respuesta",
+    "pageDescription": "Los agentes que creas y con los que hablas. Cada uno tiene sus propias instrucciones, herramientas y skills.",
+    "noArchivedTitle": "No hay agentes archivados",
+    "noArchivedBody": "Los agentes que archives aparecen aquí.",
+    "backToActive": "Volver a activos"
 }

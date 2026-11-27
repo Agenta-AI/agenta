@@ -99,5 +99,7 @@
     "whatsappNote": "Meta factura directamente a tu empresa por los mensajes de WhatsApp.",
     "whatsappPricing": "Precios de WhatsApp",
     "yourAgent": "tu agente",
-    "yourApp": "Tu aplicación"
+    "yourApp": "Tu aplicación",
+    "getLink": "Obtener enlace",
+    "getLinkBody": "Obtén un enlace de un solo uso a {{handle}} y ábrelo en Telegram."
 }

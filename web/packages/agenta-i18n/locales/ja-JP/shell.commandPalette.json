@@ -6,7 +6,8 @@
     "groupPages": "ページ",
     "groupPrompts": "プロンプト",
     "newAgent": "新しいエージェント",
-    "nothingMatches": "一致するものはありません",
+    "nothingMatches": "一致するものはありません。別の言葉で試してください。",
     "placeholder": "セッション、エージェント、ページを検索…",
-    "searching": "検索中…"
+    "searching": "検索中…",
+    "goTo": "{{page}} に移動"
 }

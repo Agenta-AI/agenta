@@ -4,11 +4,6 @@
     "replaceField": "Substituir {{field}}",
     "encryptedAtRest": "Criptografado em repouso",
     "savedValueKeep": "Valor salvo. Deixe em branco para mantê-lo.",
-    "whoCanUseIt": "Quem pode usar",
-    "everyoneIn": "Todos em {{project}}",
-    "storedInProject": "Armazenado neste projeto.",
-    "theOrganization": "{{organization}}",
-    "storedOnce": "Armazenado uma única vez. Você escolhe quais projetos podem usá-lo.",
     "activeModels": "Modelos ativos",
     "enterCredential": "Digite a credencial acima para escolher quais modelos de {{provider}} esta conexão oferece.",
     "harnesses": "Harnesses",
@@ -16,8 +11,6 @@
     "incompatible": "Incompatível com este provedor",
     "harnessAddsModels": "Cada harness ativado adiciona os modelos desta conexão ao seletor de modelos.",
     "selectAll": "Selecionar tudo",
-    "clear": "Limpar",
-    "searchModels": "Pesquise {{total}} modelos ou adicione um ID",
     "addTerm": "Adicionar <mono>{{term}}</mono>",
     "enterKey": "Enter",
     "noModelsYet": "Ainda não há modelos. Digite um ID de modelo acima para adicioná-lo.",
@@ -43,5 +36,7 @@
     "modelCount_many": "{{count}} de modelos",
     "modelCount_other": "{{count}} modelos",
     "savedUntested": "Este provedor não oferece verificação gratuita de credenciais, então a chave é salva sem teste.",
-    "testBeforeSaving": "Teste esta credencial antes de salvá-la."
+    "testBeforeSaving": "Teste esta credencial antes de salvá-la.",
+    "searchModels_one": "Pesquise {{count}} modelo ou adicione um ID",
+    "searchModels_other": "Pesquise {{count}} modelos ou adicione um ID"
 }

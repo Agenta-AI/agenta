@@ -53,7 +53,7 @@ export const TestsetsExportButton = ({
                         <CaretDown aria-hidden />
                     </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-[180px]">
+                <DropdownMenuContent align="end" className="w-60">
                     <DropdownMenuItem onSelect={() => exportAs("csv")}>
                         <FileCsv aria-hidden size={14} />
                         Export as CSV

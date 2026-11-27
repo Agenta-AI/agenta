@@ -32,15 +32,15 @@ export const NodeNameTag = ({
     <div className="flex items-center gap-1">
         <Tag
             variant="filled"
-            className="!m-0 rounded-[6px] px-2 py-[1px] text-xs leading-[22px] bg-[var(--ag-c-0517290F)] text-[var(--ag-c-344054)] border border-solid border-transparent"
+            className="!m-0 rounded-sm px-2 py-px text-meta leading-[22px] bg-secondary text-muted-foreground border border-solid border-transparent"
         >
             {name}
-            {version != null && <span className="text-[var(--ag-c-667085)] ml-1">v{version}</span>}
+            {version != null && <span className="text-muted-foreground ml-1">v{version}</span>}
         </Tag>
         {isDraft && (
             <Tag
                 variant="filled"
-                className="!m-0 rounded-[6px] px-1.5 py-[1px] text-[12px] leading-[22px] bg-[var(--ag-c-FFF7E6)] text-[var(--ag-c-D4760A)] border border-solid border-[var(--ag-c-FFE4B5)]"
+                className="!m-0 rounded-sm px-1.5 py-px text-meta leading-[22px] bg-warning/10 text-warning border border-solid border-warning/30"
             >
                 draft
             </Tag>
@@ -100,12 +100,12 @@ export const NodeResultCard = ({
                 style={{paddingTop: LEGEND_HEIGHT}}
             >
                 <div
-                    className="absolute bg-[var(--ag-c-FFFFFF)] px-1 z-[2] flex items-center gap-1"
+                    className="absolute bg-background px-1 z-[2] flex items-center gap-1"
                     style={{top: 0, left: 10}}
                 >
                     <NodeNameTag name={name} version={version} isDraft={isDraft} />
                     {headerActions ? (
-                        <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover/item:opacity-100 focus-within:opacity-100">
+                        <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover/item:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100">
                             {headerActions}
                         </div>
                     ) : null}
@@ -122,7 +122,7 @@ export const NodeResultCard = ({
                         style={{borderRadius: BORDER_RADIUS}}
                     />
                     <div
-                        className="relative bg-[var(--ag-c-FFFFFF)] px-3 pb-2 pt-6"
+                        className="relative bg-background px-3 pb-2 pt-6"
                         style={{
                             borderRadius: BORDER_RADIUS - BORDER_WIDTH,
                         }}
@@ -140,12 +140,12 @@ export const NodeResultCard = ({
             style={{paddingTop: LEGEND_HEIGHT}}
         >
             <div
-                className="absolute bg-[var(--ag-c-FFFFFF)] px-1 z-[1] flex items-center gap-1"
+                className="absolute bg-background px-1 z-[1] flex items-center gap-1"
                 style={{top: 0, left: 10}}
             >
                 <NodeNameTag name={name} version={version} isDraft={isDraft} />
                 {headerActions ? (
-                    <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover/item:opacity-100 focus-within:opacity-100">
+                    <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover/item:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100">
                         {headerActions}
                     </div>
                 ) : null}
@@ -154,10 +154,10 @@ export const NodeResultCard = ({
                 className={clsx(
                     "rounded-lg px-3 pt-6 pb-2 border border-solid",
                     isError
-                        ? "border-[var(--ant-color-error)]"
+                        ? "border-destructive"
                         : isSkipped
-                          ? "border-[var(--ant-color-warning)] border-dashed"
-                          : "border-[var(--ant-color-border-secondary)]",
+                          ? "border-warning border-dashed"
+                          : "border-border-muted",
                 )}
             >
                 {children}
@@ -189,7 +189,7 @@ export function ensureNodeCardKeyframes() {
         }
 
         .node-result-card__gradient {
-            background: #D1D151;
+            background: var(--brand);
             animation: nodeCardPulse 1.8s ease-in-out infinite;
         }
 

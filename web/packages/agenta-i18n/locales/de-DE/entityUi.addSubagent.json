@@ -13,5 +13,7 @@
     "noAgentsMatch": "Keine Agents entsprechen Ihrer Suche",
     "noAgentsYet": "Noch keine Agents",
     "tryDifferentName": "Versuchen Sie einen anderen Namen.",
-    "createAgentFirst": "Erstellen Sie einen Agent und kehren Sie dann zurück, um ihn hier hinzuzufügen."
+    "createAgentFirst": "Erstellen Sie einen Agent und kehren Sie dann zurück, um ihn hier hinzuzufügen.",
+    "addedGroup": "Hinzugefügt",
+    "allAgents": "Alle Agents"
 }

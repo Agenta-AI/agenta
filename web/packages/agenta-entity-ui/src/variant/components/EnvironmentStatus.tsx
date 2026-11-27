@@ -47,7 +47,7 @@ const EnvironmentStatus: FC<{
                                         aria-label={t("entityUi.variant.deployedTo", {
                                             name: env.name,
                                         })}
-                                        className="relative -top-px inline-block size-1.5 rounded-full align-middle"
+                                        className="relative -top-px inline-block size-1.5 rounded-round align-middle"
                                         style={{
                                             backgroundColor:
                                                 statusMap[env.name]?.badge ?? "transparent",

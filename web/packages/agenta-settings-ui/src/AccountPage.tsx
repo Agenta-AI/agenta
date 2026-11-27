@@ -58,11 +58,11 @@ const Field = ({
 const DangerCallout = ({children}: {children: React.ReactNode}) => {
     const t = useT(settingsAccountCatalog)
     return (
-        <div className="flex flex-col gap-1 rounded-lg border border-solid border-colorErrorBorder bg-colorErrorBg px-4 py-3">
-            <span className="font-medium text-colorError">
+        <div className="flex flex-col gap-1 rounded-lg border border-solid border-destructive/40 bg-destructive/10 px-4 py-3">
+            <span className="font-medium text-destructive">
                 {t("settings.account.cannotBeUndone")}
             </span>
-            <p className="m-0 text-colorText">{children}</p>
+            <p className="m-0 text-foreground">{children}</p>
         </div>
     )
 }
@@ -119,7 +119,7 @@ export const AccountPage = ({
                         description={t("settings.account.deleteAccountDescription")}
                         control={
                             <Button
-                                variant="destructive"
+                                variant="destructive-ghost"
                                 disabled={!address}
                                 onClick={() => setOpen(true)}
                             >
@@ -141,12 +141,12 @@ export const AccountPage = ({
                           <div className="flex flex-col gap-3">
                               <DangerCallout>{t("settings.account.deleteCallout")}</DangerCallout>
                               <div className="flex flex-col gap-2">
-                                  <div className="flex flex-wrap items-center gap-2 text-colorText">
+                                  <div className="flex flex-wrap items-center gap-2 text-foreground">
                                       {richText(
                                           t("settings.account.typeToConfirm", {email: address}),
                                           {
                                               code: (text) => (
-                                                  <code className="rounded border border-solid border-colorErrorBorder bg-colorErrorBg px-1 text-colorError">
+                                                  <code className="rounded border border-solid border-destructive/40 bg-destructive/10 px-1 text-destructive">
                                                       {text}
                                                   </code>
                                               ),

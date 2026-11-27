@@ -1,7 +1,7 @@
 /**
- * "Add skills" and "New skill" in the agent: a row click adds or removes the registry reference in
- * the agent configuration; "New skill" opens at depth 2 and a created skill is added to the agent.
- * The Skills section's bin asks first.
+ * "Add skills" and "New skill" in the agent: row clicks stage adds and removes, and Done writes
+ * them to the agent configuration; "New skill" opens at depth 2 and a created skill is added to
+ * the agent. The Skills section header has Manage and "+"; its bin asks first.
  */
 import {act, createElement} from "react"
 
@@ -91,10 +91,15 @@ const bridge: Partial<SkillsBridge> = {
             ),
             createElement("button", {onClick: onNewSkill}, "new"),
         ),
-    NewSkillBody: ({onCreated}) =>
+    NewSkillBody: ({onCreated, onDone}) =>
         createElement(
             "button",
-            {onClick: () => onCreated([embed("weekly-digest-5e3f", "weekly-digest")])},
+            {
+                onClick: () => {
+                    onCreated([embed("weekly-digest-5e3f", "weekly-digest")])
+                    onDone?.()
+                },
+            },
             "create weekly-digest",
         ),
 }
@@ -139,30 +144,44 @@ describe("Add skills", () => {
         await findByText("add refund-check")
     }
 
-    it("a click adds the reference at once, and a click on an added row removes it", async () => {
+    it("clicks stage the adds and removes; Done writes them to the agent", async () => {
         await open()
         expect(byText("added:ticket-triage-8f2a")).toBeTruthy()
         expect(byText("crumb:Add skills")).toBeTruthy()
         await click(byText("add refund-check"))
-        expect(slugs()).toBe("ticket-triage,ticket-labels,refund-check")
         await click(byText("remove ticket-triage"))
+        // Staged only: the list shows the picks, the agent is unchanged until Done.
+        expect(byText("added:refund-check-7c1d")).toBeTruthy()
+        expect(slugs()).toBe("ticket-triage,ticket-labels")
+        await click(byText("Done", "button"))
         expect(slugs()).toBe("ticket-labels,refund-check")
         // The agent-only skill is never touched by the registry list.
         expect((writer.agent.skills as unknown[])[0]).toBe(INLINE)
+    })
+
+    it("Done with no picks closes and changes nothing", async () => {
+        await open()
+        await click(byText("Done", "button"))
+        expect(writer.update).not.toHaveBeenCalled()
+        expect(slugs()).toBe("ticket-triage,ticket-labels")
     })
 
     it("does not add the same registry skill twice", async () => {
         writer.agent = {skills: [embed("refund-check-7c1d", "refund-check")]}
         await open()
         await click(byText("add refund-check"))
+        await click(byText("Done", "button"))
         expect(slugs()).toBe("refund-check")
     })
 
-    it("New skill opens at depth 2, and a created skill is added to the agent", async () => {
+    it("New skill opens at depth 2, and a created skill is added on Done", async () => {
         await open()
         await click(byText("new"))
         await findByText("create weekly-digest")
         await click(byText("create weekly-digest"))
+        expect(slugs()).toBe("ticket-triage,ticket-labels")
+        await findByText("Done")
+        await click(byText("Done", "button"))
         expect(slugs()).toBe("ticket-triage,ticket-labels,weekly-digest")
     })
 })
@@ -199,7 +218,31 @@ describe("Skills section remove", () => {
         })
         expect(section && section.summary).toBe("None")
     })
-    const bins = () => [...document.querySelectorAll<HTMLElement>('button[aria-label="Remove"]')]
+    it('the header has one "+", and it opens the add list', async () => {
+        const handleAddSkill = vi.fn()
+        const section = skillsSection({
+            t: ((key: string) => key) as never,
+            hasSkills: true,
+            fieldTitle: (_f, fallback) => fallback,
+            sectionIndicator: () => undefined,
+            skills: [],
+            handleAddSkill,
+            openSkillItem: () => undefined,
+            removeItem: () => undefined,
+            closeEditor: () => undefined,
+            skillStatusFor: () => undefined,
+        })
+        if (!section) throw new Error("no section")
+        await render(<>{section.extra}</>)
+        expect(document.querySelectorAll("button")).toHaveLength(1)
+        await click(
+            document.querySelector<HTMLElement>(
+                'button[aria-label="entityUi.agentTemplate.addSkill"]',
+            )!,
+        )
+        expect(handleAddSkill).toHaveBeenCalledTimes(1)
+    })
+    const bins = () => [...document.querySelectorAll<HTMLElement>('button[aria-label^="Remove "]')]
 
     it("asks first, then removes the skill; the registry text says the skill stays", async () => {
         const removeItem = vi.fn()

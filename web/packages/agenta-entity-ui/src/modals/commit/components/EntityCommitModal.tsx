@@ -2,7 +2,7 @@
  * EntityCommitModal Component
  *
  * Performance-optimized modal shell for committing entity changes.
- * Uses EnhancedModal for lazy rendering and consistent styling.
+ * Uses the kit Dialog, which mounts its content only while open.
  */
 
 import {useEffect, useCallback, useRef, useState, type ReactNode} from "react"
@@ -11,7 +11,7 @@ import {createT, useT} from "@agenta/i18n"
 import commitModalCatalog from "@agenta/i18n/catalogs/entityUi.commitModal"
 import {extractApiErrorMessage, generateSlugWithSuffix, isValidSlug} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
-import {EnhancedModal} from "@agenta/ui/components/modal"
+import {cn, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {revisionModalAdapter, testsetModalAdapter, variantModalAdapter} from "../../../adapters"
@@ -507,45 +507,48 @@ export function EntityCommitModal({
     )
 
     return (
-        <EnhancedModal
-            open={isOpen}
-            onCancel={handleClose}
-            afterClose={handleAfterClose}
-            // Agent commits render title + footer inside the body (two full-bleed panels).
-            title={isAgentTwoPane ? null : <EntityCommitTitle />}
-            aria-label={
-                actionLabel === "Commit"
-                    ? t("entityUi.commitModal.commitChanges")
-                    : t("entityUi.commitModal.actionChanges", {action: actionLabel})
-            }
-            footer={isAgentTwoPane ? null : footerNode}
-            width={hasDiffData ? 900 : 520}
-            styles={
-                isAgentTwoPane
-                    ? {
-                          container: {padding: 0, overflow: "hidden"},
-                          body: {padding: 0, overflow: "hidden"},
-                      }
-                    : {
-                          body: {
-                              maxHeight: "calc(80vh - 110px)",
-                              overflow: "hidden",
-                              display: "flex",
-                              flexDirection: "column",
-                          },
-                      }
-            }
-        >
-            <EntityCommitContent
-                commitModes={commitModes}
-                selectedMode={selectedMode}
-                onModeChange={setSelectedMode}
-                extraContent={renderModeContent?.({mode: selectedMode})}
-                modeLabel={modeLabel}
-                entityNameEditable={isEntityNameEditable}
-                entityNameLabel={resolvedEntityNameLabel}
-                footerSlot={isAgentTwoPane ? footerNode : undefined}
-            />
-        </EnhancedModal>
+        <Dialog open={isOpen} onOpenChange={(next) => !next && handleClose()}>
+            <DialogContent
+                className={cn(
+                    hasDiffData && "max-w-[900px]",
+                    // Agent commits render title + footer inside the body (two full-bleed panels).
+                    isAgentTwoPane && "gap-0 overflow-hidden p-0",
+                )}
+                // Fires once the close animation has unmounted the content.
+                onCloseAutoFocus={handleAfterClose}
+            >
+                {isAgentTwoPane ? (
+                    <DialogTitle className="sr-only">
+                        {actionLabel === "Commit"
+                            ? t("entityUi.commitModal.commitChanges")
+                            : t("entityUi.commitModal.actionChanges", {action: actionLabel})}
+                    </DialogTitle>
+                ) : (
+                    <DialogHeader>
+                        <DialogTitle>
+                            <EntityCommitTitle />
+                        </DialogTitle>
+                    </DialogHeader>
+                )}
+                <div
+                    className={cn(
+                        "min-h-0 flex-1 overflow-hidden text-field-md text-foreground",
+                        !isAgentTwoPane && "flex max-h-[calc(80vh-110px)] flex-col",
+                    )}
+                >
+                    <EntityCommitContent
+                        commitModes={commitModes}
+                        selectedMode={selectedMode}
+                        onModeChange={setSelectedMode}
+                        extraContent={renderModeContent?.({mode: selectedMode})}
+                        modeLabel={modeLabel}
+                        entityNameEditable={isEntityNameEditable}
+                        entityNameLabel={resolvedEntityNameLabel}
+                        footerSlot={isAgentTwoPane ? footerNode : undefined}
+                    />
+                </div>
+                {isAgentTwoPane ? null : <DialogFooter>{footerNode}</DialogFooter>}
+            </DialogContent>
+        </Dialog>
     )
 }

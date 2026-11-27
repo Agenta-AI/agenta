@@ -14,7 +14,7 @@ const UserTag = memo(function UserTag({userId}: {userId: string}) {
 
     return (
         <Tag className="!flex items-center gap-1.5 !pl-0.5">
-            <InitialsAvatar size={18} name={name} className="text-[9px]" />
+            <InitialsAvatar size={18} name={name} className="text-caption" />
             {name}
         </Tag>
     )

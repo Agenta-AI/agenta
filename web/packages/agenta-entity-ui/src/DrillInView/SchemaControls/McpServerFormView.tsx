@@ -126,7 +126,7 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                     </SelectTrigger>
                     <SelectContent>
                         {endpoints.length === 0 ? (
-                            <div className="px-3 py-input-y-ghost text-field-md text-colorTextSecondary">
+                            <div className="px-3 py-input-y-ghost text-field-md text-muted-foreground">
                                 {t("entityUi.toolForm.noMcpConnections")}
                             </div>
                         ) : (
@@ -165,13 +165,15 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                 <RailField label={t("entityUi.toolForm.status")} align="center">
                     <div className="flex min-w-0 items-center gap-2">
                         <Tag
-                            tone={getMcpConnectionState(selected) === "ready" ? "green" : "gold"}
-                            className="m-0 text-xs"
+                            tone={
+                                getMcpConnectionState(selected) === "ready" ? "success" : "warning"
+                            }
+                            className="m-0 text-meta"
                         >
                             {getMcpConnectionStateLabel(getMcpConnectionState(selected))}
                         </Tag>
                         <span
-                            className="truncate text-xs text-[var(--ag-colorTextSecondary)]"
+                            className="truncate text-meta text-muted-foreground"
                             title={selected.data.route.base_url ?? undefined}
                         >
                             {selected.data.route.base_url}
@@ -188,9 +190,7 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                     )}
                     align="center"
                 >
-                    <span className="text-field-md text-[var(--ag-colorTextSecondary)]">
-                        {prefix}
-                    </span>
+                    <span className="text-field-md text-muted-foreground">{prefix}</span>
                 </RailField>
             ) : null}
 
@@ -212,13 +212,13 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
             {legacy ? (
                 // Saved before connections had their own identity. It still resolves, and
                 // re-picking it here moves it onto the current shape.
-                <p className="m-0 text-xs text-[var(--ag-colorTextSecondary)]">
+                <p className="m-0 text-meta text-muted-foreground">
                     {t("entityUi.toolForm.legacyServer")}
                 </p>
             ) : null}
 
             {prefix === RESERVED_TOOL_PREFIX ? (
-                <p className="m-0 text-xs text-[var(--ag-colorError)]">
+                <p className="m-0 text-meta text-destructive">
                     {t("entityUi.toolForm.prefixReserved")}
                 </p>
             ) : null}

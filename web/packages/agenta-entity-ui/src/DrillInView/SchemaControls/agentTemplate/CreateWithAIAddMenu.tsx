@@ -17,9 +17,11 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
+    IconTile,
 } from "@agenta/ui/ui"
 import {useSetAtom} from "jotai"
 
+import {CatalogListRow} from "./CatalogListRow"
 import {SectionAddButton} from "./SectionAddButton"
 
 /** One manual row of the menu: an icon, a name, a hint. */
@@ -57,7 +59,7 @@ export interface CreateWithAIAddMenuProps {
     contentClassName?: string
 }
 
-/** One row (canvas F02 f3): a plain 14 px icon, a 13 px name, a 12 px hint that wraps. */
+/** One row: the kit's `MENU_ITEM` (16 px icon, 8 px padding) with a 12 px hint under the name. */
 function MenuRow({
     icon,
     title,
@@ -70,16 +72,13 @@ function MenuRow({
     onSelect: () => void
 }) {
     return (
-        <DropdownMenuItem onSelect={onSelect} className="items-start gap-2 p-2">
-            <span
-                aria-hidden
-                className="mt-0.5 flex shrink-0 text-colorTextSecondary [&_svg]:!size-3.5"
-            >
+        <DropdownMenuItem onSelect={onSelect} className="items-start">
+            <span aria-hidden className="mt-0.5 flex shrink-0 text-muted-foreground">
                 {icon}
             </span>
             <span className="flex min-w-0 flex-col">
-                <span className="text-[13px] leading-5 text-colorText">{title}</span>
-                <span className="text-[12px] leading-4 text-colorTextTertiary">{hint}</span>
+                <span className="text-label leading-5 text-foreground">{title}</span>
+                <span className="text-meta text-muted-foreground">{hint}</span>
             </span>
         </DropdownMenuItem>
     )
@@ -157,5 +156,38 @@ export function CreateWithAIAddMenu({
                 {aiLast ? aiRow : null}
             </DropdownMenuContent>
         </DropdownMenu>
+    )
+}
+
+/** "Create with AI" as the first row of an add list (ROW-03): fills the composer, then leaves. */
+export function CreateWithAIRow({
+    starterPrompt,
+    onDone,
+}: {
+    starterPrompt: string
+    onDone: () => void
+}) {
+    const t = useT(configItemsCatalog)
+    const requestPrefill = useSetAtom(composerPrefillRequestAtom)
+    const title = t("entityUi.configItems.createWithAi")
+    return (
+        <CatalogListRow
+            variant="canvas"
+            actionLabel={title}
+            onClick={() => {
+                requestPrefill({id: Date.now(), text: starterPrompt})
+                onDone()
+            }}
+            leading={
+                <IconTile size={32} tone="neutral" aria-hidden>
+                    <BuilderIcon size={16} />
+                </IconTile>
+            }
+            title={title}
+        >
+            <span className="truncate text-meta text-muted-foreground">
+                {t("entityUi.configItems.createWithAiHint")}
+            </span>
+        </CatalogListRow>
     )
 }

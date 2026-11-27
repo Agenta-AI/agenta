@@ -7,7 +7,7 @@ import {useT} from "@agenta/i18n"
 import chatMobileComposerCatalog from "@agenta/i18n/catalogs/chat.mobileComposer"
 import {Button} from "@agenta/ui/ui"
 import {ViewDrawerHost} from "@agenta/ui/view-stack"
-import {Lock} from "lucide-react"
+import {LockSimpleIcon} from "@phosphor-icons/react"
 
 /** "Add a provider or subscription" in a drawer; a picked provider's form takes its place. */
 const ADD_PROVIDER_REQUEST = {view: providerAddView, params: {}, target: {kind: "project"}} as const
@@ -39,18 +39,12 @@ export const ConnectModelStrip = ({gateActive}: Pick<AgentModelKeyStatus, "gateA
     return (
         <>
             <RevealCollapse open={gateActive}>
-                <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-solid border-colorWarning/30 bg-colorWarningBg px-3 py-2">
-                    <span className="flex min-w-0 items-center gap-2 text-xs text-colorWarningText">
-                        <Lock className="size-3.5 shrink-0" />
+                <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-solid border-warning/30 bg-warning/10 px-3 py-2">
+                    <span className="flex min-w-0 items-center gap-2 text-label text-warning">
+                        <LockSimpleIcon className="size-3.5 shrink-0" />
                         <span className="truncate">{t("chat.mobileComposer.addProviderKey")}</span>
                     </span>
-                    <Button
-                        size="sm"
-                        // A phone: 44 px high itself, into the strip's padding. Not an after area:
-                        // the reveal around the strip clips its overflow.
-                        className="shrink-0 max-md:-my-2 max-md:min-h-11"
-                        onClick={() => setOpen(true)}
-                    >
+                    <Button size="sm" className="shrink-0" onClick={() => setOpen(true)}>
                         {t("chat.mobileComposer.setUpProviders")}
                     </Button>
                 </div>

@@ -64,8 +64,8 @@ export const AccountTab = () => {
                                 {t("common.thisCannotBeUndone")}
                             </AlertDialogDescription>
                         </AlertDialogHeader>
-                        <div className="m-0 text-sm">{body}</div>
-                        {error ? <p className="m-0 text-sm text-colorError">{error}</p> : null}
+                        <div className="m-0 text-body">{body}</div>
+                        {error ? <p className="m-0 text-body text-destructive">{error}</p> : null}
                         <AlertDialogFooter>
                             <AlertDialogCancel asChild>
                                 <Button

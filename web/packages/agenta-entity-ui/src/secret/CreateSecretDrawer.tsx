@@ -1,7 +1,7 @@
 /**
  * CreateSecretDrawer — an in-flow "create a project secret" surface.
  *
- * A stacked `EnhancedDrawer` that renders the SAME `SecretForm` the Settings modal uses, so a
+ * A stacked Sheet that renders the SAME `SecretForm` the Settings modal uses, so a
  * user configuring (e.g.) an MCP server can add a missing secret without leaving the flow. On
  * save the secret is written to the project vault and handed back via `onCreated` so the caller
  * can select it in its draft.
@@ -9,8 +9,15 @@
 import {useT} from "@agenta/i18n"
 import secretFormCatalog from "@agenta/i18n/catalogs/entityUi.secretForm"
 import {toEnvVarName} from "@agenta/shared/utils"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button} from "@agenta/ui/ui"
+import {
+    Button,
+    Sheet,
+    SheetContent,
+    SheetFooter,
+    SheetHeader,
+    SheetTitle,
+    SimpleTooltip,
+} from "@agenta/ui/ui"
 import {ArrowLeft} from "@phosphor-icons/react"
 
 import {DrawerFooter} from "../drawers/shared/DrawerFooter"
@@ -33,9 +40,6 @@ export interface CreateSecretDrawerProps {
     /** Stacks above the host drawer. @default 1100 */
     zIndex?: number
 }
-
-/** `DrawerFooter` brings its own rule and padding, so the footer slot must add neither. */
-const FOOTER_STYLE = {padding: 0, border: 0, display: "block"} as const
 
 export function CreateSecretDrawer({
     open,
@@ -63,54 +67,60 @@ export function CreateSecretDrawer({
     })
 
     return (
-        <EnhancedDrawer
-            rootClassName="ag-drawer-elevated"
+        <Sheet
             open={open}
-            onClose={onClose}
-            placement="right"
-            width={600}
-            zIndex={zIndex}
-            // The header carries its own Back arrow — the built-in close would duplicate it.
-            closable={false}
-            destroyOnClose
-            title={
-                <div className="flex min-w-0 items-center gap-2">
-                    <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={t("entityUi.secretForm.back")}
-                        onClick={onClose}
-                        className="shrink-0"
-                    >
-                        <ArrowLeft size={14} />
-                    </Button>
-                    <div className="min-w-0">
-                        <div className="truncate text-sm font-medium">
-                            {t("entityUi.secretForm.createSecret")}
-                        </div>
-                        <div className="truncate text-xs font-normal text-colorTextSecondary">
-                            {t("entityUi.secretForm.availableToEveryAgent")}
+            onOpenChange={(next) => {
+                if (!next) onClose()
+            }}
+        >
+            <SheetContent
+                side="right"
+                className="ag-drawer-elevated"
+                style={{width: 600, maxWidth: "calc(100% - 1rem)", zIndex}}
+            >
+                {/* The header carries its own Back arrow, so the built-in close would duplicate it. */}
+                <SheetHeader showCloseButton={false}>
+                    <div className="flex min-w-0 items-center gap-2">
+                        <SimpleTooltip title={t("entityUi.secretForm.back")}>
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label={t("entityUi.secretForm.back")}
+                                onClick={onClose}
+                                className="shrink-0"
+                            >
+                                <ArrowLeft size={14} />
+                            </Button>
+                        </SimpleTooltip>
+                        <div className="min-w-0">
+                            <SheetTitle className="truncate text-label font-medium">
+                                {t("entityUi.secretForm.createSecret")}
+                            </SheetTitle>
+                            <div className="truncate text-meta font-normal text-muted-foreground">
+                                {t("entityUi.secretForm.availableToEveryAgent")}
+                            </div>
                         </div>
                     </div>
+                </SheetHeader>
+                <div className="min-h-0 flex-1 overflow-y-auto p-4 text-field-md text-foreground">
+                    <SecretForm controller={controller} popupZIndex={zIndex + 1} />
                 </div>
-            }
-            footer={
-                <DrawerFooter
-                    left={
-                        <span className="min-w-0 truncate text-xs text-colorTextSecondary">
-                            {t("entityUi.secretForm.savedThenSelected")}
-                        </span>
-                    }
-                    onCancel={onClose}
-                    isMutating={controller.saving}
-                    canSave={!controller.okDisabled}
-                    submitLabel={t("entityUi.secretForm.save")}
-                    onSubmit={controller.submit}
-                />
-            }
-            styles={{body: {padding: 16}, footer: FOOTER_STYLE}}
-        >
-            <SecretForm controller={controller} popupZIndex={zIndex + 1} />
-        </EnhancedDrawer>
+                {/* `DrawerFooter` brings its own rule and padding. */}
+                <SheetFooter className="block border-0 p-0">
+                    <DrawerFooter
+                        left={
+                            <span className="min-w-0 truncate text-meta text-muted-foreground">
+                                {t("entityUi.secretForm.savedThenSelected")}
+                            </span>
+                        }
+                        onCancel={onClose}
+                        isMutating={controller.saving}
+                        canSave={!controller.okDisabled}
+                        submitLabel={t("entityUi.secretForm.save")}
+                        onSubmit={controller.submit}
+                    />
+                </SheetFooter>
+            </SheetContent>
+        </Sheet>
     )
 }

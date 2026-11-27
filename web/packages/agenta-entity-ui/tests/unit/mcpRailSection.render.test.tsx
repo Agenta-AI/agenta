@@ -165,11 +165,11 @@ describe("the MCP rail rows", () => {
     it("tags an expired sign-in Needs setup, with the reason on a second line", async () => {
         await renderSection({items: [LINEAR, OCTOLENS], expired: new Set(["octolens"])})
 
-        expect(rowNodes()[1]!.getAttribute("style")).toContain("colorWarningBorder")
+        expect(rowNodes()[1]!.getAttribute("style")).toContain("var(--warning)")
         expect(rowNodes()[1]!.textContent).toContain("Needs setup")
         expect(rowNodes()[1]!.textContent).toContain("Sign-in expired")
         // The healthy row beside it stays unmarked, so the mark means something.
-        expect(rowNodes()[0]!.getAttribute("style") ?? "").not.toContain("colorWarningBorder")
+        expect(rowNodes()[0]!.getAttribute("style") ?? "").not.toContain("var(--warning)")
         expect(rowNodes()[0]!.textContent).not.toContain("Needs setup")
     })
 

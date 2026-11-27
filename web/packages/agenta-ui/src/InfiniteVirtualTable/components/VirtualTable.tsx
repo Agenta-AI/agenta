@@ -394,9 +394,8 @@ export const VirtualTable = <RecordType extends object>({
     // underneath show straight through it — "Name" and "Inputs" rendered on top of each other.
     // Same tone, painted as a gradient layer over an opaque base instead of as a translucent fill.
     const headerCellPaint: CSSProperties = {
-        backgroundColor: "var(--ag-colorBgContainer)",
-        backgroundImage:
-            "linear-gradient(var(--ag-colorFillQuaternary), var(--ag-colorFillQuaternary))",
+        backgroundColor: "var(--background)",
+        backgroundImage: "linear-gradient(var(--secondary), var(--secondary))",
     }
 
     const colGroup = (
@@ -427,7 +426,7 @@ export const VirtualTable = <RecordType extends object>({
                 "relative flex min-h-0 flex-col overflow-hidden",
                 // antd's `bordered` boxes the WHOLE table, not just the cells. Only the inner
                 // rules were ported, so the table had no outer edge at all.
-                bordered && "border border-solid border-colorBorderSecondary",
+                bordered && "border border-solid border-border-muted",
                 className,
             )}
             style={style}
@@ -435,7 +434,7 @@ export const VirtualTable = <RecordType extends object>({
             {loading ? (
                 <div
                     data-table-loading
-                    className="absolute inset-0 z-10 flex items-center justify-center bg-colorBgContainer/60"
+                    className="absolute inset-0 z-10 flex items-center justify-center bg-background/60"
                 >
                     <Spinner />
                 </div>
@@ -452,7 +451,7 @@ export const VirtualTable = <RecordType extends object>({
                                         rowSpan={headerGroups.length}
                                         className={cn(
                                             AVT.headerCell,
-                                            "box-border border-0 border-b border-solid border-colorBorderSecondary px-2 py-2 text-left",
+                                            "box-border border-0 border-b border-solid border-border-muted px-2 py-2 text-left",
                                             // The selection and expand columns are columns too:
                                             // without this the row-select column ran straight
                                             // into Name with no rule between them.
@@ -474,7 +473,7 @@ export const VirtualTable = <RecordType extends object>({
                                         rowSpan={headerGroups.length}
                                         className={cn(
                                             AVT.headerCell,
-                                            "box-border border-0 border-b border-solid border-colorBorderSecondary px-2 py-2",
+                                            "box-border border-0 border-b border-solid border-border-muted px-2 py-2",
                                             bordered && "border-r",
                                         )}
                                         style={{
@@ -522,7 +521,7 @@ export const VirtualTable = <RecordType extends object>({
                                             data-column-key={header.column.id}
                                             className={cn(
                                                 AVT.headerCell,
-                                                "relative box-border border-0 border-b border-solid border-colorBorderSecondary text-left text-field-md font-medium text-colorText",
+                                                "relative box-border border-0 border-b border-solid border-border-muted text-left text-field-md font-medium text-foreground",
                                                 CELL_PADDING[size],
                                                 bordered && "border-r",
                                                 source?.ellipsis && "truncate",
@@ -564,9 +563,9 @@ export const VirtualTable = <RecordType extends object>({
                                                         // indicator drawn on the edge itself.
                                                         "absolute right-0 top-0 z-[1] h-full w-2 cursor-col-resize touch-none select-none",
                                                         "after:absolute after:inset-y-0 after:right-0 after:w-px after:content-['']",
-                                                        "hover:after:bg-colorPrimary",
+                                                        "hover:after:bg-primary",
                                                         header.column.getIsResizing() &&
-                                                            "after:bg-colorPrimary",
+                                                            "after:bg-primary",
                                                     )}
                                                     onMouseDown={header.getResizeHandler()}
                                                     onTouchStart={header.getResizeHandler()}
@@ -625,7 +624,7 @@ export const VirtualTable = <RecordType extends object>({
                                             data-row-key={row.id}
                                             className={cn(
                                                 AVT.row,
-                                                "border-0 border-b border-solid border-colorBorderSecondary hover:bg-colorFillTertiary",
+                                                "border-0 border-b border-solid border-border-muted hover:bg-accent",
                                                 rowClassName?.(record, virtualRow.index),
                                                 rowProps.className,
                                             )}
@@ -639,9 +638,9 @@ export const VirtualTable = <RecordType extends object>({
                                                     key="leading"
                                                     className={cn(
                                                         AVT.cell,
-                                                        "box-border bg-colorBgContainer px-2 align-middle",
+                                                        "box-border bg-background px-2 align-middle",
                                                         bordered &&
-                                                            "border-0 border-r border-solid border-colorBorderSecondary",
+                                                            "border-0 border-r border-solid border-border-muted",
                                                         leadingCellProps?.(record, virtualRow.index)
                                                             ?.className,
                                                     )}
@@ -669,9 +668,9 @@ export const VirtualTable = <RecordType extends object>({
                                                     className={cn(
                                                         AVT.cell,
                                                         AVT.expandCell,
-                                                        "box-border bg-colorBgContainer px-2 align-middle",
+                                                        "box-border bg-background px-2 align-middle",
                                                         bordered &&
-                                                            "border-0 border-r border-solid border-colorBorderSecondary",
+                                                            "border-0 border-r border-solid border-border-muted",
                                                     )}
                                                     style={{
                                                         position: "sticky",
@@ -689,7 +688,7 @@ export const VirtualTable = <RecordType extends object>({
                                                             }
                                                             aria-expanded={expanded}
                                                             data-expand-toggle={row.id}
-                                                            className="flex size-6 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-colorTextSecondary"
+                                                            className="flex size-6 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-muted-foreground"
                                                             onClick={(event) => {
                                                                 // The row itself may navigate; expanding must not.
                                                                 event.stopPropagation()
@@ -727,10 +726,10 @@ export const VirtualTable = <RecordType extends object>({
                                                         key={cell.id}
                                                         className={cn(
                                                             AVT.cell,
-                                                            "box-border bg-colorBgContainer align-top text-field-md text-colorText",
+                                                            "box-border bg-background align-top text-field-md text-foreground",
                                                             CELL_PADDING[size],
                                                             bordered &&
-                                                                "border-0 border-r border-solid border-colorBorderSecondary",
+                                                                "border-0 border-r border-solid border-border-muted",
                                                             source?.ellipsis && "truncate",
                                                             source?.className,
                                                             props.className,
@@ -754,7 +753,7 @@ export const VirtualTable = <RecordType extends object>({
                                                         (leadingColumnWidth ? 1 : 0) +
                                                         (renderExpandedRow ? 1 : 0)
                                                     }
-                                                    className="box-border border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer p-0"
+                                                    className="box-border border-0 border-b border-solid border-border-muted bg-background p-0"
                                                 >
                                                     {renderExpandedRow?.(record, virtualRow.index)}
                                                 </td>

@@ -1,5 +1,5 @@
 /**
- * "Add MCP server › Connect server" asks "Who can use it" (F03 f5) with the integration form's
+ * "Add MCP server › Connect server" asks for the Owner (F03 f5) with the integration form's
  * switch and texts, under the name and only on the OAuth screen. The choice goes to the journey
  * as the owner of the first sign-in.
  */
@@ -145,9 +145,13 @@ const openWith = async (params: McpConnectViewParams) => {
 }
 
 /** The owner the journey was last asked to sign in for. */
-const lastOwner = () => useMcpConnectJourney.mock.calls.at(-1)?.[0]?.owner
+const radio = (label: string) =>
+    [...document.querySelectorAll<HTMLElement>('[role="radio"]')].find((node) =>
+        node.textContent?.startsWith(label),
+    )
+const text = () => (document.body.textContent ?? "").replace(/\s+/g, " ")
 
-const ONLY_ME_NOTE = "Used when you run an agent that uses each person's own linear sign-in."
+const lastOwner = () => useMcpConnectJourney.mock.calls.at(-1)?.[0]?.owner
 
 beforeAll(async () => {
     await import("../../src/DrillInView/SchemaControls/agentTemplate/views/McpConnectViewBody")
@@ -167,43 +171,31 @@ afterEach(async () => {
     useMcpConnectJourney.mockReset()
 })
 
-describe("Connect server, Who can use it", () => {
-    it("asks under the name, starts on Only me, and says what it means", async () => {
+describe("Connect server, Owner", () => {
+    it("asks for the Owner, starts on Personal, and says what it means", async () => {
         stubJourney(journeyState("naming"))
         await openWith({owners: ["user", "project"]})
-        await findByText("Who can use it")
-        expect(byText("Only me")).toBeTruthy()
-        expect(byText("Only your own runs use it.")).toBeTruthy()
-        await findByText("Everyone in Support")
-        expect(byText("Agents in this project can use it.")).toBeTruthy()
-        expect(byText(ONLY_ME_NOTE)).toBeTruthy()
-        // The integration form's sentence about a default account is not part of it.
-        expect(document.body.textContent).not.toContain("default")
+        await findByText("Owner")
+        expect(radio("Personal")?.getAttribute("aria-checked")).toBe("true")
+        expect(radio("Project")).toBeTruthy()
+        expect(text()).toContain("Only you can use it. It follows you to every project.")
         expect(lastOwner()).toBe("user")
     })
 
-    it("hands Everyone to the journey as the project's sign-in", async () => {
+    it("hands Project to the journey as the project's sign-in", async () => {
         stubJourney(journeyState("naming"))
         await openWith({owners: ["user", "project"]})
-        await findByText("Everyone in Support")
-        const everyone = [...document.querySelectorAll('[role="radio"]')].find((node) =>
-            node.textContent?.startsWith("Everyone in Support"),
-        )
-        await click(everyone)
+        await findByText("Owner")
+        await click(radio("Project"))
         expect(lastOwner()).toBe("project")
-        expect(byText(ONLY_ME_NOTE)).toBeUndefined()
-        expect(
-            byText(
-                "An agent in this project can use it as the agent's account, for every person who runs it.",
-            ),
-        ).toBeTruthy()
+        expect(text()).toContain("Everyone in Support can add it to an agent.")
     })
 
     it("does not ask where the opener allows one owner", async () => {
         stubJourney(journeyState("naming"))
         await openWith({})
         await findByText("Connect", "button")
-        expect(byText("Who can use it")).toBeUndefined()
+        expect(radio("Personal")).toBeUndefined()
         expect(lastOwner()).toBe("project")
     })
 
@@ -211,7 +203,7 @@ describe("Connect server, Who can use it", () => {
         stubJourney(journeyState("naming"))
         await openWith({owners: ["user"]})
         await findByText("Connect", "button")
-        expect(byText("Who can use it")).toBeUndefined()
+        expect(radio("Personal")).toBeUndefined()
         expect(lastOwner()).toBe("user")
     })
 
@@ -228,7 +220,7 @@ describe("Connect server, Who can use it", () => {
             } as McpConnectViewParams["reconnect"],
         })
         await findByText("", '[data-testid="mcp-connect-journey"]')
-        expect(byText("Who can use it")).toBeUndefined()
+        expect(radio("Personal")).toBeUndefined()
         expect(lastOwner()).toBe("project")
     })
 })

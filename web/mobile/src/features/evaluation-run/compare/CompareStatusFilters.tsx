@@ -12,7 +12,7 @@ export const CompareStatusFilters = ({
     onChange: (value: CompareStatusFilter) => void
 }) => (
     <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Status">
-        <span className="text-xs text-muted-foreground">Filters:</span>
+        <span className="text-meta text-muted-foreground">Filters:</span>
         {COMPARE_STATUS_FILTERS.map((filter) => (
             <Button
                 key={filter.key}

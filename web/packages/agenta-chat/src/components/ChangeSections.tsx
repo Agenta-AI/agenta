@@ -53,9 +53,9 @@ const INLINE_DIFF_LINES = 6
 
 // Added and removed rows carry a 1 px bar on their left edge (C01, M05).
 const ADD_ROW =
-    "bg-[color-mix(in_srgb,var(--ag-colorSuccess)_13%,transparent)] text-colorSuccess shadow-[inset_1px_0_0_var(--ag-colorSuccess)]"
+    "bg-[color-mix(in_srgb,var(--success)_13%,transparent)] text-success shadow-[inset_1px_0_0_var(--success)]"
 const DEL_ROW =
-    "bg-[color-mix(in_srgb,var(--ag-colorError)_10%,transparent)] text-colorError shadow-[inset_1px_0_0_var(--ag-colorError)]"
+    "bg-[color-mix(in_srgb,var(--destructive)_10%,transparent)] text-destructive shadow-[inset_1px_0_0_var(--destructive)]"
 
 /** The horizontal inset of every part of a change card: the parts run to the card edge. */
 export const CARD_INSET = "px-3"
@@ -162,7 +162,7 @@ const DiffRows = ({rows, inset = "px-2"}: {rows: DiffRow[]; inset?: string}) => 
                         ? ADD_ROW
                         : row.type === "removed"
                           ? DEL_ROW
-                          : "text-colorTextSecondary"
+                          : "text-muted-foreground"
                 }`}
             >
                 <span aria-hidden className="mr-1.5 w-2.5 shrink-0 opacity-60">
@@ -209,10 +209,10 @@ const TextDiff = ({
             <div
                 className={`max-h-80 overflow-auto font-mono ${
                     bleed
-                        ? `border-0 border-y border-solid border-colorBorderSecondary bg-[var(--ag-surface-raised)] py-1 text-[12px] ${
+                        ? `border-0 border-y border-solid border-border-muted bg-[var(--ag-surface-raised)] py-1 text-meta ${
                               phone ? "leading-[1.7]" : "leading-[1.8]"
                           }`
-                        : "rounded-md border border-solid border-colorBorderSecondary bg-colorFillQuaternary py-1 text-[11px] leading-[1.7]"
+                        : "rounded-md border border-solid border-border-muted bg-secondary py-1 text-caption leading-[1.7]"
                 }`}
                 data-testid="change-diff"
             >
@@ -222,15 +222,15 @@ const TextDiff = ({
                 <button
                     type="button"
                     onClick={() => setFull(true)}
-                    className={`cursor-pointer border-0 bg-transparent text-colorTextSecondary hover:text-colorText ${
+                    className={`cursor-pointer border-0 bg-transparent text-muted-foreground hover:text-foreground ${
                         bleed
                             ? // A row of its own: 32 px, and 46 px on a phone (M05).
-                              `w-full text-left hover:bg-[var(--ag-surface-raised)] ${
+                              `w-full text-left hover:bg-accent ${
                                   phone
-                                      ? "p-3 text-[13px] leading-[22px]"
-                                      : "px-3 py-1.5 text-[12px] leading-5"
+                                      ? "p-3 text-label leading-[22px]"
+                                      : "px-3 py-1.5 text-meta leading-5"
                               }`
-                            : `self-start p-0 text-xs ${
+                            : `self-start p-0 text-meta ${
                                   // A 44 px hit area around the 16 px line.
                                   phone
                                       ? "relative after:absolute after:-inset-x-1 after:-inset-y-3.5 after:content-['']"
@@ -245,7 +245,7 @@ const TextDiff = ({
             {phone && !inDetail ? (
                 <PhoneDetailScreen open={full} onOpenChange={setFull} title={screenTitle}>
                     <div
-                        className="overflow-x-auto rounded-md border border-solid border-colorBorderSecondary bg-colorFillQuaternary py-1 font-mono text-xs leading-[1.7]"
+                        className="overflow-x-auto rounded-md border border-solid border-border-muted bg-secondary py-1 font-mono text-code"
                         data-testid="change-diff-full"
                     >
                         <DiffRows rows={rows.full} />
@@ -257,11 +257,11 @@ const TextDiff = ({
 }
 
 const ValueChange = ({detail}: {detail: Extract<ApprovalChangeDetail, {kind: "value_change"}>}) => (
-    <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs">
-        {detail.label ? <span className="text-colorTextSecondary">{detail.label}</span> : null}
+    <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 text-meta">
+        {detail.label ? <span className="text-muted-foreground">{detail.label}</span> : null}
         {detail.old !== undefined ? (
             <span
-                className="whitespace-pre-wrap break-all font-mono text-colorError line-through"
+                className="whitespace-pre-wrap break-all font-mono text-destructive line-through"
                 data-testid="change-old"
             >
                 {detail.old}
@@ -271,12 +271,12 @@ const ValueChange = ({detail}: {detail: Extract<ApprovalChangeDetail, {kind: "va
             <ArrowRight
                 size={12}
                 aria-hidden
-                className="shrink-0 self-center text-colorTextTertiary"
+                className="shrink-0 self-center text-muted-foreground"
             />
         ) : null}
         {detail.new !== undefined ? (
             <span
-                className="whitespace-pre-wrap break-all font-mono text-colorSuccess"
+                className="whitespace-pre-wrap break-all font-mono text-success"
                 data-testid="change-new"
             >
                 {detail.new}
@@ -302,20 +302,18 @@ const Item = ({
                 <span
                     aria-hidden
                     className={`flex size-4 shrink-0 items-center justify-center rounded ${
-                        added
-                            ? "bg-colorSuccessBg text-colorSuccess"
-                            : "bg-colorErrorBg text-colorError"
+                        added ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
                     }`}
                 >
                     {added ? <Plus size={11} weight="bold" /> : <X size={11} weight="bold" />}
                 </span>
-                <SectionIcon size={14} aria-hidden className="shrink-0 text-colorTextSecondary" />
-                <span className="truncate text-[13px] font-medium text-colorText">
+                <SectionIcon size={14} aria-hidden className="shrink-0 text-muted-foreground" />
+                <span className="truncate text-label font-medium text-foreground">
                     {detail.name}
                 </span>
                 {note ? (
                     <span
-                        className="min-w-0 flex-1 truncate text-xs text-colorTextSecondary"
+                        className="min-w-0 flex-1 truncate text-meta text-muted-foreground"
                         title={note}
                     >
                         {note}
@@ -323,15 +321,15 @@ const Item = ({
                 ) : null}
             </div>
             {added && detail.address && detail.description ? (
-                <span className="pl-12 text-xs text-colorTextSecondary">{detail.description}</span>
+                <span className="pl-12 text-meta text-muted-foreground">{detail.description}</span>
             ) : null}
             {added && detail.files?.length ? (
-                <div className="flex flex-col gap-0.5 pl-12 text-xs">
+                <div className="flex flex-col gap-0.5 pl-12 text-meta">
                     {detail.files.map((file) => (
                         <span key={file.path} className="flex flex-wrap items-baseline gap-x-2">
-                            <span className="font-mono text-colorText">{file.path}</span>
+                            <span className="font-mono text-foreground">{file.path}</span>
                             {file.executable ? (
-                                <span className="text-colorTextSecondary">
+                                <span className="text-muted-foreground">
                                     {t("chat.changeCard.canRun")}
                                 </span>
                             ) : null}
@@ -389,25 +387,21 @@ const ChangeHeader = ({
 }) => {
     const joined = path?.join(" › ") ?? ""
     return (
-        <div className="flex min-w-0 items-center gap-2.5">
+        <div className="flex min-w-0 items-center gap-2">
             <span
                 aria-hidden
-                className={`flex shrink-0 items-center justify-center rounded-[6px] bg-colorBgLayout text-[var(--ag-zinc-8)] ${
-                    small ? "size-5" : "size-[26px]"
+                className={`flex shrink-0 items-center justify-center bg-secondary text-muted-foreground ${
+                    small ? "size-5 rounded-sm" : "size-6 rounded-md"
                 }`}
             >
                 <HeaderIcon size={small ? 12 : 14} />
             </span>
             <div className="flex min-w-0 flex-1 flex-col">
-                <span
-                    className={`truncate font-semibold text-colorText ${small ? "text-xs" : "text-[13px]"}`}
-                >
-                    {title}
-                </span>
+                <span className="truncate text-label font-semibold text-foreground">{title}</span>
                 {joined ? (
                     <span
-                        // 12 / 16, the canvas's secondary line (the app's text-xs is 13 px).
-                        className="truncate text-[12px] leading-4 text-colorTextSecondary"
+                        // 12 / 16, the canvas's secondary line.
+                        className="truncate text-meta text-muted-foreground"
                         title={joined}
                         data-testid="change-path"
                     >
@@ -422,7 +416,7 @@ const ChangeHeader = ({
 export const RiskLine = ({children}: {children: ReactNode}) => (
     <div
         role="note"
-        className="flex items-start gap-2 rounded-lg bg-colorWarningBg px-2.5 py-2 text-[12px] leading-4 text-colorWarningText"
+        className="flex items-start gap-2 rounded-lg bg-warning/10 px-2.5 py-2 text-meta text-warning"
         data-testid="change-risk"
     >
         <Warning size={14} aria-hidden className="mt-px shrink-0" />
@@ -457,7 +451,7 @@ export const Block = ({
 }) => (
     <div
         className={`flex min-w-0 flex-col ${bleed ? "" : "gap-2"} ${
-            block.fails ? "rounded-md border border-solid border-colorError p-2" : ""
+            block.fails ? "rounded-md border border-solid border-destructive p-2" : ""
         }`}
         data-fails={block.fails ? "true" : undefined}
     >
@@ -529,12 +523,12 @@ export const ChangeSections = ({
     const notes = (
         <>
             {proposedValues ? (
-                <p className="m-0 text-xs text-colorTextSecondary" data-testid="change-proposed">
+                <p className="m-0 text-meta text-muted-foreground" data-testid="change-proposed">
                     {t("chat.changeCard.proposedValues")}
                 </p>
             ) : null}
             {cannotApply ? (
-                <p className="m-0 text-xs text-colorError" data-testid="change-cannot-apply">
+                <p className="m-0 text-meta text-destructive" data-testid="change-cannot-apply">
                     {t("chat.changeCard.cannotApply")}
                 </p>
             ) : null}
@@ -543,7 +537,7 @@ export const ChangeSections = ({
     if (single) {
         return (
             <div className="flex min-w-0 flex-col" data-testid="change-sections">
-                <div className="flex max-h-[420px] min-w-0 flex-col overflow-y-auto">
+                <div className="flex max-h-105 min-w-0 flex-col overflow-y-auto">
                     <Block block={blocks[0]} small={false} bleed />
                 </div>
                 {proposedValues || cannotApply ? (
@@ -559,13 +553,11 @@ export const ChangeSections = ({
         >
             {cardHeader}
             {header && sentence ? (
-                <p className="m-0 text-[13px] leading-relaxed text-colorTextSecondary">
-                    {sentence}
-                </p>
+                <p className="m-0 text-label leading-relaxed text-muted-foreground">{sentence}</p>
             ) : null}
             {notes}
             {blocks.length ? (
-                <div className="flex max-h-[420px] min-w-0 flex-col gap-3 overflow-y-auto">
+                <div className="flex max-h-105 min-w-0 flex-col gap-3 overflow-y-auto">
                     {blocks.map((block, index) => (
                         <Block key={`${block.path.join("›")}-${index}`} block={block} small />
                     ))}

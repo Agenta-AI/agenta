@@ -1,19 +1,21 @@
-import {useCallback, useMemo, useState, type ReactNode} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {
     invalidateToolConnections,
     makeDefaultToolConnection,
-    toolExecutionDrawerAtom,
     usePersonalToolConnections,
+    useToolCatalogCategories,
     useToolConnectionActions,
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
 import {personalAccountsAccessAtom} from "@agenta/entities/secret"
 import {
+    categoryLabel,
     IntegrationCatalog,
-    integrationConnectView,
-    ToolExecutionDrawer,
+    IntegrationConnectDialog,
+    type CategorySelection,
     type ConnectionAction,
+    type IntegrationCatalogControls,
     type IntegrationCatalogYours,
 } from "@agenta/entity-ui/gatewayTool"
 import {useT} from "@agenta/i18n"
@@ -21,22 +23,27 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsSharedCatalog from "@agenta/i18n/catalogs/settings.shared"
 import settingsToolsCatalog from "@agenta/i18n/catalogs/settings.tools"
 import {message} from "@agenta/ui/app-message"
-import {ViewDrawerHost} from "@agenta/ui/view-stack"
-import {useAtomValue, useSetAtom} from "jotai"
+import {FilterMenu, type FilterMenuSection} from "@agenta/ui/filter-menu"
+import {SquaresFour, Tag} from "@phosphor-icons/react"
+import {useAtomValue} from "jotai"
 
 import type {ConfirmDestructive} from "../confirm"
-import {addAccountOwners, showsYours} from "../shared/accountOwners"
+import {
+    addAccountOwners,
+    ownersWithDefault,
+    showsYours,
+    type OwnerFilter,
+} from "../shared/accountOwners"
+import {ConnectionsToolbar} from "../shared/ConnectionsToolbar"
 import {LoadFailed} from "../shared/LoadFailed"
 import {YoursEmpty} from "../shared/YoursEmpty"
 
 /** Nouns for the page; a host that calls them something else passes its own. */
 export interface GatewayToolsSectionCopy {
-    run: string
     searchPlaceholder: string
 }
 
 const defaultCopy = (t: ReturnType<typeof useT>): GatewayToolsSectionCopy => ({
-    run: t("settings.tools.runTool"),
     searchPlaceholder: t("settings.tools.searchTools"),
 })
 
@@ -45,8 +52,6 @@ export interface GatewayToolsSectionProps {
     confirm?: ConfirmDestructive
     /** Overrides the nouns; defaults to the "tool" wording oss/ee use. */
     copy?: Partial<GatewayToolsSectionCopy>
-    /** The project group's heading: the project switch. Absent, it stays "Connected". */
-    projectSwitch?: ReactNode
     /** How many projects the person has in the organization, for the empty "Yours" note. */
     projectCount?: number
     /**
@@ -60,7 +65,6 @@ export interface GatewayToolsSectionProps {
 export default function GatewayToolsSection({
     confirm,
     copy: copyOverrides,
-    projectSwitch,
     projectCount,
     canEdit = true,
 }: GatewayToolsSectionProps) {
@@ -79,34 +83,63 @@ export default function GatewayToolsSection({
     // The switch alone decides the owners, so a pending list read never defaults to the project.
     const connectOwners = addAccountOwners(access, canEdit)
     const {handleDelete, handleRevoke} = useToolConnectionActions()
-    const setExecutionDrawer = useSetAtom(toolExecutionDrawerAtom)
     const [connectTarget, setConnectTarget] = useState<string | null>(null)
-
-    const run = useMemo(
+    const [query, setQuery] = useState("")
+    const [category, setCategory] = useState<CategorySelection | null>(null)
+    const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>("all")
+    const {categories} = useToolCatalogCategories()
+    const categorySection = useMemo<FilterMenuSection | null>(
+        () =>
+            categories.length
+                ? {
+                      key: "category",
+                      label: t("settings.shared.filterCategory"),
+                      icon: <Tag size={14} />,
+                      value: category?.id ?? "all",
+                      defaultValue: "all",
+                      searchable: true,
+                      options: [
+                          {
+                              value: "all",
+                              label: t("settings.shared.ownerAll"),
+                              icon: <SquaresFour size={14} />,
+                          },
+                          ...categories.map((item) => ({
+                              value: item.id,
+                              label: categoryLabel(item.name),
+                          })),
+                      ],
+                      onChange: (value) => {
+                          const picked = categories.find((item) => item.id === value)
+                          setCategory(picked ? {id: picked.id, name: picked.name} : null)
+                      },
+                  }
+                : null,
+        [categories, category, t],
+    )
+    const controls = useMemo<IntegrationCatalogControls>(
         () => ({
-            label: copy.run,
-            onRun: (record: ToolConnection) => {
-                if (!record.id || !record.slug) return
-                setExecutionDrawer({
-                    connectionId: record.id,
-                    connectionSlug: record.slug,
-                    integrationKey: record.integration_key,
-                })
-            },
+            query,
+            category,
+            owner: ownerFilter === "user" || ownerFilter === "project" ? ownerFilter : "all",
+            onClearSearch: () => setQuery(""),
         }),
-        [copy.run, setExecutionDrawer],
+        [category, ownerFilter, query],
     )
 
     const confirmConnectionAction = useCallback(
         (action: ConnectionAction, connection: ToolConnection) => {
             const remove = action === "delete"
+            const name = connection.name || connection.slug || ""
             confirm?.({
                 title: remove
-                    ? t("settings.tools.deleteConnectionTitle")
-                    : t("settings.tools.revokeConnectionTitle"),
+                    ? t("settings.tools.deleteConnectionTitle", {name})
+                    : t("settings.tools.revokeConnectionTitle", {name}),
                 message: remove
                     ? t("settings.tools.deleteConnectionMessage")
                     : t("settings.tools.revokeConnectionMessage"),
+                okText: remove ? t("common.delete") : t("common.revoke"),
+                danger: true,
                 onOk: async () => {
                     if (!connection.id) return
                     try {
@@ -162,28 +195,41 @@ export default function GatewayToolsSection({
 
     return (
         <>
+            <ConnectionsToolbar
+                search={query}
+                onSearchChange={setQuery}
+                searchPlaceholder={copy.searchPlaceholder}
+                filter={
+                    categorySection ? (
+                        <FilterMenu
+                            sections={[categorySection]}
+                            align="start"
+                            size="default"
+                            onReset={() => setCategory(null)}
+                            resetDisabled={category === null}
+                        />
+                    ) : null
+                }
+                owners={connectOwners}
+                owner={ownerFilter}
+                onOwnerChange={setOwnerFilter}
+            />
             <section className="ph-no-capture">
                 <IntegrationCatalog
                     layout="page"
                     searchPlaceholder={copy.searchPlaceholder}
-                    projectHeading={projectSwitch}
                     yours={yours}
-                    run={run}
                     confirmConnectionAction={confirm ? confirmConnectionAction : undefined}
-                    onConnect={setConnectTarget}
+                    onConnect={(integrationKey) => setConnectTarget(integrationKey)}
+                    controls={controls}
+                    canManageProject={canEdit}
                 />
             </section>
 
-            <ToolExecutionDrawer />
             {connectTarget ? (
-                // The connect view in a drawer; its target is the project, so it adds the new
-                // connection to no agent.
-                <ViewDrawerHost
-                    request={{
-                        view: integrationConnectView,
-                        params: {integrationKey: connectTarget, owners: connectOwners},
-                        target: {kind: "project"},
-                    }}
+                <IntegrationConnectDialog
+                    integrationKey={connectTarget}
+                    owners={connectOwners && ownersWithDefault(connectOwners, ownerFilter)}
                     onClosed={() => setConnectTarget(null)}
                 />
             ) : null}

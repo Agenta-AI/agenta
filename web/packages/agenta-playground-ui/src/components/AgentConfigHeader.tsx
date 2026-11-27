@@ -57,12 +57,12 @@ export const AgentConfigHeader = ({
         <section
             className={`${CONFIG_REGION_BAR} ${
                 embedded ? "grow" : "sticky top-0 z-[10]"
-            } bg-colorBgContainer bg-[image:linear-gradient(var(--ag-colorFillTertiary),var(--ag-colorFillTertiary))] ${
+            } bg-background bg-[image:linear-gradient(var(--secondary),var(--secondary))] ${
                 className ?? ""
             }`}
         >
             <div className="flex items-center gap-2 grow min-w-0 overflow-hidden">
-                <span className="text-[13px] font-semibold text-colorText">
+                <span className="text-label font-semibold text-foreground">
                     {t("playground.agentHeader.configuration")}
                 </span>
             </div>
@@ -71,8 +71,8 @@ export const AgentConfigHeader = ({
                     <CommitVariantChangesButton
                         variantId={revisionId}
                         label={t("playground.agentHeader.commit")}
-                        type="primary"
-                        size="small"
+                        variant="default"
+                        size="sm"
                         appId={appId}
                         onAfterCommit={onAfterCommit}
                         onCommitted={onCommitted}

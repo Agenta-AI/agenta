@@ -22,7 +22,7 @@ const meta = {
     args: {label: "Support", orgLabel: "Acme", projects: PROJECTS},
     decorators: [
         (Story) => (
-            <div className="text-[13px] font-medium leading-[18px] text-muted-foreground">
+            <div className="text-label font-medium text-muted-foreground">
                 <Story />
             </div>
         ),

@@ -400,27 +400,27 @@ const ToolHeader = memo(function ToolHeader({
                 ) : isReferenceTool ? (
                     <div className="flex flex-col gap-0.5">
                         <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-[var(--ag-c-F8FAFC)]">
+                            <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-md bg-secondary">
                                 <GraphIcon size={14} />
                             </span>
-                            <span className="text-sm font-semibold truncate">
+                            <span className="text-label truncate">
                                 {name || referenceSlug || t("entityUi.toolForm.workflowTool")}
                             </span>
                             {referenceSlug && (
-                                <span className="text-xs truncate text-colorTextDescription">
+                                <span className="text-meta truncate text-muted-foreground">
                                     / {referenceSlug}
                                 </span>
                             )}
                         </div>
                         {desc ? (
-                            <span className="text-xs text-colorTextDescription">{desc}</span>
+                            <span className="text-meta text-muted-foreground">{desc}</span>
                         ) : null}
                     </div>
                 ) : isBuiltinTool ? (
                     <div className="flex items-center gap-1">
                         <div className="flex items-center">
                             {builtinIcon && (
-                                <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-[var(--ag-c-F8FAFC)]">
+                                <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-md bg-secondary">
                                     {builtinIcon}
                                 </span>
                             )}
@@ -430,21 +430,19 @@ const ToolHeader = memo(function ToolHeader({
                         {builtinToolLabel && (
                             <>
                                 {builtinProviderLabel && <span>/</span>}
-                                <span className="text-colorTextDescription">
-                                    {builtinToolLabel}
-                                </span>
+                                <span className="text-muted-foreground">{builtinToolLabel}</span>
                             </>
                         )}
                     </div>
                 ) : (
                     <div className="flex flex-col gap-0.5">
-                        <span className="text-sm font-semibold truncate">
+                        <span className="text-label truncate">
                             {name || t("entityUi.toolForm.functionName")}
                         </span>
                         {desc ? (
-                            <span className="text-xs text-colorTextDescription">{desc}</span>
+                            <span className="text-meta text-muted-foreground">{desc}</span>
                         ) : (
-                            <span className="text-xs opacity-50 text-colorTextDescription">
+                            <span className="text-meta opacity-50 text-muted-foreground">
                                 {t("entityUi.toolForm.functionDescription")}
                             </span>
                         )}
@@ -737,7 +735,7 @@ export const ToolItemControl = memo(function ToolItemControl({
                 {!minimized && (
                     <textarea
                         aria-label={t("entityUi.toolForm.toolConfiguration")}
-                        className="font-mono text-xs p-2 border rounded min-h-[120px] resize-y w-full"
+                        className=" text-code-sm p-2 border rounded min-h-30 resize-y w-full"
                         value={editorText}
                         onChange={(e) => onEditorChange(e.target.value)}
                         readOnly={isReadOnly}

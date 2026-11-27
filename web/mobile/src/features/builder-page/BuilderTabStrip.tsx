@@ -2,8 +2,10 @@ import {Fragment, useLayoutEffect, useMemo, useRef, useState} from "react"
 
 import {formatNumber, useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
-import {Button, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
+import {Button, MENU_ITEM, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {CaretDown, Plus} from "@phosphor-icons/react"
+
+import {cn} from "@/lib/utils"
 
 import {AgentPicker} from "./AgentPicker"
 import {BUILDER_TAB_ICONS, BuilderTabButton} from "./BuilderTabButton"
@@ -18,7 +20,7 @@ const PLUS_WIDTH = 36
 const TAB_GAP = 17
 
 /** The line between two tabs, and before "N more". */
-const tabSeparator = <span aria-hidden className="h-4 w-px shrink-0 bg-colorBorder" />
+const tabSeparator = <span aria-hidden className="h-4 w-px shrink-0 bg-border" />
 
 /** The label a tab shows: its name, else the agent list's name, else the kind. */
 export type TabLabel = (tab: BuilderTab) => string
@@ -161,10 +163,10 @@ export const BuilderTabStrip = ({
                             type="button"
                             aria-haspopup="menu"
                             title={hiddenTabs.map(label).join(", ")}
-                            className="flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-[6px] border-0 bg-transparent px-2 text-[12px] leading-5 text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText"
+                            className="focus-ring flex h-control-sm shrink-0 cursor-pointer items-center gap-1.5 rounded-md border-0 bg-transparent px-2 text-label text-muted-foreground hover:bg-accent hover:text-foreground"
                         >
                             {t("builder.page.moreTabs", {count: formatNumber(hiddenTabs.length)})}
-                            <CaretDown aria-hidden size={12} className="text-colorTextTertiary" />
+                            <CaretDown aria-hidden size={12} className="text-muted-foreground" />
                         </button>
                     </PopoverTrigger>
                     <PopoverContent align="start" className="flex w-60 flex-col p-1">
@@ -178,16 +180,19 @@ export const BuilderTabStrip = ({
                                         setMoreOpen(false)
                                         onActivate(builderTabKey(tab))
                                     }}
-                                    className="flex h-8 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left text-[13px] text-colorText hover:bg-colorFillTertiary"
+                                    className={cn(
+                                        MENU_ITEM,
+                                        "border-0 bg-transparent text-left text-foreground hover:bg-accent focus-visible:bg-accent",
+                                    )}
                                 >
                                     <KindIcon
                                         aria-hidden
                                         size={14}
-                                        className="shrink-0 text-colorTextSecondary"
+                                        className="shrink-0 text-muted-foreground"
                                     />
                                     <span className="min-w-0 flex-1 truncate">{label(tab)}</span>
                                     {tab.dot ? (
-                                        <span className="size-1.5 shrink-0 rounded-full bg-colorPrimary" />
+                                        <span className="size-1.5 shrink-0 bg-primary" />
                                     ) : null}
                                 </button>
                             )

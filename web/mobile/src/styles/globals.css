@@ -1,22 +1,24 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* Palette-derived shadcn variables (light + dark), GENERATED from
-   web/oss/src/styles/theme/palette.ts — do not edit by hand.
-   Regenerate: pnpm --filter @agenta/mobile generate:tokens */
-@import "./theme.generated.css";
+/* The design system: theme variables on :root and .dark, and their Tailwind mapping. Both are
+   GENERATED from @agenta/ui/src/design/theme.config.ts (`pnpm generate:theme`). See web/DESIGN.md. */
+@import "@agenta/ui/design/theme.css";
+@import "@agenta/ui/design/theme.tailwind.css";
 @import "@agenta/auth-ui/auth.css";
-/* The full `--ag-*` token layer, generated from palette.ts and shared with the desktop.
-   Shared components reference these vars LITERALLY (`border-[var(--ag-colorBorderSecondary)]`,
-   `bg-[var(--ag-c-FFFFFF)]`); an undefined var falls back to its CSS initial value — which for
-   a border-color is `currentColor`, i.e. a bright line on a dark surface. 98 of the 115 vars the
-   packages use were undefined here before this import. */
+/* Kept only for the `--ag-*` hue presets and hex shims that have no design-system equivalent
+   (tag, type, env and chart hues, `--ag-c-*`, `--ag-rgba-*`, `--ag-zinc-*`). Every `--ag-*` name
+   that does have one is re-pointed at the new theme in the legacy block below. */
 @import "@agenta/ui/theme-variables.css";
 /* The surface ladder the shared panels are painted on — one definition, both apps. In the
    `components` layer, not bare: unlayered CSS outranks every Tailwind utility, so a utility on
    the same element (`Kbd`'s tooltip re-skin over `ag-surface-chip`) could never win — a cap in
    a light-mode tooltip drew white glyphs on the light chip. */
 @import "@agenta/ui/surfaces.css" layer(components);
+/* One focus style for every control. Unlayered so it beats any utility. */
+@import "@agenta/ui/focus.css";
+/* Bottom-docked sheets on compact windows (COMPACT-04). */
+@import "@agenta/ui/touch.css";
 /* The Lexical editor's own theme + Prism code tokens. Mobile renders the SAME editor (the chat
    composer and the config panel's JSON/YAML views), so it needs the same stylesheets — without
    them code blocks and editor chrome render untokenised. */
@@ -51,23 +53,21 @@
 @source "../../node_modules/@agenta/auth-ui/src/**/*.{ts,tsx}";
 @source "../../node_modules/@agenta/skills-ui/src/**/*.{ts,tsx}";
 
+
 /* Class-based dark mode: .dark is set on <html> pre-paint by _document.tsx. */
 @custom-variant dark (&:is(.dark *));
 
 :root {
-    --radius: 0.625rem;
-    /* The composer's send takes the primary fill here, not the desktop's lime accent. The button
-       reads these hooks itself (ComposerSendButton), and the theme tokens carry the dark values:
-       the glyph is the container colour, so it reads white on the light theme's ink and ink on
-       the dark theme's yellow — the pairing Home's send already uses. */
-    --ag-composer-send-bg: var(--colorPrimary);
-    --ag-composer-send-fg: var(--colorBgContainer);
-    --ag-composer-send-hover-bg: color-mix(in srgb, var(--colorPrimary) 85%, transparent);
+    /* The composer's send button takes the primary fill (ComposerSendButton reads these hooks). */
+    --ag-composer-send-bg: var(--primary);
+    --ag-composer-send-fg: var(--background);
+    --ag-composer-send-hover-bg: var(--primary-hover);
 }
 
+/* Sizes, motion and tag hues the kit uses that the design system does not name yet. No colors
+   here except the tag hues, which come from @agenta/ui/theme-variables.css. */
 @theme inline {
-    /* The kit's preset tag colours (`Badge` variants `blue`, `green`, ...), from @agenta/ui's
-       theme variables. Without them a type tag renders as plain text. */
+    /* The kit's preset tag colours (`Badge` variants `blue`, `green`, ...). */
     --color-tag-blue: var(--ag-preset-blue-text);
     --color-tag-blue-bg: var(--ag-preset-blue-bg);
     --color-tag-green: var(--ag-preset-green-text);
@@ -94,136 +94,20 @@
     --color-tag-magenta-bg: var(--ag-preset-magenta-bg);
     --color-tag-gold: var(--ag-preset-gold-text);
     --color-tag-gold-bg: var(--ag-preset-gold-bg);
-    --color-background: var(--background);
-    --color-foreground: var(--foreground);
-    --color-card: var(--card);
-    --color-card-foreground: var(--card-foreground);
-    --color-popover: var(--popover);
-    --color-popover-foreground: var(--popover-foreground);
-    --color-primary: var(--primary);
-    --color-primary-foreground: var(--primary-foreground);
-    --color-secondary: var(--secondary);
-    --color-secondary-foreground: var(--secondary-foreground);
-    --color-muted: var(--muted);
-    --color-muted-foreground: var(--muted-foreground);
-    --color-accent: var(--accent);
-    --color-accent-foreground: var(--accent-foreground);
-    --color-destructive: var(--destructive);
-    --color-destructive-foreground: var(--destructive-foreground);
-    --color-success: var(--success);
-    --color-border: var(--border);
-    --color-input: var(--input);
-    --color-ring: var(--ring);
-    /* Shared @agenta/ui presentational vocabulary — see generate-shadcn-tokens.ts. */
-    --color-colorText: var(--colorText);
-    --color-colorTextSecondary: var(--colorTextSecondary);
-    --color-colorTextTertiary: var(--colorTextTertiary);
-    --color-colorTextQuaternary: var(--colorTextQuaternary);
-    --color-colorBorder: var(--colorBorder);
-    --color-colorBorderSecondary: var(--colorBorderSecondary);
-    --color-colorBgContainer: var(--colorBgContainer);
-    --color-colorBgElevated: var(--colorBgElevated);
-    --color-colorFill: var(--colorFill);
-    --color-colorFillSecondary: var(--colorFillSecondary);
-    --color-colorFillTertiary: var(--colorFillTertiary);
-    --color-colorFillQuaternary: var(--colorFillQuaternary);
-    --color-colorIcon: var(--colorIcon);
-    --color-colorIconHover: var(--colorIconHover);
-    --color-colorTextHeading: var(--colorTextHeading);
-    --color-colorTextDescription: var(--colorTextDescription);
-    --color-colorTextDisabled: var(--colorTextDisabled);
-    --color-colorWhite: var(--colorWhite);
-    --color-zinc-1: var(--zinc-1);
-    --color-zinc-2: var(--zinc-2);
-    --color-zinc-3: var(--zinc-3);
-    --color-zinc-4: var(--zinc-4);
-    --color-zinc-5: var(--zinc-5);
-    --color-zinc-6: var(--zinc-6);
-    --color-zinc-7: var(--zinc-7);
-    --color-zinc-8: var(--zinc-8);
-    --color-zinc-9: var(--zinc-9);
-    --color-zinc-10: var(--zinc-10);
-    --color-chip: var(--colorFillChip);
-    --color-error-bg: var(--colorErrorBg);
-    /* The Badge tones (success, warning, info, processing, draft) outside the playground. */
-    --color-success-bg: var(--colorSuccessBg);
-    --color-warning: var(--colorWarningText);
-    --color-warning-bg: var(--colorWarningBg);
-    --color-info: var(--colorInfo);
-    --color-info-bg: var(--colorInfoBg);
+    /* Draft state (kit Badge, playground). No design-system color has this job yet. */
     --color-draft: var(--ag-draft-text);
     --color-draft-bg: var(--ag-draft-bg);
     --color-draft-border: var(--ag-draft-border);
-    --color-controlItemBgHover: var(--controlItemBgHover);
-    --color-controlItemBgActive: var(--controlItemBgActive);
-    --color-colorPrimary: var(--colorPrimary);
-    --color-colorSuccess: var(--colorSuccess);
-    --color-colorSuccessBg: var(--colorSuccessBg);
-    --color-colorSuccessText: var(--colorSuccessText);
-    --color-colorWarning: var(--colorWarning);
-    --color-colorWarningBg: var(--colorWarningBg);
-    --color-colorWarningText: var(--colorWarningText);
-    --color-colorError: var(--colorError);
-    /* The danger callout (shared AccountPage, the composer's mic-permission notice) paints with
-       this pair; unmapped, its box rendered as untinted text on mobile. */
-    --color-colorErrorBg: var(--colorErrorBg);
-    --color-colorErrorBorder: var(--colorErrorBorder);
-    --color-colorInfoBorder: var(--colorInfoBorder);
-    /* The rest of the status vocabulary the shared surfaces paint with. Unmapped, Tailwind v4
-       generates no rule at all: a refused field kept its ordinary text colour here while /w
-       painted it red, and the server tile had no fill. */
-    --color-colorErrorText: var(--colorErrorText);
-    --color-colorInfoBg: var(--colorInfoBg);
-    /* Preview comments: the hover outline, selected cells and comment pins. */
-    --color-colorSelection: var(--colorSelection);
-    --color-colorSelectionBg: var(--colorSelectionBg);
-    --color-colorWarningBorder: var(--colorWarningBorder);
-    --color-colorSuccessBorder: var(--colorSuccessBorder);
-    --color-colorBgBase: var(--colorBgBase);
-    /* The tinted panel surface and the single hero action per screen. Both had a value on /w
-       and no class on either side. */
-    --color-surface-paper: var(--ag-surface-paper);
-    --color-hero-action: var(--hero-action-bg);
-    --color-hero-action-hover: var(--hero-action-hover-bg);
-    --color-hero-action-foreground: var(--hero-action-text);
-    /* Portaled overlays + status dots. The kit's Tooltip paints bg-colorBgSpotlight /
-       text-colorTextLightSolid and its DropdownMenu bg-colorSplit separators; with these
-       unmapped a tooltip rendered as bare text on no background. */
-    --color-colorBgSpotlight: var(--colorBgSpotlight);
-    --color-colorTextLightSolid: var(--colorTextLightSolid);
-    --color-colorSplit: var(--colorSplit);
-    --color-colorInfo: var(--colorInfo);
-    --color-colorBgLayout: var(--colorBgLayout);
-    --color-colorBgMask: var(--colorBgMask);
-    --color-colorBgContainerDisabled: var(--colorBgContainerDisabled);
-    --color-colorTextPlaceholder: var(--colorTextPlaceholder);
-    --color-colorTextLabel: var(--colorTextLabel);
-    --color-colorPrimaryBorder: var(--colorPrimaryBorder);
-    --color-colorPrimaryBorderHover: var(--colorPrimaryBorderHover);
-    /* antd's popup shadow (boxShadowSecondary), off the shared token layer — `shadow-overlay` is
-       what every kit overlay (dropdown, popover, tooltip) elevates with. */
-    --shadow-overlay: var(--ag-boxShadowSecondary);
-    /* The other two elevation steps the kit uses: `shadow-dialog` on modal content and
-       `shadow-tertiary` on cards. Both existed on /w only, so a shared card read flat here. */
-    --shadow-dialog: var(--ag-boxShadowSecondary);
-    --shadow-tertiary: var(--ag-boxShadowTertiary);
-    /* The app's sans stack, the one the design canvas draws with. Tailwind's default starts at
-       -apple-system, which is the same face on macOS but a different one on Linux and Windows. */
-    --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    /* `font-portal` re-declares the app font on portaled content, which escapes the app's font
-       scope. Mobile has no custom face, so that is the default sans stack. */
+    /* `font-portal` re-declares the app font on portaled content, which escapes the app's font scope. */
     --font-portal: var(--font-sans);
-    /* The project code face. Same literals as oss/src/styles/theme/controlScale.ts, which
-       `pnpm tokens:check` compares against. */
-    --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, Monaco, monospace;
-    /* @agenta/ui control scale (tailwind v4 sizing reads the spacing namespace). Literals are
-       copied from oss/src/styles/theme/controlScale.ts and verified by `pnpm tokens:check`. */
+    /* @agenta/ui control scale (tailwind v4 sizing reads the spacing namespace). */
     --spacing-control-check: 16px;
     --spacing-control-check-dash: 7px;
-    --spacing-control-xs: 24px;
-    --spacing-control-sm: 28px;
-    --spacing-control: 32px;
-    --spacing-control-lg: 36px;
+    /* Kit control heights read the theme sizes; they step down below 640px and never grow on touch (SIZE-02). */
+    --spacing-control-xs: var(--control-xs);
+    --spacing-control-sm: var(--control-sm);
+    --spacing-control: var(--control-md);
+    --spacing-control-lg: var(--control-lg);
     --spacing-avatar-sm: 24px;
     --spacing-avatar: 28px;
     --spacing-avatar-lg: 34px;
@@ -250,18 +134,18 @@
     --spacing-control-dot: 8px;
     --spacing-switch-thumb: 18px;
     --spacing-switch-thumb-sm: 12px;
-    --radius-control-xs: 8px;
-    --radius-control-sm: 8px;
+    --radius-control-xs: 6px;
+    --radius-control-sm: 6px;
     --radius-control-check: 4px;
-    --radius-control: 10px;
-    --radius-control-lg: 10px;
-    --radius-control-round: 50%;
+    --radius-control: 6px;
+    --radius-control-lg: 6px;
+    --radius-control-round: 6px;
     --text-btn-xs: 12px;
     --text-btn-xs--line-height: 16px;
     --text-btn-sm: 13px;
     --text-btn-sm--line-height: 18px;
-    --text-btn-md: 14px;
-    --text-btn-md--line-height: 20px;
+    --text-btn-md: 13px;
+    --text-btn-md--line-height: 18px;
     --text-btn-lg: 14px;
     --text-btn-lg--line-height: 20px;
     --text-field-sm: 12px;
@@ -270,98 +154,197 @@
     --text-field-md--line-height: 1.4285714285714286;
     --text-field-lg: 16px;
     --text-field-lg--line-height: 1.5;
-    /* The `secondary` step of the type scale, same literals as oss/tailwind.config.ts. Leaving it
-       undeclared did not inherit the scale — it fell through to Tailwind's stock 12px/16px, so
-       every shared @agenta/* component's secondary text rendered a step smaller here than in
-       oss/ee. `sm` stays stock 14/20 (`body`) in both, so only this step needs stating. */
+    /* The shared packages' `text-xs` step is 13/18 (oss/tailwind.config.ts), not Tailwind's 12/16. */
     --text-xs: 13px;
     --text-xs--line-height: 18px;
-    /* The kit Badge's own step. Omitting it did not fall back to anything — `text-badge-md`
-       simply generated no rule here, so the shared Badge lost both its size and the line-height
-       the step bundles. Same literals as oss/src/styles/theme/controlScale.ts. */
     --text-badge-md: 12px;
     --text-badge-md--line-height: 1.8666666666666667;
-    --shadow-switch-handle: var(--switch-handle-shadow);
-    /* The kit Sheet's directional drawer shadows — its only separation from the page (the panel
-       is borderless). Light stays local because the palette's light side is an antd() ref mobile
-       cannot resolve; the dark side is bridged and carries the ring that a #141414 page needs. */
-    --shadow-drawer-right: var(
-        --drawer-right-shadow,
-        -6px 0 16px 0 rgba(0, 0, 0, 0.08),
-        -3px 0 6px -4px rgba(0, 0, 0, 0.12),
-        -9px 0 28px 8px rgba(0, 0, 0, 0.05)
-    );
-    --shadow-drawer-left: var(
-        --drawer-left-shadow,
-        6px 0 16px 0 rgba(0, 0, 0, 0.08),
-        3px 0 6px -4px rgba(0, 0, 0, 0.12),
-        9px 0 28px 8px rgba(0, 0, 0, 0.05)
-    );
-    --shadow-drawer-top: var(
-        --drawer-top-shadow,
-        0 6px 16px 0 rgba(0, 0, 0, 0.08),
-        0 3px 6px -4px rgba(0, 0, 0, 0.12),
-        0 9px 28px 8px rgba(0, 0, 0, 0.05)
-    );
-    --shadow-drawer-bottom: var(
-        --drawer-bottom-shadow,
-        0 -6px 16px 0 rgba(0, 0, 0, 0.08),
-        0 -3px 6px -4px rgba(0, 0, 0, 0.12),
-        0 -9px 28px 8px rgba(0, 0, 0, 0.05)
-    );
-    /* Kit control-state tokens — values come from theme.generated.css (palette-bridged). */
-    --color-placeholder: var(--placeholder);
-    --color-focus-ring: var(--focus-ring);
-    --color-disabled: var(--disabled);
-    --color-disabled-bg: var(--disabled-bg);
-    --color-disabled-border: var(--disabled-border);
-    --color-error: var(--error);
-    --color-error-hover: var(--error-hover);
-    --color-error-active: var(--error-active);
-    --color-btn-primary-fg: var(--btn-primary-fg);
-    --color-btn-primary-hover: var(--btn-primary-hover);
-    --color-btn-primary-active: var(--btn-primary-active);
-    --color-btn-default-bg: var(--btn-default-bg);
-    --color-btn-default-hover-bg: var(--btn-default-hover-bg);
-    --color-btn-default-active-bg: var(--btn-default-active-bg);
-    --color-btn-text-hover-bg: var(--btn-text-hover-bg);
-    --color-btn-text-active-bg: var(--btn-text-active-bg);
-    --color-btn-link: var(--btn-link);
-    --color-btn-link-hover: var(--btn-link-hover);
-    --color-btn-link-active: var(--btn-link-active);
-    --radius-sm: calc(var(--radius) - 4px);
-    --radius-md: calc(var(--radius) - 2px);
-    --radius-lg: var(--radius);
-    --radius-xl: calc(var(--radius) + 4px);
 
     /* ── Overlay / drawer motion ──────────────────────────────────────────────────────────────
        The kit's Sheet, Dialog and Accordion animate with NAMED utilities
-       (`animate-sheet-in-right`, `animate-overlay-in`, …) whose keyframes live in the desktop's
-       Tailwind config. Tailwind only emits a utility it can resolve, so without these the shared
-       drawers opened with no slide and no mask — the components were right, the keyframes simply
-       did not exist here. Values mirror oss/tailwind.config.ts (antd's own durations/easings). */
-    --animate-overlay-in: overlay-in 0.2s ease;
-    --animate-overlay-out: overlay-out 0.2s ease;
-    --animate-dialog-in: dialog-in 0.2s cubic-bezier(0.08, 0.82, 0.17, 1);
-    --animate-dialog-out: dialog-out 0.2s cubic-bezier(0.6, 0.04, 0.98, 0.34);
-    --animate-sheet-in-right: sheet-in-right 0.3s cubic-bezier(0.23, 1, 0.32, 1);
-    --animate-sheet-out-right: sheet-out-right 0.3s cubic-bezier(0.755, 0.05, 0.855, 0.06);
-    --animate-sheet-in-left: sheet-in-left 0.3s cubic-bezier(0.23, 1, 0.32, 1);
-    --animate-sheet-out-left: sheet-out-left 0.3s cubic-bezier(0.755, 0.05, 0.855, 0.06);
-    --animate-sheet-in-top: sheet-in-top 0.3s cubic-bezier(0.23, 1, 0.32, 1);
-    --animate-sheet-out-top: sheet-out-top 0.3s cubic-bezier(0.755, 0.05, 0.855, 0.06);
-    --animate-sheet-in-bottom: sheet-in-bottom 0.3s cubic-bezier(0.23, 1, 0.32, 1);
-    --animate-sheet-out-bottom: sheet-out-bottom 0.3s cubic-bezier(0.755, 0.05, 0.855, 0.06);
-    --animate-accordion-down: accordion-down 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
-    --animate-accordion-up: accordion-up 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
+       (`animate-sheet-in-right`, `animate-overlay-in`, …). Tailwind only emits a utility it can
+       resolve, so the keyframes and these names must exist here. */
+    /* Theme durations and easings only (MOTION-01): dialogs and sheets enter at duration-slow,
+       leave faster at duration-base. */
+    --animate-overlay-in: overlay-in var(--duration-base) var(--ease-out);
+    --animate-overlay-out: overlay-out var(--duration-base) var(--ease-in-out);
+    --animate-dialog-in: dialog-in var(--duration-slow) var(--ease-out);
+    --animate-dialog-out: dialog-out var(--duration-base) var(--ease-in-out);
+    --animate-popover-in: popover-in var(--duration-base) var(--ease-out);
+    --animate-sheet-in-right: sheet-in-right var(--duration-slow) var(--ease-out);
+    --animate-sheet-out-right: sheet-out-right var(--duration-base) var(--ease-in-out);
+    --animate-sheet-in-left: sheet-in-left var(--duration-slow) var(--ease-out);
+    --animate-sheet-out-left: sheet-out-left var(--duration-base) var(--ease-in-out);
+    --animate-sheet-in-top: sheet-in-top var(--duration-slow) var(--ease-out);
+    --animate-sheet-out-top: sheet-out-top var(--duration-base) var(--ease-in-out);
+    --animate-sheet-in-bottom: sheet-in-bottom var(--duration-slow) var(--ease-out);
+    --animate-sheet-out-bottom: sheet-out-bottom var(--duration-base) var(--ease-in-out);
+    --animate-accordion-down: accordion-down var(--duration-base) var(--ease-in-out);
+    --animate-accordion-up: accordion-up var(--duration-base) var(--ease-in-out);
     --animate-skeleton: skeleton 1.4s ease infinite;
     --animate-config-shimmer: config-shimmer 1.8s ease-in-out 2 forwards;
     /* The live line's verb (activity fold, startup label): a light sweeps through the words. */
     --animate-text-shimmer: text-shimmer 2.4s linear infinite;
-    /* The live line's three dots: each rises 3px and brightens in turn. */
     /* Home's create-mode ring. The component lives in @agenta/home-ui, which ships no CSS. */
     --animate-composer-ring: composer-ring-spin 3s linear infinite;
     --animate-composer-ring-in: composer-ring-in 0.25s ease-out both;
+}
+
+/* ── Legacy names still used by ~190 files — delete when design:ratchet reaches 0 ─────────────
+   Readers (Nov 2026): @agenta/ui (~48 files), @agenta/entity-ui (~39), the other @agenta/*-ui
+   packages, and web/mobile features — mostly builder-page, nav and agent-sidebar (owned by other
+   lanes), plus annotations, education, testsets and onboarding.
+   Every old antd-era name below points at the NEW variable with the same job, never at an old
+   value, so these screens follow theme.config.ts in light and dark. Remove a line once nothing
+   reads it (grep web/mobile/src and every web/packages src folder). */
+@theme inline {
+    --color-colorText: var(--foreground);
+    --color-colorTextSecondary: var(--muted-foreground);
+    --color-colorTextTertiary: var(--muted-foreground);
+    --color-colorTextQuaternary: var(--muted-foreground);
+    --color-colorBorder: var(--border);
+    --color-colorBorderSecondary: var(--border-muted);
+    --color-colorSplit: var(--border-muted);
+    --color-colorBgContainer: var(--background);
+    --color-colorBgElevated: var(--popover);
+    --color-colorFill: var(--selected);
+    --color-colorFillSecondary: var(--accent);
+    --color-colorFillTertiary: var(--secondary);
+    --color-colorPrimary: var(--primary);
+    --color-colorError: var(--destructive);
+    --color-colorWarning: var(--warning);
+    --color-colorWarningBg: color-mix(in oklab, var(--warning) 10%, transparent);
+    --color-colorInfo: var(--info);
+    --color-colorInfoBg: color-mix(in oklab, var(--info) 10%, transparent);
+    --color-controlItemBgHover: var(--accent);
+    --color-controlItemBgActive: var(--selected);
+    --color-chip: var(--secondary);
+    --color-zinc-1: var(--muted);
+    --color-zinc-2: var(--secondary);
+    --color-zinc-3: var(--accent);
+    --color-zinc-4: var(--selected);
+    --color-zinc-5: var(--border-strong);
+    --color-zinc-6: var(--muted-foreground);
+    --color-zinc-7: var(--muted-foreground);
+    --color-zinc-8: var(--muted-foreground);
+    --color-zinc-9: var(--foreground);
+    --color-error: var(--destructive);
+    --color-error-hover: var(--destructive);
+    --color-error-bg: color-mix(in oklab, var(--destructive) 10%, transparent);
+    --color-success-bg: color-mix(in oklab, var(--success) 10%, transparent);
+    --color-placeholder: var(--muted-foreground);
+    --color-focus-ring: var(--ring);
+    --color-disabled: var(--muted-foreground);
+    --color-disabled-bg: var(--secondary);
+    --color-disabled-border: var(--border-muted);
+    --color-btn-primary-fg: var(--background);
+    --color-btn-primary-hover: var(--primary-hover);
+    --color-btn-link: var(--link);
+    --color-btn-link-hover: var(--link);
+    --color-hero-action: var(--brand);
+    --color-hero-action-hover: var(--brand-hover);
+    --color-hero-action-foreground: var(--brand-foreground);
+    --shadow-dialog: var(--shadow-modal);
+    --shadow-tertiary: var(--shadow-raised);
+    --shadow-drawer-right: var(--shadow-modal);
+    --shadow-drawer-left: var(--shadow-modal);
+    --shadow-drawer-bottom: var(--shadow-modal);
+    --shadow-switch-handle: var(--shadow-raised);
+}
+
+/* The same rule for `--ag-*` variables that shared code reads literally (`bg-[var(--ag-…)]`,
+   surfaces.css, auth.css, the htmlApp iframe host). Unlayered and after the theme-variables.css
+   import, so these win over its light and dark values. */
+:root {
+    --ag-colorText: var(--foreground);
+    --ag-colorTextSecondary: var(--muted-foreground);
+    --ag-colorTextTertiary: var(--muted-foreground);
+    --ag-colorTextQuaternary: var(--muted-foreground);
+    --ag-colorTextLightSolid: var(--background);
+    --ag-colorBorder: var(--border);
+    --ag-colorBorderSecondary: var(--border-muted);
+    --ag-colorSplit: var(--border-muted);
+    --ag-colorBgContainer: var(--background);
+    --ag-colorBgLayout: var(--muted);
+    --ag-colorBgSpotlight: var(--foreground);
+    --ag-colorFillSecondary: var(--accent);
+    --ag-colorFillTertiary: var(--secondary);
+    --ag-colorFillQuaternary: var(--muted);
+    --ag-colorError: var(--destructive);
+    --ag-colorErrorBg: color-mix(in oklab, var(--destructive) 10%, transparent);
+    --ag-colorSuccessBg: color-mix(in oklab, var(--success) 10%, transparent);
+    --ag-colorWarningText: var(--warning);
+    --ag-colorWarningBg: color-mix(in oklab, var(--warning) 10%, transparent);
+    --ag-colorInfo: var(--info);
+    --ag-colorInfoBg: color-mix(in oklab, var(--info) 10%, transparent);
+    /* Also read by the htmlApp iframe host (@agenta/entity-ui drive/htmlApp/kit/tokens.ts). */
+    --ag-colorPrimary: var(--primary);
+    --ag-colorSuccess: var(--success);
+    --ag-colorWarning: var(--warning);
+    --ag-controlItemBgActive: var(--selected);
+    --ag-boxShadowSecondary: var(--shadow-overlay);
+    --ag-boxShadowTertiary: var(--shadow-raised);
+    --ag-btn-link: var(--link);
+    --ag-danger-text: var(--destructive);
+    --ag-controlOutline: var(--ring);
+    --ag-errorOutline: color-mix(in oklab, var(--destructive) 20%, transparent);
+    --ag-hero-action-bg: var(--brand);
+    --ag-hero-action-hover-bg: var(--brand-hover);
+    --ag-hero-action-text: var(--brand-foreground);
+    --ag-composer-border: var(--border);
+    --ag-composer-focus: var(--border-strong);
+    --ag-composer-placeholder: var(--muted-foreground);
+    --ag-send-disabled-bg: var(--secondary);
+    --ag-send-disabled-fg: var(--muted-foreground);
+    --ag-sidebar-bg: var(--muted);
+    --ag-shell-line: var(--border-muted);
+    --ag-shell-selected-bg: var(--selected);
+    --ag-shell-selected-border: var(--selected);
+    --ag-shell-selected-text: var(--foreground);
+    --ag-scroll-thumb: var(--border);
+    --ag-scroll-thumb-hover: var(--border-strong);
+    --ag-run-status-default: var(--muted-foreground);
+    --ag-run-status-processing: var(--info);
+    --ag-run-status-success: var(--success);
+    --ag-run-status-warning: var(--warning);
+    --ag-run-status-error: var(--destructive);
+    --ag-status-error-bg: color-mix(in oklab, var(--destructive) 10%, transparent);
+    --ag-status-error-border: color-mix(in oklab, var(--destructive) 30%, transparent);
+    --ag-status-error-text: var(--destructive);
+    --ag-status-success-bg: color-mix(in oklab, var(--success) 10%, transparent);
+    --ag-status-success-border: color-mix(in oklab, var(--success) 30%, transparent);
+    --ag-status-success-text: var(--success);
+    --ag-status-warning-bg: color-mix(in oklab, var(--warning) 10%, transparent);
+    --ag-status-warning-border: color-mix(in oklab, var(--warning) 30%, transparent);
+    --ag-status-warning-text: var(--warning);
+    --ag-surface-app: var(--muted);
+    --ag-surface-canvas: var(--background);
+    --ag-surface-card: var(--background);
+    --ag-surface-card-border: var(--border);
+    --ag-surface-chat: var(--background);
+    --ag-surface-chat-border: var(--border);
+    --ag-surface-chip: var(--secondary);
+    --ag-surface-chip-border: var(--border-muted);
+    --ag-surface-divider: var(--border-muted);
+    --ag-surface-inset: var(--muted);
+    --ag-surface-inset-border: var(--border-muted);
+    --ag-surface-paper: var(--muted);
+    --ag-surface-raised: var(--muted);
+    --ag-surface-row-hover: var(--accent);
+    --ag-surface-accent: var(--ring);
+    --ag-surface-section-content: var(--background);
+    --ag-surface-section-header: var(--muted);
+    --ag-surface-error-well: color-mix(in oklab, var(--destructive) 10%, transparent);
+    --ag-surface-error-well-border: color-mix(in oklab, var(--destructive) 30%, transparent);
+    --ag-surface-card-shadow: none;
+    --ag-surface-chat-shadow: none;
+    --ag-surface-raised-shadow: none;
+    --ag-surface-inspector-shadow: var(--shadow-overlay);
+    /* Raw names read with getPropertyValue by features/builder-page/hero/heroTheme.ts. */
+    --colorBgContainer: var(--background);
+    --colorText: var(--foreground);
+    --colorTextSecondary: var(--muted-foreground);
+    --colorTextLightSolid: var(--foreground);
 }
 
 @keyframes overlay-in {
@@ -398,6 +381,29 @@
     to {
         opacity: 0;
         transform: scale(0.9);
+    }
+}
+/* A list that opens from its trigger: it fades, settles from 6 px toward the trigger and sharpens.
+   `transform` composes with the side offset (`translate`), so the 4 px gap stays. */
+@keyframes popover-in {
+    from {
+        opacity: 0;
+        transform: translateY(var(--ag-popover-from, -6px)) scale(0.98);
+        filter: blur(2px);
+    }
+    60% {
+        opacity: 1;
+        filter: blur(0);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+        filter: none;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .animate-popover-in {
+        animation: none;
     }
 }
 /* The extra 1rem clears the kit Sheet's floating inset (lg:right-2 / lg:left-2). */
@@ -463,6 +469,54 @@
     }
     to {
         transform: translateY(100%);
+    }
+}
+/* The agent layout's right pane (MOTION-01). Beside the page it grows from no width, so the page
+   column slides; over the page or full screen it slides in from the right edge. The content keeps
+   its width while the pane moves, so nothing reflows. */
+@keyframes ag-panel-push-in {
+    from {
+        width: 0;
+        min-width: 0;
+    }
+}
+@keyframes ag-panel-push-out {
+    to {
+        width: 0;
+        min-width: 0;
+    }
+}
+@keyframes ag-panel-slide-in {
+    from {
+        transform: translateX(100%);
+    }
+}
+@keyframes ag-panel-slide-out {
+    to {
+        transform: translateX(100%);
+    }
+}
+.ag-panel-motion[data-mode="push"]:is([data-animating], [data-state="closed"]) {
+    overflow-x: clip;
+}
+.ag-panel-motion[data-mode="push"]:is([data-animating], [data-state="closed"]) > [data-testid="agent-panel"] {
+    min-width: var(--ag-panel-w);
+}
+.ag-panel-motion[data-mode="push"][data-state="open"] {
+    animation: ag-panel-push-in var(--duration-base) var(--ease-out);
+}
+.ag-panel-motion[data-mode="push"][data-state="closed"] {
+    animation: ag-panel-push-out var(--duration-base) var(--ease-in-out) forwards;
+}
+.ag-panel-motion:not([data-mode="push"])[data-state="open"] {
+    animation: ag-panel-slide-in var(--duration-base) var(--ease-out);
+}
+.ag-panel-motion:not([data-mode="push"])[data-state="closed"] {
+    animation: ag-panel-slide-out var(--duration-base) var(--ease-in-out) forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+    .ag-panel-motion[data-state] {
+        animation: none;
     }
 }
 @keyframes accordion-down {
@@ -537,7 +591,7 @@
     body {
         @apply text-foreground;
         /* The rail's surface: iOS paints its status-bar strip from this, above the drawer. */
-        background: var(--ag-sidebar-bg);
+        background: var(--muted);
     }
 }
 
@@ -721,71 +775,4 @@
     --ant-lime-1: #1f2611;
     --ant-lime-3: #3e4f13;
     --ant-lime-6: #8bbb11;
-}
-
-/* Status and draft colours in the playground. Shared components paint the `success`, `warning`,
-   `error`, `info` and `draft` states and the tag colours with utilities (`bg-success-bg`, `text-draft`, ...) that /w
-   defines from `shadcnTokens.ts` and /m does not, so here "Success" and "Draft" rendered as plain
-   text. Defined for the playground only, with /w's values: the same components elsewhere in /m
-   keep their current look. A popover renders outside the page, so the playground's own popovers
-   set `data-playground` themselves. */
-[data-playground] .bg-success-bg {
-    background-color: var(--ag-colorSuccessBg);
-}
-[data-playground] .bg-warning-bg {
-    background-color: var(--ag-colorWarningBg);
-}
-[data-playground] .text-warning {
-    color: var(--ag-colorWarningText);
-}
-[data-playground] .bg-error-bg {
-    background-color: var(--ag-colorErrorBg);
-}
-[data-playground] .text-error {
-    color: var(--ag-colorError);
-}
-[data-playground] .bg-info-bg {
-    background-color: var(--ag-colorInfoBg);
-}
-[data-playground] .text-info {
-    color: var(--ag-colorInfo);
-}
-[data-playground] .bg-draft-bg {
-    background-color: var(--ag-draft-bg);
-}
-[data-playground] .border-draft-border {
-    border-color: var(--ag-draft-border);
-}
-[data-playground] .text-draft {
-    color: var(--ag-draft-text);
-}
-[data-playground] .bg-tag-blue-bg {
-    background-color: var(--ag-preset-blue-bg);
-}
-[data-playground] .text-tag-blue {
-    color: var(--ag-preset-blue-text);
-}
-[data-playground] .bg-tag-purple-bg {
-    background-color: var(--ag-preset-purple-bg);
-}
-[data-playground] .text-tag-purple {
-    color: var(--ag-preset-purple-text);
-}
-[data-playground] .bg-tag-green-bg {
-    background-color: var(--ag-preset-green-bg);
-}
-[data-playground] .text-tag-green {
-    color: var(--ag-preset-green-text);
-}
-[data-playground] .bg-tag-cyan-bg {
-    background-color: var(--ag-preset-cyan-bg);
-}
-[data-playground] .text-tag-cyan {
-    color: var(--ag-preset-cyan-text);
-}
-[data-playground] .bg-tag-gold-bg {
-    background-color: var(--ag-preset-gold-bg);
-}
-[data-playground] .text-tag-gold {
-    color: var(--ag-preset-gold-text);
 }

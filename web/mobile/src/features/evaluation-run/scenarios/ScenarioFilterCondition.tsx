@@ -49,7 +49,7 @@ export const ScenarioFilterCondition = ({
 
     return (
         <div className="flex flex-wrap items-center gap-1.5">
-            <div className="w-16 shrink-0 text-xs text-muted-foreground">
+            <div className="w-16 shrink-0 text-meta text-muted-foreground">
                 {index === 0 ? (
                     <span className="pl-1">Where</span>
                 ) : (
@@ -88,7 +88,7 @@ export const ScenarioFilterCondition = ({
                 <SelectTrigger
                     size="sm"
                     aria-label={`Column of condition ${position}`}
-                    className="w-[200px] min-w-0"
+                    className="w-50 min-w-0"
                 >
                     <SelectValue placeholder="Column" />
                 </SelectTrigger>
@@ -114,7 +114,7 @@ export const ScenarioFilterCondition = ({
                 <SelectTrigger
                     size="sm"
                     aria-label={`Operator of condition ${position}`}
-                    className="w-[110px]"
+                    className="w-28"
                 >
                     <SelectValue />
                 </SelectTrigger>

@@ -1,8 +1,4 @@
-/**
- * The three layouts of the agent's sections. Null is the panel (canvas F01): inset 40 px rows, no
- * summary on an empty section. "pane" is the builder page pane (canvas B03): full-width 45 px
- * rows that keep "None". "page" is the Configuration page (canvas A04): one card per section.
- */
+/** The panel layout of the agent's sections (canvas F01): 40 px rows, no summary when empty. */
 import {act, createElement} from "react"
 
 import {createRoot, type Root} from "react-dom/client"
@@ -12,10 +8,6 @@ import {
     AgentTemplateSectionList,
     type AgentTemplateSectionDescriptor,
 } from "../../src/DrillInView/SchemaControls/agentTemplate/AgentTemplateSectionList"
-import {
-    SectionListLayoutContext,
-    type SectionListLayout,
-} from "../../src/DrillInView/SchemaControls/agentTemplate/sectionListLayout"
 
 beforeAll(() => {
     ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
@@ -60,16 +52,7 @@ const sections: AgentTemplateSectionDescriptor[] = [
     },
 ]
 
-const renderList = (layout: SectionListLayout | null) =>
-    act(() =>
-        root.render(
-            createElement(
-                SectionListLayoutContext.Provider,
-                {value: layout},
-                createElement(AgentTemplateSectionList, {sections}),
-            ),
-        ),
-    )
+const renderList = () => act(() => root.render(createElement(AgentTemplateSectionList, {sections})))
 
 /** The clickable header row of one section. */
 const headerRow = (key: string) =>
@@ -78,38 +61,11 @@ const headerRow = (key: string) =>
 const section = (key: string) => container.querySelector(`[data-config-section=${key}]`)!
 
 describe("AgentTemplateSectionList layouts", () => {
-    it("panel: 40 px inset rows with a 6 px gap, and no summary on an empty section", () => {
-        renderList(null)
-        const list = section("subagents").parentElement!
-        expect(list.className).toContain("gap-1.5")
-        expect(list.className).toContain("pt-3.5")
-        expect(headerRow("subagents").className).toContain("h-[39px]")
-        expect(headerRow("subagents").className).toContain("px-1")
+    it("panel: 40 px card rows with no summary when empty, and a tinted marked header", () => {
+        renderList()
+        expect(headerRow("subagents").className).toContain("h-10")
         expect(section("subagents").textContent).not.toContain("None")
-        expect(section("skills").textContent).toContain("2 skills")
-        // The Advanced row keeps its sandbox and ends with the triangle, not a chevron.
-        expect(section("advanced").textContent).toContain("Sandbox: Daytona")
-        expect(section("advanced").querySelector("[data-slot=collapse-caret]")).not.toBeNull()
-        expect(section("advanced").querySelector("svg")).toBeNull()
-    })
-
-    it("pane: full-width 45 px rows that keep None and tint a marked header", () => {
-        renderList("pane")
-        const list = section("subagents").parentElement!
-        expect(list.className).toContain("-mx-4")
-        expect(list.className).not.toContain("gap-1.5")
-        expect(headerRow("subagents").className).toContain("h-[45px]")
-        expect(headerRow("subagents").className).toContain("px-4")
-        expect(section("subagents").textContent).toContain("None")
-        expect(headerRow("skills").className).toContain("bg-[var(--ag-colorInfoBg)]")
-        expect(headerRow("subagents").className).not.toContain("bg-[var(--ag-colorInfoBg)]")
-    })
-
-    it("page: one titled card per section, with its content always open", () => {
-        renderList("page")
-        const titles = [...container.querySelectorAll("section h3")].map((h) => h.textContent)
-        expect(titles).toEqual(["Subagents", "Skills", "Advanced"])
-        expect(section("subagents").textContent).toContain("No subagents yet")
-        expect(container.querySelector("[role=button][aria-expanded]")).toBeNull()
+        expect(headerRow("skills").className).toContain("bg-info/10")
+        expect(headerRow("subagents").className).not.toContain("bg-info/10")
     })
 })
