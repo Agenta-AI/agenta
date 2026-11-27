@@ -113,8 +113,8 @@ export function useConnectForm({
     )
 
     const availableModes = resolveAvailableModes(authSchemes)
-    const initialMode = availableModes[0] || "oauth"
-    const [selectedMode, setSelectedMode] = useState<AuthMode>(initialMode)
+    const [initialMode] = useState<AuthMode>(availableModes[0] || "oauth")
+    const [selectedMode, setSelectedMode] = useState(initialMode)
 
     const setName = useCallback((next: string) => {
         setNameTouched(true)
