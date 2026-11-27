@@ -19,11 +19,7 @@ export interface AgentConfigTab<K extends string> {
     adornment?: ReactNode
 }
 
-/**
- * The agent pane's tab row: the kit Tabs in `PaneHeader` (48 px), or under the phone header
- * (40 px). Selection runs on click, so the arrow keys move focus and Enter or Space selects.
- * While a view inside a tab is open (`back`), the header is its back link and title instead.
- */
+/** The agent pane's tab row; a back link and title replace it while a tab view is open. */
 export const AgentConfigTabs = <K extends string>({
     tabs,
     value,

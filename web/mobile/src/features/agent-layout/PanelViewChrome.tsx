@@ -25,13 +25,7 @@ export const PanelChromeContext = createContext<PanelChromeControls>({phone: fal
 
 const noWiden = () => undefined
 
-/**
- * The agent pane's chrome around an open view: `PaneHeader` ("← Parent / View", Widen, Close)
- * in place of the tabs, and the view's action row at the bottom. The container sets which
- * controls it has (`PanelChromeContext`). On a phone the view covers the screen with the phone
- * header (back arrow and title) and 44 px buttons.
- * The view keeps its place in the tree in both, so a resize across the phone width keeps its edits.
- */
+/** Chrome around an open view; the container sets its controls through `PanelChromeContext`. */
 export const PanelViewChrome = ({
     crumbs,
     apply,

@@ -26,11 +26,7 @@ export interface PhoneSectionScreen {
     close: () => void
 }
 
-/**
- * The agent's configuration pane, shared by the session's right panel, the builder page and the
- * agent's Configuration page: one view stack with the panel chrome over the tabs (`children`), the
- * agent editor (revision, edit right, channel presence) and the DrillIn bridge its views use.
- */
+/** The agent's configuration pane, shared by the session panel, the builder page and the Configuration page. */
 export const AgentConfigHost = ({
     agentId,
     revisionId,

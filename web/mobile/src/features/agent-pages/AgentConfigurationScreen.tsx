@@ -133,8 +133,8 @@ export const AgentConfigurationScreen = ({
                                 quiet
                                 revisionId={revisionId}
                                 historyWorkflowId={agentId}
-                                onUpdate={pin}
-                                // An open view may edit the held version, so it never moves under it.
+                                // An open view edits the held version: no update, manual or auto, under it.
+                                onUpdate={viewsOpen ? undefined : pin}
                                 autoUpdate={!viewsOpen}
                                 phone={phone}
                             />
