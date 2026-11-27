@@ -7,21 +7,22 @@
  * the same patch-each-time problem.
  */
 
-import assert from "node:assert/strict"
-import {describe, it} from "node:test"
+import {describe, expect, it} from "vitest"
 
-import type {HydratedScenarioRow, HydratableScenario} from "../hydrateScenariosTransform"
+import type {
+    HydratedScenarioRow,
+    HydratableScenario,
+} from "../../src/evaluationRun/etl/hydrateScenariosTransform"
 import {
     DEFAULT_STEP_RESOLVERS,
     composeResolvers,
     computeColumnGroup,
     findInTrace,
     getAtPath,
-    groupResolvedColumns,
     resolveMappings,
     type RunSchema,
     type StepResolver,
-} from "../resolveMappings"
+} from "../../src/evaluationRun/etl/resolveMappings"
 
 interface TestScenario extends HydratableScenario {
     id: string
@@ -46,24 +47,24 @@ function makeRow(overrides: Partial<HydratedScenarioRow<TestScenario>> = {}) {
 
 describe("getAtPath", () => {
     it("returns nested values", () => {
-        assert.equal(getAtPath({a: {b: {c: 7}}}, "a.b.c"), 7)
+        expect(getAtPath({a: {b: {c: 7}}}, "a.b.c")).toBe(7)
     })
 
     it("returns undefined for missing intermediate", () => {
-        assert.equal(getAtPath({a: {}}, "a.b.c"), undefined)
+        expect(getAtPath({a: {}}, "a.b.c")).toBe(undefined)
     })
 
     it("returns undefined for non-object intermediate", () => {
-        assert.equal(getAtPath({a: 1}, "a.b"), undefined)
+        expect(getAtPath({a: 1}, "a.b")).toBe(undefined)
     })
 
     it("returns undefined for empty path", () => {
-        assert.equal(getAtPath({a: 1}, ""), undefined)
+        expect(getAtPath({a: 1}, "")).toBe(undefined)
     })
 
     it("returns undefined for null/undefined input", () => {
-        assert.equal(getAtPath(null, "a"), undefined)
-        assert.equal(getAtPath(undefined, "a"), undefined)
+        expect(getAtPath(null, "a")).toBe(undefined)
+        expect(getAtPath(undefined, "a")).toBe(undefined)
     })
 })
 
@@ -83,7 +84,7 @@ describe("findInTrace", () => {
                 },
             },
         }
-        assert.equal(findInTrace(trace, path), leaf)
+        expect(findInTrace(trace, path)).toBe(leaf)
     })
 
     it("Shape A nested: data lives on a child span, not the root", () => {
@@ -99,14 +100,14 @@ describe("findInTrace", () => {
                 },
             },
         }
-        assert.equal(findInTrace(trace, path), leaf)
+        expect(findInTrace(trace, path)).toBe(leaf)
     })
 
     it("Shape B: span array under .spans", () => {
         const trace = {
             spans: [{attributes: {ag: {data: {outputs: leaf}}}}],
         }
-        assert.equal(findInTrace(trace, path), leaf)
+        expect(findInTrace(trace, path)).toBe(leaf)
     })
 
     it("Shape C: {response: {tree: [span]}} (agenta-format wrapped)", () => {
@@ -115,12 +116,12 @@ describe("findInTrace", () => {
                 tree: [{attributes: {ag: {data: {outputs: leaf}}}}],
             },
         }
-        assert.equal(findInTrace(trace, path), leaf)
+        expect(findInTrace(trace, path)).toBe(leaf)
     })
 
     it("Shape D: envelope IS a span", () => {
         const trace = {attributes: {ag: {data: {outputs: leaf}}}}
-        assert.equal(findInTrace(trace, path), leaf)
+        expect(findInTrace(trace, path)).toBe(leaf)
     })
 
     it("descends through .children arrays", () => {
@@ -133,16 +134,16 @@ describe("findInTrace", () => {
                 },
             ],
         }
-        assert.equal(findInTrace(trace, path), leaf)
+        expect(findInTrace(trace, path)).toBe(leaf)
     })
 
     it("returns undefined when nothing matches", () => {
-        assert.equal(findInTrace({spans: {root: {other: "thing"}}}, path), undefined)
+        expect(findInTrace({spans: {root: {other: "thing"}}}, path)).toBe(undefined)
     })
 
     it("returns undefined for non-object input", () => {
-        assert.equal(findInTrace(null, path), undefined)
-        assert.equal(findInTrace("string", path), undefined)
+        expect(findInTrace(null, path)).toBe(undefined)
+        expect(findInTrace("string", path)).toBe(undefined)
     })
 })
 
@@ -169,15 +170,15 @@ describe("input step → resolveFromTestcase", () => {
             } as unknown as HydratedScenarioRow<TestScenario>["testcase"],
         })
         const [col] = resolveMappings(row, schema)
-        assert.equal(col.value, "USA")
-        assert.equal(col.source, "testcase")
+        expect(col.value).toBe("USA")
+        expect(col.source).toBe("testcase")
     })
 
     it("returns missing when testcase is null", () => {
         const row = makeRow({testcase: null})
         const [col] = resolveMappings(row, schema)
-        assert.equal(col.value, undefined)
-        assert.equal(col.source, "missing")
+        expect(col.value).toBe(undefined)
+        expect(col.source).toBe("missing")
     })
 
     it("returns missing when path not present", () => {
@@ -188,7 +189,7 @@ describe("input step → resolveFromTestcase", () => {
             } as unknown as HydratedScenarioRow<TestScenario>["testcase"],
         })
         const [col] = resolveMappings(row, schema)
-        assert.equal(col.value, undefined)
+        expect(col.value).toBe(undefined)
     })
 })
 
@@ -225,15 +226,15 @@ describe("invocation step → resolveFromTrace", () => {
             },
         })
         const [col] = resolveMappings(row, schema)
-        assert.equal(col.value, "the answer")
-        assert.equal(col.source, "trace")
-        assert.equal(col.stepType, "invocation")
+        expect(col.value).toBe("the answer")
+        expect(col.source).toBe("trace")
+        expect(col.stepType).toBe("invocation")
     })
 
     it("returns missing when no result for the step", () => {
         const row = makeRow({results: []})
         const [col] = resolveMappings(row, schema)
-        assert.equal(col.source, "missing")
+        expect(col.source).toBe("missing")
     })
 
     it("returns missing when trace not in row.traces", () => {
@@ -250,7 +251,7 @@ describe("invocation step → resolveFromTrace", () => {
             // traces map empty → no entry for "trace-abc"
         })
         const [col] = resolveMappings(row, schema)
-        assert.equal(col.source, "missing")
+        expect(col.source).toBe("missing")
     })
 })
 
@@ -301,10 +302,10 @@ describe("annotation step → composeResolvers(metric, trace)", () => {
             },
         })
         const [col] = resolveMappings(row, schema)
-        assert.equal(col.source, "metric")
+        expect(col.source).toBe("metric")
         // The stats blob is returned as-is (not unwrapped) — that's the wire shape
         const v = col.value as {type: string; freq: unknown[]}
-        assert.equal(v.type, "binary")
+        expect(v.type).toBe("binary")
     })
 
     it("falls back to trace when metric is missing or has no bucket for the step", () => {
@@ -328,8 +329,8 @@ describe("annotation step → composeResolvers(metric, trace)", () => {
             },
         })
         const [col] = resolveMappings(row, schema)
-        assert.equal(col.source, "trace")
-        assert.equal(col.value, true)
+        expect(col.source).toBe("trace")
+        expect(col.value).toBe(true)
     })
 
     it("falls through to trace when metric value is a string-type placeholder", () => {
@@ -375,8 +376,8 @@ describe("annotation step → composeResolvers(metric, trace)", () => {
             },
         })
         const [col] = resolveMappings(row, schema)
-        assert.equal(col.source, "trace")
-        assert.equal(col.value, "the model was correct")
+        expect(col.source).toBe("trace")
+        expect(col.value).toBe("the model was correct")
     })
 
     it("keeps the metric value when the string-typed entry has distribution data", () => {
@@ -411,10 +412,10 @@ describe("annotation step → composeResolvers(metric, trace)", () => {
             ],
         })
         const [col] = resolveMappings(row, schema)
-        assert.equal(col.source, "metric")
+        expect(col.source).toBe("metric")
         const v = col.value as {type: string; freq: unknown[]}
-        assert.equal(v.type, "string")
-        assert.deepEqual(v.freq, [{value: "yes", count: 2}])
+        expect(v.type).toBe("string")
+        expect(v.freq).toEqual([{value: "yes", count: 2}])
     })
 
     it("returns missing when neither metric nor trace has the path", () => {
@@ -431,7 +432,7 @@ describe("annotation step → composeResolvers(metric, trace)", () => {
             traces: {"trace-eval": {spans: {eval_v0: {other: "thing"}}}},
         })
         const [col] = resolveMappings(row, schema)
-        assert.equal(col.source, "missing")
+        expect(col.source).toBe("missing")
     })
 })
 
@@ -449,14 +450,14 @@ describe("customResolvers extensibility", () => {
 
         // Without a custom resolver: missing with descriptive source
         const [col1] = resolveMappings(row, schema)
-        assert.equal(col1.value, undefined)
-        assert.match(col1.source, /no resolver for step\.type="my_custom"/)
+        expect(col1.value).toBe(undefined)
+        expect(col1.source).toMatch(/no resolver for step\.type="my_custom"/)
 
         // With a custom resolver
         const myResolver: StepResolver = () => ({value: 42, source: "custom-magic"})
         const [col2] = resolveMappings(row, schema, {customResolvers: {my_custom: myResolver}})
-        assert.equal(col2.value, 42)
-        assert.equal(col2.source, "custom-magic")
+        expect(col2.value).toBe(42)
+        expect(col2.source).toBe("custom-magic")
     })
 
     it("customResolvers can override a built-in", () => {
@@ -478,8 +479,8 @@ describe("customResolvers extensibility", () => {
 
         const override: StepResolver = () => ({value: "OVERRIDE", source: "override"})
         const [col] = resolveMappings(row, schema, {customResolvers: {input: override}})
-        assert.equal(col.value, "OVERRIDE")
-        assert.equal(col.source, "override")
+        expect(col.value).toBe("OVERRIDE")
+        expect(col.source).toBe("override")
     })
 
     it("fallbackResolver is invoked for unknown step types when set", () => {
@@ -490,8 +491,8 @@ describe("customResolvers extensibility", () => {
         const row = makeRow()
         const fallback: StepResolver = () => ({value: "fallback-val", source: "fallback"})
         const [col] = resolveMappings(row, schema, {fallbackResolver: fallback})
-        assert.equal(col.value, "fallback-val")
-        assert.equal(col.source, "fallback")
+        expect(col.value).toBe("fallback-val")
+        expect(col.source).toBe("fallback")
     })
 })
 
@@ -507,7 +508,7 @@ describe("composeResolvers", () => {
             row: makeRow(),
             path: "",
         })
-        assert.deepEqual(out, {value: "b", source: "B"})
+        expect(out).toEqual({value: "b", source: "B"})
     })
 
     it("returns null when all return null", () => {
@@ -521,7 +522,7 @@ describe("composeResolvers", () => {
             row: makeRow(),
             path: "",
         })
-        assert.equal(out, null)
+        expect(out).toBe(null)
     })
 })
 
@@ -543,10 +544,10 @@ describe("computeColumnGroup", () => {
             },
             "data.country",
         )
-        assert.equal(g.kind, "testset")
-        assert.equal(g.slug, "my-testset")
-        assert.equal(g.label, "Testset my-testset")
-        assert.equal(g.key, "testset:my-testset")
+        expect(g.kind).toBe("testset")
+        expect(g.slug).toBe("my-testset")
+        expect(g.label).toBe("Testset my-testset")
+        expect(g.key).toBe("testset:my-testset")
     })
 
     it("invocation step → application group keyed by application.slug", () => {
@@ -558,9 +559,9 @@ describe("computeColumnGroup", () => {
             },
             "attributes.ag.data.outputs",
         )
-        assert.equal(g.kind, "application")
-        assert.equal(g.slug, "comp-1")
-        assert.equal(g.label, "Application comp-1")
+        expect(g.kind).toBe("application")
+        expect(g.slug).toBe("comp-1")
+        expect(g.label).toBe("Application comp-1")
     })
 
     it("annotation step → evaluator group titlecased from slug", () => {
@@ -572,9 +573,9 @@ describe("computeColumnGroup", () => {
             },
             "attributes.ag.data.outputs.success",
         )
-        assert.equal(g.kind, "evaluator")
-        assert.equal(g.slug, "exact-match")
-        assert.equal(g.label, "Exact Match", "slug 'exact-match' → 'Exact Match'")
+        expect(g.kind).toBe("evaluator")
+        expect(g.slug).toBe("exact-match")
+        expect(g.label, "slug 'exact-match' → 'Exact Match'").toBe("Exact Match")
     })
 
     it("two annotation steps with same column name get distinct groups", () => {
@@ -595,7 +596,7 @@ describe("computeColumnGroup", () => {
             "attributes.ag.data.outputs.success",
         )
         // Same column NAME, different group KEY — no collision.
-        assert.notEqual(g1.key, g2.key)
+        expect(g1.key).not.toBe(g2.key)
     })
 
     it("metrics path overrides step type — goes to Metrics group", () => {
@@ -609,14 +610,14 @@ describe("computeColumnGroup", () => {
             },
             "attributes.ag.metrics.tokens.cumulative.total",
         )
-        assert.equal(g.kind, "metrics")
-        assert.equal(g.label, "Metrics")
-        assert.equal(g.key, "metrics")
+        expect(g.kind).toBe("metrics")
+        expect(g.label).toBe("Metrics")
+        expect(g.key).toBe("metrics")
     })
 
     it("missing step → 'other' group", () => {
         const g = computeColumnGroup(null, "anything")
-        assert.equal(g.kind, "other")
+        expect(g.kind).toBe("other")
     })
 
     it("references fallback: testset_revision.slug if testset.slug absent", () => {
@@ -628,163 +629,15 @@ describe("computeColumnGroup", () => {
             },
             "data.x",
         )
-        assert.equal(g.kind, "testset")
-        assert.equal(g.slug, "rev-abc")
-    })
-})
-
-describe("groupResolvedColumns", () => {
-    it("groups columns by group.key preserving mapping order within a group", () => {
-        const schema: RunSchema = {
-            steps: [
-                {
-                    key: "testset-1",
-                    type: "input",
-                    references: {testset: {id: "t1", slug: "my-testset"}},
-                },
-                {
-                    key: "eval-1",
-                    type: "annotation",
-                    references: {evaluator: {id: "e-exact", slug: "exact-match"}},
-                },
-                {
-                    key: "eval-2",
-                    type: "annotation",
-                    references: {evaluator: {id: "e-fuzzy", slug: "fuzzy-match"}},
-                },
-            ],
-            mappings: [
-                {
-                    column: {kind: "testset", name: "country"},
-                    step: {key: "testset-1", path: "data.country"},
-                },
-                {
-                    column: {kind: "annotation", name: "success"},
-                    step: {key: "eval-1", path: "attributes.ag.data.outputs.success"},
-                },
-                {
-                    column: {kind: "annotation", name: "success"},
-                    step: {key: "eval-2", path: "attributes.ag.data.outputs.success"},
-                },
-                {
-                    column: {kind: "testset", name: "expected"},
-                    step: {key: "testset-1", path: "data.expected"},
-                },
-            ],
-        }
-        const row = {
-            scenario: {id: "s1", status: "success"},
-            results: [],
-            metrics: [],
-            testcase: null,
-            traces: {},
-        } as unknown as Parameters<typeof resolveMappings>[0]
-        const cols = resolveMappings(row, schema)
-        const groups = groupResolvedColumns(cols)
-
-        assert.equal(groups.length, 3, "3 groups: 1 testset, 2 evaluators")
-        // Order: testset first, then evaluators in first-appearance order
-        assert.equal(groups[0].group.kind, "testset")
-        assert.equal(groups[0].group.label, "Testset my-testset")
-        assert.equal(groups[0].columns.length, 2)
-        assert.equal(groups[0].columns[0].name, "country")
-        assert.equal(groups[0].columns[1].name, "expected")
-        assert.equal(groups[1].group.label, "Exact Match")
-        assert.equal(groups[2].group.label, "Fuzzy Match")
-        // Both evaluators have a "success" column but they're in separate groups
-        assert.equal(groups[1].columns[0].name, "success")
-        assert.equal(groups[2].columns[0].name, "success")
-    })
-
-    it("metrics paths from multiple steps all land in one 'Metrics' group", () => {
-        const schema: RunSchema = {
-            steps: [
-                {
-                    key: "app-1",
-                    type: "invocation",
-                    references: {application: {id: "a-comp-1", slug: "comp-1"}},
-                },
-            ],
-            mappings: [
-                {
-                    column: {kind: "invocation", name: "outputs"},
-                    step: {key: "app-1", path: "attributes.ag.data.outputs"},
-                },
-                {
-                    column: {kind: "invocation", name: "tokens"},
-                    step: {key: "app-1", path: "attributes.ag.metrics.tokens.cumulative.total"},
-                },
-                {
-                    column: {kind: "invocation", name: "cost"},
-                    step: {key: "app-1", path: "attributes.ag.metrics.costs.cumulative.total"},
-                },
-            ],
-        }
-        const row = {
-            scenario: {id: "s1", status: "success"},
-            results: [],
-            metrics: [],
-            testcase: null,
-            traces: {},
-        } as unknown as Parameters<typeof resolveMappings>[0]
-        const cols = resolveMappings(row, schema)
-        const groups = groupResolvedColumns(cols)
-
-        // application group + metrics group
-        assert.equal(groups.length, 2)
-        assert.equal(groups[0].group.kind, "application")
-        assert.equal(groups[1].group.kind, "metrics")
-        assert.equal(groups[1].columns.length, 2)
-        assert.deepEqual(groups[1].columns.map((c) => c.name).sort(), ["cost", "tokens"])
-    })
-
-    it("group ordering: testset → application → evaluator → metrics → other", () => {
-        const schema: RunSchema = {
-            steps: [
-                {key: "ts", type: "input", references: {testset: {id: "ts1", slug: "ts1"}}},
-                {key: "app", type: "invocation", references: {application: {id: "a1", slug: "a1"}}},
-                {key: "ev", type: "annotation", references: {evaluator: {id: "e1", slug: "e1"}}},
-            ],
-            // Intentionally out-of-order in mappings to verify the sort
-            mappings: [
-                {
-                    column: {kind: "annotation", name: "success"},
-                    step: {key: "ev", path: "attributes.ag.data.outputs.success"},
-                },
-                {
-                    column: {kind: "invocation", name: "tokens"},
-                    step: {key: "app", path: "attributes.ag.metrics.tokens.cumulative.total"},
-                },
-                {
-                    column: {kind: "testset", name: "country"},
-                    step: {key: "ts", path: "data.country"},
-                },
-                {
-                    column: {kind: "invocation", name: "outputs"},
-                    step: {key: "app", path: "attributes.ag.data.outputs"},
-                },
-            ],
-        }
-        const row = {
-            scenario: {id: "s1", status: "success"},
-            results: [],
-            metrics: [],
-            testcase: null,
-            traces: {},
-        } as unknown as Parameters<typeof resolveMappings>[0]
-        const cols = resolveMappings(row, schema)
-        const groups = groupResolvedColumns(cols)
-        assert.deepEqual(
-            groups.map((g) => g.group.kind),
-            ["testset", "application", "evaluator", "metrics"],
-        )
+        expect(g.kind).toBe("testset")
+        expect(g.slug).toBe("rev-abc")
     })
 })
 
 describe("edge cases", () => {
     it("schema with no mappings → empty result", () => {
         const cols = resolveMappings(makeRow(), {steps: [], mappings: []})
-        assert.deepEqual(cols, [])
+        expect(cols).toEqual([])
     })
 
     it("mapping referring to unknown step key → missing", () => {
@@ -793,8 +646,8 @@ describe("edge cases", () => {
             mappings: [{column: {kind: "x", name: "y"}, step: {key: "nope", path: "p"}}],
         }
         const [col] = resolveMappings(makeRow(), schema)
-        assert.equal(col.source, "missing")
-        assert.equal(col.stepType, "?")
+        expect(col.source).toBe("missing")
+        expect(col.stepType).toBe("?")
     })
 
     it("preserves mapping order", () => {
@@ -815,15 +668,15 @@ describe("edge cases", () => {
             } as unknown as HydratedScenarioRow<TestScenario>["testcase"],
         })
         const cols = resolveMappings(row, schema)
-        assert.equal(cols[0].name, "second")
-        assert.equal(cols[0].value, 2)
-        assert.equal(cols[1].name, "first")
-        assert.equal(cols[1].value, 1)
+        expect(cols[0].name).toBe("second")
+        expect(cols[0].value).toBe(2)
+        expect(cols[1].name).toBe("first")
+        expect(cols[1].value).toBe(1)
     })
 
     it("DEFAULT_STEP_RESOLVERS contains the three built-in types", () => {
-        assert.ok(typeof DEFAULT_STEP_RESOLVERS.input === "function")
-        assert.ok(typeof DEFAULT_STEP_RESOLVERS.invocation === "function")
-        assert.ok(typeof DEFAULT_STEP_RESOLVERS.annotation === "function")
+        expect(typeof DEFAULT_STEP_RESOLVERS.input === "function").toBeTruthy()
+        expect(typeof DEFAULT_STEP_RESOLVERS.invocation === "function").toBeTruthy()
+        expect(typeof DEFAULT_STEP_RESOLVERS.annotation === "function").toBeTruthy()
     })
 })

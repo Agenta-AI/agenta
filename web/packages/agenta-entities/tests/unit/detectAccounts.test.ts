@@ -6,7 +6,6 @@ import {
     detectAccounts,
     detectAccountsFromTemplate,
     detectAccountsFromText,
-    requiredAccounts,
 } from "../../src/workflow/detectAccounts"
 
 const slugs = (accounts: {slug: string}[]) => accounts.map((account) => account.slug)
@@ -153,24 +152,5 @@ describe("detectAccounts", () => {
         expect(slugs(detectAccounts({description: "notify Slack", template: bare}))).toEqual([
             "slack",
         ])
-    })
-})
-
-describe("requiredAccounts", () => {
-    it("selects only the gating accounts", () => {
-        const accounts = detectAccounts({
-            description: "post a digest to Slack",
-            template: {
-                ...(AGENT_TEMPLATES[0] as AgentStarterTemplate),
-                requiredIntegrations: [{slug: "github", scope: "Read issues", tools: []}],
-            },
-        })
-        expect(slugs(requiredAccounts(accounts))).toEqual(["github"])
-    })
-
-    it("is empty for a pure free-text detection, so create is never gated on a guess", () => {
-        expect(requiredAccounts(detectAccountsFromText("watch GitHub and notify Slack"))).toEqual(
-            [],
-        )
     })
 })

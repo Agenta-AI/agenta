@@ -10,10 +10,13 @@
  * the user-visible column set. These tests pin that down.
  */
 
-import assert from "node:assert/strict"
-import {describe, it} from "node:test"
+import {describe, expect, it} from "vitest"
 
-import {groupRunColumns, type RunMapping, type RunStep} from "../resolveMappings"
+import {
+    groupRunColumns,
+    type RunMapping,
+    type RunStep,
+} from "../../src/evaluationRun/etl/resolveMappings"
 
 // A representative testset+app+evaluator run schema. auto / human / online
 // runs all share this shape — the eval type only changes which metrics
@@ -57,35 +60,34 @@ const MAPPINGS: RunMapping[] = [
 describe("groupRunColumns — testset/app/evaluator/metrics", () => {
     it("groups columns by source in stable order", () => {
         const grouped = groupRunColumns(STEPS, MAPPINGS)
-        assert.deepEqual(
-            grouped.map((g) => g.group.kind),
-            ["testset", "application", "evaluator", "metrics"],
-        )
+        expect(grouped.map((g) => g.group.kind)).toEqual([
+            "testset",
+            "application",
+            "evaluator",
+            "metrics",
+        ])
     })
 
     it("keeps every mapped column — none dropped", () => {
         const grouped = groupRunColumns(STEPS, MAPPINGS)
         const total = grouped.reduce((n, g) => n + g.columns.length, 0)
-        assert.equal(total, MAPPINGS.length)
+        expect(total).toBe(MAPPINGS.length)
     })
 
     it("places multiple columns under their shared group", () => {
         const grouped = groupRunColumns(STEPS, MAPPINGS)
         const testset = grouped.find((g) => g.group.kind === "testset")
-        assert.ok(testset)
-        assert.deepEqual(
-            testset.columns.map((c) => c.name),
-            ["question", "ground_truth"],
-        )
+        expect(testset).toBeTruthy()
+        expect(testset!.columns.map((c) => c.name)).toEqual(["question", "ground_truth"])
     })
 
     it("carries group kind + slug onto each leaf", () => {
         const grouped = groupRunColumns(STEPS, MAPPINGS)
         const evaluator = grouped.find((g) => g.group.kind === "evaluator")
-        assert.ok(evaluator)
-        assert.equal(evaluator.columns[0].name, "success")
-        assert.equal(evaluator.columns[0].kind, "evaluator")
-        assert.equal(evaluator.columns[0].groupSlug, "exact-match")
+        expect(evaluator).toBeTruthy()
+        expect(evaluator!.columns[0].name).toBe("success")
+        expect(evaluator!.columns[0].kind).toBe("evaluator")
+        expect(evaluator!.columns[0].groupSlug).toBe("exact-match")
     })
 })
 
@@ -101,13 +103,10 @@ describe("groupRunColumns — 'other' columns are INCLUDED (regression)", () => 
         ]
         const grouped = groupRunColumns(steps, mappings)
         const other = grouped.find((g) => g.group.kind === "other")
-        assert.ok(other, "the unrecognised-step column must produce an 'other' group")
-        assert.deepEqual(
-            other.columns.map((c) => c.name),
-            ["normalized"],
-        )
+        expect(other, "the unrecognised-step column must produce an 'other' group").toBeTruthy()
+        expect(other!.columns.map((c) => c.name)).toEqual(["normalized"])
         // "other" sorts last.
-        assert.equal(grouped[grouped.length - 1].group.kind, "other")
+        expect(grouped[grouped.length - 1].group.kind).toBe("other")
     })
 
     it("includes columns whose mapping references a missing step", () => {
@@ -117,11 +116,11 @@ describe("groupRunColumns — 'other' columns are INCLUDED (regression)", () => 
         ]
         const grouped = groupRunColumns(STEPS, mappings)
         const other = grouped.find((g) => g.group.kind === "other")
-        assert.ok(other, "a mapping with no resolvable step must produce an 'other' group")
-        assert.deepEqual(
-            other.columns.map((c) => c.name),
-            ["orphan"],
-        )
+        expect(
+            other,
+            "a mapping with no resolvable step must produce an 'other' group",
+        ).toBeTruthy()
+        expect(other!.columns.map((c) => c.name)).toEqual(["orphan"])
     })
 
     it("the visible column count includes 'other' columns", () => {
@@ -132,7 +131,7 @@ describe("groupRunColumns — 'other' columns are INCLUDED (regression)", () => 
         ]
         const grouped = groupRunColumns(steps, mappings)
         const total = grouped.reduce((n, g) => n + g.columns.length, 0)
-        assert.equal(total, mappings.length)
+        expect(total).toBe(mappings.length)
     })
 })
 
@@ -145,11 +144,11 @@ describe("groupRunColumns — edge cases", () => {
         ]
         const grouped = groupRunColumns(STEPS, mappings)
         const total = grouped.reduce((n, g) => n + g.columns.length, 0)
-        assert.equal(total, MAPPINGS.length)
+        expect(total).toBe(MAPPINGS.length)
     })
 
     it("returns an empty list for an empty schema", () => {
-        assert.deepEqual(groupRunColumns([], []), [])
+        expect(groupRunColumns([], [])).toEqual([])
     })
 
     it("drops internal _dedup_id columns (regression)", () => {
@@ -162,12 +161,9 @@ describe("groupRunColumns — edge cases", () => {
         ]
         const grouped = groupRunColumns(STEPS, mappings)
         const names = grouped.flatMap((g) => g.columns.map((c) => c.name))
-        assert.equal(names.includes("testcase_dedup_id"), false)
+        expect(names.includes("testcase_dedup_id")).toBe(false)
         // The dedup column is excluded; every other mapped column is kept.
-        assert.equal(
-            grouped.reduce((n, g) => n + g.columns.length, 0),
-            MAPPINGS.length,
-        )
+        expect(grouped.reduce((n, g) => n + g.columns.length, 0)).toBe(MAPPINGS.length)
     })
 
     it("disambiguates two evaluators emitting the same column name", () => {
@@ -188,10 +184,7 @@ describe("groupRunColumns — edge cases", () => {
         ]
         const grouped = groupRunColumns(steps, mappings)
         const evaluators = grouped.filter((g) => g.group.kind === "evaluator")
-        assert.equal(evaluators.length, 2)
-        assert.deepEqual(
-            evaluators.map((g) => g.group.slug),
-            ["exact-match", "llm-judge"],
-        )
+        expect(evaluators.length).toBe(2)
+        expect(evaluators.map((g) => g.group.slug)).toEqual(["exact-match", "llm-judge"])
     })
 })

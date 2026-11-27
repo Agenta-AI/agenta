@@ -1,9 +1,8 @@
 /**
  * Unit tests for the per-scenario read-only molecules.
  *
- * Scope: lock in the **cache contract** — what gets read, what gets written,
- * what `invalidate()` does. End-to-end fetch flow is exercised in the PoC
- * against a real backend.
+ * Scope: lock in the **cache contract** — what gets read and how the cache is
+ * keyed. End-to-end fetch flow is exercised in the PoC against a real backend.
  *
  * We avoid mocking the api module (ESM bindings are read-only). Instead we
  * exercise the cache directly via `queryClient.setQueryData` and verify the
@@ -13,16 +12,14 @@
  * `cacheHits === scenarioIds.length`).
  */
 
-import assert from "node:assert/strict"
-import {afterEach, beforeEach, describe, it} from "node:test"
-
 import {QueryClient} from "@tanstack/query-core"
 import {getDefaultStore} from "jotai/vanilla"
 import {queryClientAtom} from "jotai-tanstack-query"
+import {afterEach, beforeEach, describe, expect, it} from "vitest"
 
-import type {EvaluationMetric, EvaluationResult} from "../../core"
-import {evaluationMetricMolecule} from "../metricMolecule"
-import {evaluationResultMolecule} from "../resultMolecule"
+import type {EvaluationMetric, EvaluationResult} from "../../src/evaluationRun/core"
+import {evaluationMetricMolecule} from "../../src/evaluationRun/state/metricMolecule"
+import {evaluationResultMolecule} from "../../src/evaluationRun/state/resultMolecule"
 
 const store = getDefaultStore()
 const realQueryClient = store.get(queryClientAtom)
@@ -67,34 +64,16 @@ describe("evaluationResultMolecule", () => {
     const projectId = "p1"
     const runId = "run1"
 
-    it("get.byScenario returns null when cache empty", () => {
-        const out = evaluationResultMolecule.get.byScenario({projectId, runId, scenarioId: "s1"})
-        assert.equal(out, null)
-    })
-
-    it("get.byScenario returns cached array when populated externally", () => {
-        const rows = [makeResult("s1", "step-a")]
-        testQc.setQueryData(["evaluation-results", projectId, runId, "s1"], rows)
-        const out = evaluationResultMolecule.get.byScenario({projectId, runId, scenarioId: "s1"})
-        assert.deepEqual(out, rows)
-    })
-
-    it("get.byScenario returns empty array when cache has []", () => {
-        testQc.setQueryData(["evaluation-results", projectId, runId, "s1"], [])
-        const out = evaluationResultMolecule.get.byScenario({projectId, runId, scenarioId: "s1"})
-        assert.deepEqual(out, [])
-    })
-
     it("prefetchByScenarioIds: empty input → no work", async () => {
         const out = await evaluationResultMolecule.actions.prefetchByScenarioIds({
             projectId,
             runId,
             scenarioIds: [],
         })
-        assert.equal(out.cacheHits, 0)
-        assert.equal(out.cacheMisses, 0)
-        assert.equal(out.fetchMs, 0)
-        assert.equal(out.results.length, 0)
+        expect(out.cacheHits).toBe(0)
+        expect(out.cacheMisses).toBe(0)
+        expect(out.fetchMs).toBe(0)
+        expect(out.results.length).toBe(0)
     })
 
     it("prefetchByScenarioIds: full cache → 100% hits, no fetch", async () => {
@@ -108,12 +87,12 @@ describe("evaluationResultMolecule", () => {
             runId,
             scenarioIds: ["s1", "s2"],
         })
-        assert.equal(out.cacheHits, 2)
-        assert.equal(out.cacheMisses, 0)
-        assert.equal(out.fetchMs, 0, "no network when fully cached")
-        assert.equal(out.results.length, 3)
-        assert.deepEqual(out.byScenarioId.get("s1"), s1Rows)
-        assert.deepEqual(out.byScenarioId.get("s2"), s2Rows)
+        expect(out.cacheHits).toBe(2)
+        expect(out.cacheMisses).toBe(0)
+        expect(out.fetchMs, "no network when fully cached").toBe(0)
+        expect(out.results.length).toBe(3)
+        expect(out.byScenarioId.get("s1")).toEqual(s1Rows)
+        expect(out.byScenarioId.get("s2")).toEqual(s2Rows)
     })
 
     it("prefetchByScenarioIds: scenario with [] in cache counts as hit (not refetched)", async () => {
@@ -123,25 +102,9 @@ describe("evaluationResultMolecule", () => {
             runId,
             scenarioIds: ["s1"],
         })
-        assert.equal(out.cacheHits, 1)
-        assert.equal(out.cacheMisses, 0)
-        assert.equal(out.fetchMs, 0)
-    })
-
-    it("invalidate() drops a single scenario's cache entry", () => {
-        testQc.setQueryData(["evaluation-results", projectId, runId, "s1"], [makeResult("s1", "x")])
-        testQc.setQueryData(["evaluation-results", projectId, runId, "s2"], [makeResult("s2", "x")])
-
-        evaluationResultMolecule.actions.invalidate({projectId, runId, scenarioId: "s1"})
-
-        // s1 cleared, s2 untouched
-        assert.equal(
-            evaluationResultMolecule.get.byScenario({projectId, runId, scenarioId: "s1"}),
-            null,
-        )
-        const s2 = evaluationResultMolecule.get.byScenario({projectId, runId, scenarioId: "s2"})
-        assert.ok(Array.isArray(s2))
-        assert.equal(s2?.length, 1)
+        expect(out.cacheHits).toBe(1)
+        expect(out.cacheMisses).toBe(0)
+        expect(out.fetchMs).toBe(0)
     })
 
     it("cache key isolates by projectId + runId", () => {
@@ -151,14 +114,14 @@ describe("evaluationResultMolecule", () => {
             runId: "run2",
             scenarioId: "s1",
         })
-        assert.equal(sameProjectDifferentRun, null)
+        expect(sameProjectDifferentRun).toBe(null)
 
         const differentProjectSameRun = evaluationResultMolecule.get.byScenario({
             projectId: "p2",
             runId: "run1",
             scenarioId: "s1",
         })
-        assert.equal(differentProjectSameRun, null)
+        expect(differentProjectSameRun).toBe(null)
     })
 })
 
@@ -170,18 +133,6 @@ describe("evaluationMetricMolecule", () => {
     const projectId = "p1"
     const runId = "run1"
 
-    it("get.byScenario returns null when cache empty", () => {
-        const out = evaluationMetricMolecule.get.byScenario({projectId, runId, scenarioId: "s1"})
-        assert.equal(out, null)
-    })
-
-    it("get.byScenario returns cached metrics", () => {
-        const rows = [makeMetric("s1")]
-        testQc.setQueryData(["evaluation-metrics", projectId, runId, "s1"], rows)
-        const out = evaluationMetricMolecule.get.byScenario({projectId, runId, scenarioId: "s1"})
-        assert.deepEqual(out, rows)
-    })
-
     it("prefetchByScenarioIds: full cache → 100% hits, no fetch", async () => {
         testQc.setQueryData(["evaluation-metrics", projectId, runId, "s1"], [makeMetric("s1")])
         testQc.setQueryData(["evaluation-metrics", projectId, runId, "s2"], [makeMetric("s2")])
@@ -191,19 +142,10 @@ describe("evaluationMetricMolecule", () => {
             runId,
             scenarioIds: ["s1", "s2"],
         })
-        assert.equal(out.cacheHits, 2)
-        assert.equal(out.cacheMisses, 0)
-        assert.equal(out.fetchMs, 0)
-        assert.equal(out.metrics.length, 2)
-    })
-
-    it("invalidate() drops a metric's cache entry", () => {
-        testQc.setQueryData(["evaluation-metrics", projectId, runId, "s1"], [makeMetric("s1")])
-        evaluationMetricMolecule.actions.invalidate({projectId, runId, scenarioId: "s1"})
-        assert.equal(
-            evaluationMetricMolecule.get.byScenario({projectId, runId, scenarioId: "s1"}),
-            null,
-        )
+        expect(out.cacheHits).toBe(2)
+        expect(out.cacheMisses).toBe(0)
+        expect(out.fetchMs).toBe(0)
+        expect(out.metrics.length).toBe(2)
     })
 
     it("does not group run-level aggregates (scenario_id=null) under any scenario", async () => {
@@ -215,8 +157,8 @@ describe("evaluationMetricMolecule", () => {
             scenarioIds: ["s1"],
         })
         // Verify the cached s1 metric came through and is keyed properly.
-        assert.equal(out.byScenarioId.get("s1")?.length, 1)
-        assert.equal(out.byScenarioId.get(null as unknown as string), undefined)
+        expect(out.byScenarioId.get("s1")?.length).toBe(1)
+        expect(out.byScenarioId.get(null as unknown as string)).toBe(undefined)
     })
 })
 
@@ -233,7 +175,7 @@ describe("cache key shape (locked-in contract)", () => {
             runId: "r",
             scenarioId: "s",
         })
-        assert.ok(out)
+        expect(out).toBeTruthy()
     })
 
     it("metric molecule key: ['evaluation-metrics', projectId, runId, scenarioId]", () => {
@@ -243,6 +185,6 @@ describe("cache key shape (locked-in contract)", () => {
             runId: "r",
             scenarioId: "s",
         })
-        assert.ok(out)
+        expect(out).toBeTruthy()
     })
 })

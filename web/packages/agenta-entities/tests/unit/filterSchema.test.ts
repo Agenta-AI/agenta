@@ -7,11 +7,10 @@
  * deduplication.
  */
 
-import assert from "node:assert/strict"
-import {describe, it} from "node:test"
+import {describe, expect, it} from "vitest"
 
-import {buildFilterSchema, operatorsForType} from "../filterSchema"
-import type {RunSchema} from "../resolveMappings"
+import {buildFilterSchema, operatorsForType} from "../../src/evaluationRun/etl/filterSchema"
+import type {RunSchema} from "../../src/evaluationRun/etl/resolveMappings"
 
 const SCHEMA: RunSchema = {
     steps: [
@@ -32,50 +31,50 @@ const SCHEMA: RunSchema = {
 describe("operatorsForType", () => {
     it("number gets ordered comparisons", () => {
         const ops = operatorsForType("number")
-        for (const op of ["lt", "lte", "gt", "gte"]) assert.ok(ops.includes(op as never))
+        for (const op of ["lt", "lte", "gt", "gte"]) expect(ops.includes(op as never)).toBeTruthy()
     })
 
     it("unknown / boolean withhold ordered comparisons", () => {
         for (const op of ["lt", "gt"]) {
-            assert.equal(operatorsForType("unknown").includes(op as never), false)
-            assert.equal(operatorsForType("boolean").includes(op as never), false)
+            expect(operatorsForType("unknown").includes(op as never)).toBe(false)
+            expect(operatorsForType("boolean").includes(op as never)).toBe(false)
         }
     })
 
     it("returns a fresh array (callers may mutate)", () => {
         const a = operatorsForType("number")
         a.pop()
-        assert.notEqual(a.length, operatorsForType("number").length)
+        expect(a.length).not.toBe(operatorsForType("number").length)
     })
 })
 
 describe("buildFilterSchema", () => {
     it("returns an empty schema for a null run schema", () => {
-        assert.deepEqual(buildFilterSchema(null), {fields: []})
+        expect(buildFilterSchema(null)).toEqual({fields: []})
     })
 
     it("emits one field per mapped column", () => {
         const {fields} = buildFilterSchema(SCHEMA)
-        assert.deepEqual(fields.map((f) => f.columnName).sort(), ["Cost", "question", "success"])
+        expect(fields.map((f) => f.columnName).sort()).toEqual(["Cost", "question", "success"])
     })
 
     it("types metrics columns as number, others as unknown", () => {
         const {fields} = buildFilterSchema(SCHEMA)
         const cost = fields.find((f) => f.columnName === "Cost")
         const success = fields.find((f) => f.columnName === "success")
-        assert.equal(cost?.valueType, "number")
-        assert.equal(success?.valueType, "unknown")
-        assert.ok(cost?.operators.includes("gt"))
-        assert.equal(success?.operators.includes("gt"), false)
+        expect(cost?.valueType).toBe("number")
+        expect(success?.valueType).toBe("unknown")
+        expect(cost?.operators.includes("gt")).toBeTruthy()
+        expect(success?.operators.includes("gt")).toBe(false)
     })
 
     it("carries the targeting triple + labels", () => {
         const {fields} = buildFilterSchema(SCHEMA)
         const success = fields.find((f) => f.columnName === "success")
-        assert.equal(success?.groupKind, "evaluator")
-        assert.equal(success?.groupSlug, "exact-match")
-        assert.equal(success?.label, "success")
-        assert.ok(success?.groupLabel)
+        expect(success?.groupKind).toBe("evaluator")
+        expect(success?.groupSlug).toBe("exact-match")
+        expect(success?.label).toBe("success")
+        expect(success?.groupLabel).toBeTruthy()
     })
 
     it("resolveValueType refines a field's type + operators", () => {
@@ -83,10 +82,10 @@ describe("buildFilterSchema", () => {
             resolveValueType: (f) => (f.columnName === "success" ? "boolean" : undefined),
         })
         const success = fields.find((f) => f.columnName === "success")
-        assert.equal(success?.valueType, "boolean")
-        assert.deepEqual(success?.operators, ["eq", "ne"])
+        expect(success?.valueType).toBe("boolean")
+        expect(success?.operators).toEqual(["eq", "ne"])
         // Untouched fields keep the schema-only default.
-        assert.equal(fields.find((f) => f.columnName === "Cost")?.valueType, "number")
+        expect(fields.find((f) => f.columnName === "Cost")?.valueType).toBe("number")
     })
 
     it("deduplicates identical (groupKind, groupSlug, columnName) triples", () => {
@@ -102,6 +101,6 @@ describe("buildFilterSchema", () => {
             ],
         }
         const {fields} = buildFilterSchema(dupSchema)
-        assert.equal(fields.filter((f) => f.columnName === "question").length, 1)
+        expect(fields.filter((f) => f.columnName === "question").length).toBe(1)
     })
 })
