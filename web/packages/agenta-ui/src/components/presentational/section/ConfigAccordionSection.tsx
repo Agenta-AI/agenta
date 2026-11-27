@@ -243,11 +243,7 @@ export function ConfigAccordionSection({
 }: ConfigAccordionSectionProps) {
     const divider = "border-border-muted"
     const titleSize =
-        size === "compact"
-            ? "text-label"
-            : canvas
-              ? "text-label leading-5"
-              : "text-body"
+        size === "compact" ? "text-label" : canvas ? "text-label leading-5" : "text-body"
     // Height (0→auto via the grid `0fr`→`1fr` trick) + opacity reveal on mount (opt-in). `revealed`
     // flips one tick after mount (staggered by `revealDelayMs`) to play the transition; `done` fires
     // after it settles and drops the grid/overflow wrapper so nothing (e.g. an indicator dot) can clip.
