@@ -137,6 +137,22 @@ describe("change of the newest run", () => {
         expect(compareChange(0.346, 0.334, "unit")).toEqual({kind: "difference", delta: 0.02})
         // Shown as 4.12 and 4.11.
         expect(compareChange(4.1151, 4.1149, "number")).toEqual({kind: "difference", delta: 0.01})
+        // Both shown as 0.61 (toFixed, as formatMean prints them).
+        expect(compareChange(0.615, 0.614, "unit")).toEqual({kind: "none"})
+    })
+
+    it("reads each summary tile in its own format", () => {
+        // Counts are exact: 1239 against 1234 test cases.
+        expect(compareChange(1239, 1234, "count")).toEqual({kind: "difference", delta: 5})
+        expect(compareChange(1004, 1001, "count")).toEqual({kind: "difference", delta: 3})
+        // A cost of $1 or more has 2 decimals; under $1, 3 significant digits.
+        expect(compareChange(1.234, 1.226, "cost")).toEqual({kind: "none"})
+        expect(compareChange(0.0042, 0.0061, "cost")).toEqual({kind: "difference", delta: -0.0019})
+        // A duration of 1 s or more is shown as N.NN s.
+        expect(compareChange(12_346, 12_336, "duration")).toEqual({kind: "difference", delta: 10})
+        expect(compareChange(12_341, 12_339, "duration")).toEqual({kind: "none"})
+        // Tokens: 1.1K and 1.1K are the same shown value.
+        expect(compareChange(1104, 1096, "tokens")).toEqual({kind: "none"})
     })
 
     it("is missing when either run has no value", () => {

@@ -1,6 +1,7 @@
 import {
     formatTileAmount,
     TILE_MISSING,
+    TILE_PENDING,
     type CompareSummaryRow,
     type RunTileId,
 } from "@agenta/entities/evaluationRun"
@@ -101,6 +102,10 @@ export const CompareSummaryTable = ({
                                 </th>
                                 {row.tiles.map((cell, index) => {
                                     const tile = cell === "loading" ? null : cell
+                                    const value =
+                                        cell === "loading"
+                                            ? TILE_PENDING
+                                            : (tile?.value ?? TILE_MISSING)
                                     return (
                                         <td
                                             key={columns[index]?.runId ?? index}
@@ -108,9 +113,7 @@ export const CompareSummaryTable = ({
                                         >
                                             <span className="flex flex-col">
                                                 <span className="tabular-nums text-foreground">
-                                                    {cell === "loading"
-                                                        ? "…"
-                                                        : (tile?.value ?? TILE_MISSING)}
+                                                    {value}
                                                 </span>
                                                 {tile?.detail ? (
                                                     <span

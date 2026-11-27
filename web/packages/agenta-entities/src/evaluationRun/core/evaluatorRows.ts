@@ -530,10 +530,11 @@ export function compareRoles(
 }
 
 /**
- * How a change is rounded: `rate` is a share of 0 to 1 read in whole points, `unit` a value on 0
- * to 1 read with 2 decimals, `number` any other value read with 3 significant digits.
+ * How a value is shown, so a change is read from the shown values: `rate` is a share of 0 to 1
+ * shown in whole percents, `unit` a value on 0 to 1 with 2 decimals, `number` any other value with
+ * 3 significant digits, and the tile scales in each tile's own format.
  */
-export type CompareScale = "rate" | "unit" | "number"
+export type CompareScale = "rate" | "unit" | "number" | "count" | "cost" | "duration" | "tokens"
 
 /** The change of the newest run against the run before it, after rounding. */
 export type CompareChange =
@@ -543,11 +544,25 @@ export type CompareChange =
     | {kind: "difference"; delta: number}
 
 const round3Sig = (value: number) => Number(value.toPrecision(3))
+const roundTo = (value: number, digits: number) => Number(value.toFixed(digits))
+
+/** Each scale's value as it is shown (see `formatMean`, `formatCost`, `formatDuration`, ...). */
+const SHOWN: Record<CompareScale, (value: number) => number> = {
+    rate: (value) => Math.round(value * 100),
+    unit: (value) => roundTo(value, 2),
+    number: round3Sig,
+    count: Math.round,
+    cost: (value) => (Math.abs(value) >= 1 || value === 0 ? roundTo(value, 2) : round3Sig(value)),
+    duration: (value) =>
+        Math.abs(value) < 1000 ? Math.round(value) : roundTo(value / 1000, 2) * 1000,
+    tokens: (value) => (Math.abs(value) >= 1000 ? round3Sig(value) : Math.round(value)),
+}
 
 /**
- * `newest` against `before`, from the values as they are shown: pass rates in points (the
- * difference of the rounded percents), other values as the difference of the rounded values.
- * "none" when the rounded values are equal; "missing" when either value is not there.
+ * `newest` against `before`, from the values as they are shown, so the change always matches
+ * them: pass rates in points (the difference of the rounded percents), other values as the
+ * difference of the rounded values. "none" when the shown values are equal; "missing" when
+ * either value is not there.
  */
 export function compareChange(
     newest: number | null | undefined,
@@ -562,16 +577,10 @@ export function compareChange(
     ) {
         return {kind: "missing"}
     }
-    if (scale === "rate") {
-        const points = Math.round(newest * 100) - Math.round(before * 100)
-        return points === 0 ? {kind: "none"} : {kind: "points", points}
-    }
-    // The difference of the values as shown, so the change always matches the two lines.
-    const delta =
-        scale === "unit"
-            ? (Math.round(newest * 100) - Math.round(before * 100)) / 100
-            : round3Sig(round3Sig(newest) - round3Sig(before))
-    return delta === 0 ? {kind: "none"} : {kind: "difference", delta}
+    // 12 significant digits drop the float noise of the subtraction (0.35 - 0.33).
+    const delta = Number((SHOWN[scale](newest) - SHOWN[scale](before)).toPrecision(12))
+    if (delta === 0) return {kind: "none"}
+    return scale === "rate" ? {kind: "points", points: delta} : {kind: "difference", delta}
 }
 
 /** A difference with its sign: "+0.12", "−0.08" (a minus sign, not a hyphen). */
@@ -602,6 +611,15 @@ export interface CompareSummaryRow {
     change: CompareChange
 }
 
+const TILE_SCALE: Record<RunTileId, CompareScale> = {
+    testCases: "count",
+    passed: "rate",
+    cost: "cost",
+    duration: "duration",
+    tokens: "tokens",
+    errors: "count",
+}
+
 const TILE_ORDER: RunTileId[] = ["testCases", "passed", "cost", "duration", "tokens", "errors"]
 
 /**
@@ -622,11 +640,7 @@ export function buildCompareSummaryRows(
             return tile && tile !== "loading" ? tile.amount : undefined
         }
         const change = roles
-            ? compareChange(
-                  amountOf(roles.newest),
-                  amountOf(roles.before),
-                  id === "passed" ? "rate" : "number",
-              )
+            ? compareChange(amountOf(roles.newest), amountOf(roles.before), TILE_SCALE[id])
             : ({kind: "missing"} as const)
         return [{id, tiles, change}]
     })
