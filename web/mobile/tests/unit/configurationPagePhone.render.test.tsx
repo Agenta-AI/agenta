@@ -2,7 +2,7 @@
 /**
  * The Configuration page on a phone (M07): PageLayout with the Agent / Automations / Access
  * switch, a section opened from its row as its own screen, and the open views kept across a
- * section and a resize across the phone width.
+ * section and a resize across the phone width. On a wide window an open view hides the page head.
  */
 import {act, useContext, useState, type ReactNode} from "react"
 
@@ -175,15 +175,21 @@ describe("Configuration page on a phone", () => {
         state.phone = false
         await mount()
         expect(button("Bumped 1")).toBeTruthy()
-        expect(host.querySelector('[role="radiogroup"]')).not.toBeNull()
+        expect(host.querySelector('[role="radiogroup"]')).toBeNull()
     })
 
-    it("keeps the page on a wide window: the title row and the switch stay over a view", async () => {
+    it("on a wide window an open view hides the page head; Back shows it on the same tab", async () => {
         state.phone = false
         await mount()
         expect(host.querySelector('[data-testid="config-page"]')).not.toBeNull()
+        expect(host.querySelector("h1")?.closest(".hidden")).toBeNull()
         await click("Open note")
-        expect(host.querySelector("h1")?.textContent).toBe("Configuration")
-        expect(host.querySelector('[role="radiogroup"]')).not.toBeNull()
+        // The view's own crumb is the header: no visible page title and no switch.
+        expect(host.querySelector("h1")?.closest(".hidden")).not.toBeNull()
+        expect(host.querySelector('[role="radiogroup"]')).toBeNull()
+        await click("Agent")
+        expect(button("Bumped 0")).toBeUndefined()
+        expect(host.querySelector("h1")?.closest(".hidden")).toBeNull()
+        expect(host.querySelector('[role="radio"][aria-checked="true"]')?.textContent).toBe("Agent")
     })
 })

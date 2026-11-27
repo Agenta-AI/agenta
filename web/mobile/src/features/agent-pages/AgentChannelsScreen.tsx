@@ -12,6 +12,9 @@ import {PageLayout} from "../page-layout/PageLayout"
 import {AgentBuilderButton} from "./AgentBuilderButton"
 import {AgentChannels} from "./AgentChannels"
 
+// An open channel view (desktop) is its own header: the page head hides.
+const OPEN_VIEW_HIDES_HEAD = "[&:has(~_*_[data-testid=agent-channels-open-view])]:hidden"
+
 /** The Channels page of one agent: the Settings channel grid for this agent. */
 export const AgentChannelsScreen = ({
     workspaceId,
@@ -34,6 +37,7 @@ export const AgentChannelsScreen = ({
             title={t("agentSidebar.channels")}
             description={t("agentPages.channels.intro", {agent})}
             actions={<AgentBuilderButton />}
+            headClassName={OPEN_VIEW_HIDES_HEAD}
         >
             {/* On a phone the channel rows run edge to edge (M13). */}
             <div className={phone ? PAGE_GUTTERS_BLEED : undefined}>

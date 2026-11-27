@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 /**
  * The Automations tab of the Configuration page is the panel's AutomationsTab, without its Files
- * part, inside a view stack of the page (its automation views open there). The page's switch asks
- * before it drops an automation form with edits.
+ * part, inside a view stack of the page (its automation views open there). An open automation
+ * hides the page head and its switch until Back.
  */
 import {act, useEffect, type ReactNode} from "react"
 
@@ -123,32 +123,24 @@ const mount = () =>
 const button = (text: string) =>
     [...document.querySelectorAll("button")].find((node) => node.textContent === text)
 /** The page's Agent / Automations / Access switch is a radio group. */
-const agentOption = () =>
-    [...document.querySelectorAll<HTMLElement>('[role="radio"]')].find(
-        (node) => node.textContent === "Agent",
-    )!
+const checkedOption = () =>
+    document.querySelector<HTMLElement>('[role="radio"][aria-checked="true"]')
 
 describe("Configuration page, Automations tab", () => {
-    it("asks before a tab switch drops an automation form with edits", async () => {
+    it("hides the page head and switch inside an automation; Back shows them on the tab", async () => {
         automations.openDirty = true
         await mount()
-        await act(async () => agentOption().click())
-        expect(button("Keep editing")).toBeTruthy()
-        expect(router.replace).not.toHaveBeenCalled()
-        await act(async () => button("Discard")!.click())
-        await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
-        expect(router.replace).toHaveBeenCalledTimes(1)
-        expect(button("Save")).toBeUndefined()
-    })
-
-    it("stays on the tab when the person keeps editing", async () => {
-        automations.openDirty = true
-        await mount()
-        await act(async () => agentOption().click())
-        await act(async () => button("Keep editing")!.click())
-        await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
-        expect(router.replace).not.toHaveBeenCalled()
         expect(button("Save")).toBeTruthy()
+        expect(document.querySelector('[role="radiogroup"]')).toBeNull()
+        expect(document.querySelector("h1")?.closest(".hidden")).not.toBeNull()
+        await act(async () => button("Automations")!.click())
+        // The form has edits: leaving asks first.
+        if (button("Discard")) await act(async () => button("Discard")!.click())
+        await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
+        expect(button("Save")).toBeUndefined()
+        expect(document.querySelector("h1")?.closest(".hidden")).toBeNull()
+        expect(checkedOption()?.textContent).toBe("Automations")
+        expect(router.replace).not.toHaveBeenCalled()
     })
 
     it("mounts the panel's AutomationsTab in a view stack, with no Files part", async () => {

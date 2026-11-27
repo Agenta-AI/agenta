@@ -48,6 +48,8 @@ export interface PageLayoutProps {
     actions?: ReactNode
     /** An optional toolbar (`PageToolbar`, or any row): pinned under the title, outside the scroll. */
     toolbar?: ReactNode
+    /** Extra classes on the title block, e.g. `hidden` while an item's own header shows. */
+    headClassName?: string
     /** The content cap (LAYOUT-02). Lists `lg` (the default), item pages and Home `md`, forms `sm`. */
     width?: PageWidth
     scrollRef?: RefObject<HTMLDivElement | null>
@@ -79,6 +81,7 @@ export const PageLayout = ({
     back,
     actions,
     toolbar,
+    headClassName,
     width = "lg",
     scrollRef,
     onScroll,
@@ -102,7 +105,9 @@ export const PageLayout = ({
                     actions={expanded ? undefined : actions}
                 />
             )}
-            <div className={`${PAGE_TITLE_BLOCK} ${PAGE_GUTTERS}`}>
+            <div
+                className={`${PAGE_TITLE_BLOCK} ${PAGE_GUTTERS}${headClassName ? ` ${headClassName}` : ""}`}
+            >
                 <div className={pageColumn(width)}>
                     {back && expanded ? <PageBackControl back={back} className="mb-2" /> : null}
                     <div className={PAGE_TITLE_ROW}>

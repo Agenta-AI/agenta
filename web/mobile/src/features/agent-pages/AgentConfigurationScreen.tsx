@@ -60,18 +60,14 @@ export const AgentConfigurationScreen = ({
     // The builder reads the open tab and the item an open view shows.
     const [item, setItem] = useState<OpenViewItem | null>(null)
     usePublishPageContext({kind: "configuration", tab, ...(item ? {item} : {})})
-    // The open views: a form with edits asks before a tab switch or a navigation.
+    // The open views: a form with edits asks before a navigation.
     const guard = useRef<PageViewStackGuardApi | null>(null)
     // On a phone a section row opens the section as its own page (M07).
     const sectionScreen = usePhoneSectionScreen(phone)
     const shownSection = sectionScreen.shown
 
-    const openTab = async (next: ConfigurationTab) => {
-        const held = guard.current
-        if (next !== tab && held) {
-            if (!(await held.stack.closeAll())) return
-            held.allowNext()
-        }
+    // The switch shows only with no view open, so a tab switch drops no form.
+    const openTab = (next: ConfigurationTab) => {
         sectionScreen.close()
         void router.replace({query: {...router.query, tab: next}}, undefined, {shallow: true})
     }
@@ -104,7 +100,7 @@ export const AgentConfigurationScreen = ({
         )
 
     const configuration = t("agentSidebar.configuration")
-    // On a phone an open view or section covers the page as its own screen (M07).
+    // An open view hides the page head; on a phone it covers the page as its own screen (M07).
     const [viewsOpen, setViewsOpen] = useState(false)
     const phoneSection = phone && shownSection && revisionId ? shownSection : null
     const screen =
@@ -130,22 +126,26 @@ export const AgentConfigurationScreen = ({
                 description={t("agentPages.page.configurationDescription")}
                 actions={<AgentBuilderButton />}
                 screen={screen}
+                // Inside an item its own crumb and footer are the header (no page head over it).
+                headClassName={viewsOpen ? "hidden" : undefined}
                 toolbar={
-                    <PageToolbar
-                        actions={
-                            <Segmented
-                                aria-label={configuration}
-                                value={tab}
-                                onChange={(next) => {
-                                    if (isConfigurationTab(next)) void openTab(next)
-                                }}
-                                options={CONFIGURATION_TABS.map((key) => ({
-                                    value: key,
-                                    label: t(`agentLayout.panel.${key}`),
-                                }))}
-                            />
-                        }
-                    />
+                    viewsOpen ? undefined : (
+                        <PageToolbar
+                            actions={
+                                <Segmented
+                                    aria-label={configuration}
+                                    value={tab}
+                                    onChange={(next) => {
+                                        if (isConfigurationTab(next)) openTab(next)
+                                    }}
+                                    options={CONFIGURATION_TABS.map((key) => ({
+                                        value: key,
+                                        label: t(`agentLayout.panel.${key}`),
+                                    }))}
+                                />
+                            }
+                        />
+                    )
                 }
             >
                 {/* The pane's 16 px inset sits on the page column's line. */}
