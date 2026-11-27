@@ -6,6 +6,8 @@
  * @packageDocumentation
  */
 
+import type {ReferenceKind} from "./ReferenceChip"
+
 /** One reference as a trace stores it: the key names the field, `id` or `slug` names the entity. */
 export interface TraceReference {
     key?: string | null
@@ -21,8 +23,11 @@ export interface MergedReferenceField {
     version: string | null
 }
 
-/** `testset` when the trace names a test set but no test case. */
-export type MergedReferenceKind = "app" | "environment" | "evaluator" | "testcase" | "testset"
+/**
+ * The chip kinds except `variant`, which joins its application's chip. `testset` when the trace
+ * names a test set but no test case.
+ */
+export type MergedReferenceKind = Exclude<ReferenceKind, "variant">
 
 export interface MergedReferenceChip {
     kind: MergedReferenceKind

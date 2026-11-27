@@ -6,10 +6,7 @@ import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
 import {formatShapeNumber} from "@agenta/shared/utils"
 import {Badge, Button, CollapseCaret, cn} from "@agenta/ui/ui"
 
-import ChatMarkdown from "../components/ChatMarkdown"
-
-import {ValueBody} from "./ValueField"
-import {useValueViewOptions} from "./ValueViewProvider"
+import {ValueField} from "./ValueField"
 
 export interface EvaluatorResultRowProps {
     /** The evaluator's name. */
@@ -55,8 +52,12 @@ const MetricValue = ({metric}: {metric: EvaluatorResultMetric}) => {
     )
 }
 
-const metricText = (metric: EvaluatorResultMetric) =>
-    typeof metric.value === "number" ? formatShapeNumber(metric.value) : String(metric.value)
+/** A metric as plain text, the way `MetricValue` draws it: a list joined, no value as a dash. */
+const metricText = ({value}: EvaluatorResultMetric): string => {
+    if (typeof value === "number") return formatShapeNumber(value)
+    if (value === null || value === undefined || value === "") return "—"
+    return Array.isArray(value) ? value.map(String).join(", ") : String(value)
+}
 
 /** What the collapsed row shows after the name. */
 const InlineMetrics = ({summary}: {summary: EvaluatorResultSummary}) => {
@@ -131,10 +132,10 @@ export const EvaluatorResultRow = ({
     defaultOpen = false,
 }: EvaluatorResultRowProps) => {
     const t = useT(valueViewCatalog)
-    const {markdownClassName, markdownIcons} = useValueViewOptions()
     const [open, setOpen] = useState(defaultOpen)
     const regionId = useId()
-    const grid = summary.short.length > 3
+    // More short metrics than the row shows inline open to a grid.
+    const grid = summary.inline.kind !== "metrics"
     const expandable =
         summary.state === "error" ||
         (summary.state === "done" && (grid || summary.text.length > 0 || Boolean(details)))
@@ -213,18 +214,7 @@ export const EvaluatorResultRow = ({
                                   <span className="text-meta text-muted-foreground">
                                       {metric.name}
                                   </span>
-                                  {typeof metric.value === "string" ? (
-                                      <ChatMarkdown
-                                          content={metric.value}
-                                          baseClassName={markdownClassName}
-                                          icons={markdownIcons}
-                                      />
-                                  ) : (
-                                      <ValueBody
-                                          value={metric.value}
-                                          stateKey={`${regionId}:${metric.name}`}
-                                      />
-                                  )}
+                                  <ValueField value={metric.value} label={metric.name} />
                               </div>
                           ))
                         : null}

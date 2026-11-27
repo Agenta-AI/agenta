@@ -1,6 +1,10 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {testcaseDataController, type TestcaseTableRow} from "@agenta/entities/testcase"
+import {
+    loadMoreTestcasesAtom,
+    testcaseDataController,
+    type TestcaseTableRow,
+} from "@agenta/entities/testcase"
 import {useTestcaseDrawerNavigation} from "@agenta/entity-ui/testcase"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
@@ -19,7 +23,7 @@ import {
     Button,
 } from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
@@ -158,14 +162,23 @@ export const TestsetDetailScreen = ({
     const rows = useAtomValue(testcaseDataController.selectors.rows(editor.tableConfig))
     const columns = useAtomValue(testcaseDataController.selectors.columns(editor.tableConfig))
     const columnKeys = useMemo(() => columns.map((column) => column.key), [columns])
-    // A link with `?testcase_id=` opens the editor on that test case once, when it is in the revision.
+    const hasMoreRows = useAtomValue(testcaseDataController.selectors.hasMore(editor.tableConfig))
+    const loadMoreRows = useSetAtom(loadMoreTestcasesAtom)
+    // A link with `?testcase_id=` opens the editor on that test case once, when it is in the
+    // revision. The rows load 100 per page, so pages load until the test case or the end.
     const linkedTestcaseId = router.query[TESTCASE_QUERY_PARAM]
     const linkHandled = useRef(false)
     useEffect(() => {
         if (linkHandled.current || typeof linkedTestcaseId !== "string" || rows.length === 0) return
-        linkHandled.current = true
-        if (rows.some((row) => row.id === linkedTestcaseId)) openRow(linkedTestcaseId)
-    }, [linkedTestcaseId, openRow, rows])
+        if (rows.some((row) => row.id === linkedTestcaseId)) {
+            linkHandled.current = true
+            openRow(linkedTestcaseId)
+        } else if (hasMoreRows) {
+            loadMoreRows(editor.tableConfig)
+        } else {
+            linkHandled.current = true
+        }
+    }, [editor.tableConfig, hasMoreRows, linkedTestcaseId, loadMoreRows, openRow, rows])
 
     const navigation = useTestcaseDrawerNavigation({
         rows,

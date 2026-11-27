@@ -24,6 +24,7 @@ const state = vi.hoisted(() => ({
     openRow: null as null | ((id: string) => void),
     rowAdded: null as null | ((id: string) => void),
     query: {} as Record<string, string>,
+    morePages: false,
 }))
 
 vi.mock("next/router", () => ({
@@ -83,12 +84,23 @@ vi.mock("@/features/testsets/detail/TestsetGrid", () => ({
     },
 }))
 vi.mock("@agenta/entities/testcase", () => {
-    const rows = atom([
+    const firstPage = [
         {id: "case-1", key: "case-1"},
         {id: "case-2", key: "case-2"},
-    ])
+    ]
+    const rows = atom(firstPage)
     const columns = atom([{key: "question"}])
-    return {testcaseDataController: {selectors: {rows: () => rows, columns: () => columns}}}
+    // A second page with one more test case, loaded on request while `state.morePages` is set.
+    const hasMore = atom((get) => state.morePages && get(rows).length === firstPage.length)
+    const loadMoreTestcasesAtom = atom(null, (get, set) => {
+        if (get(hasMore)) set(rows, [...firstPage, {id: "case-150", key: "case-150"}])
+    })
+    return {
+        loadMoreTestcasesAtom,
+        testcaseDataController: {
+            selectors: {rows: () => rows, columns: () => columns, hasMore: () => hasMore},
+        },
+    }
 })
 vi.mock("@agenta/entity-ui/testcase", async () => ({
     useTestcaseDrawerNavigation: (
@@ -134,6 +146,7 @@ describe("Test set page", () => {
         state.openRow = null
         state.rowAdded = null
         state.query = {}
+        state.morePages = false
         queryClient = new QueryClient()
         store = createStore()
         host = document.createElement("div")
@@ -211,6 +224,13 @@ describe("Test set page", () => {
         state.query = {testcase_id: "case-2"}
         render()
         expect(state.drawer).toMatchObject({testcaseId: "case-2", testcaseNumber: 2})
+    })
+
+    it("A link to a test case on a later page loads pages until it opens the editor", () => {
+        state.morePages = true
+        state.query = {testcase_id: "case-150"}
+        render()
+        expect(state.drawer).toMatchObject({testcaseId: "case-150", testcaseNumber: 3})
     })
 
     it("A testcase_id that is not in the revision opens nothing", () => {

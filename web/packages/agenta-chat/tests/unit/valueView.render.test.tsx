@@ -410,6 +410,18 @@ describe("EvaluatorResultRow", () => {
         expect(screen.getByText("price")).toBeTruthy()
     })
 
+    it("draws a reason written as JSON text as its parsed fields on expand", () => {
+        render(
+            <EvaluatorResultRow
+                name="Schema check"
+                summary={summary([{name: "reason", value: '{"missing": "price"}', kind: "text"}])}
+            />,
+        )
+        fireEvent.click(screen.getByRole("button", {name: /Schema check/}))
+        expect(screen.getByText("missing")).toBeTruthy()
+        expect(screen.getByText("price")).toBeTruthy()
+    })
+
     it("draws an error as a red Error badge, with the message and Open trace on expand", () => {
         const onOpenTrace = vi.fn()
         render(
