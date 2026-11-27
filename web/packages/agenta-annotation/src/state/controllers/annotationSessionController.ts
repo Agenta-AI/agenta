@@ -571,7 +571,16 @@ const evaluatorStepRefsAtom = atom<EvaluatorStepRef[]>((get) => {
         }))
         .filter((ref) => Boolean(ref.workflowId || ref.revisionId || ref.slug))
     if (!formEvaluators) return refs
-    return [...refs.filter((ref) => !ref.slug || !hidden.has(ref.slug)), ...formEvaluators.added]
+    const kept = refs.filter((ref) => !ref.slug || !hidden.has(ref.slug))
+    // An added evaluator already in the form (or added twice) would draw two sections on one slug.
+    const slugs = new Set(kept.flatMap((ref) => ref.slug || []))
+    const added = formEvaluators.added.filter((ref) => {
+        if (!ref.slug) return true
+        if (slugs.has(ref.slug)) return false
+        slugs.add(ref.slug)
+        return true
+    })
+    return [...kept, ...added]
 })
 
 /** Evaluator metadata for queue-scoped testcase sync. */

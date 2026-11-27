@@ -91,6 +91,19 @@ describe("the run's form evaluators", () => {
         expect(slugs()).toEqual(["tone", "clarity"])
     })
 
+    it("does not list an added evaluator twice when the run has it or it is added twice", () => {
+        const clarity = {workflowId: "wf-clarity", revisionId: "rev-clarity", slug: "clarity"}
+        store.set(annotationSessionController.actions.setFormEvaluators, {
+            added: [
+                {workflowId: "wf-tone", revisionId: "rev-tone", slug: "tone"},
+                clarity,
+                clarity,
+            ],
+            hidden: [],
+        })
+        expect(slugs()).toEqual(["tone", "clarity"])
+    })
+
     it("keeps a hidden evaluator's edits in the draft, out of the count and the save", () => {
         store.set(annotationFormController.actions.updateMetric, {
             scenarioId: SCENARIO,
