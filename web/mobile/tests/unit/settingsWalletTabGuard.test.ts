@@ -1,7 +1,7 @@
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
 const env = vi.hoisted(() => ({
-    ee: true,
+    wallets: true,
     path: "/settings?tab=credits",
     allowed: true,
     pending: false,
@@ -12,10 +12,9 @@ vi.mock("react", () => ({useMemo: (fn: () => unknown) => fn()}))
 vi.mock("next/router", () => ({useRouter: () => ({query: {}, asPath: env.path})}))
 vi.mock("@agenta/shared/api", () => ({
     isBillingEnabled: () => true,
-    isEE: () => env.ee,
     isMcpGatewayEnabled: () => true,
     isToolsEnabled: () => true,
-    isWalletsEnabled: () => true,
+    isWalletsEnabled: () => env.wallets,
 }))
 vi.mock("../../src/features/context/useProjectPermission", () => ({
     useProjectPermission: () => env.allowed,
@@ -32,6 +31,9 @@ vi.mock("../../src/features/settings/useSettingsOrg", () => ({
         retry: () => undefined,
     }),
 }))
+vi.mock("../../src/features/settings/useInstanceLicense", () => ({
+    useInstanceLicense: () => ({isInstanceAdmin: false}),
+}))
 vi.mock("../../src/features/wallet/useWalletSummary", () => ({
     useWalletSummary: () => ({data: {mode: "enforce"}}),
 }))
@@ -45,19 +47,19 @@ beforeEach(() => {
     env.allowed = true
     env.pending = false
     env.owner = true
-    env.ee = true
+    env.wallets = true
 })
 
 describe("wallet settings tabs behind a deep link", () => {
-    it.each(["credits", "walletUsage"])("open Credits for %s on EE", (tab) => {
+    it.each(["credits", "walletUsage"])("open Credits for %s with the wallet flag on", (tab) => {
         env.path = `/settings?tab=${tab}`
         expect(useActiveSettingsTab()).toBe("credits")
     })
 
     it.each(["credits", "walletUsage"])(
-        "fall back to the default tab for %s on OSS, even with the wallet flag on",
+        "fall back to the default tab for %s with the wallet flag off",
         (tab) => {
-            env.ee = false
+            env.wallets = false
             env.path = `/settings?tab=${tab}`
             expect(useActiveSettingsTab()).toBe(DEFAULT_MOBILE_SETTINGS_TAB)
         },

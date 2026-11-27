@@ -143,7 +143,7 @@ export const TextInputControl = memo(function TextInputControl({
         >
             {inputContent}
             {(maxLength || minLength) && (
-                <span className="text-xs text-colorTextDescription">
+                <span className="text-meta text-muted-foreground">
                     {minLength && t("entityUi.schemaControls.minLength", {value: minLength})}
                     {minLength && maxLength && " / "}
                     {maxLength && t("entityUi.schemaControls.maxLength", {value: maxLength})}

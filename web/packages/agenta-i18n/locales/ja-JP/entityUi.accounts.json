@@ -1,5 +1,4 @@
 {
-    "label": "アカウント",
     "eachPersonSignIn": "各ユーザー自身のサインイン",
     "projectSignIn": "プロジェクトのサインイン",
     "connectAnother": "別の {{name}} アカウントを接続",
@@ -12,11 +11,17 @@
     "addOne": "追加する",
     "addAnotherSecret": "別のシークレットを追加",
     "addYourSecret": "シークレットを追加",
-    "whoCanUseIt": "使用できるユーザー",
-    "onlyMe": "自分のみ",
-    "onlyMeSecretNote": "エージェントがあなた自身の値を求めたときに選択します。",
-    "everyoneInProject": "{{project}} の全員",
-    "everyoneInThisProject": "このプロジェクトの全員",
-    "everyoneSecretNote": "ビルダーはこのプロジェクトのエージェントにこれを添付できます。",
-    "userSecretRow": "各ユーザー自身のシークレット"
+    "userSecretRow": "各ユーザー自身のシークレット",
+    "owner": "所有者",
+    "ownerUser": "個人",
+    "ownerProject": "プロジェクト",
+    "ownerOrganization": "組織",
+    "ownerUserNote": "あなただけが使えます。すべてのプロジェクトで使えます。",
+    "ownerProjectNote": "{{project}} の全員がエージェントに追加できます。",
+    "ownerProjectNoteThis": "このプロジェクトの全員がエージェントに追加できます。",
+    "ownerOrganizationNoteThis": "組織に一度だけ保存します。使えるプロジェクトはあなたが選びます。",
+    "connectionsAll": "すべての接続",
+    "connectionsUser": "個人の接続",
+    "connectionsProject": "プロジェクトの接続",
+    "connectionsOrganization": "組織の接続"
 }

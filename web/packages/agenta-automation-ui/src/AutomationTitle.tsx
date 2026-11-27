@@ -4,7 +4,7 @@ import {createT, useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {useInlineRename} from "@agenta/sessions-ui"
 import {message} from "@agenta/ui/app-message"
-import {Input, PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
+import {Input, SimpleTooltip, type ItemViewTitleEditable} from "@agenta/ui/ui"
 import {PencilSimple} from "@phosphor-icons/react"
 
 const tNow = createT(automationsEditorCatalog)
@@ -23,7 +23,6 @@ export const AutomationTitle = ({
     autoEdit = false,
     placeholder,
     fallback,
-    compact = false,
 }: {
     name: string
     description: string
@@ -34,11 +33,6 @@ export const AutomationTitle = ({
     placeholder?: string
     /** Shown as the heading while the name is empty — the name this would be saved under. */
     fallback?: string
-    /**
-     * The panel's title (F05 f3 to f5): 16 px, and while renaming a field with no border, so the
-     * name keeps the look of a heading.
-     */
-    compact?: boolean
 }) => {
     const t = useT(automationsEditorCatalog)
     const rename = useInlineRename({
@@ -67,6 +61,15 @@ export const AutomationTitle = ({
         start()
     }, [autoEdit, start])
 
+    // A rename ended from the keyboard puts focus on the title, so it stays in the view.
+    const titleRef = useRef<HTMLButtonElement>(null)
+    const refocusTitle = useRef(false)
+    useEffect(() => {
+        if (rename.renaming || !refocusTitle.current) return
+        refocusTitle.current = false
+        titleRef.current?.focus()
+    }, [rename.renaming])
+
     return (
         <div className="flex min-w-0 flex-col">
             {rename.renaming ? (
@@ -78,51 +81,109 @@ export const AutomationTitle = ({
                     onChange={(event) => rename.setDraft(event.target.value)}
                     onBlur={() => void rename.commit()}
                     onKeyDown={(event) => {
+                        if (event.key !== "Enter" && event.key !== "Escape") return
+                        // The key ends the rename only; the view or form around it must not act on it.
+                        event.preventDefault()
+                        event.stopPropagation()
+                        refocusTitle.current = true
                         if (event.key === "Enter") void rename.commit()
-                        if (event.key === "Escape") rename.cancel()
+                        else rename.cancel()
                     }}
                     // A notch under the heading while editing, and a medium placeholder: a bold
                     // hint reads as a name already typed.
-                    className={
-                        compact
-                            ? "h-auto border-transparent bg-transparent px-0 py-0.5 text-[16px] font-semibold shadow-none placeholder:font-semibold placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:ring-0 md:text-[16px]"
-                            : "text-[16px] font-semibold placeholder:font-medium placeholder:text-muted-foreground focus-visible:border-input focus-visible:ring-0 max-md:h-11 md:text-[16px]"
-                    }
+                    className="text-heading placeholder:font-medium placeholder:text-muted-foreground focus-visible:border-input focus-visible:ring-0"
                 />
             ) : (
-                <button
-                    type="button"
-                    onClick={rename.start}
-                    title={t("automations.editor.rename")}
-                    // No focus ring: the shared FOCUS_RING draws a hard near-black outline and
-                    // the softer ring still glowed around the title. Hover carries the affordance.
-                    className={`group flex min-w-0 cursor-pointer items-center rounded-lg border-0 bg-transparent text-left text-foreground outline-none hover:bg-accent focus-visible:bg-accent ${
-                        compact ? "-mx-1 px-1 py-0.5" : "-ml-2 px-2 py-1"
-                    } ${PHONE_TOUCH_TARGET_CLASS}`}
-                >
-                    <h1
-                        className={`m-0 min-w-0 truncate font-semibold ${
-                            compact
-                                ? "text-[16px] leading-6"
-                                : "text-[18px] leading-[1.25] tracking-[-0.02em]"
-                        } ${name ? "" : "text-muted-foreground"}`}
+                <SimpleTooltip title={t("automations.editor.rename")}>
+                    <button
+                        ref={titleRef}
+                        type="button"
+                        onClick={rename.start}
+                        className="focus-ring group -ml-2 flex min-w-0 cursor-pointer items-center rounded-lg border-0 bg-transparent px-2 py-1 text-left text-foreground hover:bg-accent"
                     >
-                        {name || fallback || placeholder}
-                    </h1>
-                    {/* Only on hover or keyboard focus: the name is the control, and a pencil
-                        parked beside it permanently reads as part of the title. */}
-                    <PencilSimple
-                        aria-hidden
-                        size={14}
-                        className="ml-2 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
-                    />
-                </button>
+                        <h1
+                            className={`m-0 min-w-0 truncate text-heading ${name ? "" : "text-muted-foreground"}`}
+                        >
+                            {name || fallback || placeholder}
+                        </h1>
+                        {/* Only on hover or keyboard focus: the name is the control, and a pencil
+                            parked beside it permanently reads as part of the title. */}
+                        <PencilSimple
+                            aria-hidden
+                            size={14}
+                            className="ml-2 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 pointer-coarse:opacity-100"
+                        />
+                    </button>
+                </SimpleTooltip>
             )}
             {description ? (
-                <p className="m-0 mt-1.5 text-[14px] leading-snug text-muted-foreground">
+                <p className="m-0 mt-1.5 text-body leading-snug text-muted-foreground">
                     {description}
                 </p>
             ) : null}
         </div>
     )
+}
+
+/** The pane's automation name as `ItemViewTitle` edits it: Enter and blur commit; Escape undoes the rename only. */
+export const useAutomationTitleEditable = ({
+    name,
+    onRename,
+    autoEdit = false,
+    placeholder,
+}: {
+    name: string
+    onRename: (next: string) => Promise<boolean>
+    autoEdit?: boolean
+    /** Shown while the name is empty: the name it would be saved under. */
+    placeholder?: string
+}): ItemViewTitleEditable => {
+    const t = useT(automationsEditorCatalog)
+    const rename = useInlineRename({
+        current: name,
+        onCommit: async (next) => {
+            try {
+                const ok = await onRename(next)
+                if (!ok) message.error(tNow("automations.editor.renameFailed"))
+            } catch {
+                message.error(tNow("automations.editor.renameFailed"))
+            }
+            return true
+        },
+    })
+    const started = useRef(false)
+    const {start} = rename
+    useEffect(() => {
+        if (!autoEdit || started.current) return
+        started.current = true
+        start()
+    }, [autoEdit, start])
+    return {
+        value: rename.renaming ? rename.draft : name,
+        onChange: (next) => {
+            if (!rename.renaming) rename.start()
+            rename.setDraft(next)
+        },
+        onFocus: () => {
+            if (!rename.renaming) rename.start()
+        },
+        onBlur: () => void rename.commit(),
+        onKeyDown: (event) => {
+            if (event.key === "Enter") {
+                event.preventDefault()
+                event.stopPropagation()
+                void rename.commit()
+                return
+            }
+            // A rename in progress takes Escape; with none, Escape steps the view back.
+            if (event.key !== "Escape" || !rename.renaming) return
+            event.preventDefault()
+            event.stopPropagation()
+            rename.cancel()
+        },
+        autoFocus: autoEdit,
+        placeholder,
+        "aria-label": t("automations.editor.namePlaceholder"),
+        title: t("automations.editor.rename"),
+    }
 }

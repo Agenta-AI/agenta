@@ -33,9 +33,9 @@ export const ContextChip = ({
                 onClick={part.restore}
                 className={cn(
                     chipClass,
-                    "cursor-pointer self-start border-0 hover:text-colorText",
+                    "cursor-pointer self-start border-0 hover:text-foreground",
                     phone &&
-                        "relative h-[30px] text-[13px] after:absolute after:-inset-y-[7px] after:inset-x-0 after:content-['']",
+                        "relative h-[30px] text-label after:absolute after:-inset-y-[7px] after:inset-x-0 after:content-['']",
                 )}
             >
                 <Plus aria-hidden size={12} />
@@ -46,7 +46,7 @@ export const ContextChip = ({
     return (
         <span
             data-testid="builder-context-chip"
-            className={cn(chipClass, "self-start pr-1", phone && "h-[30px] text-[13px]")}
+            className={cn(chipClass, "self-start pr-1", phone && "h-[30px] text-label")}
             title={`${t("builder.context.title")}: ${text}`}
         >
             <Robot aria-hidden size={12} className="shrink-0" />
@@ -58,7 +58,7 @@ export const ContextChip = ({
                     title={t("builder.context.remove")}
                     onClick={part.remove}
                     className={cn(
-                        "flex shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-colorTextTertiary hover:bg-colorFillSecondary hover:text-colorText",
+                        "focus-ring flex shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-muted-foreground outline-none hover:bg-accent hover:text-foreground",
                         phone
                             ? // Above the editor that follows, so the whole 44 px area answers.
                               "relative z-10 size-[26px] after:absolute after:-inset-[9px] after:content-['']"

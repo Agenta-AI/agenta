@@ -126,7 +126,7 @@ export function FilterTagsInput({
                 <div
                     className={clsx(
                         selectTriggerVariants({size: "default"}),
-                        "h-auto min-h-control flex-wrap justify-start gap-1 py-[3px]",
+                        "h-auto min-h-control flex-wrap justify-start gap-1 py-0.5",
                         disabled && "cursor-not-allowed bg-disabled-bg",
                         className,
                     )}
@@ -138,7 +138,7 @@ export function FilterTagsInput({
                     {value.map((entry, index) => (
                         <Badge
                             key={`${String(entry)}-${index}`}
-                            variant="outlined"
+                            variant="default"
                             className="max-w-full gap-1"
                         >
                             <span className="truncate">{String(entry)}</span>
@@ -191,7 +191,7 @@ export function FilterTagsInput({
                             key={String(option.value)}
                             role="option"
                             aria-selected={false}
-                            className="box-border flex min-h-control cursor-pointer items-center rounded-control-sm px-3 py-1 text-field-md hover:bg-muted"
+                            className="box-border flex min-h-8 cursor-pointer items-center rounded-sm px-2 py-1 text-label hover:bg-accent"
                             onMouseDown={(event) => {
                                 // Commit before the input's blur handler eats the click.
                                 event.preventDefault()

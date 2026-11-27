@@ -117,7 +117,7 @@ const VideoTile = ({file, onOpen}: {file: AttachmentStripFile; onOpen?: () => vo
                     className="absolute inset-0 h-full w-full object-cover"
                 />
             ) : null}
-            <span className="relative flex size-7 items-center justify-center rounded-full bg-black/50 text-white">
+            <span className="relative flex size-7 items-center justify-center rounded-md bg-black/50 text-white">
                 <Play size={13} weight="fill" />
             </span>
         </button>
@@ -164,7 +164,7 @@ const AudioTile = ({file, onOpen}: {file: AttachmentStripFile; onOpen?: () => vo
                 )}
                 aria-busy={isPending}
                 onClick={onPlay}
-                className={`absolute left-1/2 top-2 flex size-8 -translate-x-1/2 cursor-pointer items-center justify-center rounded-full border-0 bg-background p-0 text-foreground shadow-sm transition-colors hover:bg-accent disabled:cursor-default disabled:opacity-50 ${
+                className={`absolute left-1/2 top-2 flex size-8 -translate-x-1/2 cursor-pointer items-center justify-center rounded-md border-0 bg-background p-0 text-foreground shadow-overlay transition-colors hover:bg-accent disabled:cursor-default disabled:opacity-50 ${
                     isPending ? "motion-safe:animate-pulse" : ""
                 }`}
             >
@@ -228,7 +228,7 @@ const OverflowTile = ({
                 aria-label={t("chat.attachmentStrip.viewMore", {count})}
                 disabled={!onOpen}
                 onClick={onOpen}
-                className={cn(OPEN_BUTTON, "bg-black/50 text-sm font-semibold text-white")}
+                className={cn(OPEN_BUTTON, "bg-black/50 text-label font-semibold text-white")}
             >
                 +{count}
             </button>

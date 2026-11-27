@@ -43,12 +43,26 @@ vi.mock("@agenta/entities/secret", () => ({
     personalAccountsAccessAtom: {toString: () => "personalAccessAtom"},
 }))
 
-// The connect step and the server view are views of @agenta/entity-ui, opened here in a drawer
-// (`ViewDrawerHost`). Neither is this file's subject: the drawer host stands in for itself and
-// draws what it was asked to open, which is what these cases assert on.
+// The connect dialog and the tools sheet are @agenta/entity-ui components. Neither is this file's
+// subject: each stands in for itself and draws what it was handed, which is what these cases assert.
 vi.mock("@agenta/entity-ui/mcpEndpoint", () => ({
-    mcpConnectView: {id: "mcp.connect"},
-    mcpServerView: {id: "mcp.server"},
+    McpConnectJourney: ({
+        open,
+        reconnect,
+    }: {
+        open: boolean
+        reconnect?: {slug?: string; name?: string} | null
+    }) => {
+        if (!open) return null
+        // Records what it is handed, so a case can assert the reconnect reaches it. A journey
+        // opened without one starts at address entry, which repairs nothing and invites a
+        // second connection (D131's remainder, after D132).
+        opened.push(reconnect ?? null)
+        return <div data-testid="mcp-connect-journey" />
+    },
+    McpServerToolsSheet: ({endpoint}: {endpoint: {slug?: string}}) => (
+        <div data-testid="mcp-permission-drawer" data-slug={endpoint.slug} />
+    ),
     McpConnectionDetail: ({
         endpoint,
         readOnly,
@@ -68,33 +82,6 @@ vi.mock("@agenta/entity-ui/mcpEndpoint", () => ({
                 <span data-testid="detail-secret">{endpoint.secret_id ?? "none"}</span>
             </div>
         ) : null,
-}))
-
-vi.mock("@agenta/ui/view-stack", () => ({
-    ViewDrawerHost: ({
-        request,
-    }: {
-        request: {
-            view: {id: string}
-            params: {reconnect?: {slug?: string; name?: string} | null; connectionSlug?: string}
-            target: {kind: string}
-        }
-    }) => {
-        if (request.view.id === "mcp.connect") {
-            // Records what it is handed, so a case can assert the reconnect reaches it. A step
-            // opened without one starts at address entry, which repairs nothing and invites a
-            // second connection (D131's remainder, after D132).
-            opened.push(request.params.reconnect ?? null)
-            return <div data-testid="mcp-connect-journey" data-target={request.target.kind} />
-        }
-        return (
-            <div
-                data-testid="mcp-permission-drawer"
-                data-slug={request.params.connectionSlug}
-                data-target={request.target.kind}
-            />
-        )
-    },
 }))
 
 const setters = vi.hoisted(() => ({remove: vi.fn(), refresh: vi.fn(), disconnect: vi.fn()}))
@@ -238,19 +225,18 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe("the registry table", () => {
-    it("names the four columns the spec draws", () => {
+    it("names the columns, with the auth under the name", () => {
         show([LINEAR])
-        for (const heading of ["Name", "Server URL", "Auth", "Status"]) {
+        for (const heading of ["Name", "Server URL", "Status"]) {
             expect(screen.getByRole("columnheader", {name: heading})).toBeTruthy()
         }
     })
 
     it("leads each row with the server tile and the connection name", () => {
         const {container} = show([LINEAR])
-        expect(screen.getByTestId("mcp-connection-name").textContent).toBe("Linear")
-        // One generic tile per row, at the 28px size the Name cell draws.
+        expect(screen.getByText("Linear")).toBeTruthy()
         const tile = container.querySelector('[data-slot="icon-tile"]')
-        expect(tile?.getAttribute("data-size")).toBe("28")
+        expect(tile?.getAttribute("data-size")).toBe("32")
     })
 
     it("shows the server URL", () => {
@@ -280,9 +266,9 @@ describe("the auth cell", () => {
         expect(screen.getByText("API key")).toBeTruthy()
     })
 
-    it("reads None for a server that needs no credential", () => {
+    it("says nothing about auth for a server that needs no credential", () => {
         show([MEMORY])
-        expect(screen.getByText("None")).toBeTruthy()
+        expect(screen.queryByText("None")).toBeNull()
     })
 })
 
@@ -291,7 +277,7 @@ describe("the status cell", () => {
         show([LINEAR])
         const cell = screen.getByTestId("mcp-connection-status")
         expect(within(cell).getByText("Connected")).toBeTruthy()
-        expect(statusTone(cell)).toContain("text-colorSuccess")
+        expect(statusTone(cell)).toContain("text-success")
     })
 
     it("reads Not signed in for a connection the person disconnected", () => {
@@ -307,15 +293,15 @@ describe("the status cell", () => {
         expect(within(cell).getByText("Login expired")).toBeTruthy()
         // The dot has to agree with the word. A row saying "Login expired" in the healthy
         // colour is read as healthy, because the colour is what a scan picks up first.
-        expect(statusTone(cell)).toContain("text-colorWarning")
-        expect(statusTone(cell)).not.toContain("text-colorSuccess")
+        expect(statusTone(cell)).toContain("text-warning")
+        expect(statusTone(cell)).not.toContain("text-success")
     })
 
     it("reads Not signed in for a connection whose first sign-in is under way", () => {
         show([PENDING])
         const cell = screen.getByTestId("mcp-connection-status")
         expect(within(cell).getByText("Not signed in")).toBeTruthy()
-        expect(statusTone(cell)).toContain("text-colorWarning")
+        expect(statusTone(cell)).toContain("text-warning")
     })
 
     it("reads Login expired for a key the server stopped accepting", () => {
@@ -379,13 +365,14 @@ describe("the status cell", () => {
 })
 
 describe("the row menu", () => {
-    it("puts both destructive verbs below the divider, on a row that has a grant", () => {
+    it("puts both destructive verbs last and quiet, on a row that has a grant", () => {
         show([LINEAR])
         openRowMenu("Linear")
         expect(menuItems()).toEqual(["Reconnect", "View tools", "Rename", "Disconnect", "Remove"])
+        // The confirm carries the red, not the menu (ACT-03).
         for (const verb of ["Disconnect", "Remove"]) {
             expect(screen.getByRole("menuitem", {name: verb}).getAttribute("data-variant")).toBe(
-                "destructive",
+                "default",
             )
         }
     })
@@ -430,11 +417,8 @@ describe("viewing a connection's tools", () => {
         act(() => {
             fireEvent.click(screen.getByRole("menuitem", {name: "View tools"}))
         })
-        const drawer = screen.getByTestId("mcp-permission-drawer")
-        expect(drawer.getAttribute("data-slug")).toBe("linear")
-        // A Settings row belongs to no agent: the server view opens on the project's connection,
-        // read-only, with no agent to remove it from.
-        expect(drawer.getAttribute("data-target")).toBe("project")
+        // A Settings row belongs to no agent: the sheet shows the project's connection, read-only.
+        expect(screen.getByTestId("mcp-permission-drawer").getAttribute("data-slug")).toBe("linear")
     })
 
     it("opens the server view on the row it was asked about", () => {
@@ -526,7 +510,7 @@ describe("removing", () => {
             fireEvent.click(screen.getByRole("menuitem", {name: "Remove"}))
         })
         const request = confirmSpy.mock.calls[0][0]
-        expect(request.title).toBe("Remove server")
+        expect(request.title).toBe("Remove Linear?")
         expect(request.message).toContain("reconnecting later creates a new connection")
         expect(setters.remove).not.toHaveBeenCalled()
     })
@@ -549,7 +533,7 @@ describe("the open connection", () => {
     it("is tracked by key, so the drawer follows the row rather than freezing on it", () => {
         const {rerender} = show([AXIOM])
         act(() => {
-            fireEvent.click(screen.getByTestId("mcp-connection-name"))
+            fireEvent.click(screen.getByText(AXIOM.name as string))
         })
         expect(screen.getByTestId("detail-secret").textContent).toBe("sec-2")
 
@@ -563,7 +547,7 @@ describe("the open connection", () => {
     it("closes when the connection leaves the list entirely", () => {
         const {rerender} = show([AXIOM])
         act(() => {
-            fireEvent.click(screen.getByTestId("mcp-connection-name"))
+            fireEvent.click(screen.getByText(AXIOM.name as string))
         })
         expect(screen.getByTestId("mcp-connection-detail")).toBeTruthy()
 
@@ -586,9 +570,9 @@ describe("the empty page", () => {
         expect(screen.getAllByTestId("mcp-connect-open")).toHaveLength(2)
     })
 
-    it("draws the empty state's icon, not a row tile", () => {
+    it("draws one compact empty row, not a row tile", () => {
         const {container} = show([])
-        expect(container.querySelector('[data-slot="empty-icon"]')).not.toBeNull()
+        expect(container.querySelector('[data-slot="empty"]')).not.toBeNull()
         expect(container.querySelector('[data-slot="icon-tile"]')).toBeNull()
     })
 
@@ -622,7 +606,7 @@ describe("read-only", () => {
     it("opens the connection read-only, so its detail offers no write either", () => {
         show([AXIOM], {readOnly: true, canListTools: false})
         act(() => {
-            fireEvent.click(screen.getByTestId("mcp-connection-name"))
+            fireEvent.click(screen.getByText(AXIOM.name as string))
         })
         const detail = screen.getByTestId("mcp-connection-detail")
         expect(detail.dataset.readonly).toBe("true")
@@ -639,7 +623,7 @@ describe("read-only", () => {
     it("opens the connection writable, with its tools, when nothing is withheld", () => {
         show([AXIOM])
         act(() => {
-            fireEvent.click(screen.getByTestId("mcp-connection-name"))
+            fireEvent.click(screen.getByText(AXIOM.name as string))
         })
         const detail = screen.getByTestId("mcp-connection-detail")
         expect(detail.dataset.readonly).toBe("false")
@@ -648,11 +632,9 @@ describe("read-only", () => {
 })
 
 describe("the page's own sentence", () => {
-    it("separates connecting a server from deciding what it may do", () => {
-        // The subtitle is the only place the two jobs are told apart, which is why permissions
-        // are absent from this page without that reading as an omission.
+    it("says in one line what a server adds", () => {
         expect(getSettingsTabDescription("mcpEndpoints", {} as never)).toBe(
-            "MCP servers connected to this project. Each agent chooses which of these to use and what it may run.",
+            "Add servers that give your agents more tools.",
         )
     })
 })

@@ -45,7 +45,7 @@ export const ApiTestsetStep = ({onClose}: {onClose: () => void}) => {
         <>
             <div className="flex min-w-0 flex-col gap-3">
                 <div className="flex flex-col gap-1.5">
-                    <span className="text-sm font-medium">Select type</span>
+                    <span className="text-label">Select type</span>
                     <Segmented
                         size="sm"
                         options={SOURCE_TYPES}
@@ -53,7 +53,7 @@ export const ApiTestsetStep = ({onClose}: {onClose: () => void}) => {
                         onChange={(value) => setSource(value as SourceType)}
                     />
                 </div>
-                <p className="m-0 text-sm text-muted-foreground">
+                <p className="m-0 text-body text-muted-foreground">
                     Use these endpoints to create a test set via JSON or upload a file
                 </p>
                 <Segmented
@@ -65,7 +65,7 @@ export const ApiTestsetStep = ({onClose}: {onClose: () => void}) => {
                 <CodeBlock
                     label={SNIPPET_FILE[lang]}
                     code={code}
-                    maxHeightClass="max-h-[320px]"
+                    maxHeightClass="max-h-80"
                     data-testid="testset-api-snippet"
                 />
             </div>
@@ -74,7 +74,7 @@ export const ApiTestsetStep = ({onClose}: {onClose: () => void}) => {
                     href={TESTSET_CREATE_DOCS_URL}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-sm font-medium text-foreground underline-offset-2 hover:underline"
+                    className="inline-flex items-center gap-1 text-label text-foreground underline-offset-2 hover:underline"
                 >
                     Read the docs
                     <ArrowSquareOut aria-hidden size={14} />

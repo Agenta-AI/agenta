@@ -7,7 +7,7 @@ import {
     EmptyMedia,
     EmptyTitle,
 } from "@agenta/ui/ui"
-import {ArrowUpRight, ClipboardList, Plus} from "lucide-react"
+import {ArrowUpRightIcon, ClipboardTextIcon, PlusIcon} from "@phosphor-icons/react"
 
 const DOCS_URL = "https://docs.agenta.ai"
 
@@ -16,7 +16,7 @@ export const QueuesFirstRun = ({onCreate}: {onCreate?: () => void}) => (
     <Empty className="py-14">
         <EmptyHeader>
             <EmptyMedia variant="icon">
-                <ClipboardList />
+                <ClipboardTextIcon />
             </EmptyMedia>
             <EmptyTitle>Create your first annotation queue</EmptyTitle>
             <EmptyDescription>
@@ -27,14 +27,14 @@ export const QueuesFirstRun = ({onCreate}: {onCreate?: () => void}) => (
         <EmptyContent className="flex-row justify-center gap-2">
             {onCreate ? (
                 <Button size="sm" onClick={onCreate}>
-                    <Plus aria-hidden />
+                    <PlusIcon aria-hidden />
                     New queue
                 </Button>
             ) : null}
             <Button size="sm" variant="outline" asChild>
                 <a href={DOCS_URL} target="_blank" rel="noopener noreferrer">
                     Learn More
-                    <ArrowUpRight aria-hidden />
+                    <ArrowUpRightIcon aria-hidden />
                 </a>
             </Button>
         </EmptyContent>

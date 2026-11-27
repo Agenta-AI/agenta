@@ -135,12 +135,12 @@ export const ColumnDialog = ({
                             }}
                         />
                         {step.kind === "rename" ? (
-                            <p className="text-xs text-muted-foreground">{NAME_TIP}</p>
+                            <p className="text-meta text-muted-foreground">{NAME_TIP}</p>
                         ) : null}
                     </form>
                 )}
                 {error ? (
-                    <p role="alert" className="text-sm text-destructive">
+                    <p role="alert" className="text-body text-destructive">
                         {error}
                     </p>
                 ) : null}

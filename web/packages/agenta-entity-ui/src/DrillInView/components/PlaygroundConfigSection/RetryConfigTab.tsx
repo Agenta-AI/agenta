@@ -90,14 +90,14 @@ export const RetryConfigTab = memo(function RetryConfigTab({
             )}
             <div className="flex flex-col gap-1">
                 <div className="flex flex-col gap-0.5">
-                    <span className="font-medium text-xs">{policyTitle}</span>
-                    <span className="text-xs leading-snug text-colorTextDescription">
+                    <span className="font-medium text-label">{policyTitle}</span>
+                    <span className="text-meta leading-snug text-muted-foreground">
                         {policyDescription}{" "}
                         <a
                             href="https://agenta.ai/docs/prompt-engineering/integrating-prompts/fallback-models-and-retry"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-gray-500 underline decoration-dotted underline-offset-2"
+                            className="text-muted-foreground underline decoration-dotted underline-offset-2"
                         >
                             {t("entityUi.playgroundConfig.learnMore")}
                         </a>

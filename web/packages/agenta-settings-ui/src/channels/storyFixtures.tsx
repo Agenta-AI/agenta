@@ -677,7 +677,7 @@ export const InlinePanel = ({
     icon,
     children,
 }: InlinePanelProps) => (
-    <div className="flex h-[640px] w-full max-w-[480px] flex-col overflow-hidden rounded-xl border border-solid border-border bg-background">
+    <div className="flex h-160 w-full max-w-[480px] flex-col overflow-hidden rounded-xl border border-solid border-border bg-background">
         <div className="flex flex-none items-center gap-2.5 border-0 border-b border-solid border-border py-3.5 pl-4 pr-3">
             {onBack ? (
                 <Button variant="ghost" size="icon-sm" aria-label="Back" onClick={onBack}>
@@ -690,9 +690,9 @@ export const InlinePanel = ({
                 </span>
             ) : null}
             <div className="flex min-w-0 flex-1 flex-col">
-                <span className="text-[15px] font-semibold text-foreground">{title}</span>
+                <span className="text-title text-foreground">{title}</span>
                 {subtitle ? (
-                    <span className="truncate text-xs text-muted-foreground">{subtitle}</span>
+                    <span className="truncate text-meta text-muted-foreground">{subtitle}</span>
                 ) : null}
             </div>
             <Button variant="ghost" size="icon-sm" aria-label="Close" onClick={onClose}>
@@ -746,7 +746,7 @@ export const CapturePopups = ({children}: {children: ReactNode}) => {
         <div className="flex flex-col gap-2">
             {children}
             {opened.length ? (
-                <p className="m-0 rounded-md bg-muted p-2 text-xs text-muted-foreground">
+                <p className="m-0 rounded-md bg-muted p-2 text-meta text-muted-foreground">
                     The story held these <code>window.open</code> calls: {opened.join(", ")}
                 </p>
             ) : null}
@@ -819,7 +819,7 @@ export const ConnectFlowHost = ({
             {capturePopups ? <CapturePopups>{flow}</CapturePopups> : flow}
             {connected ? (
                 <p
-                    className="m-0 mt-4 rounded-md bg-colorSuccessBg p-2 text-xs text-foreground"
+                    className="m-0 mt-4 rounded-md bg-success/10 p-2 text-label text-foreground"
                     data-testid="story-connected"
                 >
                     The flow reported a connection. The host reloads here and the panel shows the

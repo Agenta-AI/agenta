@@ -44,14 +44,7 @@ const access = {
 function Harness({initial}: {initial: AgentaToolsMap}) {
     const [tools, setTools] = useState(initial)
     saved = tools
-    return (
-        <AgentaToolsSection
-            tools={tools}
-            onChange={setTools}
-            access={access}
-            buildKitOps={new Set(["create_schedule"])}
-        />
-    )
+    return <AgentaToolsSection tools={tools} onChange={setTools} access={access} />
 }
 beforeEach(() => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
@@ -80,7 +73,6 @@ describe("Agenta tools section", () => {
         await act(async () => root.render(<Harness initial={defaults} />))
         expect(host.textContent).toContain("Get the link to this chat")
         expect(host.textContent).toContain("Rename this chat")
-        expect(host.textContent).toContain("wherever it runs")
         expect(row("get_current_session").value).toBe("allow")
         expect(row("rename_session").value).toBe("allow")
         expect(row("create_schedule").value).toBe("deny")
@@ -94,18 +86,13 @@ describe("Agenta tools section", () => {
         expect(row("create_schedule").className).not.toContain("colorError")
     })
 
-    it("starts at the description, without repeating the view title", async () => {
+    it("gives every tool its own description, with no per-row playground note (ROW-01)", async () => {
         await act(async () => root.render(<Harness initial={defaults} />))
-        expect(host.textContent).not.toContain("Agenta tools")
-        expect(host.textContent?.startsWith("Tools your agent can use")).toBe(true)
+        expect(host.textContent).toContain("Gets this chat's name and a link to open it in Agenta.")
+        expect(host.textContent).not.toContain("In the playground")
     })
 
-    it("marks the tools the build kit also carries", async () => {
-        await act(async () => root.render(<Harness initial={defaults} />))
-        expect(host.textContent).toContain("In the playground, the Build kit setting applies.")
-    })
-
-    it("adds a tool on Allow or Ask and removes it on Deactivate", async () => {
+    it("adds a tool on Allow or Ask and removes it on Off", async () => {
         await act(async () => root.render(<Harness initial={defaults} />))
         await choose(row("create_schedule"), "ask")
         expect(saved).toEqual({...defaults, create_schedule: "ask"})
@@ -114,7 +101,7 @@ describe("Agenta tools section", () => {
         expect(row("rename_session").value).toBe("deny")
     })
 
-    it("applies the presets, and Deactivate leaves an empty map", async () => {
+    it("applies the presets, and Off leaves an empty map", async () => {
         await act(async () => root.render(<Harness initial={defaults} />))
         await choose(preset(), "ask_writes")
         expect(saved).toEqual({
@@ -156,7 +143,6 @@ describe("Agenta tools section", () => {
                     tools={{}}
                     onChange={() => undefined}
                     access={Object.fromEntries(ops.map((op) => [op, "write" as const]))}
-                    buildKitOps={new Set()}
                 />,
             ),
         )

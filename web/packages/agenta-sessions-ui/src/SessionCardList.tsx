@@ -16,12 +16,11 @@ import {
     type UseSessionCardListArgs,
 } from "@agenta/sessions/state"
 import {timeAgo} from "@agenta/shared/utils"
-import {SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
+import {SimpleTooltip, SkeletonBlock, Spinner} from "@agenta/ui/ui"
 import {
     ArrowRightIcon,
     ChatCircleIcon,
-    CircleIcon,
-    CircleNotchIcon,
+    ChatsIcon,
     ClockIcon,
     LightningIcon,
 } from "@phosphor-icons/react"
@@ -52,11 +51,11 @@ export interface SessionCardListProps extends UseSessionCardListArgs {
     onRenameRow?: (vm: SessionRowVm, name: string) => Promise<boolean>
     /** Hide the per-row agent name (an agent-scoped list restates its heading otherwise). */
     showAgent?: boolean
-    /** Touch surfaces have no hover — keep the pin always visible there. */
+    /** Touch surfaces have no hover: a card row keeps its pin visible. A compact row has no pin. */
     alwaysShowPin?: boolean
     /**
-     * `card` is the designed Home row (glyph, subtitle, agent name). `compact` is the nav rail's
-     * one-line row — status glyph, title, time — for a popover that should read like the sidebar.
+     * `card` is the designed Home row (glyph, subtitle, agent name, pin). `compact` is a menu row
+     * (ROW-02): status icon, title, time; its context menu pins it.
      */
     density?: "card" | "compact"
     /** The row that is on screen — painted as the rail paints its selected entry. */
@@ -67,21 +66,23 @@ export interface SessionCardListProps extends UseSessionCardListArgs {
 const COMPACT_SKELETON_TITLE_WIDTHS = ["w-[58%]", "w-[42%]", "w-[66%]", "w-[36%]", "w-[50%]"]
 
 /**
- * The nav rail's status glyph, so a compact row reads exactly as the same session does in the
- * sidebar: a turn in flight spins, an automation is a bolt, a chat is a dot; fill means live,
- * amber means it is waiting on you.
+ * The menu row's 16px icon: the Session term icon (ICON-05), a spinner while a turn runs, the
+ * Automation bolt for a run; amber when it waits on you, ink while its sandbox is alive.
  */
 const CompactStatusGlyph = ({vm}: {vm: SessionRowVm}) => {
     const {status} = vm.status
-    if (status === "running") return <CircleNotchIcon size={12} className="animate-spin" />
-    const live = status === "waiting" || status === "alive"
-    const amber = status === "waiting" ? "text-[var(--ag-run-status-warning)]" : undefined
-    if (vm.automation)
-        return <LightningIcon size={12} weight={live ? "fill" : "regular"} className={amber} />
-    return <CircleIcon size={10} weight={live ? "fill" : "regular"} className={amber} />
+    if (status === "running") return <Spinner aria-hidden className="size-3.5" />
+    const tone =
+        status === "waiting"
+            ? "text-[var(--ag-run-status-warning)]"
+            : status === "alive"
+              ? "text-foreground"
+              : undefined
+    if (vm.automation) return <LightningIcon size={16} className={tone} />
+    return <ChatsIcon size={16} className={tone} />
 }
 
-/** One row, and the owner of its rename state. The pin toggles in place; the rest is the host's. */
+/** One row, and the owner of its rename state. A card row's pin toggles in place; the rest is the host's. */
 const Row = ({
     vm,
     origin,
@@ -128,21 +129,20 @@ const Row = ({
     )
 
     const row = compact ? (
-        // The rail's row, restated: one line, 28px, the glyph on the left and the time on the
-        // right. The whole row opens; the title is still the button so the keyboard reaches it.
+        // A menu row (ROW-02): 32px, 8px sides, a 16px icon 8px from the text, 2px apart, so
+        // it lines up with the menu's own New session and Sessions rows.
         <div
             onClick={() => onOpenRow(vm)}
             className={clsx(
-                "group relative box-border mb-1 flex h-7 w-full cursor-pointer select-none items-center gap-[10px] rounded-md px-3 text-sm leading-7",
-                // A fill, not the rail's inset ring: on the popover's white the ring read as a
-                // drawn box. Same step the selected tab chip wears, so the two agree.
-                active
-                    ? "bg-colorFillTertiary font-medium text-colorText"
-                    : "text-colorText hover:bg-colorFillQuaternary",
+                "group relative box-border mb-0.5 flex h-8 w-full cursor-pointer select-none items-center gap-2 rounded-sm px-2 text-label",
+                // The open session: the selected fill, same weight as the other rows.
+                active ? "bg-secondary text-foreground" : "text-foreground hover:bg-accent",
+                // focus-ring-inset (focus.css) on the row while its title button has keyboard focus.
+                "has-[button:focus-visible]:outline-2 has-[button:focus-visible]:-outline-offset-2 has-[button:focus-visible]:outline-solid has-[button:focus-visible]:outline-[var(--ring)]",
             )}
         >
             <SimpleTooltip title={vm.status.label}>
-                <span className="flex shrink-0 items-center text-colorTextTertiary">
+                <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
                     <CompactStatusGlyph vm={vm} />
                 </span>
             </SimpleTooltip>
@@ -153,7 +153,7 @@ const Row = ({
                 >
                     <InlineRenameInput
                         rename={rename}
-                        className="h-6 w-full min-w-0 rounded border border-solid border-colorBorder bg-colorBgContainer px-1 text-sm leading-6 text-colorText outline-none [font-family:inherit] focus:border-colorPrimary"
+                        className="h-6 w-full min-w-0 rounded border border-solid border-border bg-background px-1 text-label leading-6 text-foreground outline-none [font-family:inherit] focus-ring-field"
                     />
                 </span>
             ) : (
@@ -163,7 +163,7 @@ const Row = ({
                         event.stopPropagation()
                         onOpenRow(vm)
                     }}
-                    className="flex min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left text-inherit [font-family:inherit] [font-weight:inherit]"
+                    className="flex min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left text-inherit outline-none [font-family:inherit] [font-weight:inherit]"
                 >
                     <span className="min-w-0 truncate" title={vm.title}>
                         {vm.title}
@@ -171,17 +171,8 @@ const Row = ({
                     {vm.automation ? <SessionAutomationKind kind={vm.automation.kind} /> : null}
                 </button>
             )}
-            {/* Beside the name, not in the gutter: the time keeps the right edge and the pin
-                surfaces on hover next to what it pins. */}
-            <SessionPinButton
-                pinned={vm.isPinned}
-                onToggle={() => onTogglePin(vm.id)}
-                revealOnHover={!alwaysShowPin}
-                tooltip={false}
-                className={clsx("flex", menuHasPin && "hidden sm:flex")}
-            />
-            {/* No gate chip: the amber dot and the group heading already say it is waiting. */}
-            <span className="ml-auto shrink-0 text-xs leading-none text-colorTextTertiary">
+            {/* No pin here: the row's context menu pins it. No gate chip: the amber dot and the group heading already say it is waiting. */}
+            <span className="ml-auto shrink-0 text-meta leading-none text-muted-foreground">
                 {vm.activityAt ? timeAgo(Date.parse(vm.activityAt)) : "—"}
             </span>
         </div>
@@ -191,15 +182,15 @@ const Row = ({
         // on a phone its touch area is the whole row, so the target is the row's height.
         <div
             onClick={() => onOpenRow(vm)}
-            className="group box-border flex w-full max-md:relative cursor-pointer items-start gap-3 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-2 py-3 text-left hover:bg-colorFillQuaternary"
+            className="group box-border flex w-full pointer-coarse:relative cursor-pointer items-start gap-3 border-0 border-b border-solid border-border-muted bg-transparent px-2 py-3 text-left hover:bg-accent"
         >
             {/* A glyph for the KIND of row, with the status as a dot on its shoulder — the clock
                 and the chat bubble separate automation runs from conversations without a heading. */}
             <SimpleTooltip title={vm.status.label}>
-                <span className="relative mt-0.5 flex shrink-0 text-colorTextTertiary">
+                <span className="relative mt-0.5 flex shrink-0 text-muted-foreground">
                     {origin ? <ClockIcon size={18} /> : <ChatCircleIcon size={18} />}
                     <span
-                        className={`absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border border-solid border-colorBgContainer ${vm.status.dotClassName} ${
+                        className={`absolute -right-0.5 -top-0.5 h-2 w-2 rounded-round border border-solid border-background ${vm.status.dotClassName} ${
                             vm.status.pulse ? "motion-safe:animate-pulse" : ""
                         }`}
                     />
@@ -215,7 +206,7 @@ const Row = ({
                 >
                     <InlineRenameInput
                         rename={rename}
-                        className="h-6 w-full min-w-0 rounded border border-solid border-colorBorder bg-colorBgContainer px-1 text-sm leading-6 text-colorText outline-none [font-family:inherit] focus:border-colorPrimary"
+                        className="h-6 w-full min-w-0 rounded border border-solid border-border bg-background px-1 text-label leading-6 text-foreground outline-none [font-family:inherit] focus-ring-field"
                     />
                 </span>
             ) : (
@@ -225,10 +216,10 @@ const Row = ({
                         event.stopPropagation()
                         onOpenRow(vm)
                     }}
-                    className="flex min-w-0 flex-1 cursor-pointer flex-col gap-1 border-0 bg-transparent p-0 text-left max-md:after:absolute max-md:after:inset-0 max-md:after:content-['']"
+                    className="flex min-w-0 flex-1 cursor-pointer flex-col gap-1 border-0 bg-transparent p-0 text-left pointer-coarse:after:absolute pointer-coarse:after:inset-0 pointer-coarse:after:content-['']"
                 >
                     <span className="flex w-full min-w-0 items-center gap-2">
-                        <span className="min-w-0 flex-1 truncate text-sm text-colorText">
+                        <span className="min-w-0 flex-1 truncate text-body font-medium text-foreground">
                             {vm.title}
                         </span>
                         {/* An automation row IS its schedule/subscription — the kind is what tells it
@@ -238,7 +229,7 @@ const Row = ({
                     {/* What actually happened, so deciding whether to reopen a session doesn't mean
                     opening it. Absent when the title is already the message. */}
                     {vm.subtitle ? (
-                        <span className="w-full truncate text-[13px] text-colorTextTertiary">
+                        <span className="w-full truncate text-label text-muted-foreground">
                             {vm.subtitle}
                         </span>
                     ) : null}
@@ -248,10 +239,10 @@ const Row = ({
             {/* h-5 = the title's line box, so the trailing controls centre on the TITLE rather
                 than on a row whose height the subtitle decides. */}
             {/* Positioned on a phone, so the title's row-wide area stays under these controls. */}
-            <div className="flex h-5 shrink-0 items-center gap-1 max-md:relative sm:gap-2">
+            <div className="flex h-5 shrink-0 items-center gap-1 pointer-coarse:relative sm:gap-2">
                 {/* Quiet chip: the amber urgency lives on the dot; this states WHAT is asked. */}
                 {vm.status.chipLabel ? (
-                    <span className="shrink-0 rounded bg-colorFillQuaternary px-1.5 py-0.5 text-xs leading-none text-colorTextSecondary">
+                    <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-meta leading-none text-muted-foreground">
                         {pendingGateLabel(vm.pending?.kinds)}
                     </span>
                 ) : null}
@@ -263,7 +254,7 @@ const Row = ({
                         <SessionAgentName agentId={vm.agentId} />
                     </span>
                 ) : null}
-                <span className="w-16 shrink-0 text-right text-xs text-colorTextTertiary">
+                <span className="w-16 shrink-0 text-right text-meta text-muted-foreground">
                     {vm.activityAt ? timeAgo(Date.parse(vm.activityAt)) : "—"}
                 </span>
                 {/* Phone-hidden, like SessionRow, but only where the menu can stand in for it. */}
@@ -333,11 +324,9 @@ export const SessionCardList = ({
                               // on the popover's elevated surface, the chat pane's raised one and
                               // the page's plain one, and a hardcoded colour would band on two of
                               // the three. Inert wherever the container does not scroll.
-                              // Compact keeps the rail's sentence-case headings; the card
-                              // variant keeps its small caps.
                               className={clsx(
-                                  "bg-inherit sticky z-10 m-0 overflow-hidden pb-1 pt-1 text-xs text-colorTextTertiary",
-                                  compact ? "px-3" : "px-2 uppercase tracking-wide",
+                                  "bg-inherit sticky z-10 m-0 overflow-hidden pb-1 pt-1 text-meta text-muted-foreground",
+                                  "px-2",
                               )}
                               // Pins BELOW the host's own sticky header rather than on top of it:
                               // two sticky elements both at `top-0` in one scroller pin to the
@@ -384,14 +373,14 @@ export const SessionCardList = ({
     )
 
     if (list.isPending) {
-        // Compact: the rail row's own geometry — 28px, glyph, title, time — so the rows land on
+        // Compact: the menu row's geometry — 32px, icon, title, time — so the rows land on
         // the placeholder without a shift.
         if (compact) {
             return (
                 <div className="flex flex-col" aria-busy>
                     {COMPACT_SKELETON_TITLE_WIDTHS.map((width) => (
-                        <div key={width} className="mb-1 flex h-7 items-center gap-[10px] px-3">
-                            <SkeletonBlock active shape="circle" className="size-2.5 shrink-0" />
+                        <div key={width} className="mb-0.5 flex h-8 items-center gap-2 px-2">
+                            <SkeletonBlock active shape="mark" className="size-4 shrink-0" />
                             <SkeletonBlock active className={clsx("h-3", width)} />
                             <SkeletonBlock active className="ml-auto h-3 w-12 shrink-0" />
                         </div>
@@ -422,7 +411,7 @@ export const SessionCardList = ({
                     and rows must not hide inside fragments or exits are lost. */}
                 <AnimatePresence initial={false}>{flat}</AnimatePresence>
                 {list.isEmpty ? (
-                    <p className="m-0 flex grow items-center px-2 py-3 text-[13px] text-colorTextTertiary">
+                    <p className="m-0 flex grow items-center px-2 py-3 text-label text-muted-foreground">
                         {emptyText}
                     </p>
                 ) : null}
@@ -430,7 +419,7 @@ export const SessionCardList = ({
                     <button
                         type="button"
                         onClick={list.showMore}
-                        className="flex cursor-pointer items-center gap-1 border-0 bg-transparent px-2 py-2 text-left text-xs text-colorPrimary max-md:min-h-11"
+                        className="flex cursor-pointer items-center gap-1 border-0 bg-transparent px-2 py-2 text-left text-label text-primary"
                     >
                         {t("sessions.rows.showMore")}
                         <ArrowRightIcon size={12} />

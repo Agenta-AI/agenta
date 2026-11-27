@@ -67,7 +67,8 @@ export const ScreenScaffold = ({
     children,
 }: ScreenScaffoldProps) => (
     <div
-        className={`bg-background text-foreground flex min-h-0 flex-col ${
+        // The page frame's gutters follow this box's width, not the window's (LAYOUT-02).
+        className={`@container/page bg-background text-foreground flex min-h-0 flex-col ${
             embedded
                 ? "h-full"
                 : "h-[calc(var(--ag-viewport-height,100dvh)-var(--ag-top-bars-h,0px))] pt-[var(--ag-screen-safe-top,env(safe-area-inset-top))]"

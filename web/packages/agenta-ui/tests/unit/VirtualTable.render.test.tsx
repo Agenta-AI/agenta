@@ -125,7 +125,7 @@ describe("VirtualTable render warnings", () => {
         // page surface instead (parity pass, §4c), so its chrome is the bottom rule + weight.
         expect(head).toContain("border-b")
         expect(head).toContain("font-medium")
-        expect(cell).not.toContain("bg-colorFillQuaternary")
+        expect(cell).not.toContain("bg-secondary")
     })
 
     it("gives resize handles a grabbable hit area", () => {

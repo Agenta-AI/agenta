@@ -65,7 +65,7 @@ const Snippet = ({
     return (
         <section className="flex min-w-0 flex-col gap-2" data-testid={`${id}-code`}>
             <div className="flex items-center justify-between">
-                <h3 className="m-0 text-sm font-medium text-foreground">{title}</h3>
+                <h3 className="m-0 text-label text-foreground">{title}</h3>
                 <Button
                     type="button"
                     variant="outline"
@@ -79,7 +79,7 @@ const Snippet = ({
             {/* The editor has no shell grammar: cURL stays plain text. Full height, no inner
                 scroll, so the whole snippet shows. */}
             {lang === "bash" ? (
-                <pre className="m-0 overflow-x-auto rounded-lg border border-solid border-border bg-muted p-3 font-mono text-xs leading-relaxed text-foreground">
+                <pre className="m-0 overflow-x-auto rounded-lg border border-solid border-border bg-muted p-3 text-code text-foreground">
                     {code}
                 </pre>
             ) : (
@@ -144,10 +144,10 @@ export const UseApiDrawer = ({
                 </SheetHeader>
                 <div className="ag-scroll-quiet flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 pb-6">
                     {variants ? (
-                        <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
+                        <label className="flex flex-col gap-1.5 text-label text-foreground">
                             Variant
                             <Select value={revisionId} onValueChange={setRevisionId}>
-                                <SelectTrigger className="w-[260px]" aria-label="Variant">
+                                <SelectTrigger className="w-65" aria-label="Variant">
                                     <SelectValue placeholder="Pick a variant" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -179,7 +179,9 @@ export const UseApiDrawer = ({
                         onChange={(value) => setLang(value as AppEndpointLang)}
                     />
                     {snippets.isError ? (
-                        <p className="m-0 text-sm text-destructive">Couldn't load this revision.</p>
+                        <p className="m-0 text-body text-destructive">
+                            Couldn't load this revision.
+                        </p>
                     ) : (
                         <>
                             <Snippet

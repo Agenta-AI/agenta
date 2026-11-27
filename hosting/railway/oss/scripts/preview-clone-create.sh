@@ -251,6 +251,56 @@ apply_ci_auth_key() {
     printf "CI auth key applied to every service that consumes it.\n"
 }
 
+# Without its own key, the API sends telemetry to the built-in self-hosted
+# PostHog project, so every preview counted as a real install there. When CI
+# provides POSTHOG_API_KEY (the "Agenta Test Traffic" project), give it to the
+# services that run API code, with telemetry switched off where the API
+# supports AGENTA_TELEMETRY_ENABLED and the instance kind set to test, so any
+# event, update check or registration that still goes out is marked as test
+# traffic. Without the variable (local runs), the clone keeps the template's
+# values.
+apply_ci_telemetry_project() {
+    [ -n "${POSTHOG_API_KEY:-}" ] || return 0
+    local svc svc_id
+    for svc in api worker-queues worker-streams cron alembic; do
+        svc_id="$(clone_service_id "$svc")"
+        if [ -z "$svc_id" ]; then
+            skip_absent_service "$svc" || return 1
+            continue
+        fi
+        rw_graphql \
+            'mutation($in: VariableCollectionUpsertInput!) { variableCollectionUpsert(input: $in) }' \
+            "$(jq -nc --arg p "$PROJECT_ID" --arg e "$CLONE_ENV_ID" --arg s "$svc_id" --arg v "$POSTHOG_API_KEY" \
+                '{in: {projectId: $p, environmentId: $e, serviceId: $s, skipDeploys: true, replace: false, variables: {POSTHOG_API_KEY: $v, AGENTA_TELEMETRY_ENABLED: "false", AGENTA_TELEMETRY_INSTANCE_KIND: "test"}}}')" \
+            >/dev/null || return 1
+    done
+    printf "CI telemetry project applied to every service that runs API code.\n"
+}
+
+# Since the one image, every preview runs the enterprise code path, and outside
+# cloud the plan comes from the instance license key. A clone has no key, so it
+# runs on the community plan and the plan-gated tests skip. When CI provides
+# AGENTA_PREVIEW_LICENSE_KEY (a test key signed for the "ci-previews" customer),
+# give it as AGENTA_LICENSE_KEY to the services that run API code. Without the
+# variable (forks, local runs), the clone stays on the community plan.
+apply_ci_license_key() {
+    [ -n "${AGENTA_PREVIEW_LICENSE_KEY:-}" ] || return 0
+    local svc svc_id
+    for svc in api worker-queues worker-streams cron; do
+        svc_id="$(clone_service_id "$svc")"
+        if [ -z "$svc_id" ]; then
+            skip_absent_service "$svc" || return 1
+            continue
+        fi
+        rw_graphql \
+            'mutation($in: VariableCollectionUpsertInput!) { variableCollectionUpsert(input: $in) }' \
+            "$(jq -nc --arg p "$PROJECT_ID" --arg e "$CLONE_ENV_ID" --arg s "$svc_id" --arg v "$AGENTA_PREVIEW_LICENSE_KEY" \
+                '{in: {projectId: $p, environmentId: $e, serviceId: $s, skipDeploys: true, replace: false, variables: {AGENTA_LICENSE_KEY: $v}}}')" \
+            >/dev/null || return 1
+    done
+    printf "CI license key applied to every service that runs API code.\n"
+}
+
 # A write-only vault connection can be resolved only by the trusted platform
 # runtime. Give API and Services one ephemeral shared proof before deploy; do
 # not reuse the admin key and do not expose this proof to any other service.
@@ -274,6 +324,38 @@ apply_ci_runtime_key() {
             >/dev/null || return 1
     done
     printf "CI runtime key applied to API and Services.\n"
+}
+
+# The clone copies the live template, which can lag template.json until
+# apply.sh runs on it (template/README.md step 4). The alembic service is the
+# one place where that lag breaks a deploy: the API image runs the EE code, so
+# it needs the EE migration chains. Give the clone the committed alembic
+# startCommand and remove the variables that pointed the migrations at the open
+# source chain. Both changes apply without a deploy.
+apply_template_alembic_config() {
+    local svc_id start_command name
+    svc_id="$(clone_service_id alembic)"
+    [ -n "$svc_id" ] || return 1
+    start_command="$(jq -r '.services.alembic.startCommand // ""' "$SCRIPT_DIR/../template/template.json")"
+    [ -n "$start_command" ] || return 1
+    rw_graphql \
+        'mutation($s: String!, $e: String!, $in: ServiceInstanceUpdateInput!) { serviceInstanceUpdate(serviceId: $s, environmentId: $e, input: $in) }' \
+        "$(jq -nc --arg s "$svc_id" --arg e "$CLONE_ENV_ID" --arg c "$start_command" '{s: $s, e: $e, in: {startCommand: $c}}')" \
+        >/dev/null || return 1
+    local live_vars
+    live_vars="$(rw_graphql \
+        'query($p: String!, $e: String!, $s: String!) { variables(projectId: $p, environmentId: $e, serviceId: $s) }' \
+        "$(jq -nc --arg p "$PROJECT_ID" --arg e "$CLONE_ENV_ID" --arg s "$svc_id" '{p: $p, e: $e, s: $s}')" \
+        | jq -r '.data.variables // {} | keys[]')" || return 1
+    for name in ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING; do
+        grep -qx "$name" <<<"$live_vars" || continue
+        rw_graphql \
+            'mutation($in: VariableDeleteInput!) { variableDelete(input: $in) }' \
+            "$(jq -nc --arg p "$PROJECT_ID" --arg e "$CLONE_ENV_ID" --arg s "$svc_id" --arg n "$name" \
+                '{in: {projectId: $p, environmentId: $e, serviceId: $s, name: $n}}')" \
+            >/dev/null || return 1
+    done
+    printf "Template alembic config applied to the clone.\n"
 }
 
 clone_service_id() {
@@ -632,6 +714,9 @@ main() {
         wait_clone_populated || die "environment '$ENV_NAME' never fully materialized"
         apply_ci_auth_key || die "could not apply the CI auth key to the clone"
         apply_ci_runtime_key || die "could not apply the CI runtime key to the clone"
+        apply_ci_telemetry_project || die "could not apply the CI telemetry project to the clone"
+        apply_ci_license_key || die "could not apply the CI license key to the clone"
+        apply_template_alembic_config || die "could not apply the template alembic config to the clone"
         t_created=$(( $(now) - t0 ))
 
         # Domain BEFORE app deploys: web/api render

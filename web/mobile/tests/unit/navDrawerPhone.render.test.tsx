@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import {cleanup, fireEvent, render, screen, waitFor} from "@testing-library/react"
 import {atom, getDefaultStore} from "jotai"
-import {afterEach, describe, expect, it, vi} from "vitest"
+import {afterAll, afterEach, describe, expect, it, vi} from "vitest"
 
 vi.mock("next/router", () => ({useRouter: () => ({asPath: "/w/ws/p/proj/sessions/s1"})}))
 vi.mock("@agenta/ui/phone", async (importOriginal) => ({
@@ -42,6 +42,8 @@ vi.mock("@agenta/navigation-ui", async (importOriginal) => {
 })
 vi.mock("@/features/support/crispChat", () => ({liveChatOpenAtom: atom(false)}))
 vi.mock("@/features/nav/railScope", () => ({useRailScope: () => ({id: "main"})}))
+// The drawer prefetches the agent sidebar; a stub keeps that load from outliving the test.
+vi.mock("@/features/agent-sidebar/agentSidebarScope", () => ({}))
 // The page's agent: an agent page or a session of that agent. Null until a session's row loads.
 const page = vi.hoisted(() => ({agentId: null as string | null}))
 vi.mock("@/features/agent-sidebar/useAgentSidebarSync", () => ({
@@ -50,6 +52,13 @@ vi.mock("@/features/agent-sidebar/useAgentSidebarSync", () => ({
 
 import {MAIN_SIDEBAR, selectedSidebarAtom} from "@/features/agent-sidebar/selectedSidebar"
 import {NavDrawer} from "@/features/nav/NavDrawer"
+
+// NavDrawer prefetches the agent sidebar with a fire-and-forget `import()`. On a slow runner
+// that load is still running when the file ends, and vitest fails the run with an
+// EnvironmentTeardownError. Wait for the same module before the environment goes away.
+afterAll(async () => {
+    await import("@/features/agent-sidebar/agentSidebarScope")
+})
 
 afterEach(() => {
     cleanup()

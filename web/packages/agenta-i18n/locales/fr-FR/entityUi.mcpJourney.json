@@ -39,5 +39,16 @@
     "noProjectSecrets": "Aucun secret de projet trouvé",
     "unnamedSecret": "Secret sans nom",
     "createSecret": "Créer un secret",
-    "advancedSummary": "URL de rappel, ID client, portées"
+    "advancedSummary": "URL de rappel, ID client, portées",
+    "missingUrl": "Ajoutez l’URL du serveur",
+    "invalidUrl": "Saisissez une URL complète commençant par https://",
+    "missingName": "Ajoutez un nom",
+    "nameTaken": "Choisissez un nom qu’aucune autre connexion n’utilise",
+    "missingKeyName": "Ajoutez le nom sous lequel la clé est envoyée",
+    "missingProjectSecret": "Choisissez un secret du projet",
+    "missingClient": "Ajoutez un ID client et un secret",
+    "missingClientSecret": "Choisissez un secret client",
+    "advancedSummaryClient": "URL de rappel, ID client",
+    "advancedSummaryScopes": "Portées",
+    "newSecret": "Nouveau secret"
 }

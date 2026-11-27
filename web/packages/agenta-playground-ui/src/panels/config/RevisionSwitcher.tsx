@@ -49,7 +49,7 @@ export const RevisionSwitcher = ({appId, revisionId, onSwitch}: RevisionSwitcher
                 <Button
                     variant="outline"
                     size="sm"
-                    className="h-7 min-w-20 max-w-48 shrink gap-1 px-2 font-medium"
+                    className="h-control-sm min-w-20 max-w-48 shrink gap-1 px-2 font-medium"
                     aria-label={t("playground.panels.switchRevision")}
                 >
                     <span className="truncate">

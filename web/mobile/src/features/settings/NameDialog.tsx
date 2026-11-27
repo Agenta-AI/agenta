@@ -1,4 +1,4 @@
-import {useEffect, useId, useState} from "react"
+import {useEffect, useId, useState, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
@@ -25,6 +25,8 @@ export const NameDialog = ({
     placeholder,
     label,
     error,
+    notice,
+    submitDisabled,
     onClose,
     onSubmit,
 }: {
@@ -38,6 +40,10 @@ export const NameDialog = ({
     /** A visible label above the field. Without it the field has none, as before. */
     label?: string
     error?: string | null
+    /** Shown under the field, for a refusal the reader can act on. */
+    notice?: ReactNode
+    /** A limit the reader cannot pass here: the submit button stays off. */
+    submitDisabled?: boolean
     onClose: () => void
     onSubmit: (name: string) => void
 }) => {
@@ -67,17 +73,18 @@ export const NameDialog = ({
                         placeholder={placeholder ?? t("common.name")}
                     />
                     {error ? (
-                        <p role="alert" className="text-destructive m-0 text-xs">
+                        <p role="alert" className="text-destructive m-0 text-meta">
                             {error}
                         </p>
                     ) : null}
+                    {notice}
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose} disabled={pending}>
                         {t("common.cancel")}
                     </Button>
                     <Button
-                        disabled={pending || !value.trim()}
+                        disabled={pending || !value.trim() || submitDisabled}
                         onClick={() => onSubmit(value.trim())}
                     >
                         {submitLabel}

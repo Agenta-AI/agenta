@@ -3,7 +3,7 @@ import {Info} from "@phosphor-icons/react"
 
 /** The "CSV and JSON formats are supported" line, with a popover that says what each format needs. */
 export const FileFormatHint = () => (
-    <p className="m-0 flex items-center justify-center gap-1 text-xs text-muted-foreground">
+    <p className="m-0 flex items-center justify-center gap-1 text-meta text-muted-foreground">
         CSV and JSON formats are supported
         <Popover>
             <PopoverTrigger asChild>
@@ -15,7 +15,7 @@ export const FileFormatHint = () => (
                     <Info aria-hidden size={14} />
                 </button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-64 text-xs">
+            <PopoverContent align="end" className="w-64 text-meta">
                 <p className="m-0 mb-2 font-semibold text-foreground">File format requirements</p>
                 <p className="m-0 font-medium text-foreground">CSV:</p>
                 <ul className="m-0 mb-2 pl-4 text-muted-foreground">

@@ -19,7 +19,7 @@ export const DebugPlugin = () => {
 
     return (
         <div className="border-0 border-t border-solid p-4">
-            <h3 className="text-sm font-semibold mb-2">{t("ui.editor.debugView")}</h3>
+            <h3 className="text-title mb-2">{t("ui.editor.debugView")}</h3>
             <TreeView
                 viewClassName="tree-view-output"
                 treeTypeButtonClassName="debug-treetype-button"

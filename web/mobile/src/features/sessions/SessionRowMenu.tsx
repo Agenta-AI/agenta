@@ -13,7 +13,6 @@ import {
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-    PHONE_TOUCH_TARGET_CLASS,
 } from "@agenta/ui/ui"
 import {DotsThree} from "@phosphor-icons/react"
 
@@ -52,7 +51,7 @@ export const SessionRowMenu = ({
                         size="icon-xs"
                         variant="ghost"
                         aria-label={`Actions for ${label}`}
-                        className={`text-muted-foreground hover:bg-foreground/10 dark:hover:bg-foreground/15 ${PHONE_TOUCH_TARGET_CLASS}`}
+                        className={`text-muted-foreground`}
                     >
                         {/* `size-3.5` as a CLASS, not a `size` prop: the button's own
                         `[&_svg:not([class*='size-'])]:size-3` wins over the attribute, so the prop
@@ -62,7 +61,11 @@ export const SessionRowMenu = ({
                     </Button>
                 )}
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" onCloseAutoFocus={handleCloseAutoFocus}>
+            <DropdownMenuContent
+                align="end"
+                className="w-popover-sm"
+                onCloseAutoFocus={handleCloseAutoFocus}
+            >
                 {entries.map((entry, index) =>
                     isMenuDivider(entry) ? (
                         <DropdownMenuSeparator key={`divider-${index}`} />

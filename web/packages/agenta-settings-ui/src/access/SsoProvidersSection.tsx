@@ -88,10 +88,10 @@ export const SsoProvidersSection = ({
     return (
         <section className="flex flex-col">
             <div className="mb-3">
-                <h2 className="m-0 text-[13px] font-medium leading-[18px] text-muted-foreground">
+                <h2 className="m-0 text-label font-medium text-muted-foreground">
                     {t("settings.access.ssoProviders")}
                 </h2>
-                <p className="m-0 mt-1 text-xs text-muted-foreground">
+                <p className="m-0 mt-1 text-meta text-muted-foreground">
                     {t("settings.access.ssoProvidersDescription")}
                 </p>
             </div>
@@ -127,7 +127,7 @@ export const SsoProvidersSection = ({
                             </span>
                             {!shows("callback_url") ? null : url ? (
                                 <span
-                                    className="truncate font-mono text-[13px] text-muted-foreground"
+                                    className="truncate text-code text-muted-foreground"
                                     title={url}
                                 >
                                     {url}

@@ -14,7 +14,7 @@ export const EmptySessions = ({showOnboarding = true}: {showOnboarding?: boolean
     const sort = useAtomValue(sortAtom)
 
     const isFiltered = filters.length > 0 || sort?.customRange
-    const icon = <ChatCircleIcon size={32} className="text-colorTextQuaternary" />
+    const icon = <ChatCircleIcon size={32} className="text-muted-foreground" />
 
     if (isFiltered || !showOnboarding) {
         return (
@@ -23,10 +23,10 @@ export const EmptySessions = ({showOnboarding = true}: {showOnboarding?: boolean
                     image={icon}
                     description={
                         <div className="flex flex-col gap-2">
-                            <span className="text-lg font-medium text-colorText">
+                            <span className="text-title text-foreground">
                                 {t("observabilityUi.empty.noSessionsFound")}
                             </span>
-                            <span className="text-colorTextSecondary">
+                            <span className="text-muted-foreground">
                                 {t("observabilityUi.empty.adjustSessions")}
                             </span>
                         </div>
@@ -42,10 +42,10 @@ export const EmptySessions = ({showOnboarding = true}: {showOnboarding?: boolean
                 image={icon}
                 description={
                     <div className="flex flex-col gap-2">
-                        <span className="text-lg font-medium text-colorText">
+                        <span className="text-title text-foreground">
                             {t("observabilityUi.empty.noSessionsObserved")}
                         </span>
-                        <span className="text-colorTextSecondary">
+                        <span className="text-muted-foreground">
                             {t("observabilityUi.empty.sessionsDescription")}
                         </span>
                     </div>

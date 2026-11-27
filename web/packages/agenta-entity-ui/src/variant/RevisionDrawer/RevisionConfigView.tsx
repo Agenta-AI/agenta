@@ -54,7 +54,7 @@ export const RevisionConfigView = ({
     const config = useAtomValue(defaultAdapter.atoms.serverData(revisionId))
     if (!hasRenderableConfigSections(config)) {
         return (
-            <p className="text-muted-foreground m-0 py-6 text-center text-sm">
+            <p className="text-muted-foreground m-0 py-6 text-center text-body">
                 {t("entityUi.revisionDrawer.noParameters")}
             </p>
         )

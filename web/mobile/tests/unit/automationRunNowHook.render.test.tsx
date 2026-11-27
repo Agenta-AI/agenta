@@ -59,6 +59,15 @@ beforeEach(() => {
     startTask.mockReset()
     toastError.mockReset()
     hookCalls.length = 0
+    // The open tooltip measures its trigger.
+    vi.stubGlobal(
+        "ResizeObserver",
+        class {
+            observe() {}
+            unobserve() {}
+            disconnect() {}
+        },
+    )
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -67,9 +76,19 @@ beforeEach(() => {
 afterEach(() => {
     act(() => root.unmount())
     container.remove()
+    vi.unstubAllGlobals()
 })
 
 const flush = () => act(async () => await new Promise((resolve) => setTimeout(resolve, 0)))
+
+// The reason is the button's tooltip; focus on its wrapper opens it.
+const tooltipText = () => {
+    const wrapper = container.querySelector("button")?.parentElement as HTMLElement
+    act(() => {
+        wrapper.dispatchEvent(new FocusEvent("focusin", {bubbles: true}))
+    })
+    return document.querySelector("[role=tooltip]")?.textContent ?? ""
+}
 
 describe("Run now", () => {
     it("starts a new session with the automation's message from the button", async () => {
@@ -102,7 +121,7 @@ describe("Run now", () => {
         )
         const button = container.querySelector("button") as HTMLButtonElement
         expect(button.disabled).toBe(true)
-        expect(button.title.startsWith("Save your changes first")).toBe(true)
+        expect(tooltipText().startsWith("Save your changes first")).toBe(true)
     })
 
     it("is blocked when the automation has no instruction", () => {
@@ -115,9 +134,8 @@ describe("Run now", () => {
                 }),
             ),
         )
-        expect((container.querySelector("button") as HTMLButtonElement).title).toBe(
-            "Add an instruction to test this automation",
-        )
+        expect((container.querySelector("button") as HTMLButtonElement).disabled).toBe(true)
+        expect(tooltipText()).toBe("Add an instruction to test this automation")
     })
 
     it("starts the same session from the list row menu, through the same hook", async () => {

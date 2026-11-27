@@ -13,7 +13,7 @@
     "oauth": "OAuth",
     "removeFailed": "MCP サーバーを削除できませんでした。",
     "removeMessage": "{{name}} をこのプロジェクトから削除します。このサーバーを使用するよう設定されたエージェントは動作しなくなり、後で再接続すると新しい接続が作成されます。",
-    "removeTitle": "サーバーを削除",
+    "removeTitle": "{{name}} を削除しますか？",
     "serverActions": "サーバーの操作",
     "serverUrl": "サーバー URL",
     "signInActions": "サインインの操作",
@@ -26,5 +26,11 @@
     "token": "トークン",
     "tokenDialogDescription": "このサーバー用の自分のトークンを貼り付けてください。あなたが開始した実行でのみ使用されます。",
     "viewTools": "ツールを表示",
-    "yours": "自分用"
+    "searchServers": "MCP サーバーを検索",
+    "yourSignIn": "あなたのサインイン",
+    "noneNeedAttentionTitle": "対応が必要なものはありません",
+    "noneNeedAttentionBody": "すべてのサーバーが接続されています。",
+    "noneConnectedTitle": "接続済みのサーバーはありません",
+    "noneConnectedBody": "サインインや修正が必要なサーバーは「対応が必要」にあります。",
+    "showAllServers": "すべてのサーバーを表示"
 }

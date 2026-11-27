@@ -20,6 +20,7 @@ export type SettingsTabKey =
     | "organizationGeneral"
     | "organization"
     | "auditLog"
+    | "license"
     | "billing"
     | "credits"
     | "account"
@@ -47,6 +48,8 @@ export interface SettingsAccess {
     walletsEnabled?: boolean
     /** Whether credits stop this organization's work (its wallet is enforced). */
     walletEnforced?: boolean
+    /** Whether the reader manages this self-hosted instance's license. */
+    isInstanceAdmin?: boolean
 }
 
 /** A tertiary docs link rendered at the far right of a settings page header. */
@@ -195,6 +198,11 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
         descriptionKey: "settingsTabs.auditLogDescription",
     },
     {
+        key: "license",
+        scope: "organization",
+        descriptionKey: "settingsTabs.licenseDescription",
+    },
+    {
         key: "account",
         scope: "personal",
         descriptionKey: "settingsTabs.accountDescription",
@@ -235,6 +243,7 @@ const SETTINGS_LABELS: Record<
     organizationGeneral: "navigation.settings.organizationGeneral",
     organization: "navigation.settings.organization",
     auditLog: "navigation.settings.auditLog",
+    license: "navigation.settings.license",
     credits: "navigation.settings.credits",
     account: "navigation.settings.account",
     preferences: "navigation.settings.preferences",
@@ -259,10 +268,14 @@ export const isSettingsTabVisible = (key: SettingsTabKey, access: SettingsAccess
             return access.canShowTools
         case "mcpEndpoints":
             return access.canShowMcpEndpoints
+        // Listed on OSS too: without the plan feature the tab shows its locked state.
         case "organization":
-            return access.isEE && access.isOwner
+            return access.isOwner
         case "auditLog":
-            return access.isEE && access.canViewEvents
+            return access.canViewEvents
+        // Self-hosted only: with billing on, plans come from Stripe.
+        case "license":
+            return !access.billingEnabled && Boolean(access.isInstanceAdmin)
         case "billing":
             return access.isEE && (access.canViewBilling ?? access.isOwner)
         case "analytics":

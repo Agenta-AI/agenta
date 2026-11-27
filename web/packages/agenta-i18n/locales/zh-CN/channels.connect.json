@@ -99,5 +99,7 @@
     "whatsappNote": "Meta 会直接向你的企业收取 WhatsApp 消息费用。",
     "whatsappPricing": "WhatsApp 定价",
     "yourAgent": "你的 Agent",
-    "yourApp": "你的应用"
+    "yourApp": "你的应用",
+    "getLink": "获取链接",
+    "getLinkBody": "获取一个指向 {{handle}} 的一次性链接，然后在 Telegram 中打开。"
 }

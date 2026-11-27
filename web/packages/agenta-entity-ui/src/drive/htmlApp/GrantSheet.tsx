@@ -30,7 +30,7 @@ export const accessLabel = (level: AppAccess | null): string =>
             : tNow("entityUi.driveApp.accessNotSet")
 
 const FolderCode = ({dir}: {dir: string}) => (
-    <code className="rounded bg-colorFillSecondary px-1 py-0.5 text-[11px] text-colorText">
+    <code className="rounded bg-secondary px-1 py-0.5 text-caption text-foreground">
         {dir || "/"}
     </code>
 )
@@ -57,7 +57,7 @@ const AccessDialog = ({
         <DialogContent
             container={container}
             contained={!!container}
-            className="max-w-sm gap-4 text-xs"
+            className="max-w-sm gap-4 text-body"
             showCloseButton={showCloseButton}
         >
             {children}
@@ -111,19 +111,21 @@ export function AccessQuestion({
     return (
         <AccessDialog open={open} container={container} onDismiss={onCancel} showCloseButton>
             <DialogHeader className="gap-1">
-                <DialogTitle className="pr-6 text-sm">
+                <DialogTitle className="pr-6 text-title">
                     {richText(t(title, {app: appName, dir: dir || "/"}), {
                         dir: (text) => <FolderCode dir={text} />,
                     })}
                 </DialogTitle>
-                <DialogDescription className="text-xs text-colorTextSecondary">
+                <DialogDescription className="text-body text-muted-foreground">
                     {need === "read" && writeUnavailable
                         ? t("entityUi.driveApp.reasonReadWriteUnavailable")
                         : t(reason)}
                 </DialogDescription>
             </DialogHeader>
 
-            <p className="m-0 text-xs text-colorTextTertiary">{t("entityUi.driveApp.trustNote")}</p>
+            <p className="m-0 text-meta text-muted-foreground">
+                {t("entityUi.driveApp.trustNote")}
+            </p>
 
             <DialogFooter className="gap-2">
                 <Button variant="outline" size="sm" onClick={() => onAnswer("deny")}>
@@ -182,10 +184,10 @@ export function GrantSheet({
             showCloseButton={false}
         >
             <DialogHeader className="gap-1">
-                <DialogTitle className="text-sm">
+                <DialogTitle className="text-title">
                     {t("entityUi.driveApp.fileAccessFor", {app: appName})}
                 </DialogTitle>
-                <DialogDescription className="text-xs text-colorTextSecondary">
+                <DialogDescription className="text-body text-muted-foreground">
                     {richText(t("entityUi.driveApp.whatAppMayDo", {dir: dir || "/"}), {
                         dir: (text) => <FolderCode dir={text} />,
                     })}
@@ -215,7 +217,9 @@ export function GrantSheet({
                 </RadioGroup>
             </section>
 
-            <p className="m-0 text-xs text-colorTextTertiary">{t("entityUi.driveApp.trustNote")}</p>
+            <p className="m-0 text-meta text-muted-foreground">
+                {t("entityUi.driveApp.trustNote")}
+            </p>
 
             <DialogFooter className="gap-2">
                 <Button variant="outline" size="sm" onClick={onCancel}>

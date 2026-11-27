@@ -4,7 +4,7 @@ import {SkeletonBlock} from "@agenta/ui/ui"
 export const SessionDrawerSkeleton = ({narrow}: {narrow: boolean}) => (
     <div className="flex min-h-0 flex-1" aria-hidden>
         {narrow ? null : (
-            <div className="flex w-[320px] shrink-0 flex-col gap-3 border-0 border-r border-solid border-border p-4">
+            <div className="flex w-80 shrink-0 flex-col gap-3 border-0 border-r border-solid border-border p-4">
                 <SkeletonBlock className="h-8 w-full" />
                 {Array.from({length: 6}, (_, index) => (
                     <SkeletonBlock key={index} className="h-5 w-full" />

@@ -1,0 +1,70 @@
+---
+title: "Easier upgrades and a free plan for self-hosted Agenta"
+slug: v0-131-1-one-image-self-hosted
+date: 2026-11-26
+tags: [v0.131.1]
+upgrade_notes: /self-host/upgrading#upgrading-to-0131-1
+improvements:
+  - area: Self-hosting
+    text: "The app tells you when a new release or a security fix is out"
+  - area: Self-hosting
+    text: "On the Community and Registered plans, the Access & Security and Audit Log settings show what Enterprise adds, and where to enter a key"
+  - area: Helm
+    text: "The migration job can run for up to one hour, up from 10 minutes"
+  - area: Helm
+    text: "Enterprise Helm installs pull public images and need no pull secret"
+description: "You can move a self-hosted install from open source to Enterprise with a license key, and a free key removes the project limit."
+---
+
+<Summary>
+
+We keep working on self-hosted Agenta, and this release brings three changes. You can move from the open source edition to Enterprise with a license key, without changing your images. There is a new free Registered plan, and when you register your instance from the app, you get a free key that removes the project limit.
+
+We also reworked self-hosted telemetry, so that each instance counts once and test installs no longer mix with real ones. The [Telemetry page](/self-host/telemetry) lists what an instance sends and how to turn it off. The [license keys page](/self-host/license-keys#limits-by-plan) compares the plans.
+
+</Summary>
+
+{/* truncate */}
+
+We keep working on self-hosted Agenta, and this release brings three changes to it. You can move from open source to Enterprise without changing your images, you can get a free key that removes the project limit, and the telemetry an instance sends is now simpler and documented field by field.
+
+## Upgrade from open source to Enterprise with a key
+
+Until now, the open source and Enterprise editions shipped as two separate sets of images. To move an install from open source to Enterprise, you had to switch to the Enterprise images. Now every install runs the same images, and a license key decides the plan of the instance.
+
+To move to Enterprise, add your key in **Settings > License**. You do not change your images or compose files. To set the key through the environment instead, use `AGENTA_LICENSE_KEY`. Docker Compose users add it to `.env`. Helm users add it under `extraEnv` in their values file. See [License keys](/self-host/license-keys).
+
+## A free Registered plan
+
+Without a key, an instance is on the Community plan, which allows 1 organization with 1 project. When you register the instance, you get a free key that puts it on the Registered plan, which removes the project limit.
+
+| Plan | How you get it | Organizations | Projects per organization |
+|---|---|---|---|
+| Community | No key | 1 | 1 |
+| Registered | A free key from the app | 1 | No limit |
+| Enterprise | A paid key | No limit | No limit |
+
+The limits apply only when you create a new organization or project, so everything that exists before the upgrade keeps working. The first time the instance admin opens the app after the upgrade, the app offers to register the instance. You can also register later from **Settings > License**. The [license keys page](/self-host/license-keys#limits-by-plan) lists what each plan includes.
+
+If you ran the Enterprise images without a key, the instance moves to the Community plan. Add your key to turn the Enterprise features back on. See [Upgrade an existing Enterprise instance](/self-host/license-keys#upgrade-an-existing-enterprise-instance).
+
+## Telemetry
+
+We reworked the usage data that a self-hosted instance sends to Agenta, so that we can count instances and versions correctly. Each instance now counts once, and test and CI installs are marked, so they do not mix with real installs.
+
+An instance never sends your prompts, traces, test sets or model outputs, and it never sends the emails or names of your users. The [Telemetry page](/self-host/telemetry) lists every field that is sent.
+
+To turn telemetry off, add `AGENTA_TELEMETRY_ENABLED=false` to your `.env` file (Docker Compose), or set `telemetry.enabled: false` in your values file (Helm).
+
+## Update notices
+
+The app now tells you when a new release or a security fix is out. See [Update notices](/self-host/update-notices).
+
+## Before you upgrade to v0.131.1
+
+- Take a dump of your core and tracing databases. On an open source database, the first start adds tables and rows, and you cannot undo this in place.
+- If your install is older than v0.104.0, upgrade to the latest 0.129.x release first, and then to 0.131.1.
+- Pull the new images and restart. You do not change your compose files, Helm values or env files.
+- Helm: the migration job can now run for up to one hour (`alembic.activeDeadlineSeconds: 3600`), so set the Helm `--timeout` above that. An Enterprise Helm install now pulls public images and needs no pull secret.
+
+The [upgrade guide](/self-host/upgrading#upgrading-to-0131-1) has the full steps.

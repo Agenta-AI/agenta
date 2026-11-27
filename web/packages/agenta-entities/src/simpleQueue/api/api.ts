@@ -50,7 +50,7 @@ export interface CreateSimpleQueuePayload {
             batch_offset?: number | null
         } | null
     } | null
-    tags?: string[] | null
+    tags?: Record<string, unknown> | null
     meta?: Record<string, unknown> | null
 }
 

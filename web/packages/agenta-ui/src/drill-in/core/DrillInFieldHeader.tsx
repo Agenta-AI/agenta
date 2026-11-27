@@ -183,11 +183,11 @@ const DefaultButton = ({
 }) => (
     <button
         type="button"
-        className={`inline-flex items-center justify-center gap-1 px-2 py-1 text-xs rounded border-none cursor-pointer ${
+        className={`inline-flex items-center justify-center gap-1 px-2 py-1 text-label rounded border-none cursor-pointer ${
             type === "text"
-                ? "bg-transparent hover:bg-gray-100"
-                : "bg-blue-500 text-white hover:bg-blue-600"
-        } ${danger ? "text-red-500 hover:text-red-600" : ""} ${className ?? ""}`}
+                ? "bg-transparent hover:bg-accent"
+                : "bg-primary text-primary-foreground hover:bg-primary-hover"
+        } ${danger ? "text-destructive" : ""} ${className ?? ""}`}
         onClick={onClick}
         aria-label={ariaLabel}
     >
@@ -209,7 +209,7 @@ const defaultIcons = {
     check: <Check size={14} />,
     copy: <Copy size={14} />,
     code: <Code size={14} />,
-    markdown: <span className="text-xs font-medium">M↓</span>,
+    markdown: <span className="text-label">M↓</span>,
     text: <TextAa size={14} />,
     delete: <Trash size={14} />,
     mapPin: <MapPinSimple size={14} />,
@@ -304,7 +304,7 @@ const MappingPopoverContent = memo(
                                 onChange={(e) => setNewColumnName(e.target.value)}
                                 onKeyDown={(e) => e.key === "Enter" && handleCreateColumn()}
                                 autoFocus
-                                className="flex-1 px-2 py-1 text-sm border border-solid border-gray-300 rounded"
+                                className="flex-1 px-2 py-1 text-label border border-solid border-border rounded"
                             />
                         )}
                         <Button size="small" type="primary" onClick={handleCreateColumn}>
@@ -315,7 +315,7 @@ const MappingPopoverContent = memo(
                     <Button
                         type="text"
                         size="small"
-                        className="justify-start text-[var(--ag-btn-link)]"
+                        className="justify-start text-link"
                         onClick={() => setShowNewColumnInput(true)}
                     >
                         {t("ui.drillIn.createNewColumn")}
@@ -323,7 +323,7 @@ const MappingPopoverContent = memo(
                 )}
                 {columnOptions && columnOptions.length > 0 && (
                     <>
-                        <div className="border-0 border-t border-solid border-gray-200 my-1" />
+                        <div className="border-0 border-t border-solid border-border-muted my-1" />
                         {columnOptions.map((opt) => (
                             <Button
                                 key={opt.value}
@@ -421,11 +421,11 @@ const DrillInFieldHeader = memo(
         // Whole header is a click target for collapse — gives users a generous
         // hit area instead of the small caret icon.
         const headerInteractive = shouldShowCollapse
-            ? "cursor-pointer hover:bg-[var(--ag-rgba-051729-04)] transition-colors"
+            ? "cursor-pointer hover:bg-accent transition-colors"
             : ""
         const headerClassName = isFlat
-            ? `flex items-center justify-between py-1 px-3 bg-[var(--ag-c-FFFFFF)] ${headerInteractive}`
-            : `flex items-center justify-between py-2 px-3 bg-[var(--ag-c-FAFAFA)] rounded-md border-solid border-[1px] border-[var(--ag-rgba-051729-06)] ${headerInteractive}`
+            ? `flex items-center justify-between py-1 px-3 bg-background ${headerInteractive}`
+            : `flex items-center justify-between py-2 px-3 bg-muted rounded-md border border-solid border-border-muted ${headerInteractive}`
 
         // Mapping popover content
         const mappingContent = onMapToColumn && (
@@ -462,29 +462,29 @@ const DrillInFieldHeader = memo(
                 <div className="flex items-center gap-2">
                     {shouldShowCollapse ? (
                         <>
-                            <span className="flex items-center text-gray-500">
+                            <span className="flex items-center text-muted-foreground">
                                 <CollapseCaret open={!isCollapsed} size={14} />
                             </span>
-                            <span className="text-gray-700 font-medium">{name}</span>
+                            <span className="text-foreground font-medium">{name}</span>
                             {typeChip}
                         </>
                     ) : (
                         <>
-                            <span className="text-gray-700 font-medium">{name}</span>
+                            <span className="text-foreground font-medium">{name}</span>
                             {typeChip}
                         </>
                     )}
                     {mappedColumn ? (
-                        <span className="text-xs text-green-600 dark:text-green-400 font-medium">
+                        <span className="text-meta text-success font-medium">
                             {t("ui.drillIn.mappedTo", {column: mappedColumn})}
                         </span>
                     ) : nestedMappingCount > 0 ? (
-                        <span className="text-xs text-green-600 dark:text-green-400 font-medium">
+                        <span className="text-meta text-success font-medium">
                             {t("ui.drillIn.containsMappings", {count: nestedMappingCount})}
                         </span>
                     ) : null}
                     {itemCount ? (
-                        <span className="text-xs text-[var(--ag-rgba-051729-45)]">{itemCount}</span>
+                        <span className="text-meta text-muted-foreground">{itemCount}</span>
                     ) : null}
                 </div>
                 {/* Right-side controls stop click bubbling so they don't toggle collapse */}
@@ -509,7 +509,7 @@ const DrillInFieldHeader = memo(
                             <Button
                                 type="text"
                                 size="small"
-                                className="!px-1 !h-6 text-xs text-gray-500"
+                                className="!px-1 !h-6 text-label text-muted-foreground"
                                 onClick={handleCopy}
                             >
                                 {copiedField === name ? checkIcon : copyIcon}
@@ -525,7 +525,7 @@ const DrillInFieldHeader = memo(
                             <Button
                                 type="text"
                                 size="small"
-                                className={`!px-1 !h-6 text-xs ${isRawMode ? "text-[var(--ag-btn-link)]" : "text-gray-500"}`}
+                                className={`!px-1 !h-6 text-label ${isRawMode ? "text-link" : "text-muted-foreground"}`}
                                 onClick={onToggleRawMode}
                             >
                                 {codeIcon}
@@ -543,7 +543,7 @@ const DrillInFieldHeader = memo(
                             <Button
                                 type="text"
                                 size="small"
-                                className={`!px-1 !h-6 text-xs ${isMarkdownView ? "text-[var(--ag-btn-link)]" : "text-gray-500"}`}
+                                className={`!px-1 !h-6 text-label ${isMarkdownView ? "text-link" : "text-muted-foreground"}`}
                                 onClick={onToggleMarkdownView}
                             >
                                 {isMarkdownView ? textIcon : markdownIcon}
@@ -555,7 +555,7 @@ const DrillInFieldHeader = memo(
                             type="text"
                             size="small"
                             onClick={onDrillIn}
-                            className="!px-2 !h-6 text-xs text-gray-500"
+                            className="!px-2 !h-6 text-label text-muted-foreground"
                         >
                             {defaultIcons.drillIn}
                             <span className="ml-1">{t("ui.drillInButton.drillIn")}</span>
@@ -580,7 +580,7 @@ const DrillInFieldHeader = memo(
                                     <Button
                                         type="text"
                                         size="small"
-                                        className={`!px-1 !h-6 text-xs ${isMapped ? "text-green-500" : "text-gray-500"}`}
+                                        className={`!px-1 !h-6 text-label ${isMapped ? "text-success" : "text-muted-foreground"}`}
                                     >
                                         {isMapped ? mapPinFilledIcon : mapPinIcon}
                                     </Button>
@@ -598,14 +598,14 @@ const DrillInFieldHeader = memo(
                                     <Button
                                         type="text"
                                         size="small"
-                                        className={`!px-1 !h-6 text-xs ${isMapped ? "text-green-500" : "text-gray-500"}`}
+                                        className={`!px-1 !h-6 text-label ${isMapped ? "text-success" : "text-muted-foreground"}`}
                                         onClick={() => setPopoverOpen(!popoverOpen)}
                                     >
                                         {isMapped ? mapPinFilledIcon : mapPinIcon}
                                     </Button>
                                 </Tooltip>
                                 {popoverOpen && (
-                                    <div className="absolute right-0 top-full mt-1 bg-[var(--ant-color-bg-elevated)] rounded-md shadow-lg border border-solid border-gray-200 dark:shadow-none dark:border-[rgba(255,255,255,0.16)] z-50">
+                                    <div className="absolute right-0 top-full mt-1 bg-popover rounded-lg shadow-overlay z-50">
                                         {mappingContent}
                                     </div>
                                 )}

@@ -45,7 +45,7 @@ export const RefinePreview = ({
     if (!working) {
         return (
             <div className="flex flex-1 items-center justify-center px-4">
-                <p className="m-0 text-center text-xs text-muted-foreground">
+                <p className="m-0 text-center text-meta text-muted-foreground">
                     {t("playground.refine.submitToSee")}
                 </p>
             </div>

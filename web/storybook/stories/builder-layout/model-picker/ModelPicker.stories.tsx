@@ -20,7 +20,6 @@ const ModelViewFrame = () => {
                     selectedKey={picked}
                     onChange={(_value, option) => setPicked(option.key ?? option.value)}
                     searchPlaceholder="Search models"
-                    disabledGroupAction={{label: "Sign in", onClick: () => undefined}}
                     onManageProviders={() => undefined}
                 />
             </div>
@@ -37,5 +36,5 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-/** F01 f2: Agenta, an organization key, a key, a subscription, and one that needs a sign-in. */
+/** F01 f2: Agenta, an organization key, a key and a subscription; the signed-out one is left out. */
 export const Grouped: Story = {}

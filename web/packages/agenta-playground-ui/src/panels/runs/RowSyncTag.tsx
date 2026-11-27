@@ -42,7 +42,7 @@ export const RowSyncTag = ({rowId}: {rowId: string}) => {
                         type="button"
                         title={t("playground.runs.discardChanges")}
                         aria-label={t("playground.runs.discardChanges")}
-                        className="-mr-0.5 ml-1 inline-flex cursor-pointer border-0 bg-transparent p-0 text-colorIcon"
+                        className="-mr-0.5 ml-1 inline-flex cursor-pointer border-0 bg-transparent p-0 text-muted-foreground"
                         onClick={() => discard(rowId)}
                     >
                         <X size={12} />

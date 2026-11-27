@@ -46,7 +46,7 @@ export function FilesPaneToggle({
                     aria-keyshortcuts={shortcutAria("panel.files")}
                     disabled={disabled}
                     onClick={onToggle}
-                    className="h-7 w-7 shrink-0 p-0"
+                    className="h-control-sm w-7 shrink-0 p-0"
                 >
                     {open ? <FolderOpen size={14} weight="fill" /> : <Folder size={14} />}
                 </Button>

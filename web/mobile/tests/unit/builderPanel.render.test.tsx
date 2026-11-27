@@ -26,7 +26,7 @@ interface SeenProps {
     newChatLayout?: "middle" | "top"
     composerPlaceholder?: string
     hideSlashCommands?: boolean
-    userMessageAccessory?: (message: UIMessage) => ReactNode
+    userMessageAccessory?: (message: UIMessage, earlier: UIMessage[]) => ReactNode
 }
 const seen = vi.hoisted(() => ({
     props: null as null | SeenProps,
@@ -480,33 +480,90 @@ describe("BuilderPanel: page context", () => {
         )
     })
 
-    it("shows the chip a sent message carried, and none for a line with the agent only or no line", async () => {
-        await render()
-        const accessory = seen.props!.userMessageAccessory!
-        const message = (context: PageContext | null, words: string): UIMessage => ({
-            id: "m1",
+    describe("context divider", () => {
+        let id = 0
+        const message = (context: PageContext | null, words = "Why?"): UIMessage => ({
+            id: `m${++id}`,
             role: "user",
             parts: [{type: "text", text: context ? withContextLine(context, words) : words}],
             metadata: {display_content: words},
         })
         const agent = {id: "agent-1", name: "Support triage"}
-        const withPage: PageContext = {agent, page: configuration, has_unsaved_draft: false}
-        await act(async () => {
-            root.render(
-                <QueryClientProvider client={queryClient}>
-                    <Provider store={store}>
-                        <div data-testid="sent">
-                            {accessory(message(withPage, "Why?"))}
-                            {accessory(message({agent, has_unsaved_draft: false}, "Why?"))}
-                            {accessory(message(null, "Why?"))}
-                        </div>
-                    </Provider>
-                </QueryClientProvider>,
-            )
+        const onPage = (page: PageContext["page"], on = agent): PageContext => ({
+            agent: on,
+            page,
+            has_unsaved_draft: false,
         })
-        const chips = container.querySelectorAll("[data-testid=builder-sent-context]")
-        expect(chips).toHaveLength(1)
-        expect(chips[0].textContent).toBe("Support triage · ticket-triage")
+        const session = (sessionId: string) => ({
+            kind: "session" as const,
+            session: {id: sessionId},
+        })
+        /** Renders each message's divider, given the messages before it. */
+        const renderDividers = async (messages: UIMessage[]) => {
+            await render()
+            const accessory = seen.props!.userMessageAccessory!
+            await act(async () => {
+                root.render(
+                    <QueryClientProvider client={queryClient}>
+                        <Provider store={store}>
+                            <div data-testid="sent">
+                                {messages.map((m, at) => (
+                                    <div key={m.id}>{accessory(m, messages.slice(0, at))}</div>
+                                ))}
+                            </div>
+                        </Provider>
+                    </QueryClientProvider>,
+                )
+            })
+            return [...container.querySelectorAll("[data-testid=builder-context-divider]")]
+        }
+
+        it("shows one on the first message, as a labelled separator", async () => {
+            const dividers = await renderDividers([message(onPage(configuration))])
+            expect(dividers).toHaveLength(1)
+            expect(dividers[0].getAttribute("role")).toBe("separator")
+            expect(dividers[0].getAttribute("aria-label")).toContain(
+                "Support triage · ticket-triage",
+            )
+            expect(dividers[0].textContent).toBe("Support triage · ticket-triage")
+        })
+
+        it("shows none for the same context, and one where it changes", async () => {
+            const dividers = await renderDividers([
+                message(onPage(configuration)),
+                message(onPage(configuration)),
+                message(onPage(session("s1"))),
+            ])
+            expect(dividers).toHaveLength(2)
+        })
+
+        it("keys on ids: two unnamed sessions get one each, a late name none", async () => {
+            const named = {kind: "session" as const, session: {id: "s1", name: "Charged twice"}}
+            const dividers = await renderDividers([
+                message(onPage(session("s1"))),
+                message(onPage(named)),
+                message(onPage(session("s2"))),
+            ])
+            expect(dividers).toHaveLength(2)
+        })
+
+        it("skips a message with the agent only or no line, and it does not break the run", async () => {
+            const dividers = await renderDividers([
+                message(onPage(configuration)),
+                message({agent, has_unsaved_draft: false}),
+                message(null),
+                message(onPage(configuration)),
+            ])
+            expect(dividers).toHaveLength(1)
+        })
+
+        it("shows one on the first shown message whatever came before it", async () => {
+            await render()
+            const accessory = seen.props!.userMessageAccessory!
+            expect(accessory(message(onPage(configuration)), [])).not.toBeNull()
+            const earlier = [message(onPage(configuration))]
+            expect(accessory(message(onPage(configuration)), earlier)).toBeNull()
+        })
     })
 })
 
@@ -570,12 +627,12 @@ describe("BuilderPanel: on a phone (M04, M06)", () => {
         expect(container.querySelector('[aria-label="Back to Session"]')).toBeNull()
     })
 
-    it("shows 44 px ready requests and 44 px recent chats", async () => {
+    it("shows 48 px ready requests and 44 px recent chats", async () => {
         rememberBuilderChat(user(), "p1", "agent-1", "old-chat")
         list.rows = [{session_id: "old-chat", name: "Daily summary", updated_at: hoursAgo(100)}]
         await render()
         const row = byTestId("builder-ready-requests")?.querySelector("button")
-        expect(row?.className).toContain("min-h-11")
+        expect(row?.className).toContain("min-h-row-double")
         expect(byTestId("builder-chat-row")?.className).toContain("h-11")
         // M04: the intro, composer and quick actions at the top, Recent chats at the bottom.
         expect(byTestId("new-chat-footer")?.getAttribute("data-layout")).toBe("top")

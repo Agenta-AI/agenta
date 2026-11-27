@@ -32,6 +32,8 @@ def _wire_subscriptions(monkeypatch, plans: dict):
             return None
         return SimpleNamespace(plan=plan, anchor=None)
 
+    # Cloud plans: outside cloud the instance plan replaces them.
+    monkeypatch.setattr(entitlements_service, "is_cloud", lambda: True)
     service = SimpleNamespace(read=AsyncMock(side_effect=read))
     monkeypatch.setattr(entitlements_service, "_subscriptions_service", lambda: service)
 

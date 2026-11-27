@@ -79,7 +79,7 @@ export const ArchiveTestsetsDialog = ({
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 {single ? null : (
-                    <ul className="m-0 max-h-48 list-disc overflow-y-auto pl-5 text-sm text-foreground">
+                    <ul className="m-0 max-h-48 list-disc overflow-y-auto pl-5 text-body text-foreground">
                         {targets.map((target) => (
                             <li key={target.id} className="truncate">
                                 {target.name}
@@ -87,7 +87,7 @@ export const ArchiveTestsetsDialog = ({
                         ))}
                     </ul>
                 )}
-                {error ? <p className="m-0 text-sm text-destructive">{error}</p> : null}
+                {error ? <p className="m-0 text-body text-destructive">{error}</p> : null}
                 <AlertDialogFooter>
                     <AlertDialogCancel asChild>
                         <Button variant="outline" onClick={onClose} disabled={pending}>
@@ -99,7 +99,6 @@ export const ArchiveTestsetsDialog = ({
                     <AlertDialogAction asChild>
                         <Button
                             variant="destructive"
-                            className="bg-destructive text-destructive-foreground hover:bg-error-hover"
                             disabled={pending}
                             onClick={(event) => {
                                 event.preventDefault()

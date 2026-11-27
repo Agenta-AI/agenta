@@ -99,5 +99,7 @@
     "whatsappNote": "WhatsApp メッセージの料金は Meta からお客様の企業に直接請求されます。",
     "whatsappPricing": "WhatsApp の料金",
     "yourAgent": "あなたのエージェント",
-    "yourApp": "あなたのアプリ"
+    "yourApp": "あなたのアプリ",
+    "getLink": "リンクを取得",
+    "getLinkBody": "{{handle}} への一回限りのリンクを取得し、Telegram で開きます。"
 }

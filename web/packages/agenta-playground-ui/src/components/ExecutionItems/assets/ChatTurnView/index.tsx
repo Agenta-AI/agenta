@@ -4,7 +4,7 @@ import type {PlaygroundNode} from "@agenta/entities/runnable"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {executionItemController, playgroundController} from "@agenta/playground"
 import {getEvaluatorVerdictFromOutput} from "@agenta/playground/utils"
-import {LoadingOutlined} from "@ant-design/icons"
+import {CircleNotch} from "@phosphor-icons/react"
 import {Popover, Tag} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -106,7 +106,7 @@ const EvaluatorResultPopover = ({
     // Build popover content
     const popoverContent = useMemo(() => {
         if (!fullResult || status === "idle" || status === "cancelled") {
-            return <span className="text-[var(--ag-c-BDC7D1)] text-xs">Pending run</span>
+            return <span className="text-muted-foreground text-meta">Pending run</span>
         }
         if (status === "running" || status === "pending") {
             return <EvaluatorFieldGrid entries={null} outputPorts={outputPorts} loading />
@@ -117,14 +117,14 @@ const EvaluatorResultPopover = ({
                     ? fullResult.error.message
                     : "Error"
             return (
-                <span className="text-[var(--ant-color-error)] text-xs break-words">
+                <span className="text-destructive text-label font-normal break-words">
                     {errorMsg}
                 </span>
             )
         }
 
         const entries = extractDisplayEntries(fullResult.output)
-        if (!entries) return <span className="text-xs">—</span>
+        if (!entries) return <span className="text-label font-normal">—</span>
 
         return <EvaluatorFieldGrid entries={entries} outputPorts={outputPorts} />
     }, [fullResult, status, outputPorts])
@@ -137,10 +137,10 @@ const EvaluatorResultPopover = ({
             mouseEnterDelay={0.2}
             overlayStyle={{maxWidth: 360}}
         >
-            <Tag color={tagColor} className="!m-0 cursor-pointer text-xs">
+            <Tag color={tagColor} className="!m-0 cursor-pointer text-label font-normal">
                 {status === "running" || status === "pending" ? (
                     <span className="flex items-center gap-1">
-                        <LoadingOutlined style={{fontSize: 10}} spin />
+                        <CircleNotch size={10} className="animate-spin" />
                         {nodeName}
                     </span>
                 ) : (
@@ -268,7 +268,7 @@ const ChatTurnView = ({
                                             rowId={turnId}
                                             kind="assistant"
                                             className="w-full"
-                                            headerClassName="border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]"
+                                            headerClassName="border-0 border-b border-solid border-border-muted"
                                             messageProps={messageProps}
                                             messageOverride={msg}
                                             repetitionProps={
@@ -316,7 +316,7 @@ const ChatTurnView = ({
                                 rowId={turnId}
                                 kind="assistant"
                                 className="w-full"
-                                headerClassName="border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]"
+                                headerClassName="border-0 border-b border-solid border-border-muted"
                                 messageProps={messageProps}
                                 messageOverride={displayedAssistantMessage ?? messageOverride}
                                 repetitionProps={repetitionProps}

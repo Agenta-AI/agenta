@@ -31,7 +31,9 @@ vi.mock("@agenta/sessions/state", async (importOriginal) => ({
     useSessionPins: () => ({toggle: () => undefined}),
 }))
 vi.mock("@agenta/ui/hooks", () => ({useMediaQuery: () => true}))
-vi.mock("@agenta/ui/list-table", () => ({
+vi.mock("@agenta/ui/list-table", async (importOriginal) => ({
+    LIST_COLUMN_WIDTH: (await importOriginal<typeof import("@agenta/ui/list-table")>())
+        .LIST_COLUMN_WIDTH,
     ListTable: (props: {columns: {key: string}[]; groupActions: (run: unknown) => unknown}) => {
         captured.columns = props.columns
         captured.groupActions = props.groupActions

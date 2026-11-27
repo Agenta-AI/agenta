@@ -170,6 +170,7 @@ export {
     type RunEditBody,
     type RunEditInput,
     type RunStepOrigin,
+    runTagLabels,
     buildRunReferencePayload,
     buildRunsQueryBody,
     countRunListFilters,

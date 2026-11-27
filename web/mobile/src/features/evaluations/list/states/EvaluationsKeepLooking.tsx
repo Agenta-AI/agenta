@@ -1,5 +1,5 @@
 import {Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle} from "@agenta/ui/ui"
-import {Search} from "lucide-react"
+import {MagnifyingGlassIcon} from "@phosphor-icons/react"
 
 /**
  * A page of the list came back with no rows, but older runs remain. The filter by kind or app
@@ -9,7 +9,7 @@ export const EvaluationsKeepLooking = () => (
     <Empty className="py-14">
         <EmptyHeader>
             <EmptyMedia variant="icon">
-                <Search />
+                <MagnifyingGlassIcon />
             </EmptyMedia>
             <EmptyTitle>No matching evaluations in the newest runs</EmptyTitle>
             <EmptyDescription>Load more to look through older runs.</EmptyDescription>

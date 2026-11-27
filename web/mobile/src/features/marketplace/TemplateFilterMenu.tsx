@@ -92,7 +92,6 @@ export const TemplateFilterMenu = ({
             label={null}
             triggerAriaLabel={t("marketplace.page.filterTemplates")}
             size="default"
-            triggerClassName="size-8"
             active={active}
             onReset={() => onChange({...DEFAULT_MARKETPLACE_FILTER, query: filter.query})}
             resetDisabled={!active}

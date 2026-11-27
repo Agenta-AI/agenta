@@ -12,7 +12,7 @@ import {CaretDownIcon, CheckIcon} from "@phosphor-icons/react"
 import {sessionRoleCopy, sessionSharingCopy} from "./copy"
 
 /** The fixed role column, so "Owner" and every menu line up. */
-export const ROLE_COLUMN_CLASS = "flex w-[112px] shrink-0 justify-end"
+export const ROLE_COLUMN_CLASS = "flex w-28 shrink-0 justify-end"
 
 const ROLES: SessionRole[] = ["viewer", "participant"]
 
@@ -43,14 +43,14 @@ export const SessionGrantRoleMenu = ({
                 <button
                     type="button"
                     aria-label={`${personName}: ${sessionRoleCopy[shown].label}`}
-                    className="flex cursor-pointer items-center gap-1 rounded-control-sm border-0 bg-transparent px-1.5 py-1 text-sm text-foreground [font-family:inherit] hover:bg-accent"
+                    className="flex cursor-pointer items-center gap-1 rounded-control-sm border-0 bg-transparent px-1.5 py-1 text-label text-foreground [font-family:inherit] hover:bg-accent"
                 >
                     {saving ? <Spinner size="small" /> : null}
                     {sessionRoleCopy[shown].label}
                     <CaretDownIcon size={12} aria-hidden />
                 </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[300px]">
+            <DropdownMenuContent align="end" className="w-80">
                 {ROLES.map((option) => (
                     <DropdownMenuItem
                         key={option}
@@ -65,7 +65,7 @@ export const SessionGrantRoleMenu = ({
                         </span>
                         <span className="flex flex-col">
                             <span>{sessionRoleCopy[option].label}</span>
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-meta text-muted-foreground">
                                 {option === "participant" && !canSend
                                     ? sessionSharingCopy.roleCannotSend
                                     : sessionRoleCopy[option].description}

@@ -261,7 +261,7 @@ const AnalyticsPageBody = ({
                 onRangeOpenChange={setRangeOpen}
             />
             {noMatch ? (
-                <div className="flex flex-wrap items-center gap-2.5 rounded-lg bg-muted px-3.5 py-2.5 text-sm">
+                <div className="flex flex-wrap items-center gap-2 rounded-lg bg-muted px-3 py-2.5 text-body">
                     <FunnelSimple className="text-muted-foreground" />
                     <span className="text-muted-foreground">
                         {t("observabilityUi.analytics.noRunsMatch")}

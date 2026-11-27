@@ -64,7 +64,7 @@ export const TemplateFilterRail = ({
                                 className="w-full justify-between"
                             >
                                 <span className="min-w-0 truncate">{categoryText(item.value)}</span>
-                                <span className="text-muted-foreground shrink-0 text-xs">
+                                <span className="text-muted-foreground shrink-0 text-meta tabular-nums">
                                     {item.count}
                                 </span>
                             </Button>
@@ -99,7 +99,7 @@ export const TemplateFilterRail = ({
                             return (
                                 <label
                                     key={app.slug}
-                                    className="box-border flex h-8 cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-[13px] text-foreground transition-colors hover:bg-accent/60"
+                                    className="box-border flex h-8 cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-label text-foreground transition-colors hover:bg-accent/60"
                                 >
                                     <Checkbox
                                         checked={checked}
@@ -109,7 +109,7 @@ export const TemplateFilterRail = ({
                                     />
                                     <AppTile app={app} size="xs" decorative />
                                     <span className="min-w-0 flex-1 truncate">{app.name}</span>
-                                    <span className="text-placeholder shrink-0 text-xs">
+                                    <span className="text-muted-foreground shrink-0 text-meta tabular-nums">
                                         {count}
                                     </span>
                                 </label>

@@ -11,8 +11,7 @@ const t = createT(channelsSharingCatalog)
 
 export const channelSharingCopy = {
     // Settings > Channels, the agent step.
-    audienceNote: (project: string, platform: string) =>
-        t("channels.sharing.audienceNote", {project, platform}),
+    audienceNote: (platform: string) => t("channels.sharing.audienceNote", {platform}),
 
     // The manage panel of a connection whose binding is off.
     connectionRow: (platform: string, place: string) => `${platform} · ${place}`,

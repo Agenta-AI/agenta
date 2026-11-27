@@ -46,15 +46,13 @@ export const HomeGreeting = ({title}: {title: string}) => {
     const name = displayName(user?.username)
 
     return (
-        <div className="flex flex-col gap-1.5 px-1.5">
+        <div className="flex flex-col gap-1.5">
             {name ? (
-                <span className="font-mono text-[11px] uppercase leading-none tracking-[0.1em] text-muted-foreground">
+                <span className="text-meta text-muted-foreground">
                     {t(`home.greeting.${greetingPart(new Date().getHours())}`, {name})}
                 </span>
             ) : null}
-            <h1 className="m-0 text-[30px] font-medium leading-[1.25] tracking-[-0.015em] text-foreground">
-                {title}
-            </h1>
+            <h1 className="m-0 text-display font-medium text-foreground">{title}</h1>
         </div>
     )
 }

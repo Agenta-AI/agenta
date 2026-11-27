@@ -125,6 +125,7 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
                                 monthlyCreditsMusd={monthly?.amount_musd ?? null}
                                 isOnFreePlan={catalog.isOnFreePlan}
                                 isCustomPlan={catalog.isCustomPlan}
+                                selfHosted={!billingEnabled}
                                 onChangePlan={
                                     billingEnabled && canEditBilling
                                         ? () => setPlanChooserOpen(true)

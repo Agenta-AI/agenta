@@ -102,7 +102,9 @@ describe("archived test sets route", () => {
         expect(host.textContent).toContain(
             "Archived test sets are hidden from your workspace but can be restored at any time.",
         )
-        const back = host.querySelector('a[aria-label="Back to test sets"]')
+        const back = [...host.querySelectorAll<HTMLAnchorElement>("a[aria-label]")].find(
+            (a) => a.getAttribute("aria-label")?.toLowerCase() === "back to test sets",
+        )
         expect(back?.getAttribute("href")).toBe("/w/ws/p/pr/testsets")
         expect(host.textContent).toContain("No archived test sets")
     })

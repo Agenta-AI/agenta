@@ -170,8 +170,8 @@ export const SkillTemplateControl = memo(function SkillTemplateControl({
     const header = (
         <div className="w-full flex items-center justify-between gap-2 py-1">
             <div className="flex items-center gap-2 min-w-0">
-                <span className="text-sm font-semibold truncate">{name}</span>
-                {embed && <Badge variant="blue">@ag.embed</Badge>}
+                <span className="text-label truncate">{name}</span>
+                {embed && <Badge variant="info">@ag.embed</Badge>}
             </div>
             {!disabled && onDelete && (
                 <TooltipProvider>
@@ -207,16 +207,14 @@ export const SkillTemplateControl = memo(function SkillTemplateControl({
                 )}
             >
                 <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-sm font-semibold truncate">{name}</span>
+                    <span className="text-label truncate">{name}</span>
                     <Badge>{t("entityUi.skillTemplate.staticSkill")}</Badge>
                     {version && <Badge>{version}</Badge>}
                 </div>
                 {slug && (
-                    <span className="text-xs font-mono truncate text-colorTextDescription">
-                        {slug}
-                    </span>
+                    <span className="text-code-sm truncate text-muted-foreground">{slug}</span>
                 )}
-                <span className="text-xs text-colorTextDescription">
+                <span className="text-meta text-muted-foreground">
                     {t("entityUi.skillTemplate.staticSkillHint")}
                 </span>
             </div>
@@ -231,7 +229,7 @@ export const SkillTemplateControl = memo(function SkillTemplateControl({
                 {header}
                 <textarea
                     aria-label={t("entityUi.skillTemplate.skillTemplate")}
-                    className="font-mono text-xs p-2 border rounded min-h-[120px] resize-y w-full"
+                    className=" text-code-sm p-2 border rounded min-h-30 resize-y w-full"
                     value={editorText}
                     onChange={(e) => handleEditorChange(e.target.value)}
                     readOnly={disabled}

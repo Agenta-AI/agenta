@@ -294,8 +294,6 @@ jobs:
       checks: write
       pull-requests: write
       contents: read
-    env:
-      AGENTA_LICENSE: oss
     steps:
       - uses: actions/checkout@v6
 
@@ -337,7 +335,7 @@ jobs:
         if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only","api-only","services-only"]'), inputs.packages))
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
-          files: sdks/python/oss/tests/results/junit.xml
+          files: sdks/python/ee/tests/results/junit.xml
           check_name: Application SDK Unit Test Results
           comment_mode: off
 
@@ -350,8 +348,6 @@ jobs:
       checks: write
       pull-requests: write
       contents: read
-    env:
-      AGENTA_LICENSE: oss
     steps:
       - uses: actions/checkout@v6
 
@@ -394,91 +390,8 @@ jobs:
         if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages))
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
-          files: api/oss/tests/results/junit.xml
-          check_name: Application API Unit Test Results
-          comment_mode: off
-
-  run-api-ee-unit-tests:
-    # The enterprise API suite (api/ee/tests/pytest/unit) ran nowhere until this job
-    # existed: every other job here pins AGENTA_LICENSE=oss, and api/run-tests.py's
-    # `_resolve_test_dirs` then resolves oss/tests/pytest only, so the whole ee tree was
-    # collected by no CI run at all.
-    #
-    # This job DOES duplicate run-api-unit-tests, deliberately, and the duplication is
-    # the point rather than an oversight. With AGENTA_LICENSE=ee, run-tests.py runs BOTH
-    # oss/tests/pytest/unit and ee/tests/pytest/unit in one process, so the ~4.8k OSS
-    # unit tests execute twice per PR: once here and once in run-api-unit-tests. Running
-    # only `ee/tests/pytest/unit` here would avoid that, and was rejected:
-    #
-    #   1. Defects in this codebase live in the seam between the two trees, and are
-    #      invisible unless both are imported together. The lifecycle-convention test
-    #      (oss/tests/pytest/unit/models/test_lifecycle_conventions.py) imports only the
-    #      OSS model modules, so it passed alone while the EE measurement tables broke
-    #      the convention; it failed the moment anything imported the EE models. An
-    #      ee-only job would not have caught that, and neither would the oss-only job.
-    #   2. run-api-unit-tests is still not redundant in the other direction: it is the
-    #      only run that proves the OSS suite passes under an OSS license, where
-    #      `_LICENSE` changes env defaults (database name prefix, feature gating) and EE
-    #      modules are never imported. That is what a self-hosted OSS install runs.
-    #
-    # Cost: one extra ubuntu-latest job of roughly the same duration as run-api-unit-tests
-    # per non-draft PR touching the paths above. Deemed worth it for a suite of this size
-    # that currently has no coverage at all.
-    if: |
-      github.event_name == 'workflow_dispatch' ||
-      !github.event.pull_request.draft
-    runs-on: ubuntu-latest
-    permissions:
-      checks: write
-      pull-requests: write
-      contents: read
-    env:
-      AGENTA_LICENSE: ee
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Skip when package selection excludes API
-        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","api-only"]'), inputs.packages)
-        run: exit 0
-
-      - name: Set up Python
-        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-
-      - name: Install uv
-        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
-        run: python -m pip install "uv==${UV_VERSION}"
-
-      - name: Cache Python dependencies
-        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/uv
-          key: ${{ runner.os }}-application-api-unit-uv-${{ hashFiles('api/pyproject.toml', 'api/uv.lock', 'sdks/python/pyproject.toml', 'sdks/python/uv.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-application-api-unit-uv-
-
-      - name: Install API dependencies
-        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
-        working-directory: api
-        run: |
-          uv sync --locked --python 3.13
-          uv pip install --python .venv/bin/python --editable ../sdks/python/
-
-      - name: Run enterprise API unit tests
-        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
-        working-directory: api
-        run: uv run --no-sync python run-tests.py --layer unit
-
-      - name: Publish enterprise API unit test results
-        if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages))
-        uses: EnricoMi/publish-unit-test-result-action@v2
-        with:
-          # AGENTA_LICENSE=ee makes run-tests.py write to ee/tests/results, not oss/.
           files: api/ee/tests/results/junit.xml
-          check_name: Application API Enterprise Unit Test Results
+          check_name: Application API Unit Test Results
           comment_mode: off
 
   run-api-ee-integration-tests:
@@ -625,9 +538,9 @@ jobs:
           command.downgrade(alembic_cfg, 'ee0000000003')
           "
 
-      # Explicit directories rather than `--layer integration`: with AGENTA_LICENSE=ee
-      # that flag would also collect oss/tests/pytest/integration, whose suites want
-      # dependencies this job does not stand up. Those belong in their own job.
+      # Explicit directories rather than `--layer integration`: that flag would also
+      # collect oss/tests/pytest/integration, whose suites want dependencies this job
+      # does not stand up. Those belong in their own job.
       - name: Run enterprise wallet and measurement integration tests
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
         working-directory: api
@@ -720,7 +633,9 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      AGENTA_LICENSE: oss
+      # Keeps the agenta_oss_* database names an open source install has; the API
+      # runs the same code path on every install.
+      POSTGRES_DB_PREFIX: agenta_oss
       AGENTA_API_URL: http://localhost:8000
       # Throwaway values for a stack that lives only inside this job.
       AGENTA_AUTH_KEY: ci-integration-auth-key
@@ -728,6 +643,13 @@ jobs:
       POSTGRES_URI_CORE: postgresql+asyncpg://username:password@localhost:5432/agenta_oss_core
       POSTGRES_URI_TRACING: postgresql+asyncpg://username:password@localhost:5432/agenta_oss_tracing
       REDIS_URI: redis://localhost:6379/0
+      # Send this stack's telemetry to the "Agenta Test Traffic" PostHog project, not to the
+      # built-in self-hosted project. The token is a public ingestion key. The off switch
+      # takes effect once the API reads AGENTA_TELEMETRY_ENABLED. The instance kind marks
+      # every event, update check and registration from this stack as test traffic.
+      POSTHOG_API_KEY: phc_rCKHKJj7ea3r5t7frogShC8MUsuFzSD6FFTJe7YniDV9
+      AGENTA_TELEMETRY_ENABLED: "false"
+      AGENTA_TELEMETRY_INSTANCE_KIND: test
     steps:
       - uses: actions/checkout@v6
         with:
@@ -788,7 +710,7 @@ jobs:
       - name: Migrate the OSS databases to head
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
         working-directory: api
-        run: uv run --no-sync python -m oss.databases.postgres.migrations.runner
+        run: uv run --no-sync python -m ee.databases.postgres.migrations.runner
 
       - name: Start the API and the mock gateways
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
@@ -815,10 +737,13 @@ jobs:
             done
           done
 
+      # The open source integration directory only: `--layer integration` would also
+      # collect ee/tests/pytest/integration, which run-api-ee-integration-tests runs
+      # with the parked core_ee chain those suites need.
       - name: Run API integration tests
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
         working-directory: api
-        run: uv run --no-sync python run-tests.py --layer integration
+        run: uv run --no-sync python run-tests.py oss/tests/pytest/integration
 
       - name: Show the API log
         if: failure() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages))
@@ -828,7 +753,7 @@ jobs:
         if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages))
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
-          files: api/oss/tests/results/junit.xml
+          files: api/ee/tests/results/junit.xml
           check_name: Application API Integration Test Results
           comment_mode: off
 
@@ -841,8 +766,6 @@ jobs:
       checks: write
       pull-requests: write
       contents: read
-    env:
-      AGENTA_LICENSE: oss
     steps:
       - uses: actions/checkout@v6
 
@@ -897,7 +820,7 @@ jobs:
         if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
-          files: services/oss/tests/results/junit.xml
+          files: services/ee/tests/results/junit.xml
           check_name: Application services Unit Test Results
           comment_mode: off
 

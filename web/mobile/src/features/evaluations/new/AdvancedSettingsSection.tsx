@@ -22,7 +22,7 @@ export const AdvancedSettingsSection = ({
 }) => (
     <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between gap-3">
-            <h3 className="m-0 text-sm font-semibold text-foreground">Concurrency</h3>
+            <h3 className="m-0 text-label text-foreground">Concurrency</h3>
             {isDefaultConcurrency(concurrency) ? null : (
                 <Button
                     type="button"

@@ -206,7 +206,7 @@ export function ListPopoverVariant<TSelection = EntitySelectionResult>({
             <div className={cn("flex flex-col", className)}>
                 <div className="flex items-center justify-center py-8">
                     <Spinner size="default" />
-                    <span className="ml-2 text-colorTextSecondary">{displayLoadingMessage}</span>
+                    <span className="ml-2 text-muted-foreground">{displayLoadingMessage}</span>
                 </div>
             </div>
         )
@@ -216,7 +216,7 @@ export function ListPopoverVariant<TSelection = EntitySelectionResult>({
     if (parentsError) {
         return (
             <div className={cn("flex flex-col", className)}>
-                <div className="flex items-center justify-center py-8 text-colorError">
+                <div className="flex items-center justify-center py-8 text-destructive">
                     Error: {parentsError.message}
                 </div>
             </div>
@@ -244,7 +244,7 @@ export function ListPopoverVariant<TSelection = EntitySelectionResult>({
                 <>
                     <Divider className="my-1" />
                     <div className="px-1 py-1">
-                        <span className="text-xs font-medium text-colorTextSecondary">
+                        <span className="text-label font-medium text-muted-foreground">
                             {sectionLabel}
                         </span>
                     </div>

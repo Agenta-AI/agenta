@@ -347,7 +347,7 @@ function ArrayBody({arr, depth, editable, onChange, schema}: ArrayBodyProps) {
                 />
             ))}
             {editable ? (
-                <Button variant="dashed" size="sm" onClick={addRow} style={styles.arrayAddRow}>
+                <Button variant="outline" size="sm" onClick={addRow} style={styles.arrayAddRow}>
                     <Plus size={14} />
                     {t("entityUi.formView.addRow")}
                 </Button>
@@ -426,7 +426,7 @@ function FieldBody({
                 placeholder={t("entityUi.formView.numberPlaceholder")}
                 // Pre-migration the 13px rode root `fontSize` and the inner input inherited
                 // it; the @agenta/ui inner input pins its own ramp, so target it directly.
-                className="[&_input]:text-[13px]"
+                className="[&_input]:text-label"
                 style={styles.numberInput}
             />
         )
@@ -568,7 +568,7 @@ function StringLeafEditor({value, mode, editable, onChange}: StringLeafEditorPro
 // a near-white rail on dark canvas — Kaosiso QA 2026-06-02 follow-up.)
 // Leaf editor now uses SharedEditor's `editorType="border"` so its own
 // border + hover + focus states apply; no leaf-level border needed here.
-const RAIL = "2px solid var(--ag-colorBorderSecondary)"
+const RAIL = "2px solid var(--border-muted)"
 
 const styles = {
     formOuter: {
@@ -608,7 +608,7 @@ const styles = {
         // Lives in the row's label row (far right, via FormField's
         // `headerRight` slot) so the field body extends to the full card
         // width and nested view-type selectors align with the card edge.
-        color: "var(--ag-colorTextTertiary)",
+        color: "var(--muted-foreground)",
     },
     arrayAddRow: {
         // Dashed primary-color affordance; visually distinct from the
@@ -658,7 +658,7 @@ const styles = {
         fontSize: 12,
         fontWeight: 600,
         lineHeight: "20px",
-        color: "var(--ag-colorText)",
+        color: "var(--foreground)",
         margin: 0,
     },
     nestedRail: {
@@ -677,7 +677,7 @@ const styles = {
     },
     emptyHint: {
         fontSize: 12,
-        color: "var(--ag-colorTextTertiary)",
+        color: "var(--muted-foreground)",
         fontStyle: "italic" as const,
     },
 }

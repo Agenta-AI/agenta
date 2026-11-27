@@ -17,5 +17,8 @@
     "running": "运行中",
     "searchSessions": "搜索会话",
     "today": "今天",
-    "type": "类型"
+    "type": "类型",
+    "searchDescription": "搜索此项目的会话。",
+    "searchHint": "输入以搜索此项目的会话。",
+    "noSessionsMatch": "没有匹配的会话。请换个词试试。"
 }

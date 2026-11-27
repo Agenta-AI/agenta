@@ -2,6 +2,8 @@ import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useAtomValue} from "jotai"
 
+import type {PageWidth} from "../page-layout/pageFrame"
+
 /**
  * The page column of a developer view. Beta developer mode gives it the full width, like the old
  * app: tables show more columns on a big screen. Without it the shared 1120px cap stays, so a
@@ -19,3 +21,7 @@ export const useDeveloperPageFrame = (): string =>
  */
 export const useDetailHeaderTop = (): string =>
     useAtomValue(betaDeveloperModeActiveAtom) ? "lg:pt-3" : "lg:pt-14"
+
+/** The `PageLayout` width of a developer view: uncapped in beta developer mode, the list cap without. */
+export const useDeveloperPageWidth = (): PageWidth =>
+    useAtomValue(betaDeveloperModeActiveAtom) ? "full" : "lg"

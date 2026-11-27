@@ -15,5 +15,7 @@
     "noIdYet": "Cette connexion n’a pas encore d’identifiant.",
     "publish": "Publier",
     "yourAgent": "votre agent",
-    "yourWorkspace": "votre espace de travail"
+    "yourWorkspace": "votre espace de travail",
+    "api": "API",
+    "disconnected": "{{platform}} déconnecté"
 }

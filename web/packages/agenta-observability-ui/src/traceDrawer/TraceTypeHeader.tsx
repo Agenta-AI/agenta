@@ -2,6 +2,8 @@ import {type ReactNode, useCallback, useMemo, useState} from "react"
 
 import {extractAgData} from "@agenta/entities/trace"
 import {richText, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import drawerCatalog from "@agenta/i18n/catalogs/observabilityUi.traceDrawer"
 import spanCatalog from "@agenta/i18n/catalogs/observabilityUi.traceSpan"
 import type {TraceSpanNode} from "@agenta/observability"
 import {closeTraceDrawerAtom} from "@agenta/observability/traceDrawer"
@@ -11,9 +13,9 @@ import {
     traceDrawerNavigate,
 } from "@agenta/observability/traceDrawer"
 import {getTraceIdFromNode} from "@agenta/observability/traceDrawer"
-import {EnhancedButton, Tag} from "@agenta/ui/components/presentational"
+import {Tag} from "@agenta/ui/components/presentational"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
-import {SimpleTooltip} from "@agenta/ui/ui"
+import {Button, LoadingButton, SimpleTooltip} from "@agenta/ui/ui"
 import {Trash} from "@phosphor-icons/react"
 import {Play, SidebarSimple} from "@phosphor-icons/react"
 import clsx from "clsx"
@@ -49,7 +51,7 @@ const TraceTypeHeader = ({
     setIsAnnotationsSectionOpen,
     isAnnotationsSectionOpen,
 }: TraceTypeHeaderProps) => {
-    const t = useT(spanCatalog)
+    const t = useT(spanCatalog, commonCatalog, drawerCatalog)
     const {AddToTestsetButton, AnnotateDrawerButton} = getTraceDrawerReferences()
     const {openTraceInPlayground, openWorkflowRevisionDrawer, hasAppReference, buildPlaygroundUrl} =
         getTraceDrawerPlaygroundActions()
@@ -212,14 +214,14 @@ const TraceTypeHeader = ({
     return (
         // min-h-10 matches the tree's search row beside it; on a phone-width panel the actions
         // wrap under the span name instead of squeezing it to nothing.
-        <div className="box-border min-h-10 px-4 py-1 flex shrink-0 flex-wrap items-center justify-between gap-2 border-0 border-b border-solid border-colorSplit">
+        <div className="box-border min-h-10 px-4 py-1 flex shrink-0 flex-wrap items-center justify-between gap-2 border-0 border-b border-solid border-border-muted">
             <SimpleTooltip
                 side="top"
                 title={
                     activeTrace?.span_name || (error ? t("observabilityUi.traceSpan.error") : "")
                 }
             >
-                <span className={clsx("truncate text-nowrap flex-1 min-w-32 text-sm font-medium")}>
+                <span className={clsx("truncate text-nowrap flex-1 min-w-32 text-label")}>
                     {activeTrace?.span_name || (error ? t("observabilityUi.traceSpan.error") : "")}
                 </span>
             </SimpleTooltip>
@@ -231,7 +233,7 @@ const TraceTypeHeader = ({
                     tooltipProps={{placement: "bottom", arrow: true}}
                 >
                     <Tag
-                        className="font-mono truncate bg-[var(--ag-c-0517290F)]"
+                        className="font-mono truncate bg-secondary"
                         label={`# ${activeTrace?.span_id || "—"}`}
                     />
                 </TooltipWithCopyAction>
@@ -242,16 +244,16 @@ const TraceTypeHeader = ({
                         title={!canOpenInPlayground ? openInPlaygroundState.reason : undefined}
                         side="bottom"
                     >
-                        <EnhancedButton
-                            type="default"
-                            size="small"
-                            icon={<Play size={14} />}
+                        <LoadingButton
+                            variant="outline"
+                            size="sm"
                             loading={isOpening}
                             disabled={!canOpenInPlayground || isOpening}
                             onClick={handleOpenInPlayground}
                         >
+                            <Play size={14} />
                             {t("observabilityUi.traceSpan.playground")}
-                        </EnhancedButton>
+                        </LoadingButton>
                     </SimpleTooltip>
                 )}
                 <AddToTestsetButton
@@ -272,28 +274,38 @@ const TraceTypeHeader = ({
                     data-tour="annotate-button"
                 />
 
-                <EnhancedButton
-                    icon={<Trash size={14} />}
-                    onClick={() =>
-                        setDeleteModalState({
-                            isOpen: true,
-                            traceIds: [getTraceIdFromNode(displayTrace) || ""],
-                            onClose: () => {
-                                if (setSelectedTraceId) setSelectedTraceId("")
-                            },
-                        })
-                    }
-                    disabled={!displayTrace}
-                    size="small"
-                />
+                <SimpleTooltip title={t("common.delete")}>
+                    <Button
+                        variant="outline"
+                        size="icon-sm"
+                        aria-label={t("common.delete")}
+                        onClick={() =>
+                            setDeleteModalState({
+                                isOpen: true,
+                                traceIds: [getTraceIdFromNode(displayTrace) || ""],
+                                onClose: () => {
+                                    if (setSelectedTraceId) setSelectedTraceId("")
+                                },
+                            })
+                        }
+                        disabled={!displayTrace}
+                    >
+                        <Trash size={14} />
+                    </Button>
+                </SimpleTooltip>
                 {setIsAnnotationsSectionOpen && (
-                    <EnhancedButton
-                        icon={<SidebarSimple size={14} />}
-                        type={isAnnotationsSectionOpen ? "default" : "primary"}
-                        className="shrink-0 flex items-center justify-center"
-                        onClick={() => setIsAnnotationsSectionOpen((prev) => !prev)}
-                        size="small"
-                    />
+                    <SimpleTooltip title={t("observabilityUi.traceDrawer.tabAnnotations")}>
+                        <Button
+                            variant={isAnnotationsSectionOpen ? "outline" : "default"}
+                            size="icon-sm"
+                            className="shrink-0"
+                            aria-label={t("observabilityUi.traceDrawer.tabAnnotations")}
+                            aria-pressed={isAnnotationsSectionOpen}
+                            onClick={() => setIsAnnotationsSectionOpen((prev) => !prev)}
+                        >
+                            <SidebarSimple size={14} />
+                        </Button>
+                    </SimpleTooltip>
                 )}
             </div>
         </div>

@@ -63,7 +63,7 @@ const matchesQuery = (template: AgentStarterTemplate, query: string) => {
     return haystack.includes(query)
 }
 
-/** One category block: uppercase header + per-section count, then the card grid. */
+/** One category block: a header + per-section count, then the card grid. */
 const TemplateSection = ({
     category,
     templates,
@@ -82,11 +82,9 @@ const TemplateSection = ({
                 without the category you are looking at. `pt-6` is the section's top inset,
                 carried HERE rather than on the scroller: a scroll container's padding-top
                 offsets its sticky children and cards then bleed through the band above. */}
-            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-x-0 border-t-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer pb-2 pt-6">
-                <span className="text-xs font-bold uppercase tracking-[0.06em] text-colorTextSecondary">
-                    {category}
-                </span>
-                <span className="shrink-0 text-xs text-colorTextTertiary">
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-x-0 border-t-0 border-b border-solid border-border-muted bg-background pb-2 pt-6">
+                <span className="text-label text-muted-foreground">{category}</span>
+                <span className="shrink-0 text-meta text-muted-foreground">
                     {t("home.templateGallery.sectionCount", {count: templates.length})}
                 </span>
             </div>
@@ -184,11 +182,11 @@ export const TemplateGallery = ({
             />
         ) : resultCount === 0 ? (
             <div
-                className={`flex flex-col items-center gap-3 rounded-lg border border-dashed border-colorBorder px-6 py-12 text-center${
+                className={`flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-6 py-12 text-center${
                     emptyInset ? " mt-6" : ""
                 }`}
             >
-                <span className="text-xs text-colorTextSecondary">
+                <span className="text-meta text-muted-foreground">
                     {hasQuery
                         ? t("home.templateGallery.noMatch", {query: query.trim()})
                         : t("home.templateGallery.noneInCategory", {category})}
@@ -199,7 +197,7 @@ export const TemplateGallery = ({
                         setQuery("")
                         onCategoryChange(ALL_TEMPLATES_CATEGORY)
                     }}
-                    className="cursor-pointer border-0 bg-transparent p-0 text-xs font-medium text-colorPrimary"
+                    className="cursor-pointer border-0 bg-transparent p-0 text-label text-primary"
                 >
                     {hasQuery
                         ? t("home.templateGallery.clearSearch")
@@ -234,14 +232,14 @@ export const TemplateGallery = ({
                             type="button"
                             aria-current={item.value === category}
                             onClick={() => onCategoryChange(item.value)}
-                            className={`box-border flex shrink-0 cursor-pointer items-center gap-2 rounded-lg border-0 px-3 py-2 text-left text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-colorPrimary lg:w-full ${
+                            className={`box-border flex shrink-0 cursor-pointer items-center gap-2 rounded-md border-0 px-3 py-2 text-left text-label transition-colors focus-ring lg:w-full ${
                                 item.value === category
-                                    ? "bg-colorFillSecondary text-colorText"
-                                    : "bg-transparent text-colorTextSecondary hover:bg-colorFillQuaternary"
+                                    ? "bg-secondary text-foreground"
+                                    : "bg-transparent text-muted-foreground hover:bg-accent"
                             }`}
                         >
                             <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                            <span className="shrink-0 text-xs text-colorTextTertiary">
+                            <span className="shrink-0 text-meta text-muted-foreground">
                                 {item.count}
                             </span>
                         </button>
@@ -280,11 +278,11 @@ export const TemplateGallery = ({
                     <div className="flex min-w-0 flex-col gap-1.5">
                         <div className="flex min-w-0 items-center gap-2">
                             {leading}
-                            <h1 className="m-0 min-w-0 flex-1 truncate text-[24px] font-semibold leading-tight text-colorText">
+                            <h1 className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
                                 {shownTitle}
                             </h1>
                         </div>
-                        <p className="m-0 text-[13px] text-colorTextSecondary">{shownSubtitle}</p>
+                        <p className="m-0 text-label text-muted-foreground">{shownSubtitle}</p>
                     </div>
 
                     {/* SearchInput IS the kit's prefixed+clearable input — `onValueChange` also
@@ -302,14 +300,14 @@ export const TemplateGallery = ({
                                 key={item.value}
                                 type="button"
                                 onClick={() => onCategoryChange(item.value)}
-                                className={`box-border flex shrink-0 cursor-pointer items-center gap-2 rounded-lg border-0 px-3 py-2 text-left text-sm transition-colors lg:w-full ${
+                                className={`box-border flex shrink-0 cursor-pointer items-center gap-2 rounded-md border-0 px-3 py-2 text-left text-label transition-colors lg:w-full ${
                                     item.value === category
-                                        ? "bg-colorFillSecondary text-colorText"
-                                        : "bg-transparent text-colorTextSecondary hover:bg-colorFillQuaternary"
+                                        ? "bg-secondary text-foreground"
+                                        : "bg-transparent text-muted-foreground hover:bg-accent"
                                 }`}
                             >
                                 <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                                <span className="shrink-0 text-xs text-colorTextTertiary">
+                                <span className="shrink-0 text-meta text-muted-foreground">
                                     {item.count}
                                 </span>
                             </button>

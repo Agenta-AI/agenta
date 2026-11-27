@@ -3,7 +3,7 @@ import Section from "./Section.astro";
 // SiteFooter — dark footer. Content + links from the design's content/site.json
 // (inlined to keep the website package self-contained). External links are real;
 // internal routes point at their intended path (some 404 until those pages ship).
-const blurb = "The open-source agent orchestration platform";
+const blurb = "The open-source agent platform";
 
 // icon files: social-1 = X, social-2 = Slack, social-3 = GitHub,
 // social-linkedin = LinkedIn. (social-4/social-5 are an OpenAI mark and a play
@@ -60,12 +60,12 @@ const columns: { heading: string; links: Link[] }[] = [
     links: [
       { label: "Imprint", href: "/imprint" },
       {
-        label: "Terms of services",
+        label: "Terms of service",
         href: "https://agenta.ai/docs/administration/security/terms-of-service",
         external: true,
       },
       {
-        label: "Privacy Policy",
+        label: "Privacy policy",
         href: "https://agenta.ai/docs/administration/security/privacy-policy",
         external: true,
       },
@@ -160,14 +160,6 @@ const copyright = `Copyright © 2020 – ${new Date().getFullYear()} Agentatech 
   >
     <span style="font:var(--text-caption);color:var(--th-text-dim);"
       >{copyright}</span
-    >
-    <a
-      class="ag-foot-link"
-      href="https://agenta.ai/docs/administration/security/privacy-policy"
-      target="_blank"
-      rel="noopener"
-      style="font:var(--text-caption);color:var(--th-text-dim);text-decoration:none;"
-      >Privacy policy</a
     >
   </div>
 </Section>

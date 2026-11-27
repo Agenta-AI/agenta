@@ -1,9 +1,10 @@
 import {useT} from "@agenta/i18n"
 import channelsListCatalog from "@agenta/i18n/catalogs/channels.list"
+import channelsManageCatalog from "@agenta/i18n/catalogs/channels.manage"
 import {Button} from "@agenta/ui/ui"
 import {CaretRight, Plus} from "@phosphor-icons/react"
 
-import {ROW_BUTTON, connectionRowText} from "./helpers"
+import {ROW_BUTTON, SECTION_LABEL, connectionRowText} from "./helpers"
 import type {ChannelConnection, ChannelPlatform} from "./types"
 
 export interface ChannelConnectionListProps {
@@ -23,20 +24,21 @@ export const ChannelConnectionList = ({
     onSelect,
     onAdd,
 }: ChannelConnectionListProps) => {
-    const t = useT(channelsListCatalog)
+    const t = useT(channelsListCatalog, channelsManageCatalog)
     const isSlack = platform === "slack"
     const hostedHere = connections.some((c) => c.kind === "hosted")
+    const empty = connections.length === 0
     return (
         <div className="flex flex-col gap-2.5" data-testid="channels-connection-list">
-            <div className="flex items-baseline justify-between px-0.5">
-                <span className="text-[13px] font-semibold text-foreground">
+            <div className="flex items-baseline justify-between">
+                <span className={SECTION_LABEL}>
                     {isSlack
                         ? t("channels.list.workspaces")
                         : platform === "whatsapp"
                           ? t("channels.list.numbers")
                           : t("channels.list.bots")}
                 </span>
-                <span className="text-[12.5px] text-muted-foreground">
+                <span className="text-label text-muted-foreground">
                     {t("channels.list.connectedCount", {count: connections.length})}
                 </span>
             </div>
@@ -51,26 +53,27 @@ export const ChannelConnectionList = ({
                             disabled={!id}
                             onClick={() => id && onSelect(id)}
                             data-testid={`channels-connection-${id}`}
-                            className={`${ROW_BUTTON} w-full gap-3 rounded-none border-0 border-b border-solid border-border px-1 py-3`}
+                            className={`${ROW_BUTTON} box-border min-h-row-double w-full gap-3 px-1 py-1`}
                         >
-                            <span className="flex size-8 flex-none items-center justify-center rounded-lg bg-muted text-[13px] font-semibold text-muted-foreground">
+                            <span className="flex size-8 flex-none items-center justify-center rounded-md bg-secondary text-label font-medium text-muted-foreground">
                                 {title.replace(/^@/, "").charAt(0).toUpperCase()}
                             </span>
                             <span className="flex min-w-0 flex-1 flex-col gap-px">
-                                <span className="truncate text-sm font-medium text-foreground">
-                                    {title}
-                                </span>
-                                <span className="truncate text-[12.5px] text-muted-foreground">
+                                <span className="truncate text-label text-foreground">{title}</span>
+                                <span className="truncate text-meta text-muted-foreground">
                                     {detail}
                                 </span>
                             </span>
-                            <span
-                                className={`size-1.5 flex-none rounded-full ${
-                                    connection.status === "revoked"
-                                        ? "bg-colorError"
-                                        : "bg-colorSuccess"
-                                }`}
-                            />
+                            {/* A lost connection says so in words; a live one is quiet. */}
+                            {connection.status === "revoked" ? (
+                                <span className="flex flex-none items-center gap-1.5 text-meta text-destructive">
+                                    <span
+                                        aria-hidden
+                                        className="size-1.5 rounded-round bg-current"
+                                    />
+                                    {t("channels.manage.notAnswering")}
+                                </span>
+                            ) : null}
                             <CaretRight size={12} className="flex-none text-muted-foreground" />
                         </Button>
                     )
@@ -78,17 +81,25 @@ export const ChannelConnectionList = ({
                 <Button
                     variant="ghost"
                     onClick={onAdd}
-                    className={`${ROW_BUTTON} w-full gap-3 px-1 py-3 text-muted-foreground`}
+                    className={`${ROW_BUTTON} box-border min-h-row-double w-full gap-3 px-1 py-1 text-muted-foreground`}
                     data-testid="channels-connection-add"
                 >
-                    <span className="flex size-8 flex-none items-center justify-center rounded-lg border border-dashed border-border">
+                    <span className="flex size-8 flex-none items-center justify-center rounded-md bg-secondary">
                         <Plus size={14} />
                     </span>
-                    <span className="text-sm">
+                    <span className="text-label">
                         {isSlack
-                            ? t("channels.list.addWorkspace")
+                            ? t(
+                                  empty
+                                      ? "channels.list.addFirstWorkspace"
+                                      : "channels.list.addWorkspace",
+                              )
                             : platform === "whatsapp"
-                              ? t("channels.list.addNumber")
+                              ? t(
+                                    empty
+                                        ? "channels.list.addFirstNumber"
+                                        : "channels.list.addNumber",
+                                )
                               : hostedHere
                                 ? t("channels.list.addOwnBot")
                                 : t("channels.list.addBot")}

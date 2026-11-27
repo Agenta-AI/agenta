@@ -15,6 +15,7 @@
     "grantViewOnlyByRole": "閲覧のみ：この方のプロジェクトでのロールでは送信できません。",
     "invalidGrantee": "{{name}} はこのプロジェクトのメンバーではなくなりました。他の人と共有するには、この人を削除してください。",
     "inviteButton": "招待",
+    "inviteRoleLabel": "招待するユーザーのアクセス権",
     "inviteViewOnly": "{{names}} は閲覧のみ：プロジェクトでのロールでは送信できません。",
     "linkCopied": "リンクをコピーしました。アクセスできる人だけが開けます。",
     "linkCopiedNobodyYet": "リンクをコピーしました。まだ他に開ける人はいません。",

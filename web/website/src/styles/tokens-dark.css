@@ -18,7 +18,7 @@
   --ag-d-chrome: #131110; /* nav / footer chrome */
 
   /* Frosted fill for floating / sticky surfaces (use with backdrop-filter) */
-  --ag-d-glass: rgba(18, 16, 15, 0.72);
+  --ag-d-glass: rgba(18, 16, 15, 0.93);
 
   /* ── Borders — warm-white alphas ───────────────────────────────────────── */
   --ag-d-border-subtle: rgba(252, 248, 240, 0.06); /* hairline / section rule */

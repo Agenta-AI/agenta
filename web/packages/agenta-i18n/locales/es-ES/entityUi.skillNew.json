@@ -1,5 +1,4 @@
 {
-    "addManuallyHint": "Desde tu registro, o escribe una",
     "added": "Añadida",
     "addSkillAria": "Añadir {{name}}",
     "removeSkillAria": "Quitar {{name}}",
@@ -13,6 +12,5 @@
     "uploadLine": "Solo archivos de texto. La subida se abre en el editor y no se guarda nada hasta «Crear skill».",
     "or": "o",
     "scan": "Escanear",
-    "leaveDescription": "¿Crear la skill en tu registro de skills o descartarla?",
     "notAddedToAgent": "Importada al registro de skills, pero no añadida a este agente: {{names}}."
 }

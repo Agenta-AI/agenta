@@ -33,14 +33,14 @@ export const EvaluatorsConfigSection = ({
         }
     >
         {evaluators.length === 0 ? (
-            <p className="m-0 text-sm text-muted-foreground">
+            <p className="m-0 text-body text-muted-foreground">
                 No evaluator reference found for this run.
             </p>
         ) : (
             <div className="flex flex-col gap-3">
                 {evaluators.map((evaluator, index) =>
                     evaluator.failed ? (
-                        <p key={evaluator.key} className="m-0 text-sm text-destructive">
+                        <p key={evaluator.key} className="m-0 text-body text-destructive">
                             Failed to load evaluator details
                         </p>
                     ) : evaluator.pending ? (

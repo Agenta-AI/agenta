@@ -8,7 +8,6 @@
  */
 import {useMemo} from "react"
 
-import {organizationLabel} from "@agenta/entities/organization"
 import {
     deleteSecretAtom,
     isSubscriptionConnection,
@@ -67,22 +66,6 @@ const rowDescription = (
     ]
         .filter(Boolean)
         .join(" · ")
-
-const EmptyNote = ({manage}: {manage: boolean}) => {
-    const t = useT(settingsProvidersCatalog)
-    return (
-        <div className="flex flex-col gap-0.5">
-            <span className="text-[14.5px] font-medium leading-5 text-foreground">
-                {t("settings.providers.orgEmptyTitle")}
-            </span>
-            {manage ? (
-                <span className="text-[13px] leading-[18px] text-muted-foreground">
-                    {t("settings.providers.orgEmptyBody")}
-                </span>
-            ) : null}
-        </div>
-    )
-}
 
 export interface OrganizationProvidersGroup {
     /** The group, or null while there is nothing to show (a member with no connection). */
@@ -144,9 +127,7 @@ export const useOrganizationProvidersGroup = (
             loading: access === "loading" || (access === "view" && vault.isPending),
             describe: (connection: ProviderConnection) =>
                 isSubscriptionConnection(connection)
-                    ? [connection.title, subscriptionStatusLine(connection.subscription)]
-                          .filter(Boolean)
-                          .join(" · ")
+                    ? subscriptionStatusLine(connection.subscription)
                     : rowDescription(
                           connection,
                           manage ? projectsSummary(connection, names, t) : null,
@@ -176,7 +157,6 @@ export const useOrganizationProvidersGroup = (
                     }
                 />
             ) : undefined,
-            emptyFooter: manage ? <EmptyNote manage /> : undefined,
             organization: drawerScope,
             // A manager signs the organization in to ChatGPT or Claude here.
             offersSubscriptions: manage,
@@ -203,11 +183,9 @@ export const useOrganizationProvidersGroup = (
 
     return useMemo(
         () => ({
-            group: source
-                ? {key: "organization", label: organizationLabel(scope?.name ?? ""), source}
-                : null,
+            group: source ? {key: "organization", owner: "organization" as const, source} : null,
             manageScope: manage ? drawerScope : null,
         }),
-        [source, scope?.name, manage, drawerScope],
+        [source, manage, drawerScope],
     )
 }

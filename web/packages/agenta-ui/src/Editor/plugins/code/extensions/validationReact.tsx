@@ -41,8 +41,8 @@ function ErrorTooltip({errors}: {errors: ErrorInfo[]}) {
     const uniqueErrors = Object.values(groupedErrors)
 
     return (
-        <div className="bg-gray-900 text-white text-xs rounded-lg shadow-lg p-3 max-w-sm">
-            <div className="font-semibold mb-2 text-[12px]">
+        <div className="bg-popover text-popover-foreground text-meta rounded-lg shadow-overlay p-3 max-w-sm">
+            <div className="font-semibold mb-2 text-meta">
                 {t("ui.editor.errorCount", {count: uniqueErrors.length})}
             </div>
             <div className="space-y-2 max-h-48 overflow-y-auto">
@@ -58,17 +58,19 @@ function ErrorTooltip({errors}: {errors: ErrorInfo[]}) {
                     return (
                         <div
                             key={`${error.type}-${index}`}
-                            className="border-0 border-l-2 border-solid border-red-400 pl-2"
+                            className="border-0 border-l border-solid border-destructive pl-2"
                         >
                             <div className="flex items-center justify-between">
-                                <span className="text-red-300 font-medium capitalize text-[12px]">
+                                <span className="text-destructive font-medium capitalize text-meta">
                                     {error.type}
                                 </span>
                                 {lineDisplay && (
-                                    <span className="text-gray-400 text-[9px]">{lineDisplay}</span>
+                                    <span className="text-muted-foreground text-caption">
+                                        {lineDisplay}
+                                    </span>
                                 )}
                             </div>
-                            <div className="mt-1 text-gray-200 text-[12px]">{error.message}</div>
+                            <div className="mt-1 text-foreground text-meta">{error.message}</div>
                         </div>
                     )
                 })}
@@ -93,11 +95,11 @@ function ErrorIndicator({
             onMouseLeave={onMouseLeave}
         >
             <div className="relative">
-                <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-lg">
+                <div className="w-6 h-6 bg-destructive rounded-md flex items-center justify-center text-background text-caption font-semibold">
                     !
                 </div>
                 {errorCount > 1 && (
-                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-destructive rounded-sm flex items-center justify-center text-background text-caption font-semibold">
                         {errorCount > 9 ? "9+" : errorCount}
                     </div>
                 )}

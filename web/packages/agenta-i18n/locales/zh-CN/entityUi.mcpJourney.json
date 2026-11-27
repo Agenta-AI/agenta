@@ -39,5 +39,16 @@
     "noProjectSecrets": "未找到项目密钥",
     "unnamedSecret": "未命名密钥",
     "createSecret": "创建密钥",
-    "advancedSummary": "回调 URL、客户端 ID、权限范围"
+    "advancedSummary": "回调 URL、客户端 ID、权限范围",
+    "missingUrl": "添加服务器 URL",
+    "invalidUrl": "输入以 https:// 开头的完整 URL",
+    "missingName": "添加名称",
+    "nameTaken": "选择其他连接未使用的名称",
+    "missingKeyName": "添加发送密钥时使用的名称",
+    "missingProjectSecret": "选择一个项目密钥",
+    "missingClient": "添加客户端 ID 和密钥",
+    "missingClientSecret": "选择客户端密钥",
+    "advancedSummaryClient": "回调 URL、客户端 ID",
+    "advancedSummaryScopes": "权限范围",
+    "newSecret": "新建密钥"
 }

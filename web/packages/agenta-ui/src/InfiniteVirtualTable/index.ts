@@ -134,7 +134,7 @@ export {useDefaultStoreAtomValue} from "../hooks/useDefaultStoreAtomValue"
 
 // Additional exports
 export {default as SkeletonLine} from "./components/common/SkeletonLine"
-export {ResizableTitle, SkeletonCell} from "./components/common/ResizableTitle"
+export {ResizableTitle} from "./components/common/ResizableTitle"
 export {useTableExport, EXPORT_RESOLVE_SKIP} from "./hooks/useTableExport"
 export type {TableExportColumnContext} from "./hooks/useTableExport"
 

@@ -13,7 +13,7 @@
     "appSecret": "アプリシークレット",
     "appUninstalled": "{{platform}} がアプリをアンインストールしました",
     "botToken": "ボットトークン",
-    "botUserOAuthToken": "Bot User OAuth Token",
+    "botUserOAuthToken": "Bot user OAuth token",
     "channels": "チャンネル",
     "channelsAndGroupChats": "チャンネルとグループチャット",
     "channelsItsIn": "参加しているチャンネル",
@@ -75,7 +75,7 @@
     "revokedHelpWhatsApp": "新しいアクセストークンを貼り付けるまで、{{agent}} はそこで応答できません。",
     "runInviteFirst": "先に /invite を実行してください",
     "searchChannels": "チャンネルを検索",
-    "signingSecret": "Signing Secret",
+    "signingSecret": "Signing secret",
     "since": "{{date}} から",
     "telegramRevokedToken": "Telegram がボットトークンを取り消しました",
     "turnOnFailed": "{{platform}} をオンにできませんでした。もう一度お試しください。",
@@ -84,5 +84,6 @@
     "updateToken": "トークンを更新",
     "useOwnApp": "独自のアプリを使用",
     "useOwnBot": "独自のボットを使用",
-    "webhook": "Webhook"
+    "webhook": "Webhook",
+    "disconnectPendingConfirm": "{{subject}} へのリンクを取り消しますか？リンクは完了していないため、{{agent}} はまだそこで応答していません。"
 }
