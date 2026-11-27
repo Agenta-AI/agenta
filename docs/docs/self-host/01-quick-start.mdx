@@ -72,6 +72,10 @@ AGENTA_WEB_URL=http://localhost:90
 
 Updating your local Agenta installation to the latest version, requires pulling the latest version with `--pull always` and running migrations if any.
 
+:::caution Older OSS installs may have stored sign-in accounts in memory
+Recreating the `supertokens` container can drop accounts when `POSTGRESQL_CONNECTION_URI` was empty. Check the running stack before the upgrade below. If SuperTokens was in memory, make the stack reachable only from your own machine before the upgrade: while the account database is empty, anyone who can reach the sign-in form can set a password for an existing user's email and open that user's projects, and that includes other people on a trusted network. Then submit the sign-in form yourself once for each affected email with a temporary password. That submit creates the missing account. Open access again only after every affected email has an account, and send each user their temporary password through a channel you already trust. A password reset leaves the account missing: the reset API returns success and sends nothing, and an admin reset link returns `UnknownUserIdError` for the old SuperTokens user id. See [Standard Upgrade Process](/self-host/upgrading#standard-upgrade-process).
+:::
+
 1. In the folder where you cloned Agenta, get the newest compose files. A release can change them:
 ```bash
 git pull

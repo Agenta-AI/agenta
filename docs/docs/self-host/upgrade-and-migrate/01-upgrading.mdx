@@ -389,6 +389,35 @@ Those rows are the stored OAuth registrations and tokens for MCP connections. De
 
 ## Standard Upgrade Process
 
+:::caution Older OSS Compose installs kept SuperTokens accounts in memory
+Older OSS Compose files (`docker-compose.gh.yml`, `docker-compose.gh.local.yml`, and `docker-compose.gh.ssl.yml`) set `POSTGRESQL_CONNECTION_URI` from `POSTGRES_URI_SUPERTOKENS` with no fallback, or left the variable out. `env.oss.gh.example` keeps `POSTGRES_URI_SUPERTOKENS` commented out, so `supertokens/supertokens-postgresql:11` stored accounts in memory. Recreating the `supertokens` container during an upgrade (`docker compose ... up -d --pull always`, or editing the env file) drops those accounts. Sign-in then returns `WRONG_CREDENTIALS_ERROR`. Application data in the Agenta Postgres databases stays in place.
+
+Check a running stack before you upgrade. Read the URI the container is using:
+
+```bash
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh exec supertokens printenv POSTGRESQL_CONNECTION_URI
+```
+
+No printed value means SuperTokens is on its in-memory database. Then check for tables and rows in `agenta_oss_supertokens`:
+
+```bash
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh exec postgres \
+  psql -U username -d agenta_oss_supertokens -c '\dt' -c "SELECT relname, n_live_tup FROM pg_stat_user_tables ORDER BY n_live_tup DESC;"
+```
+
+`Did not find any relations` means this database has no SuperTokens data. `n_live_tup` is Postgres's row estimate for each table. Use the compose file and env file of your deployment when that is `docker-compose.gh.local.yml` or `docker-compose.gh.ssl.yml`.
+
+Current compose files set `POSTGRESQL_CONNECTION_URI` to `postgresql://username:password@postgres:5432/agenta_oss_supertokens` (with your `POSTGRES_USER` and `POSTGRES_PASSWORD` when set) when `POSTGRES_URI_SUPERTOKENS` is unset or empty. `init-db-oss.sql` creates that database. An install that was in memory starts it empty.
+
+A password reset leaves that database empty. With no email/password user, the reset API returns success and sends no email. An admin reset link calls `create_reset_password_link` with the old SuperTokens user id stored on the Agenta user and returns `UnknownUserIdError`. No new password is stored, and sign-in stays broken.
+
+Restrict access before you recreate the container. Email/password sign-up does not verify that the person owns the email, so while the SuperTokens database is empty, anyone who can reach the sign-in form can create a password for an existing user's email and open that user's projects. Make the stack reachable only from your own machine, and keep it that way until every affected account is back. A trusted network is not enough: any person on it could submit the form with a colleague's email before that colleague does. Restrict every port your deployment publishes, not just one: `TRAEFIK_PORT` in `docker-compose.gh.yml` and `docker-compose.gh.local.yml`, `TRAEFIK_PORT` and `TRAEFIK_HTTPS_PORT` in `docker-compose.gh.ssl.yml`, and `NGINX_PORT` when you run the `with-nginx` profile. Bind each one to `127.0.0.1` (for example `TRAEFIK_HTTPS_PORT=127.0.0.1:443`) or firewall it to your own address. A loopback bind does not help when a reverse proxy, load balancer or tunnel on the host still forwards public traffic to that port, as in a remote deployment behind your own proxy. Stop that proxy or restrict it to your own address too.
+
+With access restricted, run the upgrade steps under [Standard Upgrade Process](#standard-upgrade-process) below, which recreate the `supertokens` container. Then come back here and recreate the accounts before you open access again.
+
+Recreate the accounts yourself. For each affected email, submit the sign-in form once with that email and a new temporary password. Sign-in returns `WRONG_CREDENTIALS_ERROR` because the account is missing, and the form then creates the SuperTokens account with the password you entered. Agenta matches that email to the existing user, so their projects and data stay in place. The new account is in Postgres, and sign-in persists across later upgrades. Open access again only after you have created an account for every affected email, so no one else can claim one first. Send each user their temporary password through a channel you already trust. A `POSTGRES_URI_SUPERTOKENS` value in the env file or the shell still overrides this default and keeps SuperTokens on that external database. A `POSTGRESQL_CONNECTION_URI` in the env file passed with `--env-file` is kept too, below `POSTGRES_URI_SUPERTOKENS`. The bundled default uses `POSTGRES_USER` and `POSTGRES_PASSWORD`, so set `POSTGRES_URI_SUPERTOKENS` yourself when the password has URI reserved characters such as `@`, `:` or `/`.
+:::
+
 For most upgrades, follow these steps to update your Agenta instance:
 
 ### 1. Update the Files in Your Clone
