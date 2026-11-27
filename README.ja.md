@@ -241,7 +241,7 @@ Agenta が役に立ったら、リポジトリにスターを付けて、あな�
 ## コントリビューター ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-107-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-108-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 すばらしいコントリビューターの皆さんに感謝します（[絵文字の凡例](https://allcontributors.org/docs/en/emoji-key)）：
@@ -389,6 +389,7 @@ Agenta が役に立ったら、リポジトリにスターを付けて、あな�
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/TbhVishal"><img src="https://avatars.githubusercontent.com/u/146272351?v=4&size=100" width="100px" height="100px" alt="Vishal Sharma"/><br /><sub><b>Vishal Sharma</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=TbhVishal" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Tkrechet"><img src="https://avatars.githubusercontent.com/u/84284166?v=4&size=100" width="100px" height="100px" alt="Anatoly Krechetnikov"/><br /><sub><b>Anatoly Krechetnikov</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=Tkrechet" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://www.linkedin.com/in/muzaqil-hesenli"><img src="https://avatars.githubusercontent.com/u/229985354?v=4&size=100" width="100px" height="100px" alt="Muzaqil Hesenli"/><br /><sub><b>Muzaqil Hesenli</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=Muzaqil555" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
