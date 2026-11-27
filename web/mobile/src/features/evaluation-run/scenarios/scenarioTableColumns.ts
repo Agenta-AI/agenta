@@ -6,8 +6,6 @@ import {
 import {type RunColumnGroup, unwrapStatsForCompare} from "@agenta/entities/evaluationRun/etl"
 import {detectValueShape, type ValueShape} from "@agenta/shared/utils"
 
-import {metricDisplayLabel} from "../metricLabel"
-
 import type {ScenarioCell, ScenarioRow} from "./scenarioColumns"
 
 /**
@@ -113,7 +111,8 @@ export function scenarioColumnModel(
                         key: valueColumnKey(group.key, name),
                         groupKey: group.key,
                         name,
-                        label: metricDisplayLabel(name, groupLabel),
+                        // The board names a metric by its output key, under the evaluator.
+                        label: name,
                         metricKind: kind ?? (value === undefined ? null : metricKindOfValue(value)),
                     }
                 }),

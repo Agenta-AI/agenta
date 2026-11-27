@@ -211,7 +211,7 @@ describe("scenarios table", () => {
     it("Each row shows the cost, duration, tokens and errors of its app call", async () => {
         await mount({ids: ["sc-1"]})
         // The invocation metrics close the first header row; the evaluator's metric is below.
-        expect(headers().slice(4)).toEqual(["Cost", "Duration", "Tokens", "Errors", "Success"])
+        expect(headers().slice(4)).toEqual(["Cost", "Duration", "Tokens", "Errors", "success"])
         const text = rows()[0].textContent ?? ""
         expect(text).toContain("$0.000012")
         expect(text).toContain("522ms")
@@ -286,15 +286,15 @@ describe("scenarios table", () => {
 
     it("Text metrics are hidden by default and their chip shows them", async () => {
         await mount({ids: ["sc-1"], reasons: true})
-        expect(headers()).toContain("Success")
-        expect(headers()).not.toContain("Reason")
+        expect(headers()).toContain("success")
+        expect(headers()).not.toContain("reason")
         await openMenu(button("Display"))
         expect(menuItem("Columns")?.textContent).toContain("1 hidden")
         await click(menuItem("Columns"))
-        const chip = button("Reason")
+        const chip = button("reason")
         expect(chip?.getAttribute("aria-pressed")).toBe("false")
         await click(chip)
-        expect(headers()).toContain("Reason")
+        expect(headers()).toContain("reason")
         expect(rows()[0].textContent).toContain("Reason for sc-1")
     })
 
@@ -351,7 +351,7 @@ describe("scenarios table", () => {
     it("A sort orders the loaded rows and says so while more pages exist", async () => {
         await mount({ids: ["sc-1", "sc-2", "sc-3"], pageSize: 2, failing: ["sc-1"]})
         expect(rowCountries()).toEqual(["France", "Japan"])
-        await openMenu(button("Success"))
+        await openMenu(button("success"))
         await click(menuItem("Sort descending"))
         expect(rowCountries()).toEqual(["Japan", "France"])
         expect(host.textContent).toContain(

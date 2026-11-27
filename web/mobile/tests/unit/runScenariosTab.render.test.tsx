@@ -166,7 +166,7 @@ describe("scenarios tab", () => {
             "Duration",
             "Tokens",
             "Errors",
-            "Success",
+            "success",
         ])
         expect(rows()).toHaveLength(3)
         expect(rows()[0].textContent).toContain("1")

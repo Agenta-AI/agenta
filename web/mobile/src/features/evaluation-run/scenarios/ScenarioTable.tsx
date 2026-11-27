@@ -106,11 +106,18 @@ export const ScenarioTable = ({
             )
         const widthOf = (column: ScenarioColumn) =>
             widths[column.key] ?? defaultColumnWidth(column, density)
-        const header = (column: ScenarioColumn, text: string, title: string, right = false) => (
+        const header = (
+            column: ScenarioColumn,
+            text: string,
+            title: string,
+            right = false,
+            narrow = false,
+        ) => (
             <ScenarioColumnMenu
                 label={text}
                 title={title}
                 align={right ? "right" : "left"}
+                narrow={narrow}
                 width={widthOf(column)}
                 sorted={sort?.key === column.key ? sort.direction : null}
                 onSort={(direction) => onSort({key: column.key, direction})}
@@ -283,7 +290,13 @@ export const ScenarioTable = ({
                     const right = column.metricKind === "numeric"
                     return valueColumn(
                         column,
-                        header(column, column.label, `${group.label} · ${column.label}`, right),
+                        header(
+                            column,
+                            column.label,
+                            `${group.label} · ${column.label}`,
+                            right,
+                            compact,
+                        ),
                         {narrow: compact, first: position === 0},
                     )
                 }),

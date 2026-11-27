@@ -33,6 +33,7 @@ export const ScenarioColumnMenu = ({
     label,
     title,
     align = "left",
+    narrow = false,
     width,
     sorted,
     onSort,
@@ -44,6 +45,8 @@ export const ScenarioColumnMenu = ({
     /** The column's full name, at the top of the menu. */
     title: string
     align?: "left" | "right"
+    /** Compact metric columns: 4px side padding, as their cells. */
+    narrow?: boolean
     width: number
     sorted: SortDirection | null
     onSort: (direction: SortDirection) => void
@@ -58,7 +61,8 @@ export const ScenarioColumnMenu = ({
             <DropdownMenuTrigger
                 title={title}
                 className={clsx(
-                    "flex h-7 w-full min-w-0 cursor-pointer items-center gap-1 rounded-sm border-0 bg-transparent px-2 text-meta font-normal text-muted-foreground outline-none hover:bg-accent focus-visible:bg-accent aria-expanded:bg-accent",
+                    "flex h-7 w-full min-w-0 cursor-pointer items-center gap-1 rounded-sm border-0 bg-transparent text-meta font-normal text-muted-foreground outline-none hover:bg-accent focus-visible:bg-accent aria-expanded:bg-accent",
+                    narrow ? "px-1" : "px-2",
                     align === "right" && "flex-row-reverse",
                 )}
             >
