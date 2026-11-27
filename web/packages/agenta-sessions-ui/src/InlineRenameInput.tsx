@@ -34,8 +34,12 @@ const InlineRenameInput = ({
             onChange={(event) => rename.setDraft(event.target.value)}
             onBlur={() => void rename.commit()}
             onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== "Escape") return
+                // The field owns the key: a page-level Escape (Stop) must not see it.
+                event.preventDefault()
+                event.stopPropagation()
                 if (event.key === "Enter") void rename.commit()
-                if (event.key === "Escape") rename.cancel()
+                else rename.cancel()
             }}
             className={
                 className ??
