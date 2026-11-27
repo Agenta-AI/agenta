@@ -48,8 +48,14 @@ let container: HTMLDivElement
 let step: PersonalSetupStep
 let store: ReturnType<typeof createStore>
 
-const Probe = ({sessionId = "session-1"}: {sessionId?: string}) => {
-    step = usePersonalSetupStep(sessionId, "revision-1")
+const Probe = ({
+    sessionId = "session-1",
+    revisionId = "revision-1",
+}: {
+    sessionId?: string
+    revisionId?: string
+}) => {
+    step = usePersonalSetupStep(sessionId, revisionId)
     return null
 }
 
@@ -95,6 +101,20 @@ describe("usePersonalSetupStep", () => {
         answer([req("secret:user/B")])
         expect([...step.pendingKeys]).toEqual(["secret:user/B"])
         expect(step.items.map((item) => item.key)).toEqual(["secret:user/A", "secret:user/B"])
+    })
+
+    it("takes the rows again when the chat moves to a new revision", () => {
+        answer([req("secret:user/A")])
+        // The mock has one answer for every revision: a new revision starts with no answer.
+        answer(null)
+        act(() =>
+            root.render(
+                createElement(Provider, {store}, createElement(Probe, {revisionId: "revision-2"})),
+            ),
+        )
+        answer([req("secret:user/B")])
+        expect(step.items.map((item) => item.key)).toEqual(["secret:user/B"])
+        expect([...step.pendingKeys]).toEqual(["secret:user/B"])
     })
 
     it("stays hidden while personal accounts are off for the deployment", () => {

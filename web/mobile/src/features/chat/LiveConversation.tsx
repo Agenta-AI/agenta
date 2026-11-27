@@ -595,7 +595,8 @@ export const LiveConversation = ({
     )
     // The viewer's own missing "user" items. Optional: it never holds a message.
     const personalSetup = usePersonalSetupStep(sessionId, entityId)
-    const personalSetupOpen = personalSetup.open && !readOnly && !accessPending
+    // A view with no composer (an automation run) has nothing to send, so the card stays away.
+    const personalSetupOpen = personalSetup.open && !hideComposer && !readOnly && !accessPending
     useEffect(() => {
         if (!pendingTask || pendingTask.delivery || locked) return
         const decision = pendingTaskDecision({
