@@ -991,6 +991,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "Tkrechet",
+      "name": "Anatoly Krechetnikov",
+      "avatar_url": "https://avatars.githubusercontent.com/u/84284166?v=4",
+      "profile": "https://github.com/Tkrechet",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
