@@ -11,13 +11,9 @@ import {
 } from "react"
 
 import {traceSpanMolecule} from "@agenta/entities/trace"
-import {
-    buildDecodedJsonOutput,
-    normalizeEscapedLineBreaks,
-    parseStructuredJson,
-} from "@agenta/observability-ui/drillIn"
+import {buildDecodedJsonOutput, normalizeEscapedLineBreaks} from "@agenta/observability-ui/drillIn"
 import {getDefaultJsonViewMode} from "@agenta/observability-ui/drillIn"
-import {sanitizeDataWithBlobUrls} from "@agenta/shared/utils"
+import {parseStructuredJson, sanitizeDataWithBlobUrls} from "@agenta/shared/utils"
 import {
     CopyButton,
     Editor as EditorWrapper,

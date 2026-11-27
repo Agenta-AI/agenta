@@ -387,3 +387,66 @@ export function safeJson5Parse(input: string): unknown | null {
         return tryParsePartialJson(input)
     }
 }
+
+/**
+ * The body of a ```` ```json ```` fence, trimmed, or null when the value is not one fence.
+ *
+ * It replaces `/^```(?:json)?\s*([\s\S]*?)\s*```$/i`, which accepts the same strings but scans
+ * them in quadratic time: the lazy body and the two `\s*` runs overlap, so a fence padded with
+ * spaces makes the engine retry every split point. The closing fence is always the last three
+ * characters, because the pattern was anchored to the end of the string, so a slice is exact.
+ *
+ * Exported for the regression test that compares it against the pattern it replaced.
+ */
+export const stripJsonFence = (input: string): string | null => {
+    if (input.length < 6 || !input.startsWith("```") || !input.endsWith("```")) return null
+    let body = input.slice(3, -3)
+    // The optional `json` info string, matched case-insensitively as before.
+    if (body.slice(0, 4).toLowerCase() === "json") body = body.slice(4)
+    return body.trim() || null
+}
+
+/**
+ * Try to parse a string as structured JSON, tolerating:
+ * - whitespace
+ * - markdown fenced code blocks (```json ... ```)
+ * - one level of string-wrapping (e.g. a JSON-stringified JSON)
+ * - JSON5 syntax (single quotes, trailing commas, etc.)
+ *
+ * Returns the parsed object/array, or null if not structured.
+ */
+export const parseStructuredJson = (value: string): unknown | null => {
+    const tryParseJson = (input: string): unknown | null => {
+        try {
+            return JSON.parse(input)
+        } catch {
+            return null
+        }
+    }
+
+    const toStructured = (parsed: unknown): unknown | null => {
+        if (parsed && typeof parsed === "object") return parsed
+        if (typeof parsed !== "string") return null
+
+        const nested = tryParseJson(parsed.trim())
+        if (nested && typeof nested === "object") return nested
+        return null
+    }
+
+    let candidate = value.trim()
+    if (!candidate) return null
+
+    const fenced = stripJsonFence(candidate)
+    if (fenced) {
+        candidate = fenced
+    }
+
+    const strictParsed = toStructured(tryParseJson(candidate))
+    if (strictParsed !== null) return strictParsed
+
+    try {
+        return toStructured(JSON5.parse(candidate))
+    } catch {
+        return null
+    }
+}
