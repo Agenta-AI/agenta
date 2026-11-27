@@ -211,7 +211,7 @@ const appTrace = (traceId: string, outputs: unknown, tools = 2) => ({
             attributes: {
                 ag: {
                     data: {inputs: {}, outputs},
-                    metrics: {tokens: {cumulative: {prompt: 100, completion: 28, total: 128}}},
+                    metrics: {tokens: {cumulative: traceApi.tokens}},
                 },
             },
             references: [
@@ -245,6 +245,7 @@ const traceReads: string[] = []
 const traceApi = {
     outputs: (): unknown => ({answer: "Tokyo"}),
     failGet: false,
+    tokens: {prompt: 100, completion: 28, total: 128} as Record<string, number>,
 }
 
 /** A one-turn chat: the tool calls of the trace show in it. */
@@ -327,6 +328,25 @@ const withRevision = withAppTrace((answer, url) => {
 })
 
 /** A second evaluator, "Aaa check", that passes, listed before Exact Match. */
+/** A second evaluator in the run that has no result on any test case. */
+const withEvaluatorWithoutResult: typeof answerRequest = (runId, serverState, url, body) => {
+    const answer = answerRequest(runId, serverState, url, body)
+    if (url.endsWith("/evaluations/runs/query")) {
+        const data = answer.data?.runs?.[0].data
+        data?.steps.splice(1, 0, {
+            key: "ev0",
+            type: "annotation",
+            origin: "auto",
+            references: {evaluator: {id: "ev-0", slug: "aaa-check"}},
+        } as never)
+        data?.mappings.splice(1, 0, {
+            column: {kind: "annotation", name: "passed"},
+            step: {key: "ev0", path: "attributes.ag.data.outputs.passed"},
+        } as never)
+    }
+    return answer
+}
+
 const withTwoEvaluators: typeof answerRequest = (runId, serverState, url, body) => {
     const answer = answerRequest(runId, serverState, url, body)
     if (url.endsWith("/evaluations/runs/query")) {
@@ -371,6 +391,7 @@ beforeEach(() => {
     views.testsets = true
     traceApi.outputs = () => ({answer: "Tokyo"})
     traceApi.failGet = false
+    traceApi.tokens = {prompt: 100, completion: 28, total: 128}
     // The trace API is read with fetch: the page's traces in one query, one trace by id.
     vi.stubGlobal("fetch", async (input: string | URL | Request) => {
         const url = String(input instanceof Request ? input.url : input)
@@ -620,7 +641,7 @@ describe("scenario focus drawer", () => {
                 ?.click()
         })
         expect(output.textContent).toContain("pytest -q 0")
-        expect(output.textContent).toContain("1.4 s")
+        expect(output.textContent).toContain("1.4s")
         await click("Open Output trace")
         expect(store.get(traceDrawerTraceIdAtom)).toBe("sc-1-app-trace")
         const unsubscribe = store.sub(traceDrawerQueryAtom, () => undefined)
@@ -738,6 +759,30 @@ describe("scenario focus drawer", () => {
         expect(references.textContent).toContain("sc-1-app-trace")
     })
 
+    it("Metadata splits the tokens with the cache counts the trace view reads", async () => {
+        traceApi.tokens = {
+            prompt: 1_000,
+            completion: 200,
+            cache_read: 1_500,
+            cache_creation: 80,
+            total: 2_780,
+        }
+        await mount("sc-1", {}, "auto", withAppTrace())
+        await openTab("Metadata")
+        const metrics = section("Metrics").textContent
+        expect(metrics).toContain("Cache read1.5K")
+        expect(metrics).toContain("Cache write80")
+    })
+
+    it("An evaluator with no result after a good app call is left out, not called not run", async () => {
+        await mount("sc-1", {}, "auto", withEvaluatorWithoutResult)
+        await openTab("Results")
+        const rows = section("Evaluators").textContent ?? ""
+        expect(rows).not.toContain("Not run")
+        expect(rows.toLowerCase()).not.toContain("aaa")
+        expect(rows).toContain("1 evaluator")
+    })
+
     it("Next on the last loaded row loads the next page", async () => {
         const runId = await mount("sc-2", {pageSize: 2})
         expect(text()).toContain("Test case #2")
@@ -778,6 +823,9 @@ describe("scenario focus drawer", () => {
         // The trace client retries a failed read with a backoff before it gives up.
         await settle(30_000)
         expect(text()).toContain("Could not load these values")
+        await openTab("Results")
+        expect(text()).toContain("Could not load these values")
+        expect(text()).not.toContain("Not run")
     })
 
     it("A failed app call says so with its error, and its evaluators did not run", async () => {

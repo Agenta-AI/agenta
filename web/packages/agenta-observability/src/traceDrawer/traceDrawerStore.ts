@@ -191,7 +191,11 @@ export const traceDrawerQueryOptions = ({
     enabled: Boolean(traceId) && canViewSpans,
     refetchOnWindowFocus: false,
     staleTime: (query: {state: {data: TracesResponse | null | undefined}}) =>
-        Object.keys(query.state.data?.traces ?? {}).length > 0 ? TRACE_FRESH_MS : 0,
+        Object.values(query.state.data?.traces ?? {}).some(
+            (entry) => Object.keys(entry.spans ?? {}).length > 0,
+        )
+            ? TRACE_FRESH_MS
+            : 0,
     queryFn: async (): Promise<TracesResponse | null> => {
         if (!traceId) return null
         return fetchPreviewTrace(traceId, projectId ?? "")

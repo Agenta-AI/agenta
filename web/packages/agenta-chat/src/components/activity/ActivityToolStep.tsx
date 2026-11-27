@@ -14,13 +14,13 @@ import {driveQuickLookAtomFamily, useDriveSessionId} from "@agenta/entity-ui/dri
 import {richText, textVersionAtom, useT} from "@agenta/i18n"
 import chatActivityCatalog from "@agenta/i18n/catalogs/chat.activity"
 import toolActivityCatalog from "@agenta/i18n/catalogs/chat.toolActivity"
+import {formatLatency} from "@agenta/shared/utils"
 import {ArrowSquareOut, FileText} from "@phosphor-icons/react"
 import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {unwrapToolUseError} from "../../assets/toolFormat"
 import {useAgentDisplayName} from "../../hooks/useAgentDisplayName"
-import {formatElapsed} from "../../hooks/useTurnClock"
 import {
     approvalVerdictText,
     isNonFinalRunnerError,
@@ -227,10 +227,6 @@ interface StepViewProps {
     durationMs?: number
 }
 
-/** A call's time at the end of its row: "0.42 s", "12.4 s", "2 m 11 s". */
-const formatStepDuration = (ms: number) =>
-    ms < 60_000 ? `${Number((ms / 1000).toPrecision(3))} s` : formatElapsed(ms, {live: false})
-
 const ActivityToolStepView = memo(
     ({part, files, display, logo, appLabel, live, durationMs}: StepViewProps) => {
         const t = useT(chatActivityCatalog)
@@ -323,7 +319,7 @@ const ActivityToolStepView = memo(
                     <div className="flex min-w-0 items-center gap-2">
                         {row}
                         <span className="ml-auto shrink-0 text-meta tabular-nums text-muted-foreground">
-                            {formatStepDuration(durationMs)}
+                            {formatLatency(durationMs / 1000)}
                         </span>
                     </div>
                 )}

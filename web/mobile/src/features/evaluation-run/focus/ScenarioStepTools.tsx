@@ -11,11 +11,12 @@ import {Button} from "@agenta/ui/ui"
 import {TreeView} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
-import type {ScenarioStep} from "../scenarios/scenarioColumns"
+import {STEP_METRICS, type ScenarioStep} from "../scenarios/scenarioColumns"
 
-const DURATION = "attributes.ag.metrics.duration.cumulative"
-const TOKENS = "attributes.ag.metrics.tokens.cumulative.total"
-const COST = "attributes.ag.metrics.costs.cumulative.total"
+const metricKeyOf = (id: string) => STEP_METRICS.find((metric) => metric.id === id)?.metricKey ?? id
+const DURATION = metricKeyOf("duration")
+const TOKENS = metricKeyOf("tokens")
+const COST = metricKeyOf("cost")
 
 const meanOf = (stats: MetricStats | null | undefined) =>
     stats?.mean ?? (stats?.sum !== undefined && stats.count ? stats.sum / stats.count : undefined)
@@ -51,7 +52,7 @@ export const ScenarioStepTools = ({title, step}: {title: string; step: ScenarioS
                 <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label={t("evaluations.scenarioFocus.openEvaluatorTrace", {name: title})}
+                    aria-label={t("evaluations.scenarioFocus.openStepTrace", {name: title})}
                     title={t("chat.valueView.openTrace")}
                     onClick={() => openTrace({traceId})}
                 >

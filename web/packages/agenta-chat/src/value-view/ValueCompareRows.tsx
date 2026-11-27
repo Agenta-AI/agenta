@@ -2,10 +2,17 @@ import {useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
-import type {CompareRow, ExpectedComparison} from "@agenta/shared/utils"
+import {
+    detectValueShape,
+    type CompareRow,
+    type ExpectedComparison,
+    type ValueShape,
+} from "@agenta/shared/utils"
 import {ValueCell} from "@agenta/ui/cell-renderers"
 import {Button, CollapseCaret, cn} from "@agenta/ui/ui"
 import {Check, X} from "@phosphor-icons/react"
+
+import {ValueField} from "./ValueField"
 
 const Mark = ({status}: {status: CompareRow["status"]}) => {
     const t = useT(valueViewCatalog)
@@ -27,6 +34,23 @@ const Mark = ({status}: {status: CompareRow["status"]}) => {
 }
 
 const failed = (status: CompareRow["status"]) => status === "mismatch" || status === "missing"
+
+const CELL_SHAPES: ReadonlySet<ValueShape> = new Set([
+    "empty",
+    "boolean",
+    "number",
+    "url",
+    "text-short",
+    "array-scalars",
+])
+
+/** A short value in one cell; a list, an object or long text with its fold and full view. */
+const Leaf = ({name, value}: {name: string; value: unknown}) =>
+    CELL_SHAPES.has(detectValueShape(value).shape) ? (
+        <ValueCell value={value} lines={3} />
+    ) : (
+        <ValueField value={value} label={name} />
+    )
 
 const Row = ({row}: {row: CompareRow}) => {
     const t = useT(valueViewCatalog)
@@ -66,7 +90,7 @@ const Row = ({row}: {row: CompareRow}) => {
                             {t("chat.valueView.fields", {count: row.children?.length ?? 0})}
                         </span>
                     ) : (
-                        <ValueCell value={row.output} lines={3} />
+                        <Leaf name={row.key} value={row.output} />
                     )}
                 </td>
                 <td className={cell}>
@@ -79,7 +103,7 @@ const Row = ({row}: {row: CompareRow}) => {
                             )}
                         </span>
                     ) : (
-                        <ValueCell value={row.expected} lines={3} />
+                        <Leaf name={row.key} value={row.expected} />
                     )}
                 </td>
                 <td className={cn(cell, "w-8 text-right")}>

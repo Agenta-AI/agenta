@@ -42,11 +42,9 @@ export function useScenarioTrace(row: ScenarioRow) {
     const enabled = Boolean(traceId) && canViewSpans
 
     return {
-        traceId,
         turns,
         toolCallCount: turns.reduce((sum, turn) => sum + turn.steps.length, 0),
         root,
-        loading: enabled && query.isPending,
         // The trace API answers null when the read failed.
         failed: enabled && (query.isError || (query.isSuccess && data === null)),
         retry: () => void query.refetch(),

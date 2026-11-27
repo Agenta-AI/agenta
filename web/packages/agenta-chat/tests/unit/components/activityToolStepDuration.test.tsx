@@ -27,15 +27,15 @@ describe("ActivityToolStep duration", () => {
     it("shows the call's time at the end of the row", () => {
         const {container} = render(<ActivityToolStep part={part} files={[]} durationMs={12_400} />)
         expect(container.textContent).toContain("pytest -q")
-        expect(container.textContent).toContain("12.4 s")
+        expect(container.textContent).toContain("12.4s")
     })
 
-    it("writes a short call in seconds and a long one in minutes", () => {
+    it("writes the time as the other durations of the drawer do", () => {
         const short = render(<ActivityToolStep part={part} files={[]} durationMs={420} />)
-        expect(short.container.textContent).toContain("0.42 s")
+        expect(short.container.textContent).toContain("420ms")
         cleanup()
         const long = render(<ActivityToolStep part={part} files={[]} durationMs={131_000} />)
-        expect(long.container.textContent).toContain("2 m 11 s")
+        expect(long.container.textContent).toContain("131s")
     })
 
     it("shows no time when the host passes none, as in the playground", () => {

@@ -1,4 +1,4 @@
-import {ValueField} from "@agenta/chat/value-view"
+import {CopyValueButton, ValueCompareRows, ValueField} from "@agenta/chat/value-view"
 import {useT} from "@agenta/i18n"
 import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
 import focusCatalog from "@agenta/i18n/catalogs/evaluations.scenarioFocus"
@@ -7,15 +7,13 @@ import {Button, SkeletonBlock} from "@agenta/ui/ui"
 
 import type {ScenarioCell, ScenarioStep} from "../scenarios/scenarioColumns"
 
-import {ScenarioFocusCopyButton} from "./ScenarioFocusCopyButton"
-import {ScenarioFocusExpectedRows} from "./ScenarioFocusExpectedRows"
 import {ScenarioStepTools} from "./ScenarioStepTools"
 import type {useScenarioTrace} from "./useScenarioTrace"
 
 type ScenarioTrace = ReturnType<typeof useScenarioTrace>
 
 /** The output to draw: one cell's value, or the cells by name when the app has several. */
-export const outputValue = (cells: ScenarioCell[]) =>
+const outputValue = (cells: ScenarioCell[]) =>
     cells.length === 1
         ? cells[0].value
         : Object.fromEntries(cells.map((cell) => [cell.name, cell.value]))
@@ -98,7 +96,7 @@ export const ScenarioFocusOutput = ({
         <div className="flex min-w-0 flex-col gap-3">
             {trace?.failed ? <ToolCallsError onRetry={trace.retry} /> : null}
             {comparison && expected ? (
-                <ScenarioFocusExpectedRows comparison={comparison} expectedKey={expected.key} />
+                <ValueCompareRows comparison={comparison} expectedKey={expected.key} />
             ) : (
                 <ValueField
                     value={value}
@@ -127,12 +125,7 @@ export const ScenarioFocusOutput = ({
                             step={step}
                         />
                     ) : null}
-                    {failed || empty ? null : (
-                        <ScenarioFocusCopyButton
-                            value={value}
-                            label={t("evaluations.scenarioFocus.copyOutput")}
-                        />
-                    )}
+                    {failed || empty ? null : <CopyValueButton value={value} />}
                 </div>
             </div>
             {body}

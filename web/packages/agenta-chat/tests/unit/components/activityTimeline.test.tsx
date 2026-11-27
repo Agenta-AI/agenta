@@ -194,7 +194,7 @@ describe("ActivityTimeline", () => {
             sessionTurnDurationMs: 389_000,
         })
         expect(screen.getAllByRole("button")[0].textContent).toContain("Worked for 6 m 29 s")
-        expect(document.body.textContent).toContain("1.5 s")
+        expect(document.body.textContent).toContain("1.5s")
     })
 
     it("says Answering while the agent writes a message and no step runs", () => {

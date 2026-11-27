@@ -49,7 +49,10 @@ describe("traceDrawerQueryOptions", () => {
             projectId: "pr-1",
             canViewSpans: true,
         })
-        expect(staleTimeOf(options, {count: 1, traces: {tr1: {spans: {}}}})).toBeGreaterThan(0)
+        expect(
+            staleTimeOf(options, {count: 1, traces: {tr1: {spans: {root: {span_id: "root"}}}}}),
+        ).toBeGreaterThan(0)
+        expect(staleTimeOf(options, {count: 1, traces: {tr1: {spans: {}}}})).toBe(0)
         expect(staleTimeOf(options, {count: 0, traces: {}})).toBe(0)
         expect(staleTimeOf(options, null)).toBe(0)
     })

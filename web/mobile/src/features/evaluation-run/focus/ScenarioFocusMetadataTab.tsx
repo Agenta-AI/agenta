@@ -1,22 +1,23 @@
 import {useState, type ReactNode} from "react"
 
+import {scenarioStatusLabel} from "@agenta/annotation"
+import {CopyValueButton} from "@agenta/chat/value-view"
 import {TILE_MISSING} from "@agenta/entities/evaluationRun"
 import type {TraceSpan} from "@agenta/entities/trace"
 import {formatDate, useT} from "@agenta/i18n"
 import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
 import focusCatalog from "@agenta/i18n/catalogs/evaluations.scenarioFocus"
+import {getTokenBreakdown} from "@agenta/observability"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {ReferenceChipList, type TraceReference} from "@agenta/observability-ui/traceDrawer"
 import {
     formatCurrency,
     formatLatency,
     formatTokens,
-    splitTokenUsage,
     type TokenBreakdown,
 } from "@agenta/shared/utils"
 import {TokenBreakdownList} from "@agenta/ui/components/presentational"
 import {Button} from "@agenta/ui/ui"
-import {copyToClipboard} from "@agenta/ui/utils"
 import {useSetAtom} from "jotai"
 
 import type {ScenarioRow} from "../scenarios/scenarioColumns"
@@ -36,8 +37,6 @@ const numberAt = (value: unknown, path: string[]): number | undefined => {
     return typeof found === "number" ? found : undefined
 }
 
-const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
-
 const Pair = ({label, children}: {label: string; children: ReactNode}) => (
     <div className="flex min-w-0 flex-col gap-0.5">
         <span className="text-meta text-muted-foreground">{label}</span>
@@ -45,7 +44,7 @@ const Pair = ({label, children}: {label: string; children: ReactNode}) => (
     </div>
 )
 
-/** An id with a copy link at the end of its row. */
+/** An id with its action at the end of its row. */
 const IdRow = ({label, value, action}: {label: string; value: string; action: ReactNode}) => (
     <div className="grid min-w-0 grid-cols-[140px_minmax(0,1fr)_auto] items-center gap-3 border-0 border-b border-solid border-border-muted py-2">
         <span className="text-meta text-muted-foreground">{label}</span>
@@ -53,20 +52,6 @@ const IdRow = ({label, value, action}: {label: string; value: string; action: Re
         {action}
     </div>
 )
-
-const CopyLink = ({value}: {value: string}) => {
-    const t = useT(valueViewCatalog)
-    const [copied, setCopied] = useState(false)
-    return (
-        <Button
-            variant="link"
-            size="xs"
-            onClick={async () => setCopied(await copyToClipboard(value))}
-        >
-            {t(copied ? "chat.valueView.copied" : "chat.valueView.copyValue")}
-        </Button>
-    )
-}
 
 /**
  * The Metadata tab: the app call's metrics (status, start, duration, tokens with their split,
@@ -98,7 +83,7 @@ export const ScenarioFocusMetadataTab = ({
     const total = metrics.totalTokens ?? tokensAt("total")
     // With no cached tokens there is no split to make: the prompt and completion are the parts.
     const breakdown: TokenBreakdown | null =
-        splitTokenUsage({prompt, completion, total}) ??
+        getTokenBreakdown(root ?? undefined) ??
         (prompt !== undefined && completion !== undefined
             ? {
                   input: prompt,
@@ -123,7 +108,9 @@ export const ScenarioFocusMetadataTab = ({
             >
                 <div className="grid grid-cols-1 gap-x-6 gap-y-3 pl-4.5 sm:grid-cols-2">
                     <Pair label={t("evaluations.scenarioFocus.status")}>
-                        {row.invocation?.status ? capitalized(row.invocation.status) : TILE_MISSING}
+                        {row.invocation?.status
+                            ? scenarioStatusLabel(row.invocation.status)
+                            : TILE_MISSING}
                     </Pair>
                     <Pair label={t("evaluations.scenarioFocus.started")}>
                         {started && !Number.isNaN(started.getTime())
@@ -165,13 +152,13 @@ export const ScenarioFocusMetadataTab = ({
                             <IdRow
                                 label={t("evaluations.scenarioFocus.testcaseId")}
                                 value={row.testcaseId}
-                                action={<CopyLink value={row.testcaseId} />}
+                                action={<CopyValueButton value={row.testcaseId} />}
                             />
                         ) : null}
                         <IdRow
                             label={t("evaluations.scenarioFocus.scenarioId")}
                             value={row.scenario.id}
-                            action={<CopyLink value={row.scenario.id} />}
+                            action={<CopyValueButton value={row.scenario.id} />}
                         />
                         {traceId ? (
                             <IdRow

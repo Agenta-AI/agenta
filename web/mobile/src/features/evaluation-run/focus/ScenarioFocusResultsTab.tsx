@@ -67,7 +67,9 @@ const metricValue = (value: unknown): unknown => {
 /**
  * Each evaluator of the run on one test case: its metrics with their kinds, and its state. An
  * evaluator with an error is `error`; one with values is `done`; one with none yet is `pending`
- * while the test case runs, else `notRun` (the app call failed, or it never ran).
+ * while the test case runs or while its values did not load, and `notRun` when the app call
+ * failed. An evaluator with no result on a finished test case whose app call did not fail is left
+ * out: it gave nothing for this test case, and it would read as a failed app call.
  */
 export function scenarioEvaluatorResults(
     row: ScenarioRow,
@@ -93,7 +95,7 @@ export function scenarioEvaluatorResults(
                 ? "error"
                 : metrics.length > 0
                   ? "done"
-                  : open && !appFailed
+                  : (open && !appFailed) || row.valuesFailed
                     ? "pending"
                     : "notRun"
             return {
@@ -105,6 +107,7 @@ export function scenarioEvaluatorResults(
                 origin: origins.get(group.key) ?? null,
             }
         })
+        .filter((result) => result.summary.state !== "notRun" || appFailed)
 }
 
 /**
@@ -137,7 +140,7 @@ export const ScenarioFocusResultsTab = ({results}: {results: ScenarioEvaluatorRe
                 <Button
                     variant="ghost"
                     size="icon-xs"
-                    aria-label={t("evaluations.scenarioFocus.openEvaluatorTrace", {name})}
+                    aria-label={t("evaluations.scenarioFocus.openStepTrace", {name})}
                     onClick={() => openTrace({traceId})}
                 >
                     <TreeView />
@@ -151,25 +154,27 @@ export const ScenarioFocusResultsTab = ({results}: {results: ScenarioEvaluatorRe
     }
     return (
         <div className="flex flex-col gap-6">
-            <section
-                aria-label={t("evaluations.scenarioFocus.evaluators")}
-                className="flex flex-col"
-            >
-                <div className="flex items-center justify-between gap-2 border-0 border-b border-solid border-border-muted pb-2.5">
-                    <h3 className="m-0 flex items-baseline gap-2 text-label">
-                        {t("evaluations.scenarioFocus.evaluators")}
-                        <span className="text-meta font-normal text-muted-foreground">
-                            {t("evaluations.scenarioFocus.evaluatorCount", {
-                                count: notHuman.length,
-                            })}
+            {notHuman.length > 0 ? (
+                <section
+                    aria-label={t("evaluations.scenarioFocus.evaluators")}
+                    className="flex flex-col"
+                >
+                    <div className="flex items-center justify-between gap-2 border-0 border-b border-solid border-border-muted pb-2.5">
+                        <h3 className="m-0 flex items-baseline gap-2 text-label">
+                            {t("evaluations.scenarioFocus.evaluators")}
+                            <span className="text-meta font-normal text-muted-foreground">
+                                {t("evaluations.scenarioFocus.evaluatorCount", {
+                                    count: notHuman.length,
+                                })}
+                            </span>
+                        </h3>
+                        <span className="text-meta text-muted-foreground">
+                            {t("evaluations.scenarioFocus.failedFirst")}
                         </span>
-                    </h3>
-                    <span className="text-meta text-muted-foreground">
-                        {t("evaluations.scenarioFocus.failedFirst")}
-                    </span>
-                </div>
-                <EvaluatorResultList items={notHuman.map(itemOf)} />
-            </section>
+                    </div>
+                    <EvaluatorResultList items={notHuman.map(itemOf)} />
+                </section>
+            ) : null}
             {human.length > 0 ? (
                 <section
                     aria-label={t("evaluations.scenarioFocus.humanAnnotations")}

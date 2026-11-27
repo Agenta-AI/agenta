@@ -1,11 +1,9 @@
-import {ValueFieldTable} from "@agenta/chat/value-view"
+import {CopyValueButton, ValueFieldTable} from "@agenta/chat/value-view"
 import {useT} from "@agenta/i18n"
 import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
 import focusCatalog from "@agenta/i18n/catalogs/evaluations.scenarioFocus"
 
 import type {ScenarioCell} from "../scenarios/scenarioColumns"
-
-import {ScenarioFocusCopyButton} from "./ScenarioFocusCopyButton"
 
 /** The test case inputs under their title and count, as one key and value table. */
 export const ScenarioFocusInputsTable = ({cells}: {cells: ScenarioCell[]}) => {
@@ -20,9 +18,8 @@ export const ScenarioFocusInputsTable = ({cells}: {cells: ScenarioCell[]}) => {
                         {t("chat.valueView.fields", {count: cells.length})}
                     </span>
                 </h3>
-                <ScenarioFocusCopyButton
+                <CopyValueButton
                     value={Object.fromEntries(fields.map(({name, value}) => [name, value]))}
-                    label={t("evaluations.scenarioFocus.copyInputs")}
                 />
             </div>
             <ValueFieldTable fields={fields} />

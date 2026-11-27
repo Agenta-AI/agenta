@@ -22,8 +22,6 @@ export const RunAnnotateSheet = ({
     runId: string
     row: ScenarioRow
     groups: RunColumnGroup[]
-    /** Not read: the body shows no evaluator. */
-    labels?: Record<string, string>
     onRetry: () => void
     onClose: () => void
 }) => {

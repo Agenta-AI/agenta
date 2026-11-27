@@ -971,4 +971,17 @@ describe("ValueCompareRows", () => {
         fireEvent.click(screen.getByRole("button", {name: /invoice/}))
         expect(screen.queryByText("amount")).toBeNull()
     })
+
+    it("draws a list leaf with its values, not only its count", () => {
+        const comparison = compareWithExpected(
+            {items: [{sku: "A-1", qty: 1}]},
+            {items: [{sku: "A-1", qty: 2}]},
+        )
+        if (!comparison) throw new Error("no comparison")
+        const {container} = render(
+            <ValueCompareRows comparison={comparison} expectedKey="correct_answer" />,
+        )
+        expect(container.querySelectorAll('[aria-label="Mismatch"]')).toHaveLength(1)
+        expect(container.textContent).toContain("A-1")
+    })
 })
