@@ -1,6 +1,7 @@
+import {useState} from "react"
+
 import {ChoiceSwitch} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
-import {useState} from "react"
 
 const choices = [
     {value: "user", label: "Each person's own", note: "Everyone uses their own Zendesk account."},
