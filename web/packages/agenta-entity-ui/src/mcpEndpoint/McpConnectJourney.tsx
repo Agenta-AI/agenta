@@ -57,11 +57,15 @@ import {
 import {customNamedSecretsAtom} from "@agenta/entities/secret"
 import {createT, richText, useT, type CatalogKey} from "@agenta/i18n"
 import mcpJourneyCatalog from "@agenta/i18n/catalogs/entityUi.mcpJourney"
-import {EnhancedModal, ModalContent} from "@agenta/ui"
 import {
     Alert,
     Button,
     cn,
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
     Field,
     Input,
     LoadingButton,
@@ -71,9 +75,12 @@ import {
     SelectSeparator,
     SelectTrigger,
     SelectValue,
-    touchTargetExpansion,
+    SimpleTooltip,
+    SkeletonBlock,
+    Spinner,
 } from "@agenta/ui/ui"
-import {ArrowSquareOut, CircleNotch, Plus, WarningCircle} from "@phosphor-icons/react"
+import {ViewStep} from "@agenta/ui/view-stack"
+import {ArrowSquareOut, Plus, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {CreateSecretDrawer} from "../secret"
@@ -85,9 +92,12 @@ import {
     CredentialBindingFields,
     headerSchemeHint,
     HintedField,
+    NewSecretButton,
     OAuthAdvancedFields,
     ProbeResultCard,
     ShowResponsePanel,
+    SkeletonChoiceSwitch,
+    SkeletonField,
 } from "./components"
 
 export interface McpConnectJourneyProps {
@@ -201,6 +211,10 @@ const keyRefusedWithoutKeyFor = (status: number | null): string =>
 
 /** The six screens the statuses render as. */
 type Screen = "url" | "url_failed" | "oauth" | "api_key" | "no_auth" | "waiting"
+
+/** The parts of the form in their order: what the address check showed, then the provider wait. */
+const JOURNEY_STEPS = ["url", "checking", "url_failed", "form", "waiting"] as const
+type JourneyStep = (typeof JOURNEY_STEPS)[number]
 
 const SCREEN_FOR_AUTH_PATH: Record<MCPAuthMode, Screen> = {
     oauth: "oauth",
@@ -326,21 +340,47 @@ export interface McpConnectSheetProps extends Omit<
 export function McpConnectSheet({open, container = null, ...input}: McpConnectSheetProps) {
     const t = useT(mcpJourneyCatalog)
     const screens = useMcpConnectScreens(input)
+    const confirmButton = (
+        <LoadingButton
+            loading={screens.busy}
+            disabled={!screens.canConfirm}
+            onClick={screens.confirm}
+        >
+            {screens.confirmLabel}
+            {screens.confirmOpensWindow ? (
+                <ArrowSquareOut size={14} data-icon="inline-end" />
+            ) : null}
+        </LoadingButton>
+    )
     return (
-        <EnhancedModal
+        // Contained runs non-modal: the host drawer already traps focus.
+        <Dialog
             open={open}
-            onCancel={screens.handleClose}
-            // Escape and a mask click reach `onCancel` even while the footer's buttons are
-            // disabled. Between consent and the refetch the grant already exists server-side,
-            // so a close here would delete a row whose credential the provider is still
-            // holding (D29). The journey moves on by itself; there is nothing to abandon.
-            maskClosable={!screens.sealed}
-            keyboard={!screens.sealed}
-            closable={!screens.sealed}
-            title={screens.title}
-            footer={
-                screens.screen === "waiting" ? null : (
-                    <>
+            onOpenChange={(next) => !next && screens.handleClose()}
+            modal={!container}
+        >
+            <DialogContent
+                container={container ?? undefined}
+                contained={!!container}
+                className="max-w-[480px]"
+                showCloseButton={!screens.sealed}
+                // Sealed: the grant exists server-side, so a close would orphan it (D29).
+                onEscapeKeyDown={(e) => {
+                    if (screens.sealed) e.preventDefault()
+                }}
+                onPointerDownOutside={(e) => {
+                    if (screens.sealed) e.preventDefault()
+                }}
+                onInteractOutside={(e) => {
+                    if (screens.sealed) e.preventDefault()
+                }}
+            >
+                <DialogHeader>
+                    <DialogTitle>{screens.title}</DialogTitle>
+                </DialogHeader>
+                <div className="flex flex-col gap-4">{screens.body}</div>
+                {screens.screen === "waiting" ? null : (
+                    <DialogFooter className="flex-row justify-end border-t-0">
                         <Button
                             variant="outline"
                             onClick={screens.handleClose}
@@ -348,27 +388,20 @@ export function McpConnectSheet({open, container = null, ...input}: McpConnectSh
                         >
                             {t("entityUi.mcpJourney.cancel")}
                         </Button>
-                        <LoadingButton
-                            loading={screens.busy}
-                            disabled={!screens.canConfirm}
-                            onClick={screens.confirm}
-                        >
-                            {screens.confirmLabel}
-                            {screens.confirmOpensWindow ? (
-                                <ArrowSquareOut size={14} data-icon="inline-end" />
-                            ) : null}
-                        </LoadingButton>
-                    </>
-                )
-            }
-            classNames={{footer: "flex-row justify-end border-t-0"}}
-            width={480}
-            destroyOnClose
-            getContainer={container ?? false}
-            contained={!!container}
-        >
-            <ModalContent>{screens.body}</ModalContent>
-        </EnhancedModal>
+                        {/* A disabled button takes no pointer, so the tooltip sits on a wrapper. */}
+                        {screens.confirmBlockedReason ? (
+                            <SimpleTooltip title={screens.confirmBlockedReason}>
+                                <span className="inline-flex" tabIndex={0}>
+                                    {confirmButton}
+                                </span>
+                            </SimpleTooltip>
+                        ) : (
+                            confirmButton
+                        )}
+                    </DialogFooter>
+                )}
+            </DialogContent>
+        </Dialog>
     )
 }
 
@@ -385,6 +418,8 @@ export interface McpConnectScreens {
     /** The screen's action ("Connect", "Try again"), opened inside the press. */
     confirm: () => void
     canConfirm: boolean
+    /** What is missing while the action is disabled, for its tooltip; null when nothing is. */
+    confirmBlockedReason: string | null
     confirmLabel: string
     /** The action opens the provider's window. */
     confirmOpensWindow: boolean
@@ -405,10 +440,7 @@ export interface McpConnectScreensInput {
     reconnect?: McpConnectJourneyProps["reconnect"]
     /** The "Who can use it" field, which the OAuth screen shows under the name. */
     ownerField?: ReactNode
-    /**
-     * Draw the fields at the canvas scale (12 px labels, 34 px fields, radius 6) from the
-     * desktop width up: the panel's connect step. The dialog keeps the app scale.
-     */
+    /** Draw the fields at the canvas scale (fields at control height, radius 6, 12 px gaps). */
     canvas?: boolean
 }
 
@@ -824,36 +856,56 @@ export function useMcpConnectScreens({
             credentialBindingComplete(binding) && urlMatchesCredentialBinding(state.url, binding),
         busy,
     })
+    const confirmBlockedReason = ((): string | null => {
+        if (confirmReady || busy || screen === "waiting") return null
+        if (screen === "url" || screen === "url_failed") {
+            if (!state.url.trim()) return t("entityUi.mcpJourney.missingUrl")
+            return isProbeableUrl(state.url) ? null : t("entityUi.mcpJourney.invalidUrl")
+        }
+        if (!state.name.trim()) return t("entityUi.mcpJourney.missingName")
+        if (nameProblem) return t("entityUi.mcpJourney.nameTaken")
+        if (screen === "api_key") {
+            if (!credentialBindingComplete(binding)) return t("entityUi.mcpJourney.missingKeyName")
+            if (!urlMatchesCredentialBinding(state.url, binding)) return urlProblem
+            return secretChosen ? null : t("entityUi.mcpJourney.missingProjectSecret")
+        }
+        if (screen === "oauth" && state.savedOauthConfig !== "loading" && !oauthConfigReady(state))
+            return state.oauthClientId.trim()
+                ? t("entityUi.mcpJourney.missingClientSecret")
+                : t("entityUi.mcpJourney.missingClient")
+        return hasUrlSecretPlaceholder(state.url) ? urlProblem : null
+    })()
     // The key screen draws its own address field where the key goes into the address.
     const keyScreenUrl =
         screen === "api_key" && (binding.kind === "url" || hasUrlSecretPlaceholder(state.url))
     const showUrlField = screen !== "waiting" && !keyScreenUrl
-    // The canvas field: 34 px, radius 6, 13 px text, from the desktop width up.
-    const fieldClass = canvas ? "md:h-[34px] md:rounded-[6px] md:text-[13px]" : undefined
+    // The canvas field: control-md (44 on touch), radius 6, 13 px text.
+    const fieldClass = canvas ? "h-control rounded-md text-label" : undefined
+    const journeyStep: JourneyStep =
+        state.status === "checking_url"
+            ? "checking"
+            : screen === "url" || screen === "url_failed" || screen === "waiting"
+              ? screen
+              : "form"
 
     const body = (
         <div
             className={cn(
-                "flex flex-col gap-4",
-                // The canvas labels at every width, as in ConnectOwnerField: 12/16, weight 500,
-                // secondary text. 12 px between fields on the desktop.
-                canvas &&
-                    "md:gap-3 [&_[data-slot=field-label]]:text-[12px] [&_[data-slot=field-label]]:leading-4 [&_[data-slot=field-label]]:text-colorTextSecondary",
+                // One gap at every width (SIZE-02): 12 px on the canvas, 16 px in the dialog.
+                "flex flex-col",
+                canvas ? "gap-3" : "gap-4",
             )}
             data-testid="mcp-connect-journey"
         >
             {showUrlField ? (
                 <HintedField
                     label={t("entityUi.mcpJourney.serverUrl")}
-                    // Only before the first check: once the server has answered, the box below
-                    // says what it found, and once the check has failed, the box below says
-                    // what is wrong with this address.
-                    hint={screen === "url" ? t("entityUi.mcpJourney.urlHelp") : null}
+                    tooltip={t("entityUi.mcpJourney.urlHelp")}
                 >
                     <Input
                         ref={urlInputRef}
                         autoFocus={!reconnect}
-                        className={cn("font-mono text-[13px]", fieldClass)}
+                        className={cn("font-mono text-label", fieldClass)}
                         placeholder="https://mcp.example.com/mcp"
                         value={reconnect?.url ?? state.url}
                         // A reconnect repairs one address and never points a saved connection
@@ -885,40 +937,90 @@ export function useMcpConnectScreens({
                 </HintedField>
             ) : null}
 
-            {screen === "url_failed" ? (
-                <InlineError id={URL_PROBLEM_ID} headline={failureHeadline}>
-                    {failureBody}{" "}
-                    {/* Only where the check carried an answer to show. See
-                                `readMcpProbeResponse`. */}
-                    {probeResponse ? (
-                        <ShowResponsePanel
-                            statusLine={probeResponse.status}
-                            body={probeResponse.body}
-                        />
-                    ) : null}
-                </InlineError>
-            ) : null}
+            {/* What the check found swaps in with the view motion (MOTION-01); the address stays. */}
+            <ViewStep
+                step={journeyStep}
+                index={JOURNEY_STEPS.indexOf(journeyStep)}
+                className={cn("flex flex-col empty:hidden", canvas ? "gap-3" : "gap-4")}
+            >
+                {state.status === "checking_url" ? (
+                    <ProbeSkeleton owner={Boolean(ownerField)} inputClass={fieldClass} />
+                ) : null}
 
-            {screen === "oauth" || screen === "api_key" || screen === "no_auth" ? (
-                <>
-                    {/* A `{secret}` address is checked only with its key, so on a
-                                first connect there is no finding to report yet, and the
-                                address is on the key screen instead. */}
-                    {state.probe || reconnect ? (
-                        <ProbeResultCard
-                            mode={detected ?? reconnect?.authMode ?? path}
-                            // A reconnect is repairing one address. Offering to change it
-                            // would offer to point a saved connection somewhere else.
-                            onChange={
-                                reconnect || !showUrlField
-                                    ? undefined
-                                    : () => {
-                                          urlInputRef.current?.focus()
-                                          urlInputRef.current?.select()
-                                      }
-                            }
+                {screen === "url_failed" ? (
+                    <>
+                        <InlineError id={URL_PROBLEM_ID} headline={failureHeadline}>
+                            {failureBody}
+                        </InlineError>
+                        {/* Outside the red card; only when the check carried an answer. */}
+                        {probeResponse ? (
+                            <ShowResponsePanel
+                                statusLine={probeResponse.status}
+                                body={probeResponse.body}
+                            />
+                        ) : null}
+                    </>
+                ) : null}
+
+                {screen === "oauth" || screen === "api_key" || screen === "no_auth" ? (
+                    <>
+                        {/* A `{secret}` address is checked only with its key, so on a
+                                    first connect there is no finding to report yet, and the
+                                    address is on the key screen instead. */}
+                        {state.probe || reconnect ? (
+                            <ProbeResultCard
+                                mode={detected ?? reconnect?.authMode ?? path}
+                                // A reconnect is repairing one address. Offering to change it
+                                // would offer to point a saved connection somewhere else.
+                                onChange={
+                                    reconnect || !showUrlField
+                                        ? undefined
+                                        : () => {
+                                              urlInputRef.current?.focus()
+                                              urlInputRef.current?.select()
+                                          }
+                                }
+                            />
+                        ) : null}
+                    </>
+                ) : null}
+
+                {(screen === "oauth" || screen === "api_key") &&
+                state.probe?.legacy_transport_suspected ? (
+                    <Alert
+                        type="warning"
+                        showIcon
+                        icon={<WarningCircle size={16} />}
+                        className="items-start border-warning/30 bg-warning/10 px-3 py-2.5"
+                        message={
+                            <span className="text-meta font-normal leading-normal text-foreground">
+                                {t("entityUi.mcpJourney.legacyTransportWarning")}
+                            </span>
+                        }
+                    />
+                ) : null}
+
+                {screen === "oauth" || screen === "api_key" || screen === "no_auth" ? (
+                    <HintedField
+                        label={t("entityUi.mcpJourney.name")}
+                        error={nameError ?? undefined}
+                    >
+                        <Input
+                            className={fieldClass}
+                            value={state.name}
+                            // A reconnect repairs a credential. The label is what agents
+                            // and people already call this connection.
+                            disabled={!!reconnect || busy}
+                            aria-label={t("entityUi.mcpJourney.name")}
+                            onChange={(event) => journey.setName(event.target.value)}
                         />
-                    ) : null}
+                    </HintedField>
+                ) : null}
+
+                {screen === "oauth" ? ownerField : null}
+
+                {/* The fields of the chosen mode follow it directly, and Advanced comes last. */}
+                {screen === "oauth" || screen === "api_key" || screen === "no_auth" ? (
                     <AuthModeSelector
                         value={path}
                         detected={detected}
@@ -926,227 +1028,211 @@ export function useMcpConnectScreens({
                         disabled={busy || sealed}
                         onChange={journey.selectAuthMode}
                     />
-                </>
-            ) : null}
+                ) : null}
 
-            {(screen === "oauth" || screen === "api_key") &&
-            state.probe?.legacy_transport_suspected ? (
-                <Alert
-                    type="warning"
-                    showIcon
-                    icon={<WarningCircle size={15} weight="regular" />}
-                    className="items-start border-colorWarningBorder bg-colorWarningBg px-3 py-2.5"
-                    message={
-                        <span className="text-xs font-normal leading-normal text-colorText">
-                            {t("entityUi.mcpJourney.legacyTransportWarning")}
-                        </span>
-                    }
-                />
-            ) : null}
+                {(screen === "oauth" || screen === "no_auth") && urlProblem ? (
+                    <InlineError headline={null}>{urlProblem}</InlineError>
+                ) : null}
 
-            {screen === "oauth" || screen === "api_key" || screen === "no_auth" ? (
-                <HintedField label={t("entityUi.mcpJourney.name")} error={nameError ?? undefined}>
-                    <Input
-                        className={fieldClass}
-                        value={state.name}
-                        // A reconnect repairs a credential. The label is what agents
-                        // and people already call this connection.
-                        disabled={!!reconnect || busy}
-                        aria-label={t("entityUi.mcpJourney.name")}
-                        onChange={(event) => journey.setName(event.target.value)}
-                    />
-                </HintedField>
-            ) : null}
-
-            {screen === "oauth" ? ownerField : null}
-
-            {(screen === "oauth" || screen === "no_auth") && urlProblem ? (
-                <InlineError headline={null}>{urlProblem}</InlineError>
-            ) : null}
-
-            {screen === "oauth" ? (
-                <OAuthAdvancedFields
-                    clientId={state.oauthClientId}
-                    onClientIdChange={(clientId) => journey.setOauthClient({clientId})}
-                    clientSecret={
-                        <SecretSelect
-                            label={t("entityUi.mcpJourney.clientSecret")}
-                            value={
-                                namedSecrets.find(
-                                    (secret) => secret.id === state.oauthClientSecretId,
-                                )?.slug ?? ""
-                            }
-                            onChange={(slug) =>
-                                journey.setOauthClient({
-                                    clientSecretId:
-                                        namedSecrets.find((secret) => secret.slug === slug)?.id ??
-                                        null,
-                                })
-                            }
-                            secrets={namedSecrets}
-                            disabled={busy}
-                            canCreate
-                            onCreate={() => openSecretDrawer(undefined, "oauth_client")}
-                        />
-                    }
-                    authMethod={state.oauthClientAuthMethod ?? DEFAULT_OAUTH_CLIENT_AUTH_METHOD}
-                    onAuthMethodChange={(authMethod) => journey.setOauthClient({authMethod})}
-                    redirectUri={serverProbe?.auth.redirect_uri ?? null}
-                    scopesOffered={state.scopesOffered}
-                    scopesSelected={state.scopesSelected}
-                    onToggleScope={journey.toggleScope}
-                    needsOwnApp={needsOwnApp}
-                    summary={t("entityUi.mcpJourney.advancedSummary")}
-                    // Until the saved settings arrive, what is typed would be
-                    // replaced by them.
-                    disabled={busy || state.savedOauthConfig === "loading"}
-                />
-            ) : null}
-
-            {screen === "api_key" ? (
-                <>
-                    <div className="flex flex-col gap-3">
-                        <CredentialBindingFields
-                            value={binding}
-                            onChange={setBindingDraft}
-                            probe={state.probe}
-                            disabled={busy}
-                            invalid={state.status === "verify_failed"}
-                            aria-describedby={
-                                state.status === "verify_failed" ? KEY_PROBLEM_ID : undefined
-                            }
-                        />
-                        {binding.kind === "url" || hasUrlSecretPlaceholder(state.url) ? (
-                            <HintedField
-                                label={t("entityUi.mcpJourney.serverUrl")}
-                                hint={urlSecretHint(binding)}
-                                error={urlProblem ?? undefined}
-                            >
-                                <Input
-                                    className="font-mono text-[13px]"
-                                    value={state.url}
-                                    // A reconnect repairs one address and never
-                                    // points a saved connection somewhere else.
-                                    disabled={!!reconnect || busy}
-                                    aria-label={t("entityUi.mcpJourney.serverUrl")}
-                                    onChange={(event) => journey.editUrl(event.target.value)}
-                                />
-                            </HintedField>
-                        ) : null}
-                        {binding.prefix === "Basic" ? (
-                            <BasicCredentialHelper
-                                disabled={busy}
-                                onCreateSecret={openSecretDrawer}
-                            />
-                        ) : null}
-                        <Field
-                            label={t("entityUi.mcpJourney.projectSecret")}
-                            invalid={state.status === "verify_failed"}
-                        >
+                {screen === "oauth" ? (
+                    <OAuthAdvancedFields
+                        clientId={state.oauthClientId}
+                        onClientIdChange={(clientId) => journey.setOauthClient({clientId})}
+                        clientSecret={
                             <SecretSelect
-                                value={secretSlug}
-                                onChange={setSecretSlug}
+                                label={t("entityUi.mcpJourney.clientSecret")}
+                                value={
+                                    namedSecrets.find(
+                                        (secret) => secret.id === state.oauthClientSecretId,
+                                    )?.slug ?? ""
+                                }
+                                onChange={(slug) =>
+                                    journey.setOauthClient({
+                                        clientSecretId:
+                                            namedSecrets.find((secret) => secret.slug === slug)
+                                                ?.id ?? null,
+                                    })
+                                }
                                 secrets={namedSecrets}
+                                disabled={busy}
+                                canCreate
+                                onCreate={() => openSecretDrawer(undefined, "oauth_client")}
+                            />
+                        }
+                        authMethod={state.oauthClientAuthMethod ?? DEFAULT_OAUTH_CLIENT_AUTH_METHOD}
+                        onAuthMethodChange={(authMethod) => journey.setOauthClient({authMethod})}
+                        redirectUri={serverProbe?.auth.redirect_uri ?? null}
+                        scopesOffered={state.scopesOffered}
+                        scopesSelected={state.scopesSelected}
+                        onToggleScope={journey.toggleScope}
+                        needsOwnApp={needsOwnApp}
+                        summary={t(
+                            needsOwnApp
+                                ? "entityUi.mcpJourney.advancedSummaryScopes"
+                                : state.scopesOffered.length
+                                  ? "entityUi.mcpJourney.advancedSummary"
+                                  : "entityUi.mcpJourney.advancedSummaryClient",
+                        )}
+                        clientSecretAction={
+                            <NewSecretButton
+                                disabled={busy}
+                                onClick={() => openSecretDrawer(undefined, "oauth_client")}
+                            />
+                        }
+                        // Until the saved settings arrive, what is typed would be
+                        // replaced by them.
+                        disabled={busy || state.savedOauthConfig === "loading"}
+                    />
+                ) : null}
+
+                {screen === "api_key" ? (
+                    <>
+                        <div className="flex flex-col gap-3">
+                            <CredentialBindingFields
+                                value={binding}
+                                onChange={setBindingDraft}
+                                probe={state.probe}
                                 disabled={busy}
                                 invalid={state.status === "verify_failed"}
                                 aria-describedby={
                                     state.status === "verify_failed" ? KEY_PROBLEM_ID : undefined
                                 }
-                                canCreate={credentialBindingComplete(binding)}
-                                onCreate={() => openSecretDrawer()}
                             />
-                        </Field>
-                    </div>
-                    <span className="-mt-2 block text-xs leading-normal text-colorTextTertiary">
-                        {secretHelpFor(binding.kind)}
-                    </span>
-                </>
-            ) : null}
-
-            {screen === "api_key" && state.status === "verify_failed" ? (
-                <InlineError
-                    id={KEY_PROBLEM_ID}
-                    headline={keyRejectedHeadlineFor(refusedStatus)}
-                    className="-mt-2"
-                >
-                    {/* The server's own words, where it wrote any. Deleting them left
-                                static copy around a number, which on a typed gateway refusal
-                                threw away the only account of what went wrong; the sentence
-                                that made deleting them look right was our own client's "did
-                                not answer initialize", and that failure no longer reaches
-                                this screen at all (round 4, D133 reopened). */}
-                    {state.error} {keyRejectedAdviceFor(challengeScheme, binding)}
-                </InlineError>
-            ) : null}
-
-            {screen === "no_auth" && state.status === "verify_failed" ? (
-                <InlineError headline={keyRefusedWithoutKeyFor(refusedStatus)}>
-                    {state.error} {t("entityUi.mcpJourney.noKeyRefusedAdvice")}
-                </InlineError>
-            ) : null}
-
-            {screen === "waiting" ? (
-                <WaitingCard
-                    title={sealed ? null : t("entityUi.mcpJourney.waitingFor", {name: state.name})}
-                    body={
-                        sealed
-                            ? t("entityUi.mcpJourney.savingBody")
-                            : t("entityUi.mcpJourney.waitingBody")
-                    }
-                >
-                    {sealed ? null : (
-                        <div className="flex items-center gap-4 text-xs">
-                            {/* Both links are the control scale's 24px, under the 44px
-                                        touch minimum, so each grows an invisible box to reach it.
-                                        The row's gap is 16px, wider than the 10px either box
-                                        reaches sideways, so they do not overlap each other. */}
-                            <Button
-                                variant="link"
-                                size="xs"
-                                className={cn("px-0 text-xs", touchTargetExpansion(24))}
-                                onClick={() => consentPopupRef.current?.focus()}
+                            {binding.kind === "url" || hasUrlSecretPlaceholder(state.url) ? (
+                                <HintedField
+                                    label={t("entityUi.mcpJourney.serverUrl")}
+                                    hint={urlSecretHint(binding)}
+                                    error={urlProblem ?? undefined}
+                                >
+                                    <Input
+                                        className="font-mono text-label"
+                                        value={state.url}
+                                        // A reconnect repairs one address and never
+                                        // points a saved connection somewhere else.
+                                        disabled={!!reconnect || busy}
+                                        aria-label={t("entityUi.mcpJourney.serverUrl")}
+                                        onChange={(event) => journey.editUrl(event.target.value)}
+                                    />
+                                </HintedField>
+                            ) : null}
+                            {binding.prefix === "Basic" ? (
+                                <BasicCredentialHelper
+                                    disabled={busy}
+                                    onCreateSecret={openSecretDrawer}
+                                />
+                            ) : null}
+                            <Field
+                                label={t("entityUi.mcpJourney.projectSecret")}
+                                invalid={state.status === "verify_failed"}
+                                labelEnd={
+                                    <NewSecretButton
+                                        disabled={busy || !credentialBindingComplete(binding)}
+                                        onClick={() => openSecretDrawer()}
+                                    />
+                                }
                             >
-                                {t("entityUi.mcpJourney.openWindowAgain")}
-                            </Button>
-                            <Button
-                                variant="link"
-                                size="xs"
-                                className={cn(
-                                    "px-0 text-xs text-colorTextTertiary",
-                                    touchTargetExpansion(24),
-                                )}
-                                onClick={() => {
-                                    closeConsentPopup()
-                                    // A reconnect has no screen behind this one, so
-                                    // for one the only way back is out.
-                                    if (state.probe) journey.cancelConsent()
-                                    else handleClose()
-                                }}
-                            >
-                                {t("entityUi.mcpJourney.cancel")}
-                            </Button>
+                                <SecretSelect
+                                    value={secretSlug}
+                                    onChange={setSecretSlug}
+                                    secrets={namedSecrets}
+                                    disabled={busy}
+                                    invalid={state.status === "verify_failed"}
+                                    aria-describedby={
+                                        state.status === "verify_failed"
+                                            ? KEY_PROBLEM_ID
+                                            : undefined
+                                    }
+                                    canCreate={credentialBindingComplete(binding)}
+                                    onCreate={() => openSecretDrawer()}
+                                />
+                            </Field>
                         </div>
-                    )}
-                </WaitingCard>
-            ) : null}
+                        <span className="-mt-2 block text-meta leading-normal text-muted-foreground">
+                            {secretHelpFor(binding.kind)}
+                        </span>
+                    </>
+                ) : null}
 
-            {screen === "oauth" && state.savedOauthConfig === "failed" ? (
-                <InlineError headline={null}>
-                    {t("entityUi.mcpJourney.savedOauthUnreadable")}
-                </InlineError>
-            ) : null}
+                {screen === "api_key" && state.status === "verify_failed" ? (
+                    <InlineError
+                        id={KEY_PROBLEM_ID}
+                        headline={keyRejectedHeadlineFor(refusedStatus)}
+                        className="-mt-2"
+                    >
+                        {/* The server's own words, where it wrote any. Deleting them left
+                                    static copy around a number, which on a typed gateway refusal
+                                    threw away the only account of what went wrong; the sentence
+                                    that made deleting them look right was our own client's "did
+                                    not answer initialize", and that failure no longer reaches
+                                    this screen at all (round 4, D133 reopened). */}
+                        {state.error} {keyRejectedAdviceFor(challengeScheme, binding)}
+                    </InlineError>
+                ) : null}
 
-            {screen === "oauth" && isConsentRefusal(state.status) ? (
-                <InlineError headline={null}>
-                    {state.status === "consent_cancelled"
-                        ? t("entityUi.mcpJourney.consentCancelled", {name: state.name})
-                        : state.error}
-                </InlineError>
-            ) : null}
+                {screen === "no_auth" && state.status === "verify_failed" ? (
+                    <InlineError headline={keyRefusedWithoutKeyFor(refusedStatus)}>
+                        {state.error} {t("entityUi.mcpJourney.noKeyRefusedAdvice")}
+                    </InlineError>
+                ) : null}
 
-            {state.status === "create_failed" ? (
-                <InlineError headline={null}>{state.error}</InlineError>
-            ) : null}
+                {screen === "waiting" ? (
+                    <WaitingCard
+                        title={
+                            sealed ? null : t("entityUi.mcpJourney.waitingFor", {name: state.name})
+                        }
+                        body={
+                            sealed
+                                ? t("entityUi.mcpJourney.savingBody")
+                                : t("entityUi.mcpJourney.waitingBody")
+                        }
+                    >
+                        {sealed ? null : (
+                            <div className="flex items-center gap-4 text-meta">
+                                <Button
+                                    variant="link"
+                                    size="xs"
+                                    className="px-0 text-meta"
+                                    onClick={() => consentPopupRef.current?.focus()}
+                                >
+                                    {t("entityUi.mcpJourney.openWindowAgain")}
+                                </Button>
+                                <Button
+                                    variant="link"
+                                    size="xs"
+                                    className="px-0 text-meta text-muted-foreground"
+                                    onClick={() => {
+                                        closeConsentPopup()
+                                        // A reconnect has no screen behind this one, so
+                                        // for one the only way back is out.
+                                        if (state.probe) journey.cancelConsent()
+                                        else handleClose()
+                                    }}
+                                >
+                                    {t("entityUi.mcpJourney.cancel")}
+                                </Button>
+                            </div>
+                        )}
+                    </WaitingCard>
+                ) : null}
+
+                {screen === "oauth" && state.savedOauthConfig === "failed" ? (
+                    <InlineError headline={null}>
+                        {t("entityUi.mcpJourney.savedOauthUnreadable")}
+                    </InlineError>
+                ) : null}
+
+                {screen === "oauth" && isConsentRefusal(state.status) ? (
+                    <InlineError headline={null}>
+                        {state.status === "consent_cancelled"
+                            ? t("entityUi.mcpJourney.consentCancelled", {name: state.name})
+                            : state.error}
+                    </InlineError>
+                ) : null}
+
+                {state.status === "create_failed" ? (
+                    <InlineError headline={null}>{state.error}</InlineError>
+                ) : null}
+            </ViewStep>
 
             {secretDrawerMounted ? (
                 <CreateSecretDrawer
@@ -1176,6 +1262,7 @@ export function useMcpConnectScreens({
         sealed,
         confirm,
         canConfirm: confirmReady,
+        confirmBlockedReason,
         confirmLabel: t(confirmLabel(screen, state)),
         confirmOpensWindow: screen === "oauth" && !isConsentRefusal(state.status),
         handleClose,
@@ -1265,12 +1352,12 @@ const InlineError = ({
             id={id}
             type="error"
             showIcon
-            icon={<WarningCircle size={15} weight="regular" />}
-            className={`items-start border-colorErrorBorder bg-colorErrorBg px-3 py-2.5 ${className ?? ""}`}
+            icon={<WarningCircle size={16} />}
+            className={`items-start border-destructive/40 bg-destructive/10 px-3 py-2.5 ${className ?? ""}`}
             message={
-                <span className="text-xs font-normal leading-normal text-colorTextSecondary">
+                <span className="text-meta font-normal leading-normal text-muted-foreground">
                     {headline ? (
-                        <span className="font-medium text-colorText">{headline}</span>
+                        <span className="font-medium text-foreground">{headline}</span>
                     ) : null}
                     {text}
                     {rest}
@@ -1294,9 +1381,9 @@ const WaitingCard = ({
         role="status"
         data-testid="mcp-connect-waiting"
     >
-        <CircleNotch size={24} className="animate-spin text-colorTextSecondary" />
-        {title ? <p className="m-0 text-sm font-medium text-colorText">{title}</p> : null}
-        <p className="m-0 max-w-[300px] text-xs leading-normal text-colorTextSecondary">{body}</p>
+        <Spinner aria-hidden size="large" className="text-muted-foreground" />
+        {title ? <p className="m-0 text-body font-medium text-foreground">{title}</p> : null}
+        <p className="m-0 max-w-[300px] text-meta leading-normal text-muted-foreground">{body}</p>
         {children}
     </div>
 )
@@ -1362,7 +1449,7 @@ const SecretSelect = ({
             </SelectTrigger>
             <SelectContent>
                 {options.length === 0 ? (
-                    <div className="px-3 py-input-y-ghost text-field-md text-colorTextSecondary">
+                    <div className="px-3 py-input-y-ghost text-field-md text-muted-foreground">
                         {t("entityUi.mcpJourney.noProjectSecrets")}
                     </div>
                 ) : (
@@ -1382,10 +1469,43 @@ const SecretSelect = ({
                     }}
                     className="min-h-control w-full justify-start gap-2 rounded-control-sm px-3 py-1 text-field-md font-normal"
                 >
-                    <Plus size={13} className="shrink-0" />
+                    <Plus size={14} className="shrink-0" />
                     {t("entityUi.mcpJourney.createSecret")}
                 </Button>
             </SelectContent>
         </Select>
+    )
+}
+
+/**
+ * While the address is checked: the result card, Name, Owner and Authentication in their
+ * loaded places and heights (STATE-02). The mode's own fields depend on the answer, so stop there.
+ */
+function ProbeSkeleton({owner, inputClass}: {owner: boolean; inputClass?: string}) {
+    return (
+        <div aria-hidden className="contents">
+            <div className="flex h-10 items-center gap-2 rounded-lg bg-muted px-3">
+                <SkeletonBlock className="size-4 rounded-sm" />
+                <SkeletonBlock className="h-3 w-48" />
+                <SkeletonBlock className="ml-auto h-3 w-12" />
+            </div>
+            <SkeletonField label="w-10">
+                <SkeletonBlock className={cn("h-control rounded-md", inputClass)} />
+            </SkeletonField>
+            {owner ? (
+                <SkeletonField label="w-12">
+                    <SkeletonChoiceSwitch />
+                </SkeletonField>
+            ) : null}
+            <SkeletonField label="w-24">
+                <div className="flex h-10 gap-0.5 rounded-lg bg-secondary p-0.5">
+                    {[0, 1, 2].map((i) => (
+                        <div key={i} className="flex flex-1 items-center px-2.5">
+                            <SkeletonBlock className="h-3 w-14" />
+                        </div>
+                    ))}
+                </div>
+            </SkeletonField>
+        </div>
     )
 }

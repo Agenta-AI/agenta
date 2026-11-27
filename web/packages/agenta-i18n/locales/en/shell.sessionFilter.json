@@ -17,5 +17,8 @@
     "running": "Running",
     "searchSessions": "Search sessions",
     "today": "Today",
-    "type": "Type"
+    "type": "Type",
+    "searchDescription": "Search this project's sessions.",
+    "searchHint": "Type to search this project's sessions.",
+    "noSessionsMatch": "No sessions match. Try another word."
 }

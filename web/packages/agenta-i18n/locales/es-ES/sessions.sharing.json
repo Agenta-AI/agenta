@@ -15,6 +15,7 @@
     "grantViewOnlyByRole": "Solo puede ver: su rol en este proyecto no puede enviar.",
     "invalidGrantee": "{{name}} ya no es miembro de este proyecto. Quita a esta persona para compartir con las demás.",
     "inviteButton": "Invitar",
+    "inviteRoleLabel": "Acceso para las personas que invites",
     "inviteViewOnly": "{{names}} solo puede ver: su rol en este proyecto no puede enviar.",
     "linkCopied": "Enlace copiado. Solo pueden abrirlo las personas con acceso.",
     "linkCopiedNobodyYet": "Enlace copiado. Nadie más puede abrirlo todavía.",
@@ -47,8 +48,8 @@
     "stopSharing": "Dejar de compartir",
     "stopTitle": "¿Dejar de compartir?",
     "tooltipNotShareable": "Podrás compartir este chat después de su primer mensaje.",
-    "tooltipPeople_one": "Compartido con {{count}} persona",
     "tooltipPeople_many": "Compartido con {{count}} personas",
+    "tooltipPeople_one": "Compartido con {{count}} persona",
     "tooltipPeople_other": "Compartido con {{count}} personas",
     "tooltipPrivate": "Privado",
     "tooltipProject": "Todos los del proyecto pueden ver y enviar"

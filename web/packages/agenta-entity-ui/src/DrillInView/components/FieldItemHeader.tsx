@@ -12,7 +12,7 @@ import {useCallback} from "react"
 import {useT} from "@agenta/i18n"
 import drillInCatalog from "@agenta/i18n/catalogs/entityUi.drillIn"
 import type {PathItem, DataPath} from "@agenta/shared/utils"
-import {ChevronRight, ChevronDown} from "lucide-react"
+import {CaretDownIcon, CaretRightIcon} from "@phosphor-icons/react"
 
 // ============================================================================
 // TYPES
@@ -123,12 +123,12 @@ export function FieldItemHeader({
                 <button
                     type="button"
                     onClick={onToggleCollapse}
-                    className="mr-1 p-0.5 hover:bg-gray-100 rounded border-0 bg-transparent cursor-pointer"
+                    className="mr-1 p-0.5 hover:bg-accent rounded border-0 bg-transparent cursor-pointer"
                     aria-label={
                         isCollapsed ? t("entityUi.drillIn.expand") : t("entityUi.drillIn.collapse")
                     }
                 >
-                    {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                    {isCollapsed ? <CaretRightIcon size={14} /> : <CaretDownIcon size={14} />}
                 </button>
             )}
 

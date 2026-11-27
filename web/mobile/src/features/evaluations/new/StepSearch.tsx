@@ -22,7 +22,7 @@ export const StepSearch = ({
             aria-label={label}
             disabled={disabled}
             onChange={(event) => setTyped(event.target.value)}
-            className="w-full sm:w-[260px]"
+            className="w-full sm:w-65"
         />
     )
 }

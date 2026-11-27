@@ -94,10 +94,10 @@ export const RefinePromptDialog = ({revisionId, promptKey, onClose}: RefinePromp
                         )}
                     >
                         <div className="hidden border-0 border-b border-solid border-border px-4 py-3 sm:block">
-                            <p className="m-0 text-[13px] font-medium text-foreground">
+                            <p className="m-0 text-label font-medium text-foreground">
                                 {t("playground.refine.instructions")}
                             </p>
-                            <p className="m-0 mt-0.5 text-xs text-muted-foreground">
+                            <p className="m-0 mt-0.5 text-meta text-muted-foreground">
                                 {t("playground.refine.chatWithAgent")}
                             </p>
                         </div>
@@ -116,10 +116,10 @@ export const RefinePromptDialog = ({revisionId, promptKey, onClose}: RefinePromp
                         )}
                     >
                         <div className="flex items-center gap-3 border-0 border-b border-solid border-border px-4 py-2 sm:py-3">
-                            <p className="m-0 hidden text-[13px] font-medium text-foreground sm:block">
+                            <p className="m-0 hidden text-label font-medium text-foreground sm:block">
                                 {t("playground.refine.refinePrompt")}
                             </p>
-                            <label className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
+                            <label className="ml-auto flex items-center gap-2 text-meta text-muted-foreground">
                                 {t("playground.refine.diff")}
                                 <Switch
                                     size="sm"

@@ -31,8 +31,8 @@ import {
     serializeElicitationContent,
     type ElicitationRequestPayload,
 } from "@agenta/shared/utils"
-import {Button, LoadingButton} from "@agenta/ui/ui"
-import {CaretLeft, CaretRight, CircleNotch, Question, X} from "@phosphor-icons/react"
+import {Button, LoadingButton, Spinner} from "@agenta/ui/ui"
+import {CaretLeft, CaretRight, Question, X} from "@phosphor-icons/react"
 
 import type {ClientToolOutputHandler} from "../clientTools/ClientToolPart"
 import type {ElicitationDockState} from "../hooks/useElicitationDock"
@@ -56,7 +56,7 @@ const CONTROL_MIN_H = 62
 
 /** The reserved box itself: geometry lives here ONCE, so no state can drift out of it. */
 const CARD_SURFACE =
-    "rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer flex flex-col gap-2.5 p-3 px-3.5 shadow-sm"
+    "rounded-lg border border-solid border-border-muted bg-background flex flex-col gap-2.5 p-3 px-3.5"
 
 export interface ElicitationDockProps {
     elicits: ElicitationDockState
@@ -182,8 +182,8 @@ const Eyebrow = ({label, children}: {label?: string | null; children?: React.Rea
     const t = useT(chatElicitationCatalog)
     return (
         <div className="flex items-center gap-1.5">
-            <Question size={14} weight="fill" className="shrink-0 text-colorText" />
-            <span className="text-xs font-medium text-colorText">
+            <Question size={14} weight="fill" className="shrink-0 text-foreground" />
+            <span className="text-label text-foreground">
                 {label || t("chat.elicitation.requestInput")}
             </span>
             {children}
@@ -508,7 +508,7 @@ const LiveCard = ({
                             </NavButton>
                             <span
                                 aria-live="polite"
-                                className="min-w-[26px] text-center text-[11px] tabular-nums text-colorTextTertiary"
+                                className="min-w-[26px] text-center text-caption tabular-nums text-muted-foreground"
                             >
                                 {stepper.position}/{stepper.total}
                             </span>
@@ -523,15 +523,15 @@ const LiveCard = ({
                     ) : null}
                     <Button
                         variant="ghost"
-                        size="icon-sm"
+                        size="icon-xs"
                         title={t("chat.elicitation.dismiss")}
                         aria-label={t("chat.elicitation.dismissRequest")}
                         disabled={submitting && firedAction !== "dismiss"}
                         onClick={dismiss}
-                        className={`ml-1 size-[22px] text-colorTextQuaternary hover:text-colorText ${touchCls}`}
+                        className={`ml-1 text-muted-foreground hover:text-foreground ${touchCls}`}
                     >
                         {submitting && firedAction === "dismiss" ? (
-                            <CircleNotch size={11} className="animate-spin" />
+                            <Spinner aria-hidden className="size-3" />
                         ) : (
                             <X size={11} />
                         )}
@@ -542,7 +542,7 @@ const LiveCard = ({
             {/* Fixed for the card's life, so it never moves the composer mid-answer. */}
             <p
                 data-elicitation-message
-                className="m-0 max-h-[34px] overflow-y-auto text-xs leading-snug text-colorTextSecondary"
+                className="m-0 max-h-[34px] overflow-y-auto text-meta leading-snug text-muted-foreground"
             >
                 {form.message}
             </p>
@@ -552,8 +552,8 @@ const LiveCard = ({
                     {steps.map((candidate, index) => (
                         <span
                             key={candidate.name}
-                            className={`h-0.5 flex-1 rounded-full ${
-                                index < stepper.position ? "bg-colorText" : "bg-colorFillTertiary"
+                            className={`h-0.5 flex-1 rounded-sm ${
+                                index < stepper.position ? "bg-foreground" : "bg-secondary"
                             }`}
                         />
                     ))}
@@ -568,13 +568,13 @@ const LiveCard = ({
                 ) : step ? (
                     <>
                         {/* Capped and scrollable, not clamped: nothing shifts, nothing is lost. */}
-                        <span className="block max-h-20 overflow-y-auto text-sm font-medium leading-snug sm:max-h-[34px] sm:text-[13px] sm:leading-tight">
+                        <span className="block max-h-20 overflow-y-auto text-label font-medium leading-snug sm:max-h-[34px] sm:leading-tight">
                             {stepper.isMultiStep ? (
-                                <span className="text-colorText">{stepper.position}. </span>
+                                <span className="text-foreground">{stepper.position}. </span>
                             ) : null}
                             {step.label}
                             {step.hint ? (
-                                <span className="font-normal text-colorTextQuaternary">
+                                <span className="font-normal text-muted-foreground">
                                     {" "}
                                     · {step.hint}
                                 </span>
@@ -621,10 +621,10 @@ const LiveCard = ({
                 </LoadingButton>
                 <span
                     aria-live="polite"
-                    className={`mr-auto truncate text-xs ${
+                    className={`mr-auto truncate text-meta ${
                         submissionError || stepper.error
-                            ? "text-colorError"
-                            : "text-colorTextTertiary"
+                            ? "text-destructive"
+                            : "text-muted-foreground"
                     }`}
                 >
                     {submissionError ?? stepper.error ?? stepper.hold ?? ""}
@@ -647,12 +647,12 @@ const NavButton = ({
 }) => (
     <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon-xs"
         aria-label={label}
         disabled={disabled}
         onClick={onClick}
         // Rendered even when there is nowhere to go: a slot that appears on demand shifts the row.
-        className="size-[22px] text-colorTextSecondary disabled:opacity-40"
+        className="text-muted-foreground disabled:opacity-40"
     >
         {children}
     </Button>
@@ -668,9 +668,9 @@ const ReviewList = ({
     const t = useT(chatElicitationCatalog)
     return (
         <>
-            <span className="text-[13px] font-medium leading-tight">
+            <span className="text-label font-medium leading-tight">
                 {t("chat.elicitation.reviewYourAnswers")}{" "}
-                <span className="font-normal text-colorTextQuaternary">
+                <span className="font-normal text-muted-foreground">
                     · {t("chat.elicitation.answeredCount", {count: stepper.answeredCount})}
                     {stepper.skippedCount > 0
                         ? ` · ${t("chat.elicitation.skippedCount", {count: stepper.skippedCount})}`
@@ -689,20 +689,20 @@ const ReviewList = ({
                         // so a bare <button> here drew an outline around every row.
                         // shrink-0 for the same reason the option rows carry it: these are flex
                         // children of a capped column, so a long form squashed every row instead of
-                        // scrolling — at 25 answers they rendered 24px against a declared 30px.
+                        // scrolling — at 25 answers they rendered 24px against a declared 32px.
                         data-elicitation-review-row
-                        className={`flex h-[30px] min-w-0 shrink-0 cursor-pointer items-center justify-between gap-3 rounded-md border border-transparent bg-transparent px-2 text-left ${
-                            index === stepper.cursor ? "bg-colorFillSecondary" : ""
+                        className={`flex h-8 min-w-0 shrink-0 cursor-pointer items-center justify-between gap-3 rounded-sm border border-transparent bg-transparent px-2 text-left ${
+                            index === stepper.cursor ? "bg-accent" : ""
                         }`}
                     >
-                        <span className="max-w-[55%] shrink-0 truncate text-xs text-colorTextSecondary">
+                        <span className="max-w-[55%] shrink-0 truncate text-label text-muted-foreground">
                             {step.label}
                         </span>
                         <span
-                            className={`min-w-0 truncate text-xs ${
+                            className={`min-w-0 truncate text-label ${
                                 stepper.isAnswered(step)
-                                    ? "text-colorText"
-                                    : "text-colorTextQuaternary"
+                                    ? "text-foreground"
+                                    : "text-muted-foreground"
                             }`}
                         >
                             {stepper.isAnswered(step)

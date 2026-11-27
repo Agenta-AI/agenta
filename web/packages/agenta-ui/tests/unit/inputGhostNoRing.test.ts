@@ -15,8 +15,8 @@ describe("the ghost Input", () => {
         expect(classes).toContain("border-transparent")
     })
 
-    it("leaves the ring on the bordered default", () => {
+    it("keeps the shared focus ring on the bordered default", () => {
         const classes = inputVariants({variant: "default"}).split(/\s+/)
-        expect(classes).toContain("focus-within:ring-[3px]")
+        expect(classes).toContain("focus-ring-field")
     })
 })

@@ -85,7 +85,7 @@ export const ConfigPanelHeader = ({
         <div className="@container/config-header flex min-h-12 shrink-0 flex-wrap items-center justify-between gap-1 border-b border-border bg-background px-3 py-1.5 sm:sticky sm:top-0 sm:z-10 sm:gap-2 sm:px-4">
             {/* When the details and the buttons do not fit on one line (a compare column), the
                 buttons go to a second line, so the Draft tag is never clipped. */}
-            <div className="flex min-w-[5.5rem] items-center gap-1 overflow-hidden text-sm">
+            <div className="flex min-w-[5.5rem] items-center gap-1 overflow-hidden text-body">
                 {!isLocalDraft ? switcher : null}
                 {isLocalDraft ? (
                     <>
@@ -120,7 +120,7 @@ export const ConfigPanelHeader = ({
                     <SelectTrigger
                         size="sm"
                         aria-label={t("playground.panels.configView")}
-                        className="h-7 w-24 shrink-0"
+                        className="h-control-sm w-24 shrink-0"
                     >
                         <SelectValue />
                     </SelectTrigger>

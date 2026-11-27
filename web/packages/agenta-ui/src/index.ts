@@ -144,7 +144,7 @@ export {
     LLMIconMap,
     // Individual Icons
     AlephAlpha,
-    Anthropic,
+    Claude,
     AnyScale,
     Azure,
     Bedrock,

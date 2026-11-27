@@ -5,7 +5,6 @@ import {
     findCustomMcpEndpoint,
     getMcpConnectionStatus,
     getMcpConnectionStatusLabel,
-    hostnameLabel,
     mcpEndpointsQueryAtom,
     mcpReconnectTarget,
     readMcpConnectionSlug,
@@ -20,7 +19,7 @@ import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationV
 import mcpPermissionsCatalog from "@agenta/i18n/catalogs/entityUi.mcpPermissions"
 import mcpViewsCatalog from "@agenta/i18n/catalogs/entityUi.mcpViews"
 import {McpServerMark} from "@agenta/ui/agent-icon"
-import {Badge, Button} from "@agenta/ui/ui"
+import {Badge, Button, ItemViewTitle} from "@agenta/ui/ui"
 import {useViewTitle, type ConfigItemRef, type ViewNav, type ViewProps} from "@agenta/ui/view-stack"
 import {ArrowClockwise} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -37,11 +36,12 @@ import {
     updateMcpByRef,
     withMcpAccountSource,
 } from "../mcpRail"
-import {RemoveFromAgentDialog} from "../RemoveFromAgentDialog"
 import {useAgentConfigWriter} from "../useAgentConfigWriter"
 
 import {mcpConnectView} from "./mcpConnectView"
 import type {McpServerViewParams} from "./mcpServerView"
+import {RemovedItemState} from "./RemovedItemState"
+import {RemoveFromAgentDialog} from "./RemoveFromAgentDialog"
 import {RemoveFromAgentFooter} from "./RemoveFromAgentFooter"
 
 /** The project's `custom` servers, the namespace an agent's connection reference names. */
@@ -66,54 +66,36 @@ const useReconnect = (endpoint: MCPEndpoint | undefined, nav: ViewNav) => {
  */
 const ServerTitle = ({
     name,
-    endpoint,
     status,
     onReconnect,
 }: {
     name: string
-    endpoint: MCPEndpoint | undefined
     /** The project's sign-in state; absent when it is not the one this place uses. */
     status: McpConnectionStatus | undefined
     onReconnect?: () => void
 }) => {
     const t = useT(mcpPermissionsCatalog)
-    const host = endpoint ? hostnameLabel(endpoint.data.route.base_url ?? "") : ""
     return (
-        // Canvas F03 f7: the name 13/20/600 with the host under it, 12/16 mono; 15/20 on a phone.
-        <div className="flex min-w-0 items-center gap-3 px-4 pb-1 pt-3.5">
-            <McpServerMark size={24} name={name} />
-            <div className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-[13px] font-semibold leading-5 max-md:text-[15px]">
-                    {name}
-                </span>
-                {host ? (
-                    <span className="truncate font-mono text-[12px] leading-4 text-colorTextSecondary">
-                        {host}
-                    </span>
-                ) : null}
-            </div>
-            {status && status !== "connected" ? (
-                <>
-                    <Badge
-                        variant="gold"
-                        className="m-0 shrink-0 px-1.5 text-[12px] font-normal leading-4"
-                    >
+        <ItemViewTitle
+            className="px-4 pt-4"
+            mark={<McpServerMark size={24} name={name} />}
+            title={name}
+            status={
+                status && status !== "connected" ? (
+                    <Badge variant="warning" className="shrink-0">
                         {getMcpConnectionStatusLabel(status)}
                     </Badge>
-                    {onReconnect ? (
-                        <Button
-                            variant="outline"
-                            size="compact"
-                            className="max-md:h-11"
-                            onClick={onReconnect}
-                        >
-                            <ArrowClockwise data-icon="inline-start" />
-                            {t("entityUi.mcpPermissions.reconnect")}
-                        </Button>
-                    ) : null}
-                </>
-            ) : null}
-        </div>
+                ) : null
+            }
+            actions={
+                status && status !== "connected" && onReconnect ? (
+                    <Button variant="outline" size="compact" onClick={onReconnect}>
+                        <ArrowClockwise data-icon="inline-start" />
+                        {t("entityUi.mcpPermissions.reconnect")}
+                    </Button>
+                ) : null
+            }
+        />
     )
 }
 
@@ -181,14 +163,10 @@ const AgentServer = ({
 
     if (!entry) {
         return (
-            <div className="flex flex-col items-start gap-3 px-4 py-6 text-sm">
-                <span className="text-colorTextSecondary">
-                    {t("entityUi.mcpViews.removedState")}
-                </span>
-                <Button variant="outline" size="sm" onClick={() => void nav.back()}>
-                    {t("entityUi.integrationViews.back")}
-                </Button>
-            </div>
+            <RemovedItemState
+                message={t("entityUi.mcpViews.removedState")}
+                onBack={() => void nav.back()}
+            />
         )
     }
 
@@ -202,7 +180,6 @@ const AgentServer = ({
         <div className="flex min-h-0 flex-1 flex-col">
             <ServerTitle
                 name={name}
-                endpoint={endpoint}
                 status={personal ? undefined : projectStatus}
                 onReconnect={writer.readOnly ? undefined : onReconnect}
             />
@@ -227,15 +204,13 @@ const AgentServer = ({
                 />
             </div>
             {writer.readOnly ? null : <RemoveFromAgentFooter onClick={() => setConfirming(true)} />}
-            {confirming ? (
-                <RemoveFromAgentDialog
-                    open
-                    name={name}
-                    description={t("entityUi.integrationViews.connectionStays")}
-                    onRemove={remove}
-                    onClose={() => setConfirming(false)}
-                />
-            ) : null}
+            <RemoveFromAgentDialog
+                open={confirming}
+                name={name}
+                body={t("entityUi.integrationViews.connectionStays")}
+                onConfirm={remove}
+                onCancel={() => setConfirming(false)}
+            />
         </div>
     )
 }
@@ -268,7 +243,6 @@ const ProjectServer = ({nav, slug}: ViewProps<McpServerViewParams> & {slug: stri
         <div className="flex min-h-0 flex-1 flex-col">
             <ServerTitle
                 name={name}
-                endpoint={endpoint}
                 status={endpoint ? getMcpConnectionStatus(endpoint) : undefined}
                 onReconnect={onReconnect}
             />

@@ -60,7 +60,7 @@ export type {
 } from "./PlaygroundConfigSection/types"
 
 // Stable reference: a new object here would re-run the context's classNames memo every render.
-const DRILL_IN_CLASS_NAMES = {fieldList: "bg-[var(--ag-surface-section-content)]"}
+const DRILL_IN_CLASS_NAMES = {fieldList: "bg-background"}
 
 function PlaygroundConfigSection({
     revisionId: targetRevisionId,
@@ -385,9 +385,9 @@ function PlaygroundConfigSection({
         }
         return (
             <div className={clsx("p-4 flex flex-col gap-3", className)}>
-                <div className="h-9 rounded bg-[var(--ag-rgba-051729-06)] animate-pulse" />
-                <div className="h-32 rounded border border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-rgba-051729-02)] animate-pulse" />
-                <div className="h-24 rounded border border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-rgba-051729-02)] animate-pulse" />
+                <div className="h-9 rounded bg-secondary animate-pulse" />
+                <div className="h-32 rounded border border-solid border-border-muted bg-muted animate-pulse" />
+                <div className="h-24 rounded border border-solid border-border-muted bg-muted animate-pulse" />
             </div>
         )
     }
@@ -398,12 +398,12 @@ function PlaygroundConfigSection({
                 className={clsx("flex flex-col items-center justify-center py-12 px-6", className)}
             >
                 <div className="flex flex-col items-center gap-2 text-center max-w-[320px]">
-                    <span className="text-sm font-medium text-[var(--ag-rgba-051729-65)]">
+                    <span className="text-label font-medium text-muted-foreground">
                         {isEvaluator
                             ? t("entityUi.playgroundConfig.noConfigNeeded")
                             : t("entityUi.playgroundConfig.noConfiguration")}
                     </span>
-                    <span className="text-xs text-[var(--ag-rgba-051729-45)]">
+                    <span className="text-meta text-muted-foreground">
                         {isEvaluator
                             ? t("entityUi.playgroundConfig.evaluatorDefaults")
                             : t("entityUi.playgroundConfig.revisionNoConfig")}
@@ -425,9 +425,7 @@ function PlaygroundConfigSection({
                     <div
                         className={clsx(
                             "border border-solid rounded overflow-hidden",
-                            validationErrors.length > 0
-                                ? "border-[var(--ag-c-FF4D4F)]"
-                                : "border-gray-200",
+                            validationErrors.length > 0 ? "border-destructive" : "border-border",
                         )}
                     >
                         <SharedEditor
@@ -452,7 +450,7 @@ function PlaygroundConfigSection({
                             {validationErrors.map((err, i) => (
                                 <div
                                     key={`${err.path}-${i}`}
-                                    className="text-xs text-[var(--ag-c-FF4D4F)] leading-tight"
+                                    className="text-meta text-destructive leading-tight"
                                 >
                                     <span className="font-mono font-medium">{err.path}</span>
                                     {": "}
@@ -466,10 +464,10 @@ function PlaygroundConfigSection({
                 <>
                     {!hasTopLevelObjectSection && (
                         <div
-                            className="flex items-center w-full px-3 py-2 bg-[var(--ag-surface-section-header)] border-0 border-b border-solid border-colorBorderSecondary sticky z-[2]"
+                            className="flex items-center w-full px-3 py-2 bg-muted border-0 border-b border-solid border-border-muted sticky z-[2]"
                             style={{top: stickyHeaderTop}}
                         >
-                            <span className="capitalize font-medium text-sm">
+                            <span className="capitalize font-medium text-label">
                                 {t("entityUi.playgroundConfig.config")}
                             </span>
                         </div>

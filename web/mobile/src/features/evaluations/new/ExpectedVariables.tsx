@@ -6,7 +6,7 @@ export const ExpectedVariables = ({revisions}: {revisions: readonly DraftRevisio
     const names = useExpectedInputVariables(revisions)
     if (names.length === 0) return null
     return (
-        <p className="m-0 text-xs text-muted-foreground">
+        <p className="m-0 text-meta text-muted-foreground">
             Expected input variables for selected variant(s):{" "}
             <span className="font-mono">{names.join(", ")}</span>
         </p>

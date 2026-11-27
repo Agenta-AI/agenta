@@ -23,7 +23,7 @@ export const EmbedDomainsField = ({
     const t = useT(publishCatalog)
     return (
         <div className="flex flex-col gap-1.5">
-            <label className="flex cursor-pointer items-center gap-2 text-[13px] text-foreground">
+            <label className="flex cursor-pointer items-center gap-2 text-label text-foreground">
                 <Switch
                     size="sm"
                     checked={value.restricted}
@@ -47,13 +47,13 @@ export const EmbedDomainsField = ({
                     {error ? (
                         <span
                             role="alert"
-                            className="text-[12.5px] text-destructive"
+                            className="text-label text-destructive"
                             data-testid="agent-embed-origins-error"
                         >
                             {error}
                         </span>
                     ) : (
-                        <span className="text-[12.5px] text-muted-foreground">
+                        <span className="text-label text-muted-foreground">
                             {t("publish.domainsHint")}
                         </span>
                     )}

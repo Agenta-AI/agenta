@@ -60,8 +60,8 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
         <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-1">
                 <div className="flex flex-col gap-0.5">
-                    <span className="font-medium text-xs">{policyTitle}</span>
-                    <span className="text-xs leading-snug text-colorTextDescription">
+                    <span className="font-medium text-label">{policyTitle}</span>
+                    <span className="text-meta leading-snug text-muted-foreground">
                         {policyDescription}
                     </span>
                 </div>
@@ -79,14 +79,14 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
             </div>
             <div className="flex flex-col gap-2">
                 <div className="flex flex-col gap-0.5">
-                    <span className="font-medium text-xs">{fallbackConfigsTitle}</span>
-                    <span className="text-xs leading-snug text-colorTextDescription">
+                    <span className="font-medium text-label">{fallbackConfigsTitle}</span>
+                    <span className="text-meta leading-snug text-muted-foreground">
                         {fallbackConfigsDescription}{" "}
                         <a
                             href="https://agenta.ai/docs/prompt-engineering/integrating-prompts/fallback-models-and-retry"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-gray-500 underline decoration-dotted underline-offset-2"
+                            className="text-muted-foreground underline decoration-dotted underline-offset-2"
                         >
                             {t("entityUi.playgroundConfig.learnMore")}
                         </a>
@@ -147,9 +147,7 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
                 </HintTooltip>
                 {/* The reason shows on screen too: a disabled button gives no hover hint on touch. */}
                 {!disabled && !fallbackPolicy ? (
-                    <span className="text-xs text-colorTextDescription">
-                        {policyRequiredMessage}
-                    </span>
+                    <span className="text-meta text-muted-foreground">{policyRequiredMessage}</span>
                 ) : null}
             </div>
         </div>

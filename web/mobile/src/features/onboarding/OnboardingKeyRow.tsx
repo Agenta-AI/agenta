@@ -14,8 +14,8 @@ import {OnboardingWayRow} from "./OnboardingWayRow"
 import type {OnboardingModel} from "./useOnboardingModel"
 
 const PILL =
-    "bg-success-bg text-success inline-flex h-[22px] items-center gap-1 rounded-md px-2 text-xs font-medium leading-4"
-const ACTION = "h-7 rounded-md px-2.5 text-xs font-medium"
+    "bg-success/10 text-success inline-flex h-5 items-center gap-1 rounded-sm px-1.5 text-caption"
+const ACTION = "h-control-sm px-2 text-label"
 /** The three providers the hint names before counting the rest. */
 const NAMED_IN_HINT = 3
 
@@ -57,7 +57,7 @@ export const OnboardingKeyRow = ({keys, delay}: {keys: OnboardingModel["keys"]; 
                 animate="animate"
                 className={PILL}
             >
-                <Check size={11} weight="bold" />
+                <Check size={11} />
                 {row.tag}
             </motion.span>
         ) : (

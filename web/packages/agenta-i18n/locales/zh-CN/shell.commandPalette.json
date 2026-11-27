@@ -6,7 +6,8 @@
     "groupPages": "页面",
     "groupPrompts": "提示词",
     "newAgent": "新建 Agent",
-    "nothingMatches": "没有匹配项",
+    "nothingMatches": "没有匹配项。请换个词试试。",
     "placeholder": "搜索会话、Agent、页面…",
-    "searching": "正在搜索…"
+    "searching": "正在搜索…",
+    "goTo": "前往{{page}}"
 }

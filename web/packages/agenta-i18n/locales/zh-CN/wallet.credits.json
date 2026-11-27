@@ -19,7 +19,7 @@
     "ofAmount": "共 {{amount}}",
     "purchased": "已购买",
     "remainingOfTotal": "{{remaining}} / 共 {{total}}",
-    "remainingTitle": "剩余额度",
+    "remainingTitle": "额度",
     "resets": "{{date}} 重置",
     "resetsDaily": "每日重置",
     "statusEmpty": "已用完",

@@ -38,7 +38,7 @@ const VariantDetails = ({
                 revision !== null &&
                 revision !== "" &&
                 (showRevisionAsTag ? (
-                    <Badge className={`bg-[var(--ag-colorFillSecondary)]`}>v{revision}</Badge>
+                    <Badge className={`bg-secondary`}>v{revision}</Badge>
                 ) : (
                     <span>v{revision}</span>
                 ))}
@@ -64,12 +64,7 @@ const VariantDetails = ({
                     </DropdownMenu>
                 )
             ) : (
-                isLatest &&
-                showLatestTag && (
-                    <Badge className={`bg-[var(--ag-c-E6F4FF)] text-[var(--ag-c-1677FF)]`}>
-                        {t("entityUi.variant.lastModified")}
-                    </Badge>
-                )
+                isLatest && showLatestTag && <Badge>{t("entityUi.variant.lastModified")}</Badge>
             )}
         </div>
     )

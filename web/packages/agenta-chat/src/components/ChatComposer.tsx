@@ -24,7 +24,7 @@ import type {
     RichChatInputHandle,
     SlashCommandSection,
 } from "@agenta/ui/rich-chat-input"
-import {Button, PHONE_TOUCH_TARGET_CLASS, SimpleTooltip} from "@agenta/ui/ui"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {Paperclip} from "@phosphor-icons/react"
 
 import {acceptAttrFor} from "../assets/attachmentRules"
@@ -62,7 +62,7 @@ export interface ChatComposerProps {
     maxHeightClassName?: string
     /** The editor's resting height; see RichChatInput. */
     minHeightClassName?: string
-    /** A 14 px secondary paperclip in a 24 px box: the builder page's new chat (B01). */
+    /** @deprecated No effect: the kit sizes the paperclip on every surface. Kept for callers. */
     smallAttach?: boolean
     disabled?: boolean
     /** Send and Enter are off while typing stays on (an agent whose model needs setup). */
@@ -134,7 +134,6 @@ export const ChatComposer = ({
     className,
     maxHeightClassName,
     minHeightClassName,
-    smallAttach = false,
     disabled,
     sendDisabled,
     hideSendButton,
@@ -255,10 +254,10 @@ export const ChatComposer = ({
                     dictationAnalyserRef ? (
                         <RecordingWaveform
                             analyserRef={dictationAnalyserRef}
-                            className="h-5 flex-1 text-colorPrimary"
+                            className="h-5 flex-1 text-primary"
                         />
                     ) : (
-                        <span role="status" className="text-xs text-colorTextSecondary">
+                        <span role="status" className="text-meta text-muted-foreground">
                             {t("chat.chatComposer.listening")}
                         </span>
                     )
@@ -313,9 +312,8 @@ export const ChatComposer = ({
                     onSubmit: withQuotes(action.onSubmit),
                 }))}
                 prefix={
-                    // Tight: these are one cluster of composer tools, not separate controls. On a
-                    // phone 8 px apart, so the 44 px areas do not reach a neighbour.
-                    <div className="flex items-center gap-0.5 max-md:gap-2">
+                    // Tight: these are one cluster of composer tools, not separate controls.
+                    <div className="flex items-center gap-0.5">
                         {extraPrefix}
                         {/* Gone while dictating: the row belongs to the wave, and attaching a file
                             mid-utterance is not a thing anyone is doing. */}
@@ -333,17 +331,12 @@ export const ChatComposer = ({
                             >
                                 <Button
                                     variant="ghost"
-                                    size="icon"
-                                    // A phone: 36 px drawn and a 44 px area (4 px reach), as the
-                                    // design canvas.
-                                    className={`max-md:size-9 ${
-                                        // The canvas draws a bare glyph in a 24 px box.
-                                        surface === "canvas"
-                                            ? smallAttach
-                                                ? "size-6 text-colorTextSecondary"
-                                                : "size-6 text-colorTextTertiary"
-                                            : ""
-                                    } ${PHONE_TOUCH_TARGET_CLASS}`}
+                                    // The canvas: the kit's 28 px control, as Send and the model
+                                    // button, the same on every window (SIZE-01, SIZE-02).
+                                    size={surface === "canvas" ? "icon-sm" : "icon"}
+                                    className={
+                                        surface === "canvas" ? "text-muted-foreground" : undefined
+                                    }
                                     disabled={!uploadsEnabled || composerDisabled}
                                     onClick={() => fileInputRef.current?.click()}
                                     // The closing picker's focus has no relatedTarget; no tooltip.
@@ -352,24 +345,14 @@ export const ChatComposer = ({
                                     }}
                                     aria-label={t("chat.chatComposer.attachFiles")}
                                 >
-                                    {/* 16 px (S07), 14 px on the builder page (B01), 20 px on
-                                        a phone (M01). */}
-                                    <Paperclip
-                                        size={16}
-                                        className={
-                                            surface !== "canvas"
-                                                ? undefined
-                                                : smallAttach
-                                                  ? "size-3.5 max-md:size-5"
-                                                  : "size-4 max-md:size-5"
-                                        }
-                                    />
+                                    {/* The kit's icon size for the button. */}
+                                    <Paperclip size={16} />
                                 </Button>
                             </SimpleTooltip>
                         )}
                         {/* Design puts the quote count on the action row, not over the chips. */}
                         {quotes.length > 0 ? (
-                            <span className="ml-1 text-[11px] text-colorTextTertiary">
+                            <span className="ml-1 text-caption text-muted-foreground">
                                 {t("chat.chatComposer.quotesAttached", {count: quotes.length})}
                             </span>
                         ) : null}

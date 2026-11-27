@@ -90,7 +90,7 @@ const ManageHost = ({
     if (!connection) {
         return (
             <div className="flex flex-col items-start gap-3">
-                <p className="m-0 text-[13px] text-colorTextSecondary">
+                <p className="m-0 text-label text-muted-foreground">
                     Disconnected. The host closes the panel and the card row goes back to Connect.
                 </p>
                 <Button variant="outline" onClick={() => setConnection(initial)}>

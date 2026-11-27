@@ -6,14 +6,23 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsLlmProvidersTabCatalog from "@agenta/i18n/catalogs/settings.llmProvidersTab"
 import {AIProvidersPage, useEntitlements, type AIProvidersOrganization} from "@agenta/settings-ui"
 import {isBillingEnabled} from "@agenta/shared/api"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {useOrganizationProjects} from "../nav/useOrganizationProjects"
 
-import {ConfirmModal} from "./ConfirmModal"
 import type {SettingsTabProps} from "./settingsTabProps"
-import {useSettingsProjectGroup} from "./useSettingsProjectGroup"
 
 /**
  * The organization the page names, from the project list the nav already holds (the root
@@ -60,32 +69,51 @@ const useProvidersOrganization = (
 export const LlmProvidersTab = ({workspaceId, projectId}: SettingsTabProps) => {
     const t = useT(commonCatalog, settingsLlmProvidersTabCatalog)
     const organization = useProvidersOrganization(workspaceId, projectId)
-    const {projectSwitch} = useSettingsProjectGroup(workspaceId, projectId)
     return (
         <AIProvidersPage
             organization={organization ?? undefined}
-            projectSwitch={projectSwitch}
             renderRemoveDialog={({connection, open, pending, error, onConfirm, onClose}) => (
-                <ConfirmModal
+                <AlertDialog
                     open={open}
-                    title={t("settings.llmProvidersTab.deleteTitle")}
-                    description={
-                        connection?.scope === "organization"
-                            ? t("settings.llmProvidersTab.deleteOrganizationDescription")
-                            : t("settings.llmProvidersTab.deleteProjectDescription")
-                    }
-                    body={
-                        <div className="flex flex-col gap-1">
-                            <span>{t("settings.llmProvidersTab.aboutToDelete")}</span>
-                            <span className="font-medium">{connection?.name}</span>
-                        </div>
-                    }
-                    confirmLabel={t("common.delete")}
-                    pending={pending}
-                    error={error}
-                    onConfirm={onConfirm}
-                    onClose={onClose}
-                />
+                    onOpenChange={(next) => {
+                        if (!next && !pending) onClose()
+                    }}
+                >
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>
+                                {t("settings.llmProvidersTab.deleteTitle", {
+                                    name: connection?.name ?? "",
+                                })}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {connection?.scope === "organization"
+                                    ? t("settings.llmProvidersTab.deleteOrganizationDescription")
+                                    : t("settings.llmProvidersTab.deleteProjectDescription")}
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        {error ? <p className="m-0 text-body text-destructive">{error}</p> : null}
+                        <AlertDialogFooter>
+                            <AlertDialogCancel asChild>
+                                <Button variant="outline" onClick={onClose} disabled={pending}>
+                                    {t("common.cancel")}
+                                </Button>
+                            </AlertDialogCancel>
+                            <AlertDialogAction asChild>
+                                <Button
+                                    variant="destructive"
+                                    disabled={pending}
+                                    onClick={(event) => {
+                                        event.preventDefault()
+                                        onConfirm()
+                                    }}
+                                >
+                                    {pending ? t("common.working") : t("common.delete")}
+                                </Button>
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             )}
         />
     )

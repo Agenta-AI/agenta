@@ -83,7 +83,7 @@ export const AgentDriveCard = ({agentId, base}: {agentId: string; base: string})
             ) : drives.isPending ? (
                 <AgentOverviewCardSkeleton rows={2} />
             ) : rows.length === 0 ? (
-                <p className="m-0 py-2 text-[13px] text-muted-foreground">
+                <p className="m-0 py-2 text-label text-muted-foreground">
                     {t("agents.overview.driveEmpty")}
                 </p>
             ) : (

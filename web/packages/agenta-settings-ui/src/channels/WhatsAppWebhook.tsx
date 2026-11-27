@@ -6,6 +6,7 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Button, Input} from "@agenta/ui/ui"
 import {Check, Copy} from "@phosphor-icons/react"
 
+import {BLOCK_TITLE} from "./helpers"
 import type {ChannelConnection} from "./types"
 
 export const copyText = async (text: string): Promise<boolean> => {
@@ -31,14 +32,14 @@ export const CopyField = ({
     const [copied, setCopied] = useState(false)
     useEffect(() => {
         if (!copied) return
-        const timer = setTimeout(() => setCopied(false), 1800)
+        const timer = setTimeout(() => setCopied(false), 1500)
         return () => clearTimeout(timer)
     }, [copied])
     return (
         <label className="flex flex-col gap-1.5">
-            <span className="text-[13px] font-medium text-colorText">{label}</span>
+            <span className={BLOCK_TITLE}>{label}</span>
             <span className="flex gap-2">
-                <Input readOnly value={value} className="font-mono text-xs" data-testid={testId} />
+                <Input readOnly value={value} className="text-code" data-testid={testId} />
                 <Button
                     variant="outline"
                     size="sm"
@@ -47,7 +48,11 @@ export const CopyField = ({
                     })}
                     onClick={async () => setCopied(await copyText(value))}
                 >
-                    {copied ? <Check size={13} weight="bold" /> : <Copy size={13} />}
+                    {copied ? (
+                        <Check data-icon="inline-start" />
+                    ) : (
+                        <Copy data-icon="inline-start" />
+                    )}
                     {copied ? t("common.copied") : t("common.copy")}
                 </Button>
             </span>
@@ -64,7 +69,7 @@ export const WhatsAppWebhook = ({connection}: {connection: ChannelConnection}) =
     const t = useT(channelsWhatsappCatalog, commonCatalog)
     return (
         <div className="flex flex-col gap-3" data-testid="channels-whatsapp-webhook">
-            <p className="m-0 text-xs leading-relaxed text-colorTextSecondary">
+            <p className="m-0 text-meta leading-relaxed text-muted-foreground">
                 {richText(t("channels.whatsapp.webhookHint"), {
                     code: (text) => <code>{text}</code>,
                 })}

@@ -366,7 +366,7 @@ On a phone, the Access tab SHALL keep its one choice with its confirmation. The 
 - **THEN** it shows the desktop loading or error state in one column
 
 ### Requirement: Read-only views on a phone
-On a phone, these SHALL be read only: Instructions (AGENTS.md), the skill files and the skill editor, "Publish to skill registry", Add MCP server, Add subagent, and Advanced (Execution, Agenta tools, Build kit). A read-only view SHALL show its content with no edit control and SHALL NOT show a sentence such as "Edit on a computer".
+On a phone, these SHALL be read only: Instructions (AGENTS.md), the skill files and the skill editor, "Publish to skill registry", and Advanced (Execution, Agenta tools, Build kit). A read-only view SHALL show its content with no edit control and SHALL NOT show a sentence such as "Edit on a computer".
 
 #### Scenario: Instructions
 - **WHEN** the user opens Instructions on a phone
@@ -378,7 +378,7 @@ On a phone, these SHALL be read only: Instructions (AGENTS.md), the skill files 
 
 #### Scenario: Add MCP server and Add subagent
 - **WHEN** the user opens MCP servers or Subagents
-- **THEN** the lists show, with no add control
+- **THEN** the list shows with the section's add button at the bottom, as every section screen has, and a tap adds a server or an agent
 
 #### Scenario: Advanced
 - **WHEN** the user opens Advanced

@@ -28,7 +28,7 @@ const RepetitionNavigation = ({
                 disabled={disabled || current <= 1}
                 className="!w-5 !h-5"
             />
-            <Typography.Text type="secondary" className="text-[12px] text-nowrap">
+            <Typography.Text type="secondary" className="text-meta text-nowrap">
                 {current} / {total}
             </Typography.Text>
             <Button

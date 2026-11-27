@@ -10,8 +10,8 @@ export const YoursEmpty = ({projectCount}: {projectCount?: number}) => {
     const t = useT(settingsSharedCatalog)
     return (
         <SettingsEmpty
-            plain
-            icon={<User size={18} />}
+            compact
+            icon={<User />}
             title={t("settings.shared.yoursEmptyTitle")}
             description={yoursEmptyBody(projectCount)}
         />

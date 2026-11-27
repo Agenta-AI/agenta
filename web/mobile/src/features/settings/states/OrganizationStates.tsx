@@ -9,17 +9,17 @@ import {SkeletonBlock} from "@agenta/ui/ui"
 const SkeletonSection = ({rows}: {rows: number}) => (
     <section className="flex flex-col gap-3" aria-hidden>
         <div className="flex flex-col gap-1.5">
-            <SkeletonBlock active className="h-[18px] w-28 rounded" />
-            <SkeletonBlock active className="h-4 w-72 max-w-full rounded" />
+            <SkeletonBlock active className="h-4.5 w-28 rounded-sm" />
+            <SkeletonBlock active className="h-4 w-72 max-w-full rounded-sm" />
         </div>
-        <div className="flex flex-col divide-y divide-solid divide-border overflow-hidden rounded-[10px] border border-solid border-border">
+        <div className="flex flex-col divide-y divide-solid divide-border overflow-hidden rounded-lg border border-solid border-border">
             {Array.from({length: rows}, (_, index) => (
-                <div key={index} className="flex items-center justify-between gap-6 px-[18px] py-4">
+                <div key={index} className="flex items-center justify-between gap-6 px-4 py-4">
                     <div className="flex flex-1 flex-col gap-1.5">
-                        <SkeletonBlock active className="h-4 w-40 rounded" />
-                        <SkeletonBlock active className="h-3.5 w-80 max-w-full rounded" />
+                        <SkeletonBlock active className="h-4 w-40 rounded-sm" />
+                        <SkeletonBlock active className="h-3.5 w-80 max-w-full rounded-sm" />
                     </div>
-                    <SkeletonBlock active className="h-5 w-9 shrink-0 rounded-full" />
+                    <SkeletonBlock active className="h-5 w-9 shrink-0 rounded-sm" />
                 </div>
             ))}
         </div>
@@ -46,6 +46,8 @@ export const OrganizationLoading = () => {
 export const OrganizationNoFlags = () => {
     const t = useT(settingsStatesCatalog)
     return (
-        <p className="text-muted-foreground p-6 text-xs">{t("settings.states.noAccessSettings")}</p>
+        <p className="text-muted-foreground p-6 text-body">
+            {t("settings.states.noAccessSettings")}
+        </p>
     )
 }

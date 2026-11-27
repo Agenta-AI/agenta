@@ -3,7 +3,7 @@ import {useCallback, useState} from "react"
 import {createT, useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {message} from "@agenta/ui/app-message"
-import {PHONE_TOUCH_TARGET_CLASS, Switch} from "@agenta/ui/ui"
+import {Switch} from "@agenta/ui/ui"
 
 import {cn} from "./lib/utils"
 
@@ -54,11 +54,10 @@ export const AutomationActiveSwitch = ({
     return (
         // The switch and its label are one control, so they sit closer than the 14px that
         // separates them from the rest of the line.
-        <span className={cn("flex shrink-0 items-center gap-[9px]", className)}>
+        <span className={cn("flex shrink-0 items-center gap-2", className)}>
             <Switch
                 size="sm"
                 // 44 px to tap on a phone; the switch keeps its drawn size.
-                className={PHONE_TOUCH_TARGET_CLASS}
                 checked={active}
                 disabled={saving}
                 onCheckedChange={(next) => void toggle(next)}
@@ -69,7 +68,7 @@ export const AutomationActiveSwitch = ({
                 }
             />
             {label ? (
-                <span className="text-[14px] text-foreground">
+                <span className="text-label text-foreground">
                     {active ? t("automations.editor.on") : t("automations.editor.off")}
                 </span>
             ) : null}

@@ -50,7 +50,6 @@
     "copy": "コピー",
     "copyByHand": "URL を選択してコピーしてください。",
     "clientId": "クライアント ID",
-    "optional": "任意",
     "clientSecret": "クライアントシークレット",
     "clientAuthentication": "クライアント認証",
     "scopes": "スコープ",
@@ -67,5 +66,10 @@
     "noServersYet": "このプロジェクトにはまだ MCP サーバーがありません",
     "noServersYetBody": "URL で MCP サーバーを接続します。サインインまたはキーの追加は一度だけで、プロジェクトのすべてのエージェントが使用できます。",
     "searchServers": "サーバーを検索",
-    "noServersMatch": "一致するサーバーはありません"
+    "noServersMatch": "一致するサーバーはありません",
+    "serverResponse": "サーバーの応答",
+    "tryAnotherNameOrHost": "別の名前またはホストを試してください。",
+    "serversUnavailable": "プロジェクトのサーバーを読み込めませんでした",
+    "serversUnavailableDetail": "サーバーが応答しなかったため、一覧は空です。エージェントに追加済みのサーバーは引き続き使えます。",
+    "oauthApp": "OAuth アプリ"
 }

@@ -1,0 +1,62 @@
+{
+    "hover-fill-not-accent": {
+        "mobile": 3,
+        "packages": 22
+    },
+    "legacy-hex-shims": {
+        "mobile": 0,
+        "packages": 0
+    },
+    "weight-by-state": {
+        "mobile": 0,
+        "packages": 0
+    },
+    "antd-color-names": {
+        "mobile": 14,
+        "packages": 130
+    },
+    "var(--ag-color": {
+        "mobile": 3,
+        "packages": 0
+    },
+    "text-[Npx]": {
+        "mobile": 0,
+        "packages": 4
+    },
+    "h-[Npx]": {
+        "mobile": 14,
+        "packages": 39
+    },
+    "rounded-full": {
+        "mobile": 1,
+        "packages": 2
+    },
+    "font-bold": {
+        "mobile": 0,
+        "packages": 0
+    },
+    "lucide-react": {
+        "mobile": 0,
+        "packages": 0
+    },
+    "border-text-color": {
+        "mobile": 14,
+        "packages": 22
+    },
+    "kit-control-height": {
+        "mobile": 4,
+        "packages": 27
+    },
+    "raw-button": {
+        "mobile": 105,
+        "packages": 377
+    },
+    "max-w-[Npx]": {
+        "mobile": 11,
+        "packages": 92
+    },
+    "extra-breakpoint": {
+        "mobile": 184,
+        "packages": 126
+    }
+}

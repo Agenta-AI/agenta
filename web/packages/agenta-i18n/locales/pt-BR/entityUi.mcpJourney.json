@@ -39,5 +39,16 @@
     "noProjectSecrets": "Nenhum segredo do projeto encontrado",
     "unnamedSecret": "Segredo sem nome",
     "createSecret": "Criar segredo",
-    "advancedSummary": "URL de callback, ID do cliente, escopos"
+    "advancedSummary": "URL de callback, ID do cliente, escopos",
+    "missingUrl": "Adicione a URL do servidor",
+    "invalidUrl": "Digite uma URL completa que comece com https://",
+    "missingName": "Adicione um nome",
+    "nameTaken": "Escolha um nome que nenhuma outra conexão use",
+    "missingKeyName": "Adicione o nome com que a chave é enviada",
+    "missingProjectSecret": "Escolha um segredo do projeto",
+    "missingClient": "Adicione um ID do cliente e um segredo",
+    "missingClientSecret": "Escolha um segredo do cliente",
+    "advancedSummaryClient": "URL de callback, ID do cliente",
+    "advancedSummaryScopes": "Escopos",
+    "newSecret": "Novo segredo"
 }

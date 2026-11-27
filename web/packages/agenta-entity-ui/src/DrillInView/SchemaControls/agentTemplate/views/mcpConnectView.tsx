@@ -26,6 +26,5 @@ export interface McpConnectViewParams {
 export const mcpConnectView = defineView<McpConnectViewParams>({
     id: "mcp.connect",
     apply: "on_save",
-    widenButton: false,
     Component: lazyView(() => import("./McpConnectViewBody")),
 })

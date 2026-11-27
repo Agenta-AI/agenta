@@ -127,7 +127,7 @@ export function AppTriggerProviderGroups({
             {groups.map((group) => (
                 <div key={group.connId} className={`flex flex-col ${phone ? "" : "gap-2"}`}>
                     {group.showHeader && group.label ? (
-                        <div className="flex items-center gap-1.5 px-0.5 pt-0.5 text-[12px] text-[var(--ag-colorTextTertiary)]">
+                        <div className="flex items-center gap-1.5 px-0.5 pt-0.5 text-meta text-muted-foreground">
                             {/* No logo: the header only appears when one app has several
                                 accounts, so it names the account — the app is already obvious
                                 from the rows beneath it. */}

@@ -66,7 +66,7 @@ export function JsonObjectEditor({
                     syncWithInitialValueChanges
                 />
             </div>
-            {error ? <span className="text-xs text-error">{error}</span> : null}
+            {error ? <span className="text-meta text-destructive">{error}</span> : null}
         </div>
     )
 }

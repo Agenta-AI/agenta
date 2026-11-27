@@ -3,7 +3,7 @@ import {cloneElement, isValidElement, useCallback, useState} from "react"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import commitCatalog from "@agenta/i18n/catalogs/playground.commit"
-import {EnhancedButton} from "@agenta/ui/components/presentational"
+import {Button, fromLegacyButton, type ButtonProps} from "@agenta/ui/ui"
 import {FloppyDiskBack, Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
@@ -20,8 +20,13 @@ const CommitVariantChangesButton = ({
     onAfterCommit,
     onCommitted,
     createVisibility,
+    type,
+    size,
+    variant,
     ...props
 }: CommitVariantChangesButtonProps) => {
+    const legacy = fromLegacyButton(type, size ?? undefined)
+    const nativeType = type === "submit" || type === "reset" ? type : "button"
     const t = useT(commitCatalog)
     const [isDeployModalOpen, setIsDeployModalOpen] = useState(false)
     const hasChanges = useAtomValue(workflowMolecule.selectors.isDirty(variantId || ""))
@@ -59,15 +64,17 @@ const CommitVariantChangesButton = ({
                     },
                 )
             ) : (
-                <EnhancedButton
-                    type="text"
-                    icon={icon && resolvedIcon}
+                <Button
+                    type={nativeType}
+                    variant={variant ?? legacy.variant ?? "ghost"}
+                    size={legacy.size ?? (size as ButtonProps["size"]) ?? "default"}
                     onClick={() => setIsDeployModalOpen(true)}
                     disabled={disabled}
                     {...props}
                 >
+                    {icon && resolvedIcon}
                     {resolvedLabel}
-                </EnhancedButton>
+                </Button>
             )}
 
             <CommitVariantChangesModal

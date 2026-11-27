@@ -1,15 +1,15 @@
-import {createElement, useEffect, useMemo, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {CommandPalette, type CommandPaletteGroup} from "@agenta/navigation-ui"
-import {Spinner} from "@agenta/ui/ui"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {MagnifyingGlassIcon} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
-import {sessionBullet} from "../agent-sidebar/agentSidebarItems"
 import {builderChatHref} from "../builder/builderChatHref"
+import {sessionStatusMark} from "../nav/sessionStatusMark"
 
 import {chatDayLabel} from "./chatDayLabel"
 import {useBuilderChats} from "./useBuilderChats"
@@ -55,9 +55,7 @@ const BuilderChatSearchWindow = ({
                 entries: (searching ? [] : chats.rows).map((row) => ({
                     key: row.session_id,
                     label: row.name?.trim() || t("builder.page.untitledChat"),
-                    icon: row.flags?.is_running
-                        ? createElement(Spinner, {className: "size-3"})
-                        : sessionBullet("idle"),
+                    icon: sessionStatusMark(row.flags?.is_running ? "running" : null),
                     hint: chatDayLabel(row.updated_at, now, words),
                     href: builderChatHref({workspaceId, projectId, sessionId: row.session_id}),
                 })),
@@ -90,18 +88,18 @@ export const BuilderChatSearch = ({
     const [open, setOpen] = useState(false)
     return (
         <>
-            <button
-                type="button"
-                aria-label={t("navigation.items.searchChats")}
-                title={t("navigation.items.searchChats")}
-                data-testid="builder-chats-search"
-                onClick={() => setOpen(true)}
-                // The glyph sits where the design puts it (12 px from the row's end), and the
-                // 24 px target does not make the 20 px heading taller.
-                className="-my-0.5 -mr-[5px] flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 text-colorTextSecondary [font-family:inherit] hover:bg-colorFillTertiary hover:text-colorText"
-            >
-                <MagnifyingGlassIcon size={14} />
-            </button>
+            <SimpleTooltip title={t("navigation.items.searchChats")}>
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={t("navigation.items.searchChats")}
+                    data-testid="builder-chats-search"
+                    onClick={() => setOpen(true)}
+                >
+                    <MagnifyingGlassIcon aria-hidden />
+                </Button>
+            </SimpleTooltip>
             {open ? (
                 <BuilderChatSearchWindow
                     workspaceId={workspaceId}

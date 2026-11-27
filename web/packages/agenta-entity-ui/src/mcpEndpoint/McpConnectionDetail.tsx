@@ -29,10 +29,18 @@ import {createT, useT} from "@agenta/i18n"
 import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
 import mcpDetailCatalog from "@agenta/i18n/catalogs/entityUi.mcpDetail"
 import {projectIdAtom} from "@agenta/shared/state"
-import {EnhancedModal, ModalContent} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
-import {Button, cn, Field, Input, touchTargetExpansion} from "@agenta/ui/ui"
+import {
+    Button,
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    Field,
+    Input,
+} from "@agenta/ui/ui"
 import {ArrowClockwise, WarningCircle, Wrench} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
@@ -178,7 +186,7 @@ export default function McpConnectionDetail({
             {!readOnly && isReady && endpoint.auth_mode === "oauth" ? (
                 <Button
                     variant="ghost"
-                    className="text-colorError"
+                    className="text-destructive"
                     onClick={() => onDisconnect(endpoint)}
                 >
                     {t("entityUi.mcpDetail.disconnect")}
@@ -198,28 +206,27 @@ export default function McpConnectionDetail({
     ) : null
 
     return (
-        <EnhancedModal
-            open={!!endpoint}
-            onCancel={onClose}
-            title={endpoint?.name || endpoint?.slug || t("entityUi.mcpDetail.connection")}
-            footer={footer}
-            width={520}
-            destroyOnClose
-        >
-            <ModalContent>
+        <Dialog open={!!endpoint} onOpenChange={(next) => !next && onClose()}>
+            {/* No autofocus: viewing must not open a phone keyboard on Name. */}
+            <DialogContent onOpenAutoFocus={(event) => event.preventDefault()}>
+                <DialogHeader>
+                    <DialogTitle>
+                        {endpoint?.name || endpoint?.slug || t("entityUi.mcpDetail.connection")}
+                    </DialogTitle>
+                </DialogHeader>
                 {endpoint ? (
                     <div className="flex flex-col gap-5" data-testid="mcp-connection-detail">
                         <div className="flex min-w-0 items-center gap-2">
                             <StatusIndicator
                                 tone={isReady ? "success" : "warning"}
                                 label={getMcpConnectionStatusLabel(status ?? "not_signed_in")}
-                                className="shrink-0 text-[13px]"
+                                className="shrink-0 text-label"
                             />
-                            <span aria-hidden className="text-colorTextDescription">
+                            <span aria-hidden className="text-muted-foreground">
                                 ·
                             </span>
                             <span
-                                className="truncate text-xs text-colorTextDescription"
+                                className="truncate text-meta text-muted-foreground"
                                 title={endpoint.data.route.base_url ?? undefined}
                             >
                                 {endpoint.data.route.base_url}
@@ -229,8 +236,7 @@ export default function McpConnectionDetail({
                         <Field
                             label={t("entityUi.mcpDetail.name")}
                             error={nameProblem ?? undefined}
-                            // Said out loud: renaming something an agent uses invites the opposite assumption.
-                            description={t("entityUi.mcpDetail.renameNote")}
+                            tooltip={t("entityUi.mcpDetail.renameNote")}
                         >
                             <Input
                                 value={name}
@@ -244,18 +250,18 @@ export default function McpConnectionDetail({
                             />
                         </Field>
 
-                        <div className="flex items-center gap-2 text-sm">
-                            <span className="font-medium text-colorText">
+                        <div className="flex items-center gap-2 text-label">
+                            <span className="font-medium text-foreground">
                                 {t("entityUi.mcpDetail.authentication")}
                             </span>
-                            <span className="text-colorTextSecondary">
+                            <span className="text-muted-foreground">
                                 {t(MCP_AUTH_MODE_LABEL[endpoint.auth_mode])}
                             </span>
                             {readOnly ? null : (
                                 <Button
-                                    variant="link"
+                                    variant="ghost"
                                     size="xs"
-                                    className={cn("ml-auto px-0 text-xs", touchTargetExpansion(24))}
+                                    className="ml-auto text-meta"
                                     onClick={() => onReconnect(endpoint)}
                                 >
                                     {t("entityUi.mcpDetail.change")}
@@ -266,10 +272,10 @@ export default function McpConnectionDetail({
                         {canListTools ? (
                             <section className="flex flex-col gap-2">
                                 <div className="flex flex-col gap-0.5">
-                                    <h4 className="m-0 text-sm font-medium text-colorText">
+                                    <h4 className="m-0 text-label font-medium text-foreground">
                                         {t("entityUi.mcpDetail.tools")}
                                     </h4>
-                                    <p className="m-0 text-xs text-colorTextDescription">
+                                    <p className="m-0 text-meta text-muted-foreground">
                                         {t("entityUi.mcpDetail.toolsHint")}
                                     </p>
                                 </div>
@@ -289,8 +295,9 @@ export default function McpConnectionDetail({
                         ) : null}
                     </div>
                 ) : null}
-            </ModalContent>
-        </EnhancedModal>
+                {footer ? <DialogFooter>{footer}</DialogFooter> : null}
+            </DialogContent>
+        </Dialog>
     )
 }
 
@@ -310,7 +317,7 @@ const ToolList = ({
     const t = useT(mcpDetailCatalog)
     if (!isReady) {
         return (
-            <p className="m-0 text-sm text-colorTextDescription">
+            <p className="m-0 text-body text-muted-foreground">
                 {signInExpired
                     ? t("entityUi.mcpDetail.signInAgain")
                     : t("entityUi.mcpDetail.connectToSeeTools")}
@@ -319,7 +326,7 @@ const ToolList = ({
     }
     if (state.status === "loading") {
         return (
-            <p className="m-0 text-sm text-colorTextDescription" role="status">
+            <p className="m-0 text-body text-muted-foreground" role="status">
                 {t("entityUi.mcpDetail.readingToolList")}
             </p>
         )
@@ -362,7 +369,7 @@ const ToolList = ({
         // The server has tools; this query does not name any of them. Said as such, so nobody
         // reads a filter's own emptiness as a server that stopped advertising.
         return (
-            <p className="m-0 text-sm text-colorTextDescription">
+            <p className="m-0 text-body text-muted-foreground">
                 {t("entityUi.mcpDetail.noToolMatches")}
             </p>
         )
@@ -372,11 +379,9 @@ const ToolList = ({
         <ul className="m-0 flex list-none flex-col gap-2 p-0">
             {shown.map((tool) => (
                 <li key={tool.name} data-testid="mcp-tool" className="flex flex-col gap-0.5">
-                    <span className="text-sm text-colorText">{tool.name}</span>
+                    <span className="text-label text-foreground">{tool.name}</span>
                     {tool.description ? (
-                        <span className="text-xs text-colorTextDescription">
-                            {tool.description}
-                        </span>
+                        <span className="text-meta text-muted-foreground">{tool.description}</span>
                     ) : null}
                 </li>
             ))}

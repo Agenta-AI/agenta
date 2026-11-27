@@ -45,7 +45,7 @@ export function EntitySaveContent() {
         <div className="flex flex-col gap-4">
             {/* Name input */}
             <div className="flex flex-col gap-2">
-                <label htmlFor="entity-name" className="font-medium text-gray-700">
+                <label htmlFor="entity-name" className="font-medium text-foreground">
                     {t("entityUi.saveModal.name")}
                 </label>
                 <Input
@@ -65,7 +65,7 @@ export function EntitySaveContent() {
                         <span>{t("entityUi.saveModal.saveAsNewCopy")}</span>
                     </label>
                     {saveAsNew && originalName && (
-                        <p className="text-gray-500 ml-6">
+                        <p className="text-muted-foreground ml-6">
                             {richText(t("entityUi.saveModal.original", {name: originalName}), {
                                 name: (text) => <span className="font-medium">{text}</span>,
                             })}

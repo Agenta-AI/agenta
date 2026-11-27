@@ -1,5 +1,5 @@
 /**
- * The person's own accounts on the Settings pages: who may own a new account, when "Yours"
+ * The person's own accounts on the Settings pages: who may own a new account, when "Personal"
  * shows, and the "Used by" line of a person's secret. Pure, so the pages and the tests share it.
  */
 
@@ -13,13 +13,41 @@ const t = createT(settingsSharedCatalog)
 /** Whose account a Settings page adds: the person's own, or the current project's. */
 type AccountOwner = Exclude<OwnerKind, "organization">
 
-/** "Yours" shows only when the switch is known to be on. */
+/** Owners narrow to wide; the narrowest allowed one is the add form's default. */
+const OWNER_ORDER: readonly OwnerKind[] = ["user", "project", "organization"]
+
+/** The owners each connections page can hold. MCP servers are always the project's. */
+export const PAGE_OWNERS = {
+    integrations: ["user", "project"],
+    secrets: ["user", "project"],
+    providers: ["project", "organization"],
+    mcps: ["project"],
+} as const satisfies Record<string, readonly OwnerKind[]>
+
+/** The Owner filter's value: every owner, or one. */
+export type OwnerFilter = "all" | OwnerKind
+
+/** The allowed owners, the add form's default first: the filtered owner, else the narrowest. */
+export const ownersWithDefault = <Owner extends OwnerKind>(
+    allowed: readonly Owner[],
+    filter: OwnerFilter = "all",
+): Owner[] => {
+    const sorted = OWNER_ORDER.filter((owner): owner is Owner => allowed.includes(owner as Owner))
+    const first = sorted.find((owner) => owner === filter) ?? sorted[0]
+    return first ? [first, ...sorted.filter((owner) => owner !== first)] : []
+}
+
+/** Whether a group of this owner shows under the Owner filter. */
+export const ownerShown = (filter: OwnerFilter, owner: OwnerKind): boolean =>
+    filter === "all" || filter === owner
+
+/** "Personal" shows only when the switch is known to be on. */
 export const showsYours = (access: PersonalAccountsAccess): boolean => access === "on"
 
 /**
  * Who may own an account added on a Settings page; the first is the default.
  *
- * - Switch on, with the page's edit permission: both, so the dialog asks "Who can use it".
+ * - Switch on, with the page's edit permission: both, so the dialog asks for the Owner.
  * - Switch on, without it: the person's own only, with no question.
  * - Switch off (or not known yet): `undefined`, which is today's behaviour, the project's.
  */
@@ -59,7 +87,7 @@ export const usedByLine = (names: (string | null | undefined)[]): string | null 
     return t("settings.shared.usedBy", {names: [...new Set(names as string[])].join(", ")})
 }
 
-/** The empty "Yours" note: where a person's own account is used. */
+/** The empty "Personal" note: where a person's own account is used. */
 export const yoursEmptyBody = (projectCount?: number): string =>
     projectCount && projectCount > 1
         ? t("settings.shared.yoursEmptyBodyCount", {projectCount})

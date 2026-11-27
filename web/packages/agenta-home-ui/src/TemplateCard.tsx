@@ -24,27 +24,25 @@ export const TemplateCard = ({template, onSelect, disabled}: TemplateCardProps) 
             onClick={() => onSelect(template)}
             // `w-full min-w-0`: a flex container defaults to min-width:auto, so the card's own
             // min-content width beat its grid track and cards overlapped their neighbours.
-            className="group relative box-border flex h-full w-full min-w-0 cursor-pointer flex-col gap-2.5 rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated p-5 pt-8 text-left transition-colors hover:border-colorBorder disabled:cursor-not-allowed disabled:opacity-60"
+            className="group relative box-border flex h-full w-full min-w-0 cursor-pointer flex-col gap-2.5 rounded-xl border border-solid border-border-muted bg-background p-5 pt-8 text-left transition-colors hover:border-border disabled:cursor-not-allowed disabled:opacity-60"
         >
             <span
                 aria-hidden
-                className="absolute -top-5 left-4 flex size-10 shrink-0 items-center justify-center rounded-full border-2 border-solid border-colorBgContainer text-sm font-semibold text-white"
+                className="absolute -top-5 left-4 flex size-10 shrink-0 items-center justify-center rounded-md border-2 border-solid border-background text-label font-semibold text-white"
                 style={{backgroundColor: template.color}}
             >
                 {template.initials}
             </span>
 
-            <span className="truncate text-[15px] font-semibold text-colorText">
-                {template.name}
-            </span>
+            <span className="truncate text-title text-foreground">{template.name}</span>
 
-            <p className="m-0 line-clamp-2 text-[13px] leading-snug text-colorTextSecondary">
+            <p className="m-0 line-clamp-2 text-label leading-snug text-muted-foreground">
                 {template.description}
             </p>
 
             <div className="mt-auto flex items-center gap-2 pt-3">
                 <TemplateProviderMarks providers={templateProviderSlugs(template)} />
-                <span className="ml-auto truncate text-xs text-colorTextTertiary">
+                <span className="ml-auto truncate text-meta text-muted-foreground">
                     {template.toolsSummary} · {template.trigger}
                 </span>
             </div>

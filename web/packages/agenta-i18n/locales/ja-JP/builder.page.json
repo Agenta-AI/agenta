@@ -3,7 +3,7 @@
     "newChat": "新しいチャット",
     "chats": "チャット",
     "chatsLoading": "チャットを読み込んでいます…",
-    "chatsFailed": "チャットを読み込めませんでした。",
+    "chatsFailed": "セッションを読み込めませんでした",
     "retry": "再試行",
     "untitledChat": "無題のチャット",
     "today": "今日",
@@ -88,5 +88,6 @@
     "kindTool": "ツール",
     "kindApp": "アプリ",
     "itemNotShown": "この項目はまだここに表示できません。",
-    "changedByBuilder": "ビルダーが変更"
+    "changedByBuilder": "ビルダーが変更",
+    "noChatsYet": "まだセッションはありません。「新しいセッション」で開始してください。"
 }

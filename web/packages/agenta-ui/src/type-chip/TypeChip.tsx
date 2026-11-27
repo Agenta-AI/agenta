@@ -1,8 +1,11 @@
-import {memo, type CSSProperties} from "react"
+import {memo} from "react"
 
 import {useT} from "@agenta/i18n"
 import uiStatusCatalog from "@agenta/i18n/catalogs/ui.status"
 import {inferLogicalType, type LogicalType} from "@agenta/shared/utils"
+
+import {Badge, badgeVariants, type BadgeVariant} from "../components/ui/badge"
+import {cn} from "../components/ui/utils"
 
 export type TypePrimitive = LogicalType
 
@@ -30,113 +33,30 @@ export interface TypeChipProps {
     onClick?: () => void
 }
 
-// The fallbacks serve /m, which has no antd variables; the preset variables follow light and dark.
+// Neutral by default; a status tone only where the chip reports a problem.
 const STYLES: Record<
     ChipVariant,
-    {bg: string; fg: string; label: string; border?: string; italic?: boolean}
+    {label: string; tone?: BadgeVariant; dashed?: boolean; italic?: boolean}
 > = {
-    string: {
-        bg: "var(--ant-green-1, var(--ag-preset-green-bg))",
-        fg: "var(--ant-green-7, var(--ag-preset-green-text))",
-        label: "string",
-    },
-    number: {
-        bg: "var(--ant-purple-1, var(--ag-preset-purple-bg))",
-        fg: "var(--ant-purple-6, var(--ag-preset-purple-text))",
-        label: "number",
-    },
-    boolean: {
-        bg: "var(--ant-orange-1, var(--ag-preset-orange-bg))",
-        fg: "var(--ant-orange-7, var(--ag-preset-orange-text))",
-        label: "boolean",
-    },
-    null: {
-        bg: "var(--ant-color-fill-secondary, var(--muted))",
-        fg: "var(--ant-color-text-tertiary, var(--muted-foreground))",
-        label: "null",
-    },
-    "json-object": {
-        bg: "var(--ant-blue-1, var(--ag-preset-blue-bg))",
-        fg: "var(--ant-blue-6, var(--ag-preset-blue-text))",
-        label: "object",
-    },
-    "json-array": {
-        bg: "var(--ant-cyan-1, var(--ag-preset-cyan-bg))",
-        fg: "var(--ant-cyan-6, var(--ag-preset-cyan-text))",
-        label: "array",
-    },
-    markdown: {
-        bg: "var(--ant-purple-1, var(--ag-preset-purple-bg))",
-        fg: "var(--ant-purple-6, var(--ag-preset-purple-text))",
-        label: "markdown",
-        border: "1px dashed var(--ant-purple-6, var(--ag-preset-purple-text))",
-        italic: true,
-    },
-    messages: {
-        bg: "var(--ant-purple-1, var(--ag-preset-purple-bg))",
-        fg: "var(--ant-purple-6, var(--ag-preset-purple-text))",
-        label: "messages",
-        border: "1px dashed var(--ant-purple-6, var(--ag-preset-purple-text))",
-        italic: true,
-    },
-    "tool-calls": {
-        bg: "var(--ant-green-1, var(--ag-preset-green-bg))",
-        fg: "var(--ant-green-7, var(--ag-preset-green-text))",
-        label: "tool-calls",
-        border: "1px dashed var(--ant-green-7, var(--ag-preset-green-text))",
-        italic: true,
-    },
-    "dotted-key": {
-        bg: "var(--ant-orange-1, var(--ag-preset-orange-bg))",
-        fg: "var(--ant-orange-7, var(--ag-preset-orange-text))",
-        label: "dotted-key",
-    },
-    mixed: {
-        bg: "var(--ant-orange-1, var(--ag-preset-orange-bg))",
-        fg: "var(--ant-orange-7, var(--ag-preset-orange-text))",
-        label: "mixed",
-    },
-    collision: {
-        bg: "var(--ant-red-1, var(--ag-preset-red-bg))",
-        fg: "var(--ant-red-6, var(--ag-preset-red-text))",
-        label: "⚠ collision",
-    },
-    shadowed: {
-        bg: "var(--ant-red-1, var(--ag-preset-red-bg))",
-        fg: "var(--ant-red-6, var(--ag-preset-red-text))",
-        label: "⚠ shadowed",
-    },
-    "not-authored": {
-        bg: "var(--ant-color-fill-tertiary, var(--muted))",
-        fg: "var(--ant-color-text-secondary, var(--muted-foreground))",
-        label: "not authored",
-    },
-    optional: {
-        bg: "var(--ant-color-fill-tertiary, var(--muted))",
-        fg: "var(--ant-color-text-secondary, var(--muted-foreground))",
-        label: "optional",
-    },
-    path: {
-        bg: "var(--ant-color-fill-secondary, var(--muted))",
-        fg: "var(--ant-color-text, var(--foreground))",
-        label: "path",
-    },
-    unused: {
-        bg: "var(--ant-color-fill-tertiary, var(--muted))",
-        fg: "var(--ant-color-text-secondary, var(--muted-foreground))",
-        label: "unused",
-    },
-    draft: {
-        bg: "var(--ant-magenta-1, var(--ag-preset-magenta-bg))",
-        fg: "var(--ant-magenta-7, var(--ag-preset-magenta-text))",
-        label: "draft",
-        border: "1px dashed var(--ant-magenta-7, var(--ag-preset-magenta-text))",
-    },
-    chain: {
-        bg: "var(--ant-geekblue-1, var(--ag-preset-geekblue-bg))",
-        fg: "var(--ant-geekblue-7, var(--ag-preset-geekblue-text))",
-        label: "chain",
-    },
+    string: {label: "string"},
+    number: {label: "number"},
+    boolean: {label: "boolean"},
+    null: {label: "null"},
+    "json-object": {label: "object"},
+    "json-array": {label: "array"},
+    markdown: {label: "markdown", dashed: true, italic: true},
+    messages: {label: "messages", dashed: true, italic: true},
+    "tool-calls": {label: "tool-calls", dashed: true, italic: true},
+    "dotted-key": {label: "dotted-key", tone: "warning"},
+    mixed: {label: "mixed", tone: "warning"},
+    collision: {label: "⚠ collision", tone: "destructive"},
+    shadowed: {label: "⚠ shadowed", tone: "destructive"},
+    "not-authored": {label: "not authored"},
+    optional: {label: "optional"},
+    path: {label: "path"},
+    unused: {label: "unused"},
+    draft: {label: "draft", tone: "info", dashed: true},
+    chain: {label: "chain", tone: "info"},
 }
 
 const AMBIGUOUS_HIDE = new Set<ChipVariant>(["string", "number", "boolean"])
@@ -152,23 +72,12 @@ function TypeChipImpl({variant, value, label, ambiguousOnly, onClick}: TypeChipP
 
     const style = STYLES[resolved] ?? STYLES.string
     const text = label ?? style.label
-
-    const baseStyle: CSSProperties = {
-        position: "relative",
-        display: "inline-flex",
-        alignItems: "center",
-        padding: style.border ? "0px 5px" : "1px 6px",
-        borderRadius: 4,
-        fontSize: 10,
-        lineHeight: "16px",
-        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-        background: style.bg,
-        color: style.fg,
-        whiteSpace: "nowrap",
-        userSelect: "none",
-        ...(style.border ? {border: style.border} : undefined),
-        ...(style.italic ? {fontStyle: "italic"} : undefined),
-    }
+    const tone = style.tone ?? "default"
+    const chipClass = cn(
+        "font-mono select-none",
+        style.dashed && "border border-dashed border-current",
+        style.italic && "italic",
+    )
 
     if (onClick) {
         return (
@@ -176,27 +85,22 @@ function TypeChipImpl({variant, value, label, ambiguousOnly, onClick}: TypeChipP
                 type="button"
                 onClick={onClick}
                 aria-label={t("ui.status.typeLabel", {type: text})}
-                style={{
-                    ...baseStyle,
-                    cursor: "pointer",
-                    border: style.border ?? "1px solid transparent",
-                    transition: "transform 0.08s ease, box-shadow 0.08s ease",
-                }}
-                onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "translateY(-1px)"
-                    e.currentTarget.style.boxShadow = "0 1px 3px rgba(5, 23, 41, 0.12)"
-                }}
-                onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "translateY(0)"
-                    e.currentTarget.style.boxShadow = "none"
-                }}
+                className={cn(
+                    badgeVariants({variant: tone}),
+                    chipClass,
+                    "cursor-pointer transition-transform hover:-translate-y-px",
+                )}
             >
                 {text}
             </button>
         )
     }
 
-    return <span style={baseStyle}>{text}</span>
+    return (
+        <Badge variant={tone} className={chipClass}>
+            {text}
+        </Badge>
+    )
 }
 
 export const TypeChip = memo(TypeChipImpl)

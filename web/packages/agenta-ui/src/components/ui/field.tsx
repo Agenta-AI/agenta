@@ -2,11 +2,10 @@ import * as React from "react"
 
 import {useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
-import {Info} from "@phosphor-icons/react"
 import {cva, type VariantProps} from "class-variance-authority"
 
+import {FieldHelp} from "./field-help"
 import {Label} from "./label"
-import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "./tooltip"
 import {cn} from "./utils"
 
 /**
@@ -15,7 +14,7 @@ import {cn} from "./utils"
  * hand-rolled wrappers this package shipped: `LabeledField` (label + info-tooltip + layout),
  * `LabelInput` (label + required asterisk), and the label side of form rows.
  *
- * Composition, not props-soup: it renders the package's own `Label` + `Tooltip`. A label sits
+ * Composition, not props-soup: it renders the package's own `Label` + `FieldHelp`. A label sits
  * above (vertical) or beside (horizontal) a control SLOT (`children`), with an optional
  * required asterisk, an info tooltip, a description under the label, and an error/help line
  * under the control.
@@ -27,18 +26,18 @@ import {cn} from "./utils"
  * errored control — so a field that refuses an entry says so to more than the eye.
  *
  * Parity target is the current `LabeledField` rendering: label `font-medium` + `text-foreground`
- * (colorText), 12px at the default size, 4px gap to the control; asterisk `text-error`
+ * (colorText), 12px at the default size, 4px gap to the control; asterisk `text-destructive`
  * (colorError); info icon in `colorTextDescription`; description in `colorTextDescription`.
  * Colour/geometry come from tokens — no raw hex, no raw px (bar the noted icon size).
  */
 
-// Label typography by size — mirrors LabeledField's xs/sm/md → text-xs/text-sm/text-base ramp.
+// Label typography by size — xs/sm/md → text-label / text-body / text-title.
 const fieldLabelVariants = cva("font-medium", {
     variants: {
         size: {
-            xs: "text-xs",
-            sm: "text-sm",
-            md: "text-base",
+            xs: "text-label",
+            sm: "text-body",
+            md: "text-title",
         },
     },
     defaultVariants: {size: "xs"},
@@ -54,12 +53,16 @@ const GAP_CLASS = {
 export interface FieldProps extends VariantProps<typeof fieldLabelVariants> {
     /** Field label. Rendered inside a `<label>` associated with the control. */
     label?: React.ReactNode
-    /** Appends a `colorError` asterisk after the label. */
+    /** Appends a muted "Required" after the label. */
     required?: boolean
-    /** Info tooltip shown on a small icon beside the label (was LabeledField's `description`). */
+    /** Appends a muted "Optional" after the label, for an optional field among required ones. */
+    optional?: boolean
+    /** Field help beside the label (`FieldHelp`: a tooltip, a tap popover on touch). */
     tooltip?: React.ReactNode
     /** Side the tooltip opens on. Mirrors LabeledField's `tooltipPlacement`. Defaults to `right`. */
     tooltipPlacement?: "top" | "right" | "bottom" | "left"
+    /** A control at the end of the label row: a view switch, or the switch of a settings row. */
+    labelEnd?: React.ReactNode
     /** Help text under the label, in `colorTextDescription`. */
     description?: React.ReactNode
     /** Error / help line under the control, in `colorError`. */
@@ -84,6 +87,7 @@ export interface FieldProps extends VariantProps<typeof fieldLabelVariants> {
     /** Marks the field disabled (dims the label via `data-disabled`). Does not disable the control. */
     disabled?: boolean
     /** The control. */
+    /** The control; null for a label row whose control sits in `labelEnd`. */
     children: React.ReactNode
     className?: string
 }
@@ -91,8 +95,10 @@ export interface FieldProps extends VariantProps<typeof fieldLabelVariants> {
 function Field({
     label,
     required = false,
+    optional = false,
     tooltip,
     tooltipPlacement = "right",
+    labelEnd,
     description,
     error,
     invalid = false,
@@ -147,7 +153,7 @@ function Field({
     const isHorizontal = direction === "horizontal"
 
     const errorLine = error != null && (
-        <span id={errorId} data-slot="field-error" className="text-xs text-error">
+        <span id={errorId} data-slot="field-error" className="text-meta text-destructive">
             {error}
         </span>
     )
@@ -162,46 +168,37 @@ function Field({
                         className={cn(
                             fieldLabelVariants({size}),
                             isHorizontal && "flex-shrink-0",
-                            invalid && "text-error",
+                            invalid && "text-destructive",
                         )}
                     >
                         <span data-slot="field-label-text">
                             {label}
-                            {required && (
+                            {required || optional ? (
+                                // A word, not a red asterisk: status needs a word (COLOR-03).
                                 <span
-                                    data-slot="field-required"
-                                    aria-hidden="true"
-                                    className="ml-0.5 text-error"
+                                    data-slot={required ? "field-required" : "field-optional"}
+                                    className="ml-1.5 text-meta font-normal text-muted-foreground"
                                 >
-                                    *
+                                    {required
+                                        ? t("ui.controls.required")
+                                        : t("ui.controls.optional")}
                                 </span>
-                            )}
+                            ) : null}
                         </span>
                     </Label>
                     {tooltip != null && (
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <button
-                                        type="button"
-                                        data-slot="field-tooltip-trigger"
-                                        aria-label={t("ui.controls.moreInformation")}
-                                        className="box-border inline-flex cursor-help border-0 bg-transparent p-0 font-[inherit] text-colorTextDescription"
-                                    >
-                                        <Info className="size-3" aria-hidden="true" />
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent side={tooltipPlacement}>{tooltip}</TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
+                        <FieldHelp label={t("ui.controls.moreInformation")} side={tooltipPlacement}>
+                            {tooltip}
+                        </FieldHelp>
                     )}
+                    {labelEnd != null && <div className="ml-auto flex min-w-0">{labelEnd}</div>}
                 </div>
             )}
             {description != null && (
                 <span
                     id={descriptionId}
                     data-slot="field-description"
-                    className="text-xs text-colorTextDescription"
+                    className="text-meta text-muted-foreground"
                 >
                     {description}
                 </span>

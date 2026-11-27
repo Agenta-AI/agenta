@@ -43,7 +43,7 @@ export const SocialAuthButtons = ({
     if (providers.length === 0) return null
 
     return (
-        <div className="flex flex-col gap-[10px]">
+        <div className="flex flex-col gap-2">
             {providers.map((provider) => {
                 const pending = Boolean(isLoading) && provider.id === pendingProviderId
                 return (

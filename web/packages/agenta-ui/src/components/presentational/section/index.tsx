@@ -105,7 +105,7 @@ export function SectionCard({children, className, style}: SectionCardProps) {
     return (
         <div
             className={cn(
-                "flex flex-col gap-6 border border-solid border-colorBorderSecondary bg-colorBgContainer p-4 rounded",
+                "flex flex-col gap-6 border border-solid border-border-muted bg-background p-4 rounded",
                 className,
             )}
             style={style}
@@ -137,9 +137,7 @@ export function SectionHeaderRow({left, right, align = "center"}: SectionHeaderR
  */
 export function SectionLabel({children, className}: SectionLabelProps) {
     return (
-        <span
-            className={cn("uppercase font-semibold text-xs text-colorTextDescription", className)}
-        >
+        <span className={cn("font-medium text-meta text-muted-foreground", className)}>
             {children}
         </span>
     )

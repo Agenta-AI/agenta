@@ -109,15 +109,6 @@ const noop = () => undefined
 const ROOT_NODE = {name: "", path: "", isFolder: true, children: []}
 
 /**
- * On a touch screen every header button is at least 44 x 44 px (the 48 px header row holds
- * them), so no hit area overlaps its neighbour; the icons keep their size.
- */
-const TOUCH_HEADER = "contents [&_button]:min-h-11 [&_button]:min-w-11"
-/** The same for the 36 px toolbar row: the row and the view switch grow to hold 44 px buttons. */
-const TOUCH_TOOLBAR =
-    "contents [&>div]:h-auto [&>div]:min-h-12 [&_[role=tablist]]:h-auto [&_button]:min-h-11 [&_button]:min-w-11"
-
-/**
  * The browsing body — loading/empty/error states + the two-pane search/tree/preview. Owns its
  * selection state; initialize with `initialPath` (callers remount per open, so mount-time init
  * is the reset).
@@ -178,10 +169,10 @@ export function DriveExplorer({
     initialShowTree?: boolean
     /** Remember the tree's shown/hidden state and width across opens under this key. */
     treePersistKey?: string
-    closeVariant?: "close" | "collapse"
+    closeVariant?: "close" | "collapse" | "panel"
     /** Open and download only: no upload, drop, paste, new item, rename, delete or edit (a phone). */
     readOnly?: boolean
-    /** A touch screen (a phone): the header and toolbar buttons get a 44 px hit area. */
+    /** A touch screen (a phone): the header and the toolbar share one row. */
     touch?: boolean
 }) {
     const t = useT(driveExplorerCatalog, driveBrowserCatalog)
@@ -664,11 +655,15 @@ export function DriveExplorer({
         // Nothing is loaded yet, so the name is all we have to go on.
         const target = initialPath ?? persistedSelection
         const isFilePreview = target ? looksLikeFilePath(target) : false
+        // A phone's loaded view draws one row for rows 1 and 2; its skeleton draws that row too.
+        headerInToolbar = Boolean(touch && chrome && !onClose)
         body = (
             <DriveExplorerSkeleton
-                mode={isFilePreview ? "preview" : "grid"}
+                mode={isFilePreview ? "preview" : view}
                 showTree={treeVisible}
                 mirrored={mirrored}
+                withChrome={headerInToolbar}
+                phone={headerInToolbar}
             />
         )
     } else if (drive.fileCount === 0 && !drive.otherDrives?.length) {
@@ -768,16 +763,12 @@ export function DriveExplorer({
         )
 
         if (headerInToolbar) phoneRow = contentHeader
-        const shownContentHeader = headerInToolbar ? null : touch && contentHeader ? (
-            <div className={TOUCH_TOOLBAR}>{contentHeader}</div>
-        ) : (
-            contentHeader
-        )
+        const shownContentHeader = headerInToolbar ? null : contentHeader
 
         // The content column: the folder's children, an editor, or a preview.
         const contentPane =
             selectedPath == null ? (
-                <div className="flex h-full flex-1 items-center justify-center text-xs text-colorTextTertiary">
+                <div className="flex h-full flex-1 items-center justify-center text-body text-muted-foreground">
                     {t("entityUi.driveBrowser.selectFileToPreview")}
                 </div>
             ) : selectedIsFolder ? (
@@ -887,9 +878,7 @@ export function DriveExplorer({
                             onValueChange={setSearch}
                             placeholder={t("entityUi.driveBrowser.searchFiles")}
                             className="w-full"
-                            prefix={
-                                <MagnifyingGlass size={12} className="text-colorTextQuaternary" />
-                            }
+                            prefix={<MagnifyingGlass size={12} className="text-muted-foreground" />}
                         />
                     ) : null
                 }
@@ -951,11 +940,7 @@ export function DriveExplorer({
             {lazyTree.subscribers}
             {chrome ? (
                 <div ref={paneRef} className="relative flex h-full min-h-0 w-full flex-col">
-                    {headerInToolbar ? null : (
-                        <div className={touch ? TOUCH_HEADER : "contents"}>
-                            <DriveHeader {...headerProps} />
-                        </div>
-                    )}
+                    {headerInToolbar ? null : <DriveHeader {...headerProps} />}
                     <input
                         ref={uploadInputRef}
                         type="file"

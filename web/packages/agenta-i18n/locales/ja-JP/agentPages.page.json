@@ -1,0 +1,5 @@
+{
+    "analyticsDescription": "このエージェントのコスト、実行数、成功率。",
+    "configurationDescription": "エージェントの実行環境、使えるもの、閲覧できる人。",
+    "sessionsDescription": "ユーザーと自動化がこのエージェントと行ったすべての会話。"
+}

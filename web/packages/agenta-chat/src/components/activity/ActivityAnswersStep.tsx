@@ -88,7 +88,7 @@ export const ActivityAnswersStep = ({part}: {part: ToolUIPart}) => {
             <StepRow open={open} onToggle={expandable ? () => setOpen((v) => !v) : undefined}>
                 <ActivityNode icon="ask" state={state} yourTurn={settled === "pending"} />
                 <span
-                    className={`min-w-0 truncate text-sm text-colorText transition-colors group-hover/row:text-colorTextSecondary ${
+                    className={`min-w-0 truncate text-label text-foreground transition-colors group-hover/row:text-muted-foreground ${
                         settled === "pending" ? LIVE_TEXT_CLASS : ""
                     }`}
                 >
@@ -97,13 +97,13 @@ export const ActivityAnswersStep = ({part}: {part: ToolUIPart}) => {
                 {expandable ? <StepCaret open={open} /> : null}
             </StepRow>
             <RevealCollapse open={open}>
-                <dl className="ag-surface-inset m-0 flex min-w-0 flex-col gap-2 rounded px-3 py-2 text-xs ml-[38px]">
+                <dl className="ag-surface-inset m-0 flex min-w-0 flex-col gap-2 rounded-md px-3 py-2 text-meta ml-8">
                     {answers.map((answer) => (
                         <div key={answer.key} className="flex min-w-0 flex-col gap-0.5">
-                            <dt className="font-mono text-[12px] text-colorTextTertiary">
+                            <dt className="font-mono text-meta text-muted-foreground">
                                 {answer.label}
                             </dt>
-                            <dd className="m-0 break-words text-colorText">{answer.value}</dd>
+                            <dd className="m-0 break-words text-foreground">{answer.value}</dd>
                         </div>
                     ))}
                 </dl>

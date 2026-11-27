@@ -1,5 +1,5 @@
 {
     "addChannel": "Ajouter un canal",
     "connected": "Connecté",
-    "intro": "Un canal permet aux personnes de parler à {{agent}} dans l’application de chat qu’elles utilisent déjà."
+    "intro": "Les personnes discutent avec {{agent}} dans les apps qu’elles utilisent."
 }

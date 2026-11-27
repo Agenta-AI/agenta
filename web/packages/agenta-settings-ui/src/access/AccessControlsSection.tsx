@@ -42,7 +42,7 @@ export const AccessControlsSection = ({
     return (
         <div className="flex flex-col gap-8">
             {error ? (
-                <p role="alert" className="m-0 text-[13px] text-colorError">
+                <p role="alert" className="m-0 text-label text-destructive">
                     {error}
                 </p>
             ) : null}

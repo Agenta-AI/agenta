@@ -2,10 +2,10 @@ import {useCallback, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
-import {PHONE_TOUCH_TARGET_CLASS, Popover, PopoverContent, PopoverTrigger, cn} from "@agenta/ui/ui"
-import {CaretUpDown} from "@phosphor-icons/react"
+import {Popover, PopoverContent, PopoverTrigger, cn} from "@agenta/ui/ui"
+import {CaretDown} from "@phosphor-icons/react"
 
-import {CAPTION_CLASS, EntryList, type SwitcherEntry} from "./ProjectOrgSwitcher"
+import {CAPTION_CLASS, EntryList, PANEL_CLASS, type SwitcherEntry} from "./ProjectOrgSwitcher"
 
 export interface ProjectSwitchProps {
     /** The current project's name, the button's text. */
@@ -19,11 +19,10 @@ export interface ProjectSwitchProps {
     className?: string
 }
 
-const FOCUS_RING =
-    "outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-[-2px]"
+const FOCUS_RING = "outline-none focus-ring"
 
 /**
- * The project name as a switch, for a group heading: the name and a CaretUpDown open the sidebar
+ * The project name as a switch, for a group heading: the name and a caret open the sidebar
  * switcher's project panel (its caption and its list). Picking a project is the host's move.
  */
 export const ProjectSwitch = ({
@@ -45,12 +44,11 @@ export const ProjectSwitch = ({
                     className={cn(
                         "flex min-w-0 cursor-pointer items-center gap-1 rounded border-0 bg-transparent p-0 font-[inherit] text-inherit hover:text-foreground",
                         FOCUS_RING,
-                        PHONE_TOUCH_TARGET_CLASS,
                         className,
                     )}
                 >
                     <span className="truncate">{label}</span>
-                    <CaretUpDown size={12} className="shrink-0" />
+                    <CaretDown size={12} className="ag-caret shrink-0" />
                 </button>
             </PopoverTrigger>
             <PopoverContent
@@ -58,7 +56,7 @@ export const ProjectSwitch = ({
                 onOpenAutoFocus={(event) => event.preventDefault()}
                 side="bottom"
                 align="start"
-                className="z-[2000] w-[220px] overflow-hidden rounded-lg border border-solid border-colorBorderSecondary bg-colorBgElevated p-0 shadow-md"
+                className={PANEL_CLASS}
             >
                 <div className="flex flex-col p-1">
                     <div className={CAPTION_CLASS}>

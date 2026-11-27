@@ -17,7 +17,7 @@ export const PlanStatTile = ({
     action?: ReactNode
 }) => (
     <AnalyticsCard
-        className="min-h-[108px]"
+        className="min-h-27"
         title={label}
         value={<AnimatedNumber value={value} />}
         note={

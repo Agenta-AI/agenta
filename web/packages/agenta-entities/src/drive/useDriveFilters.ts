@@ -5,7 +5,7 @@
  */
 import {useCallback, useDeferredValue, useState} from "react"
 
-import {useAtom} from "jotai"
+import {useAtom, useAtomValue} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
 export type DriveViewMode = "grid" | "list"
@@ -25,6 +25,9 @@ const driveShowHiddenPrefAtom = pref("show-hidden", false)
 const driveShowGitignoredPrefAtom = pref("show-gitignored", false)
 // On by default; the toggle narrows to the persistent files.
 const driveShowTemporaryAtom = pref("show-temporary", true)
+
+/** The folder view the user last picked, for a skeleton drawn before the explorer loads. */
+export const useDriveViewMode = (): DriveViewMode => useAtomValue(driveViewModeAtom)
 
 export function useDriveFilters() {
     const [search, setSearch] = useState("")

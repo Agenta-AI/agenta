@@ -5,6 +5,7 @@ import {richText, useT} from "@agenta/i18n"
 import secretAttachmentCatalog from "@agenta/i18n/catalogs/entityUi.secretAttachment"
 import secretViewsCatalog from "@agenta/i18n/catalogs/entityUi.secretViews"
 import {
+    Field,
     Input,
     Select,
     SelectContent,
@@ -15,27 +16,21 @@ import {
 } from "@agenta/ui/ui"
 import {LockSimple, Plus} from "@phosphor-icons/react"
 
+import {OwnerChip} from "../../accounts/OwnerChip"
 import {ACCOUNT_COPY} from "../../accounts/copy"
+import {OwnerField} from "../../accounts/OwnerField"
 import {useProjectName} from "../../accounts/useProjectName"
+import {NewSecretButton} from "../../mcpEndpoint/components/NewSecretButton"
 import type {AgentSecretRequestSeed, SecretOwner} from "../agentSecretRules"
-import {OwnerRadioGroup} from "../OwnerRadioGroup"
 import {SecretCreateFields} from "../SecretCreateFields"
 
+import {SecretAttachSkeleton} from "./SecretAttachSkeleton"
 import {NEW_SECRET} from "./secretChoice"
-import type {SecretAttachForm, SecretListEntry} from "./useSecretAttachForm"
+import type {SecretAttachForm} from "./useSecretAttachForm"
 
 const SECRET_FIELD_ID = "agent-secret-attach-secret"
+const SECRET_HINT_ID = "agent-secret-attach-secret-hint"
 const ENV_FIELD_ID = "agent-secret-attach-env"
-
-/** The canvas form label: 12 px, weight 500, secondary. */
-const LABEL_CLASS = "text-[12px] font-medium leading-4 text-colorTextSecondary"
-/** The help line under a field. */
-const HELP_CLASS = "text-[12px] leading-4"
-/**
- * Fields on the canvas scale (13 px, radius 6) from md up; a phone keeps 16 px so iOS does not
- * zoom. The mono line height leaves room for underscores, which a 20 px line clips on Linux.
- */
-const FIELD_CLASS = "rounded-[6px] md:text-[13px]"
 
 /**
  * Auto-save leaves the agent's draft dirty until the save lands. The notice shows only when the
@@ -55,16 +50,6 @@ export const useHeldTrue = (value: boolean, ms: number): boolean => {
         return () => clearTimeout(timer)
     }, [value, ms])
     return value && held
-}
-
-/** Whose a secret is: "Everyone" or "Only me", at the right of its name. */
-export const SecretOwnerTag = ({owner}: {owner: SecretListEntry["owner"]}) => {
-    const t = useT(secretViewsCatalog)
-    return (
-        <span className="ml-auto inline-flex h-5 shrink-0 items-center rounded px-[7px] font-sans text-[12px] leading-4 text-colorTextSecondary ring-1 ring-inset ring-colorBorderSecondary">
-            {owner === "shared" ? t("entityUi.secretViews.everyone") : ACCOUNT_COPY.onlyMe}
-        </span>
-    )
 }
 
 export function SecretAttachFields({
@@ -92,89 +77,106 @@ export function SecretAttachFields({
     const focusNewSecretField = () =>
         (request?.name?.trim() ? valueRef.current : nameRef.current)?.focus()
 
+    if (form.skeleton) return <SecretAttachSkeleton {...form.skeleton} />
+
     return (
-        <div className="flex flex-col gap-3.5">
+        // One gap at every width (SIZE-02), as the MCP connect form on the canvas.
+        <div className="flex flex-col gap-3">
             {request ? (
-                <p className="m-0 text-xs text-colorTextSecondary">
+                <p className="m-0 text-meta text-muted-foreground">
                     {richText(t("entityUi.secretAttachment.agentAskedFor", {name: request.name}), {
-                        name: (text) => <span className="font-medium text-colorText">{text}</span>,
+                        name: (text) => <span className="font-medium text-foreground">{text}</span>,
                     })}
                     {request.reason ? ` · ${request.reason}` : ""}
                 </p>
             ) : null}
 
-            <div className="flex flex-col gap-1">
-                <label htmlFor={SECRET_FIELD_ID} className={LABEL_CLASS}>
-                    {t("entityUi.secretAttachment.secret")}
-                </label>
-                <Select value={form.selected} onValueChange={form.select} disabled={form.loading}>
-                    <SelectTrigger
-                        id={SECRET_FIELD_ID}
-                        size="compact"
-                        // The "+" of "Create new secret" shows in the list only, not in the trigger.
-                        className="[&>span:first-child>svg]:hidden [&>span:first-child]:flex [&>span:first-child]:min-w-0 [&>span:first-child]:flex-1 [&>span:first-child]:items-center [&>span:first-child]:gap-2"
+            <div className="flex flex-col gap-1.5">
+                <Field
+                    label={t("entityUi.secretAttachment.secret")}
+                    htmlFor={SECRET_FIELD_ID}
+                    labelEnd={
+                        form.canCreate && !creating ? (
+                            <NewSecretButton
+                                disabled={form.loading}
+                                // The new Name field takes focus as it mounts.
+                                onClick={() => form.select(NEW_SECRET)}
+                            />
+                        ) : undefined
+                    }
+                >
+                    <Select
+                        value={form.selected}
+                        onValueChange={form.select}
+                        disabled={form.loading}
                     >
-                        <SelectValue
-                            placeholder={
-                                form.loading
-                                    ? t("entityUi.secretAttachment.loadingSecrets")
-                                    : t("entityUi.secretAttachment.selectSecret")
+                        <SelectTrigger
+                            id={SECRET_FIELD_ID}
+                            size="compact"
+                            aria-describedby={
+                                form.choice.kind === "user" ? SECRET_HINT_ID : undefined
                             }
-                        />
-                    </SelectTrigger>
-                    <SelectContent
-                        container={container}
-                        style={popupZIndex ? {zIndex: popupZIndex} : undefined}
-                        // Radix hands focus back to the trigger on close; send it to the new fields.
-                        onCloseAutoFocus={(event) => {
-                            if (form.selected !== NEW_SECRET) return
-                            event.preventDefault()
-                            focusNewSecretField()
-                        }}
-                    >
-                        {form.entries.map((entry) => (
-                            <SelectItem
-                                key={entry.value}
-                                value={entry.value}
-                                size="compact"
-                                className="[&>span:first-child]:flex [&>span:first-child]:items-center [&>span:first-child]:gap-2"
-                            >
-                                <span className="min-w-0 truncate font-mono text-[13px]">
-                                    {entry.name}
-                                </span>
-                                <SecretOwnerTag owner={entry.owner} />
-                            </SelectItem>
-                        ))}
-                        {form.canCreate ? (
-                            <>
-                                {form.entries.length > 0 ? <SelectSeparator /> : null}
+                            // The "+" of "Create new secret" shows in the list only, not in the trigger.
+                            className="[&>span:first-child>svg]:hidden [&>span:first-child]:flex [&>span:first-child]:min-w-0 [&>span:first-child]:flex-1 [&>span:first-child]:items-center [&>span:first-child]:gap-2"
+                        >
+                            <SelectValue
+                                placeholder={
+                                    form.loading
+                                        ? t("entityUi.secretAttachment.loadingSecrets")
+                                        : t("entityUi.secretAttachment.selectSecret")
+                                }
+                            />
+                        </SelectTrigger>
+                        <SelectContent
+                            container={container}
+                            style={popupZIndex ? {zIndex: popupZIndex} : undefined}
+                            // Radix hands focus back to the trigger on close; send it to the new fields.
+                            onCloseAutoFocus={(event) => {
+                                if (form.selected !== NEW_SECRET) return
+                                event.preventDefault()
+                                focusNewSecretField()
+                            }}
+                        >
+                            {form.entries.map((entry) => (
                                 <SelectItem
-                                    value={NEW_SECRET}
-                                    size="compact"
+                                    key={entry.value}
+                                    value={entry.value}
                                     className="[&>span:first-child]:flex [&>span:first-child]:items-center [&>span:first-child]:gap-2"
                                 >
-                                    <Plus
-                                        size={14}
-                                        aria-hidden
-                                        className="shrink-0 text-colorTextSecondary"
-                                    />
-                                    <span>{ACCOUNT_COPY.createNewSecret}</span>
+                                    <span className="min-w-0 truncate font-mono">{entry.name}</span>
+                                    <span className="ml-auto flex">
+                                        <OwnerChip owner={entry.ownerKind} />
+                                    </span>
                                 </SelectItem>
-                            </>
-                        ) : null}
-                    </SelectContent>
-                </Select>
+                            ))}
+                            {form.canCreate ? (
+                                <>
+                                    {form.entries.length > 0 ? <SelectSeparator /> : null}
+                                    <SelectItem
+                                        value={NEW_SECRET}
+                                        className="[&>span:first-child]:flex [&>span:first-child]:items-center [&>span:first-child]:gap-2"
+                                    >
+                                        <Plus
+                                            size={14}
+                                            aria-hidden
+                                            className="shrink-0 text-muted-foreground"
+                                        />
+                                        <span>{ACCOUNT_COPY.createNewSecret}</span>
+                                    </SelectItem>
+                                </>
+                            ) : null}
+                        </SelectContent>
+                    </Select>
+                </Field>
+                {/* What the picked choice means, read after it (as HintedField draws it). */}
                 {form.choice.kind === "user" ? (
-                    <span
-                        className={`mt-1 flex items-start gap-2 text-colorTextSecondary ${HELP_CLASS}`}
+                    <p
+                        id={SECRET_HINT_ID}
+                        className="m-0 flex items-start gap-2 text-meta leading-normal text-muted-foreground"
                     >
-                        <LockSimple
-                            size={14}
-                            aria-hidden
-                            className="mt-px shrink-0 text-colorTextTertiary"
-                        />
+                        <LockSimple size={14} aria-hidden className="mt-px shrink-0" />
                         <span>{t("entityUi.secretViews.onlyYouLine")}</span>
-                    </span>
+                    </p>
                 ) : null}
             </div>
 
@@ -183,7 +185,7 @@ export function SecretAttachFields({
                     <SecretCreateFields
                         controller={form.createController}
                         focusValue={!!request?.name?.trim()}
-                        hint={
+                        valueTooltip={
                             form.owner === "user"
                                 ? undefined
                                 : t("entityUi.secretAttachment.storedInVault")
@@ -193,63 +195,47 @@ export function SecretAttachFields({
                         onNameChange={form.onNewSecretName}
                     />
                     {form.owners ? (
-                        <div className="flex flex-col gap-1">
-                            <span className={LABEL_CLASS}>{ACCOUNT_COPY.whoCanUseIt}</span>
-                            <OwnerRadioGroup<SecretOwner>
-                                value={form.owner}
-                                onChange={form.setOwner}
-                                options={[
-                                    {
-                                        value: "user",
-                                        label: ACCOUNT_COPY.onlyMe,
-                                        note: ACCOUNT_COPY.onlyMeSecretNote,
-                                    },
-                                    {
-                                        value: "project",
-                                        label: ACCOUNT_COPY.everyoneIn(projectName),
-                                        note: ACCOUNT_COPY.everyoneSecretNote,
-                                    },
-                                ]}
-                            />
-                        </div>
+                        <OwnerField<SecretOwner>
+                            value={form.owner}
+                            owners={form.owners}
+                            onChange={form.setOwner}
+                            projectName={projectName}
+                        />
                     ) : null}
                 </>
             ) : null}
 
-            <div className="flex flex-col gap-1">
-                <label htmlFor={ENV_FIELD_ID} className={LABEL_CLASS}>
-                    {t("entityUi.secretAttachment.environmentVariable")}
-                </label>
+            <Field
+                label={t("entityUi.secretAttachment.environmentVariable")}
+                tooltip={t("entityUi.secretAttachment.receivesThrough")}
+                error={
+                    form.envError === "invalid"
+                        ? t("entityUi.secretAttachment.envInvalid")
+                        : form.envError === "duplicate"
+                          ? t("entityUi.secretAttachment.alreadyAttached")
+                          : undefined
+                }
+            >
                 <Input
                     id={ENV_FIELD_ID}
-                    className={`h-[34px] py-0 font-mono leading-6 ${FIELD_CLASS}`}
+                    className="font-mono"
                     value={form.envVar}
                     placeholder={t("entityUi.secretAttachment.envPlaceholder")}
                     onChange={(event) => form.setEnvVar(event.target.value)}
                     autoComplete="off"
                     spellCheck={false}
-                    aria-invalid={form.envError ? true : undefined}
                 />
-                <span
-                    className={`${HELP_CLASS} ${form.envError ? "text-error" : "text-colorTextTertiary"}`}
-                >
-                    {form.envError === "invalid"
-                        ? t("entityUi.secretAttachment.envInvalid")
-                        : form.envError === "duplicate"
-                          ? t("entityUi.secretAttachment.alreadyAttached")
-                          : t("entityUi.secretAttachment.receivesThrough")}
-                </span>
-            </div>
+            </Field>
 
             {showDirtyNotice ? (
-                <div className="rounded-lg border border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] p-3 text-xs text-colorText">
+                <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-meta text-foreground">
                     {t("entityUi.secretAttachment.saveOrDiscard")}
                 </div>
             ) : null}
             {form.error ? (
                 <div
                     role="alert"
-                    className="rounded-lg border border-[var(--ag-colorErrorBorder)] bg-[var(--ag-colorErrorBg)] p-3 text-xs text-error"
+                    className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-meta text-destructive"
                 >
                     {form.error}
                 </div>

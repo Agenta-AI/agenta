@@ -97,7 +97,7 @@ export const ModelConfigEditor = memo(function ModelConfigEditor({
             const fieldLabel = formatLabel(schema.title || key)
             return (
                 <div key={key} className="flex flex-col gap-1">
-                    <span className="font-medium text-xs">{fieldLabel}</span>
+                    <span className="font-medium text-label">{fieldLabel}</span>
                     <ConfigSelect
                         value={(value?.[key] as string | null) ?? null}
                         onChange={(v) => onChange(key, v)}

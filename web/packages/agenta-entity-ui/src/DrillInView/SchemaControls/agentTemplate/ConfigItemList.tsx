@@ -7,6 +7,7 @@ import type {ReactNode} from "react"
 import type {ItemDescriptor} from "./itemDescriptors"
 import {ITEM_KINDS, type ItemKind} from "./itemKinds"
 import {ItemRow, type ItemRowStatus} from "./ItemRow"
+import {SectionEmpty} from "./SectionEmpty"
 
 export function ConfigItemList({
     kind,
@@ -58,6 +59,5 @@ export function ConfigItemList({
         )
     }
     if (disabled) return null
-    // One quiet line; the section header's "+" is the way to add one.
-    return <span className="text-xs text-colorTextTertiary">{def.emptyLabel}</span>
+    return <SectionEmpty>{def.emptyLabel}</SectionEmpty>
 }

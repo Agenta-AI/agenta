@@ -11,7 +11,7 @@ export const CompareSummaryTable = ({
     rows: readonly CompareSummaryRow[]
 }) => (
     <div className="min-w-0 overflow-x-auto">
-        <table className="w-full border-collapse text-left text-sm">
+        <table className="w-full border-collapse text-left text-body">
             <thead>
                 <tr className="border-0 border-b border-solid border-border">
                     <th scope="col" className="py-2 pr-3 font-normal text-muted-foreground">
@@ -21,12 +21,12 @@ export const CompareSummaryTable = ({
                         <th
                             key={run.runId}
                             scope="col"
-                            className="min-w-[140px] py-2 pr-3 font-medium text-foreground"
+                            className="min-w-35 py-2 pr-3 font-medium text-foreground"
                         >
                             <span className="flex items-center gap-1.5">
                                 <span
                                     aria-hidden
-                                    className="size-2 shrink-0 rounded-full"
+                                    className="size-2 shrink-0 rounded-xs"
                                     style={{backgroundColor: compareColor(run.slot)}}
                                 />
                                 <span className="truncate">{run.name}</span>
@@ -44,7 +44,7 @@ export const CompareSummaryTable = ({
                     >
                         <th
                             scope="row"
-                            className="w-[30%] min-w-[140px] py-2 pr-3 align-top font-normal text-muted-foreground"
+                            className="w-[30%] min-w-35 py-2 pr-3 align-top font-normal text-muted-foreground"
                         >
                             {row.label}
                         </th>

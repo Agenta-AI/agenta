@@ -252,7 +252,7 @@ function MyProvider({children}) {
 ## Dependencies
 
 - `@agenta/shared` - Path utilities, types
-- `@agenta/ui` - EnhancedModal, Editor, styling utilities
+- `@agenta/ui` - Dialog parts, Editor, styling utilities
 - `@agenta/entities` - Entity controllers, schemas, selection configs
 - `jotai` - State management (peer dependency)
 - `antd` - UI components (peer dependency)
