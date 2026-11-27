@@ -58,6 +58,7 @@ export const MetricPicker = ({
                                     <CommandItem
                                         key={metric.id}
                                         value={metric.id}
+                                        aria-checked={checked}
                                         keywords={[name]}
                                         onSelect={() => onToggle(metric.id)}
                                     >

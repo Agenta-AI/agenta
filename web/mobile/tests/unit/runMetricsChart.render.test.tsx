@@ -8,10 +8,15 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 import {MetricsChart} from "@/features/evaluation-run/overview/MetricsChart"
 
 // The radar is tested in @agenta/ui. Here, record the axes the card hands it.
-const charts = vi.hoisted(() => ({radar: [] as {axes: {name: string}[]}[]}))
+const charts = vi.hoisted(() => ({
+    radar: [] as {axes: {name: string; values: Record<string, unknown>}[]}[],
+}))
 vi.mock("@agenta/ui/components/presentational/charts", async (original) => ({
     ...(await original<typeof import("@agenta/ui/components/presentational/charts")>()),
-    RadarChart: (props: {title: string; axes: {name: string}[]}) => {
+    RadarChart: (props: {
+        title: string
+        axes: {name: string; values: Record<string, unknown>}[]
+    }) => {
         charts.radar.push(props)
         return createElement("svg", {"aria-label": props.title})
     },
@@ -181,7 +186,14 @@ describe("Metrics chart", () => {
         expect(
             host.querySelector("svg[aria-label='Radar chart of the selected metrics']"),
         ).not.toBeNull()
-        expect(charts.radar.at(-1)?.axes).toHaveLength(4)
+        const axes = charts.radar.at(-1)?.axes ?? []
+        expect(axes).toHaveLength(4)
+        // Lowest first; each axis holds the run's value on 0 to 1.
+        expect(axes[0]).toEqual({
+            name: "Check 00: Score",
+            max: 1,
+            values: {"run-1": {normalized: 0.5 / 28, raw: 0.5 / 28}},
+        })
     })
 
     it("The radar is disabled with fewer than 3 metrics", () => {

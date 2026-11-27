@@ -121,11 +121,11 @@ describe("metrics chart values", () => {
                         ...row("Judge", [metric("a", "numeric", numeric(0.9, 0, 1))]),
                         evaluatorId: "a",
                     },
-                    {...row("Judge (2)", [metric("b", "binary", binary(1, 3))]), evaluatorId: "b"},
                     {
                         ...row("Judge", [metric("c", "numeric", numeric(0.1, 0, 1))]),
                         evaluatorId: "c",
                     },
+                    {...row("Judge (2)", [metric("b", "binary", binary(1, 3))]), evaluatorId: "b"},
                 ],
             },
         ])

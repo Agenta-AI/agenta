@@ -79,11 +79,15 @@ export function buildMetricsChart(runs: readonly MetricsChartRun[]): MetricsChar
             }
         }
     }
-    // Unique names in row order, so a poll that reorders the bars does not move a "(2)".
+    // Unique names in row order, so a poll that reorders the bars does not move a "(2)". A
+    // generated name never takes a real name of another metric.
+    const realNames = new Set([...byId.values()].map((metric) => metric.name))
     const taken = new Set<string>()
     for (const metric of byId.values()) {
         let name = metric.name
-        for (let n = 2; taken.has(name); n++) name = `${metric.name} (${n})`
+        for (let n = 2; taken.has(name) || (name !== metric.name && realNames.has(name)); n++) {
+            name = `${metric.name} (${n})`
+        }
         taken.add(name)
         metric.name = name
     }
