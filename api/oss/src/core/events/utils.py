@@ -116,7 +116,6 @@ import uuid_utils.compat as uuid_compat
 from oss.src.core.events.dtos import Event
 from oss.src.core.events.streaming import publish_event
 from oss.src.core.events.types import EventType, RequestType
-from oss.src.utils.common import is_ee
 from oss.src.utils.context import AuthContextMissing, get_auth_scope
 from oss.src.utils.logging import get_module_logger
 
@@ -253,13 +252,9 @@ async def _check_l1_events_quota(
     at trace-ingest call sites, but never raises so the caller's response
     is unaffected by an entitlements glitch.
 
-    No-ops on OSS (no EE entitlements stack) and when `organization_id`
-    is unknown (cannot scope the check). Authoritative consumption
+    No-ops when `organization_id` is unknown (cannot scope the check). Authoritative consumption
     happens in the events worker's L2 check.
     """
-    if not is_ee():
-        return True
-
     if organization_id is None:
         # Without an org we cannot scope the soft check. The events worker
         # still gets a chance to perform the authoritative L2 check using

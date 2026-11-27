@@ -8,7 +8,7 @@ import pytest
 from oss.src.core.telemetry import runtime
 from oss.src.core.telemetry import service as telemetry_service
 from oss.src.utils.env import env
-from oss.tests.pytest.unit.telemetry._edition import set_edition
+from oss.tests.pytest.unit.telemetry._license_key import without_license_key
 
 INSTANCE_ID = UUID("3f0c9a52-6d1e-4b8a-9f7e-2a5c8d4e1b07")
 # The fixture below replaces it; the cgroup tests call the real one.
@@ -41,7 +41,7 @@ def self_hosted(monkeypatch):
     monkeypatch.setattr(env.telemetry, "enabled_set", False)
     monkeypatch.setattr(env.telemetry, "deployment_method", "compose")
     monkeypatch.setattr(env.telemetry, "ci", False)
-    set_edition(monkeypatch, "oss")
+    without_license_key(monkeypatch)
     monkeypatch.setattr(env.agenta, "web_url", "https://Agenta.Example.com:8443/app")
     monkeypatch.setattr(
         telemetry_service, "get_instance_id", AsyncMock(return_value=INSTANCE_ID)
@@ -68,7 +68,7 @@ async def test_startup_event_sends_the_machine_facts(posthog):
         "instance_id": str(INSTANCE_ID),
         "instance_kind": "production",
         "agenta_version": "v0.129.0",
-        "edition": "oss",
+        "edition": "ee",
         "deployment_method": "compose",
         "instance_host": "agenta.example.com",
         "cpu_count": 8,

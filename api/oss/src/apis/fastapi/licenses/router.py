@@ -29,10 +29,8 @@ from oss.src.core.licenses.offers import (
 from oss.src.core.licenses.registrations import create_registration
 from oss.src.core.licenses.types import RegistrationFailed
 from oss.src.core.licenses.usage import organization_usage, project_usage
-from oss.src.utils.common import is_cloud, is_ee
+from oss.src.utils.common import is_cloud
 from oss.src.utils.exceptions import intercept_exceptions
-
-COMMUNITY_PLAN = "self_hosted_community"
 
 
 def _not_available() -> HTTPException:
@@ -104,28 +102,20 @@ class LicensesRouter:
             status_code=status.HTTP_204_NO_CONTENT,
         )
 
-        if is_ee():
-            self.router.add_api_route(
-                "/license",
-                self.activate_instance_license,
-                methods=["PUT"],
-                operation_id="activate_instance_license",
-                status_code=status.HTTP_200_OK,
-                response_model=InstanceLicenseResponse,
-            )
+        self.router.add_api_route(
+            "/license",
+            self.activate_instance_license,
+            methods=["PUT"],
+            operation_id="activate_instance_license",
+            status_code=status.HTTP_200_OK,
+            response_model=InstanceLicenseResponse,
+        )
 
     @intercept_exceptions()
     async def fetch_instance_license(self, request: Request) -> InstanceLicenseResponse:
         if is_cloud():
             raise _not_available()
         await require_instance_admin()
-
-        if not is_ee():
-            return InstanceLicenseResponse(
-                plan=COMMUNITY_PLAN,
-                usage=await _usage(request),
-                registration_offer_dismissed=await is_registration_offer_dismissed(),
-            )
 
         from ee.src.core.licenses.service import (  # noqa: PLC0415
             get_licenses_service,
@@ -186,11 +176,10 @@ class LicensesRouter:
         request's organization; `organizations` counts the instance."""
         # The usage is for self-hosted installs only. On the ee cloud this route is
         # not available, so the ee cloud check runs first.
-        if is_ee():
-            from ee.src.core.licenses.cloud import is_cloud  # noqa: PLC0415
+        from ee.src.core.licenses.cloud import is_cloud  # noqa: PLC0415
 
-            if is_cloud():
-                raise _not_available()
+        if is_cloud():
+            raise _not_available()
         access = get_request_access()
         if (
             access is None

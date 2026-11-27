@@ -18,7 +18,6 @@ ORGANIZATION = uuid4()
 
 @pytest.fixture
 def counts(monkeypatch):
-    monkeypatch.setattr(usage, "is_ee", lambda: True)
     monkeypatch.setattr(
         entitlements_service.db_manager,
         "count_organization_projects",
@@ -79,14 +78,6 @@ async def test_a_failed_plan_read_reports_no_usage(counts, monkeypatch):
     failed = AsyncMock(side_effect=ConnectionError("database down"))
     monkeypatch.setattr(entitlements_service, "plan_for", failed)
     monkeypatch.setattr(entitlements_service, "instance_plan", failed)
-
-    assert await usage.project_usage(ORGANIZATION) is None
-    assert await usage.organization_usage() is None
-
-
-@pytest.mark.asyncio
-async def test_the_oss_image_reports_no_usage(monkeypatch):
-    monkeypatch.setattr(usage, "is_ee", lambda: False)
 
     assert await usage.project_usage(ORGANIZATION) is None
     assert await usage.organization_usage() is None

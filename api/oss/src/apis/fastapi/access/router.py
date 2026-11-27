@@ -15,7 +15,6 @@ from oss.src.middlewares.auth import (
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.context import get_auth_context, get_auth_scope
-from oss.src.utils.common import is_ee
 from oss.src.utils.exceptions import intercept_exceptions
 
 from oss.src.core.access.dtos import RequestCredentialKind, RunEnvelope
@@ -33,8 +32,7 @@ from oss.src.apis.fastapi.access.models import AccessRolesResponse
 if TYPE_CHECKING:
     from oss.src.core.workflows.service import WorkflowsService
 
-if is_ee():
-    from ee.src.core.access.entitlements.service import check_entitlements, Counter
+from ee.src.core.access.entitlements.service import check_entitlements, Counter
 
 
 log = get_module_logger(__name__)
@@ -90,13 +88,9 @@ async def _check_resource_access(
         allow_resource = True
 
     if resource_type == "local_secrets":
-        # EE meters local secret usage against the credits counter. OSS has no
-        # credits meter, so it just grants access to authorized callers.
-        if not is_ee():
-            return True
-
-        check, meter, _ = await check_entitlements(  # type: ignore
-            key=Counter.CREDITS_CONSUMED,  # type: ignore
+        # Local secret usage is metered against the credits counter.
+        check, meter, _ = await check_entitlements(
+            key=Counter.CREDITS_CONSUMED,
             delta=1,
         )
 

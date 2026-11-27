@@ -4,7 +4,6 @@ from uuid import UUID
 from sqlalchemy import select
 
 from oss.src.utils.env import env
-from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.access.service import get_access_service
 from oss.src.core.memberships.service import get_memberships_service
@@ -17,14 +16,13 @@ from oss.src.services import db_manager
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.src.dbs.postgres.users.dao import IdentitiesDAO
 
-if is_ee():
-    from ee.src.dbs.postgres.organizations.dao import (
-        OrganizationDomainsDAO,
-        OrganizationProvidersDAO,
-    )
-    from oss.src.models.db_models import (
-        OrganizationMemberDB,
-    )
+from ee.src.dbs.postgres.organizations.dao import (
+    OrganizationDomainsDAO,
+    OrganizationProvidersDAO,
+)
+from oss.src.models.db_models import (
+    OrganizationMemberDB,
+)
 
 
 log = get_module_logger(__name__)
@@ -41,13 +39,8 @@ class AuthService:
     def __init__(self):
         self.identities_dao = IdentitiesDAO()
 
-        # Initialize EE DAOs if available
-        if is_ee():
-            self.domains_dao = OrganizationDomainsDAO()
-            self.providers_dao = OrganizationProvidersDAO()
-        else:
-            self.domains_dao = None
-            self.providers_dao = None
+        self.domains_dao = OrganizationDomainsDAO()
+        self.providers_dao = OrganizationProvidersDAO()
 
     # ============================================================================
     # DISCOVERY: Determine available authentication methods
@@ -114,62 +107,61 @@ class AuthService:
             UUID
         ] = []  # Orgs with verified domain matching user's email
 
-        if is_ee():
-            # 1. User's existing memberships
-            if user_exists and user_id:
-                try:
-                    orgs = await db_manager.get_user_organizations(str(user_id))
-                    org_ids = [org.id for org in orgs]
-                except Exception:
-                    log.error(
-                        "[DISCOVERY] Error fetching user organizations",
-                        exc_info=True,
+        # 1. User's existing memberships
+        if user_exists and user_id:
+            try:
+                orgs = await db_manager.get_user_organizations(str(user_id))
+                org_ids = [org.id for org in orgs]
+            except Exception:
+                log.error(
+                    "[DISCOVERY] Error fetching user organizations",
+                    exc_info=True,
+                )
+                org_ids = []
+
+        # 2. Organizations with pending project invitations
+        if email:
+            try:
+                engine = get_transactions_engine()
+
+                async with engine.session() as session:
+                    # Query project_invitations for this email, join with projects to get organization_id
+                    stmt = (
+                        select(ProjectDB.organization_id)
+                        .join(InvitationDB, InvitationDB.project_id == ProjectDB.id)
+                        .where(InvitationDB.email == email)
+                        .where(~InvitationDB.used)
+                        .distinct()
                     )
-                    org_ids = []
+                    result = await session.execute(stmt)
+                    invitation_org_ids = [row[0] for row in result.fetchall()]
 
-            # 2. Organizations with pending project invitations
-            if email:
-                try:
-                    engine = get_transactions_engine()
+                    # Add to org_ids if not already present
+                    for invitation_org_id in invitation_org_ids:
+                        if invitation_org_id not in org_ids:
+                            org_ids.append(invitation_org_id)
+            except Exception:
+                log.error(
+                    "[DISCOVERY] Error fetching pending invitations",
+                    exc_info=True,
+                )
 
-                    async with engine.session() as session:
-                        # Query project_invitations for this email, join with projects to get organization_id
-                        stmt = (
-                            select(ProjectDB.organization_id)
-                            .join(InvitationDB, InvitationDB.project_id == ProjectDB.id)
-                            .where(InvitationDB.email == email)
-                            .where(~InvitationDB.used)
-                            .distinct()
-                        )
-                        result = await session.execute(stmt)
-                        invitation_org_ids = [row[0] for row in result.fetchall()]
+        # 3. Organizations with verified domain matching user's email
+        if domain and self.domains_dao:
+            domain_dto = await self.domains_dao.get_verified_by_slug(slug=domain)
 
-                        # Add to org_ids if not already present
-                        for invitation_org_id in invitation_org_ids:
-                            if invitation_org_id not in org_ids:
-                                org_ids.append(invitation_org_id)
-                except Exception:
-                    log.error(
-                        "[DISCOVERY] Error fetching pending invitations",
-                        exc_info=True,
-                    )
+            if domain_dto:
+                domain_org_ids.append(domain_dto.organization_id)
 
-            # 3. Organizations with verified domain matching user's email
-            if domain and self.domains_dao:
-                domain_dto = await self.domains_dao.get_verified_by_slug(slug=domain)
-
-                if domain_dto:
-                    domain_org_ids.append(domain_dto.organization_id)
-
-                    # Include in org_ids for policy aggregation
-                    if domain_dto.organization_id not in org_ids:
-                        org_ids.append(domain_dto.organization_id)
+                # Include in org_ids for policy aggregation
+                if domain_dto.organization_id not in org_ids:
+                    org_ids.append(domain_dto.organization_id)
 
         # Aggregate allowed methods across all organizations (EE only)
         all_allowed_methods: set[str] = set()
         has_sso_enforcement = False  # Track if any org has SSO + verified domain
 
-        if is_ee() and org_ids:
+        if org_ids:
             # Check policy flags for each organization
             for org_id in org_ids:
                 org_flags = await self._get_organization_flags(org_id)
@@ -257,7 +249,7 @@ class AuthService:
         # Show SSO providers from user's organizations (if user exists and is a member)
         sso_providers = []
 
-        if is_ee() and self.providers_dao and org_ids:
+        if self.providers_dao and org_ids:
             provider_map = {}  # Use dict to deduplicate by slug
 
             # Get SSO providers from all user's organizations
@@ -406,7 +398,7 @@ class AuthService:
         Returns:
             True if user can access this provider
         """
-        if not is_ee() or not self.providers_dao:
+        if not self.providers_dao:
             return False
 
         provider = await self.providers_dao.get_by_id_any(provider_id=str(provider_id))
@@ -426,7 +418,7 @@ class AuthService:
 
         third_party_id format: "sso:{organization_slug}:{provider_slug}"
         """
-        if not is_ee() or not self.domains_dao:
+        if not self.domains_dao:
             return False
 
         parts = third_party_id.split(":", 2)
@@ -466,7 +458,7 @@ class AuthService:
         Raises:
             Exception: If domains-only enforcement blocks access
         """
-        if not is_ee() or not self.domains_dao:
+        if not self.domains_dao:
             return
 
         # Extract domain from email
@@ -550,10 +542,6 @@ class AuthService:
         - NOT_A_MEMBER: User is not a member of the organization
         - AUTH_UPGRADE_REQUIRED: User must authenticate with additional method
         """
-        # If EE not enabled, allow access (no policy enforcement in OSS)
-        if not is_ee():
-            return None
-
         # Note: We don't check membership here - that's the responsibility of route handlers
         # This function only validates authentication method policies
 
@@ -738,7 +726,7 @@ class AuthService:
     async def _get_active_sso_providers(
         self, organization_id: UUID
     ) -> List[Dict[str, str]]:
-        if not is_ee() or not self.providers_dao:
+        if not self.providers_dao:
             return []
 
         organization = await db_manager.get_organization_by_id(str(organization_id))
@@ -768,9 +756,6 @@ class AuthService:
 
         Returns flags JSONB field or None if organization not found.
         """
-        if not is_ee():
-            return None
-
         engine = get_transactions_engine()
 
         async with engine.session() as session:
@@ -828,9 +813,6 @@ class AuthService:
         }
 
     async def _get_organization_slug(self, organization_id: UUID) -> Optional[str]:
-        if not is_ee():
-            return None
-
         engine = get_transactions_engine()
 
         async with engine.session() as session:
@@ -847,9 +829,6 @@ class AuthService:
         """
         Check if user is a member of the organization (EE only).
         """
-        if not is_ee():
-            return False
-
         engine = get_transactions_engine()
 
         async with engine.session() as session:
@@ -866,9 +845,6 @@ class AuthService:
         """
         Check if user is the owner of the organization (EE only).
         """
-        if not is_ee():
-            return False
-
         engine = get_transactions_engine()
 
         async with engine.session() as session:

@@ -19,7 +19,6 @@ OTHER_ORG_ID = uuid4()
 def _auth_service(monkeypatch, *, verified_domains):
     """An AuthService in EE mode whose verified domains map slug -> organization id."""
     service = AuthService()
-    monkeypatch.setattr(auth_service_module, "is_ee", lambda: True)
     monkeypatch.setattr(
         auth_service_module.db_manager,
         "get_organization_by_slug",
@@ -64,14 +63,6 @@ async def test_is_sso_email_allowed(monkeypatch, third_party_id, email, allowed)
     )
 
     assert await service.is_sso_email_allowed(third_party_id, email) is allowed
-
-
-@pytest.mark.asyncio
-async def test_is_sso_email_allowed_is_false_without_ee(monkeypatch):
-    monkeypatch.setattr(auth_service_module, "is_ee", lambda: False)
-    service = AuthService()
-
-    assert await service.is_sso_email_allowed("sso:acme:okta", "a@acme.com") is False
 
 
 def _thirdparty_implementation():
@@ -152,7 +143,6 @@ async def test_policy_counts_only_identities_the_user_has(
     monkeypatch, known_methods, allowed
 ):
     service = AuthService()
-    monkeypatch.setattr(auth_service_module, "is_ee", lambda: True)
     monkeypatch.setattr(
         service,
         "_get_organization_flags",
@@ -183,7 +173,6 @@ async def test_policy_counts_only_identities_the_user_has(
     ],
 )
 async def test_dynamic_provider_needs_active_and_valid(monkeypatch, flags, loaded):
-    monkeypatch.setattr(overrides, "is_ee", lambda: True)
     monkeypatch.setattr(
         overrides.db_manager,
         "get_organization_by_slug",
@@ -238,7 +227,6 @@ async def test_sso_policy_counts_only_the_orgs_own_providers(
     monkeypatch, session_identity, allowed
 ):
     service = AuthService()
-    monkeypatch.setattr(auth_service_module, "is_ee", lambda: True)
     monkeypatch.setattr(
         service,
         "_get_organization_flags",

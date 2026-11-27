@@ -26,7 +26,8 @@ async def test_relay_initialization_failure_does_not_block_durable_consumers():
         patch.object(worker_streams, "_selected_streams", return_value=["records"]),
         patch.object(worker_streams, "warn_deprecated_env_vars"),
         patch.object(worker_streams, "validate_required_env_vars"),
-        patch.object(worker_streams, "is_ee", return_value=False),
+        patch("ee.src.core.licenses.cloud.validate_cloud_license"),
+        patch.object(worker_streams, "bootstrap_entitlements_services"),
         patch.object(worker_streams.Redis, "from_url", return_value=AsyncMock()),
         patch.object(
             worker_streams,

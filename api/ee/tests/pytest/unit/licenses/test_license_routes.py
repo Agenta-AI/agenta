@@ -111,7 +111,6 @@ async def test_put_answers_409_when_the_key_is_in_the_environment(
 async def test_get_and_put_agree_on_the_environment_key(
     wired, signing_key, monkeypatch, shared_cache
 ):
-    monkeypatch.setattr(licenses_router, "is_ee", lambda: True)
     router = licenses_router.LicensesRouter()
     stored = sign_key(signing_key, customer="Stored")
     wired.dao.read.return_value = SimpleNamespace(key=stored)
@@ -160,7 +159,6 @@ async def test_an_api_key_of_the_instance_admin_gets_403(wired, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_on_cloud_the_routes_answer_404(wired, cloud, monkeypatch):
-    monkeypatch.setattr(licenses_router, "is_ee", lambda: True)
     with pytest.raises(HTTPException) as error:
         await licenses_router.LicensesRouter().fetch_instance_license(request=None)
 

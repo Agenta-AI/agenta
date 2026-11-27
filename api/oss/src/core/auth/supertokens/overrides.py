@@ -49,7 +49,7 @@ from supertokens_python.recipe.session import SessionContainer
 from supertokens_python.types import RecipeUserId, AccountInfo
 
 
-from oss.src.utils.common import is_cloud, is_ee
+from oss.src.utils.common import is_cloud
 from oss.src.utils.env import env
 from oss.src.utils.validators import is_input_email
 from oss.src.core.auth.helper import (
@@ -85,18 +85,14 @@ log = get_module_logger(__name__)
 # DAOs for accessing user identities (always available)
 identities_dao = IdentitiesDAO()
 
-# Organization providers DAO (EE only)
-if is_ee():
-    from oss.src.services.commoners import create_accounts
-    from ee.src.dbs.postgres.organizations.dao import OrganizationProvidersDAO
-    from oss.src.core.secrets.services import VaultService
-    from oss.src.dbs.postgres.secrets.dao import SecretsDAO
+# Organization providers DAO (EE). These imports stay below the module setup above
+# to keep the import order they had under the old edition check.
+from oss.src.services.commoners import create_accounts  # noqa: E402
+from ee.src.dbs.postgres.organizations.dao import OrganizationProvidersDAO  # noqa: E402
+from oss.src.core.secrets.services import VaultService  # noqa: E402
+from oss.src.dbs.postgres.secrets.dao import SecretsDAO  # noqa: E402
 
-    providers_dao = OrganizationProvidersDAO()
-else:
-    from oss.src.services.commoners import create_accounts
-
-    providers_dao = None
+providers_dao = OrganizationProvidersDAO()
 
 # Auth service for domain policy enforcement
 auth_service = AuthService()
@@ -300,8 +296,7 @@ async def _get_dynamic_oidc_provider(third_party_id: str) -> Optional[ProviderIn
 
     third_party_id format: "sso:{organization_slug}:{provider_slug}"
     """
-    # OIDC providers require EE
-    if not is_ee() or providers_dao is None:
+    if providers_dao is None:
         log.error(f"SSO provider {third_party_id} requested but EE not enabled")
         return None
 

@@ -245,26 +245,3 @@ async def test_the_registration_offer_is_not_on_cloud(
 
     assert error.value.status_code == 404
     dismiss_offer.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_the_oss_license_reports_whether_the_offer_was_dismissed(
-    admin, monkeypatch
-):
-    monkeypatch.setattr(licenses_router, "is_ee", lambda: False)
-    monkeypatch.setattr(licenses_router, "count_users", AsyncMock(return_value=1))
-    monkeypatch.setattr(licenses_router, "project_usage", AsyncMock(return_value=None))
-    monkeypatch.setattr(
-        licenses_router, "organization_usage", AsyncMock(return_value=None)
-    )
-    monkeypatch.setattr(
-        licenses_router,
-        "is_registration_offer_dismissed",
-        AsyncMock(return_value=True),
-    )
-
-    response = await licenses_router.LicensesRouter().fetch_instance_license(
-        request=None
-    )
-
-    assert response.registration_offer_dismissed is True

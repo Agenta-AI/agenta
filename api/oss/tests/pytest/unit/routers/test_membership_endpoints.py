@@ -471,7 +471,6 @@ def auto_join(monkeypatch):
     def _wire(*, already_member: bool, entitled: bool = True):
         service = _MembershipsService()
         monkeypatch.setattr(memberships_module, "_memberships_service", service)
-        monkeypatch.setattr(auth_service_module, "is_ee", lambda: True)
         monkeypatch.setattr(
             auth_service_module,
             "get_access_service",

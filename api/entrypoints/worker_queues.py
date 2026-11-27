@@ -142,15 +142,12 @@ from oss.src.tasks.taskiq.channels.inbox_worker import ChannelsInboxWorker
 from oss.src.tasks.taskiq.sessions.interactions_worker import InteractionsWorker
 from oss.src.tasks.taskiq.triggers.worker import TriggersWorker
 from oss.src.tasks.taskiq.webhooks.worker import WebhooksWorker
-from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
 from oss.src.utils.helpers import validate_required_env_vars, warn_deprecated_env_vars
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.server_tracing import setup_server_tracing
 
-# Guard EE imports so an OSS build needn't import the ee.* package.
-if is_ee():
-    from ee.src.core.access.entitlements.service import bootstrap_entitlements_services
+from ee.src.core.access.entitlements.service import bootstrap_entitlements_services
 
 import agenta as ag
 
@@ -761,13 +758,12 @@ async def main_async() -> int:
         warn_deprecated_env_vars()
         validate_required_env_vars()
 
-        if is_ee():
-            from ee.src.core.licenses.cloud import (  # noqa: PLC0415
-                validate_cloud_license,
-            )
+        from ee.src.core.licenses.cloud import (  # noqa: PLC0415
+            validate_cloud_license,
+        )
 
-            validate_cloud_license()
-            bootstrap_entitlements_services()
+        validate_cloud_license()
+        bootstrap_entitlements_services()
 
         bootstrap_access()
 

@@ -171,9 +171,7 @@ def test_access_service_requires_resource_policy():
         )
 
 
-@pytest.mark.parametrize("license", ["oss", "ee"])
-def test_every_root_passes_resource_policy(license, monkeypatch):
-    monkeypatch.setattr(access_entrypoint, "is_ee", lambda: license == "ee")
+def test_every_root_passes_resource_policy(monkeypatch):
     _reset_registries(monkeypatch)
 
     returned = access_entrypoint.bootstrap_access()

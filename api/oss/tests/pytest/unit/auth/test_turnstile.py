@@ -21,7 +21,6 @@ class _Request:
 
 @pytest.fixture(autouse=True)
 def _turnstile_enabled(monkeypatch):
-    monkeypatch.setattr(turnstile, "is_ee", lambda: True)
     monkeypatch.setattr(env.cloudflare.turnstile, "site_key", "site")
     monkeypatch.setattr(env.cloudflare.turnstile, "secret_key", "secret")
     monkeypatch.setattr(

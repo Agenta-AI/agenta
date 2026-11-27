@@ -10,7 +10,6 @@ from supertokens_python.recipe.session import SessionContainer
 from supertokens_python.recipe.session.framework.fastapi import verify_session
 
 from oss.src.core.auth.types import MethodKind
-from oss.src.utils.common import is_ee
 
 from oss.src.core.auth.service import AuthService
 
@@ -90,14 +89,9 @@ class OrganizationPolicyMiddleware(BaseHTTPMiddleware):
     Middleware to enforce organization authentication policies (EE).
 
     Applies to routes that specify an organization_id (via query param or path).
-    Only active when EE features are enabled.
     """
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        # Skip if EE not enabled
-        if not is_ee():
-            return await call_next(request)
-
         # Skip auth routes
         if request.url.path.startswith("/auth"):
             return await call_next(request)

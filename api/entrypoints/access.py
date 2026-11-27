@@ -6,7 +6,6 @@ of every access decision). Every process that checks access calls it at startup:
 (`entrypoints/routers.py`) and both workers (`worker_streams.py`, `worker_queues.py`).
 """
 
-from oss.src.core.access.rbac import NoRbacEntitlement
 from oss.src.core.access.service import AccessService, register_access_service
 from oss.src.core.memberships.dtos import MembershipPolicy
 from oss.src.core.memberships.service import (
@@ -18,7 +17,6 @@ from oss.src.core.sharing.service import SharingService, register_sharing_servic
 from oss.src.dbs.postgres.memberships.dao import MembershipsDAO
 from oss.src.dbs.postgres.sharing.dao import SharingDAO
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
-from oss.src.utils.common import is_ee
 
 from oss.src.core.account_choices.service import (
     AccountChoicesService,
@@ -33,19 +31,12 @@ def bootstrap_access() -> AccessService:
 
     memberships_service = MembershipsService(
         memberships_dao=MembershipsDAO(engine=get_transactions_engine()),
-        policy=(
-            MembershipPolicy.PROJECT_ROWS
-            if is_ee()
-            else MembershipPolicy.ORGANIZATION_WIDE
-        ),
+        policy=MembershipPolicy.PROJECT_ROWS,
     )
 
-    if is_ee():
-        from ee.src.core.access.rbac import PlanRbacEntitlement  # noqa: PLC0415
+    from ee.src.core.access.rbac import PlanRbacEntitlement  # noqa: PLC0415
 
-        rbac_entitlement = PlanRbacEntitlement()
-    else:
-        rbac_entitlement = NoRbacEntitlement()
+    rbac_entitlement = PlanRbacEntitlement()
 
     principals_dao = PrincipalsDAO(engine=get_transactions_engine())
 
