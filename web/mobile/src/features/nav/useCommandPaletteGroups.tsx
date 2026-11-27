@@ -72,7 +72,7 @@ const developerPages = (
     views: readonly DeveloperView[],
     t: NavTranslate,
 ): CommandPaletteEntry[] => {
-    const {afterHome, afterSessions} = developerNavSlots(projectURL, views, true, [], t)
+    const {afterHome, afterSessions} = developerNavSlots(projectURL, views, true, t)
     return [...afterHome, ...afterSessions]
         .flatMap((row: SidebarConfig) => row.submenu ?? [row])
         .flatMap((row) =>

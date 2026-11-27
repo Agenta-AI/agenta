@@ -56,7 +56,7 @@ describe("the developer rows of the main rail", () => {
 
     it("titles every developer row through the nav translator", () => {
         const t = (key: string) => `[${key}]`
-        const beta = developerNavSlots(P, DEVELOPER_VIEWS, true, [], t)
+        const beta = developerNavSlots(P, DEVELOPER_VIEWS, true, t)
         const titles = JSON.stringify(shape([...beta.afterHome, ...beta.afterSessions]))
         for (const key of [
             "prompts",
@@ -68,7 +68,7 @@ describe("the developer rows of the main rail", () => {
         ]) {
             expect(titles).toContain(`[navigation.items.${key}]`)
         }
-        const plain = developerNavSlots(P, DEVELOPER_VIEWS, false, [], t)
+        const plain = developerNavSlots(P, DEVELOPER_VIEWS, false, t)
         expect(plain.afterSessions[0]?.title).toBe("[navigation.items.developer]")
     })
 
@@ -127,17 +127,10 @@ describe("the developer rows of the main rail", () => {
         expect(developerNavSlots(P, [], false)).toEqual({afterHome: [], afterSessions: []})
     })
 
-    it("beta developer mode puts the prompt apps under Prompts; the collapsed rail opens the page", () => {
-        const apps = [{key: "app-1", title: "Capital finder", link: `${P}/apps/app-1/playground`}]
-        const [prompts] = developerNavSlots(P, DEVELOPER_VIEWS, true, apps).afterHome
-        expect(prompts.submenu).toEqual(apps)
-        expect(prompts.hideChildrenWhenCollapsed).toBe(true)
-    })
-
-    it("without beta developer mode no prompt apps are added anywhere", () => {
-        const apps = [{key: "app-1", title: "Capital finder", link: `${P}/apps/app-1/playground`}]
-        expect(developerNavSlots(P, DEVELOPER_VIEWS, false, apps)).toEqual(
-            developerNavSlots(P, DEVELOPER_VIEWS, false),
-        )
+    it("Prompts is a plain row: no children, so the rail loads no prompt list", () => {
+        const [prompts] = developerNavSlots(P, DEVELOPER_VIEWS, true).afterHome
+        expect(prompts.key).toBe("developer-view-prompts")
+        expect(prompts.link).toBe(`${P}/prompts`)
+        expect(prompts.submenu).toBeUndefined()
     })
 })
