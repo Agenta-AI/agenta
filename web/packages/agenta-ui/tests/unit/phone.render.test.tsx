@@ -9,7 +9,6 @@ import {
     BottomSheetMenu,
     PhonePrimaryAction,
     PhoneScreenHeader,
-    SidebarSheet,
     useIsPhone,
 } from "../../src/phone"
 import {
@@ -244,30 +243,6 @@ describe("PhonePrimaryAction", () => {
     })
 })
 
-describe("SidebarSheet", () => {
-    it("is 300 px wide and closes with Close sidebar", () => {
-        const onOpenChange = vi.fn()
-        render(
-            <SidebarSheet
-                open
-                onOpenChange={onOpenChange}
-                title="Navigation"
-                leading={<button type="button">Back</button>}
-            >
-                <a href="/x">Configuration</a>
-            </SidebarSheet>,
-        )
-        const sheet = screen.getByTestId("sidebar-sheet")
-        expect(sheet.style.width).toBe("300px")
-        expect(screen.getByRole("button", {name: "Back"})).toBeTruthy()
-        const close = screen.getByRole("button", {name: "Close sidebar"})
-        expect(close.className).toContain("size-control")
-        expect(close.className).not.toContain("size-11")
-        fireEvent.click(close)
-        expect(onOpenChange).toHaveBeenCalledWith(false)
-    })
-})
-
 describe("useIsPhone", () => {
     it("reads the window width on the first render of a component that mounts later", () => {
         const original = window.matchMedia
@@ -310,36 +285,6 @@ describe("BottomSheet", () => {
         expect(await screen.findByText("rows")).toBeTruthy()
         fireEvent.click(screen.getByRole("button", {name: "Cancel"}))
         await waitFor(() => expect(screen.queryByText("rows")).toBeNull())
-        await waitFor(() => expect(document.activeElement).toBe(trigger))
-    })
-})
-
-describe("SidebarSheet without its header", () => {
-    it("draws no top row when the sidebar brings its own, and gives the focus back to its trigger", async () => {
-        const Opened = () => {
-            const [open, setOpen] = useState(false)
-            return (
-                <SidebarSheet
-                    open={open}
-                    onOpenChange={setOpen}
-                    title="Navigation"
-                    showHeader={false}
-                    trigger={<button type="button">Open the sidebar</button>}
-                >
-                    <button type="button" onClick={() => setOpen(false)}>
-                        Close navigation
-                    </button>
-                </SidebarSheet>
-            )
-        }
-        render(<Opened />)
-        const trigger = screen.getByRole("button", {name: "Open the sidebar"})
-        trigger.focus()
-        fireEvent.click(trigger)
-        await screen.findByTestId("sidebar-sheet")
-        expect(screen.queryByRole("button", {name: "Close sidebar"})).toBeNull()
-        fireEvent.click(screen.getByRole("button", {name: "Close navigation"}))
-        await waitFor(() => expect(screen.queryByTestId("sidebar-sheet")).toBeNull())
         await waitFor(() => expect(document.activeElement).toBe(trigger))
     })
 })

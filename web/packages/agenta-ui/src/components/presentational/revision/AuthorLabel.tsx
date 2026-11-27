@@ -17,7 +17,7 @@
 
 import React from "react"
 
-import {cn, textColors} from "../../../utils/styles"
+import {cn} from "../../ui/utils"
 
 // ============================================================================
 // TYPES
@@ -63,7 +63,7 @@ export function AuthorLabel({
     if (!author) return null
 
     return (
-        <span className={cn(textColors.muted, className)}>
+        <span className={cn("text-muted-foreground", className)}>
             {showPrefix && prefix && `${prefix} `}
             {author}
         </span>

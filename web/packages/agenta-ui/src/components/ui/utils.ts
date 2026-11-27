@@ -2,12 +2,10 @@ import {clsx, type ClassValue} from "clsx"
 import {extendTailwindMerge} from "tailwind-merge"
 
 /**
- * className combiner for the @agenta/ui `ui/` layer.
+ * The one className combiner (`@agenta/ui/styles` and the `@agenta/ui` root re-export it).
  *
  * Uses tailwind-merge so a consumer's `className` override deterministically wins over
  * a component's own utilities (conflicting Tailwind classes are deduped, last kept).
- * Intentionally separate from the package's legacy `cn` (@agenta/ui/styles, clsx-only)
- * so the widely-used legacy helper stays untouched.
  *
  * The custom class groups below are NOT optional. tailwind-merge only dedupes classes it
  * can classify, and every one of our `controlScale` keys (tailwind.config.ts) is a bare
@@ -20,8 +18,8 @@ import {extendTailwindMerge} from "tailwind-merge"
  *    type ramps get classified as COLOURS and drop the component's `text-foreground`,
  *    rendering every control in UA-default black. (This one already happened.)
  *  - Geometry overrides silently no-op. `<Button className="px-2">` emitted
- *    `px-btn px-2`, and `px-btn` (15px) won on stylesheet order — so the ghost trigger in
- *    SimpleDropdownSelect rendered 14px wider than the antd original it replaced.
+ *    `px-btn px-2`, and `px-btn` (15px) won on stylesheet order — so a ghost dropdown
+ *    trigger rendered 14px wider than the antd original it replaced.
  *
  * Any new `controlScale` entry must be mirrored here, in the group matching its utility.
  */

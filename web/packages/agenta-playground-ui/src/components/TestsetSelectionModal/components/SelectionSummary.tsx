@@ -6,7 +6,6 @@
  * Supports both normal load mode and create mode (Build in UI).
  */
 
-import {borderColors, statusColors} from "@agenta/ui/styles"
 import {Button, Space, Typography} from "antd"
 
 import type {SelectionSummaryProps} from "../types"
@@ -33,9 +32,7 @@ export function SelectionSummary({
         return (
             <div className="flex flex-col gap-3">
                 {/* Disabled message */}
-                <div
-                    className={`border ${borderColors.default} rounded-md p-3 ${statusColors.warningBg}`}
-                >
+                <div className={`border border-border rounded-md p-3 bg-warning/10`}>
                     <Text type="warning">{disabledMessage}</Text>
                 </div>
 
@@ -72,9 +69,7 @@ export function SelectionSummary({
         <div className="flex flex-col gap-3">
             {/* Compatibility warning */}
             {hasWarning && warningMessage && (
-                <div
-                    className={`border ${borderColors.default} rounded-md p-3 ${statusColors.warningBg}`}
-                >
+                <div className={`border border-border rounded-md p-3 bg-warning/10`}>
                     <Text type="warning">{warningMessage}</Text>
                 </div>
             )}

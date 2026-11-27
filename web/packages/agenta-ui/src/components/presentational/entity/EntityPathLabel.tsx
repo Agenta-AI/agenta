@@ -25,7 +25,8 @@
 
 import React from "react"
 
-import {cn, sizeClasses, flexLayouts, textColors, type SizeVariant} from "../../../utils/styles"
+import {type SizeVariant} from "../../../utils/styles"
+import {cn} from "../../ui/utils"
 
 // ============================================================================
 // TYPES
@@ -57,8 +58,7 @@ export interface EntityPathLabelProps {
     maxWidth?: number
 
     /**
-     * Size variant
-     * @default "default"
+     * Size variant. Unused: the text inherits its size from the parent.
      */
     size?: SizeVariant
 
@@ -80,7 +80,6 @@ export function EntityPathLabel({
     separator = " / ",
     truncateAt = -1,
     maxWidth = 150,
-    size = "default",
     className,
 }: EntityPathLabelProps) {
     // Filter out empty parts
@@ -91,11 +90,11 @@ export function EntityPathLabel({
     }
 
     return (
-        <span className={cn(flexLayouts.inlineCenter, sizeClasses[size], className)}>
+        <span className={cn("inline-flex items-center", className)}>
             {filteredParts.map((part, index) => (
                 <React.Fragment key={index}>
                     {index > 0 && (
-                        <span className={cn(textColors.separator, "mx-0.5 flex-shrink-0")}>
+                        <span className="text-muted-foreground mx-0.5 flex-shrink-0">
                             {separator}
                         </span>
                     )}

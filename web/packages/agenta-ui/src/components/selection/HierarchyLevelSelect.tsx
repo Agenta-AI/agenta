@@ -33,8 +33,8 @@ import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import levelSelectCatalog from "@agenta/i18n/catalogs/ui.levelSelect"
 import {useAtomValue} from "jotai"
 
-import {cn, textColors} from "../../utils/styles"
 import {Combobox, type ComboboxOption, type ComboboxOptionGroup} from "../ui/combobox"
+import {cn} from "../ui/utils"
 
 // ============================================================================
 // TYPES
@@ -302,7 +302,7 @@ export function HierarchyLevelSelect<T>({
     return (
         <div className={cn("flex flex-col min-w-0", className)}>
             {showLabel && label && (
-                <span className={cn("text-meta mb-1 block", textColors.secondary)}>
+                <span className="text-meta mb-1 block text-muted-foreground">
                     {label}
                     {showAutoIndicator && isAutoSelected && (
                         <span className="ml-1 text-muted-foreground">

@@ -14,7 +14,7 @@ import type {SchemaProperty} from "@agenta/entities/shared"
 import {useT} from "@agenta/i18n"
 import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {InputNumber} from "@agenta/ui/composed"
-import {cn, flexLayouts, gapClasses, textColors} from "@agenta/ui/styles"
+import {cn} from "@agenta/ui/styles"
 import {
     Button,
     Slider,
@@ -138,12 +138,12 @@ export const NumberSliderControl = memo(function NumberSliderControl({
     )
 
     const content = (
-        <div className={cn(flexLayouts.column, gapClasses.xs, className)}>
-            <div className={cn(flexLayouts.rowCenter, "justify-between")}>
-                <span id={labelId} className={cn("font-medium text-label", textColors.primary)}>
+        <div className={cn("flex flex-col gap-1", className)}>
+            <div className="flex items-center justify-between">
+                <span id={labelId} className="font-medium text-label text-foreground">
                     {label}
                 </span>
-                <div className={cn(flexLayouts.rowCenter, gapClasses.xs)}>
+                <div className="flex items-center gap-1">
                     <InputNumber
                         min={min}
                         max={max}

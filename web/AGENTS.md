@@ -417,8 +417,7 @@ the source of truth for this area. Load it when you:
 
 - Decide whether code belongs in the app layer (`web/mobile`) or a package.
 - Import from any `@agenta/*` package (always via subpath exports for tree-shaking).
-- Build a new modal (`Dialog` from `@agenta/ui/ui`; `EnhancedModal` from `@agenta/ui` for
-  antd-style call sites; never raw antd `Modal`).
+- Build a new modal (`Dialog` from `@agenta/ui/ui`; never raw antd `Modal`).
 - Use entity state (molecules), the loadable/runnable bridges, or the `EntityPicker`.
 - Write package unit tests (they live in `tests/unit/`, not `src/`).
 - Decide what to test or review tests: load the **`test-design`** skill (risk list, how to write each test, mutation check).

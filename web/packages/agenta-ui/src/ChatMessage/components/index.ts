@@ -23,6 +23,3 @@ export {
     default as AttachmentButton,
     AttachmentButton as AttachmentButtonComponent,
 } from "./AttachmentButton"
-
-export {default as SimpleDropdownSelect} from "./SimpleDropdownSelect"
-export type {SimpleDropdownSelectProps} from "./SimpleDropdownSelect"

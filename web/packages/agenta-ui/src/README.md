@@ -9,7 +9,6 @@ src/
 ├── components/              # Reusable UI components
 │   ├── selection/           # Selection UI (search, lists, pagination)
 │   ├── presentational/      # Pure display components (badges, labels, etc.)
-│   ├── EnhancedModal.tsx    # Modal wrapper with lazy rendering
 │   └── README.md
 ├── ChatMessage/             # Chat message editing components
 │   ├── components/          # Editor, list, attachments
@@ -75,10 +74,6 @@ Pure display components for entity information:
 - **ExecutionMetricsDisplay**: Display latency, tokens, and cost metrics
 - **MappingStatusTag**: Mapping status indicator (auto, manual, missing, etc.)
 
-#### Modal Components
-
-- **EnhancedModal**: Modal wrapper with lazy rendering, auto-height
-
 ### ChatMessage
 
 Chat message editing components for OpenAI/Anthropic message format.
@@ -114,8 +109,7 @@ See [SelectLLMProvider/README.md](./SelectLLMProvider/README.md) for details.
 Generic utilities:
 
 - **copyToClipboard**: Clipboard operations
-- **cn**: Class name concatenation utility
-- **sizeClasses, flexLayouts, textColors, bgColors**: Styling constants
+- **cn**: Class name combiner (clsx + tailwind-merge)
 - **AppMessageContext**: Ant Design message/modal/notification static exports
 
 See [utils/README.md](./utils/README.md) for details.
@@ -148,9 +142,6 @@ import {
     ExecutionMetricsDisplay,
     MappingStatusTag,
 
-    // Modal
-    EnhancedModal,
-
     // Editor
     Editor,
     SharedEditor,
@@ -167,9 +158,6 @@ import {
     // Utilities
     copyToClipboard,
     cn,
-    sizeClasses,
-    flexLayouts,
-    textColors,
     message,
     modal,
     notification,

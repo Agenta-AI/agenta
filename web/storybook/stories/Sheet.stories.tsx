@@ -19,7 +19,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "The `@agenta/ui` Sheet (Radix-based) for side panels and bottom sheets. It is a compound component — compose `Sheet` > `SheetContent` > `SheetHeader`/`SheetFooter`. Prop tables for each part are below.\n\nThe `left` and `right` sides float: 8px in from the viewport, rounded, with no border. The close button sits at the right of the header (`showCloseButton={false}` on `SheetHeader` hides it), and the footer is a muted band. `top` and `bottom` stay edge to edge. `responsive` is a bottom sheet below `lg` and the floating right drawer from `lg` up.\n\n**Used in:** `EnhancedDrawer`, which backs the app drawers, and directly by the /m sheets (navigation, session inspector, Publish, settings forms).",
+                    "The `@agenta/ui` Sheet (Radix-based) for side panels and bottom sheets. It is a compound component — compose `Sheet` > `SheetContent` > `SheetHeader`/`SheetFooter`. Prop tables for each part are below.\n\nThe `left` and `right` sides float: 8px in from the viewport, rounded, with no border. The close button sits at the right of the header (`showCloseButton={false}` on `SheetHeader` hides it), and the footer is a muted band. `top` and `bottom` stay edge to edge. `responsive` is a bottom sheet below `lg` and the floating right drawer from `lg` up.\n\n**Used in:** every drawer and sheet, composed directly (the config drawers, navigation, session inspector, Publish, settings forms).",
             },
         },
     },
@@ -120,7 +120,7 @@ export const Responsive: Story = {
     parameters: {
         docs: {
             description: {
-                story: '`side="responsive"` — a bottom sheet below `lg` and the app\'s right-edge drawer from `lg` up. Resize the preview or use the viewport toolbar to see both halves. `EnhancedDrawer` exposes it as `placement="responsive"`, and a `width` there applies to the drawer half only.',
+                story: '`side="responsive"` — a bottom sheet below `lg` and the app\'s right-edge drawer from `lg` up. Resize the preview or use the viewport toolbar to see both halves. A width set through `--ag-sheet-responsive-width` applies to the drawer half only.',
             },
         },
     },

@@ -24,7 +24,8 @@ import React from "react"
 import {useT} from "@agenta/i18n"
 import uiStatusCatalog from "@agenta/i18n/catalogs/ui.status"
 
-import {cn, sizeClasses, flexLayouts, textColors, type SizeVariant} from "../../../utils/styles"
+import {type SizeVariant} from "../../../utils/styles"
+import {cn} from "../../ui/utils"
 import {VersionBadge, type VersionBadgeProps} from "../version"
 
 // ============================================================================
@@ -111,9 +112,7 @@ export function EntityNameWithVersion({
         return (
             <span
                 className={cn(
-                    flexLayouts.inlineCenter,
-                    "gap-1",
-                    sizeClasses[size],
+                    "inline-flex items-center gap-1",
                     maxNameWidth ? "w-full" : undefined,
                     className,
                 )}
@@ -123,7 +122,7 @@ export function EntityNameWithVersion({
         )
     }
 
-    return <span className={cn(sizeClasses[size], className)}>{content}</span>
+    return <span className={className}>{content}</span>
 }
 
 // ============================================================================
@@ -141,10 +140,10 @@ export function EntityNameVersionText({
 }: Pick<EntityNameWithVersionProps, "name" | "version" | "className">) {
     const t = useT(uiStatusCatalog)
     return (
-        <span className={cn(sizeClasses.default, className)}>
+        <span className={cn(className)}>
             {name}
             {version !== null && version !== undefined && (
-                <span className={cn("ml-1", textColors.muted)}>
+                <span className="ml-1 text-muted-foreground">
                     {t("ui.status.versionShort", {version})}
                 </span>
             )}

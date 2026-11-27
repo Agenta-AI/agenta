@@ -8,6 +8,3 @@
  */
 
 export const cn = (...args: unknown[]) => args.filter(Boolean).join(" ")
-export const textColors = {}
-export const bgColors = {}
-export const EnhancedModal = () => null

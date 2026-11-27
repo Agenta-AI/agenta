@@ -1,7 +1,29 @@
-/** Loading bodies for the config drawers, passed as `EnhancedDrawer`'s `bodyFallback`. */
+/** Loading bodies for the config drawers, shown by `DeferredBody` while a drawer opens. */
+import {type ReactNode, useEffect, useState} from "react"
+
 import {SkeletonRows} from "@agenta/ui/composed"
 import {cn} from "@agenta/ui/styles"
 import {SkeletonBlock} from "@agenta/ui/ui"
+
+/**
+ * Shows `fallback` until the drawer panel has painted, then mounts `children`. Put it inside the
+ * sheet content: the content mounts on each open, so each open shows the fallback first.
+ */
+export function DeferredBody({fallback, children}: {fallback: ReactNode; children: ReactNode}) {
+    const [ready, setReady] = useState(false)
+    // Two frames: the first lets the fallback commit, the second runs after it has painted.
+    useEffect(() => {
+        let second = 0
+        const first = requestAnimationFrame(() => {
+            second = requestAnimationFrame(() => setReady(true))
+        })
+        return () => {
+            cancelAnimationFrame(first)
+            cancelAnimationFrame(second)
+        }
+    }, [])
+    return <>{ready ? children : fallback}</>
+}
 
 /** Label + field pairs: the shape of the item and section forms. */
 export function FormDrawerSkeleton() {

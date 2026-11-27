@@ -27,9 +27,9 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     onAfterCommit,
     createVisibility,
     commitDeployOptions: hostDeployOptions,
-    ...props
+    open,
+    onCancel,
 }) => {
-    const {onCancel, open} = props
     const t = useT(commitCatalog)
     const EVALUATOR_CREATE_FIELDS = useMemo<CommitCreateFieldsConfig>(
         () => ({nameLabel: t("playground.commit.evaluatorName")}),
@@ -75,7 +75,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     const saving = useRef(false)
     const handleClose = useCallback(() => {
         if (saving.current) return
-        onCancel?.({} as never)
+        onCancel?.()
     }, [onCancel])
 
     // Deploy the just-committed revision to each chosen environment. The deploy API is

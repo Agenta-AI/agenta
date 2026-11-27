@@ -22,8 +22,9 @@
 import {useT} from "@agenta/i18n"
 import uiStatusCatalog from "@agenta/i18n/catalogs/ui.status"
 
-import {cn, sizeClasses, type SizeVariant} from "../../../utils/styles"
+import {type SizeVariant} from "../../../utils/styles"
 import {Badge} from "../../ui/badge"
+import {cn} from "../../ui/utils"
 
 // ============================================================================
 // TYPES
@@ -45,8 +46,7 @@ export interface VersionBadgeProps {
     variant?: "text" | "chip" | "bold"
 
     /**
-     * Size variant (text and bold only; the Badge has one size)
-     * @default "default"
+     * Size variant. Unused: the text inherits its size from the parent.
      */
     size?: SizeVariant
 
@@ -63,12 +63,7 @@ export interface VersionBadgeProps {
 /**
  * Displays a version number in consistent "vX" format
  */
-export function VersionBadge({
-    version,
-    variant = "text",
-    size = "default",
-    className,
-}: VersionBadgeProps) {
+export function VersionBadge({version, variant = "text", className}: VersionBadgeProps) {
     const t = useT(uiStatusCatalog)
     const title = t("ui.status.versionTitle", {version})
     const label = t("ui.status.versionShort", {version})
@@ -82,10 +77,7 @@ export function VersionBadge({
     }
 
     return (
-        <span
-            className={cn(sizeClasses[size], variant === "bold" && "font-medium", className)}
-            title={title}
-        >
+        <span className={cn(variant === "bold" && "font-medium", className)} title={title}>
             {label}
         </span>
     )

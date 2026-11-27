@@ -18,8 +18,9 @@
 
 import type {CSSProperties, ReactNode} from "react"
 
-import {cn, flexLayouts, gapClasses, layoutSizes, spacingClasses} from "../../../utils/styles"
+import {layoutSizes} from "../../../utils/styles"
 import {Divider} from "../../composed/divider"
+import {cn} from "../../ui/utils"
 
 // ============================================================================
 // TYPES
@@ -75,22 +76,14 @@ export function SplitPanelLayout({
     showDivider = true,
     className,
     style,
-    leftPadding = spacingClasses.panel,
-    rightPadding = spacingClasses.panel,
+    leftPadding = "p-4",
+    rightPadding = "p-4",
 }: SplitPanelLayoutProps) {
     return (
-        <section
-            className={cn(flexLayouts.rowGrow, "min-h-0 overflow-hidden", className)}
-            style={style}
-        >
+        <section className={cn("flex grow min-h-0 overflow-hidden", className)} style={style}>
             {/* Left Panel */}
             <div
-                className={cn(
-                    flexLayouts.column,
-                    "min-h-0 h-full overflow-hidden",
-                    gapClasses.lg,
-                    leftPadding,
-                )}
+                className={cn("flex flex-col min-h-0 h-full overflow-hidden gap-4", leftPadding)}
                 style={{
                     width: leftWidth,
                     minWidth: leftWidth,
@@ -105,9 +98,7 @@ export function SplitPanelLayout({
             {/* Right Panel */}
             <div
                 className={cn(
-                    flexLayouts.column,
-                    "w-full h-full grow min-h-0 overflow-hidden",
-                    gapClasses.lg,
+                    "flex flex-col w-full h-full grow min-h-0 overflow-hidden gap-4",
                     rightPadding,
                 )}
             >

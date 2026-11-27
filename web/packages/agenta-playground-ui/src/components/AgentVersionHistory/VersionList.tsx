@@ -7,7 +7,7 @@
 import {formatRelativeTime, useT} from "@agenta/i18n"
 import versionCatalog from "@agenta/i18n/catalogs/playground.versionHistory"
 import type {AgentVersionRow} from "@agenta/playground/state"
-import {cn, textColors} from "@agenta/ui/styles"
+import {cn} from "@agenta/ui/styles"
 import {Button} from "@agenta/ui/ui"
 
 /** A version's age in words, as the canvas writes it (S06): "2 hours ago", "1 day ago". */
@@ -42,7 +42,7 @@ const Pulse = ({width, tone}: {width: string; tone: "strong" | "faint"}) => (
 const Notice = ({title, body, action}: {title: string; body: string; action?: React.ReactNode}) => (
     <div className="px-3 py-6 text-center">
         <div className="mb-1 text-label font-semibold text-foreground">{title}</div>
-        <p className={cn("mb-3 text-caption leading-relaxed", textColors.tertiary)}>{body}</p>
+        <p className="mb-3 text-caption leading-relaxed text-muted-foreground">{body}</p>
         {action}
     </div>
 )
@@ -123,16 +123,11 @@ export const VersionList = ({
                                         {t("playground.versionHistory.latest")}
                                     </span>
                                 ) : null}
-                                <span
-                                    className={cn(
-                                        "ml-auto whitespace-nowrap text-caption",
-                                        textColors.tertiary,
-                                    )}
-                                >
+                                <span className="ml-auto whitespace-nowrap text-caption text-muted-foreground">
                                     {row.createdAt ? versionAge(row.createdAt) : ""}
                                 </span>
                             </span>
-                            <span className={cn("line-clamp-2 text-meta", textColors.secondary)}>
+                            <span className="line-clamp-2 text-meta text-muted-foreground">
                                 {row.message || t("playground.versionHistory.noCommitMessage")}
                             </span>
                         </button>

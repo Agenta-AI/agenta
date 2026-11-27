@@ -19,7 +19,7 @@ import changeSectionsCatalog from "@agenta/i18n/catalogs/entityUi.changeSections
 import {HeightCollapse} from "@agenta/ui/components"
 import {AdaptiveList} from "@agenta/ui/components/selection"
 import type {ExtendedDiffLine} from "@agenta/ui/diff"
-import {cn, textColors} from "@agenta/ui/styles"
+import {cn} from "@agenta/ui/styles"
 import {Badge, type BadgeProps} from "@agenta/ui/ui"
 import {
     ArrowRight,
@@ -86,11 +86,8 @@ function Row({
     )
 }
 
-export const LINK_BTN = cn(
-    "inline-flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 transition-colors",
-    textColors.secondary,
-    "hover:text-foreground",
-)
+export const LINK_BTN =
+    "inline-flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 transition-colors text-muted-foreground hover:text-foreground"
 
 /** One per config-panel accordion section, so the diff and the panel read as the same thing. */
 export const SECTION_ICON: Record<ChangeSection["id"], React.ReactNode> = {
@@ -157,7 +154,7 @@ export function HunkRows({
             {shown.map((line, i) => {
                 if (line.type === "fold") {
                     return (
-                        <div key={i} className={cn(padX, "italic", textColors.tertiary)}>
+                        <div key={i} className={cn(padX, "italic text-muted-foreground")}>
                             {line.content}
                         </div>
                     )
@@ -180,7 +177,11 @@ export function HunkRows({
                 return (
                     <div
                         key={i}
-                        className={cn("flex", padX, line.type === "context" && textColors.tertiary)}
+                        className={cn(
+                            "flex",
+                            padX,
+                            line.type === "context" && "text-muted-foreground",
+                        )}
                         style={style}
                     >
                         {/* Content can start with its own "-" (a Markdown bullet), so the gutter
@@ -219,10 +220,10 @@ function ItemRow({
                 <span className="min-w-0 flex-1 truncate text-meta">
                     {it.label}
                     {it.detail ? (
-                        <span className={cn("ml-1", textColors.tertiary)}>· {it.detail}</span>
+                        <span className="ml-1 text-muted-foreground">· {it.detail}</span>
                     ) : null}
                 </span>
-                {clickable ? <CaretRight className={textColors.tertiary} /> : null}
+                {clickable ? <CaretRight className="text-muted-foreground" /> : null}
             </Row>
             {/* A skill's body is prose, so it reads as a diff rather than as an "edited" mark. */}
             {it.textDiff ? <HunkRows hunks={it.textDiff.hunks} padX={padX} /> : null}
@@ -285,11 +286,11 @@ function ScalarRows({changes, padX = ROW_PAD}: {changes: ScalarChange[]; padX?: 
                     className={cn("flex flex-wrap items-center gap-2 py-1.5 text-meta", padX)}
                     title={c.key}
                 >
-                    <span className={textColors.secondary}>{c.label ?? c.key}</span>
+                    <span className="text-muted-foreground">{c.label ?? c.key}</span>
                     <span className="font-mono" style={{color: "var(--destructive)"}}>
                         {c.beforeLabel ?? c.before ?? "—"}
                     </span>
-                    <ArrowRight className={textColors.tertiary} />
+                    <ArrowRight className="text-muted-foreground" />
                     <span className="font-mono" style={{color: "var(--success)"}}>
                         {c.afterLabel ?? c.after ?? "—"}
                     </span>
@@ -341,15 +342,12 @@ export function SectionCard({
                         small ? "gap-2 px-2.5 py-1.5" : "gap-2.5 px-3 py-2.5",
                     )}
                 >
-                    <span
-                        className={cn(
-                            "inline-flex w-[18px] shrink-0 items-center justify-center leading-none",
-                            textColors.secondary,
-                        )}
-                    >
+                    <span className="inline-flex w-[18px] shrink-0 items-center justify-center leading-none text-muted-foreground">
                         {SECTION_ICON[section.id]}
                     </span>
-                    <span className={cn("flex-1 leading-none", small ? "text-meta" : "text-label")}>
+                    <span
+                        className={cn("flex-1", small ? "text-meta" : "text-label", "leading-none")}
+                    >
                         {section.title}
                     </span>
                     {/* A scalar section's rows ARE the list of changes, so "N changed" only
@@ -357,12 +355,7 @@ export function SectionCard({
                     {section.scalarChanges ? null : (
                         <StatusTags tags={section.tags} small={small} />
                     )}
-                    <span
-                        className={cn(
-                            "inline-flex shrink-0 items-center leading-none",
-                            textColors.tertiary,
-                        )}
-                    >
+                    <span className="inline-flex shrink-0 items-center leading-none text-muted-foreground">
                         {open ? <CaretDown /> : <CaretRight />}
                     </span>
                 </button>
@@ -509,19 +502,14 @@ function SummarySection({section}: {section: ChangeSection}) {
     return (
         <div className="mb-3.5" data-testid="change-summary-section">
             <div className="flex items-center gap-2 p-2">
-                <span
-                    className={cn(
-                        "inline-flex shrink-0 text-body leading-none",
-                        textColors.secondary,
-                    )}
-                >
+                <span className="inline-flex shrink-0 text-body leading-none text-muted-foreground">
                     {SECTION_ICON[section.id]}
                 </span>
                 <span className="min-w-0 flex-1 truncate text-label font-medium text-foreground">
                     {section.title}
                 </span>
                 {status ? (
-                    <span className={cn("shrink-0 text-meta", textColors.tertiary)}>{status}</span>
+                    <span className="shrink-0 text-meta text-muted-foreground">{status}</span>
                 ) : null}
             </div>
             <div className="mx-2 overflow-hidden rounded-md border border-solid border-border-muted text-label leading-5">
@@ -564,7 +552,7 @@ export function DetailCard({
                     )}
                 >
                     {head}
-                    <span className={textColors.tertiary}>
+                    <span className="text-muted-foreground">
                         <CaretDown />
                     </span>
                 </button>

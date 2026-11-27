@@ -11,9 +11,17 @@ import type {SchemaProperty} from "@agenta/entities/shared"
 import {useT} from "@agenta/i18n"
 import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {formatEnumLabel} from "@agenta/shared/utils"
-import {SimpleDropdownSelect} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
-import {Combobox, Field} from "@agenta/ui/ui"
+import {
+    Button,
+    Combobox,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    Field,
+} from "@agenta/ui/ui"
+import {CaretUpDown} from "@phosphor-icons/react"
 
 export interface EnumSelectControlProps {
     /** The schema property defining enum options */
@@ -123,27 +131,41 @@ export const EnumSelectControl = memo(function EnumSelectControl({
     // Get description from schema or prop
     const tooltipText = description ?? (schema?.description as string | undefined) ?? ""
 
-    // Dropdown variant (compact button) - use SimpleDropdownSelect from @agenta/ui
-    if (variant === "dropdown") {
-        return (
-            <SimpleDropdownSelect
-                value={value ?? ""}
-                options={options}
-                onChange={(val) => onChange(val || null)}
-                disabled={disabled}
-                placeholder={placeholder}
-                className={cn("capitalize", className)}
-                description={tooltipText}
-                withTooltip={withTooltip}
-            />
-        )
-    }
-
     // Select variant. antd `showSearch` → Combobox; `filterOption` → per-option `searchValue`.
     const comboboxOptions = useMemo(
         () => options.map((option) => ({...option, searchValue: option.label})),
         [options],
     )
+
+    // Dropdown variant: a compact ghost button that opens a menu of the options.
+    if (variant === "dropdown") {
+        return (
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild disabled={disabled}>
+                    <Button
+                        variant="ghost"
+                        className={cn(
+                            "flex items-center px-2 capitalize hover:bg-accent",
+                            className,
+                        )}
+                    >
+                        {value || placeholder} <CaretUpDown size={14} />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-[150px]">
+                    {options.map((option) => (
+                        <DropdownMenuItem
+                            key={option.value}
+                            className="capitalize"
+                            onClick={() => onChange(option.value || null)}
+                        >
+                            {option.label}
+                        </DropdownMenuItem>
+                    ))}
+                </DropdownMenuContent>
+            </DropdownMenu>
+        )
+    }
 
     return (
         <Field

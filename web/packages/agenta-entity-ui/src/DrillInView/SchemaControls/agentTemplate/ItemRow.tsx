@@ -237,8 +237,8 @@ export function ItemRow({
                 <div className="min-w-0 flex-1">
                     <div
                         className={cn(
-                            "truncate font-normal leading-5",
-                            "text-label",
+                            "truncate font-normal",
+                            "text-label leading-5",
                             descriptor.monoName !== false && "font-mono",
                         )}
                     >

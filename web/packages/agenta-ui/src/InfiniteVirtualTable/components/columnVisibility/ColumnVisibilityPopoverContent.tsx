@@ -9,7 +9,7 @@ import {LOW_PRIORITY, useSetAtomWithSchedule} from "jotai-scheduler"
 import {CheckboxTree, type CheckboxTreeNode} from "../../../components/composed/checkbox-tree"
 import {InputAffix} from "../../../components/composed/input-affix"
 import {Button} from "../../../components/ui/button"
-import {cn} from "../../../utils/styles"
+import {cn} from "../../../components/ui/utils"
 import {getColumnWidthsAtom} from "../../atoms/columnWidths"
 import {useColumnVisibilityControls, type ColumnVisibilityState} from "../../InfiniteVirtualTable"
 import type {

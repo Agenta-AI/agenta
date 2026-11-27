@@ -25,10 +25,10 @@ import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 import {DownloadSimpleIcon} from "@phosphor-icons/react"
 
 import type {EntityListCounts} from "../../InfiniteVirtualTable/paginated"
-import {cn, flexLayouts, gapClasses, linkColors, textColors} from "../../utils/styles"
 import {Button, type ButtonProps} from "../ui/button"
 import {Progress} from "../ui/progress"
 import {Spinner} from "../ui/spinner"
+import {cn} from "../ui/utils"
 
 // ============================================================================
 // TYPES
@@ -143,7 +143,7 @@ export function LoadAllButton({
     }
 
     return (
-        <div className={cn(flexLayouts.rowCenter, gapClasses.sm, className)}>
+        <div className={cn("flex items-center gap-2", className)}>
             <Button
                 variant="ghost"
                 size={size}
@@ -162,7 +162,7 @@ export function LoadAllButton({
 
             {/* Count display */}
             {!isLoading && totalCount && loadedCount && loadedCount < totalCount && (
-                <span className={textColors.quaternary}>
+                <span className="text-muted-foreground">
                     {loadedCount} / {totalCount}
                 </span>
             )}
@@ -209,16 +209,12 @@ export function LoadAllInline({
     return (
         <span className={className}>
             {isLoading ? (
-                <span className={cn(textColors.tertiary, flexLayouts.rowCenter, gapClasses.xs)}>
+                <span className="text-muted-foreground flex items-center gap-1">
                     <Spinner size="small" />
                     {t("ui.listControls.loadingDots")}
                 </span>
             ) : (
-                <button
-                    type="button"
-                    onClick={handleClick}
-                    className={cn(linkColors.default, linkColors.hover)}
-                >
+                <button type="button" onClick={handleClick} className="text-link hover:underline">
                     {label}
                 </button>
             )}

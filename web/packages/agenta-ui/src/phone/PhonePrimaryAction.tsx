@@ -2,7 +2,7 @@ import type {ReactNode} from "react"
 
 import {Button} from "../components/ui/button"
 import {Spinner} from "../components/ui/spinner"
-import {cn} from "../utils/styles"
+import {cn} from "../components/ui/utils"
 
 import {PHONE_BUTTON_CLASS} from "./phoneButton"
 

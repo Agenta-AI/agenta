@@ -16,8 +16,10 @@ import type {ChangeSection} from "@agenta/entities/workflow/commitDiff"
 import {useT} from "@agenta/i18n"
 import changesSummaryCatalog from "@agenta/i18n/catalogs/entityUi.changesSummary"
 import {DiffView} from "@agenta/ui/editor"
-import {cn, textColors} from "@agenta/ui/styles"
+import {cn} from "@agenta/ui/styles"
 import {ArrowLeft, Code, PencilSimple} from "@phosphor-icons/react"
+
+import {isSectionOpen} from "./sectionOpenState"
 
 import {
     CARD,
@@ -30,8 +32,6 @@ import {
     kindIcon,
     kindStyle,
 } from "@agenta/entity-ui/changes"
-
-import {isSectionOpen} from "./sectionOpenState"
 
 type View =
     | {kind: "summary"}
@@ -115,7 +115,7 @@ export default function AgentChangesSummary({
                 {isDetail ? (
                     <button
                         type="button"
-                        className={cn("text-label", LINK_BTN, textColors.primary)}
+                        className={cn("text-label", LINK_BTN, "text-foreground")}
                         onClick={() => setView({kind: "summary"})}
                     >
                         <ArrowLeft />
@@ -124,7 +124,7 @@ export default function AgentChangesSummary({
                 ) : (
                     <span className="text-label font-semibold text-foreground">
                         {t("entityUi.changesSummary.whatsChanging")}
-                        <span className={cn("ml-1.5 font-normal", textColors.tertiary)}>
+                        <span className="ml-1.5 font-normal text-muted-foreground">
                             {t("entityUi.changesSummary.changeCount", {count: totalChanges})}
                         </span>
                     </span>
@@ -170,7 +170,7 @@ export default function AgentChangesSummary({
                         onCollapse={collapseDetail}
                         head={
                             <>
-                                <span className={textColors.secondary}>
+                                <span className="text-muted-foreground">
                                     {SECTION_ICON.instructions}
                                 </span>
                                 <span className={cn("flex-1", small ? "text-meta" : "text-label")}>
@@ -195,7 +195,7 @@ export default function AgentChangesSummary({
                                     {activeTool.label}
                                 </span>
                                 {activeTool.rawKey ? (
-                                    <span className={cn(" text-code-sm", textColors.tertiary)}>
+                                    <span className=" text-code-sm text-muted-foreground">
                                         {activeTool.rawKey}
                                     </span>
                                 ) : null}
@@ -205,7 +205,7 @@ export default function AgentChangesSummary({
                         <div className="px-3.5 py-3">
                             {activeTool.descriptionDiff ? (
                                 <>
-                                    <div className={cn("mb-1.5 text-meta", textColors.tertiary)}>
+                                    <div className="mb-1.5 text-meta text-muted-foreground">
                                         {t("entityUi.changesSummary.description")}
                                     </div>
                                     <div className=" text-code-sm leading-[1.8]">
@@ -220,9 +220,7 @@ export default function AgentChangesSummary({
                             ) : null}
                             {activeTool.fieldChanges?.some((f) => f.field !== "description") ? (
                                 <>
-                                    <div
-                                        className={cn("mb-1.5 mt-3 text-meta", textColors.tertiary)}
-                                    >
+                                    <div className="mb-1.5 mt-3 text-meta text-muted-foreground">
                                         {t("entityUi.changesSummary.parameters")}
                                     </div>
                                     {activeTool.fieldChanges
@@ -239,9 +237,7 @@ export default function AgentChangesSummary({
                                                     {kindIcon(f.kind)}
                                                 </span>
                                                 <span className=" text-code-sm">{f.field}</span>
-                                                <span
-                                                    className={cn("text-meta", textColors.tertiary)}
-                                                >
+                                                <span className="text-meta text-muted-foreground">
                                                     · {f.detail}
                                                 </span>
                                             </div>

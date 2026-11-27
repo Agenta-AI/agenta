@@ -38,10 +38,10 @@ import {
 
 import {Lock} from "@phosphor-icons/react"
 
-import {cn} from "../../../utils/styles"
 import {IconTile} from "../../composed/icon-tile"
 import {HeightCollapse} from "../../HeightCollapse"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
+import {cn} from "../../ui/utils"
 
 import {
     ConfigRowCaret,

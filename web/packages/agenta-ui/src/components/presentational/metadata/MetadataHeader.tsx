@@ -23,8 +23,8 @@
 
 import React from "react"
 
-import {cn, flexLayouts, textColors} from "../../../utils/styles"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
+import {cn} from "../../ui/utils"
 
 // ============================================================================
 // TYPES
@@ -79,9 +79,7 @@ export function MetadataHeader({
     return (
         <div
             className={cn(
-                "w-full justify-between text-label px-1 py-1",
-                flexLayouts.rowCenter,
-                textColors.muted,
+                "w-full justify-between text-label px-1 py-1 flex items-center text-muted-foreground",
                 className,
             )}
         >
@@ -90,15 +88,13 @@ export function MetadataHeader({
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <span className={cn("font-medium", textColors.secondary)}>
-                                    {label}
-                                </span>
+                                <span className="font-medium text-muted-foreground">{label}</span>
                             </TooltipTrigger>
                             <TooltipContent side="top">{labelTooltip}</TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
                 ) : (
-                    <span className={cn("font-medium", textColors.secondary)}>{label}</span>
+                    <span className="font-medium text-muted-foreground">{label}</span>
                 ))}
             {value &&
                 (valueTooltip ? (
@@ -106,7 +102,7 @@ export function MetadataHeader({
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <span
-                                    className={cn("font-mono truncate", textColors.quaternary)}
+                                    className="font-mono truncate text-muted-foreground"
                                     style={{maxWidth: maxValueWidth}}
                                 >
                                     {value}
@@ -117,7 +113,7 @@ export function MetadataHeader({
                     </TooltipProvider>
                 ) : (
                     <span
-                        className={cn("font-mono truncate", textColors.quaternary)}
+                        className="font-mono truncate text-muted-foreground"
                         style={{maxWidth: maxValueWidth}}
                     >
                         {value}

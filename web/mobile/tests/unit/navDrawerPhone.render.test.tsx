@@ -77,7 +77,8 @@ describe("the sidebar sheet on a phone", () => {
     it("opens from the menu button, 300 px wide, with the sidebar in its phone layout", async () => {
         render(<NavDrawer workspaceId="ws" projectId="proj" />)
         const sheet = await open()
-        expect(sheet.style.width).toBe("300px")
+        // The width is a Tailwind class; jsdom does not compute it into a style.
+        expect(sheet.classList.contains("w-[300px]")).toBe(true)
         expect(sheet.querySelector("[data-layout]")?.getAttribute("data-layout")).toBe("phone")
     })
 

@@ -7,8 +7,8 @@ import type {ReactNode} from "react"
 
 import {CaretRight} from "@phosphor-icons/react"
 
-import {cn} from "../../../utils/styles"
 import {CollapseCaret} from "../../ui/collapse-caret"
+import {cn} from "../../ui/utils"
 
 /** Side of the affordance column, in px — the phosphor caret box every config row ends with. */
 const AFFORDANCE_SIZE = 14

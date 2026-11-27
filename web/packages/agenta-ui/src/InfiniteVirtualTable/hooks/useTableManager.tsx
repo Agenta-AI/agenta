@@ -9,8 +9,8 @@ import {useAtom} from "jotai"
 import {atom} from "jotai"
 
 import {SearchInput} from "../../components/composed/input-affix"
+import {cn} from "../../components/ui/utils"
 import {useIsNarrowScreen} from "../../hooks/useMediaQuery"
-import {cn} from "../../utils/styles"
 import type {ColumnDefs} from "../columnDef"
 import type {InfiniteDatasetStore} from "../createInfiniteDatasetStore"
 import type {

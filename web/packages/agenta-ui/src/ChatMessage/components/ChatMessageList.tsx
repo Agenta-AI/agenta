@@ -19,11 +19,11 @@ import {useAtom} from "jotai"
 import {CollapseToggleButton, getCollapseStyle} from "../../components/presentational/buttons"
 import {Button} from "../../components/ui/button"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../components/ui/tooltip"
+import {cn} from "../../components/ui/utils"
 import {ViewModeDropdown} from "../../drill-in/core/ViewModeDropdown"
 import {messageViewModeAtom} from "../../drill-in/state/messageViewModeAtom"
 import {getViewOptions, toMessageViewMode, type ViewMode} from "../../drill-in/utils/getViewOptions"
 import {message, modal} from "../../utils/appMessageContext"
-import {cn, flexLayouts, gapClasses} from "../../utils/styles"
 import {createSnippetPdfAttachment} from "../utils/snippetAttachment"
 
 import AttachmentButton from "./AttachmentButton"
@@ -163,11 +163,7 @@ const ChatMessageItem: React.FC<{
     )
 
     return (
-        <div
-            className={cn(flexLayouts.column)}
-            ref={containerRef}
-            style={getCollapseStyle(isMinimized, 72)}
-        >
+        <div className="flex flex-col" ref={containerRef} style={getCollapseStyle(isMinimized, 72)}>
             <ChatMessageEditor
                 id={editorId}
                 key={`${editorId}-${viewMode}`}
@@ -195,13 +191,7 @@ const ChatMessageItem: React.FC<{
                     ) : undefined
                 }
                 headerRight={
-                    <div
-                        className={cn(
-                            flexLayouts.rowCenter,
-                            gapClasses.xs,
-                            "invisible group-hover/item:visible",
-                        )}
-                    >
+                    <div className="flex items-center gap-1 invisible group-hover/item:visible">
                         <ViewModeDropdown<ChatViewMode>
                             value={chatViewMode}
                             options={viewOptions}
@@ -461,7 +451,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     )
 
     return (
-        <div className={cn(flexLayouts.column, gapClasses.sm, className)}>
+        <div className={cn("flex flex-col gap-2", className)}>
             {messages.map((msg, index) => {
                 const rowKey = stableKeys[index]
                 // Scope editor ids to the list instance so markdown-view state,

@@ -12,7 +12,7 @@ import {useCallback, useState} from "react"
 import {richText, useT} from "@agenta/i18n"
 import commitModalCatalog from "@agenta/i18n/catalogs/entityUi.commitModal"
 import {LoadingButton} from "@agenta/ui/composed"
-import {cn, textColors} from "@agenta/ui/styles"
+import {cn} from "@agenta/ui/styles"
 import {Button, Checkbox, Popover, PopoverContent, PopoverTrigger, Textarea} from "@agenta/ui/ui"
 import {CaretUp} from "@phosphor-icons/react"
 
@@ -52,7 +52,7 @@ function DeployForm({
 
     return (
         <div className="w-[300px] rounded-lg border border-solid border-border bg-popover p-3 shadow-overlay">
-            <div className={cn("mb-2 text-label font-medium", textColors.secondary)}>
+            <div className="mb-2 text-label font-medium text-muted-foreground">
                 {t("entityUi.commitModal.deployTo")}
             </div>
             <div className="flex flex-col gap-2">
@@ -78,9 +78,7 @@ function DeployForm({
                         {o.hint ? (
                             <span className="flex items-center gap-2">
                                 {o.label}
-                                <span className={cn("text-meta", textColors.tertiary)}>
-                                    {o.hint}
-                                </span>
+                                <span className="text-meta text-muted-foreground">{o.hint}</span>
                             </span>
                         ) : (
                             o.label
@@ -88,9 +86,9 @@ function DeployForm({
                     </label>
                 ))}
             </div>
-            <div className={cn("mb-1.5 mt-4 text-label font-medium", textColors.secondary)}>
+            <div className="mb-1.5 mt-4 text-label font-medium text-muted-foreground">
                 {richText(t("entityUi.commitModal.deploymentMessage"), {
-                    muted: (text) => <span className={textColors.tertiary}>{text}</span>,
+                    muted: (text) => <span className="text-muted-foreground">{text}</span>,
                 })}
             </div>
             <Textarea

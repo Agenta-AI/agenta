@@ -5,7 +5,6 @@ import {MinusCircle, PlusCircle} from "@phosphor-icons/react"
 import type {TableProps} from "antd/es/table"
 
 import {Spinner} from "../../components/ui/spinner"
-import {interactiveStyles} from "../../utils/styles"
 import type {ExpandableRowConfig} from "../types"
 
 interface ExpandedRowState<ChildType> {
@@ -188,7 +187,7 @@ export function useExpandableRows<RecordType extends object, ChildType = unknown
             // Default icon - circle style matching app registry
             return (
                 <span
-                    className={interactiveStyles.expandIcon}
+                    className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors"
                     onClick={(e) => {
                         e.stopPropagation()
                         triggerExpand(record, e)
@@ -250,7 +249,7 @@ export function useExpandableRows<RecordType extends object, ChildType = unknown
             // Default circle icon
             return (
                 <span
-                    className={interactiveStyles.expandIconInline}
+                    className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors inline-flex items-center"
                     onClick={(e) => {
                         e.stopPropagation()
                         onExpand(!expanded, record)

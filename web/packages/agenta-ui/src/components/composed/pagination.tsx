@@ -4,7 +4,7 @@ import {useMemo} from "react"
 import {useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 
-import {cn} from "../../utils/styles"
+import {cn} from "../ui/utils"
 
 /**
  * antd's `Pagination`, minus antd.

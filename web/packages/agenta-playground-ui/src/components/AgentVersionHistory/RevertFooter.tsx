@@ -5,7 +5,6 @@
 
 import {richText, useT} from "@agenta/i18n"
 import versionCatalog from "@agenta/i18n/catalogs/playground.versionHistory"
-import {cn, textColors} from "@agenta/ui/styles"
 import {Button, Spinner} from "@agenta/ui/ui"
 import {CheckCircle} from "@phosphor-icons/react"
 
@@ -42,12 +41,7 @@ export const RevertFooter = ({
     const t = useT(versionCatalog)
     if (phase === "reverting") {
         return (
-            <div
-                className={cn(
-                    "flex items-center gap-2 text-label font-normal",
-                    textColors.secondary,
-                )}
-            >
+            <div className="flex items-center gap-2 text-label font-normal text-muted-foreground">
                 <Spinner className="size-3.5" />
                 {t("playground.versionHistory.creating", {
                     next: (latestVersion ?? 0) + 1,

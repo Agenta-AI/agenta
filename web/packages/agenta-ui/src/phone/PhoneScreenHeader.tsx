@@ -4,7 +4,7 @@ import {useT} from "@agenta/i18n"
 import phoneCatalog from "@agenta/i18n/catalogs/ui.phone"
 
 import {BackLink} from "../components/composed/back-link"
-import {cn} from "../utils/styles"
+import {cn} from "../components/ui/utils"
 
 export interface PhoneScreenHeaderProps {
     /** The title of the screen. Cut with an ellipsis when it is longer than the row. */

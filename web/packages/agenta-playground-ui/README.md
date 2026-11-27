@@ -99,7 +99,7 @@ See `package.json` `exports` for the full list (e.g. `@agenta/playground-ui/exec
 ```text
 @agenta/shared        ← Base utilities (formatters, path utils)
        ↑
-@agenta/ui            ← UI primitives (EnhancedModal, styles)
+@agenta/ui            ← UI primitives (Dialog, Sheet, cn)
        ↑
 @agenta/entities      ← Entity state (loadable bridge, workflow molecule)
        ↑

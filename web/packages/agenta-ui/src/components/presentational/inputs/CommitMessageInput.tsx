@@ -20,9 +20,9 @@ import {memo} from "react"
 import {useT} from "@agenta/i18n"
 import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 
-import {cn, textColors} from "../../../utils/styles"
 import {AutosizeTextarea} from "../../composed/input-affix"
 import {Field} from "../../ui/field"
+import {cn} from "../../ui/utils"
 
 /** Default max length for commit/deploy messages */
 export const COMMIT_MESSAGE_MAX_LENGTH = 500
@@ -79,7 +79,7 @@ export const CommitMessageInput = memo(function CommitMessageInput({
             {showOptional && (
                 <>
                     {" "}
-                    <span className={textColors.quaternary}>
+                    <span className="text-muted-foreground">
                         {t("ui.listControls.optionalSuffix")}
                     </span>
                 </>
@@ -102,7 +102,7 @@ export const CommitMessageInput = memo(function CommitMessageInput({
                 />
                 {/* Reproduces antd `showCount`'s `.ant-input-data-count`: end-aligned, 12px,
                     colorTextDescription. It was 10px/quaternary, which the parity gate caught. */}
-                <span className={cn("self-end pt-0.5 text-meta", textColors.description)}>
+                <span className="self-end pt-0.5 text-meta text-muted-foreground">
                     {value?.length ?? 0} / {maxLength}
                 </span>
             </div>

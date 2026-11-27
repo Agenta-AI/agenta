@@ -1,9 +1,9 @@
 import type {Key, ReactNode} from "react"
 import {useCallback} from "react"
 
-import {cn} from "../../utils/styles"
 import {Checkbox} from "../ui/checkbox"
 import {CollapseCaret} from "../ui/collapse-caret"
+import {cn} from "../ui/utils"
 
 /**
  * antd's checkable `Tree`, minus antd — the last antd import in this package.

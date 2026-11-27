@@ -34,10 +34,10 @@ import {
 } from "@agenta/shared/utils"
 import {Timer, Coins, Hash} from "@phosphor-icons/react"
 
-import {cn} from "../../../utils/styles"
 import {Badge} from "../../ui/badge"
 import {SkeletonBlock} from "../../ui/skeleton"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
+import {cn} from "../../ui/utils"
 
 // ============================================================================
 // TYPES

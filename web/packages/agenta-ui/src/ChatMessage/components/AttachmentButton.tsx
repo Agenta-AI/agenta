@@ -11,7 +11,6 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu"
-import {cn, flexLayouts, gapClasses, textColors} from "../../utils/styles"
 
 interface AttachmentButtonProps {
     onAddImage: (imageUrl: string) => void
@@ -85,7 +84,7 @@ export const AttachmentButton: React.FC<AttachmentButtonProps> = ({
                         variant="ghost"
                         size="sm"
                         disabled={disabled}
-                        className={cn(textColors.icon, textColors.iconHover)}
+                        className="text-muted-foreground hover:text-foreground"
                         title={t("ui.chat.addAttachment")}
                     >
                         {<Paperclip size={14} />}
@@ -93,13 +92,13 @@ export const AttachmentButton: React.FC<AttachmentButtonProps> = ({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
                     <DropdownMenuItem onClick={() => imageInputRef.current?.click()}>
-                        <span className={cn(flexLayouts.rowCenter, gapClasses.sm)}>
+                        <span className="flex items-center gap-2">
                             <ImageIcon size={14} />
                             <span>{t("ui.chat.uploadImage")}</span>
                         </span>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
-                        <span className={cn(flexLayouts.rowCenter, gapClasses.sm)}>
+                        <span className="flex items-center gap-2">
                             <FileArchive size={14} />
                             <span>{t("ui.chat.attachDocument")}</span>
                         </span>

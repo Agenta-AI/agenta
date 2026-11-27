@@ -14,7 +14,7 @@ import {
 import type {TableProps} from "antd/es/table"
 import {useSetAtom} from "jotai"
 
-import {cn} from "../../utils/styles"
+import {cn} from "../../components/ui/utils"
 import {
     deleteColumnViewportVisibilityAtom,
     setColumnUserVisibilityAtom,

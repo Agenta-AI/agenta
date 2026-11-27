@@ -1,7 +1,7 @@
 import type {ReactNode} from "react"
 
 import {MENU_ITEM} from "../components/ui/menu-item"
-import {cn} from "../utils/styles"
+import {cn} from "../components/ui/utils"
 
 import {BottomSheet} from "./BottomSheet"
 

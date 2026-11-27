@@ -2,12 +2,19 @@ import React, {useEffect, useLayoutEffect, useMemo} from "react"
 
 import {MESSAGE_CONTENT_SCHEMA} from "@agenta/shared/schemas"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
+import {CaretUpDown} from "@phosphor-icons/react"
 
-import {SimpleDropdownSelect} from "../../components/presentational/select"
+import {Button} from "../../components/ui/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "../../components/ui/dropdown-menu"
+import {cn} from "../../components/ui/utils"
 import {EditorProvider} from "../../Editor/Editor"
 import {SET_MARKDOWN_VIEW} from "../../Editor/plugins/markdown/commands"
 import {SharedEditor, type SharedEditorProps} from "../../SharedEditor"
-import {cn, flexLayouts, gapClasses, justifyClasses} from "../../utils/styles"
 
 const DEFAULT_MAX_TEXT_PASTE_CHARS = 50_000
 
@@ -159,22 +166,31 @@ const ChatMessageEditorInner: React.FC<ChatMessageEditorProps> = ({
         <SharedEditor
             id={id}
             header={
-                <div className={cn("w-full", flexLayouts.column, headerClassName)}>
+                <div className={cn("w-full flex flex-col", headerClassName)}>
                     <div
-                        className={cn(
-                            "w-full",
-                            flexLayouts.rowCenter,
-                            justifyClasses.between,
-                            headerClassName,
-                        )}
+                        className={cn("w-full flex items-center justify-between", headerClassName)}
                     >
-                        <SimpleDropdownSelect
-                            value={role}
-                            options={selectOptions}
-                            onChange={(v) => onChangeRole?.(v)}
-                            disabled={disabled}
-                            className="message-user-select"
-                        />
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild disabled={disabled}>
+                                <Button
+                                    variant="ghost"
+                                    className="message-user-select flex items-center px-2 capitalize hover:bg-accent"
+                                >
+                                    {role || "Select..."} <CaretUpDown size={14} />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-[150px]">
+                                {selectOptions.map((option) => (
+                                    <DropdownMenuItem
+                                        key={option.value}
+                                        className="capitalize"
+                                        onClick={() => onChangeRole?.(option.value)}
+                                    >
+                                        {option.label}
+                                    </DropdownMenuItem>
+                                ))}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                         {headerRight}
                     </div>
                     {headerBottom}
@@ -219,10 +235,7 @@ const ChatMessageEditorInner: React.FC<ChatMessageEditorProps> = ({
             // padding can't go through `editorClassName` because ChatMessageEditor
             // renders the Editor with `noProvider`, where `className` is dropped.
             className={cn(
-                "agenta-chat-message-editor relative",
-                flexLayouts.column,
-                gapClasses.xs,
-                "rounded-md",
+                "agenta-chat-message-editor relative flex flex-col gap-1 rounded-md",
                 className,
             )}
             footer={footer}

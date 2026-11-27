@@ -31,15 +31,8 @@
 
 import type {ReactNode} from "react"
 
-import {
-    cn,
-    flexLayouts,
-    focusStyles,
-    gapClasses,
-    textColors,
-    textSizes,
-} from "../../../utils/styles"
 import {CollapseCaret} from "../../ui/collapse-caret"
+import {cn} from "../../ui/utils"
 
 /** Default icon size for caret icons */
 const DEFAULT_ICON_SIZE = 14
@@ -110,11 +103,9 @@ export function CollapsibleGroupHeader({
     return (
         <div
             className={cn(
-                flexLayouts.rowCenter,
-                "select-none rounded",
-                gapClasses.xs,
+                "flex items-center select-none rounded gap-1",
                 !hasCustomLabel && "cursor-pointer",
-                !hasCustomLabel && focusStyles.ring,
+                !hasCustomLabel && "outline-none focus-ring",
                 className,
             )}
             onClick={hasCustomLabel ? undefined : handleCaretClick}
@@ -124,7 +115,7 @@ export function CollapsibleGroupHeader({
                 className={cn(
                     "flex-shrink-0",
                     hasCustomLabel && "cursor-pointer",
-                    hasCustomLabel && focusStyles.ring,
+                    hasCustomLabel && "outline-none focus-ring",
                 )}
                 onClick={hasCustomLabel ? handleCaretClick : undefined}
                 {...(hasCustomLabel && a11yProps)}
@@ -141,9 +132,7 @@ export function CollapsibleGroupHeader({
                 <span>{label}</span>
             )}
             {count !== undefined && (
-                <span className={cn(textColors.tertiary, textSizes.xs, "flex-shrink-0")}>
-                    ({count})
-                </span>
+                <span className="text-muted-foreground text-meta flex-shrink-0">({count})</span>
             )}
         </div>
     )

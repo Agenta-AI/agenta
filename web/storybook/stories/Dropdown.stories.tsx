@@ -18,7 +18,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "The `@agenta/ui` DropdownMenu (Radix-based) for action menus. Compose `DropdownMenu` > `DropdownMenuTrigger` + `DropdownMenuContent` > `DropdownMenuItem`. Prop tables for each part are below.\n\n**Used in:** 8 places — `DropdownButton` and `SimpleDropdownSelect`, the chat attachment button, the Lexical editor toolbar and its array/object form nodes, and the drill-in breadcrumb plus view-mode dropdown.",
+                    "The `@agenta/ui` DropdownMenu (Radix-based) for action menus. Compose `DropdownMenu` > `DropdownMenuTrigger` + `DropdownMenuContent` > `DropdownMenuItem`. Prop tables for each part are below.\n\n**Used in:** `DropdownButton`, the chat message role menu and the enum dropdown control, the chat attachment button, the Lexical editor toolbar and its array/object form nodes, and the drill-in breadcrumb plus view-mode dropdown.",
             },
         },
     },

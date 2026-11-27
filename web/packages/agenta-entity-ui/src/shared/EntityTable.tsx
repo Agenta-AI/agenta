@@ -47,7 +47,7 @@ import {SmartCellContent} from "@agenta/ui/cell-renderers"
 import {CollapsibleGroupHeader, TableEmptyState} from "@agenta/ui/components/presentational"
 import {SkeletonRows} from "@agenta/ui/composed"
 import {useSelectionState} from "@agenta/ui/hooks"
-import {bgColors, cn} from "@agenta/ui/styles"
+import {cn} from "@agenta/ui/styles"
 import {
     buildEntityColumns,
     InfiniteVirtualTableFeatureShell,
@@ -690,7 +690,7 @@ export function EntityTable<
                               onClick: () => rowClickHandler(record),
                               className: cn(
                                   "cursor-pointer",
-                                  selectedIdsSet.has(record.id) && bgColors.subtle,
+                                  selectedIdsSet.has(record.id) && "bg-secondary",
                               ),
                           })
                         : undefined,

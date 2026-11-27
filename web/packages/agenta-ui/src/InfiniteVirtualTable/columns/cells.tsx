@@ -1,6 +1,6 @@
 import {memo, type ReactNode} from "react"
 
-import {cn} from "../../utils/styles"
+import {cn} from "../../components/ui/utils"
 import {useColumnVisibilityFlag} from "../context/ColumnVisibilityFlagContext"
 
 import type {TableColumnCell} from "./types"

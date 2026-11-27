@@ -8,7 +8,7 @@
 
 import {type ReactNode} from "react"
 
-import {cn} from "../../../utils/styles"
+import {cn} from "../../ui/utils"
 
 // ============================================================================
 // TYPES

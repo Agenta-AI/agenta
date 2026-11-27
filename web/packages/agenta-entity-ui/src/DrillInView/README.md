@@ -487,7 +487,7 @@ Schema-driven UI controls for rendering form fields based on JSON Schema. These 
 | `NumberSliderControl`    | Numeric input with slider              | `SliderInput`, `LabeledField`          |
 | `BooleanToggleControl`   | Toggle switch for booleans             | `LabeledField`, `Switch`               |
 | `TextInputControl`       | Single/multi-line text input           | `LabeledField`, `Input`                |
-| `EnumSelectControl`      | Dropdown for enum values               | `LabeledField`, `SimpleDropdownSelect` |
+| `EnumSelectControl`      | Dropdown for enum values               | `LabeledField`, `DropdownMenu`         |
 | `GroupedChoiceControl`   | Grouped select (e.g., model selection) | `LabeledField`, `Select`               |
 | `PromptSchemaControl`    | Full prompt editor with messages       | `ChatMessageList`                      |
 | `ResponseFormatControl`  | Output format selector                 | Modal-based                            |
@@ -537,7 +537,6 @@ The schema controls use these presentational components:
 - **`SliderInput`**: Slider + number input combination
 - **`LabeledField`**: Label + tooltip wrapper for form fields
 - **`ListItemSkeleton`**: Skeleton loader for lists
-- **`SimpleDropdownSelect`**: Compact dropdown button
 - **`ChatMessageList`**: Message editor with role dropdowns
 
 ## File Structure

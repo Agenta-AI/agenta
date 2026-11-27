@@ -1,6 +1,6 @@
 import {memo, useEffect, useRef} from "react"
 
-import {cn} from "../../../utils/styles"
+import {cn} from "../../ui/utils"
 
 import {
     ACTIVITY_FORMATS,
