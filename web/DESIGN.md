@@ -71,6 +71,7 @@ The page layout and the body are separate, and each part is optional (LAYOUT-07)
 
 - `Field` around every control: the label above (forms) or on the left (settings rows), the error below.
 - One Save for the section, right-aligned. A switch that applies at once needs no Save.
+- Focus is neutral (FORM-02). A focused field gets a 2px gray `ring` edge; a control on keyboard focus gets a 2px gray `ring` outline. Brand yellow and `primary` never mark focus.
 
 ### Session
 

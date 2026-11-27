@@ -174,30 +174,27 @@ export const formRules: RuleExample[] = [
             example: (
                 <div className="w-56">
                     <div
-                        className="flex h-8 items-center rounded-md border border-foreground px-2.5 text-label"
-                        style={{outline: "2px solid var(--ring)"}}
+                        className="flex h-8 items-center rounded-md border border-ring px-2.5 text-label"
+                        style={{boxShadow: "0 0 0 1px var(--ring)"}}
                     >
                         weekly-report
                     </div>
                 </div>
             ),
-            caption: "Ink border, 2px lime ring.",
+            caption: "The neutral border grows to 2px.",
         },
         avoid: {
             example: (
                 <div className="w-56">
                     <div
-                        className="flex h-8 items-center rounded-lg px-2.5 text-label"
-                        style={{
-                            border: "1px solid #d9d92c",
-                            boxShadow: "0 0 0 4px rgba(163,161,159,.5)",
-                        }}
+                        className="flex h-8 items-center rounded-md border border-brand px-2.5 text-label"
+                        style={{outline: "2px solid var(--brand)"}}
                     >
                         weekly-report
                     </div>
                 </div>
             ),
-            caption: "Lime border plus a 4px gray halo.",
+            caption: "A brand yellow border and ring.",
         },
     },
 ]

@@ -188,8 +188,8 @@ export const colors: ThemeVariable<ColorValue>[] = [
     },
     {
         name: "ring",
-        value: {light: "#d9d92c", dark: "#d9d92c"},
-        usage: "LOCKED brand lime. Outer focus outline, always with a foreground ring inside it.",
+        value: {light: "#797773", dark: "#7c7a76"},
+        usage: "Focus. Neutral, never brand yellow: the 2px outline on a focused control (a foreground line inside it), and the 2px edge of a focused field.",
     },
     {
         name: "destructive",

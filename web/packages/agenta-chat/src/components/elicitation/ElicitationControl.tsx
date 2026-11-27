@@ -134,7 +134,7 @@ export interface ElicitationControlProps {
 }
 
 const inputCls =
-    "h-8 w-full rounded-md border border-solid border-border bg-background px-2.5 text-label text-foreground outline-none focus:border-primary"
+    "h-8 w-full rounded-md border border-solid border-border bg-background px-2.5 text-label text-foreground outline-none focus-ring-field"
 
 export const ElicitationControl = ({
     step,
@@ -395,7 +395,7 @@ export const ElicitationControl = ({
                         onChange={emit}
                         aria-label={step.label}
                         placeholder={t("chat.elicitation.pickDate")}
-                        className="min-w-0 focus-visible:outline-none focus-visible:border-primary [&>span]:truncate"
+                        className="min-w-0 focus-ring-field [&>span]:truncate"
                     />
                 ) : (
                     <DateTimePicker
@@ -403,7 +403,7 @@ export const ElicitationControl = ({
                         onChange={emit}
                         aria-label={step.label}
                         placeholder={t("chat.elicitation.pickDateTime")}
-                        className="[&_button]:min-w-0 focus-ring [&_button]:focus-visible:border-primary [&_span]:truncate"
+                        className="[&_button]:min-w-0 focus-ring [&_button]:focus-visible:border-ring [&_span]:truncate"
                     />
                 )}
             </div>
