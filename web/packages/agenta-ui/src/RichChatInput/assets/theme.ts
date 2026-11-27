@@ -22,7 +22,7 @@ export const chatInputTheme: EditorThemeClasses = {
         ol: "my-1 list-outside list-decimal pl-5",
         // Our own 5px square mark, hung in the indent; a nested list is a ruled block, not more dots.
         listitem:
-            "my-0.5 [ol>&]:marker:text-muted-foreground [ul>&]:relative [ul>&]:pl-4 [ul>&]:before:absolute [ul>&]:before:left-0.5 [ul>&]:before:top-[calc(0.5lh_-_2.5px)] [ul>&]:before:size-[5px] [ul>&]:before:rounded-[1px] [ul>&]:before:bg-foreground [li>ul>&]:pl-0 [li>ul>&]:before:hidden",
+            "my-0.5 [ol>&]:marker:text-muted-foreground [ul>&]:relative [ul>&]:pl-4 [ul>&]:before:absolute [ul>&]:before:left-0.5 [ul>&]:before:top-[calc(0.5lh_-_2.5px)] [ul>&]:before:size-[5px] [ul>&]:before:rounded-round [ul>&]:before:bg-foreground [li>ul>&]:pl-0 [li>ul>&]:before:hidden",
         nested: {
             // The li wrapping a nested list keeps the indent, so its rule sits under the text.
             listitem: "list-none [ul>&]:before:hidden",

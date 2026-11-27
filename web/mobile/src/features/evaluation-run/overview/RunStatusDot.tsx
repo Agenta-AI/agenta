@@ -9,7 +9,7 @@ export const RunStatusDot = ({status}: {status: string | null}) => {
         <span className="inline-flex items-center gap-2">
             <span
                 aria-hidden
-                className={`size-2.5 shrink-0 rounded-xs ${RUN_STATUS_DOT_COLOR[runStatusTone(status)]}`}
+                className={`size-2.5 shrink-0 rounded-round ${RUN_STATUS_DOT_COLOR[runStatusTone(status)]}`}
             />
             {humanizeRunStatus(status)}
         </span>

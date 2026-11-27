@@ -71,7 +71,7 @@ export const ScenarioListRow = ({
                 ) : (
                     <span
                         aria-hidden
-                        className={`size-1.5 bg-current ${DOT_COLOR[scenarioStatusTone(row.status)]}`}
+                        className={`size-1.5 rounded-round bg-current ${DOT_COLOR[scenarioStatusTone(row.status)]}`}
                     />
                 )}
                 {row.index + 1}

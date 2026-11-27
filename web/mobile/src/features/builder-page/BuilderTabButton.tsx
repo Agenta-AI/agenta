@@ -72,7 +72,7 @@ export const BuilderTabButton = ({
                     data-testid="builder-tab-dot"
                     role="img"
                     aria-label={t("builder.page.changedByBuilder")}
-                    className="size-1.5 shrink-0 bg-primary"
+                    className="size-1.5 shrink-0 rounded-round bg-primary"
                 />
             ) : null}
             <button

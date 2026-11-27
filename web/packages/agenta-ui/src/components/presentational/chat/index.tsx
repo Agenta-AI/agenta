@@ -25,7 +25,7 @@ export const ChatTypingDots = ({className}: {className?: string}) => (
         {[0, 1, 2].map((i) => (
             <span
                 key={i}
-                className="size-1 rounded-sm bg-primary motion-safe:animate-bounce"
+                className="size-1 rounded-round bg-primary motion-safe:animate-bounce"
                 style={{animationDuration: "1.2s", animationDelay: `${i * 0.2}s`}}
             />
         ))}

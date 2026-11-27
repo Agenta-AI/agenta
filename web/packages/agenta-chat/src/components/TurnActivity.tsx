@@ -50,9 +50,9 @@ export const StartupActivity = ({label}: {label: string}) => (
             {label}
         </span>
         <span aria-hidden className="flex items-end gap-1 pb-1">
-            <span className="inline-block h-1 w-1 rounded-sm bg-muted-foreground motion-safe:animate-pulse [animation-duration:1.2s]" />
-            <span className="inline-block h-1 w-1 rounded-sm bg-muted-foreground motion-safe:animate-pulse [animation-delay:0.2s] [animation-duration:1.2s]" />
-            <span className="inline-block h-1 w-1 rounded-sm bg-muted-foreground motion-safe:animate-pulse [animation-delay:0.4s] [animation-duration:1.2s]" />
+            <span className="inline-block h-1 w-1 rounded-round bg-muted-foreground motion-safe:animate-pulse [animation-duration:1.2s]" />
+            <span className="inline-block h-1 w-1 rounded-round bg-muted-foreground motion-safe:animate-pulse [animation-delay:0.2s] [animation-duration:1.2s]" />
+            <span className="inline-block h-1 w-1 rounded-round bg-muted-foreground motion-safe:animate-pulse [animation-delay:0.4s] [animation-duration:1.2s]" />
         </span>
     </span>
 )

@@ -235,7 +235,7 @@ export const AgentPane = ({
                                             data-testid="pane-tab-dot"
                                             role="img"
                                             aria-label={t("builder.page.changedByBuilder")}
-                                            className="size-1.5 shrink-0 bg-primary"
+                                            className="size-1.5 shrink-0 rounded-round bg-primary"
                                         />
                                     ) : key === "sessions" && sessionCount > 0 ? (
                                         <span className="text-meta tabular-nums text-muted-foreground">

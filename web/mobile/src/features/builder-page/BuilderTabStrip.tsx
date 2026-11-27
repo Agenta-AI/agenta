@@ -192,7 +192,7 @@ export const BuilderTabStrip = ({
                                     />
                                     <span className="min-w-0 flex-1 truncate">{label(tab)}</span>
                                     {tab.dot ? (
-                                        <span className="size-1.5 shrink-0 bg-primary" />
+                                        <span className="size-1.5 shrink-0 rounded-round bg-primary" />
                                     ) : null}
                                 </button>
                             )
