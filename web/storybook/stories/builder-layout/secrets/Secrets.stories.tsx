@@ -13,15 +13,6 @@ import agentSecretsCatalog from "@agenta/i18n/catalogs/entityUi.agentSecrets"
 import {userAtom} from "@agenta/shared/state"
 import {DrillInUIProvider} from "@agenta/ui/drill-in"
 import {
-    AlertDialog,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    Button,
-} from "@agenta/ui/ui"
-import {
     useViewStack,
     ViewDrawerHost,
     ViewStackHost,
@@ -38,6 +29,7 @@ import {
     advancedView,
     agentaToolsView,
 } from "../../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/views/advancedViews"
+import {RemoveFromAgentDialog} from "../../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/views/RemoveFromAgentDialog"
 import {permissionPolicyOptionsForEnum} from "../../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/permissionPolicy"
 import type {StoryScope} from "../../../.storybook/decorators/withAgentaData"
 import {
@@ -143,26 +135,13 @@ const SecretsFrame = ({frame, revisionId}: {frame: Frame; revisionId: string}) =
     }
     if (frame === "remove")
         return (
-            <AlertDialog open>
-                <AlertDialogContent data-testid="secret-remove-dialog">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>
-                            {tSecrets("entityUi.agentSecrets.removeAttachmentTitle")}
-                        </AlertDialogTitle>
-                        <AlertDialogDescription>
-                            {tSecrets("entityUi.agentSecrets.removeAttachmentBody")}
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <Button variant="outline">
-                            {tSecrets("entityUi.agentSecrets.cancel")}
-                        </Button>
-                        <Button variant="destructive">
-                            {tSecrets("entityUi.agentSecrets.remove")}
-                        </Button>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            <RemoveFromAgentDialog
+                open
+                name="BILLING_API_KEY"
+                body={tSecrets("entityUi.agentSecrets.removeAttachmentBody")}
+                onConfirm={() => undefined}
+                onCancel={() => undefined}
+            />
         )
     if (frame === "permissions")
         return (

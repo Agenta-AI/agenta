@@ -20,6 +20,8 @@ import {
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {screen, userEvent, within} from "storybook/test"
 
+// Imported from source: the package barrel does not re-export the agent tab's views.
+import {RemoveFromAgentDialog} from "../../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/views/RemoveFromAgentDialog"
 import type {StoryScope} from "../../../.storybook/decorators/withAgentaData"
 import {
     agentTabQueries,
@@ -29,6 +31,7 @@ import {
 } from "../../../fixtures/builderLayout/agent-tab"
 
 const noop = () => undefined
+const REMOVED_SECRET = "BILLING_API_KEY"
 
 /** A frame the size of the panel, so each dialog shows over what it guards. */
 const Frame = ({children}: {children?: ReactNode}) => (
@@ -67,53 +70,27 @@ const UnsavedChanges = () => {
 const RemoveFromAgent = () => {
     const t = useT(integrationViewsCatalog)
     return (
-        <AlertDialog open>
-            <AlertDialogContent data-testid="remove-from-agent-dialog">
-                <AlertDialogHeader>
-                    <AlertDialogTitle>
-                        {t("entityUi.integrationViews.removeTitle", {name: REMOVED_INTEGRATION})}
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                        {t("entityUi.integrationViews.connectionStays")}
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <Button variant="outline" onClick={noop}>
-                        {t("entityUi.integrationViews.cancel")}
-                    </Button>
-                    <Button variant="destructive" onClick={noop}>
-                        {t("entityUi.integrationViews.remove")}
-                    </Button>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
+        <RemoveFromAgentDialog
+            open
+            name={REMOVED_INTEGRATION}
+            body={t("entityUi.integrationViews.connectionStays")}
+            onConfirm={noop}
+            onCancel={noop}
+        />
     )
 }
 
-/** F06 f3: remove a secret attachment (the bin of a secret row). */
+/** F06 f3: remove a secret from the agent (the bin of a secret row), the same dialog. */
 const RemoveSecret = () => {
     const t = useT(agentSecretsCatalog)
     return (
-        <AlertDialog open>
-            <AlertDialogContent data-testid="secret-remove-dialog">
-                <AlertDialogHeader>
-                    <AlertDialogTitle>
-                        {t("entityUi.agentSecrets.removeAttachmentTitle")}
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                        {t("entityUi.agentSecrets.removeAttachmentBody")}
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <Button variant="outline" onClick={noop}>
-                        {t("entityUi.agentSecrets.cancel")}
-                    </Button>
-                    <Button variant="destructive" onClick={noop}>
-                        {t("entityUi.agentSecrets.remove")}
-                    </Button>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
+        <RemoveFromAgentDialog
+            open
+            name={REMOVED_SECRET}
+            body={t("entityUi.agentSecrets.removeAttachmentBody")}
+            onConfirm={noop}
+            onCancel={noop}
+        />
     )
 }
 
@@ -195,7 +172,7 @@ export const RemoveFromAgentStory: Story = {
     ),
 }
 
-/** F06 f3: "Remove this secret attachment?", as the bin of a secret row opens it. */
+/** F06 f3: "Remove BILLING_API_KEY from this agent?", as the bin of a secret row opens it. */
 export const RemoveSecretStory: Story = {
     name: "Remove secret",
     render: () => (
@@ -204,7 +181,7 @@ export const RemoveSecretStory: Story = {
         </Frame>
     ),
     play: async () => {
-        await screen.findByText("Remove this secret attachment?")
+        await screen.findByText(`Remove ${REMOVED_SECRET} from this agent?`)
     },
 }
 
