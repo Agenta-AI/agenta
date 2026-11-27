@@ -163,6 +163,7 @@ export const TestsetDetailScreen = ({
     const columns = useAtomValue(testcaseDataController.selectors.columns(editor.tableConfig))
     const columnKeys = useMemo(() => columns.map((column) => column.key), [columns])
     const hasMoreRows = useAtomValue(testcaseDataController.selectors.hasMore(editor.tableConfig))
+    const loadingRows = useAtomValue(testcaseDataController.selectors.isLoading(editor.tableConfig))
     const loadMoreRows = useSetAtom(loadMoreTestcasesAtom)
     // A link with `?testcase_id=` opens the editor on that test case once, when it is in the
     // revision. The rows load 100 per page, so pages load until the test case or the end.
@@ -173,12 +174,22 @@ export const TestsetDetailScreen = ({
         if (rows.some((row) => row.id === linkedTestcaseId)) {
             linkHandled.current = true
             openRow(linkedTestcaseId)
+        } else if (loadingRows) {
+            // A page is on the way; `hasMore` is false until it arrives.
         } else if (hasMoreRows) {
             loadMoreRows(editor.tableConfig)
         } else {
             linkHandled.current = true
         }
-    }, [editor.tableConfig, hasMoreRows, linkedTestcaseId, loadMoreRows, openRow, rows])
+    }, [
+        editor.tableConfig,
+        hasMoreRows,
+        linkedTestcaseId,
+        loadMoreRows,
+        loadingRows,
+        openRow,
+        rows,
+    ])
 
     const navigation = useTestcaseDrawerNavigation({
         rows,

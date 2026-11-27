@@ -91,14 +91,28 @@ vi.mock("@agenta/entities/testcase", () => {
     const rows = atom(firstPage)
     const columns = atom([{key: "question"}])
     // A second page with one more test case, loaded on request while `state.morePages` is set.
-    const hasMore = atom((get) => state.morePages && get(rows).length === firstPage.length)
+    // As in the store, `hasMore` reads false while the page loads, and the rows come later.
+    const loading = atom(false)
+    const hasMore = atom(
+        (get) => state.morePages && !get(loading) && get(rows).length === firstPage.length,
+    )
     const loadMoreTestcasesAtom = atom(null, (get, set) => {
-        if (get(hasMore)) set(rows, [...firstPage, {id: "case-150", key: "case-150"}])
+        if (!get(hasMore)) return
+        set(loading, true)
+        setTimeout(() => {
+            set(rows, [...firstPage, {id: "case-150", key: "case-150"}])
+            set(loading, false)
+        }, 0)
     })
     return {
         loadMoreTestcasesAtom,
         testcaseDataController: {
-            selectors: {rows: () => rows, columns: () => columns, hasMore: () => hasMore},
+            selectors: {
+                rows: () => rows,
+                columns: () => columns,
+                hasMore: () => hasMore,
+                isLoading: () => loading,
+            },
         },
     }
 })
@@ -226,10 +240,12 @@ describe("Test set page", () => {
         expect(state.drawer).toMatchObject({testcaseId: "case-2", testcaseNumber: 2})
     })
 
-    it("A link to a test case on a later page loads pages until it opens the editor", () => {
+    it("A link to a test case on a later page loads pages until it opens the editor", async () => {
         state.morePages = true
         state.query = {testcase_id: "case-150"}
         render()
+        expect(state.drawer).toBeNull()
+        await act(() => new Promise((resolve) => setTimeout(resolve, 10)))
         expect(state.drawer).toMatchObject({testcaseId: "case-150", testcaseNumber: 3})
     })
 
