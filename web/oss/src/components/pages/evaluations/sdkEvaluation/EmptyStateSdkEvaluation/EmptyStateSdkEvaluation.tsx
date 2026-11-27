@@ -1,4 +1,4 @@
-import {EmptyState} from "@agenta/ui/components/presentational"
+import {VideoEmptyState as EmptyState} from "@agenta/ui/components/presentational"
 import {Code} from "@phosphor-icons/react"
 
 import {EMPTY_STATE_VIDEOS} from "@/oss/components/EmptyState/videos"

@@ -19,7 +19,6 @@ import {
 import {getDefaultJsonViewMode} from "@agenta/observability-ui/drillIn"
 import {sanitizeDataWithBlobUrls} from "@agenta/shared/utils"
 import {
-    CopyButton,
     Editor as EditorWrapper,
     EditorProvider,
     DrillInProvider,
@@ -44,6 +43,7 @@ import {useAtomValue} from "jotai"
 import yaml from "js-yaml"
 import dynamic from "next/dynamic"
 
+import {CopyButton} from "@/oss/components/LegacyKit"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 

@@ -1,6 +1,7 @@
 import {type NamedSecretRow} from "@agenta/entities/secret"
 import {SecretForm, useSecretForm} from "@agenta/entity-ui/secret"
-import {EnhancedModal} from "@agenta/ui/components/modal"
+
+import {EnhancedModal} from "@/oss/components/LegacyKit"
 
 interface ConfigureSecretModalProps {
     open: boolean

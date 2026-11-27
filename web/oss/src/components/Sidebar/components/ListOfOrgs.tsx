@@ -2,7 +2,6 @@ import {memo, useEffect, useMemo, useRef, useState} from "react"
 
 import type {OrgDetails} from "@agenta/entities/organization"
 import {checkOrganizationAccess} from "@agenta/entities/organization"
-import {InitialsAvatar} from "@agenta/ui"
 import {ArrowsLeftRight, PencilSimple, Trash, SignOut} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
 import {
@@ -24,6 +23,7 @@ import {useRouter} from "next/router"
 import Session from "supertokens-auth-react/recipe/session"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
+import {InitialsAvatar} from "@/oss/components/LegacyKit"
 import {useSession} from "@/oss/hooks/useSession"
 import {getUsernameFromEmail} from "@/oss/lib/helpers/utils"
 import {useOrgData} from "@/oss/state/org"

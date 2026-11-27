@@ -1,9 +1,9 @@
-import {CopyButton} from "@agenta/ui"
 import {CloudArrowUp} from "@phosphor-icons/react"
 import {Button, Typography} from "antd"
 import clsx from "clsx"
 
 import CodeBlock from "@/oss/components/DynamicCodeBlock/CodeBlock"
+import {CopyButton} from "@/oss/components/LegacyKit"
 
 import type {LanguageCodeBlockProps} from "../types"
 

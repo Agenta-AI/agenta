@@ -32,8 +32,8 @@ import {
     type PendingSessionOpen,
 } from "@agenta/sessions/state"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
+import {paneSlideHoldMs, SplitPane} from "@agenta/ui/composed"
 import {useSessionShortcuts} from "@agenta/ui/shortcuts"
-import {paneSlideHoldMs, SplitPane} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {SessionFilesPane, useSessionFilesPane} from "@/oss/components/Drives/SessionFilesPane"

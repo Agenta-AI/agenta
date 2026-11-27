@@ -1,7 +1,8 @@
 import {AIProvidersPage} from "@agenta/settings-ui"
-import {EnhancedModal} from "@agenta/ui/components/modal"
 import {Trash} from "@phosphor-icons/react"
 import {Typography} from "antd"
+
+import {EnhancedModal} from "@/oss/components/LegacyKit"
 
 /**
  * Settings → AI providers, desktop binding.

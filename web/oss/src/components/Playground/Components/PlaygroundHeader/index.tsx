@@ -23,6 +23,7 @@ import {PlaygroundModeSwitch} from "@agenta/playground-ui/mode-switch"
 import {textColors} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {VersionBadge} from "@agenta/ui/components/presentational"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {ShortcutsHelpButton} from "@agenta/ui/shortcuts"
 import {
     Button,
@@ -32,7 +33,6 @@ import {
     DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {
     CaretDown,
