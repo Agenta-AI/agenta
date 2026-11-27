@@ -495,10 +495,10 @@ const TurnRowInner = ({
             ) : null}
         </div>
     )
-    // The host's accessory (the builder's context divider) spans the chat, above the turn.
+    // The host's accessory (the builder's context divider) sits in the transcript column, above the turn.
     return accessory ? (
         <>
-            <div className="flex w-full min-w-0">{accessory}</div>
+            <div className="contents">{accessory}</div>
             {row}
         </>
     ) : (
