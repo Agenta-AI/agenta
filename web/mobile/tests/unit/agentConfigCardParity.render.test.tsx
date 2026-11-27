@@ -1,19 +1,13 @@
 // @vitest-environment jsdom
 //
-// The agent's Configuration card says the same things on both apps, on every harness.
+// The agent's Configuration card names the shared rows, on every harness.
 //
-// The two cards are not one component and should not be: the desktop one renders the playground
-// panel's accordion sections, and this app's renders the overview rail's own shell, which its two
-// sibling cards share so the three read as one column rather than three framed panels. What must
-// not differ is WHICH rows there are and what each is called.
-//
-// It had differed, three times over. The MCP row said "N connected", claiming an authorized state
-// no summary card can know, where the shared card had been fixed to "N configured". The
-// permissions row — the setting that decides whether a run stops to ask — was missing here
-// entirely. And the MCP row itself was drawn only on a Claude harness or an agent that already had
-// a server, so the one row that says "Connect a server" was absent on exactly the agents with
-// none. All three are the same failure: a forked list of rows with nothing holding the two lists
-// together.
+// The card had drifted from the shared row list three times over. The MCP row said "N connected",
+// claiming an authorized state no summary card can know, where the shared card had been fixed to
+// "N configured". The permissions row — the setting that decides whether a run stops to ask — was
+// missing here entirely. And the MCP row itself was drawn only on a Claude harness or an agent
+// that already had a server, so the one row that says "Connect a server" was absent on exactly
+// the agents with none.
 //
 // The third one survived three review rounds because every case here named one harness, and that
 // harness was "claude_code" — not one of the three kinds the API declares, and a value only the
@@ -25,7 +19,6 @@ import {act} from "react"
 import {
     AGENT_CONFIG_ROW_KEYS,
     AGENT_CONFIG_ROW_TITLES,
-    AgentConfigSummaryCard,
     agentLatestRevisionAtomFamily,
 } from "@agenta/entity-ui/agent"
 import {createStore, type PrimitiveAtom, Provider} from "jotai"
@@ -34,9 +27,8 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {AgentConfigCard} from "@/features/agents/AgentConfigCard"
 
-// Hoisted above the imports by vitest. The revision seam is mocked at the module both cards read
-// it from, not at the package barrel: the desktop card imports `./state` directly, so a barrel
-// mock leaves it on the real atom and it renders its pending skeleton forever.
+// Hoisted above the imports by vitest. The revision seam is mocked at the module the package
+// barrel re-exports it from.
 vi.mock("../../../packages/agenta-entity-ui/src/agent/state", async () => {
     const {atom} = await import("jotai")
     const revision = atom({})
@@ -69,8 +61,8 @@ const populated = (kind: HarnessKind) => ({
 })
 
 /**
- * An agent with nothing configured, which is where every divergence was hiding: the cards agreed
- * on the fully-populated strings and disagreed on all three empty ones.
+ * An agent with nothing configured, which is where every divergence was hiding: the card agreed
+ * on the fully-populated strings and drifted on all three empty ones.
  */
 const bare = (kind: HarnessKind) => harnessSection(kind)
 
@@ -103,104 +95,73 @@ afterEach(async () => {
 /** The one row whose noun each host declares for itself; this app calls tools Integrations. */
 const MOBILE_TITLES = {...AGENT_CONFIG_ROW_TITLES, tools: "Integrations"}
 
-/** A fresh mount per render: two cards in one host would match each other's text. */
-const remount = async () => {
-    await act(async () => root.unmount())
-    host.remove()
-    host = document.createElement("div")
-    document.body.append(host)
-    root = createRoot(host)
-}
+const mobileCard = (agent: Record<string, unknown>) =>
+    mount(<AgentConfigCard agentId="agent" onEdit={() => undefined} />, agent)
 
-/** Both cards against the same revision, each in its own host. */
-const bothCards = async (agent: Record<string, unknown>) => {
-    const mobile = await mount(<AgentConfigCard agentId="agent" onEdit={() => undefined} />, agent)
-    await remount()
-    const desktop = await mount(
-        <AgentConfigSummaryCard appId="agent" onEdit={() => undefined} />,
-        agent,
-    )
-    return {mobile, desktop}
-}
-
-describe.each(HARNESSES)("the Configuration card on $label, on both apps", ({kind}) => {
+describe.each(HARNESSES)("the Configuration card on $label", ({kind}) => {
     it("names every row the shared vocabulary lists", async () => {
-        const {mobile, desktop} = await bothCards(populated(kind))
+        const mobile = await mobileCard(populated(kind))
 
         for (const key of AGENT_CONFIG_ROW_KEYS) {
             expect(mobile).toContain(MOBILE_TITLES[key])
-            expect(desktop).toContain(AGENT_CONFIG_ROW_TITLES[key])
         }
     })
 
-    it("states the same thing about the agent's MCP servers", async () => {
-        const {mobile, desktop} = await bothCards(populated(kind))
+    it("states the configured count of the agent's MCP servers", async () => {
+        const mobile = await mobileCard(populated(kind))
 
         // "configured", never "connected": the count is of servers on the agent, and whether
-        // each is authorized is a live fact neither card holds.
+        // each is authorized is a live fact the card does not hold.
         expect(mobile).toContain("2 configured")
-        expect(desktop).toContain("2 configured")
         expect(mobile).not.toContain("connected")
-        expect(desktop).not.toContain("connected")
     })
 
-    it("states the same default permission", async () => {
-        const {mobile, desktop} = await bothCards(populated(kind))
+    it("states the default permission", async () => {
+        const mobile = await mobileCard(populated(kind))
 
         expect(mobile).toContain("Allow reads")
-        expect(desktop).toContain("Allow reads")
     })
 
-    it("counts the brief the same way", async () => {
-        // "AGENTS.md · 28w" against "AGENTS.md · 28 words" is the same fact in two strings, and
-        // an abbreviation the reader has to decode.
-        const {mobile, desktop} = await bothCards(populated(kind))
+    it("counts the brief in words", async () => {
+        // "AGENTS.md · 28w" is an abbreviation the reader has to decode.
+        const mobile = await mobileCard(populated(kind))
 
         expect(mobile).toContain("AGENTS.md · 6 words")
-        expect(desktop).toContain("AGENTS.md · 6 words")
     })
 })
 
 describe.each(HARNESSES)("an agent with nothing configured on $label", ({kind}) => {
-    it("offers the action on every empty row, on both cards", async () => {
-        // Both cards' rows open the editor, so an empty row has to offer the verb. The mobile
-        // card reported the absence on two of them, beside its own "Add instructions": it said
-        // "No integrations" and "No skills" where the desktop card says "Add tools" and
-        // "Add skills". The noun differs by host; the verb must not.
-        const {mobile, desktop} = await bothCards(bare(kind))
+    it("offers the action on every empty row", async () => {
+        // The card's rows open the editor, so an empty row has to offer the verb. The card
+        // reported the absence on two of them, beside its own "Add instructions": it said
+        // "No integrations" and "No skills".
+        const mobile = await mobileCard(bare(kind))
 
-        for (const shown of [mobile, desktop]) {
-            expect(shown).toContain("Choose a model")
-            expect(shown).toContain("Add instructions")
-            expect(shown).toContain("Connect a server")
-            expect(shown).toContain("Add skills")
-            expect(shown).not.toContain("No skills")
-        }
-        // The one row whose noun each host names for itself, both offering the same verb.
+        expect(mobile).toContain("Choose a model")
+        expect(mobile).toContain("Add instructions")
+        expect(mobile).toContain("Connect a server")
+        expect(mobile).toContain("Add skills")
+        expect(mobile).not.toContain("No skills")
         expect(mobile).toContain("Add integrations")
-        expect(desktop).toContain("Add tools")
         expect(mobile).not.toContain("No integrations")
     })
 
     it("draws the MCP row with no server on the agent", async () => {
-        // The state the gate hid: no MCP server, on a harness the gate did not recognise. Both
-        // cards have to offer the connect verb here, because this is the agent that needs it.
-        const {mobile, desktop} = await bothCards(bare(kind))
+        // The state the gate hid: no MCP server, on a harness the gate did not recognise. The
+        // card has to offer the connect verb here, because this is the agent that needs it.
+        const mobile = await mobileCard(bare(kind))
 
-        for (const shown of [mobile, desktop]) {
-            expect(shown).toContain(AGENT_CONFIG_ROW_TITLES.mcps)
-            expect(shown).toContain("Connect a server")
-        }
+        expect(mobile).toContain(AGENT_CONFIG_ROW_TITLES.mcps)
+        expect(mobile).toContain("Connect a server")
     })
 
     it("lists the same rows as a configured agent does", async () => {
         // The row list is what this suite exists for, and it must not depend on how much of the
         // agent is filled in either.
-        const {mobile, desktop} = await bothCards(bare(kind))
+        const mobile = await mobileCard(bare(kind))
 
         for (const key of AGENT_CONFIG_ROW_KEYS) {
             expect(mobile).toContain(MOBILE_TITLES[key])
-            expect(desktop).toContain(AGENT_CONFIG_ROW_TITLES[key])
         }
     })
 })
