@@ -600,7 +600,14 @@ services:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
             AGENTA_SERVICES_INTERNAL_KEY: ""
-            POSTGRESQL_CONNECTION_URI: ${POSTGRES_URI_SUPERTOKENS:-${POSTGRESQL_CONNECTION_URI:-postgresql://${POSTGRES_USER:-username}:${POSTGRES_PASSWORD:-password}@postgres:5432/agenta_oss_supertokens}}
+            # A set URI wins over the POSTGRESQL_* parts below. The parts keep a
+            # password with URI reserved characters (@ : /) working.
+            POSTGRESQL_CONNECTION_URI: ${POSTGRES_URI_SUPERTOKENS:-${POSTGRESQL_CONNECTION_URI:-}}
+            POSTGRESQL_HOST: postgres
+            POSTGRESQL_PORT: "5432"
+            POSTGRESQL_USER: ${POSTGRES_USER:-username}
+            POSTGRESQL_PASSWORD: ${POSTGRES_PASSWORD:-password}
+            POSTGRESQL_DATABASE_NAME: agenta_oss_supertokens
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network

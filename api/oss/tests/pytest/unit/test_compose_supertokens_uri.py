@@ -1,10 +1,11 @@
 """Every compose SuperTokens service defaults to the bundled Postgres database.
 
-An empty POSTGRESQL_CONNECTION_URI makes supertokens/supertokens-postgresql:11
-use an in-memory database. Recreating the container then drops every account.
-The `:-` fallback applies when POSTGRES_URI_SUPERTOKENS is unset or empty, and
-a set value still overrides it. A POSTGRESQL_CONNECTION_URI in the env file is
-kept next, then the bundled database with the postgres service's credentials.
+An empty POSTGRESQL_CONNECTION_URI with no other database settings makes
+supertokens/supertokens-postgresql:11 use an in-memory database. Recreating the
+container then drops every account. The default is given as separate
+POSTGRESQL_* settings, so a password with URI reserved characters (@ : /) still
+works. A set POSTGRES_URI_SUPERTOKENS, then POSTGRESQL_CONNECTION_URI, goes into
+POSTGRESQL_CONNECTION_URI, which SuperTokens uses over the separate settings.
 The database name is the one init-db creates.
 """
 
@@ -60,10 +61,16 @@ def test_supertokens_services_default_to_the_bundled_postgres_database():
     for relative, environment in sorted(found.items()):
         edition = relative.split("/", 1)[0]
         database = _supertokens_database(edition)
-        expected = (
-            "${POSTGRES_URI_SUPERTOKENS:-${POSTGRESQL_CONNECTION_URI:-"
-            "postgresql://${POSTGRES_USER:-username}:${POSTGRES_PASSWORD:-password}"
-            f"@postgres:5432/{database}}}}}"
-        )
+        expected = {
+            "POSTGRESQL_CONNECTION_URI": (
+                "${POSTGRES_URI_SUPERTOKENS:-${POSTGRESQL_CONNECTION_URI:-}}"
+            ),
+            "POSTGRESQL_HOST": "postgres",
+            "POSTGRESQL_PORT": "5432",
+            "POSTGRESQL_USER": "${POSTGRES_USER:-username}",
+            "POSTGRESQL_PASSWORD": "${POSTGRES_PASSWORD:-password}",
+            "POSTGRESQL_DATABASE_NAME": database,
+        }
         assert isinstance(environment, dict), relative
-        assert environment.get("POSTGRESQL_CONNECTION_URI") == expected, relative
+        actual = {key: environment.get(key) for key in expected}
+        assert actual == expected, relative
