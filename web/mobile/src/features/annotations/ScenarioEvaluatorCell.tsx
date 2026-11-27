@@ -12,7 +12,7 @@ const MetricLine = ({scenarioId, metric}: {scenarioId: string; metric: Evaluator
         }),
     )
     return (
-        <span className="flex min-w-0 items-center gap-1 text-[13px]">
+        <span className="flex min-w-0 items-center gap-1 text-label">
             <span className="shrink-0 text-muted-foreground">{metric.title}:</span>
             <MetricValueDisplay value={value} className="min-w-0 truncate" />
         </span>

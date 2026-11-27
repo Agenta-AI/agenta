@@ -368,9 +368,10 @@ describe("Testsets list in beta developer mode", () => {
         })
 
         await act(async () => button("Filters")!.click())
+        // The sheet's title also reads "Date created" when it is the only filter: press the row.
         await press(
             Array.from(document.querySelectorAll("[role=dialog] *")).find(
-                (item) => item.textContent === "Date created",
+                (item) => item.textContent === "Date created" && !item.closest("h2"),
             ),
         )
         await press(

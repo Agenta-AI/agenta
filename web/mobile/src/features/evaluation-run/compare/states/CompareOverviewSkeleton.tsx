@@ -14,7 +14,7 @@ export const CompareOverviewSkeleton = () => (
                     <SkeletonBlock key={index} className="h-5" />
                 ))}
             </div>
-            <SkeletonBlock className="h-[300px]" />
+            <SkeletonBlock className="h-75" />
         </div>
     </div>
 )

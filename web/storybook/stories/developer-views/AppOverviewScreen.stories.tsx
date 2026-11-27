@@ -51,7 +51,14 @@ const ACTIONS: RunRowActions = {
     viewTestset: noop,
     remove: noop,
     isBusy: () => false,
-    modal: <></>,
+    confirmDialog: {
+        request: null,
+        pending: false,
+        error: null,
+        confirm: noop,
+        close: noop,
+        runConfirm: async () => undefined,
+    },
 }
 
 const env = (name: string, deployed: boolean): AppEnvironmentDeployment => ({

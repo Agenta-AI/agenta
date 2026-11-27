@@ -11,6 +11,8 @@ export interface AgentModelSetup {
     blocked: boolean
     /** The check is running and has not answered yet, so `blocked` is not known. */
     loading: boolean
+    /** The server has answered for this revision at least once. */
+    answered: boolean
     /** The viewer can edit the agent or sign in again. */
     canFix: boolean
 }
@@ -23,6 +25,7 @@ export const useAgentModelSetup = (revisionId: string | null | undefined): Agent
     return {
         blocked: Boolean(requirement),
         loading: query.isLoading,
+        answered: requirements !== null && requirements !== undefined,
         canFix: canFixRequirement(requirement),
     }
 }

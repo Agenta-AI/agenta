@@ -46,19 +46,19 @@ export const TestsetRevisionRows = ({
     return (
         <div role="group" aria-label={`Revisions of ${testsetName}`} className="mb-1">
             {status === "error" ? (
-                <p className="m-0 flex items-center gap-2 py-2 pl-8 text-[13px] text-muted-foreground">
+                <p className="m-0 flex items-center gap-2 py-2 pl-8 text-label text-muted-foreground">
                     Couldn't load the revisions
                     <Button type="button" size="xs" variant="outline" onClick={retry}>
                         Try again
                     </Button>
                 </p>
             ) : status !== "ready" ? (
-                <p className="m-0 flex items-center gap-2 py-2 pl-8 text-[13px] text-muted-foreground">
+                <p className="m-0 flex items-center gap-2 py-2 pl-8 text-label text-muted-foreground">
                     <Spinner aria-hidden />
                     Loading revisions
                 </p>
             ) : revisions.length === 0 ? (
-                <p className="m-0 py-2 pl-8 text-[13px] text-muted-foreground">
+                <p className="m-0 py-2 pl-8 text-label text-muted-foreground">
                     No saved revisions yet
                 </p>
             ) : (
@@ -72,7 +72,7 @@ export const TestsetRevisionRows = ({
                                     aria-label={`Open v${revision.version} of ${testsetName}`}
                                     onClick={() => onOpenRevision(revision.id)}
                                     style={{gridTemplateColumns}}
-                                    className="-mx-3 grid w-[calc(100%+1.5rem)] cursor-pointer items-center gap-3 rounded-md border-0 bg-transparent px-3 py-1.5 text-left text-[13px] hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[color:var(--ag-controlOutline)]"
+                                    className="-mx-3 grid w-[calc(100%+1.5rem)] cursor-pointer items-center gap-3 rounded-md border-0 bg-transparent px-3 py-1.5 text-left text-label hover:bg-accent/60 focus-ring"
                                 >
                                     {selecting ? <span aria-hidden /> : null}
                                     {columns.map((column) => {
@@ -82,7 +82,7 @@ export const TestsetRevisionRows = ({
                                                     key={column.key}
                                                     className="flex min-w-0 items-center gap-2 pl-6"
                                                 >
-                                                    <span className="w-fit shrink-0 rounded-sm bg-secondary px-1.5 text-[12px] font-medium text-secondary-foreground">
+                                                    <span className="w-fit shrink-0 rounded-sm bg-secondary px-1.5 text-meta font-medium text-secondary-foreground">
                                                         v{revision.version}
                                                     </span>
                                                     {hasCommitColumn ? null : (
@@ -97,7 +97,7 @@ export const TestsetRevisionRows = ({
                                             return (
                                                 <span
                                                     key={column.key}
-                                                    className={`truncate ${message ? "text-muted-foreground" : "text-placeholder"}`}
+                                                    className={`truncate ${message ? "text-muted-foreground" : "text-muted-foreground"}`}
                                                 >
                                                     {message ?? "—"}
                                                 </span>
@@ -107,7 +107,7 @@ export const TestsetRevisionRows = ({
                                             return (
                                                 <span
                                                     key={column.key}
-                                                    className="truncate text-placeholder"
+                                                    className="truncate text-muted-foreground"
                                                 >
                                                     {formatListDateTime(revision.createdAt)}
                                                 </span>

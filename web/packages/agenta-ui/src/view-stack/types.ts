@@ -37,11 +37,6 @@ export interface ViewDef<P> {
      * keeps the row.
      */
     actionRow?: false
-    /**
-     * False: a panel container draws no "Widen the panel" button for this view (a short form, such
-     * as Connect or Attach a secret). Absent keeps the button.
-     */
-    widenButton?: false
     /** The body. Use a `next/dynamic` component so the code loads on first open. */
     Component: ComponentType<ViewProps<P>>
 }
@@ -107,12 +102,11 @@ export interface ViewForm {
      * Resolve "stay" for a step of a form with several steps: the step worked and the view stays
      * open, with no failure text. Resolve "stay" too when the form refuses a save for its own field
      * errors: they say what is wrong, so the stack adds no failure line next to them. A view that leaves by itself later (the last step ends outside
-     * the Save press) calls `nav.cancel()`. From the unsaved-changes dialog, "stay" keeps the
-     * person on the view, as "Keep editing" does.
+     * the Save press) calls `nav.cancel()`.
      */
     save: () => Promise<ViewSaveResult>
-    /** Text of the unsaved-changes dialog for this view (it names what Save writes). */
-    leaveDescription: string
+    /** Why Save is disabled while the form is invalid ("Add a client ID"), as Save's tooltip. */
+    invalidReason?: string
     /** The Save button's label when the view names its action (for example "Connect"). */
     saveLabel?: string
     /** The Save button's label while the save runs (for example "Checking…"). */
@@ -127,6 +121,12 @@ export interface ViewForm {
      * that Cancel closes (an upload step goes back to the file).
      */
     cancel?: () => void
+    /** What the header's Back does for now: a step inside the view goes to the step before. */
+    back?: () => void
+    /** The name of the step that `back` returns to, for the phone's back label. */
+    backTitle?: string
+    /** Save stays enabled while the form is clean (a "Done" that only closes). */
+    saveWhenClean?: true
 }
 
 /** For the container's root and for the container itself. */
@@ -160,8 +160,8 @@ export interface ViewChromeProps {
      * (`ViewDef.actionRow: false`).
      */
     hideActionRow: boolean
-    /** The container may offer to widen itself for the top view (`ViewDef.widenButton`). */
-    showWiden: boolean
+    /** The top view is on a step after its first (`ViewForm.back`): the header shows Back. */
+    showBack?: boolean
     form: ViewChromeForm | null
     /** The slot at the left of the action row, where the top view's `ViewFooterStart` renders. */
     footerStartRef: (element: HTMLElement | null) => void

@@ -1,23 +1,18 @@
 import {defineView} from "@agenta/ui/view-stack"
 
-import {CatalogRowSkeleton} from "../CatalogRowSkeleton"
+import {CatalogListSkeleton} from "../CatalogRowSkeleton"
 
 import {lazyView} from "./lazyView"
 
 export type SubagentAddViewParams = Record<string, never>
 
-/**
- * "Add subagents" (F03 f1): a picker. A click on an agent adds it to the agent at once, a second
- * click removes it. Done goes back.
- */
+/** "Add subagents": "+" adds an agent at once; an added row's menu removes it. */
 export const subagentAddView = defineView<SubagentAddViewParams>({
     id: "agent.subagent.add",
     apply: "immediate",
-    readOnlyOnPhone: true,
     Component: lazyView(
         () => import("./SubagentAddViewBody"),
-        <div className="px-4 py-3">
-            <CatalogRowSkeleton />
-        </div>,
+        // The search row, then Added and All agents.
+        <CatalogListSkeleton groups={[3, 3]} />,
     ),
 })

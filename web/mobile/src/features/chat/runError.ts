@@ -281,6 +281,9 @@ export interface FormattedRunError {
     raw: string | null
 }
 
+/** A parenthetical that names fields or paths (`prompt/messages`, `max_tokens`): text for a developer. */
+const SYSTEM_TEXT = /\([^)]*[/_][^)]*\)/
+
 export const formatRunError = (
     text: string,
     {whole = false}: {whole?: boolean} = {},
@@ -309,6 +312,16 @@ export const formatRunError = (
             quote: null,
             provider: null,
             raw: reason || null,
+        }
+    }
+    // A system message ("No user message to send (prompt/messages empty).") names internals:
+    // the reader gets a plain sentence, and the text stays in the fold (COPY-03).
+    if (!whole && SYSTEM_TEXT.test(told)) {
+        return {
+            paragraphs: [tNow("chat.mobileTurn.somethingWentWrong")],
+            quote: null,
+            provider: providerOf(reason),
+            raw: reason,
         }
     }
     const cut = sentences.findIndex((sentence, i) => i > 0 && REMEDY_START.test(sentence))

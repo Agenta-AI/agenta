@@ -8,6 +8,7 @@
     "presetWithOverrides_one": "{{label}} · {{count}} override",
     "presetWithOverrides_other": "{{label}} · {{count}} overrides",
     "defaultPermission": "Default permission",
+    "defaultPermissionNote": "What the agent may do without asking you",
     "searchToolCount_one": "Search {{count}} tool",
     "searchToolCount_other": "Search {{count}} tools",
     "searchTools": "Search tools",

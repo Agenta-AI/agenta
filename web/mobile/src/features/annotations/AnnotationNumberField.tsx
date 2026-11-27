@@ -56,7 +56,7 @@ export const AnnotationNumberField = ({
                             <InputNumber
                                 id={id}
                                 size="small"
-                                className="w-[70px]"
+                                className="w-18"
                                 value={shown}
                                 min={min}
                                 max={max}

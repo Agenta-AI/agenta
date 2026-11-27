@@ -45,7 +45,7 @@ function HoverCardContent({
                 sideOffset={sideOffset}
                 className={cn(
                     // Same surface and motion as PopoverContent.
-                    "z-50 box-border w-64 rounded-control-lg bg-popover p-4 text-popover-foreground shadow-overlay outline-none font-portal",
+                    "z-50 box-border w-64 rounded-lg bg-popover p-4 text-popover-foreground shadow-overlay outline-none font-portal",
                     "ag-overlay-motion",
                     className,
                 )}

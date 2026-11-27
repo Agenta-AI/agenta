@@ -46,11 +46,11 @@ export const SearchPlugin = ({
             style.id = styleId
             style.textContent = `
                 ::highlight(search-results) {
-                    background-color: rgba(255, 255, 0, 0.4);
+                    background-color: color-mix(in oklab, var(--brand) 50%, transparent);
                     color: inherit;
                 }
                 ::highlight(active-search-match) {
-                    background-color: rgba(255, 165, 0, 0.6);
+                    background-color: color-mix(in oklab, var(--warning) 40%, transparent);
                     color: inherit;
                     text-decoration: underline;
                 }

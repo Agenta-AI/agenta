@@ -1,5 +1,6 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
+import {CollapseToggleButton} from "@agenta/ui/components/presentational"
 import {getViewOptions, ViewModeDropdown, type ViewMode} from "@agenta/ui/drill-in"
 import {
     ArrowClockwise,
@@ -14,8 +15,6 @@ import {
 import type {MenuProps} from "antd"
 import {Button, Dropdown, Tooltip} from "antd"
 import clsx from "clsx"
-
-import CollapseToggleButton from "../shared/CollapseToggleButton"
 
 export interface TurnMessageHeaderOptionsProps {
     id: string

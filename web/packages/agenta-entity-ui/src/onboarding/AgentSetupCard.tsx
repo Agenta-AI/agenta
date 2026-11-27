@@ -190,7 +190,7 @@ const AgentSetupCard = ({
                     of crowding. Described-agent and empty cards keep their lead — there the
                     words ARE the explanation of where the rows came from. */}
                 {fromTemplate ? null : (
-                    <p className="m-0 text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
+                    <p className="m-0 text-meta leading-snug text-muted-foreground">
                         {setupLead(status, fromTemplate)}
                     </p>
                 )}
@@ -219,7 +219,7 @@ const AgentSetupCard = ({
                 {suggestions.length > 0 || onBrowseAll ? (
                     <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                         {suggestions.length > 0 ? (
-                            <span className="text-xs text-[var(--ag-colorTextTertiary)]">
+                            <span className="text-meta text-muted-foreground">
                                 {SETUP_COPY.suggestionsLabel}
                             </span>
                         ) : null}
@@ -228,7 +228,7 @@ const AgentSetupCard = ({
                                 key={suggestion.slug}
                                 variant="outline"
                                 size="sm"
-                                className="rounded-full"
+                                className="rounded-md"
                                 onClick={() => onAddAccount(suggestion)}
                             >
                                 {suggestion.logo ? (
@@ -250,7 +250,7 @@ const AgentSetupCard = ({
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                className="rounded-full"
+                                className="rounded-md"
                                 onClick={onBrowseAll}
                             >
                                 <MagnifyingGlass size={12} />

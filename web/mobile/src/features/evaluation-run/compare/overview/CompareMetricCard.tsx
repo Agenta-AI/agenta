@@ -19,7 +19,7 @@ export interface CompareMetricRun {
 
 const DELTA_TONE = {
     positive: "text-success",
-    negative: "text-error",
+    negative: "text-destructive",
     neutral: "text-muted-foreground",
 } as const
 
@@ -43,10 +43,8 @@ export const CompareMetricCard = ({runs}: {runs: readonly CompareMetricRun[]}) =
             className="box-border flex min-w-0 flex-col gap-3 rounded-lg border border-solid border-border bg-card p-4"
         >
             <header className="flex min-w-0 flex-col">
-                <span className="truncate text-xs text-muted-foreground">{evaluator}</span>
-                <h3 className="m-0 truncate text-sm font-semibold text-foreground">
-                    {first.label}
-                </h3>
+                <span className="truncate text-meta text-muted-foreground">{evaluator}</span>
+                <h3 className="m-0 truncate text-title text-foreground">{first.label}</h3>
             </header>
             <ul className="m-0 flex list-none flex-wrap gap-x-5 gap-y-2 p-0">
                 {runs.map((run, index) => {
@@ -64,17 +62,17 @@ export const CompareMetricCard = ({runs}: {runs: readonly CompareMetricRun[]}) =
                     return (
                         <li key={run.runId} className="flex flex-col items-center">
                             <span className="sr-only">{run.name}</span>
-                            <span className="inline-flex items-center gap-1.5 text-lg font-semibold tabular-nums text-foreground">
+                            <span className="inline-flex items-center gap-1.5 text-title tabular-nums text-foreground">
                                 <span
                                     aria-hidden
-                                    className="size-2 shrink-0 rounded-full"
+                                    className="size-2 shrink-0 rounded-xs"
                                     style={{backgroundColor: compareColor(run.slot)}}
                                 />
                                 {summary?.formatted ?? "—"}
                             </span>
                             <span
                                 className={cn(
-                                    "text-xs tabular-nums",
+                                    "text-meta tabular-nums",
                                     DELTA_TONE[delta?.tone ?? "neutral"],
                                 )}
                             >

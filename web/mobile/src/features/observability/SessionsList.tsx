@@ -40,25 +40,25 @@ const SessionRow = ({
     <div
         role="button"
         tabIndex={0}
-        className="flex cursor-pointer flex-col gap-1.5 border-0 border-b border-solid border-border px-4 py-3"
+        className="flex cursor-pointer flex-col gap-1.5 border-0 border-b border-solid border-border-muted px-4 py-3"
         onClick={() => onOpen(sessionId)}
         onKeyDown={openOnKey(() => onOpen(sessionId))}
     >
         <div className="flex items-center justify-between gap-2">
             <SessionIdCell sessionId={sessionId} />
-            <span className="text-xs text-muted-foreground">
+            <span className="text-meta text-muted-foreground">
                 <TracesCountCell sessionId={sessionId} />
             </span>
         </div>
 
-        <div className="min-w-0 text-xs text-foreground">
+        <div className="min-w-0 text-label text-foreground">
             <FirstInputCell sessionId={sessionId} />
         </div>
-        <div className="min-w-0 text-xs text-muted-foreground">
+        <div className="min-w-0 text-meta text-muted-foreground">
             <LastOutputCell sessionId={sessionId} />
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-3 text-meta text-muted-foreground">
             <EndTimeCell sessionId={sessionId} />
             <SessionDurationCell sessionId={sessionId} />
             <TotalCostCell sessionId={sessionId} />

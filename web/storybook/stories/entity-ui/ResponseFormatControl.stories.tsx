@@ -25,7 +25,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "Output-type picker (text / JSON / JSON schema) with a schema editor in an EnhancedModal.",
+                    "Output-type picker (text / JSON / JSON schema) with a schema editor in a Dialog.",
             },
         },
     },

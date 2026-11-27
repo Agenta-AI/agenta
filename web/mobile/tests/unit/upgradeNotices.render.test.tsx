@@ -171,14 +171,14 @@ describe("upgrade notices", () => {
         }
 
         it.each([
-            ["minor", "New minor version: v0.131.0", "bg-colorWarning", "text-colorWarning"],
+            ["minor", "New minor version: v0.131.0", "bg-warning", "text-warning"],
             [
                 "patch",
                 "New patch version: v0.131.0",
-                "bg-colorTextTertiary",
-                "text-colorTextTertiary",
+                "bg-muted-foreground",
+                "text-muted-foreground",
             ],
-            ["security", "Security update: v0.131.0", "bg-colorError", "text-colorError"],
+            ["security", "Security update: v0.131.0", "bg-destructive", "text-destructive"],
         ] as const)("names a %s update and colors the dot and arrow", (size, label, bg, fg) => {
             behind({notInstalled: [release("v0.131.0"), release("v0.130.0")], size})
             render(<Probe />)
@@ -225,7 +225,7 @@ describe("upgrade notices", () => {
             render(<Probe />)
 
             expect(row("update-available")).toBeUndefined()
-            expect(renderNode(help?.icon)).not.toContain("rounded-full")
+            expect(renderNode(help?.icon)).not.toContain("data-update-size")
         })
     })
 
@@ -240,7 +240,7 @@ describe("upgrade notices", () => {
             expect(text()).not.toContain("security issue")
             const guide = host.querySelector<HTMLAnchorElement>("a[href$='/self-host/upgrading']")
             expect(guide?.textContent).toBe("How to upgrade")
-            expect(host.querySelector("[data-update-size]")?.className).toContain("bg-colorWarning")
+            expect(host.querySelector("[data-update-size]")?.className).toContain("bg-warning")
         })
 
         it("says when a missing release fixes a security issue", () => {

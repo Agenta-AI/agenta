@@ -7,6 +7,7 @@
     "panelTitle": "このエージェントを閲覧できるユーザー",
     "linePrivate": "Agenta でこのエージェントを閲覧・使用できるのはあなただけです。",
     "lineProject": "{{project}} の全員が閲覧・使用できます。このエージェントとのチャットは非公開のままです。各チャットはそれぞれの「共有」ボタンから共有してください。",
+    "noteProject": "{{project}} の全員が閲覧・使用できます。",
     "panelOwnerYou": "{{name}}（あなた）、オーナー",
     "change": "変更",
     "whoSection": "このエージェントを閲覧できるユーザー",
@@ -16,6 +17,7 @@
     "ownerRole": "オーナー",
     "youSuffix": "（あなた）",
     "transferButton": "所有権を移転",
+    "transferShort": "移譲",
     "done": "完了",
     "cancel": "キャンセル",
     "makePrivateTitle": "{{agent}} を非公開にしますか？",
@@ -47,5 +49,6 @@
     "toastPrivate": "{{agent}} は非公開になりました。",
     "toastShared": "{{agent}} はプロジェクトで共有されました。",
     "toastTransferred": "{{agent}} のオーナーは {{name}} になりました。",
-    "toastTookOwnership": "あなたが {{agent}} のオーナーになりました。"
+    "toastTookOwnership": "あなたが {{agent}} のオーナーになりました。",
+    "transferPickerPlaceholder": "新しいオーナーを検索"
 }

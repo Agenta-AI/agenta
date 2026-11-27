@@ -87,7 +87,7 @@ export const OtpInput = forwardRef<
                     aria-invalid={error || undefined}
                     size="lg"
                     className={cn(
-                        "h-[52px] min-w-0 flex-1 rounded-lg px-0 text-center text-xl font-medium uppercase transition-[border-color,box-shadow,opacity] md:text-xl",
+                        "h-13 min-w-0 flex-1 rounded-md px-0 text-center text-heading font-medium uppercase transition-[border-color,box-shadow,opacity]",
                         value[index] && "auth-otp-pop border-ring",
                         status === "verifying" && "opacity-60",
                         status === "verified" && "border-success",

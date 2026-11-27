@@ -1,4 +1,4 @@
-import type {AutomationKind} from "@agenta/automation-ui"
+import {AutomationRunHistoryPanelSkeleton, type AutomationKind} from "@agenta/automation-ui"
 import {defineView} from "@agenta/ui/view-stack"
 import dynamic from "next/dynamic"
 
@@ -24,5 +24,8 @@ export const automationRunHistoryView = defineView<AutomationRunHistoryViewParam
     actionRow: false,
     // "Widen the panel" gives 760px, which shows the list beside the newest run.
     wide: true,
-    Component: dynamic(() => import("./AutomationRunHistoryViewBody"), {ssr: false}),
+    Component: dynamic(() => import("./AutomationRunHistoryViewBody"), {
+        ssr: false,
+        loading: AutomationRunHistoryPanelSkeleton,
+    }),
 })

@@ -1,5 +1,4 @@
 {
-    "label": "Account",
     "eachPersonSignIn": "Each person's own sign-in",
     "projectSignIn": "The project's sign-in",
     "connectAnother": "Connect another {{name}} account",
@@ -12,11 +11,17 @@
     "addOne": "Add one",
     "addAnotherSecret": "Add another secret",
     "addYourSecret": "Add your secret",
-    "whoCanUseIt": "Who can use it",
-    "onlyMe": "Only me",
-    "onlyMeSecretNote": "You pick it when an agent asks for your own value.",
-    "everyoneInProject": "Everyone in {{project}}",
-    "everyoneInThisProject": "Everyone in this project",
-    "everyoneSecretNote": "Builders can attach it to agents in this project.",
-    "userSecretRow": "Each person's own secret"
+    "userSecretRow": "Each person's own secret",
+    "owner": "Owner",
+    "ownerUser": "Personal",
+    "ownerProject": "Project",
+    "ownerOrganization": "Organization",
+    "ownerUserNote": "Only you can use it. It follows you to every project.",
+    "ownerProjectNote": "Everyone in {{project}} can add it to an agent.",
+    "ownerProjectNoteThis": "Everyone in this project can add it to an agent.",
+    "ownerOrganizationNoteThis": "Saved once for the organization. You choose which projects can use it.",
+    "connectionsAll": "All connections",
+    "connectionsUser": "Personal connections",
+    "connectionsProject": "Project connections",
+    "connectionsOrganization": "Organization connections"
 }

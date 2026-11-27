@@ -17,18 +17,18 @@ export const FilePreviewTable = ({
 
     return (
         <div className="flex min-w-0 flex-col gap-1.5">
-            <p className="m-0 text-xs font-medium text-muted-foreground">
+            <p className="m-0 text-meta text-muted-foreground">
                 Preview ({rows.length} of {totalRows} rows)
             </p>
             <div className="max-w-full overflow-x-auto rounded-md border border-solid border-border">
-                <table className="w-full border-collapse text-left text-xs">
+                <table className="w-full border-collapse text-left text-meta">
                     <thead className="bg-muted text-muted-foreground">
                         <tr>
                             {columns.map((column) => (
                                 <th
                                     key={column}
                                     scope="col"
-                                    className="max-w-[180px] truncate px-2 py-1.5 font-medium"
+                                    className="max-w-45 truncate px-2 py-1.5 font-medium"
                                 >
                                     {column}
                                 </th>
@@ -44,7 +44,7 @@ export const FilePreviewTable = ({
                                 {columns.map((column) => (
                                     <td
                                         key={column}
-                                        className="max-w-[180px] truncate px-2 py-1.5 text-foreground"
+                                        className="max-w-45 truncate px-2 py-1.5 text-foreground"
                                     >
                                         {cellText(row[column])}
                                     </td>

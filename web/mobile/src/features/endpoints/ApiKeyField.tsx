@@ -40,14 +40,14 @@ export const ApiKeyField = ({
     }
 
     return (
-        <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
+        <label className="flex flex-col gap-1.5 text-label text-foreground">
             Create or enter your API key
             <span className="flex items-center gap-2">
                 <Input
                     value={value}
                     onChange={(event) => onChange(event.target.value)}
                     placeholder="Enter existing API key"
-                    className="max-w-[300px]"
+                    className="max-w-75"
                     autoComplete="off"
                 />
                 {canCreate ? (

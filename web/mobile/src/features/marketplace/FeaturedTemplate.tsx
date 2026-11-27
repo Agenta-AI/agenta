@@ -64,7 +64,7 @@ export const FeaturedTemplate = ({
             onBlur={(event) => {
                 if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false)
             }}
-            className="box-border hidden rounded-xl border border-solid border-border bg-colorFillQuaternary p-5 md:block lg:p-6"
+            className="box-border hidden rounded-lg bg-secondary p-5 md:block lg:p-6"
         >
             {/* Every slide shares one cell and its rows, so a page change never moves anything. */}
             <div className="grid grid-cols-2 grid-rows-[repeat(5,auto)] gap-x-8 gap-y-3">
@@ -96,10 +96,10 @@ export const FeaturedTemplate = ({
                                 size="md"
                                 className="col-start-1 row-start-2"
                             />
-                            <h2 className="col-start-1 row-start-3 m-0 text-xl font-semibold text-foreground">
+                            <h2 className="col-start-1 row-start-3 m-0 text-title text-foreground">
                                 {template.name}
                             </h2>
-                            <p className="text-muted-foreground col-start-1 row-start-4 m-0 max-w-[460px] text-sm leading-relaxed">
+                            <p className="text-muted-foreground col-start-1 row-start-4 m-0 max-w-115 text-body">
                                 {template.overview || template.description}
                             </p>
                             <div className="col-start-1 row-start-5 mt-1 flex flex-wrap gap-2">
@@ -117,7 +117,8 @@ export const FeaturedTemplate = ({
                                     active={active && !holding}
                                     loop={false}
                                     compact
-                                    className="col-start-2 row-span-5 row-start-1 min-h-[190px]"
+                                    // The featured box is the one edge; the run inside it separates by tone.
+                                    className="col-start-2 row-span-5 row-start-1 min-h-48 border-0 bg-background"
                                 />
                             ) : null}
                         </motion.div>

@@ -39,9 +39,9 @@ describe("InlineConfirm", () => {
         expect(screen.getByRole("button", {name: "Cancel"})).toBeTruthy()
     })
 
-    it("the confirm is the danger variant and the cancel is the text one", () => {
+    it("the confirm is the solid destructive variant and the cancel is the text one", () => {
         setup()
-        expect(screen.getByRole("button", {name: "Remove"}).className).toContain("text-error")
+        expect(screen.getByRole("button", {name: "Remove"}).className).toContain("bg-destructive")
         expect(screen.getByRole("button", {name: "Cancel"}).className).toContain("bg-transparent")
     })
 

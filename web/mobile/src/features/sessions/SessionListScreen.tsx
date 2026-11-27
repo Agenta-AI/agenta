@@ -5,6 +5,7 @@ import {
     builderAgentWorkflowIdAtom,
 } from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
+import agentPagesPageCatalog from "@agenta/i18n/catalogs/agentPages.page"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import sessionsMobileListCatalog from "@agenta/i18n/catalogs/sessions.mobileList"
 import {agentDisplayNameAtomFamily} from "@agenta/navigation"
@@ -18,28 +19,22 @@ import {
 } from "@agenta/sessions/state"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
-import {ListTableToolbar} from "@agenta/ui/list-table"
-import {useIsPhone} from "@agenta/ui/phone"
-import {Button} from "@agenta/ui/ui"
+import {Button, PageToolbar} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {useStartBlankSession} from "@/features/chat/useStartBlankSession"
 
-import {AGENT_SESSIONS_PAGE_COLUMN, AgentListPageHeader} from "../agent-pages/AgentListPageHeader"
+import {AgentBuilderButton} from "../agent-pages/AgentBuilderButton"
 import {LockedAgentChip} from "../agent-pages/LockedAgentChip"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
 import {FeatureOnboarding} from "../education/FeatureOnboarding"
 import {HowThisWorksButton} from "../education/HowThisWorksButton"
-import {AppShell} from "../nav/AppShell"
-import {NavDrawer} from "../nav/NavDrawer"
+import {PageLayout} from "../page-layout/PageLayout"
 
-import {SESSIONS_PAGE_FRAME} from "./pageFrame"
 import {SessionAutomationDrawers} from "./SessionAutomationDrawers"
 import {SessionFilterMenu} from "./SessionFilterMenu"
 import {SessionListTable} from "./SessionListTable"
@@ -102,7 +97,7 @@ const SessionListBody = ({
 }) => {
     const t = useT(sessionsMobileListCatalog)
     const tBuilder = useT(builderPageCatalog)
-    const phone = useIsPhone()
+    const tPage = useT(agentPagesPageCatalog)
     const filterAtoms = useSessionFilterAtoms()
     const defaultView = lockedAgentId ? LOCKED_AGENT_SESSION_LIST_VIEW : DEFAULT_SESSION_LIST_VIEW
     useBindProjectContext(projectId)
@@ -231,112 +226,87 @@ const SessionListBody = ({
         [agentNames, lockedAgentId],
     )
 
+    const listToolbar = (
+        /* Search belongs to the list, not to the page: it sits on the
+                                table's own left edge so it reads as the control that narrows
+                                what is below it. One control beside the field, not four — type,
+                                status, agent and grouping are rows inside it, so the bar stays
+                                a search bar. */
+        <PageToolbar
+            search={search.value}
+            onSearchChange={search.onChange}
+            searchPlaceholder={t("sessions.mobileList.searchSessions")}
+            actions={
+                <>
+                    <SessionFilterMenu
+                        view={view}
+                        onChange={setView}
+                        agents={agents}
+                        // The count is project-wide: the page of one
+                        // agent shows Waiting without it.
+                        waitingCount={lockedAgentId ? undefined : list.waitingCount}
+                        onReset={resetView}
+                        lockedAgent={lockedAgent}
+                        defaultView={defaultView}
+                    />
+                    {lockedAgent ? (
+                        <LockedAgentChip agentId={lockedAgent.id} variant="inline" />
+                    ) : null}
+                </>
+            }
+        />
+    )
+    const listTable = projectEmpty ? (
+        <FeatureOnboarding guideKey="sessions" base={base} />
+    ) : (
+        <SessionListTable
+            group={view.group}
+            activityFloor={activityFloor}
+            agentNames={agentNames}
+            agentNamesReady={!agentsQuery.isPending}
+            verbs={verbs}
+            // The agent page has "New session" in its sidebar already.
+            onNewSession={lockedAgentId ? undefined : startBlank}
+            lockedAgentId={lockedAgentId}
+            onClearSearch={clearSearch}
+            onResetView={resetView}
+        />
+    )
     return (
         <>
-            <PageTitle title={t("sessions.mobileList.sessions")} />
-            <AppShell workspaceId={workspaceId} projectId={projectId}>
-                <ScreenScaffold
-                    header={
-                        lockedAgentId ? (
-                            <AgentListPageHeader
-                                title={t("sessions.mobileList.sessions")}
-                                workspaceId={workspaceId}
-                                projectId={projectId}
-                            />
-                        ) : (
-                            // The same frame the automations header uses, so the two pages line up at
-                            // every width: page column, 16px gutters on a phone, 64px and a deeper
-                            // top from `lg`.
-                            <div
-                                className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${SESSIONS_PAGE_FRAME}`}
-                            >
-                                <div className="flex min-w-0 items-center gap-2">
-                                    <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                    <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
-                                        {t("sessions.mobileList.sessions")}
-                                    </h1>
-                                    {projectEmpty ? null : (
-                                        <HowThisWorksButton
-                                            guide="sessions"
-                                            className="max-sm:hidden"
-                                        />
-                                    )}
-                                    {/* Sessions start from Home's composer. */}
-                                    {projectEmpty ? (
-                                        <Button asChild>
-                                            <Link href={`${base}/apps`}>
-                                                <Plus />
-                                                {t("sessions.mobileList.newSession")}
-                                            </Link>
-                                        </Button>
-                                    ) : null}
-                                </div>
-                            </div>
-                        )
-                    }
-                >
-                    <div
-                        className={
-                            lockedAgentId && !phone
-                                ? AGENT_SESSIONS_PAGE_COLUMN
-                                : `min-w-0 px-4 pb-12 pt-3 ${SESSIONS_PAGE_FRAME}`
-                        }
-                    >
-                        {projectEmpty ? (
-                            <FeatureOnboarding guideKey="sessions" base={base} />
-                        ) : (
-                            <>
-                                {/* Search belongs to the list, not to the page: it sits on the
-                                    table's own left edge so it reads as the control that narrows
-                                    what is below it. One control beside the field, not four — type,
-                                    status, agent and grouping are rows inside it, so the bar stays
-                                    a search bar. */}
-                                <ListTableToolbar
-                                    className="max-md:[&_[data-slot=input-group]]:h-11 max-md:[&_input]:h-11"
-                                    search={search.value}
-                                    onSearchChange={search.onChange}
-                                    searchPlaceholder={t("sessions.mobileList.searchSessions")}
-                                    actions={
-                                        <>
-                                            <SessionFilterMenu
-                                                view={view}
-                                                onChange={setView}
-                                                agents={agents}
-                                                // The count is project-wide: the page of one
-                                                // agent shows Waiting without it.
-                                                waitingCount={
-                                                    lockedAgentId ? undefined : list.waitingCount
-                                                }
-                                                onReset={resetView}
-                                                lockedAgent={lockedAgent}
-                                                defaultView={defaultView}
-                                            />
-                                            {lockedAgent ? (
-                                                <LockedAgentChip
-                                                    agentId={lockedAgent.id}
-                                                    variant="inline"
-                                                />
-                                            ) : null}
-                                        </>
-                                    }
-                                />
-                                <SessionListTable
-                                    group={view.group}
-                                    activityFloor={activityFloor}
-                                    agentNames={agentNames}
-                                    agentNamesReady={!agentsQuery.isPending}
-                                    verbs={verbs}
-                                    // The agent page has "New session" in its sidebar already.
-                                    onNewSession={lockedAgentId ? undefined : startBlank}
-                                    lockedAgentId={lockedAgentId}
-                                    onClearSearch={clearSearch}
-                                    onResetView={resetView}
-                                />
-                            </>
-                        )}
-                    </div>
-                </ScreenScaffold>
-            </AppShell>
+            <PageLayout
+                workspaceId={workspaceId}
+                projectId={projectId}
+                title={t("sessions.mobileList.sessions")}
+                description={
+                    lockedAgentId
+                        ? tPage("agentPages.page.sessionsDescription")
+                        : t("sessions.mobileList.pageDescription")
+                }
+                toolbar={projectEmpty ? undefined : listToolbar}
+                actions={
+                    lockedAgentId ? (
+                        <AgentBuilderButton />
+                    ) : (
+                        <>
+                            {projectEmpty ? null : (
+                                <HowThisWorksButton guide="sessions" className="max-sm:hidden" />
+                            )}
+                            {/* Sessions start from Home's composer. */}
+                            {projectEmpty ? (
+                                <Button asChild>
+                                    <Link href={`${base}/apps`}>
+                                        <Plus />
+                                        {t("sessions.mobileList.newSession")}
+                                    </Link>
+                                </Button>
+                            ) : null}
+                        </>
+                    )
+                }
+            >
+                {listTable}
+            </PageLayout>
             {/* The trigger drawers the automation row verbs open, at screen level so one survives
                 its row unmounting underneath it. */}
             <SessionAutomationDrawers base={base} />

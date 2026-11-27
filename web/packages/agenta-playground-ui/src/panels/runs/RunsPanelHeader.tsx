@@ -65,10 +65,10 @@ export const RunsPanelHeader = ({entityId, label, testsetMenu}: RunsPanelHeaderP
                     }
                     // On a phone the pane switch above already says "Generations": the label hides
                     // there and the fold icon stays.
-                    className="items-center text-base font-semibold text-nowrap max-sm:[&>span:last-child]:sr-only"
+                    className="items-center text-title text-nowrap max-sm:[&>span:last-child]:sr-only"
                 />
             ) : (
-                <span className="text-base font-semibold text-nowrap">{shownLabel}</span>
+                <span className="text-title text-nowrap">{shownLabel}</span>
             )}
             <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
                 {testsetMenu}

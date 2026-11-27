@@ -3,7 +3,7 @@ export const ScenarioStepError = ({message}: {message: string}) => (
     <p
         role="alert"
         title={message}
-        className="m-0 break-words text-xs text-destructive"
+        className="m-0 break-words text-meta text-destructive"
         style={{
             display: "-webkit-box",
             WebkitBoxOrient: "vertical",

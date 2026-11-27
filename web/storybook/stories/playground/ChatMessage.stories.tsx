@@ -1,15 +1,27 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
 import {workflowFlagsSchema, type Workflow} from "@agenta/entities/workflow"
+import {formatNumber, useT} from "@agenta/i18n"
+import chatCatalog from "@agenta/i18n/catalogs/playground.chat"
 import {executionItemController} from "@agenta/playground"
 import type {ChatMessage as StoredMessage, SimpleChatMessage} from "@agenta/playground"
 import type {MessageContent, ToolCall} from "@agenta/shared/types"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {getDefaultStore, useAtomValue} from "jotai"
 import {userEvent, within} from "storybook/test"
 
 import {ChatMessage} from "../../../packages/agenta-playground-ui/src/panels/chat/ChatMessage"
-import {PasteLimitDialog as PasteLimitDialogView} from "../../../packages/agenta-playground-ui/src/panels/chat/PasteLimitDialog"
 import type {StoryScope} from "../../.storybook/decorators/withAgentaData"
 import {
     variantNameCellQueries,
@@ -261,10 +273,30 @@ export const PasteLimitDialog: Story = {
     render: () => <PasteLimitDialogDemo />,
 }
 
-const PasteLimitDialogDemo = () => (
-    <PasteLimitDialogView
-        paste={{pastedText: "x".repeat(62_400), maxPasteChars: 50_000, overBy: 12_400}}
-        onAttach={() => {}}
-        onClose={() => {}}
-    />
-)
+const PasteLimitDialogDemo = () => {
+    const t = useT(chatCatalog)
+    const summary = t("playground.chat.pasteOverBy", {
+        over: formatNumber(12_400),
+        max: formatNumber(50_000),
+    })
+    return (
+        <AlertDialog open>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>{t("playground.chat.tooLong")}</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        {t("playground.chat.pasteAdvice", {summary})}
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel asChild>
+                        <Button variant="outline">{t("playground.chat.dismiss")}</Button>
+                    </AlertDialogCancel>
+                    <AlertDialogAction asChild>
+                        <Button>{t("playground.chat.createSnippet")}</Button>
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    )
+}

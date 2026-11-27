@@ -2,7 +2,7 @@ import {Fragment, useEffect, useRef, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
-import {Check} from "lucide-react"
+import {CheckIcon} from "@phosphor-icons/react"
 
 import {cn} from "../components/ui/utils"
 
@@ -65,7 +65,7 @@ export const FilterMenuOptionList = ({
         return (
             <p
                 className={cn(
-                    "m-0 px-3 py-6 text-center text-[12px] text-muted-foreground",
+                    "m-0 px-3 py-6 text-center text-meta text-muted-foreground",
                     className,
                 )}
             >
@@ -98,7 +98,7 @@ export const FilterMenuOptionList = ({
                     option.group && option.group !== options[index - 1]?.group ? (
                         <div
                             role="presentation"
-                            className="truncate px-2 pb-1 pt-2 text-[11px] font-medium text-muted-foreground first:pt-1"
+                            className="truncate px-2 pb-1 pt-2 text-caption font-medium text-muted-foreground first:pt-1"
                         >
                             {option.group}
                         </div>
@@ -121,10 +121,10 @@ export const FilterMenuOptionList = ({
                                 // Preflight is off app-wide (antd ships its own reset), so a bare
                                 // <button> needs the resets restated.
                                 "box-border cursor-pointer appearance-none border-0 bg-transparent font-[inherit]",
-                                "flex w-full items-center gap-2 rounded-control-sm px-2 py-1.5 text-left",
-                                "text-[13px] text-foreground outline-none transition-colors",
+                                "flex w-full min-h-8 items-center gap-2 rounded-control-sm px-2 py-1 text-left",
+                                "text-label text-foreground outline-none transition-colors",
                                 "hover:bg-accent focus-visible:bg-accent",
-                                "disabled:cursor-not-allowed disabled:text-disabled disabled:hover:bg-transparent",
+                                "disabled:cursor-not-allowed disabled:text-muted-foreground disabled:hover:bg-transparent",
                             )}
                         >
                             {option.icon ? (
@@ -138,7 +138,7 @@ export const FilterMenuOptionList = ({
                             {/* The check keeps its box whether or not it is drawn, so the label
                             column never shifts as the selection moves. */}
                             <span className="flex size-4 shrink-0 items-center justify-center">
-                                {checked ? <Check size={14} aria-hidden /> : null}
+                                {checked ? <CheckIcon size={14} aria-hidden /> : null}
                             </span>
                         </button>
                     </Fragment>

@@ -30,7 +30,7 @@ import {OnboardingGallerySkeleton} from "./states/OnboardingGallerySkeleton"
 import {useGalleryDetail} from "./useGalleryDetail"
 
 const ROW =
-    "flex h-14 w-full shrink-0 cursor-pointer items-center gap-3 rounded-[10px] px-3 text-left text-foreground transition-colors"
+    "flex h-12 w-full shrink-0 cursor-pointer items-center gap-3 rounded-md px-3 text-left text-foreground transition-colors"
 
 /** The template catalog by category, one template or the blank start in focus beside it. */
 export const OnboardingGallery = ({
@@ -126,7 +126,7 @@ export const OnboardingGallery = ({
                     <Button
                         variant="ghost"
                         onClick={onCloseDetail}
-                        className="-ml-3 h-11 self-start px-3 text-sm font-medium"
+                        className="-ml-3 self-start px-3"
                     >
                         <ArrowLeft data-icon="inline-start" />
                         {t("onboarding.gallery.backToTemplates")}
@@ -153,7 +153,7 @@ export const OnboardingGallery = ({
                     >
                         {t("onboarding.gallery.title")}
                     </h1>
-                    <p className="text-muted-foreground m-0 text-[15px] leading-[22px]">
+                    <p className="text-muted-foreground m-0 text-body">
                         {t("onboarding.gallery.subtitle")}
                     </p>
                 </div>
@@ -173,11 +173,11 @@ export const OnboardingGallery = ({
                                     aria-pressed={active}
                                     onClick={() => onCategory(chip.id)}
                                     className={cn(
-                                        "h-7 shrink-0 cursor-pointer rounded-md border-0 px-2.5 text-xs font-medium leading-4 transition-colors",
+                                        "h-control-sm shrink-0 cursor-pointer rounded-md border-0 px-2 text-label transition-colors",
                                         FOCUS_RING,
                                         active
-                                            ? "bg-foreground text-background"
-                                            : "bg-background text-foreground ring-foreground/10 shadow-xs ring-1",
+                                            ? "bg-selected text-foreground"
+                                            : "bg-secondary text-foreground hover:bg-accent",
                                     )}
                                 >
                                     {chip.label}
@@ -194,21 +194,21 @@ export const OnboardingGallery = ({
                             onClick={() => focusAndOpen({kind: "scratch"})}
                             className={cn(
                                 ROW,
-                                "mb-1.5 border-[1.5px] border-dashed",
+                                "mb-1.5 border border-dashed",
                                 FOCUS_RING,
                                 scratch
-                                    ? "border-muted-foreground bg-muted"
-                                    : "border-border hover:border-muted-foreground hover:bg-background bg-transparent",
+                                    ? "border-border-strong bg-selected"
+                                    : "border-border bg-transparent hover:bg-accent",
                             )}
                         >
-                            <span className="bg-background ring-border flex size-[34px] shrink-0 items-center justify-center rounded-[9px] ring-1">
+                            <span className="bg-secondary flex size-8 shrink-0 items-center justify-center rounded-md">
                                 <Plus size={16} />
                             </span>
                             <span className="flex min-w-0 flex-1 flex-col">
-                                <span className="text-sm font-medium leading-5">
+                                <span className="text-label">
                                     {t("onboarding.gallery.scratch")}
                                 </span>
-                                <span className="text-muted-foreground text-xs leading-[18px]">
+                                <span className="text-muted-foreground text-meta">
                                     {t("onboarding.gallery.scratchHint")}
                                 </span>
                             </span>
@@ -218,7 +218,7 @@ export const OnboardingGallery = ({
                         ) : catalog.status === "error" ? (
                             <OnboardingGalleryError onRetry={catalog.retry} />
                         ) : listed.length === 0 ? (
-                            <p className="text-muted-foreground m-0 py-4 text-sm">
+                            <p className="text-muted-foreground m-0 py-4 text-body">
                                 {t("onboarding.gallery.empty")}
                             </p>
                         ) : (
@@ -249,16 +249,16 @@ export const OnboardingGallery = ({
                                                     "border-0",
                                                     FOCUS_RING,
                                                     active
-                                                        ? "bg-muted"
-                                                        : "hover:bg-muted bg-transparent",
+                                                        ? "bg-selected"
+                                                        : "bg-transparent hover:bg-accent",
                                                 )}
                                             >
                                                 <OnboardingTemplateTile template={template} />
                                                 <span className="flex min-w-0 flex-1 flex-col">
-                                                    <span className="text-sm font-medium leading-5">
+                                                    <span className="text-label">
                                                         {template.name}
                                                     </span>
-                                                    <span className="text-muted-foreground truncate text-xs leading-[18px]">
+                                                    <span className="text-muted-foreground truncate text-meta">
                                                         {template.trigger}
                                                     </span>
                                                 </span>

@@ -67,11 +67,11 @@ export const ScenarioFilter = ({
                     <span>{appliedCount > 0 ? `Filter (${appliedCount})` : "Filter"}</span>
                 </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-[600px] max-w-[calc(100vw-32px)] p-3">
+            <PopoverContent align="end" className="w-150 max-w-[calc(100vw-32px)] p-3">
                 <div className="flex items-center justify-between gap-3 pb-2">
-                    <span className="text-sm font-medium">Filter scenarios</span>
+                    <span className="text-label">Filter scenarios</span>
                     {appliedCount > 0 ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1 text-meta text-muted-foreground">
                             {scanning ? <Spinner size="small" /> : null}
                             {matchCount} {matchCount === 1 ? "match" : "matches"}
                             {scanning ? " · scanning…" : ""}

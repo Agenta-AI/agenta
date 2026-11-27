@@ -16,7 +16,8 @@ import {
 } from "@agenta/entity-ui"
 import {PageLayout} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
-import {Spin, Typography} from "antd"
+import {Spinner} from "@agenta/ui/ui"
+import {Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigation} from "../../context"
@@ -251,7 +252,7 @@ const AnnotationSession = ({
     if (isLoading) {
         return (
             <div className="flex items-center justify-center h-full py-20">
-                <Spin size="large" />
+                <Spinner className="size-8" />
             </div>
         )
     }

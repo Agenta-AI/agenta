@@ -4,7 +4,7 @@ import type {CatalogKey} from "@agenta/i18n"
 import spanCatalog from "@agenta/i18n/catalogs/observabilityUi.traceSpan"
 import {setTraceDrawerTraceAtom} from "@agenta/observability/traceDrawer"
 import {getStringOrJson} from "@agenta/shared/utils"
-import {EnhancedButton} from "@agenta/ui/components/presentational"
+import {Button} from "@agenta/ui/ui"
 import {TreeStructure} from "@phosphor-icons/react"
 import {getDefaultStore} from "jotai"
 
@@ -27,22 +27,19 @@ export const getAnnotationTableColumns = (
             }),
             render: (_, record) => {
                 return (
-                    <EnhancedButton
-                        icon={
-                            <TreeStructure
-                                size={14}
-                                onClick={() => {
-                                    const store = getDefaultStore()
-                                    store.set(setTraceDrawerTraceAtom, {
-                                        traceId: record.trace_id,
-                                        activeSpanId: record.span_id,
-                                        source: "linked",
-                                    })
-                                }}
-                            />
-                        }
-                        size="small"
-                    />
+                    <Button variant="outline" size="sm">
+                        <TreeStructure
+                            size={14}
+                            onClick={() => {
+                                const store = getDefaultStore()
+                                store.set(setTraceDrawerTraceAtom, {
+                                    traceId: record.trace_id,
+                                    activeSpanId: record.span_id,
+                                    source: "linked",
+                                })
+                            }}
+                        />
+                    </Button>
                 )
             },
         },
@@ -73,7 +70,7 @@ export const getAnnotationTableColumns = (
                     const extraValue = outputs?.extra?.[metricKey]?.value
 
                     if (value === undefined && extraValue === undefined) {
-                        return <span className="text-gray-500">–</span>
+                        return <span className="text-muted-foreground">–</span>
                     }
 
                     return value !== undefined ? (
@@ -97,7 +94,7 @@ export const getAnnotationTableColumns = (
                             <ValueTag value={getStringOrJson(extraValue)} className="w-fit" />
                         )
                     ) : (
-                        <span className="text-gray-500">–</span>
+                        <span className="text-muted-foreground">–</span>
                     )
                 },
             })),

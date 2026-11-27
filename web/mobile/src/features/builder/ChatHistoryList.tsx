@@ -48,7 +48,7 @@ export const ChatHistoryList = ({
     else if (failed) body = <ChatListFailed onRetry={onRetry} />
     else if (rows.length === 0)
         body = (
-            <p className="m-0 px-2 py-1.5 text-xs text-colorTextSecondary">
+            <p className="m-0 px-2 py-1.5 text-xs text-muted-foreground">
                 {search.trim() ? t("builder.panel.noChatMatches") : t("builder.panel.noChatsYet")}
             </p>
         )
@@ -77,15 +77,14 @@ export const ChatHistoryList = ({
                     onChange={(event) => onSearch(event.target.value)}
                     placeholder={t("builder.panel.searchChats")}
                     aria-label={t("builder.panel.searchChats")}
-                    // Phone: no clear button (M06); 16 px text, not the canvas 15 px, because iOS
-                    // zooms the page into a smaller input on focus. The glyph is tertiary (S09).
-                    prefix={<MagnifyingGlass size={14} className="text-colorTextTertiary" />}
+                    // Phone: no clear button (M06); touch.css raises the field to 16px on touch.
+                    prefix={<MagnifyingGlass size={14} className="text-muted-foreground" />}
                     allowClear={!phone}
                     className={cn(
-                        "gap-2 border-colorBorderSecondary px-2",
+                        "gap-2 border-border-muted px-2",
                         phone
-                            ? "h-10 items-stretch rounded-[8px] py-0 [&_input]:text-base"
-                            : "h-[30px] rounded-[6px] [&_input]:text-[13px] md:[&_input]:text-[13px]",
+                            ? "h-10 items-stretch rounded-[8px] py-0 [&_input]:text-label"
+                            : "h-[30px] rounded-[6px] [&_input]:text-label",
                     )}
                 />
             </label>

@@ -93,7 +93,15 @@ vi.mock("@/features/playground/PlaygroundSplit", () => ({
     PlaygroundSplit: ({config}: {config: React.ReactNode}) => <div>{config}</div>,
 }))
 vi.mock("@/features/playground/usePlaygroundLeaveGuard", () => ({
-    usePlaygroundLeaveGuard: () => null,
+    // No leave question is open: the guard's idle confirm state.
+    usePlaygroundLeaveGuard: () => ({
+        request: null,
+        pending: false,
+        error: null,
+        confirm: () => undefined,
+        close: () => undefined,
+        runConfirm: async () => undefined,
+    }),
 }))
 vi.mock("@/components/PageTitle", () => ({PageTitle: () => null}))
 vi.mock("@/components/PageNotFound", () => ({PageNotFound: () => <div>not found</div>}))

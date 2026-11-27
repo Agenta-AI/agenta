@@ -67,11 +67,11 @@ export const OrganizationSlugField = ({
     if (current) {
         return (
             <div className="flex flex-col gap-1.5">
-                <span className="text-sm font-medium text-foreground">
+                <span className="text-label text-foreground">
                     {t("settings.organizationSlugField.label")}
                 </span>
-                <span className="font-mono text-sm text-foreground">{current}</span>
-                <span className="text-xs text-muted-foreground">
+                <span className="text-code text-foreground">{current}</span>
+                <span className="text-meta text-muted-foreground">
                     {t("settings.organizationSlugField.lockedHint")}
                 </span>
             </div>
@@ -81,10 +81,10 @@ export const OrganizationSlugField = ({
     if (!canEdit) {
         return (
             <div className="flex flex-col gap-1.5">
-                <span className="text-sm font-medium text-foreground">
+                <span className="text-label text-foreground">
                     {t("settings.organizationSlugField.label")}
                 </span>
-                <span className="text-xs text-muted-foreground">
+                <span className="text-meta text-muted-foreground">
                     {t("settings.organizationSlugField.noSlug")}
                 </span>
             </div>
@@ -105,11 +105,11 @@ export const OrganizationSlugField = ({
                     onChange={(event) => setValue(event.target.value)}
                 />
             </Field>
-            <p className="m-0 text-xs text-muted-foreground">
+            <p className="m-0 text-meta text-muted-foreground">
                 {t("settings.organizationSlugField.setBeforeSso")}
             </p>
             {error ? (
-                <p role="alert" className="text-destructive m-0 text-xs">
+                <p role="alert" className="text-destructive m-0 text-meta">
                     {error}
                 </p>
             ) : null}

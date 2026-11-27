@@ -7,6 +7,7 @@
     "writeGroup": "書き込みと削除",
     "presetWithOverrides_other": "{{label}} · {{count}} 件の上書き",
     "defaultPermission": "デフォルトの権限",
+    "defaultPermissionNote": "エージェントが確認なしで実行できること",
     "searchToolCount_other": "{{count}} 件のツールを検索",
     "searchTools": "ツールを検索",
     "noToolMatches": "一致するツールはありません。",

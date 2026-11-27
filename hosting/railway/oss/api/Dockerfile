@@ -4,7 +4,6 @@
 FROM ghcr.io/agenta-ai/agenta-api:latest
 
 # Runtime defaults for template consumers
-ENV AGENTA_LICENSE=oss
 ENV PORT=8000
 ENV SCRIPT_NAME=/api
 ENV REDIS_URI=redis://redis.railway.internal:6379/0

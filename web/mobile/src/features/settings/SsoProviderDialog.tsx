@@ -198,7 +198,7 @@ export const SsoProviderDialog = ({
                         <Input value={scopes} onChange={(event) => setScopes(event.target.value)} />
                     </Field>
                     {error ? (
-                        <p role="alert" className="text-destructive m-0 text-xs">
+                        <p role="alert" className="text-destructive m-0 text-meta">
                             {error}
                         </p>
                     ) : null}

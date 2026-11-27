@@ -137,7 +137,7 @@ export const HumanEvaluatorForm = ({
                 <section className="flex flex-col gap-3">
                     <div className="flex flex-col gap-0.5">
                         <h3 className="m-0 text-sm font-semibold text-foreground">Feedback</h3>
-                        <p className="m-0 text-[13px] text-muted-foreground">
+                        <p className="m-0 text-label text-muted-foreground">
                             What a reviewer fills in for each item.
                         </p>
                     </div>

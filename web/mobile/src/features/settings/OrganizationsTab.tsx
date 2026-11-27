@@ -16,6 +16,14 @@ import settingsOrganizationsTabCatalog from "@agenta/i18n/catalogs/settings.orga
 import {OrganizationsPage} from "@agenta/settings-ui"
 import {message} from "@agenta/ui/app-message"
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
     Button,
     Dialog,
     DialogContent,
@@ -40,7 +48,6 @@ import {LimitRefusalNotice} from "../limits/LimitRefusalNotice"
 import {OrganizationLimitNotice} from "../limits/OrganizationLimitNotice"
 import {useLimitRefusal} from "../limits/useLimitRefusal"
 
-import {ConfirmModal} from "./ConfirmModal"
 import {isAtLimit} from "./licenseApi"
 import {NameDialog} from "./NameDialog"
 import type {SettingsTabProps} from "./settingsTabProps"
@@ -212,30 +219,63 @@ export const OrganizationsTab = ({workspaceId, projectId}: SettingsTabProps) => 
                 }}
             />
 
-            <ConfirmModal
+            <AlertDialog
                 open={Boolean(deleting)}
-                title={t("settings.organizationsTab.deleteTitle")}
-                description={t("common.thisCannotBeUndone")}
-                body={t("settings.organizationsTab.deleteBody", {
-                    name: deleting?.name ?? t("settings.organizationsTab.thisOrganization"),
-                })}
-                confirmLabel={t("settings.organizationsTab.deleteTitle")}
-                pending={pending}
-                error={error ?? undefined}
-                onClose={() => setDeleting(null)}
-                onConfirm={async () => {
-                    if (!deleting) return
-                    const org = deleting
-                    const done = await run(
-                        () => deleteOrganization(org.id),
-                        t("settings.organizationsTab.deleteFailed"),
-                    )
-                    if (!done) return
-                    setDeleting(null)
-                    // The app is scoped to the organization that just went away.
-                    if (org.id === selectedOrgId) void router.replace("/")
+                onOpenChange={(next) => {
+                    if (!next && !pending) setDeleting(null)
                 }}
-            />
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {t("settings.organizationsTab.deleteTitle")}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t("common.thisCannotBeUndone")}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="text-body">
+                        {t("settings.organizationsTab.deleteBody", {
+                            name: deleting?.name ?? t("settings.organizationsTab.thisOrganization"),
+                        })}
+                    </div>
+                    {error ? <p className="m-0 text-body text-destructive">{error}</p> : null}
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                variant="outline"
+                                onClick={() => setDeleting(null)}
+                                disabled={pending}
+                            >
+                                {t("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant="destructive"
+                                disabled={pending}
+                                onClick={async (event) => {
+                                    event.preventDefault()
+                                    if (!deleting) return
+                                    const org = deleting
+                                    const done = await run(
+                                        () => deleteOrganization(org.id),
+                                        t("settings.organizationsTab.deleteFailed"),
+                                    )
+                                    if (!done) return
+                                    setDeleting(null)
+                                    // The app is scoped to the organization that just went away.
+                                    if (org.id === selectedOrgId) void router.replace("/")
+                                }}
+                            >
+                                {pending
+                                    ? t("common.working")
+                                    : t("settings.organizationsTab.deleteTitle")}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </OrganizationsPage>
     )
 }
@@ -298,12 +338,12 @@ const TransferDialog = ({
                         </SelectContent>
                     </Select>
                 ) : (
-                    <p className="m-0 text-sm text-muted-foreground">
+                    <p className="m-0 text-body text-muted-foreground">
                         {t("settings.organizationsTab.inviteFirst")}
                     </p>
                 )}
                 {error ? (
-                    <p role="alert" className="text-destructive m-0 text-xs">
+                    <p role="alert" className="text-destructive m-0 text-meta">
                         {error}
                     </p>
                 ) : null}

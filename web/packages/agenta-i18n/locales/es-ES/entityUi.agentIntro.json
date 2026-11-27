@@ -12,5 +12,8 @@
     "eventAutomation": "Automatización por evento",
     "onEvent": "por evento",
     "firesOn": "Se activa con {{eventKey}}",
-    "firesWhenEventArrives": "Se activa cuando llega su evento"
+    "firesWhenEventArrives": "Se activa cuando llega su evento",
+    "mcpCount_one": "{{count}} servidor MCP",
+    "mcpCount_other": "{{count}} servidores MCP",
+    "mcpCount_many": "{{count}} servidores MCP"
 }

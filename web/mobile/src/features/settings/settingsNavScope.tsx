@@ -1,6 +1,7 @@
 import {useMemo} from "react"
 
 import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import type {
     SidebarScope,
@@ -21,9 +22,10 @@ import {useRouter} from "next/router"
 import {isProjectPath, projectSwitchUrl} from "@/lib/context"
 import {withMobileSettingsLabels} from "@/lib/integrationsCopy"
 
+import {SidebarTopRow} from "../agent-sidebar/SidebarTopRow"
 import {DrawerProjectSwitcher} from "../nav/DrawerProjectSwitcher"
 import {lastNonSettingsPathAtom} from "../nav/lastNonSettingsPath"
-import {useMobileBottomNavItems} from "../nav/useMobileNavItems"
+import {SupportActions} from "../nav/SupportActions"
 
 import {
     AVAILABLE_SETTINGS_TABS,
@@ -32,9 +34,8 @@ import {
 } from "./settingsTabs"
 
 /**
- * Settings TAKES OVER the rail, the way oss/ee do it: the main nav is replaced by the settings
- * groups, its header becomes "← Back", and the page carries no top bar. Same shared builder as
- * the desktop scope, so the two rails cannot drift; only routing and the bottom section differ.
+ * Settings TAKES OVER the rail: the main nav is replaced by the settings
+ * groups, its header becomes "← Settings", and the page carries no top bar.
  *
  * Built per workspace/project like `mobileNavScope`, so the slot components keep stable
  * identities across renders.
@@ -64,7 +65,6 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
 
     const useSections = (): SidebarSection[] => {
         const access = useMobileSettingsAccess()
-        const bottomItems = useMobileBottomNavItems(projectURL, {includeSettingsLink: false})
         const t = useT(navigationCatalog)
 
         return useMemo(
@@ -80,55 +80,54 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
                     // selection intercepts the navigation before it happens.
                     {getLink: (key) => `${settingsURL}?tab=${key}`},
                 ),
-                {
-                    key: "bottom",
-                    items: bottomItems,
-                    placement: "bottom",
-                    mode: "vertical",
-                },
             ],
-            [access, bottomItems, t],
+            [access, t],
         )
     }
 
     const Header = ({collapsed, onDismiss}: SidebarSlotContext) => {
+        const t = useT(commonCatalog)
         const router = useRouter()
         const lastPath = useAtomValue(lastNonSettingsPathAtom)
 
         return (
-            <div
-                className={[
-                    "mb-1 flex w-full shrink-0 items-center",
-                    // The collapsed rail is 48px wide, too narrow for Back and the toggle side by
-                    // side, so stack them instead of squeezing both into one row.
-                    collapsed
-                        ? "flex-col justify-center gap-1 py-1"
-                        : "h-[48px] justify-between px-1.5",
-                ].join(" ")}
-            >
-                <SidebarBackButton
-                    collapsed={collapsed}
-                    onBack={() =>
-                        void router.push(
-                            !lastPath
-                                ? `${projectURL}/apps`
-                                : isProjectPath(lastPath)
-                                  ? projectSwitchUrl(lastPath, {workspaceId, projectId})
-                                  : lastPath,
-                        )
-                    }
-                />
-                <SidebarToggleButton onDismiss={onDismiss} />
-            </div>
+            <SidebarTopRow
+                collapsed={collapsed}
+                toggle={<SidebarToggleButton onDismiss={onDismiss} />}
+                back={
+                    <SidebarBackButton
+                        collapsed={collapsed}
+                        label={t("common.settings")}
+                        onBack={() =>
+                            void router.push(
+                                !lastPath
+                                    ? `${projectURL}/apps`
+                                    : isProjectPath(lastPath)
+                                      ? projectSwitchUrl(lastPath, {workspaceId, projectId})
+                                      : lastPath,
+                            )
+                        }
+                    />
+                }
+            />
         )
     }
 
-    // Forwarded, or the switcher keeps its expanded padding inside the 48px rail.
+    // The project switcher, in the main header's look, with live chat and help on its row.
     const AfterBottom = ({collapsed}: {collapsed: boolean}) => (
         <DrawerProjectSwitcher
             workspaceId={workspaceId}
             projectId={projectId}
             collapsed={collapsed}
+            compact
+            // Collapsed, the switcher stacks them above itself.
+            trailing={
+                <span
+                    className={collapsed ? "flex flex-col items-center gap-1" : "flex items-center"}
+                >
+                    <SupportActions projectId={projectId} />
+                </span>
+            }
         />
     )
 

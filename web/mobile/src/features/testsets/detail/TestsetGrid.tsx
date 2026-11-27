@@ -5,8 +5,8 @@ import {TestcaseTable, type EntityColumnHeader} from "@agenta/entity-ui/testcase
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {message} from "@agenta/ui/app-message"
 import {useMediaQuery} from "@agenta/ui/hooks"
-import {ListTableToolbar} from "@agenta/ui/list-table"
 import type {ColumnDefs} from "@agenta/ui/table"
+import {PageToolbar} from "@agenta/ui/ui"
 import {copyToClipboard} from "@agenta/ui/utils"
 import {useAtomValue} from "jotai"
 
@@ -190,7 +190,7 @@ export const TestsetGrid = ({
     return (
         <>
             {/* Outside the table, so a search with no match can still be cleared. */}
-            <ListTableToolbar
+            <PageToolbar
                 search={search.value}
                 onSearchChange={search.onChange}
                 searchPlaceholder="Search test cases..."

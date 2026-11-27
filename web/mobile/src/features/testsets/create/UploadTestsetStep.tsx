@@ -1,8 +1,7 @@
 import {useEffect, useRef, useState} from "react"
 
-import {Button, DialogFooter, Input} from "@agenta/ui/ui"
+import {Button, DialogFooter, Input, Spinner} from "@agenta/ui/ui"
 import {Code, PencilSimple} from "@phosphor-icons/react"
-import {Loader2} from "lucide-react"
 
 import {TestsetFileDrop} from "./TestsetFileDrop"
 import {useTestsetFilePick} from "./useTestsetFilePick"
@@ -24,11 +23,11 @@ const ChoiceCard = ({
     <button
         type="button"
         onClick={onClick}
-        className="flex min-w-0 flex-1 cursor-pointer flex-col items-start gap-1 rounded-lg border border-solid border-border bg-transparent p-3 text-left hover:bg-muted"
+        className="flex min-w-0 flex-1 cursor-pointer flex-col items-start gap-1 rounded-lg border border-solid border-border bg-transparent p-3 text-left hover:bg-accent focus-ring"
     >
         <span className="text-muted-foreground">{icon}</span>
-        <span className="text-sm font-medium text-foreground">{title}</span>
-        <span className="text-xs text-muted-foreground">{description}</span>
+        <span className="text-label text-foreground">{title}</span>
+        <span className="text-meta text-muted-foreground">{description}</span>
     </button>
 )
 
@@ -113,7 +112,7 @@ export const UploadTestsetStep = ({
                                 void upload({file, fileType: picked.fileType, name})
                         }}
                     >
-                        <label htmlFor="upload-testset-name" className="text-sm font-medium">
+                        <label htmlFor="upload-testset-name" className="text-label">
                             Test set name
                         </label>
                         <Input
@@ -124,14 +123,14 @@ export const UploadTestsetStep = ({
                             onChange={(event) => setName(event.target.value)}
                         />
                         {error ? (
-                            <p role="alert" className="m-0 text-xs text-destructive">
+                            <p role="alert" className="m-0 text-meta text-destructive">
                                 {error}
                             </p>
                         ) : null}
                     </form>
                 ) : onScratch && onApi ? (
                     <div className="flex flex-col gap-2">
-                        <p className="m-0 text-sm text-muted-foreground">
+                        <p className="m-0 text-body text-muted-foreground">
                             Or create a test set manually
                         </p>
                         <div className="flex flex-col gap-2 sm:flex-row">
@@ -161,7 +160,7 @@ export const UploadTestsetStep = ({
                         form="upload-testset-form"
                         disabled={pending || !name.trim()}
                     >
-                        {pending ? <Loader2 aria-hidden className="animate-spin" /> : null}
+                        {pending ? <Spinner aria-hidden /> : null}
                         Create test set
                     </Button>
                 </DialogFooter>

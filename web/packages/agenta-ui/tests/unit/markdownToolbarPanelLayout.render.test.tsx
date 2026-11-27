@@ -30,8 +30,8 @@ describe("MarkdownToolbar", () => {
             "Insert table",
         ])
         const select = screen.getByRole("button", {name: "Text style"})
-        expect(select.className).toContain("h-[26px]")
-        expect(select.className).toContain("border-colorBorder")
+        expect(select.className).toContain("h-control-xs")
+        expect(select.className).toContain("border-border")
     })
 
     it("the inline bar keeps its numbered list and link", async () => {

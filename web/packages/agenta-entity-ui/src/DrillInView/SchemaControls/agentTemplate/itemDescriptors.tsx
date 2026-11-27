@@ -24,8 +24,6 @@ export interface ItemDescriptor {
     description?: string
     /** Avatar monogram, used when no `icon` is given. */
     mono: string
-    /** Avatar background colour. */
-    color: string
     /** Avatar icon (overrides the monogram). */
     icon?: React.ReactNode
     /** Avatar chip classes, for an item that paints its own chip. Set with `avatarStyle`. */
@@ -121,12 +119,9 @@ export function describeSubagent(
         monoName: false,
         description: typeof t.description === "string" ? t.description : undefined,
         mono: "",
-        color: "transparent",
-        icon: chrome?.glyph ?? <Robot size={15} weight="fill" />,
+        icon: chrome?.glyph ?? <Robot />,
         // Always chipped: an unchipped avatar paints white on transparent and the glyph vanishes.
-        avatarClassName:
-            chrome?.className ??
-            "bg-[var(--ag-colorFillSecondary)] text-[var(--ag-colorTextSecondary)]",
+        avatarClassName: chrome?.className ?? "bg-secondary text-muted-foreground",
         avatarStyle: chrome?.style,
         // No type tag. "workflow" is an internal type and nothing user-meaningful replaces it.
         tags: [],
@@ -161,8 +156,7 @@ export function describeTool(tool: unknown): ItemDescriptor {
             name: refName ?? slug ?? tNow("entityUi.itemDescriptors.workflowTool"),
             description: typeof t.description === "string" ? (t.description as string) : undefined,
             mono: "",
-            color: "#0d9488",
-            icon: <GraphIcon size={15} weight="fill" />,
+            icon: <GraphIcon />,
             tags: [tNow("entityUi.itemDescriptors.workflowTag")],
             typeLabel: tNow("entityUi.itemDescriptors.workflowTag"),
             typeColor: "geekblue",
@@ -180,8 +174,7 @@ export function describeTool(tool: unknown): ItemDescriptor {
             name: capitalizeFirst(connection.integration),
             monoName: false,
             mono: monogram(connection.integration),
-            color: "#1c2c3d",
-            icon: <Plugs size={15} weight="fill" />,
+            icon: <Plugs />,
             tags: [connection.integration],
             typeLabel: tNow("entityUi.itemDescriptors.integrationType"),
             subtitle: tNow("entityUi.itemDescriptors.integrationSubtitle", {
@@ -199,7 +192,6 @@ export function describeTool(tool: unknown): ItemDescriptor {
             monoName: false,
             description: description ? capitalizeFirst(description) : undefined,
             mono: monogram(gateway.integration),
-            color: "#1c2c3d",
             tags: [gateway.integration],
             typeLabel: tNow("entityUi.itemDescriptors.thirdPartyType"),
             subtitle: tNow("entityUi.itemDescriptors.connectedAppTool", {
@@ -220,7 +212,6 @@ export function describeTool(tool: unknown): ItemDescriptor {
         return {
             name: builtinName ?? typeValue ?? tNow("entityUi.itemDescriptors.builtInTool"),
             mono: "io",
-            color: "#0d9488",
             tags: [tNow("entityUi.itemDescriptors.builtInTag")],
             typeLabel: tNow("entityUi.itemDescriptors.builtInTag"),
             typeColor: "cyan",
@@ -233,7 +224,6 @@ export function describeTool(tool: unknown): ItemDescriptor {
         name: fnName ?? tNow("entityUi.itemDescriptors.tool"),
         description,
         mono: "{}",
-        color: "#7c3aed",
         tags: [tNow("entityUi.itemDescriptors.definitionTag")],
         typeLabel: tNow("entityUi.itemDescriptors.definitionTag"),
         typeColor: "purple",
@@ -258,8 +248,7 @@ export function describeMcp(server: unknown): ItemDescriptor {
         monoName: false,
         description: typeof connection.url === "string" ? connection.url : undefined,
         mono: "",
-        color: "transparent",
-        icon: <McpServerMark size={28} name={name} />,
+        icon: <McpServerMark size={24} name={name} />,
         // The mark paints itself; a chip class keeps ItemAvatar from adding its white text.
         avatarClassName: "bg-transparent",
         // No type tag. Every MCP row carried "HTTP", which said the same thing on every
@@ -351,8 +340,7 @@ export function isStaticSkill(skill: unknown): boolean {
 /** Every skill row's avatar: the one `SkillMark`, whatever the skill's origin. */
 const SKILL_MARK = {
     mono: "",
-    color: "transparent",
-    icon: <SkillMark size={28} />,
+    icon: <SkillMark size={24} />,
     // The mark paints itself; a chip class keeps ItemAvatar from adding its white text.
     avatarClassName: "bg-transparent",
     // A skill title is prose; only the slash command a person types stays monospace.
@@ -415,8 +403,8 @@ export function describeSkill(skill: unknown): ItemDescriptor {
     }
 }
 
-/** Strip Markdown syntax to a short single-line preview for an instructions file row. */
-export function mdPreview(md: string): string {
+/** Strip Markdown syntax to a short plain-text preview for an instructions file row. */
+export function mdPreview(md: string, maxLength = 140): string {
     return (md ?? "")
         .replace(/```[\s\S]*?```/g, " ") // fenced code blocks
         .replace(/^#{1,6}\s+/gm, "") // heading markers
@@ -426,7 +414,7 @@ export function mdPreview(md: string): string {
         .replace(/[*_`>#]/g, "") // inline emphasis / quote chars
         .replace(/\s+/g, " ") // collapse newlines + runs of whitespace
         .trim()
-        .slice(0, 140)
+        .slice(0, maxLength)
 }
 
 /** Row descriptor for an instructions markdown file (e.g. AGENTS.md). */
@@ -435,7 +423,6 @@ export function describeInstruction(filename: string, content: string): ItemDesc
         name: filename,
         description: mdPreview(content) || tNow("entityUi.itemDescriptors.emptyFile"),
         mono: "md",
-        color: "#0f766e",
         icon: <FileText size={14} />,
         tags: [],
         typeLabel: tNow("entityUi.itemDescriptors.instructionsType"),

@@ -3,7 +3,6 @@ import {useId, useLayoutEffect, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
-import {touchTargetExpansion} from "@agenta/ui/ui"
 import {CaretDown} from "@phosphor-icons/react"
 
 import {isDescriptionTruncatable} from "../integrationPolicy"
@@ -14,12 +13,12 @@ const CLAMP: Record<number, string> = {
     2: "line-clamp-2",
 }
 
-const TEXT_CLASS = "text-xs text-[var(--ag-colorTextTertiary)]"
-// 12 px: `text-xs` is 13 px in /m.
-const CANVAS_TEXT_CLASS = "text-[12px] leading-5 text-[var(--ag-colorTextTertiary)]"
+const TEXT_CLASS = "text-meta text-muted-foreground"
+// 12px meta: `text-xs` is 13px in /m.
+const CANVAS_TEXT_CLASS = "text-meta leading-5 text-muted-foreground"
 /** The whole text a phone shows (M09): 12/16, as the canvas draws a wrapped line. */
-const CANVAS_FULL_TEXT_CLASS = "text-[12px] leading-4 text-[var(--ag-colorTextTertiary)]"
-const EXPANDED_CLASS = "whitespace-pre-line leading-relaxed text-[var(--ag-colorTextSecondary)]"
+const CANVAS_FULL_TEXT_CLASS = "text-meta text-muted-foreground"
+const EXPANDED_CLASS = "whitespace-pre-line leading-relaxed text-muted-foreground"
 
 export interface ExpandableDescriptionProps {
     description?: string
@@ -114,15 +113,13 @@ export function ExpandableDescription({
                 event.stopPropagation()
                 setExpanded(!expanded)
             }}
-            // The invisible expansion carries the 24px floor to the 44px touch minimum.
-            // The canvas line is 20 px (F02 f6: a 63 px tool row). It shows only at 768 px and up
-            // (a phone shows the full text), where the 24 px expansion is a pointer convenience.
-            className={`group/desc flex w-full min-w-0 cursor-pointer gap-1 border-0 bg-transparent p-0 text-left font-[inherit] ${canvas ? "min-h-5" : "min-h-control-xs"} ${expanded ? "items-start" : "items-center"} ${touchTargetExpansion({height: 24, border: 0})}`}
+            // The canvas line is 20 px (F02 f6: a 63 px tool row).
+            className={`group/desc flex w-full min-w-0 cursor-pointer gap-1 border-0 bg-transparent p-0 text-left font-[inherit] ${canvas ? "min-h-5" : "min-h-control-xs"} ${expanded ? "items-start" : "items-center"}`}
         >
             <span
                 id={textId}
                 ref={setPreview}
-                className={`min-w-0 flex-1 transition-colors group-hover/desc:text-[var(--ag-colorTextSecondary)] ${textClass}`}
+                className={`min-w-0 flex-1 transition-colors group-hover/desc:text-muted-foreground ${textClass}`}
             >
                 {text}
             </span>
@@ -130,7 +127,7 @@ export function ExpandableDescription({
                 <CaretDown
                     aria-hidden
                     size={10}
-                    className={`shrink-0 text-[var(--ag-colorTextTertiary)] transition-transform ${
+                    className={`shrink-0 text-muted-foreground transition-transform ${
                         expanded ? "mt-[3px] rotate-180" : ""
                     }`}
                 />

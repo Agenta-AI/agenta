@@ -13,6 +13,7 @@ import {ExecutionMetricsDisplay} from "@agenta/ui/components/presentational"
 import {
     Badge,
     LoadingButton,
+    statusBadgeVariant,
     SkeletonBlock,
     Tooltip,
     TooltipContent,
@@ -123,7 +124,7 @@ const SharedGenerationResultUtils = ({
                 </Tooltip>
             </TooltipProvider>
             {showStatus && status ? (
-                <Badge variant={getStatusSeverity(status)}>{status}</Badge>
+                <Badge variant={statusBadgeVariant(getStatusSeverity(status))}>{status}</Badge>
             ) : null}
             {!actionsOnly ? (
                 <ExecutionMetricsDisplay metrics={summary.metrics} isLoading={summary.isPending} />

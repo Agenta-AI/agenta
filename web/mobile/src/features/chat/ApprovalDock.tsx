@@ -25,6 +25,7 @@ export const ApprovalDock = ({
     actions,
     entityId,
     bottomMost = true,
+    phoneBottomMost = false,
     readOnly = false,
     readOnlyNote,
     privateSession = false,
@@ -38,6 +39,8 @@ export const ApprovalDock = ({
     entityId?: string
     /** False when the composer renders below — only the bottom-most element pads the safe area. */
     bottomMost?: boolean
+    /** On a phone the composer hides while the card waits, so the card pads the safe area there. */
+    phoneBottomMost?: boolean
     /** The reader cannot answer (no `can_send`, or not known yet): the card shows, but answers
      *  nothing, and no shortcut or tap reaches `actions`. */
     readOnly?: boolean
@@ -66,11 +69,11 @@ export const ApprovalDock = ({
                 // When the composer sits below it brings its own top padding, so only the
                 // bottom-most dock pads the safe area — a full pb here just doubles the gap.
                 bottomMost ? "pb-[calc(0.75rem+env(safe-area-inset-bottom))]" : "pb-0"
-            }`}
+            } ${phoneBottomMost ? "max-sm:pb-[calc(0.75rem+env(safe-area-inset-bottom))]" : ""}`}
         >
             <ContentRail>
                 {heading ? (
-                    <p className="text-muted-foreground m-0 mb-1.5 truncate text-xs">{heading}</p>
+                    <p className="text-muted-foreground m-0 mb-1.5 truncate text-meta">{heading}</p>
                 ) : null}
                 <ApprovalCard
                     approvals={approvals}

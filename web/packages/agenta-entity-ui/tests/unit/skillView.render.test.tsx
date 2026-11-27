@@ -102,6 +102,13 @@ const openSkill = async (skillKey: string, bridge?: Partial<SkillsBridge>) => {
     await click(byText("open"))
 }
 
+/** Radix menus open on pointerdown, which `click()` alone does not send. */
+const openMenu = async (trigger: HTMLElement) => {
+    await act(async () => {
+        trigger.dispatchEvent(new MouseEvent("pointerdown", {bubbles: true, button: 0}))
+    })
+}
+
 beforeEach(() => {
     Object.assign(globalThis, {IS_REACT_ACT_ENVIRONMENT: true})
     host = document.createElement("div")
@@ -157,7 +164,7 @@ describe("agent-only skill", () => {
         const RegistrySkillBody = ({params}: {params: {slug: string}}) =>
             createElement("span", null, `registry:${params.slug}`)
         await openSkill("ticket-triage", {publishInlineSkill, RegistrySkillBody})
-        await click(await findByText("", 'button[aria-label="Skill actions"]'))
+        await openMenu(await findByText("", 'button[aria-label="Skill actions"]'))
         await click(await findByText("Publish to skill registry"))
         expect(publishInlineSkill).toHaveBeenCalledWith(TRIAGE)
         expect((writer.agent.skills as unknown[])[1]).toBe(EMBED)
@@ -168,7 +175,7 @@ describe("agent-only skill", () => {
         const publishInlineSkill = vi.fn(async () => ({entry: EMBED}))
         writer.agent = {skills: [{...TRIAGE, files: [{path: "../notes.txt", content: "x"}]}]}
         await openSkill("ticket-triage", {publishInlineSkill})
-        await click(await findByText("", 'button[aria-label="Skill actions"]'))
+        await openMenu(await findByText("", 'button[aria-label="Skill actions"]'))
         await click(await findByText("Publish to skill registry"))
         expect(publishInlineSkill).not.toHaveBeenCalled()
     })

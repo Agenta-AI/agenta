@@ -1,10 +1,7 @@
 {
     "chooseWhose": "Wähle, wessen {{name}}-Anmeldung der Agent verwendet",
     "eachPersonsOwnNote": "Alle verwenden ihre eigene {{name}}-Anmeldung.",
-    "oneShared": "Eine gemeinsame Anmeldung",
     "oneSharedNote": "Alle verwenden die Anmeldung des Projekts.",
-    "sharedSignIn": "Gemeinsame Anmeldung",
-    "sharedSignInNote": "Jede Ausführung verwendet diese Anmeldung, egal wer sie startet",
     "yourSignIn": "Deine Anmeldung",
     "yourSignInNote": "Die {{name}}-Anmeldung, die deine eigenen Ausführungen verwenden",
     "notSignedInYet": "Noch nicht angemeldet",

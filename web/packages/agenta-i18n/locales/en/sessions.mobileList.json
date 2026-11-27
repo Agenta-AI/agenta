@@ -47,5 +47,6 @@
     "untitledSession": "Untitled session",
     "waiting": "Waiting",
     "waitingCount": "Waiting {{count}}",
-    "yesterday": "Yesterday"
+    "yesterday": "Yesterday",
+    "pageDescription": "Your conversations with agents. Open one to continue where you stopped."
 }

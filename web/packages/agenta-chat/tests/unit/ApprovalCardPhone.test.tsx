@@ -117,10 +117,10 @@ const buttonNamed = (text: string) =>
 const detail = () => document.querySelector('[data-testid="change-phone-detail"]')
 
 describe("the change card on a phone", () => {
-    it("draws Deny and Approve 44 px high", async () => {
+    it("keeps Deny and Approve at the kit's size", async () => {
         await render([instructionsCall])
-        expect(buttonNamed("Deny")?.className).toContain("h-11")
-        expect(buttonNamed("Approve")?.className).toContain("h-11")
+        expect(buttonNamed("Deny")?.className).not.toContain("h-11")
+        expect(buttonNamed("Approve")?.className).not.toContain("h-11")
     })
 
     it("opens the whole diff full screen with a back arrow to the chat", async () => {
@@ -140,9 +140,9 @@ describe("the change card on a phone", () => {
 
     it("opens a row of a grouped card full screen", async () => {
         await render([modelCall("a1", "claude-opus-5.5"), modelCall("a2", "gpt-6")])
-        expect(buttonNamed("Approve all")?.className).toContain("h-11")
+        expect(buttonNamed("Approve all")?.className).not.toContain("h-11")
         const row = host.querySelector('[data-testid="change-block-row"] button')
-        expect(row?.className).toContain("min-h-11")
+        expect(row?.className).not.toContain("min-h-11")
         await click(row)
         expect(detail()?.textContent).toContain("claude-opus-5.5")
         expect(row?.getAttribute("aria-expanded")).toBeNull()

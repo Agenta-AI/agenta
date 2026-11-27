@@ -381,9 +381,7 @@ export function SplitPane({
                 // `overflow-visible`: the hairline, the grip and the hit-slop all paint OUTSIDE
                 // the zero-width bar box, centred on the seam.
                 "group relative z-[5] box-border h-full shrink-0 touch-none select-none overflow-visible",
-                resizable &&
-                    !barHidden &&
-                    "cursor-col-resize outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring",
+                resizable && !barHidden && "cursor-col-resize outline-none focus-ring",
                 barClassName,
             )}
             style={{
@@ -401,22 +399,22 @@ export function SplitPane({
                 <span
                     aria-hidden
                     className={cn(
-                        "absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-colorBorderSecondary transition-colors duration-150",
-                        resizable && "group-hover:bg-colorBorder",
-                        dragging && "bg-colorBorder",
+                        "absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border-muted transition-colors duration-150",
+                        resizable && "group-hover:bg-border",
+                        dragging && "bg-border",
                     )}
                 />
             )}
-            {/* Grip pill — quiet at rest, a longer primary tint under the pointer. */}
+            {/* Grip — quiet at rest, a longer primary tint under the pointer. */}
             {resizable && !barHidden ? (
                 <span
                     aria-hidden
                     className={cn(
-                        "absolute left-1/2 top-1/2 h-6 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-colorTextTertiary",
+                        "absolute left-1/2 top-1/2 h-6 w-1 -translate-x-1/2 -translate-y-1/2 rounded-[1px] bg-muted-foreground",
                         "transition-[background,height,opacity] duration-150",
-                        "group-hover:h-9 group-hover:bg-colorPrimary group-hover:opacity-70",
+                        "group-hover:h-9 group-hover:bg-primary group-hover:opacity-70",
                         gripOnHover && "opacity-0 group-focus-visible:opacity-70",
-                        dragging && "h-9 bg-colorPrimary opacity-70",
+                        dragging && "h-9 bg-primary opacity-70",
                     )}
                 />
             ) : null}

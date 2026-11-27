@@ -77,8 +77,8 @@ export {
 // STATE — drawer + selection atoms
 // ---------------------------------------------------------------------------
 
-export {connectionDrawerAtom, toolCatalogDrawerOpenAtom, toolExecutionDrawerAtom} from "./state"
-export type {ConnectionDrawerState, ExecutionDrawerState} from "./state"
+export {connectionDrawerAtom, toolCatalogDrawerOpenAtom} from "./state"
+export type {ConnectionDrawerState} from "./state"
 
 // ---------------------------------------------------------------------------
 // HOOKS — query/mutation hooks for React consumers
@@ -109,7 +109,6 @@ export {
     useToolConnectionActions,
     useToolConnectionQuery,
     useToolConnectionsQuery,
-    useToolExecution,
     useToolIntegrationConnections,
     useToolIntegrationCatalog,
     useToolIntegrationDetail,

@@ -9,7 +9,7 @@
  * escape hatch for shapes the form can't express (enums, unions, tuples).
  *
  * Built to match the sibling drawers (WorkflowReferenceSelector, trigger drawers): 240px rail with a
- * right border, independent scroll, shared `RowRemoveButton`, semantic `--ag-color*` tokens (dark-safe).
+ * right border, independent scroll, shared `RowRemoveAction`, semantic `--ag-color*` tokens (dark-safe).
  */
 import {useMemo, useState} from "react"
 
@@ -114,7 +114,7 @@ function ToolBasics({
 
     return (
         <div className="flex flex-col gap-4">
-            <div className="text-xs font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+            <div className="text-meta font-medium text-muted-foreground">
                 {t("entityUi.toolForm.toolDetails")}
             </div>
 
@@ -170,7 +170,7 @@ function ToolBasics({
                             aria-label={t("entityUi.toolForm.allowExtraProperties")}
                             disabled={disabled}
                         />
-                        <span className="text-xs text-[var(--ag-colorTextTertiary)]">
+                        <span className="text-meta text-muted-foreground">
                             {additionalProperties
                                 ? t("entityUi.toolForm.extraPropertiesOn")
                                 : t("entityUi.toolForm.extraPropertiesOff")}
@@ -187,11 +187,8 @@ function ToolBasics({
                 const noParams = Object.keys(getProps(params as Schema)).length === 0
                 if (gateway && noParams) {
                     return (
-                        <div className="flex items-start gap-2 rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] px-3 py-2 text-xs text-[var(--ag-colorWarningText)]">
-                            <Code
-                                size={14}
-                                className="mt-0.5 shrink-0 text-[var(--ag-colorWarning)]"
-                            />
+                        <div className="flex items-start gap-2 rounded border border-solid border-border-muted bg-secondary px-3 py-2 text-meta text-warning">
+                            <Code size={14} className="mt-0.5 shrink-0 text-warning" />
                             <span>
                                 {t("entityUi.toolForm.schemaNotLoaded", {
                                     integration: gateway.integration,
@@ -201,7 +198,7 @@ function ToolBasics({
                     )
                 }
                 return (
-                    <div className="flex items-start gap-2 rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] px-3 py-2 text-xs text-[var(--ag-colorTextSecondary)]">
+                    <div className="flex items-start gap-2 rounded border border-solid border-border-muted bg-secondary px-3 py-2 text-meta text-muted-foreground">
                         <Code size={14} className="mt-0.5 shrink-0" />
                         <span>{t("entityUi.toolForm.schemaOnlyTool")}</span>
                     </div>
@@ -278,14 +275,11 @@ function CanonicalGatewayToolForm({
         // raw JSON plus a warning; the drawer's JSON toggle stays the editable view.
         return (
             <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4">
-                <div className="flex items-start gap-2 rounded border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-3 py-2 text-xs text-[var(--ag-colorWarningText)]">
-                    <WarningCircle
-                        size={14}
-                        className="mt-0.5 shrink-0 text-[var(--ag-colorWarning)]"
-                    />
+                <div className="flex items-start gap-2 rounded border border-solid border-warning/30 bg-warning/10 px-3 py-2 text-meta text-warning">
+                    <WarningCircle size={14} className="mt-0.5 shrink-0 text-warning" />
                     <span>{t("entityUi.toolForm.toolNotResolved")}</span>
                 </div>
-                <pre className="m-0 overflow-auto rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] p-2 font-mono text-xs text-[var(--ag-colorTextSecondary)]">
+                <pre className="m-0 overflow-auto rounded border border-solid border-border-muted bg-secondary p-2 text-code-sm text-muted-foreground">
                     {safeStringify(value)}
                 </pre>
             </div>

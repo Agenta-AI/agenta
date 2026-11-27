@@ -88,7 +88,7 @@ export const FeedbackOptionsField = ({
                     </Field>
                 ))}
             </div>
-            {error ? <p className="m-0 text-[13px] text-colorError">{error}</p> : null}
+            {error ? <p className="m-0 text-label text-destructive">{error}</p> : null}
         </div>
     )
 }

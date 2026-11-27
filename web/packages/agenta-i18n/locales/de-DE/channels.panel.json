@@ -14,5 +14,7 @@
     "noIdYet": "Diese Verbindung hat noch keine ID.",
     "publish": "Veröffentlichen",
     "yourAgent": "Ihr Agent",
-    "yourWorkspace": "Ihr Workspace"
+    "yourWorkspace": "Ihr Workspace",
+    "api": "API",
+    "disconnected": "{{platform}} getrennt"
 }

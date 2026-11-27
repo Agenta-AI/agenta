@@ -75,8 +75,9 @@ describe("suggestConnectionName", () => {
     })
 
     it("falls back to the address, which is all a protected server offers before consent", () => {
+        // The address label is made readable: "acme" reads as "Acme".
         expect(suggestConnectionName({serverName: null, url: "https://mcp.acme.test/"})).toBe(
-            "acme",
+            "Acme",
         )
     })
 

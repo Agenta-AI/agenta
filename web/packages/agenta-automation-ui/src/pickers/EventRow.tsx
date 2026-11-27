@@ -1,4 +1,4 @@
-import {Check, ArrowRight} from "lucide-react"
+import {ArrowRightIcon, CheckIcon} from "@phosphor-icons/react"
 
 import {cn} from "../lib/utils"
 
@@ -22,18 +22,18 @@ export const EventRow = ({
         aria-pressed={selected}
         onClick={onSelect}
         className={cn(
-            "group flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-2.5 text-left text-[13px] text-foreground hover:bg-accent lg:py-1.5",
-            selected && "bg-accent",
+            "group flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-label text-foreground hover:bg-accent",
+            selected && "bg-selected",
         )}
     >
         <span className="min-w-0 flex-1 truncate">{label}</span>
         {selected ? (
-            <Check aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+            <CheckIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
         ) : (
             // Picking opens the event's filters, so the row hints at a step ahead.
-            <ArrowRight
+            <ArrowRightIcon
                 aria-hidden
-                className="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                className="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 pointer-coarse:opacity-100"
             />
         )}
     </button>

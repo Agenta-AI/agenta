@@ -98,7 +98,7 @@ export const AppRecentPromptsSection = ({
                             <Link
                                 href={`${base}/variants?app=${encodeURIComponent(app.id)}`}
                                 prefetch={false}
-                                className="shrink-0 text-sm text-muted-foreground hover:text-foreground"
+                                className="shrink-0 text-label text-muted-foreground hover:text-foreground"
                             >
                                 View all prompts →
                             </Link>

@@ -18,5 +18,5 @@ export const HomeListSkeleton = () => (
 // Left-aligned on purpose: the hint stands in for rows, so it keeps the list's reading axis
 // instead of floating mid-column.
 export const HomeSectionEmpty = ({text}: {text: string}) => (
-    <p className="text-muted-foreground px-3.5 py-6 text-xs">{text}</p>
+    <p className="text-muted-foreground px-3.5 py-6 text-body">{text}</p>
 )

@@ -64,7 +64,7 @@ export const BooleanToggleControl = memo(function BooleanToggleControl({
         <div className={cn("flex items-center justify-between gap-3", className)}>
             <div className="flex items-center gap-1">
                 {label && (
-                    <span id={labelId} className={cn("font-medium text-xs", textColors.primary)}>
+                    <span id={labelId} className={cn("font-medium text-label", textColors.primary)}>
                         {label}
                     </span>
                 )}
@@ -72,7 +72,7 @@ export const BooleanToggleControl = memo(function BooleanToggleControl({
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <Info size={12} className="text-gray-400 cursor-help" />
+                                <Info size={12} className="text-muted-foreground cursor-help" />
                             </TooltipTrigger>
                             <TooltipContent side="right">{tooltipText}</TooltipContent>
                         </Tooltip>

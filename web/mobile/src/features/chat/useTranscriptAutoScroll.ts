@@ -32,6 +32,9 @@ const GLIDE_MAX_VIEWPORTS = 2
 const savedScrollTop = (sessionId: string | undefined): number | null =>
     sessionId ? (readTranscriptPosition(sessionId)?.scrollTop ?? null) : null
 
+/** The anchor a transcript opened "at the answer" holds until the reader scrolls. */
+const OPEN_AT_ANSWER = "__open-at-answer__"
+
 /** Content with nothing in it yet: the transcript is still loading. */
 const isEmptyContent = (content: unknown) => Array.isArray(content) && content.length === 0
 
@@ -39,17 +42,23 @@ const isEmptyContent = (content: unknown) => Array.isArray(content) && content.l
 const SCROLL_KEYS = new Set(["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "])
 
 /**
- * Starts the transcript at the latest message; follows appends only while already near the bottom.
+ * Starts the transcript at the latest message (or the last answer's top); follows appends only near the bottom.
  * An answer that arrives while following is anchored at its first line, not its last, until the
  * reader's first scroll input (input, not position: browser scroll anchoring also moves scrollTop).
  * With a `sessionId`, the position is kept per session and a remount puts it back (design D6).
  */
-export const useTranscriptAutoScroll = (content: unknown, sessionId?: string) => {
+export const useTranscriptAutoScroll = (
+    content: unknown,
+    sessionId?: string,
+    /** "answer": open at the top of the last answer (a finished run is read from its start). */
+    openAt: "latest" | "answer" = "latest",
+) => {
+    const initialAnchor = openAt === "answer" ? OPEN_AT_ANSWER : null
     const ref = useRef<HTMLDivElement | null>(null)
     // Starts true so the first content render pins to the latest message.
     const nearBottomRef = useRef(true)
     // The arrived answer that started the anchor; holding it counts as following.
-    const anchorRef = useRef<string | null>(null)
+    const anchorRef = useRef<string | null>(initialAnchor)
     // Answers the reader took over from; never anchored again.
     const releasedRef = useRef(new Set<string>())
     // The jump pill is a SEPARATE, much further threshold (`shouldRevealJump`, shared with the
@@ -190,11 +199,11 @@ export const useTranscriptAutoScroll = (content: unknown, sessionId?: string) =>
         if (sessionRef.current === sessionId) return
         sessionRef.current = sessionId
         nearBottomRef.current = true
-        anchorRef.current = null
+        anchorRef.current = initialAnchor
         pinnedRef.current = false
         glideToRef.current = null
         restoreRef.current = savedScrollTop(sessionId)
-    }, [sessionId])
+    }, [sessionId, initialAnchor])
 
     useLayoutEffect(() => {
         const el = ref.current

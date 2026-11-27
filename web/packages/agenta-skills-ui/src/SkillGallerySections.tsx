@@ -58,8 +58,8 @@ export function SkillGallerySections({
             <EmptyState
                 image="simple"
                 description={
-                    <span className="flex flex-col gap-1 text-xs">
-                        <span className="font-medium text-[var(--ag-colorText)]">
+                    <span className="flex flex-col gap-1 text-label font-normal">
+                        <span className="font-medium text-foreground">
                             {search.trim()
                                 ? t("skills.gallery.noMatchTitle")
                                 : t("skills.gallery.noSkillsTitle")}
@@ -80,14 +80,14 @@ export function SkillGallerySections({
             {visibleSections.map((section) => (
                 <section key={section.key} className="flex flex-col gap-2.5">
                     <div className="flex items-center gap-2">
-                        <h2 className="m-0 text-xs font-semibold uppercase tracking-wide text-[var(--ag-colorTextSecondary)]">
+                        <h2 className="m-0 text-meta font-medium text-muted-foreground">
                             {section.label}
                         </h2>
-                        <span className="text-xs tabular-nums text-[var(--ag-colorTextTertiary)]">
+                        <span className="text-meta tabular-nums text-muted-foreground">
                             {section.skills.length}
                         </span>
                         {section.tag ? (
-                            <span className="rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px text-[10px] text-[var(--ag-colorTextTertiary)]">
+                            <span className="rounded bg-secondary px-1.5 py-px text-caption text-muted-foreground">
                                 {section.tag}
                             </span>
                         ) : null}

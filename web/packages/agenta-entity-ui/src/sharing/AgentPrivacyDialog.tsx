@@ -8,12 +8,13 @@ import type {
     Visibility,
 } from "@agenta/entities/sharing"
 import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import sharingCatalog from "@agenta/i18n/catalogs/entityUi.sharing"
 import {
     PersonAvatar,
-    ShareDisclosureNotice,
     SharingSurface,
     personName,
+    useShareDisclosureText,
     type SharingPerson,
     type SharingWriteResult,
 } from "@agenta/sessions-ui/sharing"
@@ -27,15 +28,13 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
     Button,
+    ChoiceSwitch,
     LoadingButton,
-    RadioGroup,
-    RadioGroupItem,
     SkeletonBlock,
-    cn,
 } from "@agenta/ui/ui"
 import {UsersIcon} from "@phosphor-icons/react"
 
-import {AgentTransferDialog} from "./AgentTransferDialog"
+import {AgentTransferForm} from "./AgentTransferForm"
 import {agentSharingCopy as copy} from "./copy"
 import {useAgentSharingWrites, type AgentSharingNotice} from "./useAgentSharingWrites"
 
@@ -87,29 +86,9 @@ const Note = ({notice, owner}: {notice: AgentSharingNotice; owner: string}) => {
     return null
 }
 
-const VisibilityCard = ({
-    value,
-    title,
-    description,
-    checked,
-}: {
-    value: Visibility
-    title: string
-    description: string
-    checked: boolean
-}) => (
-    <label
-        className={cn(
-            "box-border flex cursor-pointer gap-2.5 rounded-control-lg border border-solid border-border p-3",
-            checked && "border-foreground ring-1 ring-foreground",
-        )}
-    >
-        <RadioGroupItem value={value} className="mt-0.5" />
-        <span className="flex flex-col">
-            <span className="text-sm font-semibold">{title}</span>
-            <span className="text-xs text-muted-foreground">{description}</span>
-        </span>
-    </label>
+// A section heading, as in the Share dialog.
+const SectionLabel = ({children}: {children: ReactNode}) => (
+    <span className="text-label text-muted-foreground">{children}</span>
 )
 
 const OwnerRow = ({
@@ -121,22 +100,74 @@ const OwnerRow = ({
     you: boolean
     action?: ReactNode
 }) => (
-    <div className="flex items-center gap-2 py-1">
-        <PersonAvatar person={owner} />
+    <div className="flex h-row-double items-center gap-2">
+        <PersonAvatar person={owner} size="default" />
         <div className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate text-sm font-medium">
+            <span className="truncate text-label">
                 {personName(owner)}{" "}
-                {you ? (
-                    <span className="font-normal text-muted-foreground">{copy.youSuffix}</span>
-                ) : null}
+                {you ? <span className="text-muted-foreground">{copy.youSuffix}</span> : null}
             </span>
-            <span className="truncate text-xs text-muted-foreground">
-                {you ? owner.email : copy.ownerRole}
-            </span>
+            {owner.name ? (
+                <span className="truncate text-meta text-muted-foreground">{owner.email}</span>
+            ) : null}
         </div>
-        {action}
+        {action ?? (
+            <span className="px-1.5 text-label text-muted-foreground">{copy.ownerRole}</span>
+        )}
     </div>
 )
+
+/** One choice of the visibility `ChoiceSwitch`: the label over its one-line note. */
+const ChoiceSkeleton = () => (
+    <div className="flex min-w-0 flex-1 flex-col gap-0.5 px-2.5 py-2">
+        <div className="flex h-5 items-center">
+            <SkeletonBlock className="h-3.5 w-16" />
+        </div>
+        <div className="flex h-4 items-center">
+            <SkeletonBlock className="h-3 w-4/5" />
+        </div>
+    </div>
+)
+
+/** The owner's view while it loads (STATE-02): who can see it, then the owner row. */
+const AgentPrivacySkeleton = () => {
+    const t = useT(commonCatalog)
+    return (
+        <div
+            role="status"
+            aria-busy
+            aria-label={t("common.loading")}
+            className="flex flex-col gap-4"
+        >
+            <section className="flex flex-col gap-2">
+                <div className="flex h-4.5 items-center">
+                    <SkeletonBlock className="h-3 w-32" />
+                </div>
+                <div className="flex gap-0.5 rounded-lg bg-secondary p-0.5">
+                    <ChoiceSkeleton />
+                    <ChoiceSkeleton />
+                </div>
+            </section>
+            <section className="flex flex-col gap-2">
+                <div className="flex h-4.5 items-center">
+                    <SkeletonBlock className="h-3 w-12" />
+                </div>
+                <div className="flex h-row-double items-center gap-2">
+                    <SkeletonBlock shape="mark" className="size-7 shrink-0" />
+                    <div className="flex min-w-0 flex-1 flex-col">
+                        <div className="flex h-4.5 items-center">
+                            <SkeletonBlock className="h-3.5 w-24" />
+                        </div>
+                        <div className="flex h-4 items-center">
+                            <SkeletonBlock className="h-3 w-32" />
+                        </div>
+                    </div>
+                    <SkeletonBlock className="h-7 w-36 shrink-0 rounded-md" />
+                </div>
+            </section>
+        </div>
+    )
+}
 
 export interface AgentPrivacyPanelProps extends AgentPrivacyProps {
     /**
@@ -192,6 +223,11 @@ export const AgentPrivacyPanel = ({
         setConfirm(null)
         setTransferOpen(false)
     }, [active])
+    const disclosureText = useShareDisclosureText(
+        {kind: "agent", agentName, projectName},
+        disclosure,
+        providerLabel,
+    )
 
     const confirmVisibility = async () => {
         if (!confirm || !writable) return
@@ -202,13 +238,13 @@ export const AgentPrivacyPanel = ({
     const takeOwnershipRow = sharing?.can_take_ownership ? (
         <div className="flex flex-wrap items-center gap-2.5">
             <LoadingButton
-                className="max-md:h-11"
+                className=""
                 loading={writes.saving === "take"}
                 onClick={() => void writes.takeOwnership()}
             >
                 {copy.takeOwnership}
             </LoadingButton>
-            <span className="text-xs text-muted-foreground">{copy.takeOwnershipHelp}</span>
+            <span className="text-meta text-muted-foreground">{copy.takeOwnershipHelp}</span>
         </div>
     ) : null
 
@@ -229,12 +265,7 @@ export const AgentPrivacyPanel = ({
             />
         )
     } else if (!ready || !sharing) {
-        body = (
-            <div className="flex flex-col gap-2" aria-busy>
-                <SkeletonBlock className="h-[54px] w-full" />
-                <SkeletonBlock className="h-[54px] w-full" />
-            </div>
-        )
+        body = <AgentPrivacySkeleton />
     } else if (!ownerId) {
         body = (
             <>
@@ -260,59 +291,93 @@ export const AgentPrivacyPanel = ({
     } else if (!isOwner) {
         body = (
             <>
-                <div className="box-border flex items-center gap-2.5 rounded-control-lg border border-solid border-border p-3">
-                    <UsersIcon size={15} aria-hidden />
-                    <span className="text-sm font-semibold">{copy.cardProject}</span>
-                </div>
-                {owner ? <OwnerRow owner={owner} you={false} /> : null}
-                <p className="m-0 text-xs text-muted-foreground">{copy.notOwner(ownerName)}</p>
+                <section className="flex flex-col gap-2">
+                    <SectionLabel>{copy.whoSection}</SectionLabel>
+                    {/* A two-line row's 32 px Mark, 12 px to its text (CONS-01). */}
+                    <div className="flex h-row-double items-center gap-3">
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted">
+                            <UsersIcon size={16} aria-hidden />
+                        </span>
+                        <div className="flex min-w-0 flex-1 flex-col">
+                            <span className="text-label">{copy.cardProject}</span>
+                            <p className="m-0 text-meta text-muted-foreground">
+                                {copy.noteProject(projectName)}
+                            </p>
+                        </div>
+                    </div>
+                </section>
+                {owner ? (
+                    <section className="flex flex-col gap-2">
+                        <SectionLabel>{copy.ownerSection}</SectionLabel>
+                        <OwnerRow owner={owner} you={false} />
+                    </section>
+                ) : null}
+                <p className="m-0 text-meta text-muted-foreground">{copy.notOwner(ownerName)}</p>
             </>
         )
     } else {
         body = (
             <>
-                <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
-                    <legend className="mb-2 p-0 text-xs font-medium text-muted-foreground">
-                        {copy.whoSection}
-                    </legend>
-                    <RadioGroup
+                <section className="flex flex-col gap-2">
+                    <SectionLabel>{copy.whoSection}</SectionLabel>
+                    {/* Both choices in view, each with what it means, as in the Share dialog. */}
+                    <ChoiceSwitch
+                        aria-label={copy.whoSection}
                         value={visibility}
                         disabled={writes.saving === "visibility"}
-                        onValueChange={(next) => {
-                            if (next !== visibility) setConfirm(next as Visibility)
+                        onChange={(next) => {
+                            if (next !== visibility) setConfirm(next)
                         }}
-                    >
-                        <VisibilityCard
-                            value="private"
-                            title={copy.cardPrivate}
-                            description={copy.linePrivate}
-                            checked={visibility === "private"}
-                        />
-                        <VisibilityCard
-                            value="project"
-                            title={copy.cardProject}
-                            description={copy.lineProject(projectName)}
-                            checked={visibility === "project"}
-                        />
-                    </RadioGroup>
-                </fieldset>
-                <section className="flex flex-col gap-1">
-                    <span className="text-xs font-medium text-muted-foreground">
-                        {copy.ownerSection}
-                    </span>
+                        choices={[
+                            {
+                                value: "private",
+                                label: copy.cardPrivate,
+                                note: copy.linePrivate,
+                            },
+                            {
+                                value: "project",
+                                label: copy.cardProject,
+                                note: copy.noteProject(projectName),
+                            },
+                        ]}
+                    />
+                </section>
+                <section className="flex flex-col gap-2">
+                    <SectionLabel>{copy.ownerSection}</SectionLabel>
                     {owner ? (
                         <OwnerRow
                             owner={owner}
                             you
                             action={
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => setTransferOpen(true)}
-                                >
-                                    {copy.transferButton}
-                                </Button>
+                                // The open step has its own Cancel under the picker.
+                                transferOpen ? undefined : (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setTransferOpen(true)}
+                                    >
+                                        {copy.transferButton}
+                                    </Button>
+                                )
                             }
+                        />
+                    ) : null}
+                    {writable && transferOpen ? (
+                        <AgentTransferForm
+                            isPrivate={visibility === "private"}
+                            ownerUserId={ownerId}
+                            members={props.members}
+                            membersSearch={props.membersSearch}
+                            onMembersSearch={props.onMembersSearch}
+                            membersLoading={props.membersLoading}
+                            membersError={props.membersError}
+                            onTransfer={props.onTransfer}
+                            onTransferred={(next) => {
+                                setTransferOpen(false)
+                                writes.transferred(next)
+                            }}
+                            onFailed={(result) => writes.settle(result)}
+                            onCancel={() => setTransferOpen(false)}
                         />
                     ) : null}
                 </section>
@@ -363,32 +428,35 @@ export const AgentPrivacyPanel = ({
                 </AlertDialogContent>
             </AlertDialog>
 
-            <ShareDisclosureNotice
+            <AlertDialog
                 open={writable && confirm === "project"}
                 onOpenChange={(next) => !next && !writes.saving && setConfirm(null)}
-                target={{kind: "agent", agentName, projectName}}
-                disclosure={disclosure}
-                providerLabel={providerLabel}
-                onConfirm={() => void confirmVisibility()}
-                confirming={writes.saving === "visibility"}
-            />
-
-            <AgentTransferDialog
-                open={writable && transferOpen}
-                onOpenChange={setTransferOpen}
-                agentName={agentName}
-                projectName={projectName}
-                isPrivate={visibility === "private"}
-                ownerUserId={ownerId}
-                members={props.members}
-                membersSearch={props.membersSearch}
-                onMembersSearch={props.onMembersSearch}
-                membersLoading={props.membersLoading}
-                membersError={props.membersError}
-                onTransfer={props.onTransfer}
-                onTransferred={writes.transferred}
-                onFailed={(result) => writes.settle(result)}
-            />
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{disclosureText.title}</AlertDialogTitle>
+                        <AlertDialogDescription>{disclosureText.body}</AlertDialogDescription>
+                        {disclosureText.personalAccounts.length ? (
+                            <ul className="m-0 list-none p-0 text-body text-muted-foreground">
+                                {disclosureText.personalAccounts.map((line) => (
+                                    <li key={line}>{line}</li>
+                                ))}
+                            </ul>
+                        ) : null}
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={writes.saving === "visibility"}>
+                            {disclosureText.cancelLabel}
+                        </AlertDialogCancel>
+                        <LoadingButton
+                            loading={writes.saving === "visibility"}
+                            onClick={() => void confirmVisibility()}
+                        >
+                            {disclosureText.confirmLabel}
+                        </LoadingButton>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     )
 }

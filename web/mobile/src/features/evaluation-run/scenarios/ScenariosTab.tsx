@@ -306,7 +306,7 @@ export const ScenariosTab = ({
                                 onRetry={scenarios.retryValues}
                             />
                         ) : (
-                            <p className="m-0 text-xs text-muted-foreground">
+                            <p className="m-0 text-meta text-muted-foreground">
                                 {entry.failed
                                     ? "Could not load"
                                     : entry.pending

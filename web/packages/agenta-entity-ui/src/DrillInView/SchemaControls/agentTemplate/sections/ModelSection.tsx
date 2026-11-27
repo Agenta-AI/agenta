@@ -1,17 +1,12 @@
 import type {AgentRequirementItem} from "@agenta/entities/workflow"
-import {createT} from "@agenta/i18n"
-import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
+import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {Cpu} from "@phosphor-icons/react"
 
-import {modelIdFromConfig} from "../../connectionUtils"
+import {connectionFromConfig, modelIdFromConfig} from "../../connectionUtils"
 import {needsSetupLabel} from "../needsSetupText"
-import {SectionPageAction} from "../SectionPageAction"
-import {SectionPageRow} from "../SectionPageRow"
 import {SectionTitleBadge} from "../SectionTitleBadge"
 
 import type {AgentTemplateT, ModelHarness, SectionIndicatorFor, SectionResult} from "./types"
-
-const tItems = createT(configItemsCatalog)
 
 export interface ModelSectionParams {
     t: AgentTemplateT
@@ -41,46 +36,28 @@ export const modelSection = ({
             <SectionTitleBadge label={needsSetupLabel()} tone="warning" />
         ) : null
 
+    // A model that is set up shows its provider's logo; with no model, or setup still needed,
+    // the row keeps the chip.
+    const modelId = modelIdFromConfig(config.llm)
+    const provider =
+        connectionFromConfig(config.llm).provider ??
+        (modelId?.includes("/") ? modelId.split("/")[0] : null)
+    const ProviderIcon =
+        modelId && provider && !modelHarnessBadge ? getProviderIcon(provider) : null
+
     return (
         mh.hasModelOrHarness && {
             key: "model-harness",
-            icon: <Cpu size={14} />,
+            icon: ProviderIcon ? <ProviderIcon /> : <Cpu size={14} />,
             title: t("entityUi.agentTemplate.model"),
-            titleBadge: modelHarnessBadge,
-            summary: mh.modelSummary,
-            indicator: sectionIndicator("model-harness"),
+            // While setup is needed, the badge stands at the end of the row in place of the model.
+            summary: modelHarnessBadge ?? mh.modelSummary,
+            // The badge at the row's end already says it; no second warning dot on the icon.
+            indicator: modelHarnessBadge ? undefined : sectionIndicator("model-harness"),
             defaultOpen: false,
             // The row opens the Model view, which holds today's list; a pick applies at once.
             onOpen: openModel,
-            pageAction: <SectionPageAction action="change" onClick={openModel} />,
-            // The page card (canvas A04): the model's readable name, then its raw id and the
-            // harness; "Change" opens the view, so the row has no caret.
-            pageContent: (
-                <SectionPageRow
-                    icon={<Cpu size={14} />}
-                    title={mh.modelCard.name ?? mh.modelCard.id ?? mh.modelSummary}
-                    // With no readable name the id is the title, so the line does not repeat it.
-                    summary={
-                        <ModelCardLine
-                            id={mh.modelCard.name ? mh.modelCard.id : null}
-                            harness={mh.modelCard.harness}
-                        />
-                    }
-                />
-            ),
             content: null,
         }
-    )
-}
-
-/** The Model card's second line: the raw id in mono, then "via <harness>". */
-const ModelCardLine = ({id, harness}: Pick<ModelHarness["modelCard"], "id" | "harness">) => {
-    if (!id && !harness) return null
-    return (
-        <>
-            {id ? <span className="font-mono">{id}</span> : null}
-            {id && harness ? " · " : null}
-            {harness ? tItems("entityUi.configItems.modelVia", {harness}) : null}
-        </>
     )
 }

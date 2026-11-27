@@ -32,17 +32,11 @@ export const QueueRowMenu = ({
 }) => (
     <DropdownMenu>
         <DropdownMenuTrigger asChild>
-            <Button
-                type="button"
-                size="icon-xs"
-                variant="ghost"
-                aria-label="Queue actions"
-                className="hover:bg-foreground/10 dark:hover:bg-foreground/15"
-            >
-                <DotsThreeVertical aria-hidden className="size-3.5" weight="bold" />
+            <Button type="button" size="icon-xs" variant="ghost" aria-label="Queue actions">
+                <DotsThreeVertical aria-hidden className="size-3.5" />
             </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-[180px]">
+        <DropdownMenuContent align="end" className="w-60">
             <DropdownMenuItem onSelect={onOpen}>
                 <ArrowSquareOut aria-hidden size={14} />
                 Open

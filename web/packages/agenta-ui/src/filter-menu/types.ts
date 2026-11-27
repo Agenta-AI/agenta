@@ -43,11 +43,15 @@ export interface FilterMenuSection<Value extends string = string> {
     multi?: boolean
     /** Defaults to `"filter"`. Sort and group rows pass `"sort"` and render first. */
     block?: FilterMenuBlock
+    /**
+     * The row's untouched value. A filter row that differs from it dots the trigger; a sort or
+     * group row never does, because ordering and grouping do not narrow the list.
+     */
+    defaultValue?: Value | Value[]
     /** What the flyout says when `options` is empty. */
     emptyText?: string
     /**
-     * A wider flyout, for options whose labels are names rather than words. The default width
-     * fits "Last 30 days"; an agent called "Search Console Assistant" truncates to nothing.
+     * Kept for callers: every flyout is now `w-popover-sm` (240), wide enough for names.
      */
     wide?: boolean
     /** A search field over the flyout's options, for lists of names too long to scan. */
@@ -75,6 +79,8 @@ export interface FilterMenuToggle {
     checked: boolean
     onChange: (checked: boolean) => void
     disabled?: boolean
+    /** The untouched state; a switch away from it dots the trigger. Off by default. */
+    defaultChecked?: boolean
 }
 
 /** What the panel takes: an option row or a toggle row, in display order. */
@@ -93,13 +99,14 @@ export interface FilterMenuTriggerProps {
     label?: ReactNode | null
     /** Replaces the default leading glyph. */
     icon?: ReactNode
-    size?: "sm" | "default" | "lg" | "icon" | "icon-sm" | "compact" | "icon-compact"
-    variant?: "outline" | "ghost" | "default" | "secondary" | "dashed" | "link"
+    size?: "sm" | "default" | "lg" | "icon" | "icon-xs" | "icon-sm" | "compact" | "icon-compact"
+    variant?: "outline" | "ghost" | "default" | "secondary" | "link"
     triggerClassName?: string
     triggerAriaLabel?: string
     /**
-     * The surface is not showing what it shows by default — a dot appears in the trigger's
-     * corner.
+     * Narrowing that has no row in this menu (a locked agent, a filter set elsewhere). The menu
+     * dots its trigger on its own when a filter row leaves its `defaultValue`; sorting and
+     * grouping never dot it.
      *
      * A narrowed table whose control looks untouched is the failure mode this exists for: the
      * rows are missing and nothing on screen says why.
@@ -117,3 +124,18 @@ export interface FilterMenuPlacementProps {
     flyoutAlign?: FilterMenuAlign
     flyoutSideOffset?: number
 }
+
+const sameValue = (a: string | string[], b: string | string[]): boolean =>
+    Array.isArray(a) || Array.isArray(b)
+        ? [a].flat().slice().sort().join("\u0000") === [b].flat().slice().sort().join("\u0000")
+        : a === b
+
+/** Whether any filter row or switch is away from its default. Sort and group rows never count. */
+export const isFilterMenuNarrowed = (items: FilterMenuItem[]): boolean =>
+    items.some((item) =>
+        isFilterMenuToggle(item)
+            ? item.checked !== (item.defaultChecked ?? false)
+            : (item.block ?? "filter") === "filter" &&
+              item.defaultValue !== undefined &&
+              !sameValue(item.value, item.defaultValue),
+    )

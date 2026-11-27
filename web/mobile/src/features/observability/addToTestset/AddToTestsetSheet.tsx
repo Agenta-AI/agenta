@@ -65,7 +65,7 @@ export const AddToTestsetSheet = ({
         return (
             <>
                 {form.spanCount > 1 ? (
-                    <p className="text-muted-foreground m-0 text-sm">
+                    <p className="text-muted-foreground m-0 text-body">
                         {t("observability.addToTestset.spansSelected", {count: form.spanCount})}
                     </p>
                 ) : null}
@@ -105,7 +105,7 @@ export const AddToTestsetSheet = ({
                         />
                     </>
                 ) : null}
-                <label className="flex flex-col gap-1 text-sm">
+                <label className="flex flex-col gap-1 text-body">
                     {t("observability.addToTestset.commitMessage")}
                     <Textarea
                         placeholder={t("observability.addToTestset.commitMessagePlaceholder")}
@@ -122,7 +122,7 @@ export const AddToTestsetSheet = ({
         <Sheet open onOpenChange={(open) => !open && !form.saving && onClose()}>
             <SheetContent
                 side="right"
-                className="w-full max-sm:inset-0 max-sm:rounded-none sm:w-[640px] sm:max-w-[calc(100vw-1rem)]"
+                className="w-full max-sm:inset-0 max-sm:rounded-none sm:w-160 sm:max-w-[calc(100vw-1rem)]"
             >
                 <SheetHeader>
                     <SheetTitle>{t("observability.addToTestset.sheetTitle")}</SheetTitle>
@@ -157,7 +157,7 @@ export const AddToTestsetSheet = ({
                             })}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
-                    <div className="flex flex-wrap items-center gap-1.5 text-sm">
+                    <div className="flex flex-wrap items-center gap-1.5 text-body">
                         {t("observability.addToTestset.newColumns")}
                         {form.newColumns.map((column) => (
                             <Badge key={column}>{column}</Badge>

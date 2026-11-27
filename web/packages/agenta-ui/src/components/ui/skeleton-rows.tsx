@@ -37,7 +37,7 @@ export function SkeletonRows({
                 <SkeletonBlock
                     key={i}
                     active={active}
-                    shape="round"
+                    shape="soft"
                     className={cn("h-12 w-full", rowClassName)}
                 />
             ))}

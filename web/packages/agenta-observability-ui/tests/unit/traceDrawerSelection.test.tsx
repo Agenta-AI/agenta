@@ -64,9 +64,7 @@ vi.mock("@agenta/observability/traceDrawer", async () => {
     }
 })
 
-vi.mock("@agenta/ui/components/presentational", () => ({
-    EnhancedButton: () => null,
-}))
+vi.mock("@agenta/ui/components/presentational", () => ({}))
 
 vi.mock("next/dynamic", () => ({
     default: () =>

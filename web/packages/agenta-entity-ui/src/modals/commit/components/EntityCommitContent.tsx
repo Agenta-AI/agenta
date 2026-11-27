@@ -289,7 +289,7 @@ export function EntityCommitContent({
     const nameSlugEditor = (
         <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-2">
-                <label htmlFor="entity-name" className="font-medium text-gray-700">
+                <label htmlFor="entity-name" className="font-medium text-foreground">
                     {entityNameLabel ?? t("entityUi.commitModal.name")}
                 </label>
                 <Input
@@ -298,7 +298,7 @@ export function EntityCommitContent({
                     onChange={(e) => setEntityName(e.target.value)}
                     placeholder={t("entityUi.commitModal.namePlaceholder")}
                     autoFocus
-                    className={isAgentCommit ? "!bg-[var(--ag-colorFillQuaternary)]" : undefined}
+                    className={isAgentCommit ? "!bg-secondary" : undefined}
                 />
             </div>
 
@@ -321,8 +321,8 @@ export function EntityCommitContent({
                                     // aria-invalid lands on the inner <input>; the wrapper span
                                     // carries the border, so the error skin is applied here.
                                     (slugFieldError || slugValidationError) &&
-                                        "!border-error focus-within:!shadow-[0_0_0_2px_var(--ag-errorOutline)]",
-                                    isAgentCommit && "!bg-[var(--ag-colorFillQuaternary)]",
+                                        "!border-destructive",
+                                    isAgentCommit && "!bg-secondary",
                                 )}
                                 suffix={
                                     <Button
@@ -336,7 +336,7 @@ export function EntityCommitContent({
                                 }
                             />
                             {(slugFieldError || slugValidationError) && (
-                                <div className="mt-0.5 flex items-start gap-1 text-[var(--ag-c-FF4D4F)]">
+                                <div className="mt-0.5 flex items-start gap-1 text-destructive">
                                     <WarningCircle size={16} className="mt-0.5 shrink-0" />
                                     <span>{slugFieldError ?? slugValidationError}</span>
                                 </div>
@@ -353,8 +353,8 @@ export function EntityCommitContent({
                                 {t("entityUi.commitModal.slugLabel")}
                             </span>
                             <Badge
-                                variant="outlined"
-                                className="inline-block min-w-0 max-w-[min(220px,calc(100%-88px))] truncate bg-gray-100 font-mono text-gray-500"
+                                variant="default"
+                                className="inline-block min-w-0 max-w-[min(220px,calc(100%-88px))] truncate bg-secondary font-mono text-muted-foreground"
                                 title={entitySlug}
                             >
                                 {entitySlug}
@@ -392,13 +392,13 @@ export function EntityCommitContent({
                     "flex flex-col gap-4",
                     hasDiffData
                         ? isAgentCommit
-                            ? "order-2 box-border w-full shrink-0 overflow-hidden border-t border-[var(--ag-colorBorderSecondary)] px-6 py-5 min-h-0 sm:w-[400px] sm:border-t-0 sm:border-l"
+                            ? "order-2 box-border w-full shrink-0 overflow-hidden border-t border-border-muted px-6 py-5 min-h-0 sm:w-[400px] sm:border-t-0 sm:border-l"
                             : "w-full shrink-0 overflow-y-auto sm:w-[320px]"
                         : "w-full",
                 )}
             >
                 {isAgentCommit ? (
-                    <span className="shrink-0 text-base font-semibold text-colorText">
+                    <span className="shrink-0 text-title font-semibold text-foreground">
                         {actionLabel === "Commit"
                             ? t("entityUi.commitModal.commitTarget", {
                                   name: appName || originalEntityName,
@@ -440,7 +440,7 @@ export function EntityCommitContent({
                                 <div className="flex flex-col gap-3">
                                     <span
                                         className={cn(
-                                            "text-xs leading-relaxed",
+                                            "text-meta leading-relaxed",
                                             textColors.secondary,
                                         )}
                                     >
@@ -451,7 +451,7 @@ export function EntityCommitContent({
                                             }),
                                             {
                                                 name: (text) => (
-                                                    <span className="font-medium text-[var(--ag-colorText)]">
+                                                    <span className="font-medium text-foreground">
                                                         {text}
                                                     </span>
                                                 ),
@@ -459,14 +459,17 @@ export function EntityCommitContent({
                                         )}
                                     </span>
                                     {nameEditorInRail ? (
-                                        <div className="border-t border-[var(--ag-colorBorderSecondary)] pt-3">
+                                        <div className="border-t border-border-muted pt-3">
                                             {nameSlugEditor}
                                         </div>
                                     ) : null}
                                 </div>
                             ) : (
                                 <span
-                                    className={cn("text-xs leading-relaxed", textColors.secondary)}
+                                    className={cn(
+                                        "text-meta leading-relaxed",
+                                        textColors.secondary,
+                                    )}
                                 >
                                     {richText(
                                         t("entityUi.commitModal.versionNote", {
@@ -477,7 +480,7 @@ export function EntityCommitContent({
                                         }),
                                         {
                                             version: (text) => (
-                                                <span className="font-medium text-[var(--ag-colorText)]">
+                                                <span className="font-medium text-foreground">
                                                     {text}
                                                 </span>
                                             ),
@@ -522,7 +525,7 @@ export function EntityCommitContent({
                                 {selectedMode === "variant" ? (
                                     <span className="flex items-center gap-1 min-w-0">
                                         <span
-                                            className="truncate text-blue-7"
+                                            className="truncate text-foreground"
                                             title={
                                                 modeLabel ||
                                                 entityName ||
@@ -533,7 +536,7 @@ export function EntityCommitContent({
                                                 entityName ||
                                                 t("entityUi.commitModal.newVariantFallback")}
                                         </span>
-                                        <span className="shrink-0 rounded bg-blue-1 px-1.5 py-0.5 text-xs font-medium text-blue-7">
+                                        <span className="shrink-0 rounded-sm bg-secondary px-1.5 py-0.5 text-caption text-muted-foreground">
                                             v1
                                         </span>
                                     </span>
@@ -545,14 +548,14 @@ export function EntityCommitContent({
                                         >
                                             {originalEntityName}
                                         </span>
-                                        <span className="shrink-0 rounded bg-blue-1 px-1.5 py-0.5 text-xs font-medium text-blue-7">
+                                        <span className="shrink-0 rounded-sm bg-secondary px-1.5 py-0.5 text-caption text-muted-foreground">
                                             v{context.versionInfo.targetVersion}
                                         </span>
                                     </span>
                                 )}
                             </div>
                             {changesDescription.length > 0 && (
-                                <div className={cn("mt-2 text-xs", textColors.tertiary)}>
+                                <div className={cn("mt-2 text-meta", textColors.tertiary)}>
                                     {t("entityUi.commitModal.changesList", {
                                         list: changesDescription.join(", "),
                                     })}
@@ -574,7 +577,7 @@ export function EntityCommitContent({
                     {/* Commit mode selector (optional) — agent commits use the statement toggle. */}
                     {!isAgentCommit && commitModes && commitModes.length > 0 && (
                         <div className="flex flex-col gap-2">
-                            <label htmlFor="commit-mode" className="font-medium text-gray-700">
+                            <label htmlFor="commit-mode" className="font-medium text-foreground">
                                 {t("entityUi.commitModal.saveMode")}
                             </label>
                             <RadioGroup
@@ -613,7 +616,7 @@ export function EntityCommitContent({
                     <div
                         className={cn(
                             isAgentCommit &&
-                                "flex min-h-[132px] flex-1 flex-col border-t border-zinc-2 pt-4",
+                                "flex min-h-33 flex-1 flex-col border-t border-zinc-2 pt-4",
                         )}
                     >
                         <CommitMessageInput
@@ -634,7 +637,7 @@ export function EntityCommitContent({
                             fill={isAgentCommit}
                             className={
                                 isAgentCommit
-                                    ? "[&_.ant-input-textarea-affix-wrapper]:!bg-[var(--ag-colorFillQuaternary)] [&_textarea]:!bg-transparent"
+                                    ? "[&_.ant-input-textarea-affix-wrapper]:!bg-secondary [&_textarea]:!bg-transparent"
                                     : undefined
                             }
                         />
@@ -659,7 +662,7 @@ export function EntityCommitContent({
 
                 {/* Action footer lives with the form (agent two-pane). */}
                 {footerSlot ? (
-                    <div className="-mx-6 -mb-5 mt-auto border-t border-[var(--ag-colorBorderSecondary)] px-6 py-3">
+                    <div className="-mx-6 -mb-5 mt-auto border-t border-border-muted px-6 py-3">
                         {footerSlot}
                     </div>
                 ) : null}
@@ -667,7 +670,7 @@ export function EntityCommitContent({
 
             {/* Agent workflows: plain-language section summary (JSON stays one click away). */}
             {hasDiffData && context?.sections?.length ? (
-                <div className="order-1 flex min-w-0 flex-1 flex-col overflow-hidden bg-[var(--ag-colorFillQuaternary)]">
+                <div className="order-1 flex min-w-0 flex-1 flex-col overflow-hidden bg-secondary">
                     <AgentChangesSummary
                         sections={context.sections}
                         original={context.diffData?.original ?? ""}
@@ -678,15 +681,10 @@ export function EntityCommitContent({
             ) : hasDiffData ? (
                 <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-zinc-2 bg-zinc-1">
                     <div className="flex items-center justify-between border-b border-zinc-2 bg-zinc-1 px-3 py-2 shrink-0">
-                        <span
-                            className={cn(
-                                "text-xs font-semibold uppercase tracking-wide",
-                                textColors.secondary,
-                            )}
-                        >
+                        <span className={cn("text-meta font-medium", textColors.secondary)}>
                             {t("entityUi.commitModal.changesPreview")}
                         </span>
-                        <span className={cn("text-xs", textColors.quaternary)}>
+                        <span className={cn("text-meta", textColors.quaternary)}>
                             {t("entityUi.commitModal.changeCount", {count: totalChanges})}
                         </span>
                     </div>

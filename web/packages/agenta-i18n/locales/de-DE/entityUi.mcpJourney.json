@@ -39,5 +39,16 @@
     "noProjectSecrets": "Keine Projekt-Secrets gefunden",
     "unnamedSecret": "Unbenanntes Secret",
     "createSecret": "Secret erstellen",
-    "advancedSummary": "Callback-URL, Client-ID, Bereiche"
+    "advancedSummary": "Callback-URL, Client-ID, Bereiche",
+    "missingUrl": "Server-URL hinzufügen",
+    "invalidUrl": "Vollständige URL eingeben, die mit https:// beginnt",
+    "missingName": "Namen hinzufügen",
+    "nameTaken": "Einen Namen wählen, den keine andere Verbindung nutzt",
+    "missingKeyName": "Namen hinzufügen, unter dem der Schlüssel gesendet wird",
+    "missingProjectSecret": "Projekt-Secret auswählen",
+    "missingClient": "Client-ID und Secret hinzufügen",
+    "missingClientSecret": "Client-Secret auswählen",
+    "advancedSummaryClient": "Callback-URL, Client-ID",
+    "advancedSummaryScopes": "Bereiche",
+    "newSecret": "Neues Secret"
 }

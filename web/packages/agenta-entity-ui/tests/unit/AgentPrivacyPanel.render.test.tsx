@@ -79,9 +79,9 @@ describe("AgentPrivacyPanel", () => {
     it("asks before making the agent private, and changes nothing before the answer", () => {
         const onSetVisibility = vi.fn(async () => "ok" as const)
         render(state(), {onSetVisibility})
-        const privateRadio = document.querySelector<HTMLButtonElement>(
-            'button[role="radio"][value="private"]',
-        )!
+        const privateRadio = Array.from(
+            document.querySelectorAll<HTMLButtonElement>('button[role="radio"]'),
+        ).find((radio) => radio.textContent?.startsWith(agentSharingCopy.cardPrivate))!
         act(() => privateRadio.click())
         expect(document.body.textContent).toContain(
             agentSharingCopy.makePrivateTitle("Support triage"),

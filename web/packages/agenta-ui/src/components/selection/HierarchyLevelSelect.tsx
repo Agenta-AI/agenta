@@ -302,10 +302,10 @@ export function HierarchyLevelSelect<T>({
     return (
         <div className={cn("flex flex-col min-w-0", className)}>
             {showLabel && label && (
-                <span className={cn("text-xs mb-1 block", textColors.secondary)}>
+                <span className={cn("text-meta mb-1 block", textColors.secondary)}>
                     {label}
                     {showAutoIndicator && isAutoSelected && (
-                        <span className="ml-1 text-colorTextDescription">
+                        <span className="ml-1 text-muted-foreground">
                             {t("ui.controls.autoSelected")}
                         </span>
                     )}

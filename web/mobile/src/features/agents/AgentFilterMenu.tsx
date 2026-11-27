@@ -29,7 +29,7 @@ const ICON = 14
 
 /** The Status options get the dot a row paints, so the filter and the badge read alike. */
 const StatusDot = ({className}: {className: string}) => (
-    <span aria-hidden className={`size-1.5 rounded-full ${className}`} />
+    <span aria-hidden className={`size-1.5 rounded-round ${className}`} />
 )
 
 /**
@@ -67,6 +67,7 @@ export const AgentFilterMenu = ({
                 label: t("agents.list.columnOwner"),
                 icon: <User size={ICON} />,
                 value: view.owner,
+                defaultValue: DEFAULT_AGENT_LIST_VIEW.owner,
                 options: [
                     {
                         value: ALL_OWNERS,
@@ -87,6 +88,7 @@ export const AgentFilterMenu = ({
                 label: t("agents.list.filterStatus"),
                 icon: <Waveform size={ICON} />,
                 value: view.status,
+                defaultValue: DEFAULT_AGENT_LIST_VIEW.status,
                 options: [
                     {
                         value: "all",
@@ -96,7 +98,7 @@ export const AgentFilterMenu = ({
                     {
                         value: "waiting",
                         label: t("agents.list.filterWaiting"),
-                        icon: <StatusDot className="bg-colorWarning" />,
+                        icon: <StatusDot className="bg-warning" />,
                     },
                     {
                         value: "idle",
@@ -153,10 +155,7 @@ export const AgentFilterMenu = ({
         <FilterMenu
             sections={sections}
             align="start"
-            // A text button, sliders and "Filter", as drawn (A03). The default label is "Filter".
-            triggerAriaLabel={t("agents.list.filterTriggerLabel")}
-            size="compact"
-            active={!isDefaultAgentListView(view)}
+            size="default"
             // The mode survives a reset: it is how the reader chose to read the list, not what
             // they narrowed it to.
             onReset={() => onChange({...DEFAULT_AGENT_LIST_VIEW, mode: view.mode})}
