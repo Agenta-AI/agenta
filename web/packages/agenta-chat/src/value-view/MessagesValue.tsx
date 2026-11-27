@@ -272,7 +272,8 @@ const MessageItemView = ({
 /** A turn's tool steps from the trace, with its "Worked for" time and its tool call count. */
 const TraceActivity = ({activity: {key, activity, leading}}: {activity: ItemActivity}) => {
     const t = useT(valueViewCatalog)
-    const calls = activity.steps.filter((step) => step.kind === "tool").length
+    // Server and client tools both count; a thought is not a call.
+    const calls = activity.steps.filter((step) => step.kind !== "thought").length
     return (
         <ActivityTimeline
             messageId={key}

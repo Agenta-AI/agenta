@@ -557,7 +557,14 @@ describe("ValueField turnActivity", () => {
 
     it("draws the trace's steps in place of the stored calls, with the Worked for time", () => {
         const activity: TurnActivity[] = [
-            {steps: [traceStep("price_table"), traceStep("check_policy")], durationMs: 57_000},
+            {
+                steps: [
+                    {kind: "thought", key: "think", text: "Checking", streaming: false},
+                    traceStep("price_table"),
+                    traceStep("check_policy"),
+                ],
+                durationMs: 57_000,
+            },
         ]
         const {container} = render(<ValueField value={exchange} turnActivity={activity} />)
         expect(container.textContent).toContain("Price table")
