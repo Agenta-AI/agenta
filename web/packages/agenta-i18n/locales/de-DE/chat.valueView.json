@@ -22,6 +22,8 @@
     "showAllItems": "Alle {{count}} anzeigen",
     "calledTools_one": "{{count}} Tool aufgerufen",
     "calledTools_other": "{{count}} Tools aufgerufen",
+    "toolCalls_one": "{{count}} Tool-Aufruf",
+    "toolCalls_other": "{{count}} Tool-Aufrufe",
     "toolResult": "Tool-Ergebnis",
     "resultOf": "Ergebnis von {{name}}",
     "attachments_one": "{{count}} Anhang",

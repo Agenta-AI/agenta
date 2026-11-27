@@ -564,6 +564,8 @@ describe("ValueField turnActivity", () => {
         expect(container.textContent).toContain("Check policy")
         expect(container.textContent).not.toContain("Lookup order")
         expect(container.textContent).toContain("57")
+        // The line counts the turn's tool calls: "Worked for 57s · 2 tool calls".
+        expect(container.textContent).toContain("2 tool calls")
         // One exchange: no turn label.
         expect(container.textContent).not.toContain("Turn 1")
     })
@@ -571,6 +573,8 @@ describe("ValueField turnActivity", () => {
     it("draws today's output with no turnActivity", () => {
         const {container} = render(<ValueField value={exchange} />)
         expect(container.textContent).toContain("Lookup order")
+        expect(container.textContent).toContain("1 tool call")
+        expect(container.textContent).not.toContain("1 tool calls")
     })
 
     it("gives two exchanges with two assistant messages each one block each, labeled Turn N", () => {

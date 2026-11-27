@@ -247,6 +247,7 @@ const MessageItemView = ({
                     steps={toolSteps(item)}
                     streaming={false}
                     answerStarted
+                    trailing={t("chat.valueView.toolCalls", {count: message.toolCalls.length})}
                 />
             ) : null}
             {storedTools
@@ -268,17 +269,22 @@ const MessageItemView = ({
     )
 }
 
-/** A turn's tool steps from the trace, with its "Worked for" time. */
-const TraceActivity = ({activity: {key, activity, leading}}: {activity: ItemActivity}) => (
-    <ActivityTimeline
-        messageId={key}
-        steps={activity.steps}
-        streaming={false}
-        answerStarted
-        sessionTurnDurationMs={activity.durationMs}
-        leading={leading}
-    />
-)
+/** A turn's tool steps from the trace, with its "Worked for" time and its tool call count. */
+const TraceActivity = ({activity: {key, activity, leading}}: {activity: ItemActivity}) => {
+    const t = useT(valueViewCatalog)
+    const calls = activity.steps.filter((step) => step.kind === "tool").length
+    return (
+        <ActivityTimeline
+            messageId={key}
+            steps={activity.steps}
+            streaming={false}
+            answerStarted
+            sessionTurnDurationMs={activity.durationMs}
+            leading={leading}
+            trailing={calls ? t("chat.valueView.toolCalls", {count: calls}) : undefined}
+        />
+    )
+}
 
 const EntryView = ({
     entry,

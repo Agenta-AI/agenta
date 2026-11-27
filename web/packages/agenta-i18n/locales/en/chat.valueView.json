@@ -22,6 +22,8 @@
     "showAllItems": "Show all {{count}}",
     "calledTools_one": "Called {{count}} tool",
     "calledTools_other": "Called {{count}} tools",
+    "toolCalls_one": "{{count}} tool call",
+    "toolCalls_other": "{{count}} tool calls",
     "toolResult": "Tool result",
     "resultOf": "result of {{name}}",
     "attachments_one": "{{count}} attachment",
