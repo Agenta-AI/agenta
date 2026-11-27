@@ -1,0 +1,12 @@
+{
+    "organizationLimitInfo": "2 つ目の組織には Enterprise ライセンスが必要です。ここにいるメンバーと作業するには、既存の組織のオーナーに招待を依頼してください。",
+    "projectLimitAskAdmin": "プロジェクトを増やすには、このインスタンスの登録をインスタンス管理者に依頼してください。",
+    "projectLimitCloud": "Hobby プランに含まれるプロジェクトは 1 件です。プロジェクトを無制限にするには Starter にアップグレードしてください。",
+    "projectLimitRegister": "このインスタンスを無料で登録すると、さらにプロジェクトを作成できます。",
+    "projectsUsage": "この組織は {{limit}} 件中 {{count}} 件のプロジェクトを使用しています。このインスタンスを無料で登録すると、さらに作成できます。",
+    "projectsUsageOverLimit_other": "この組織はプロジェクトを {{count}} 件使用しています（上限 {{limit}} 件）。このインスタンスを無料で登録すると、さらに作成できます。",
+    "register": "登録",
+    "registerInstance": "このインスタンスを登録",
+    "registerTitle": "登録してプロジェクトを追加作成",
+    "upgradePlan": "プランをアップグレード"
+}

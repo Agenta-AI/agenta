@@ -98,7 +98,7 @@ export const ResetPasswordLinkDialog = ({
                     </DialogDescription>
                 </DialogHeader>
                 {loading ? (
-                    <p className="m-0 text-sm text-muted-foreground" aria-live="polite">
+                    <p className="m-0 text-body text-muted-foreground" aria-live="polite">
                         {t("settings.resetPasswordLinkDialog.generating")}
                     </p>
                 ) : null}
@@ -112,7 +112,7 @@ export const ResetPasswordLinkDialog = ({
                     </div>
                 ) : null}
                 {error ? (
-                    <p role="alert" className="m-0 text-sm text-destructive">
+                    <p role="alert" className="m-0 text-body text-destructive">
                         {error}
                     </p>
                 ) : null}

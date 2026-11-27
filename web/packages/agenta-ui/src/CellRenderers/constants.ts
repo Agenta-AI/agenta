@@ -27,9 +27,9 @@ export const ROLE_COLOR_CLASSES: Record<string, string> = {
 // antd color scale, and the old app keeps the map above.
 export const THEME_ROLE_COLOR_CLASSES: Record<string, string> = {
     ...ROLE_COLOR_CLASSES,
-    user: "text-colorInfo",
-    assistant: "text-colorSuccess",
-    system: "text-colorWarning",
+    user: "text-info",
+    assistant: "text-success",
+    system: "text-warning",
 }
 
 // Default role color class for unknown roles

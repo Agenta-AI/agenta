@@ -44,7 +44,7 @@ export default function SelectedEvaluatorCard({
     }, [evaluator.isHuman, revisionData])
 
     return (
-        <div className="flex items-start justify-between gap-3 rounded-lg bg-gray-100 px-3 py-3">
+        <div className="flex items-start justify-between gap-3 rounded-lg bg-muted px-3 py-3">
             <div className="min-w-0 flex-1">
                 <Typography.Text className="block">
                     {evaluator.evaluatorName} - v{evaluator.version}
@@ -52,7 +52,7 @@ export default function SelectedEvaluatorCard({
                 {metrics.length > 0 ? (
                     <div className="mt-2 flex flex-wrap gap-1">
                         {metrics.map((metric) => (
-                            <Tag key={metric.name} className="!m-0 bg-gray-200">
+                            <Tag key={metric.name} className="!m-0 bg-secondary">
                                 {formatHumanMetricLabel(metric)}
                             </Tag>
                         ))}

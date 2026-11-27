@@ -83,7 +83,7 @@ export type TraceDrawerSlots = TraceDrawerReferenceSlots & TraceDrawerPickerSlot
 
 /** Renders the label text alone — enough to read the reference, with no lookup behaviour. */
 const PlainReference: ComponentType<ReferenceLabelProps> = ({label}) => (
-    <span className="text-colorText">{label ?? "—"}</span>
+    <span className="text-foreground">{label ?? "—"}</span>
 )
 
 /** Renders nothing — an unregistered action is absent, not broken. */

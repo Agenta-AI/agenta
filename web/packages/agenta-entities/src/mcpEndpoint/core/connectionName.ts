@@ -9,8 +9,12 @@
  * `serverInfo.name` is preferred when the probe got one, and the address is the fallback:
  * an authenticated server may refuse to say anything about itself before consent, which is
  * exactly when the person is being asked for a name. The address gives the service's own
- * name ("linear" for `https://mcp.linear.app/sse`), as the canvas names it.
+ * name, made readable ("Linear" for `https://mcp.linear.app/sse`).
  */
+
+import {skillDisplayName} from "@agenta/shared/utils"
+
+import {PROVIDERS} from "../../workflow/agentTemplates"
 
 /** The ordinals the integrations flow uses, so both surfaces read the same. */
 const ORDINALS = ["main", "secondary"]
@@ -61,6 +65,27 @@ export function serverAddressLabel(url: string): string {
     return named[0] ?? labels[labels.length - 1] ?? host
 }
 
+/** Known brands by their bare slug, longest first: "githubcopilot" reads as GitHub + copilot. */
+const BRANDS = Object.entries(PROVIDERS)
+    .map(([slug, {label}]) => [slug.replace(/_/g, ""), label] as const)
+    .sort((a, b) => b[0].length - a[0].length)
+
+const readableWord = (word: string): string => {
+    const lower = word.toLowerCase()
+    for (const [slug, label] of BRANDS) {
+        if (lower === slug) return label
+        if (lower.startsWith(slug) && lower.length - slug.length >= 3)
+            return `${label} ${readableWord(lower.slice(slug.length))}`
+    }
+    return skillDisplayName(word)
+}
+
+/** The address label as words: "githubcopilot" → "GitHub Copilot"; an IP stays as it is. */
+export function readableServerLabel(label: string): string {
+    if (!label || /^[\d.]+$/.test(label) || label.includes(":")) return label
+    return label.split(/[-_]+/).filter(Boolean).map(readableWord).join(" ") || label
+}
+
 /**
  * A display name for a new connection that no existing connection already uses.
  *
@@ -79,7 +104,8 @@ export function suggestConnectionName({
     url: string
     existingNames?: (string | null | undefined)[]
 }): string {
-    const base = (serverName || "").trim() || serverAddressLabel(url) || "MCP server"
+    const base =
+        (serverName || "").trim() || readableServerLabel(serverAddressLabel(url)) || "MCP server"
     const taken = new Set(existingNames.filter((name): name is string => !!name).map(normalize))
 
     if (!taken.has(normalize(base))) return base

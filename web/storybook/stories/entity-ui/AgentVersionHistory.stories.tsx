@@ -1,13 +1,20 @@
 import {useState} from "react"
 
 import type {ChangeSection} from "@agenta/entities/workflow/commitDiff"
+import {useT} from "@agenta/i18n"
+import versionCatalog from "@agenta/i18n/catalogs/playground.versionHistory"
 import type {AgentVersionRow} from "@agenta/playground/state"
+import {ChangesPane, RevertFooter, VersionList} from "@agenta/playground-ui/agent-version-history"
 import {
-    ChangesPane,
-    RevertConfirmDialog,
-    RevertFooter,
-    VersionList,
-} from "@agenta/playground-ui/agent-version-history"
+    AlertDialog,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 // The version-history drawer's three panes (#6405), in the states a reviewer cannot click to.
@@ -236,19 +243,34 @@ export const FooterDisabled: FooterStory = {
 /** The revert confirmation, masked and centred inside the drawer panel. */
 const ConfirmInPanel = () => {
     const [panel, setPanel] = useState<HTMLDivElement | null>(null)
+    const t = useT(versionCatalog)
     return (
         <div
             ref={setPanel}
             className="relative h-[420px] w-[780px] rounded-xl border border-solid border-[var(--ag-colorBorderSecondary)]"
         >
-            <RevertConfirmDialog
-                open
-                container={panel}
-                selectedVersion={2}
-                latestVersion={4}
-                onCancel={() => undefined}
-                onConfirm={() => undefined}
-            />
+            <AlertDialog open>
+                <AlertDialogContent container={panel}>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {t("playground.versionHistory.revertTitle", {version: 2})}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t("playground.versionHistory.revertDescription", {
+                                next: 5,
+                                version: 2,
+                                latest: 4,
+                            })}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>
+                            {t("playground.versionHistory.cancel")}
+                        </AlertDialogCancel>
+                        <Button>{t("playground.versionHistory.revert")}</Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }

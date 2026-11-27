@@ -43,11 +43,11 @@ const GRID_H = 184
  * error states derive their height from this so the panel never resizes under the pointer. */
 const CONTROLS_H = 72
 
-const SWATCH_BASE = "size-5 shrink-0 cursor-pointer rounded-full p-0"
+const SWATCH_BASE = "size-5 shrink-0 cursor-pointer rounded-sm p-0"
 
 /** Flat colours need a hairline to sit off the panel, and a black one disappears against a dark
  * popover, so it flips with the theme. The conic buttons carry their own edge and take no border. */
-const SWATCH_BUTTON = `${SWATCH_BASE} border border-solid border-black/10 dark:border-white/20`
+const SWATCH_BUTTON = `${SWATCH_BASE} border border-solid border-foreground/10`
 
 /** Preflight is off, so a button keeps the UA's outset border unless it is explicitly cleared. */
 const SWATCH_PLAIN = `${SWATCH_BASE} border-0`
@@ -131,7 +131,7 @@ const ColorSwatchRow = ({
                     }}
                 />
             ))}
-            <span className="mx-px h-3.5 w-px shrink-0 bg-colorBorderSecondary" />
+            <span className="mx-px h-3.5 w-px shrink-0 bg-border-muted" />
             <button
                 type="button"
                 onClick={onCustom}
@@ -208,7 +208,7 @@ const CustomColorArea = ({
     return (
         <>
             <div className="flex items-center gap-2 px-3 pb-2.5">
-                <span className="text-[11px] uppercase tracking-[0.04em] text-colorTextTertiary">
+                <span className="text-caption uppercase tracking-[0.04em] text-muted-foreground">
                     {t("ui.agentIcon.hex")}
                 </span>
                 <input
@@ -217,7 +217,7 @@ const CustomColorArea = ({
                     onBlur={() => setDraft(null)}
                     spellCheck={false}
                     aria-label={t("ui.agentIcon.hexColour")}
-                    className="min-w-0 flex-1 border-0 bg-transparent p-0 py-1 font-mono text-[12px] text-colorText outline-none"
+                    className="min-w-0 flex-1 border-0 bg-transparent p-0 py-1 font-mono text-meta text-foreground outline-none"
                 />
                 <button
                     type="button"
@@ -229,7 +229,7 @@ const CustomColorArea = ({
                     // in dark mode and says nothing about the control being active.
                     style={{
                         background: AGENT_ICON_CONIC,
-                        ...selectedRing("var(--ag-colorPrimary)"),
+                        ...selectedRing("var(--primary)"),
                     }}
                 />
             </div>
@@ -237,13 +237,13 @@ const CustomColorArea = ({
                 <div
                     onPointerDown={(e) => startDrag(e, (x, y) => ({h: hsv.h, s: x, v: 1 - y}))}
                     // touch-none: a finger dragging here must paint, not scroll the panel behind it.
-                    className="relative h-[104px] min-w-0 flex-1 cursor-crosshair touch-none rounded-lg"
+                    className="relative h-26 min-w-0 flex-1 cursor-crosshair touch-none rounded-lg"
                     style={{
                         backgroundImage: `linear-gradient(to top,#000,rgba(0,0,0,0)),linear-gradient(to right,#fff,${hueCss})`,
                     }}
                 >
                     <span
-                        className="absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-solid border-white shadow-[0_0_0_1px_rgba(0,0,0,.3)]"
+                        className="absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-sm border-2 border-solid border-white shadow-[0_0_0_1px_rgba(0,0,0,.3)]"
                         style={{left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%`}}
                     />
                 </div>
@@ -257,7 +257,7 @@ const CustomColorArea = ({
                             v: hsv.v || 0.6,
                         }))
                     }
-                    className="relative w-2.5 shrink-0 cursor-pointer touch-none rounded-full"
+                    className="relative w-2.5 shrink-0 cursor-pointer touch-none rounded-sm"
                     style={{
                         background: "linear-gradient(to bottom,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)",
                     }}
@@ -318,11 +318,11 @@ const IconGrid = ({
                                             "flex h-8 cursor-pointer items-center justify-center rounded-md border-0 p-0",
                                             selected
                                                 ? AGENT_ICON_CHIP_CLASS
-                                                : "bg-transparent text-colorTextSecondary hover:bg-black/5 dark:hover:bg-white/10",
+                                                : "bg-transparent text-muted-foreground hover:bg-accent",
                                         )}
                                         style={selected ? chipStyle : undefined}
                                     >
-                                        <AgentIcon path={entry.path} size={17} />
+                                        <AgentIcon path={entry.path} size={16} />
                                     </button>
                                 )
                             })}
@@ -418,13 +418,13 @@ export const AgentIconPicker = ({value, onChange}: AgentIconPickerProps) => {
                     )}
                     style={chipStyle}
                 >
-                    {currentPath ? <AgentIcon path={currentPath} size={18} /> : null}
+                    {currentPath ? <AgentIcon path={currentPath} size={16} /> : null}
                 </span>
                 <span className="flex min-w-0 flex-1 flex-col leading-tight">
-                    <span className="text-[13px] font-semibold text-colorText">
+                    <span className="text-label font-semibold text-foreground">
                         {t("ui.agentIcon.agentIcon")}
                     </span>
-                    <span className="text-[11px] text-colorTextTertiary">
+                    <span className="text-meta text-muted-foreground">
                         {t("ui.agentIcon.savesAsYouPick")}
                     </span>
                 </span>
@@ -435,7 +435,7 @@ export const AgentIconPicker = ({value, onChange}: AgentIconPickerProps) => {
                             setCustom(false)
                             onChange(null)
                         }}
-                        className="shrink-0 cursor-pointer border-0 bg-transparent p-0 text-[12px] text-colorTextTertiary hover:text-colorText"
+                        className="shrink-0 cursor-pointer border-0 bg-transparent p-0 text-meta text-muted-foreground hover:text-foreground"
                     >
                         {t("ui.agentIcon.reset")}
                     </button>
@@ -449,13 +449,13 @@ export const AgentIconPicker = ({value, onChange}: AgentIconPickerProps) => {
                     className="flex flex-col items-center justify-center gap-2 px-6 text-center"
                     style={{height: GRID_H + CONTROLS_H}}
                 >
-                    <span className="text-[13px] font-medium text-colorText">
+                    <span className="text-label font-medium text-foreground">
                         {t("ui.agentIcon.couldNotLoad")}
                     </span>
                     <button
                         type="button"
                         onClick={() => setAttempt((n) => n + 1)}
-                        className="cursor-pointer border-0 bg-transparent p-0 text-[12px] text-colorPrimary"
+                        className="cursor-pointer border-0 bg-transparent p-0 text-meta text-primary"
                     >
                         {t("common.tryAgain")}
                     </button>
@@ -499,11 +499,11 @@ export const AgentIconPicker = ({value, onChange}: AgentIconPickerProps) => {
                             className="flex flex-col items-center justify-center gap-1 px-6 text-center"
                             style={{height: GRID_H}}
                         >
-                            <MagnifyingGlassIcon size={20} className="text-colorTextTertiary" />
-                            <span className="text-[13px] font-medium text-colorText">
+                            <MagnifyingGlassIcon size={20} className="text-muted-foreground" />
+                            <span className="text-label font-medium text-foreground">
                                 {t("ui.agentIcon.noIconsFound")}
                             </span>
-                            <span className="max-w-full truncate text-[12px] text-colorTextTertiary">
+                            <span className="max-w-full truncate text-meta text-muted-foreground">
                                 {t("ui.agentIcon.nothingMatches", {search})}
                             </span>
                         </div>

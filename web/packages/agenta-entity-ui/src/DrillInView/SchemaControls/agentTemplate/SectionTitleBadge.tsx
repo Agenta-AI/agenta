@@ -20,10 +20,8 @@ export interface SectionTitleBadgeProps {
 export const SectionTitleBadge = ({label, tone, className}: SectionTitleBadgeProps) => (
     <span
         className={cn(
-            "whitespace-nowrap rounded-full px-2 py-0.5 text-[12px] font-medium leading-none",
-            tone === "error"
-                ? "bg-[var(--ag-colorErrorBg)] text-[var(--ag-colorError)]"
-                : "bg-[var(--ag-colorWarningBg)] text-[var(--ag-colorWarning)]",
+            "whitespace-nowrap rounded-md px-2 py-0.5 text-meta font-medium leading-none",
+            tone === "error" ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning",
             className,
         )}
     >

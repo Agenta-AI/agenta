@@ -2,6 +2,12 @@ export type {ConfirmDestructive} from "./confirm"
 export {
     default as SettingsPageShell,
     SettingsPageActions,
+    SettingsHeaderActionsProvider,
+    SettingsPageToolbar,
+    SettingsToolbarSlotProvider,
+    type SettingsToolbarSlot,
+    SettingsPageDescription,
+    SettingsVideoButton,
     type SettingsPageShellProps,
 } from "./SettingsPageShell"
 export {ThemePicker, type ThemePickerProps, type ThemeChoice} from "./ThemePicker"
@@ -19,7 +25,13 @@ export {
 export {AccountPage, type AccountPageProps} from "./AccountPage"
 export {ApiKeysPage, type ApiKeysPageProps} from "./ApiKeysPage"
 export {NamedSecretTable, type NamedSecretTableProps} from "./secrets/NamedSecretTable"
-export {addAccountOwners, showsYours} from "./shared/accountOwners"
+export {
+    addAccountOwners,
+    ownersWithDefault,
+    PAGE_OWNERS,
+    showsYours,
+    type OwnerFilter,
+} from "./shared/accountOwners"
 export {
     AIProvidersPage,
     SUBSCRIPTION_DOCS_URL,

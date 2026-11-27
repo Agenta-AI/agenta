@@ -24,8 +24,8 @@ import type {
     AnnotationFeedbackValueType,
     AnnotationFilterValue,
 } from "@agenta/observability/filters"
-import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {
+    Button,
     cn,
     Combobox,
     Input,
@@ -688,7 +688,7 @@ function FeedbackFieldPicker({
                 <div
                     className={cn(
                         selectTriggerVariants({}),
-                        "h-auto min-h-control cursor-text flex-wrap gap-1 py-[2px]",
+                        "h-auto min-h-control cursor-text flex-wrap gap-1 py-0.5",
                         disabled && "pointer-events-none",
                         className,
                     )}
@@ -773,7 +773,7 @@ function FeedbackFieldPicker({
                                     className={cn(
                                         "box-border flex min-h-control cursor-pointer items-center justify-between gap-2 rounded-control-sm px-3 py-1 text-field-md",
                                         index === activeIndex && !selected && "bg-muted",
-                                        selected && "bg-controlItemBgActive font-semibold",
+                                        selected && "bg-selected",
                                     )}
                                 >
                                     <span className="truncate">{option.label}</span>
@@ -801,19 +801,15 @@ export const AnnotationFilterLabel = ({
 }: {
     children: ReactNode
     className?: string
-}) => <span className={cn("whitespace-nowrap text-colorTextSecondary", className)}>{children}</span>
+}) => <span className={cn("whitespace-nowrap text-muted-foreground", className)}>{children}</span>
 
 const AddFeedbackButton = ({onClick, disabled}: {onClick: () => void; disabled?: boolean}) => {
     const t = useT(filtersCatalog)
     return (
-        <EnhancedButton
-            type="text"
-            icon={<PlusIcon size={14} />}
-            onClick={onClick}
-            disabled={disabled}
-        >
+        <Button variant="ghost" size="default" onClick={onClick} disabled={disabled}>
+            <PlusIcon size={14} />
             {t("observabilityUi.filters.addFeedback")}
-        </EnhancedButton>
+        </Button>
     )
 }
 
@@ -846,14 +842,10 @@ export function AnnotationEvaluatorControl(props: AnnotationFilterRowProps) {
     if (!isEvaluatorActive) {
         return (
             <div className={cn("flex items-center gap-2", className)}>
-                <EnhancedButton
-                    type="text"
-                    icon={<PlusIcon size={14} />}
-                    onClick={addEvaluator}
-                    disabled={disabled}
-                >
+                <Button variant="ghost" size="default" onClick={addEvaluator} disabled={disabled}>
+                    <PlusIcon size={14} />
                     {t("observabilityUi.filters.addEvaluator")}
-                </EnhancedButton>
+                </Button>
                 {!isFeedbackActive ? (
                     <AddFeedbackButton onClick={addFeedback} disabled={disabled} />
                 ) : null}
@@ -874,13 +866,15 @@ export function AnnotationEvaluatorControl(props: AnnotationFilterRowProps) {
                 disabled={disabled}
                 container={container}
             />
-            <EnhancedButton
-                type="link"
-                icon={<TrashIcon size={14} />}
+            <Button
+                variant="link"
+                size="default"
                 onClick={removeEvaluator}
                 disabled={disabled}
                 aria-label={t("observabilityUi.filters.removeEvaluator")}
-            />
+            >
+                <TrashIcon size={14} />
+            </Button>
         </div>
     )
 }
@@ -1020,13 +1014,15 @@ export function AnnotationFeedbackControl(props: AnnotationFilterRowProps) {
                 </SelectContent>
             </Select>
 
-            <EnhancedButton
-                type="link"
-                icon={<TrashIcon size={14} />}
+            <Button
+                variant="link"
+                size="default"
                 onClick={removeFeedback}
                 disabled={disabled}
                 aria-label={t("observabilityUi.filters.removeFeedback")}
-            />
+            >
+                <TrashIcon size={14} />
+            </Button>
         </div>
     )
 }

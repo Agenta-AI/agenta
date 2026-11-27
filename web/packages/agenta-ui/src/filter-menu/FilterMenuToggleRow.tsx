@@ -44,8 +44,8 @@ export const FilterMenuToggleRow = ({
             }}
             onClick={flip}
             className={cn(
-                "box-border flex w-full select-none items-center gap-2 rounded-control-sm px-2 py-1.5 text-left",
-                "text-[13px] text-foreground outline-none transition-colors",
+                "box-border flex w-full select-none min-h-8 items-center gap-2 rounded-control-sm px-2 py-1 text-left",
+                "text-label text-foreground outline-none transition-colors",
                 item.disabled
                     ? "cursor-not-allowed opacity-45"
                     : "cursor-pointer hover:bg-accent focus-visible:bg-accent",
@@ -64,7 +64,7 @@ export const FilterMenuToggleRow = ({
                 tabIndex={-1}
                 aria-hidden
                 // Off reads as a light track in a menu row (A10), not the form switch's gray.
-                className="pointer-events-none shrink-0 data-[state=unchecked]:bg-colorBorder"
+                className="pointer-events-none shrink-0 data-[state=unchecked]:bg-border"
             />
         </div>
     )

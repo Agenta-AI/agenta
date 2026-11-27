@@ -16,7 +16,7 @@ import {
 // cell does not paint the row's border, so the checkbox and Name cells showed no line. The row's
 // own border goes, or the scrolling cells would show two.
 const ROW_LINES =
-    "[&_td.avt-cell]:[box-shadow:inset_0_-1px_0_var(--colorBorderSecondary)] [&_tr.avt-row]:border-b-0"
+    "[&_td.avt-cell]:[box-shadow:inset_0_-1px_0_var(--border-muted)] [&_tr.avt-row]:border-b-0"
 
 /**
  * The traces table — the shared component, through the shared shell.

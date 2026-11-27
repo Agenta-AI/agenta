@@ -128,7 +128,10 @@ export const getEnabledSandboxProviders = (): string[] => {
  * copy of `=== "ee"` somewhere is how one surface ends up showing a tab the other hides.
  */
 
-/** Enterprise or any cloud tier. Note `cloud*` counts: cloud runs the EE feature set. */
+/**
+ * Enterprise or any cloud tier. Note `cloud*` counts: cloud runs the EE feature set. Only the
+ * classic `/w` app reads it: the API always runs the EE code path, so `/m` does not ask.
+ */
 export const isEE = (): boolean => {
     const license = getEnv("NEXT_PUBLIC_AGENTA_LICENSE")?.toLowerCase()
     if (!license) return false
@@ -138,8 +141,14 @@ export const isEE = (): boolean => {
 /** Gates BOTH the Tools and Triggers settings tabs. */
 export const isToolsEnabled = (): boolean => getEnv("NEXT_PUBLIC_AGENTA_TOOLS_ENABLED") === "true"
 
-export const isBillingEnabled = (): boolean =>
-    getEnv("NEXT_PUBLIC_AGENTA_BILLING_ENABLED") === "true"
+/**
+ * Agenta cloud: `entrypoint.sh` sets this when `AGENTA_LICENSE_KEY` is a cloud key, the key the
+ * API reads to decide it is cloud. Every other install is self-hosted, whatever its plan.
+ */
+export const isCloud = (): boolean => getEnv("NEXT_PUBLIC_AGENTA_BILLING_ENABLED") === "true"
+
+/** Billing exists only on cloud. */
+export const isBillingEnabled = (): boolean => isCloud()
 
 /**
  * Whether this deployment serves the MCP gateway, and so whether the MCP endpoints settings

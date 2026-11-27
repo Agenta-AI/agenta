@@ -14,6 +14,26 @@
   // stays pure SSG; this worker only picks a prebuilt representation and sets
   // agent-facing headers. See worker/index.ts.
   "main": "./worker/index.ts",
+  // Plain variables for POST /api/license-registrations (see web/website/AGENTS.md).
+  // LOOPS_TRANSACTIONAL_ID is the published Loops email that carries the key (data
+  // variables licenseKey and activationUrl); empty, the route answers 503.
+  "vars": {
+    "LOOPS_TRANSACTIONAL_ID": "cmww5g20v0jt60kz3co0n144d",
+  },
+  // Limits for POST /api/license-registrations (see web/website/AGENTS.md). Preview and
+  // production use different namespace ids so they do not share counters.
+  "ratelimits": [
+    {
+      "name": "REGISTRATION_IP_LIMIT",
+      "namespace_id": "1011",
+      "simple": { "limit": 5, "period": 60 },
+    },
+    {
+      "name": "REGISTRATION_EMAIL_LIMIT",
+      "namespace_id": "1012",
+      "simple": { "limit": 1, "period": 60 },
+    },
+  ],
   "r2_buckets": [
     {
       "binding": "MEDIA",
@@ -42,6 +62,7 @@
     "run_worker_first": [
       "/",
       "/api",
+      "/api/license-registrations",
       "/pricing",
       "/contact",
       "/imprint",
@@ -53,6 +74,8 @@
       "/marketplace/*",
       "/creators/*",
       "/media/*",
+      // The release feed runs the worker so an instance's update check is counted.
+      "/releases.json",
       "!/blog/*/*",
       "!/authors/*.*",
       "!/marketplace/*/*",

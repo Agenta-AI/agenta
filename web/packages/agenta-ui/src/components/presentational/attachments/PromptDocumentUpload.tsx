@@ -136,8 +136,8 @@ const PromptDocumentUpload = ({
                     // and border add to `w-full` and the row overflows its container by 14px
                     // (antd's own reset gave the Dragger border-box for free).
                     "w-full box-border flex items-center gap-4 py-2 pr-1 pl-2 rounded-md border border-solid",
-                    error ? "border-colorError" : "border-colorBorder",
-                    isDragging && !disabled && "border-colorPrimary",
+                    error ? "border-destructive" : "border-border",
+                    isDragging && !disabled && "border-primary",
                     disabled ? "cursor-not-allowed" : "cursor-pointer",
                 )}
             >
@@ -147,14 +147,14 @@ const PromptDocumentUpload = ({
                             size={48}
                             className={clsx(
                                 displayValue
-                                    ? "text-colorSuccess"
+                                    ? "text-success"
                                     : error
-                                      ? "text-colorError"
-                                      : "text-colorTextTertiary",
+                                      ? "text-destructive"
+                                      : "text-muted-foreground",
                             )}
                         />
                         <div className="flex flex-col items-start gap-1 w-full">
-                            <span className="text-xs">
+                            <span className="text-meta">
                                 {richText(t("ui.chat.dragPdf"), {
                                     link: (text) => (
                                         <Button
@@ -191,12 +191,12 @@ const PromptDocumentUpload = ({
                                     href={safeHref}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="text-start text-xs text-colorTextDescription"
+                                    className="text-start text-meta text-muted-foreground"
                                 >
                                     {t("ui.chat.previewDocument")}
                                 </a>
                             )}
-                            {error && <span className="text-xs text-colorError">{error}</span>}
+                            {error && <span className="text-meta text-destructive">{error}</span>}
                         </div>
                     </div>
                     {/* `size="icon"` reproduces antd's implicit `.ant-btn-icon-only` sizing —

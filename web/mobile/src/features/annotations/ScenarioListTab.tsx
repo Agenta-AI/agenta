@@ -130,7 +130,7 @@ export const ScenarioListTab = ({
                     value={status ?? ALL_STATUSES}
                     onValueChange={(next) => setStatus(next === ALL_STATUSES ? null : next)}
                 >
-                    <SelectTrigger aria-label="Status" className="w-[140px]">
+                    <SelectTrigger aria-label="Status" className="w-35">
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -161,7 +161,7 @@ export const ScenarioListTab = ({
                 rowKey={(row) => row.scenarioId}
                 onOpenRow={(row) => setSheetScenarioId(row.scenarioId)}
                 empty={
-                    <p className="m-0 py-10 text-center text-sm text-muted-foreground">
+                    <p className="m-0 py-10 text-center text-body text-muted-foreground">
                         No items match your filters
                     </p>
                 }

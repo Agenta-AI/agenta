@@ -1,5 +1,5 @@
 import {Button, Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle} from "@agenta/ui/ui"
-import {Search} from "lucide-react"
+import {MagnifyingGlassIcon} from "@phosphor-icons/react"
 
 /**
  * The project has testsets, but the search or the date filter hid them all. Offers the way back:
@@ -18,7 +18,7 @@ export const TestsetsNoMatch = ({
     <Empty className="py-14">
         <EmptyHeader>
             <EmptyMedia variant="icon">
-                <Search />
+                <MagnifyingGlassIcon />
             </EmptyMedia>
             <EmptyTitle className="text-foreground">
                 {term ? `No test sets match “${term}”` : "No test sets match this filter"}

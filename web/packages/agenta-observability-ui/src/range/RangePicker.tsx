@@ -3,10 +3,12 @@ import {useCallback, useMemo, useState, type KeyboardEvent} from "react"
 import {useT} from "@agenta/i18n"
 import rangeCatalog from "@agenta/i18n/catalogs/observabilityUi.range"
 import {ANALYTICS_RANGE_PRESETS, type SortResult, type SortTypes} from "@agenta/observability"
-import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
 import {
     Button,
+    fromLegacyButton,
+    type ButtonProps,
+    type LegacyButtonType,
     DateRangeCalendar,
     Divider,
     Popover,
@@ -30,9 +32,6 @@ import {
     selectedRangeLabel,
 } from "./rangeResolution"
 
-/** antd `Button` `type`, kept so call-sites migrate unchanged (`EnhancedButton` maps it). */
-type TriggerButtonType = "link" | "text" | "default" | "primary" | "dashed"
-
 export interface RangePickerProps {
     /** The applied window. This component holds no copy of it — the label always reads from here. */
     value: SortResult
@@ -43,8 +42,10 @@ export interface RangePickerProps {
     ariaLabel?: string
     /** `button` is the toolbar control; `inline` the compact text trigger used on Home. */
     trigger?: "button" | "inline"
-    /** antd button `type` for the `button` trigger. */
-    type?: TriggerButtonType
+    /** Button variant for the `button` trigger. @default "outline" */
+    variant?: ButtonProps["variant"]
+    /** @deprecated antd's trigger `type` (desktop app only); mapped to `variant`. */
+    type?: LegacyButtonType
     /** Shown when the applied window carries no label — `DEFAULT_SORT` is a real 24h window. */
     fallbackLabel?: SortTypes
     /** Months side by side in the custom-range calendar. @default 1 */
@@ -99,12 +100,14 @@ export const RangePicker = ({
     disabled,
     ariaLabel,
     trigger = "button",
+    variant: variantProp,
     type,
     fallbackLabel = "24 hours",
     calendarMonths = 1,
     container,
     className,
 }: RangePickerProps) => {
+    const variant = variantProp ?? fromLegacyButton(type).variant ?? "outline"
     const t = useT(rangeCatalog)
     const [open, setOpen] = useState(false)
     const [customOpen, setCustomOpen] = useState(false)
@@ -149,16 +152,16 @@ export const RangePicker = ({
         cn(
             // CONTROL_RESET — preflight is off app-wide, so the button reset is per-control.
             "box-border w-full cursor-pointer border-0 border-solid font-[inherit]",
-            "flex items-center justify-between gap-2 rounded-control-sm px-2 py-1 text-left",
-            "text-field-sm text-foreground hover:bg-accent",
+            "flex min-h-8 items-center justify-between gap-2 rounded-control-sm px-2 py-1 text-left",
+            "text-label text-foreground hover:bg-accent",
             // `cn` from `@agenta/ui/styles` is a plain CONCATENATOR, not tailwind-merge: an
             // unconditional `bg-transparent` here did not lose to the conditional `bg-secondary`,
             // both landed, and CSS order left every row transparent — so the active range showed
             // no highlight at all. Make the base conditional instead of relying on a merge.
-            isSelected ? "bg-accent font-medium" : "bg-transparent",
+            isSelected ? "bg-selected" : "bg-transparent",
             // These rows are real <button>s (prod's were inert <div>s), so they take focus — and
             // with preflight off an unstyled one shows the UA's blue ring. Use the kit's.
-            "outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+            "outline-none focus-ring",
         )
 
     return (
@@ -170,7 +173,7 @@ export const RangePicker = ({
                         disabled={disabled}
                         aria-label={ariaLabel}
                         className={cn(
-                            "flex shrink-0 cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-[11px] text-colorTextSecondary hover:text-colorText",
+                            "flex shrink-0 cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-caption text-muted-foreground hover:text-foreground",
                             className,
                         )}
                     >
@@ -179,18 +182,18 @@ export const RangePicker = ({
                         <CaretDownIcon size={10} />
                     </button>
                 ) : (
-                    <EnhancedButton
-                        type={type}
-                        // Explicit: Slot's prop merge lets the child win, so Radix's own
-                        // `type="button"` never reaches the native element.
-                        htmlType="button"
+                    <Button
+                        variant={variant}
+                        size="default"
+                        // Explicit: Slot's prop merge lets the child win.
+                        type="button"
                         disabled={disabled}
                         aria-label={ariaLabel}
-                        icon={<CalendarBlankIcon size={14} />}
                         className={cn("flex items-center gap-2", className)}
                     >
+                        <CalendarBlankIcon size={14} />
                         {formatRangeLabel(value, fallbackLabel)}
-                    </EnhancedButton>
+                    </Button>
                 )}
             </PopoverTrigger>
 
@@ -213,7 +216,8 @@ export const RangePicker = ({
                     <div
                         role="menu"
                         aria-label={t("observabilityUi.range.timeRange")}
-                        className="flex w-[224px] flex-col"
+                        // The popover is `popover-sm` (240) once its 4px padding is added.
+                        className="flex w-[calc(var(--popover-sm)-0.5rem)] flex-col"
                         onKeyDown={moveMenuFocus}
                     >
                         {presets.map((preset) => (

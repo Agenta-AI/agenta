@@ -116,7 +116,7 @@ export const CredentialBindingFields = ({
                     invalid={invalid}
                 >
                     <Input
-                        className="font-mono text-[13px]"
+                        className="font-mono text-label"
                         // Sample header and parameter names, not words to translate.
                         // eslint-disable-next-line agenta-i18n/no-hardcoded-text
                         placeholder={value.kind === "header" ? "Authorization" : "api_key"}
@@ -158,7 +158,7 @@ export const CredentialBindingFields = ({
                     />
                 </HintedField>
             ) : preview ? (
-                <p className="m-0 text-xs leading-normal text-colorTextTertiary">
+                <p className="m-0 text-meta leading-normal text-muted-foreground">
                     {richText(t("entityUi.mcpConnect.sentAs", {preview}), {
                         code: (text) => <span className="font-mono">{text}</span>,
                     })}
@@ -166,7 +166,7 @@ export const CredentialBindingFields = ({
             ) : null}
             {value.kind === "header" && prefixChoice === "custom" ? (
                 <Input
-                    className="-mt-1 font-mono text-[13px]"
+                    className="-mt-1 font-mono text-label"
                     value={value.prefix ?? ""}
                     disabled={disabled}
                     aria-label={t("entityUi.mcpConnect.customPrefix")}

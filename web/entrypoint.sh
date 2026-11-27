@@ -56,12 +56,24 @@ else
   export AGENTA_TOOLS_ENABLED="false"
 fi
 
-# Infer AGENTA_BILLING_ENABLED from STRIPE_API_KEY
-if [ -n "$STRIPE_API_KEY" ]; then
-  export AGENTA_BILLING_ENABLED="true"
-else
-  export AGENTA_BILLING_ENABLED="false"
+# Cloud (billing on) when AGENTA_LICENSE_KEY is a cloud license key, the same key the API
+# reads and checks. The web reads only the key's plan and does not check the signature:
+# the API checks it and refuses to start when the key and STRIPE_API_KEY disagree, so a
+# web that shows billing screens next to an API that is not cloud does not run. The web's
+# own STRIPE_API_KEY does not decide this any more.
+AGENTA_BILLING_ENABLED="false"
+if [ -n "$AGENTA_LICENSE_KEY" ]; then
+  AGENTA_BILLING_ENABLED="$(node -e '
+    try {
+      const payload = (process.argv[1] || "").trim().split(".")[1] || ""
+      const plan = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")).plan
+      process.stdout.write(plan === "cloud" ? "true" : "false")
+    } catch {
+      process.stdout.write("false")
+    }
+  ' "$AGENTA_LICENSE_KEY" 2>/dev/null || echo "false")"
 fi
+export AGENTA_BILLING_ENABLED
 
 # Mirror AGENTA_MCP_GATEWAY_ENABLED, the API's own switch for the MCP gateway plane, so the
 # settings navigation hides the MCP endpoints tab on a deployment whose API refuses every MCP
@@ -204,7 +216,7 @@ if [ "${EFFECTIVE_AUTHN_EMAIL}" = "password" ] || [ "${EFFECTIVE_AUTHN_EMAIL}" =
 fi
 
 EFFECTIVE_TURNSTILE_SITE_KEY=""
-if [ "${AGENTA_LICENSE}" = "ee" ] && [ -n "${CLOUDFLARE_TURNSTILE_SITE_KEY}" ] && [ -n "${CLOUDFLARE_TURNSTILE_SECRET_KEY}" ]; then
+if [ -n "${CLOUDFLARE_TURNSTILE_SITE_KEY}" ] && [ -n "${CLOUDFLARE_TURNSTILE_SECRET_KEY}" ]; then
   EFFECTIVE_TURNSTILE_SITE_KEY="${CLOUDFLARE_TURNSTILE_SITE_KEY}"
 fi
 

@@ -266,7 +266,7 @@ describe("the catalog with no agent (chat, playground, prompts)", () => {
 })
 
 describe("an app with several connections and no agent", () => {
-    it("opens to manage each connection, with no way to add", async () => {
+    it("lists each connection as its own row to manage, with no way to add", async () => {
         catalog.connections = [
             {
                 slug: "gmail-work",
@@ -284,11 +284,10 @@ describe("an app with several connections and no agent", () => {
             },
         ]
         await render(createElement(IntegrationCatalog, {onConnect}))
-        const row = document.querySelector<HTMLElement>('[role="button"][aria-label="Gmail"]')
-        expect(row).not.toBeNull()
-        await act(async () => row!.click())
+        // One row per connection, each with its own menu; no app row to open first.
         expect(document.body.textContent).toContain("Work")
         expect(document.body.textContent).toContain("Backup")
-        expect(document.body.textContent).not.toContain("Add Work")
+        expect(document.querySelectorAll('[aria-label="Connection actions"]')).toHaveLength(2)
+        expect(document.querySelector('[aria-label^="Add "]')).toBeNull()
     })
 })

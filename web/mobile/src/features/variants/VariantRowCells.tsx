@@ -31,7 +31,7 @@ export const VariantRowCells = ({
     onDelete: (row: AppRevisionRow) => void
 }) => (
     <>
-        <span className="block min-w-0 truncate text-[14px] font-medium text-foreground">
+        <span className="block min-w-0 truncate text-body font-medium text-foreground">
             <VariantDetailsWithStatus
                 variant={{id: row.revisionId}}
                 variantName={row.variantName}
@@ -47,14 +47,14 @@ export const VariantRowCells = ({
             <span
                 className={
                     detailed
-                        ? "block break-all text-[13px] text-foreground"
-                        : "block truncate text-[13px] text-muted-foreground"
+                        ? "block break-all text-body font-medium text-foreground"
+                        : "block truncate text-label text-muted-foreground"
                 }
             >
                 {row.model || "—"}
             </span>
         )}
-        <span className="block truncate text-[13px] text-muted-foreground">
+        <span className="block truncate text-label text-muted-foreground">
             <FormattedDate
                 date={row.createdAt}
                 format={detailed && !narrow ? "MMM D, YYYY, h:mm A" : "MMM D, YYYY"}
@@ -62,13 +62,13 @@ export const VariantRowCells = ({
             />
         </span>
         {narrow ? null : (
-            <span className="block truncate text-[13px] text-muted-foreground">
+            <span className="block truncate text-label text-muted-foreground">
                 <UserAuthorLabel userId={row.createdById} showYouLabel fallback="—" />
             </span>
         )}
         {narrow ? null : (
             <span
-                className="block truncate text-[13px] text-muted-foreground"
+                className="block truncate text-label text-muted-foreground"
                 title={row.message ?? undefined}
             >
                 {row.message || "—"}

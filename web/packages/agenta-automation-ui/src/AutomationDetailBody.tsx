@@ -3,18 +3,20 @@ import type {ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import automationsPanelCatalog from "@agenta/i18n/catalogs/automations.panel"
+import {ItemViewTitle} from "@agenta/ui/ui"
 
 import {AutomationActiveSwitch} from "./AutomationActiveSwitch"
 import {AutomationAgentField} from "./AutomationAgentField"
 import {AutomationFailureBanner} from "./AutomationFailureBanner"
 import {AutomationInstructionField} from "./AutomationInstructionField"
+import {AutomationKindTile} from "./AutomationKindTile"
 import {AutomationMetaRow} from "./AutomationMetaRow"
 import type {Automation} from "./automationModel"
 import {AutomationRunPersonNotice} from "./AutomationRunPersonNotice"
 import {AutomationRunsSection, AutomationViewSection} from "./AutomationRunsSection"
 import {AutomationRunsWhenField} from "./AutomationRunsWhenField"
 import {AutomationSaveBar} from "./AutomationSaveBar"
-import {AutomationTitle} from "./AutomationTitle"
+import {AutomationTitle, useAutomationTitleEditable} from "./AutomationTitle"
 import type {EventSelection} from "./pickers/EventPickerPanel"
 
 /**
@@ -55,6 +57,7 @@ export const AutomationDetailBody = ({
     actions,
     runNow,
     panel = false,
+    headless = false,
 }: {
     /** The saved row — the identity half of the screen. */
     automation: Automation
@@ -97,18 +100,21 @@ export const AutomationDetailBody = ({
     /** The Run now control: in the "Runs" title, or by the name where there is no "Runs" group. */
     runNow?: ReactNode
     /**
-     * The panel's shape (F05 f5): a 16 px name with "On" and the switch at its right, the facts
-     * under it, and no Agent field (the panel opens over the agent that runs it).
+     * The pane's shape: the item title (24px Mark, 13/600 name, "On" and the switch), the facts
+     * under it, and no Agent field (the pane opens over the agent that runs it).
      */
     panel?: boolean
+    /** The page frame draws the name, the switch line and the menu; the body starts at its sections. */
+    headless?: boolean
 }) => {
     const t = useT(automationsPanelCatalog)
     const tEditor = useT(automationsEditorCatalog)
+    const nameField = useAutomationTitleEditable({name: automation.name, onRename})
     // With the "Runs" group, Run now sits in its title rather than by the name.
     const grouped = Boolean(onOpenRunHistory)
     const titleRun = grouped ? null : runNow
     const fields = (
-        <div className={`flex flex-col ${panel ? "gap-3" : "gap-[22px]"}`}>
+        <div className={`flex flex-col ${panel ? "gap-4" : "gap-6"}`}>
             {panel ? null : (
                 <AutomationAgentField
                     agentId={preview.agentId}
@@ -135,37 +141,43 @@ export const AutomationDetailBody = ({
         </div>
     )
     const header = panel ? (
-        <div className="flex min-w-0 flex-col gap-0.5">
-            <div className="flex min-w-0 items-center gap-2">
-                <div className="min-w-0 flex-1">
-                    <AutomationTitle
-                        name={automation.name}
-                        description={automation.description}
-                        onRename={onRename}
-                        compact
+        <ItemViewTitle
+            mark={<AutomationKindTile kind={automation.kind} />}
+            title={automation.name}
+            editable={nameField}
+            actions={
+                <>
+                    {titleRun}
+                    {actions}
+                    <span aria-hidden className="text-meta text-muted-foreground">
+                        {automation.isActive
+                            ? tEditor("automations.editor.on")
+                            : tEditor("automations.editor.off")}
+                    </span>
+                    <AutomationActiveSwitch
+                        active={automation.isActive}
+                        onToggle={onToggle}
+                        label={false}
                     />
-                </div>
-                {titleRun}
-                {actions}
-                <span aria-hidden className="text-[12px] text-muted-foreground">
-                    {automation.isActive
-                        ? tEditor("automations.editor.on")
-                        : tEditor("automations.editor.off")}
-                </span>
-                <AutomationActiveSwitch
-                    active={automation.isActive}
-                    onToggle={onToggle}
-                    label={false}
-                />
-            </div>
-            <AutomationMetaRow
-                active={automation.isActive}
-                agentName={agentName}
-                updatedAt={automation.updatedAt}
-                onToggle={onToggle}
-                factsOnly
-            />
-        </div>
+                </>
+            }
+            description={
+                <>
+                    {automation.description ? (
+                        <p className="m-0 mb-1 text-body text-muted-foreground">
+                            {automation.description}
+                        </p>
+                    ) : null}
+                    <AutomationMetaRow
+                        active={automation.isActive}
+                        agentName={agentName}
+                        updatedAt={automation.updatedAt}
+                        onToggle={onToggle}
+                        factsOnly
+                    />
+                </>
+            }
+        />
     ) : (
         <>
             <div className="flex min-w-0 items-start gap-2">
@@ -197,13 +209,13 @@ export const AutomationDetailBody = ({
                 // On a phone 8px of top room (the header gives back 4px) keeps the name and the
                 // actions menu, the first row, from losing their 44px tap areas to the scroll clip.
                 className ??
-                "mx-auto flex w-full max-w-[760px] flex-col px-8 pb-[70px] pt-1 max-md:pt-2"
+                "mx-auto box-border flex w-full max-w-content-md flex-col px-4 pb-16 pt-1 sm:px-8"
             }
         >
-            {header}
+            {headless ? null : header}
             {onOpenRunHistory ? (
                 <div
-                    className={`flex flex-col ${panel ? "mt-[18px] gap-[18px]" : "mt-[26px] gap-[26px]"}`}
+                    className={`flex flex-col ${panel ? "mt-4 gap-4" : headless ? "gap-6" : "mt-6 gap-6"}`}
                 >
                     <AutomationRunsSection
                         automation={automation}
@@ -217,7 +229,7 @@ export const AutomationDetailBody = ({
             ) : (
                 <>
                     <AutomationFailureBanner reason={failureReason} />
-                    <div className="mt-[26px]">{fields}</div>
+                    <div className={headless ? undefined : "mt-6"}>{fields}</div>
                 </>
             )}
             {/* Next to the save it is about: right above the bar, or last in a drawer whose

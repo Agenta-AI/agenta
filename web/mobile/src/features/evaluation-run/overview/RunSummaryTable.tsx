@@ -2,7 +2,7 @@ import type {RunSummaryRow} from "./runSummaryRows"
 
 /** The run facts as a label and value list. One run for now; compare runs add columns later. */
 export const RunSummaryTable = ({rows}: {rows: readonly RunSummaryRow[]}) => (
-    <dl className="m-0 flex flex-col text-sm">
+    <dl className="m-0 flex flex-col text-body">
         {rows.map((row) => (
             <div
                 key={row.key}

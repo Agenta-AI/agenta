@@ -50,7 +50,7 @@ export const QueueDetailsForm = ({
                 />
             </Field>
             {form.error ? (
-                <p role="alert" className="m-0 text-sm text-error">
+                <p role="alert" className="m-0 text-body text-destructive">
                     {form.error}
                 </p>
             ) : null}

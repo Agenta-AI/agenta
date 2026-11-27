@@ -43,8 +43,8 @@ export const IntegrationTile = ({label, logo, size = 20, className = ""}: Integr
                 // Brand marks are drawn for a light ground — GitHub's is a black glyph, invisible on
                 // a themed dark fill. Logos get a fixed light plate; initials follow the theme.
                 showLogo
-                    ? "bg-white p-px ring-1 ring-inset ring-colorBorderSecondary"
-                    : "bg-colorFillTertiary text-colorTextSecondary"
+                    ? "bg-white p-px ring-1 ring-inset ring-border-muted"
+                    : "bg-secondary text-muted-foreground"
             } ${className}`}
             style={{
                 width: size,

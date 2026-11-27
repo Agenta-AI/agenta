@@ -135,8 +135,8 @@ const SingleMessage = memo(
             useRoleColorClasses()[message.role.toLowerCase()] ?? DEFAULT_ROLE_COLOR_CLASS
 
         return (
-            <section key={`${keyPrefix}-${index}`} className="w-full flex flex-col gap-1 text-xs">
-                <span className={`capitalize text-xs font-medium ${roleColorClass}`}>
+            <section key={`${keyPrefix}-${index}`} className="w-full flex flex-col gap-1 text-body">
+                <span className={`capitalize text-label ${roleColorClass}`}>
                     {Object.hasOwn(ROLE_LABELS, message.role)
                         ? t(ROLE_LABELS[message.role as keyof typeof ROLE_LABELS])
                         : message.role}
@@ -158,13 +158,13 @@ const SingleMessage = memo(
                 )}
                 {message.tool_calls && message.tool_calls.length > 0 && (
                     <div className="flex flex-col gap-1">
-                        <span className="text-xs font-medium">{t("ui.chat.toolCalls")}</span>
-                        <span className="whitespace-pre-wrap break-words text-xs bg-zinc-1 rounded px-2 py-1 block">
+                        <span className="text-label">{t("ui.chat.toolCalls")}</span>
+                        <span className="whitespace-pre-wrap break-words text-code-sm bg-secondary rounded px-2 py-1 block">
                             {formatToolCalls(message.tool_calls)}
                         </span>
                     </div>
                 )}
-                {showDivider && <div className="h-px w-full bg-zinc-2 rounded-full mt-1" />}
+                {showDivider && <div className="h-px w-full bg-border-muted mt-1" />}
             </section>
         )
     },
@@ -235,7 +235,7 @@ const ChatMessagesCellContent = memo(
                     />
                 ))}
                 {hasMore && (
-                    <span className="text-xs italic">
+                    <span className="text-body italic">
                         {t("ui.chat.moreMessages", {
                             count: totalCount - displayMessages.length,
                         })}

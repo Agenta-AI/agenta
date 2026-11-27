@@ -12,15 +12,15 @@ import {
 } from "@agenta/observability"
 import type {TraceSpanNode} from "@agenta/observability"
 import {formatTokens} from "@agenta/shared/utils"
+import {PlusCircleIcon, TimerIcon} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
-import {PlusCircle, Timer} from "lucide-react"
 
 import {statusMapper} from "../cells/AvatarTreeContent"
 import {StatusRenderer} from "../cells/StatusRenderer"
 
 import ResultTag from "./ResultTag"
 
-const titleClass = "text-sm leading-[1.5714285714285714] font-medium"
+const titleClass = "text-label"
 const resultTagClass = "flex items-center font-mono gap-1"
 const tokenContainerClass =
     "[&>div:nth-of-type(1)]:leading-[1.5714285714285714] [&>div:nth-of-type(1)]:font-medium [&>div:nth-of-type(2)]:leading-[1.5714285714285714] [&>div:nth-of-type(2)]:font-normal"
@@ -80,7 +80,6 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                 <StatusRenderer
                     status={activeTrace?.status_code}
                     message={activeTrace?.status_message}
-                    bordered={false}
                 />
             </div>
 
@@ -88,10 +87,10 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                 <span className={titleClass}>{t("observabilityUi.traceDrawer.latency")}</span>
                 <ResultTag
                     bordered={false}
-                    className="bg-[var(--ag-c-0517290F)]"
+                    className="bg-secondary"
                     value1={
                         <div className={resultTagClass}>
-                            <Timer size={14} /> {formattedLatency}
+                            <TimerIcon size={14} /> {formattedLatency}
                         </div>
                     }
                 />
@@ -107,11 +106,11 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                         </div>
                     }
                     bordered={false}
-                    className="bg-[var(--ag-c-0517290F)]"
+                    className="bg-secondary"
                 />
                 <ResultTag
                     bordered={false}
-                    className="bg-[var(--ag-c-0517290F)]"
+                    className="bg-secondary"
                     value1={
                         <div className={resultTagClass}>
                             {t("observabilityUi.traceDrawer.endAt", {time: traceEndTime})}
@@ -124,10 +123,10 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                 <span className={titleClass}>{t("observabilityUi.traceDrawer.tokensAndCost")}</span>
                 <ResultTag
                     bordered={false}
-                    className="bg-[var(--ag-c-0517290F)]"
+                    className="bg-secondary"
                     value1={
                         <div className={resultTagClass}>
-                            <PlusCircle size={14} />
+                            <PlusCircleIcon size={14} />
                             {formattedTokens} / {formattedCost}
                         </div>
                     }

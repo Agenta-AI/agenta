@@ -11,7 +11,7 @@ export const ReadOnlyComposerNotice = ({text}: {text: string}) => (
             <div
                 role="note"
                 data-testid="read-only-composer"
-                className="border-border bg-muted text-muted-foreground flex min-h-[108px] items-center justify-center rounded-lg border border-dashed px-6 py-4 text-center text-sm [text-wrap:pretty]"
+                className="border-border bg-muted text-muted-foreground flex min-h-27 items-center justify-center rounded-lg border border-dashed px-6 py-4 text-center text-body [text-wrap:pretty]"
             >
                 {text}
             </div>

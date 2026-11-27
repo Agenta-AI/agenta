@@ -134,7 +134,8 @@ export AGENTA_WEB_MOBILE_IMAGE="ghcr.io/agenta-ai/agenta-web-mobile:latest"
 export AGENTA_SERVICES_IMAGE="ghcr.io/agenta-ai/agenta-services:latest"
 export AGENTA_RUNNER_IMAGE="ghcr.io/agenta-ai/agenta-runner:latest"
 
-./hosting/railway/oss/scripts/deploy-from-images.sh
+: "${AGENTA_AUTH_KEY:?}" "${AGENTA_CRYPT_KEY:?}" "${AGENTA_SERVICES_INTERNAL_KEY:?}" &&
+  ./hosting/railway/oss/scripts/deploy-from-images.sh
 ```
 
 The script re-configures environment variables, runs any new migrations, and redeploys all services. If it stops with `Service 'web-mobile' is missing`, the environment was bootstrapped before the mobile app became standard. Re-run `./hosting/railway/oss/scripts/bootstrap.sh`, then the deploy script.

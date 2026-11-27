@@ -1,0 +1,5 @@
+{
+    "analyticsDescription": "Coste, ejecuciones y tasa de éxito de este agente.",
+    "configurationDescription": "En qué se ejecuta el agente, qué puede usar y quién puede verlo.",
+    "sessionsDescription": "Todas las conversaciones que personas y automatizaciones han tenido con este agente."
+}

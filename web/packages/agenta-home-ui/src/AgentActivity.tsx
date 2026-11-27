@@ -27,7 +27,7 @@ export const AgentActivity = ({agentId}: {agentId: string}) => {
 
     return (
         <SimpleTooltip title={label}>
-            <span className="text-xs text-colorText">
+            <span className="text-label text-foreground">
                 {activity ? timeAgo(Date.parse(activity)) : "—"}
             </span>
         </SimpleTooltip>

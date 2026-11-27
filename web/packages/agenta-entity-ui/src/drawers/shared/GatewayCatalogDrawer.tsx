@@ -14,8 +14,17 @@ import React, {useCallback, useEffect, useMemo, useRef, useState, type ReactNode
 import {useT} from "@agenta/i18n"
 import gatewayCatalogCatalog from "@agenta/i18n/catalogs/entityUi.gatewayCatalog"
 import {DropdownButton, ScrollSentinel, ScrollToTopButton, Tag} from "@agenta/ui"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button, Divider, EmptyState, InputAffix, Spinner} from "@agenta/ui/ui"
+import {
+    Button,
+    Divider,
+    EmptyState,
+    InputAffix,
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    Spinner,
+} from "@agenta/ui/ui"
 import {
     ArrowLeft,
     CaretDown,
@@ -111,7 +120,7 @@ function ExpandableText({text}: {text: string}) {
         setOverflows(el.scrollHeight > el.clientHeight + 1)
     }, [text])
     return (
-        <p className="m-0 text-xs text-[var(--ag-colorTextDescription)]">
+        <p className="m-0 text-meta text-muted-foreground">
             <span ref={clampRef} className={expanded ? "block" : "line-clamp-3 block"}>
                 {text}
             </span>
@@ -119,7 +128,7 @@ function ExpandableText({text}: {text: string}) {
                 <button
                     type="button"
                     onClick={() => setExpanded((v) => !v)}
-                    className="cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--ag-colorPrimary)] hover:underline"
+                    className="cursor-pointer border-0 bg-transparent p-0 text-meta text-primary hover:underline"
                 >
                     {expanded
                         ? t("entityUi.gatewayCatalog.seeLess")
@@ -132,9 +141,8 @@ function ExpandableText({text}: {text: string}) {
 
 function ItemTrailingIcon({state}: {state: ItemTrailing}) {
     if (state === "pending") return <Spinner size="small" />
-    if (state === "selected")
-        return <Check size={13} className="shrink-0 text-[var(--ag-colorPrimary)]" />
-    return <Plus size={13} className="shrink-0 text-[var(--ag-colorTextTertiary)]" />
+    if (state === "selected") return <Check size={13} className="shrink-0 text-primary" />
+    return <Plus size={13} className="shrink-0 text-muted-foreground" />
 }
 
 // Lazy-loaded items for one connection's integration (mounted only when its rail row is expanded).
@@ -163,9 +171,7 @@ function ConnectionItemsList<I, T, C>({
     }
     if (items.length === 0) {
         return (
-            <div className="px-3 py-2 text-xs text-[var(--ag-colorTextTertiary)]">
-                {config.emptyItemsText}
-            </div>
+            <div className="px-3 py-2 text-meta text-muted-foreground">{config.emptyItemsText}</div>
         )
     }
     return (
@@ -179,13 +185,10 @@ function ConnectionItemsList<I, T, C>({
                         onClick={() =>
                             state !== "pending" && config.onPickItem(connection, it, null)
                         }
-                        className="flex w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 py-1.5 text-left hover:bg-[var(--ag-colorFillSecondary)]"
+                        className="flex w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 py-1.5 text-left hover:bg-accent"
                     >
-                        <Lightning
-                            size={13}
-                            className="shrink-0 text-[var(--ag-colorTextTertiary)]"
-                        />
-                        <span className="min-w-0 flex-1 truncate text-xs">
+                        <Lightning size={13} className="shrink-0 text-muted-foreground" />
+                        <span className="min-w-0 flex-1 truncate text-meta">
                             {adapter.item.name(it) || adapter.item.key(it)}
                         </span>
                         <ItemTrailingIcon state={state} />
@@ -196,7 +199,7 @@ function ConnectionItemsList<I, T, C>({
                 <button
                     type="button"
                     onClick={onViewAll}
-                    className="flex w-full cursor-pointer border-0 bg-transparent px-2 py-1.5 text-left text-[12px] text-[var(--ag-colorTextSecondary)] hover:bg-[var(--ag-colorFillSecondary)]"
+                    className="flex w-full cursor-pointer border-0 bg-transparent px-2 py-1.5 text-left text-meta text-muted-foreground hover:bg-accent"
                 >
                     {t("entityUi.gatewayCatalog.viewAll")}
                 </button>
@@ -264,9 +267,9 @@ function IntegrationsView<I, T, C>({
     return (
         <div className="flex h-full min-h-0 overflow-hidden">
             {hasConnections && (
-                <div className="flex w-[168px] shrink-0 flex-col overflow-hidden border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)] sm:w-[280px]">
+                <div className="flex w-[168px] shrink-0 flex-col overflow-hidden border-0 border-r border-solid border-border-muted sm:w-[280px]">
                     <div className="shrink-0 px-4 pb-2 pt-4">
-                        <span className="text-xs text-[var(--ag-colorTextDescription)]">
+                        <span className="text-meta text-muted-foreground">
                             {t("entityUi.gatewayCatalog.yourConnections")}
                         </span>
                     </div>
@@ -283,22 +286,22 @@ function IntegrationsView<I, T, C>({
                                     // shrink-0: in a scrolling flex column the default is to
                                     // compress siblings, so expanding one app squeezed the rest
                                     // instead of scrolling the rail.
-                                    className="shrink-0 overflow-hidden rounded border border-solid border-[var(--ag-colorBorderSecondary)]"
+                                    className="shrink-0 overflow-hidden rounded border border-solid border-border-muted"
                                 >
                                     <button
                                         type="button"
                                         onClick={() => setExpanded(isOpen ? null : cid)}
-                                        className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-2.5 py-2 text-left hover:bg-[var(--ag-colorFillSecondary)]"
+                                        className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-2.5 py-2 text-left hover:bg-accent"
                                     >
                                         {isOpen ? (
                                             <CaretDown
                                                 size={12}
-                                                className="shrink-0 text-[var(--ag-colorTextTertiary)]"
+                                                className="shrink-0 text-muted-foreground"
                                             />
                                         ) : (
                                             <CaretRight
                                                 size={12}
-                                                className="shrink-0 text-[var(--ag-colorTextTertiary)]"
+                                                className="shrink-0 text-muted-foreground"
                                             />
                                         )}
                                         <AppLogo
@@ -308,21 +311,21 @@ function IntegrationsView<I, T, C>({
                                             size={16}
                                         />
                                         <div className="min-w-0 flex-1">
-                                            <div className="truncate text-xs font-medium">
+                                            <div className="truncate text-label font-medium">
                                                 {adapter.connection.name(conn) ||
                                                     adapter.connection.slug(conn) ||
                                                     adapter.connection.integrationKey(conn)}
                                             </div>
-                                            <div className="truncate text-xs text-[var(--ag-colorTextTertiary)]">
+                                            <div className="truncate text-meta text-muted-foreground">
                                                 {adapter.connection.integrationKey(conn)}
                                             </div>
                                         </div>
                                         {adapter.isConnectionActive(conn) && (
-                                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
+                                            <span className="h-1.5 w-1.5 shrink-0 rounded-round bg-success" />
                                         )}
                                     </button>
                                     {isOpen && (
-                                        <div className="border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)]">
+                                        <div className="border-0 border-t border-solid border-border-muted">
                                             <ConnectionItemsList
                                                 connection={conn}
                                                 adapter={adapter}
@@ -339,7 +342,7 @@ function IntegrationsView<I, T, C>({
                             )
                         })}
                     </div>
-                    <div className="mt-auto flex shrink-0 items-start gap-1.5 border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] px-4 py-3 text-xs leading-snug text-[var(--ag-colorTextTertiary)]">
+                    <div className="mt-auto flex shrink-0 items-start gap-1.5 border-0 border-t border-solid border-border-muted px-4 py-3 text-meta leading-snug text-muted-foreground">
                         <Lightning size={13} className="mt-[1px] shrink-0" />
                         <span>{config.connectionsHint}</span>
                     </div>
@@ -348,7 +351,7 @@ function IntegrationsView<I, T, C>({
 
             <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
                 <div className="flex shrink-0 flex-col gap-2 px-6 pb-3 pt-4">
-                    <span className="text-xs text-[var(--ag-colorTextDescription)]">
+                    <span className="text-meta text-muted-foreground">
                         {hasConnections
                             ? t("entityUi.gatewayCatalog.orConnectNew")
                             : t("entityUi.gatewayCatalog.connectApp")}
@@ -361,7 +364,7 @@ function IntegrationsView<I, T, C>({
                         allowClear
                         onClear={() => onSearch("")}
                     />
-                    <span className="text-xs text-[var(--ag-colorTextDescription)]">
+                    <span className="text-meta text-muted-foreground">
                         {t("entityUi.gatewayCatalog.integrationCount", {count: total})}
                     </span>
                 </div>
@@ -479,7 +482,7 @@ function ItemsView<I, T, C>({
                                   {adapter.connection.name(conn) || adapter.connection.slug(conn)}
                               </span>
                               {adapter.isConnectionActive(conn) && (
-                                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
+                                  <span className="h-1.5 w-1.5 shrink-0 rounded-round bg-success" />
                               )}
                           </div>
                       ),
@@ -538,7 +541,7 @@ function ItemsView<I, T, C>({
                             unoptimized
                         />
                     )}
-                    <span className="flex-1 truncate font-semibold text-[var(--ag-colorText)]">
+                    <span className="flex-1 truncate font-semibold text-foreground">
                         {adapter.integration.name(integration)}
                     </span>
                     <div className="shrink-0">
@@ -571,7 +574,7 @@ function ItemsView<I, T, C>({
                     onClear={() => onSearch("")}
                 />
 
-                <span className="text-xs text-[var(--ag-colorTextDescription)]">
+                <span className="text-meta text-muted-foreground">
                     {t("entityUi.gatewayCatalog.itemCount", {count: total})}
                 </span>
             </div>
@@ -605,33 +608,31 @@ function ItemsView<I, T, C>({
                                             isFetching={isFetchingNextPage}
                                         />
                                     )}
-                                    {/* antd Card (size="small", hoverable) → div + tokens: 1px
-                                        colorBorderSecondary border, 8px radius, 12px body padding,
-                                        hover shadow when clickable. */}
+                                    {/* A card: 1px border-muted edge, 8px radius, 12px padding; accent on hover (SURF-04). */}
                                     <div
                                         role={pickDisabled ? undefined : "button"}
-                                        className={`box-border rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgContainer)] p-3 ${
+                                        className={`box-border rounded-lg border border-solid border-border-muted bg-background p-3 ${
                                             pickDisabled
                                                 ? "cursor-not-allowed"
-                                                : "cursor-pointer transition-shadow hover:shadow-md"
+                                                : "cursor-pointer transition-colors hover:bg-[image:linear-gradient(var(--accent),var(--accent))]"
                                         }`}
                                         onClick={pickDisabled ? undefined : () => handlePick(item)}
                                     >
                                         <div className="flex items-start gap-2">
                                             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="truncate font-semibold text-[var(--ag-colorText)]">
+                                                    <span className="truncate font-semibold text-foreground">
                                                         {adapter.item.name(item) ||
                                                             adapter.item.key(item)}
                                                     </span>
                                                     {categories?.slice(0, 2).map((c) => (
-                                                        <Tag key={c} className="text-xs">
+                                                        <Tag key={c} className="text-meta">
                                                             {c}
                                                         </Tag>
                                                     ))}
                                                 </div>
                                                 {itemDescription && (
-                                                    <span className="text-xs text-[var(--ag-colorTextDescription)]">
+                                                    <span className="text-meta text-muted-foreground">
                                                         {itemDescription}
                                                     </span>
                                                 )}
@@ -705,34 +706,39 @@ export function GatewayCatalogDrawer<I, T, C>({
 
     return (
         <>
-            {/* antd Drawer size="large" = 736px; EnhancedDrawer lazy-mounts, covering destroyOnClose. */}
-            <EnhancedDrawer
+            <Sheet
                 open={open}
-                onClose={handleClose}
-                title={config.title(selected)}
-                width={736}
-                panelRef={setPanel}
-                styles={{
-                    body: {
-                        padding: 0,
-                        display: "flex",
-                        flexDirection: "column",
-                        overflow: "hidden",
-                    },
+                onOpenChange={(next) => {
+                    if (!next) handleClose()
                 }}
             >
-                {selected ? (
-                    <ItemsView
-                        integration={selected}
-                        adapter={adapter}
-                        config={config}
-                        onBack={handleBack}
-                        onConnect={() => setConnectFor(selected)}
-                    />
-                ) : (
-                    <IntegrationsView adapter={adapter} config={config} onSelect={setSelected} />
-                )}
-            </EnhancedDrawer>
+                <SheetContent
+                    ref={setPanel}
+                    side="right"
+                    style={{width: 736, maxWidth: "calc(100% - 1rem)"}}
+                >
+                    <SheetHeader>
+                        <SheetTitle className="min-w-0">{config.title(selected)}</SheetTitle>
+                    </SheetHeader>
+                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-b-[inherit] text-field-md text-foreground">
+                        {selected ? (
+                            <ItemsView
+                                integration={selected}
+                                adapter={adapter}
+                                config={config}
+                                onBack={handleBack}
+                                onConnect={() => setConnectFor(selected)}
+                            />
+                        ) : (
+                            <IntegrationsView
+                                adapter={adapter}
+                                config={config}
+                                onSelect={setSelected}
+                            />
+                        )}
+                    </div>
+                </SheetContent>
+            </Sheet>
 
             {connectFor &&
                 config.renderConnect(connectFor, {

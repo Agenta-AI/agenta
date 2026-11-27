@@ -8,5 +8,7 @@
     "connectedCount_many": "{{count}} conectados",
     "connectedCount_other": "{{count}} conectados",
     "numbers": "Números",
-    "workspaces": "Espacios de trabajo"
+    "workspaces": "Espacios de trabajo",
+    "addFirstWorkspace": "Añadir un espacio de trabajo",
+    "addFirstNumber": "Añadir un número"
 }

@@ -24,9 +24,12 @@ const trigger = (size?: "sm" | "default" | "lg") => {
 }
 
 describe("the Select trigger's text size", () => {
-    it.each(["sm", "default", "lg"] as const)("is 16px below md at size %s, like Input", (size) => {
-        expect(trigger(size).className.split(/\s+/)).toContain("max-md:text-base")
-    })
+    it.each(["sm", "default", "lg"] as const)(
+        "does not grow with screen width at size %s",
+        (size) => {
+            expect(trigger(size).className).not.toMatch(/(^|\s)max-md:text-/)
+        },
+    )
 
     it("keeps the desktop ramp above md", () => {
         const classes = trigger().className.split(/\s+/)

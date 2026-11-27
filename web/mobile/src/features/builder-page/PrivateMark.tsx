@@ -15,7 +15,7 @@ export const PrivateMark = ({agentId}: {agentId: string}) => {
         <span title={t("builder.page.privateAgent")} className="flex shrink-0">
             <LockSimple
                 size={12}
-                className="text-colorTextTertiary"
+                className="text-muted-foreground"
                 aria-label={t("builder.page.privateAgent")}
             />
         </span>

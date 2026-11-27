@@ -25,7 +25,6 @@
     "authenticated": "Authentifiziert",
     "created": "Erstellt",
     "actions": "Aktionen",
-    "testConnection": "Verbindung testen",
     "refreshConnection": "Verbindung aktualisieren",
     "apiKeyNeverVerified": "Der API-Schlüssel wurde nie bestätigt, daher können Agents die Tools noch nicht nutzen. Löschen Sie die Verbindung und verbinden Sie sich erneut mit einem gültigen Schlüssel."
 }

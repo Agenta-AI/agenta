@@ -158,8 +158,16 @@ from oss.src.apis.fastapi.evaluations.router import SimpleQueuesRouter
 from oss.src.apis.fastapi.traces.router import SimpleTracesRouter
 from oss.src.apis.fastapi.sessions.router import SessionsRouter
 from oss.src.apis.fastapi.sharing.router import SharingRouter
+from oss.src.apis.fastapi.releases.router import ReleasesRouter
+from oss.src.core.releases.service import ReleasesService
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 from oss.src.apis.fastapi.invocations.router import InvocationsRouter
+from oss.src.apis.fastapi.telemetry.router import TelemetryRouter
+from oss.src.core.telemetry.service import (
+    log_telemetry_status,
+    schedule_install_ping,
+    schedule_startup_event,
+)
 from oss.src.core.annotations.service import AnnotationsService
 from oss.src.core.annotations.general_fields import AnnotationGeneralFieldsService
 from oss.src.core.invocations.service import InvocationsService
@@ -169,6 +177,7 @@ from oss.src.apis.fastapi.ai_services.router import AIServicesRouter
 
 from oss.src.core.accounts.service import PlatformAdminAccountsService
 from oss.src.apis.fastapi.accounts.router import PlatformAdminAccountsRouter
+from oss.src.apis.fastapi.licenses.router import LicensesRouter
 from oss.src.dbs.postgres.gateway.connections.dao import ConnectionsDAO
 from oss.src.core.gateway.connections.providers.composio import (
     ComposioConnectionsAdapter,
@@ -392,6 +401,14 @@ async def lifespan(*args, **kwargs):
     warn_deprecated_env_vars()
     validate_required_env_vars()
     validate_platform_runtime_key()
+    if is_ee():
+        from ee.src.core.licenses.cloud import validate_cloud_license  # noqa: PLC0415
+
+        validate_cloud_license()
+
+    await log_telemetry_status()
+    schedule_install_ping()
+    schedule_startup_event()
 
     await _triggers_broker.startup()
     await _channels_inbox_broker.startup()
@@ -1803,6 +1820,10 @@ sharing = SharingRouter(
     streams_service=session_streams_service,
 )
 
+releases = ReleasesRouter(
+    releases_service=ReleasesService(),
+)
+
 # PLATFORM ADMIN ---------------------------------------------------------------
 
 platform_admin_accounts_service = PlatformAdminAccountsService()
@@ -2308,6 +2329,21 @@ app.include_router(
     include_in_schema=False,
 )
 
+telemetry = TelemetryRouter()
+
+app.include_router(
+    router=telemetry.router,
+    prefix="/instance",
+    tags=["Instance"],
+)
+
+app.include_router(
+    router=telemetry.admin_router,
+    prefix="/admin/telemetry",
+    tags=["Instance", "Admin"],
+    include_in_schema=False,
+)
+
 app.include_router(
     router=evaluations.router,
     prefix="/evaluations",
@@ -2383,6 +2419,14 @@ app.include_router(
     tags=["Admin"],
 )
 
+licenses = LicensesRouter()
+
+app.include_router(
+    router=licenses.router,
+    prefix="/instance",
+    tags=["Instance"],
+)
+
 app.include_router(
     router=sessions.root.router,
     tags=["Sessions"],
@@ -2398,6 +2442,12 @@ app.include_router(
 app.include_router(
     router=sharing.router,
     tags=["Sharing"],
+)
+
+app.include_router(
+    router=releases.router,
+    prefix="/instance",
+    tags=["Releases"],
 )
 
 

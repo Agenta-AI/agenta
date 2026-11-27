@@ -83,7 +83,7 @@ export const PasswordlessRequestForm = ({
     }, [autoSend, securityReady, send])
 
     return (
-        <form className="flex w-full flex-col gap-[10px]" onSubmit={submit} noValidate>
+        <form className="flex w-full flex-col gap-2" onSubmit={submit} noValidate>
             {lockEmail ? null : (
                 <Input
                     type="email"

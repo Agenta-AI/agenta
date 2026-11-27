@@ -44,7 +44,7 @@ export const ArchivedAppRowCells = ({
             <span className="flex min-w-0 items-center gap-2">
                 <AppTypeIcon appType={appType} />
                 <span
-                    className="truncate text-[14px] font-medium leading-[18px] text-foreground"
+                    className="truncate text-body font-medium leading-[18px] text-foreground"
                     title={row.name}
                 >
                     {row.name}
@@ -52,7 +52,7 @@ export const ArchivedAppRowCells = ({
             </span>
 
             {narrow ? null : (
-                <span className="block truncate text-[13px] text-muted-foreground">
+                <span className="block truncate text-label text-muted-foreground">
                     {formatListDateTime(row.createdAt)}
                 </span>
             )}
@@ -62,12 +62,12 @@ export const ArchivedAppRowCells = ({
                 </span>
             )}
 
-            <span className="block truncate text-[13px] text-muted-foreground">
+            <span className="block truncate text-label text-muted-foreground">
                 {/* A phone has 96px for the date, so it keeps the day without the time. */}
                 {narrow ? formatDay(row.archivedAt) : formatListDateTime(row.archivedAt)}
             </span>
             {narrow ? null : (
-                <span className="block min-w-0 truncate text-[13px] text-muted-foreground">
+                <span className="block min-w-0 truncate text-label text-muted-foreground">
                     <UserAuthorLabel
                         userId={row.archivedById}
                         showYouLabel
@@ -88,12 +88,12 @@ export const ArchivedAppRowCells = ({
                             <button
                                 type="button"
                                 aria-label="App actions"
-                                className="relative flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextSecondary after:absolute after:-inset-1.5 after:content-[''] hover:bg-colorFillTertiary hover:text-colorText"
+                                className="relative flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-muted-foreground after:absolute after:-inset-1.5 after:content-[''] hover:bg-accent hover:text-foreground"
                             >
                                 <DotsThreeVertical size={16} weight="bold" />
                             </button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-max min-w-[160px]">
+                        <DropdownMenuContent align="end" className="w-max min-w-40">
                             {onOpenOverview ? (
                                 <DropdownMenuItem onSelect={() => onOpenOverview(row)}>
                                     <ArrowSquareOut size={16} />

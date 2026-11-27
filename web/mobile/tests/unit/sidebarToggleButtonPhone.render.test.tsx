@@ -6,17 +6,17 @@ import {afterEach, describe, expect, it} from "vitest"
 afterEach(cleanup)
 
 describe("SidebarToggleButton close label", () => {
-    it("reads Close the sidebar in the phone sheet", () => {
+    it("reads Close sidebar in the phone sheet", () => {
         render(
             <SidebarLayoutContext.Provider value="phone">
                 <SidebarToggleButton onDismiss={() => undefined} />
             </SidebarLayoutContext.Provider>,
         )
-        expect(screen.getByRole("button", {name: "Close the sidebar"})).toBeTruthy()
+        expect(screen.getByRole("button", {name: "Close sidebar"})).toBeTruthy()
     })
 
-    it("keeps Close navigation in the wider sheet", () => {
+    it("reads Close sidebar in the wider sheet too", () => {
         render(<SidebarToggleButton onDismiss={() => undefined} />)
-        expect(screen.getByRole("button", {name: "Close navigation"})).toBeTruthy()
+        expect(screen.getByRole("button", {name: "Close sidebar"})).toBeTruthy()
     })
 })

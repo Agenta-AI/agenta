@@ -14,6 +14,7 @@ export const OnboardingProgressDots = ({
     current,
     reached,
     onGo,
+    registrationStep = false,
 }: {
     steps: readonly OnboardingStep[]
     /** Index of the current dot. */
@@ -21,13 +22,19 @@ export const OnboardingProgressDots = ({
     /** Whether a dot's step can be opened from here. */
     reached: (step: OnboardingStep) => boolean
     onGo: (step: OnboardingStep) => void
+    /** The registration offer takes the credits step's place; else the step sets up credits. */
+    registrationStep?: boolean
 }) => {
     const {stepTransition} = useMotionPresets()
     const t = useT(flowCatalog)
     const questionText = useQuestionText()
     const dotLabel = (step: OnboardingStep) =>
         questionText.dot(step) ??
-        (step === "credits" ? t("onboarding.flow.dotCredits") : t("onboarding.flow.dotTemplates"))
+        (step === "credits"
+            ? registrationStep
+                ? t("onboarding.flow.dotRegister")
+                : t("onboarding.flow.dotCredits")
+            : t("onboarding.flow.dotTemplates"))
     return (
         <nav
             aria-label={t("onboarding.flow.stepCounter", {
@@ -55,7 +62,7 @@ export const OnboardingProgressDots = ({
                             animate={{width: index === current ? 22 : 6}}
                             transition={stepTransition}
                             className={cn(
-                                "block h-1.5 rounded-full transition-colors motion-reduce:transition-none",
+                                "block h-1.5 rounded-xs transition-colors motion-reduce:transition-none",
                                 index === current
                                     ? "bg-foreground"
                                     : index < current

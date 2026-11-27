@@ -12,13 +12,13 @@ export const TopUpPackOption = ({pack, disabled}: {pack: TopUpPack; disabled?: b
     return (
         <label
             htmlFor={id}
-            className="flex cursor-pointer items-center gap-3 rounded-lg border border-solid border-colorBorderSecondary px-3 py-2.5 has-[[data-state=checked]]:border-colorPrimary has-[:disabled]:cursor-not-allowed"
+            className="flex cursor-pointer items-center gap-3 rounded-lg border border-solid border-border-muted px-3 py-2.5 has-[[data-state=checked]]:border-primary has-[:disabled]:cursor-not-allowed"
         >
             <RadioGroupItem id={id} value={pack.code} disabled={disabled} />
-            <span className="flex-1 text-sm text-colorText tabular-nums">
+            <span className="flex-1 text-body text-foreground tabular-nums">
                 {t("billing.topups.packCredits", {credits: formatCreditCount(pack.credits)})}
             </span>
-            <span className="text-sm font-medium text-colorText tabular-nums">
+            <span className="text-label text-foreground tabular-nums">
                 {formatPackPrice(pack.priceCents, pack.currency)}
             </span>
         </label>

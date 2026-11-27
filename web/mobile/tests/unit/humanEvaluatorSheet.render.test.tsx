@@ -60,7 +60,8 @@ const mount = async (editing: EvaluatorEntry | null) => {
 
 const byLabel = (label: string) => {
     const element = [...document.querySelectorAll("label")].find(
-        (item) => item.textContent?.replaceAll("*", "").trim() === label,
+        // The label's own text, without the muted "Required" or "Optional" after it.
+        (item) => item.textContent?.replace(/(Required|Optional)$/, "").trim() === label,
     )
     const id = element?.getAttribute("for")
     return (id ? document.getElementById(id) : null) as HTMLInputElement

@@ -25,8 +25,8 @@ import {describeMcp} from "./itemDescriptors"
 import {type ItemRowStatus} from "./ItemRow"
 import {customMcpEndpoints, findMcpIndex, mcpItemNeedsRepair, mcpItemRef} from "./mcpRail"
 import {needsSetupStatus} from "./needsSetup"
-import {RemoveFromAgentDialog} from "./RemoveFromAgentDialog"
 import {useAgentRequirements} from "./useAgentRequirements"
+import {RemoveFromAgentDialog} from "./views/RemoveFromAgentDialog"
 
 export interface McpServersSectionBodyProps {
     /** The agent's saved `mcps` array. */
@@ -158,19 +158,17 @@ export function McpServersSectionBody({
                 disabled={disabled}
                 statusFor={statusForRow}
             />
-            {removing ? (
-                <RemoveFromAgentDialog
-                    open
-                    name={removing.name}
-                    description={t("entityUi.integrationViews.connectionStays")}
-                    onRemove={() => {
-                        if (removing.item) removeServer(removing.item)
-                        else removeServerAt(removing.index)
-                        setRemoving(null)
-                    }}
-                    onClose={() => setRemoving(null)}
-                />
-            ) : null}
+            <RemoveFromAgentDialog
+                open={removing !== null}
+                name={removing?.name ?? ""}
+                body={t("entityUi.integrationViews.connectionStays")}
+                onConfirm={() => {
+                    if (removing?.item) removeServer(removing.item)
+                    else if (removing) removeServerAt(removing.index)
+                    setRemoving(null)
+                }}
+                onCancel={() => setRemoving(null)}
+            />
         </>
     )
 }

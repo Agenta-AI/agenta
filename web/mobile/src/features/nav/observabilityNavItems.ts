@@ -3,7 +3,7 @@ import {createElement} from "react"
 import {createT, type CatalogKey} from "@agenta/i18n"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import type {SidebarConfig} from "@agenta/navigation"
-import {ChartLineUpIcon} from "@phosphor-icons/react"
+import {TreeViewIcon} from "@phosphor-icons/react"
 
 export const tNow = createT(navigationCatalog)
 
@@ -21,7 +21,7 @@ export const observabilityNavItems = (
               {
                   key: "mobile-observability",
                   title: t("navigation.items.observability"),
-                  icon: createElement(ChartLineUpIcon, {size: 16}),
+                  icon: createElement(TreeViewIcon, {size: 16}),
                   link: `${projectURL}/observability`,
                   prefetch: false,
               },

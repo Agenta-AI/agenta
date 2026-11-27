@@ -7,5 +7,6 @@
     "outputLabel": "Output:",
     "providers": "Providers",
     "selectProvider": "Select a provider",
+    "signInToPick": "Your subscription needs a new sign-in. Open Manage model providers to sign in again.",
     "via": "via"
 }

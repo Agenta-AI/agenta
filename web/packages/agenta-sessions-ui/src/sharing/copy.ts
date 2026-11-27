@@ -114,9 +114,6 @@ export const sessionSharingCopy = {
     get ownerRole() {
         return t("sessions.sharing.ownerRole")
     },
-    get emptyGrants() {
-        return t("sessions.sharing.emptyGrants")
-    },
     get removeAccess() {
         return t("sessions.sharing.removeAccess")
     },
@@ -137,15 +134,14 @@ export const sessionSharingCopy = {
     get stopSharing() {
         return t("sessions.sharing.stopSharing")
     },
+    get inviteRoleLabel() {
+        return t("sessions.sharing.inviteRoleLabel")
+    },
     get copyLink() {
         return t("sessions.sharing.copyLink")
     },
     get linkCopied() {
         return t("sessions.sharing.linkCopied")
-    },
-    /** Draft: the chat is private with nobody added, so the copied link opens for nobody else. */
-    get linkNobodyYet() {
-        return t("sessions.sharing.linkNobodyYet")
     },
     /** Draft: the toast after a copy while nobody else has access. */
     get linkCopiedNobodyYet() {
@@ -184,7 +180,7 @@ export const memberPickerCopy = {
     get placeholder() {
         return t("sessions.memberPicker.placeholder")
     },
-    heading: (project: string) => t("sessions.memberPicker.heading", {project}),
+    heading: () => t("sessions.memberPicker.heading"),
     get hasAccess() {
         return t("sessions.memberPicker.hasAccess")
     },
@@ -192,6 +188,15 @@ export const memberPickerCopy = {
         return t("sessions.memberPicker.footer")
     },
     noMatch: (text: string) => t("sessions.memberPicker.noMatch", {text}),
+    get noMembersTitle() {
+        return t("sessions.memberPicker.noMembersTitle")
+    },
+    get noMembersDescription() {
+        return t("sessions.memberPicker.noMembersDescription")
+    },
+    get addMembers() {
+        return t("sessions.memberPicker.addMembers")
+    },
     get error() {
         return t("sessions.memberPicker.error")
     },

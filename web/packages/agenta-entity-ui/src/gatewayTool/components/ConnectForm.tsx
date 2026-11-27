@@ -14,7 +14,7 @@ import {
 } from "@agenta/entities/gatewayTool"
 import {useT} from "@agenta/i18n"
 import connectFormCatalog from "@agenta/i18n/catalogs/entityUi.connectForm"
-import {defaultConnectionName, generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
+import {generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
 import {
     Field,
     Input,
@@ -26,11 +26,8 @@ import {
 } from "@agenta/ui/ui"
 import Image from "next/image"
 
-import {
-    CANVAS_FIELD_LABEL,
-    ConnectOwnerField,
-    type ConnectionOwner,
-} from "../../accounts/ConnectOwnerField"
+import {CANVAS_FIELD_LABEL, type ConnectionOwner} from "../../accounts/ConnectOwnerField"
+import {OwnerField, useOwnerWord} from "../../accounts/OwnerField"
 import {openToolAuthPopup} from "../utils/openToolAuthPopup"
 
 const DEFAULT_PROVIDER = "composio"
@@ -94,7 +91,11 @@ export function useConnectForm({
     const existingCount = connections.filter(
         (connection) => connection.integration_key === integrationKey,
     ).length
-    const seedName = defaultConnectionName(integrationName, existingCount)
+    const ownerWord = useOwnerWord()
+    // "Snowflake (Personal)", then "Snowflake (Personal 2)": the owner the form has selected.
+    const seedName = `${integrationName} (${ownerWord(owner)}${
+        existingCount > 0 ? ` ${existingCount + 1}` : ""
+    })`
 
     const [nameTouched, setNameTouched] = useState(false)
     // An open auth popup's listener and poll; stopped if the form unmounts first.
@@ -199,18 +200,18 @@ export type ConnectFormState = ReturnType<typeof useConnectForm>
 /** The app mark (canvas F02 f5): its logo at 32 px with no tile, or its first letter. */
 export function ConnectAppMark({name, logo}: {name: string; logo?: string | null}) {
     return (
-        <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden">
+        <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
             {logo ? (
                 <Image
                     src={logo}
                     alt={name}
-                    width={32}
-                    height={32}
-                    className="size-8 object-contain"
+                    width={20}
+                    height={20}
+                    className="size-5 object-contain"
                     unoptimized
                 />
             ) : (
-                <span className="text-sm font-semibold text-muted-foreground">
+                <span className="text-label font-semibold text-muted-foreground">
                     {name.charAt(0).toUpperCase()}
                 </span>
             )}
@@ -218,8 +219,8 @@ export function ConnectAppMark({name, logo}: {name: string; logo?: string | null
     )
 }
 
-/** Canvas F02 f5 inputs and selects: 34 px high, radius 6, 13 px; 44 px and 16 px on a phone. */
-const CANVAS_CONTROL = "h-[34px] rounded-[6px] max-md:h-11 md:text-[13px]"
+/** Inputs and selects: control-md (32, 44 on touch), radius 6, 13 px. */
+const CANVAS_CONTROL = "h-control rounded-md text-label"
 
 /** "Connect {name}", the description, and the fields: Name, Who can use it, Auth Method. */
 export function ConnectFormFields({
@@ -227,30 +228,35 @@ export function ConnectFormFields({
     integrationName,
     integrationDescription,
     projectName,
+    hideHeading = false,
 }: {
     form: ConnectFormState
     integrationName: string
     integrationDescription?: string | null
     /** The current project's name, for "Everyone in {project}". */
     projectName?: string
+    /** The host's own header names the app (a dialog's title): no "Connect {name}" here. */
+    hideHeading?: boolean
 }) {
     const t = useT(connectFormCatalog)
     const {owners} = form
     return (
         <>
-            <div className="flex flex-col gap-1">
-                <span className="text-base font-medium leading-5 text-foreground">
-                    {t("entityUi.connectForm.connectName", {name: integrationName})}
-                </span>
-                {integrationDescription && (
-                    <span
-                        className="truncate text-[13px] leading-5 text-colorTextSecondary"
-                        title={integrationDescription}
-                    >
-                        {integrationDescription}
+            {hideHeading ? null : (
+                <div className="flex flex-col gap-1">
+                    <span className="text-body font-medium leading-5 text-foreground">
+                        {t("entityUi.connectForm.connectName", {name: integrationName})}
                     </span>
-                )}
-            </div>
+                    {integrationDescription && (
+                        <span
+                            className="truncate text-label leading-5 text-muted-foreground"
+                            title={integrationDescription}
+                        >
+                            {integrationDescription}
+                        </span>
+                    )}
+                </div>
+            )}
 
             <div className="flex flex-col gap-3">
                 <Field
@@ -271,11 +277,10 @@ export function ConnectFormFields({
                 </Field>
 
                 {owners && owners.length > 1 ? (
-                    <ConnectOwnerField
+                    <OwnerField<ConnectionOwner>
                         value={form.owner}
                         owners={owners}
                         onChange={form.setOwner}
-                        onlyMeDetail={t("entityUi.connectForm.onlyMeNote", {name: integrationName})}
                         projectName={projectName}
                     />
                 ) : null}
@@ -307,7 +312,7 @@ export function ConnectFormFields({
             </div>
 
             {form.submitFailed ? (
-                <p className="m-0 text-xs leading-snug text-[var(--ag-colorError)]">
+                <p className="m-0 text-meta leading-snug text-destructive">
                     {t("entityUi.connectForm.submitFailed")}
                 </p>
             ) : null}

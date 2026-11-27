@@ -1,10 +1,7 @@
 {
     "chooseWhose": "Elige qué inicio de sesión de {{name}} usa el agente",
     "eachPersonsOwnNote": "Cada persona usa su propio inicio de sesión de {{name}}.",
-    "oneShared": "Un inicio de sesión compartido",
     "oneSharedNote": "Todos usan el inicio de sesión del proyecto.",
-    "sharedSignIn": "Inicio de sesión compartido",
-    "sharedSignInNote": "Todas las ejecuciones usan este inicio de sesión, sin importar quién las inicie",
     "yourSignIn": "Tu inicio de sesión",
     "yourSignInNote": "El inicio de sesión de {{name}} que usan tus propias ejecuciones",
     "notSignedInYet": "Aún no has iniciado sesión",

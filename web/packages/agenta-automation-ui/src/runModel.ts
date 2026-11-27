@@ -182,7 +182,7 @@ export function runDotClass(delivery: TriggerDelivery): string {
         case "bad":
             return "bg-destructive"
         case "skipped":
-            return "bg-colorWarning"
+            return "bg-warning"
         default:
             return "bg-muted-foreground/50"
     }

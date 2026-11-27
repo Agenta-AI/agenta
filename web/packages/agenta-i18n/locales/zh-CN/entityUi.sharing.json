@@ -7,6 +7,7 @@
     "panelTitle": "谁可以查看此 Agent",
     "linePrivate": "只有你可以在 Agenta 中查看和使用它。",
     "lineProject": "{{project}} 中的所有人都可以查看和使用它。与它的对话保持私有：请通过每个对话自己的“分享”按钮分享。",
+    "noteProject": "{{project}} 中的所有人都可以查看和使用它。",
     "panelOwnerYou": "{{name}}（你），所有者",
     "change": "更改",
     "whoSection": "谁可以查看此 Agent",
@@ -16,6 +17,7 @@
     "ownerRole": "所有者",
     "youSuffix": "（你）",
     "transferButton": "转移所有权",
+    "transferShort": "转让",
     "done": "完成",
     "cancel": "取消",
     "makePrivateTitle": "将 {{agent}} 设为私有？",
@@ -47,5 +49,6 @@
     "toastPrivate": "{{agent}} 现已设为私有。",
     "toastShared": "{{agent}} 现已与项目共享。",
     "toastTransferred": "{{name}} 现在是 {{agent}} 的所有者。",
-    "toastTookOwnership": "你现在是 {{agent}} 的所有者。"
+    "toastTookOwnership": "你现在是 {{agent}} 的所有者。",
+    "transferPickerPlaceholder": "搜索新的所有者"
 }

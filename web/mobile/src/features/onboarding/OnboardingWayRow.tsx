@@ -40,15 +40,15 @@ export const OnboardingWayRow = ({
                     className={cn(
                         "flex size-7 shrink-0 items-center justify-center rounded-md ring-1 ring-inset",
                         highlight
-                            ? "bg-hero-action text-hero-action-foreground ring-hero-action-foreground/10"
-                            : "bg-background text-foreground ring-border",
+                            ? "bg-selected text-foreground ring-border-strong"
+                            : "bg-secondary text-muted-foreground ring-border",
                     )}
                 >
                     {icon}
                 </span>
                 <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="text-sm font-medium leading-5">{title}</span>
-                    <span className="text-muted-foreground text-xs leading-4">{hint}</span>
+                    <span className="text-label">{title}</span>
+                    <span className="text-muted-foreground text-meta">{hint}</span>
                 </span>
                 <span className="shrink-0">{action}</span>
             </div>

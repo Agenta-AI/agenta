@@ -1,4 +1,6 @@
-import {RELEASES, type Release} from "./index"
+import {RELEASES} from "./bundled"
+
+import type {Release} from "./index"
 
 // Seen ids are docs entry slugs, so an entry added later to a seen version still counts as new.
 const WHATS_NEW_SEEN_KEY = "agenta-whats-new-seen-entries"
@@ -20,7 +22,7 @@ export const computeUnseenReleases = ({
 }
 
 // Storage can throw (private mode, blocked storage, quota); What's New then just stays quiet.
-const readStorage = (key: string): string | null => {
+export const readStorage = (key: string): string | null => {
     if (typeof window === "undefined") return null
     try {
         return window.localStorage.getItem(key)
@@ -29,7 +31,7 @@ const readStorage = (key: string): string | null => {
     }
 }
 
-const writeStorage = (key: string, value: string | null) => {
+export const writeStorage = (key: string, value: string | null) => {
     if (typeof window === "undefined") return
     try {
         if (value === null) window.localStorage.removeItem(key)

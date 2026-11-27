@@ -223,8 +223,8 @@ function formatTruncatedCount(count: number): string {
 /** Inline style constants for diff segment types */
 const DIFF_SEGMENT_STYLES = {
     removed:
-        "background-color: rgba(220, 38, 38, 0.3); text-decoration: line-through; text-decoration-color: rgba(220, 38, 38, 0.6); border-radius: 2px; padding: 0 1px;",
-    added: "background-color: rgba(22, 163, 74, 0.3); border-radius: 2px; padding: 0 1px;",
+        "background-color: color-mix(in oklab, var(--destructive) 30%, transparent); text-decoration: line-through; text-decoration-color: var(--destructive); border-radius: 2px; padding: 0 1px;",
+    added: "background-color: color-mix(in oklab, var(--success) 30%, transparent); border-radius: 2px; padding: 0 1px;",
 } as const
 
 /**

@@ -45,7 +45,7 @@ export const SessionSharingControl = ({
             className={buttonClassName}
             {...props}
         >
-            <ExportIcon aria-hidden className="size-4 max-md:size-5" />
+            <ExportIcon aria-hidden className="size-4" />
         </Button>
     )
 

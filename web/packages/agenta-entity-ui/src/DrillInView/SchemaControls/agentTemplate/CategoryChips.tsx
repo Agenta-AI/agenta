@@ -6,20 +6,19 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import integrationDrawerCatalog from "@agenta/i18n/catalogs/entityUi.integrationDrawer"
 import {useScrollFadeEdges} from "@agenta/ui/hooks"
-import {cn, PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
+import {cn} from "@agenta/ui/ui"
 
 import {categoryLabel, type CategorySelection} from "./integrationCatalogFilters"
 
 const CHIP =
-    "inline-flex h-6 shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded-sm border-0 px-2.5 font-[inherit] text-btn-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+    "inline-flex h-6 shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded-sm border-0 px-2.5 font-[inherit] text-btn-xs outline-none transition-colors focus-ring"
 
 const chipClass = (on: boolean) =>
     cn(
         CHIP,
-        PHONE_TOUCH_TARGET_CLASS,
         on
             ? // The ring is the fill's own color, so a selected chip rings in the page color.
-              "bg-foreground text-background focus-visible:ring-background"
+              "bg-foreground text-background focus-ring"
             : "bg-accent/60 text-muted-foreground hover:bg-accent hover:text-foreground",
     )
 

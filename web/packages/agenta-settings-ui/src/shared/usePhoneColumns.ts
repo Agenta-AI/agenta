@@ -12,7 +12,7 @@ const subscribe = (onChange: () => void) => {
     return () => list.removeEventListener("change", onChange)
 }
 
-/** Below `sm` a table keeps only `phoneKeys`; `shows(key)` gates the matching cell. */
+/** Below `sm` a table keeps only `phoneKeys`; `shows(key)` gates the matching cell. `wide` is above `sm`. */
 export const usePhoneColumns = (columns: ListTableColumn[], phoneKeys: readonly string[]) => {
     // Read on the first render, so a desktop table never paints its phone columns first.
     const wide = useSyncExternalStore(
@@ -23,6 +23,6 @@ export const usePhoneColumns = (columns: ListTableColumn[], phoneKeys: readonly 
     return useMemo(() => {
         const visible = wide ? columns : columns.filter((column) => phoneKeys.includes(column.key))
         const keys = new Set(visible.map((column) => column.key))
-        return {columns: visible, shows: (key: string) => keys.has(key)}
+        return {columns: visible, shows: (key: string) => keys.has(key), wide}
     }, [wide, columns, phoneKeys])
 }

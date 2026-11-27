@@ -3,17 +3,21 @@
  * first open.
  *
  * - `providerListView`: the list. A picker: it writes nothing and opens the other views.
- * - `providerAddView`: "Add a provider or subscription". A picker: a picked provider replaces it
- *   with its form, at the same depth (`nav.replace`), so Save goes back to the list.
+ * - `providerAddView`: the catalog, grouped as Settings groups it. A picker: a picked row's form
+ *   replaces it at the same depth (`nav.replace`), so Save goes back to the opener.
  * - `providerConnectionView`: one connection's form. Save writes the project's connection.
  * - `builtinModelsView`: the "Agenta" card. Read only, with Done.
  *
  * Names: the screen is "Model providers" (view ids `project.modelProviders.*`); the code calls
  * its parts `provider*`, and their text lives in the `entityUi.providerList` namespace.
  */
+import {createElement} from "react"
+
 import {defineView} from "@agenta/ui/view-stack"
 
 import {lazyView} from "../../DrillInView/SchemaControls/agentTemplate/views/lazyView"
+
+import {ProviderCatalogSkeleton} from "./ProviderCatalogSkeleton"
 
 export type ProviderListViewParams = Record<string, never>
 export type ProviderAddViewParams = Record<string, never>
@@ -36,7 +40,10 @@ export const providerListView = defineView<ProviderListViewParams>({
 export const providerAddView = defineView<ProviderAddViewParams>({
     id: "project.modelProviders.add",
     apply: "immediate",
-    Component: lazyView(() => import("./ProviderAddViewBody")),
+    Component: lazyView(
+        () => import("./ProviderAddViewBody"),
+        createElement(ProviderCatalogSkeleton),
+    ),
 })
 
 export const providerConnectionView = defineView<ProviderConnectionViewParams>({

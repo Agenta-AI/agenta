@@ -65,7 +65,7 @@ export const RunFiltersPanel = ({
             <PopoverTrigger asChild>
                 <Button size="sm" variant="outline" aria-label="Filters">
                     <Funnel aria-hidden size={14} />
-                    <span className="min-w-4 rounded-sm bg-muted px-1 text-xs tabular-nums text-foreground">
+                    <span className="min-w-4 rounded-sm bg-muted px-1 text-label tabular-nums text-foreground">
                         {count}
                     </span>
                 </Button>
@@ -125,7 +125,7 @@ export const RunFiltersPanel = ({
                         disabled={!appPicked}
                     />
                     <div className="flex min-w-0 flex-col gap-1.5 sm:col-span-2">
-                        <span className="text-sm font-medium text-foreground">Date range</span>
+                        <span className="text-label text-foreground">Date range</span>
                         <Select
                             value={draft.range ?? ALL_TIME}
                             onValueChange={(next) =>

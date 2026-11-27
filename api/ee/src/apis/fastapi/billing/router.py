@@ -31,7 +31,14 @@ from oss.src.core.access.permissions.service import (
     check_organization_write,
 )
 from oss.src.core.access.permissions.types import Permission
-from ee.src.core.access.entitlements.types import Tracker, Quota, Period, Scope
+from ee.src.core.access.entitlements.types import (
+    Gauge,
+    Tracker,
+    Quota,
+    Period,
+    Scope,
+)
+from ee.src.core.licenses.cloud import is_cloud
 from ee.src.core.access.controls import get_plan_entitlements, get_plans
 from ee.src.core.subscriptions.settings import (
     get_catalog,
@@ -1488,6 +1495,12 @@ class BillingRouter:
                         period=_period,
                     )
                 value = (rows[0].value if rows else 0) or 0
+
+                if key == Gauge.USERS and not is_cloud():
+                    # Self-hosted has no per-seat billing, and its gauge can miss
+                    # members (organizations adopted from OSS, or made through the
+                    # admin endpoint): show the organization's members, owner included.
+                    value = await db_manager.count_organization_members(organization_id)
 
                 usage[key] = {
                     "value": value,

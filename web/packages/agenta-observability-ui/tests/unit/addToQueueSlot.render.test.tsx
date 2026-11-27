@@ -53,9 +53,6 @@ vi.mock("@agenta/observability/traceDrawer", () => ({
 }))
 vi.mock("@agenta/shared/state", () => ({projectIdAtom: atom("project-1")}))
 vi.mock("@agenta/ui/components/presentational", () => ({
-    EnhancedButton: ({children, ...rest}: {children?: ReactNode}) => (
-        <button {...(rest as object)}>{children}</button>
-    ),
     Tag: ({label}: {label: ReactNode}) => <span>{label}</span>,
 }))
 vi.mock("@agenta/ui/copy-tooltip", () => ({
@@ -67,6 +64,7 @@ vi.mock("@agenta/ui/ui", () => ({
     DropdownMenu: ({children}: {children: ReactNode}) => <>{children}</>,
     DropdownMenuContent: () => null,
     DropdownMenuTrigger: ({children}: {children: ReactNode}) => <>{children}</>,
+    SimpleTooltip: ({children}: {children: ReactNode}) => <>{children}</>,
 }))
 
 import AddActionsDropdown from "../../src/actions"

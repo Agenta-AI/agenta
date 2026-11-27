@@ -18,20 +18,14 @@ const configure = (values: Record<string, string>) =>
     configureAuth({getEnv: (key) => values[key] ?? "", getApiUrl: () => "https://api.test"})
 
 describe("getTurnstileSiteKey", () => {
-    it("is empty unless the deployment is EE", () => {
-        configure({[SITE_KEY]: "0xkey"})
-        expect(getTurnstileSiteKey()).toBe("")
-        expect(isTurnstileEnabled()).toBe(false)
-    })
-
-    it("is the configured key on EE and cloud", () => {
-        configure({[SITE_KEY]: " 0xkey ", [LICENSE]: "ee"})
+    it("is the configured key, whatever the license says", () => {
+        configure({[SITE_KEY]: " 0xkey "})
         expect(getTurnstileSiteKey()).toBe("0xkey")
-        configure({[SITE_KEY]: "0xkey", [LICENSE]: "cloud-eu"})
+        configure({[SITE_KEY]: "0xkey", [LICENSE]: "oss"})
         expect(isTurnstileEnabled()).toBe(true)
     })
 
-    it("is empty on EE without a key", () => {
+    it("is empty without a key", () => {
         configure({[LICENSE]: "ee"})
         expect(isTurnstileEnabled()).toBe(false)
     })

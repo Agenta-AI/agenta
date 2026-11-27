@@ -34,17 +34,11 @@ export const RunRowMenu = ({run, actions}: {run: EvaluationRun; actions: RunRowA
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button
-                    type="button"
-                    size="icon-xs"
-                    variant="ghost"
-                    aria-label="Run actions"
-                    className="hover:bg-foreground/10 dark:hover:bg-foreground/15"
-                >
-                    <DotsThreeVertical aria-hidden className="size-3.5" weight="bold" />
+                <Button type="button" size="icon-xs" variant="ghost" aria-label="Run actions">
+                    <DotsThreeVertical aria-hidden className="size-3.5" />
                 </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[220px]">
+            <DropdownMenuContent align="end" className="w-60">
                 <DropdownMenuItem onSelect={() => actions.open(run)}>
                     <Note aria-hidden size={14} />
                     Open details

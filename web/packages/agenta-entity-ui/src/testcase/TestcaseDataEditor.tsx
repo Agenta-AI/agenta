@@ -122,7 +122,7 @@ function FullPayloadCodeEditor({
     )
 
     const errorNote = parseError ? (
-        <p role="alert" className="m-0 mt-2 text-xs text-error">
+        <p role="alert" className="m-0 mt-2 text-meta text-destructive">
             {t("entityUi.testcase.invalidCode", {
                 format: format === "json" ? "JSON" : "YAML",
                 error: parseError,
@@ -139,7 +139,7 @@ function FullPayloadCodeEditor({
                         initialValue={jsonText}
                         handleChange={editable ? handleChange : undefined}
                         editorType="border"
-                        className="min-h-[60px] overflow-hidden"
+                        className="min-h-15 overflow-hidden"
                         disableDebounce
                         noProvider
                         syncWithInitialValueChanges
@@ -174,7 +174,7 @@ function FullPayloadCodeEditor({
                     value={displayValue}
                     handleChange={editable ? handleChange : undefined}
                     editorType="border"
-                    className="min-h-[200px] overflow-hidden"
+                    className="min-h-50 overflow-hidden"
                     disableDebounce
                     noProvider
                     disabled={!editable}

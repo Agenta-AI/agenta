@@ -44,7 +44,7 @@ export const EmbedSection = ({
                 <button
                     type="button"
                     aria-expanded={open}
-                    className="flex min-w-0 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left text-[13px] font-semibold text-foreground"
+                    className="flex min-w-0 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left text-label text-foreground"
                     data-testid={`${testId}-toggle`}
                 >
                     {open ? <CaretDown size={12} /> : <CaretRight size={12} />}
@@ -66,7 +66,7 @@ export const EmbedSection = ({
                 ) : null}
                 {!open && summary ? (
                     <span
-                        className="ml-auto truncate pl-2 text-[12.5px] text-muted-foreground"
+                        className="ml-auto truncate pl-2 text-label text-muted-foreground"
                         data-testid={`${testId}-summary`}
                     >
                         {summary}
@@ -74,7 +74,7 @@ export const EmbedSection = ({
                 ) : null}
             </div>
             {!open && error ? (
-                <span role="alert" className="text-[12.5px] text-destructive">
+                <span role="alert" className="text-label text-destructive">
                     {error}
                 </span>
             ) : null}

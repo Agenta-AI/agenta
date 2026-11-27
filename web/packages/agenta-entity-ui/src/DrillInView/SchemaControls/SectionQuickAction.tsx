@@ -38,7 +38,7 @@ export function SectionQuickAction({
                 variant="ghost"
                 onClick={onOpenDetails}
                 disabled={disabled}
-                className="h-auto w-fit px-0 text-xs text-primary"
+                className="h-auto w-fit px-0 text-meta text-primary"
             >
                 <ArrowSquareOut size={13} />
                 {detailsLabel ?? t("entityUi.schemaControls.detailedConfiguration")}

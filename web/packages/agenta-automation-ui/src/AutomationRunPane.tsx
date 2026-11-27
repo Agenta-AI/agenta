@@ -5,19 +5,12 @@ import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
 import automationsRunHistoryCatalog from "@agenta/i18n/catalogs/automations.runHistory"
-import {ArrowSquareOut, CaretLeft} from "@phosphor-icons/react"
+import {Button, IconTile, ItemViewTitle, SimpleTooltip} from "@agenta/ui/ui"
+import {PaneHeader} from "@agenta/ui/view-stack"
+import {ArrowSquareOut, Play} from "@phosphor-icons/react"
 
-import {ICON_LINK} from "./lib/interactive"
-import {cn} from "./lib/utils"
-import {
-    runDotClass,
-    runDuration,
-    runError,
-    runLabel,
-    runOutcomeLabel,
-    runSessionId,
-    runWhenLabel,
-} from "./runModel"
+import {AutomationRunStatusBadge} from "./AutomationRunStatusBadge"
+import {runDuration, runError, runLabel, runSessionId, runWhenLabel} from "./runModel"
 import {AutomationRunNoConversation} from "./states/AutomationRunStates"
 
 /**
@@ -44,9 +37,9 @@ export const AutomationRunPane = ({
     renderConversation: (sessionId: string) => ReactNode
     /** The run's session page; given, an icon opens it in a new tab. */
     sessionHref?: (sessionId: string) => string
-    /** Narrow layout only — the list is off screen, so the pane owns the way back to it. */
+    /** Narrow layout with no host back (the page) — the pane owns the way back to the list. */
     onBack?: () => void
-    /** Phone: the back arrow and the new-tab icon have a 44 px hit area. */
+    /** Phone: when and how long go on the line under the name, so the name keeps its room. */
     phone?: boolean
 }) => {
     const t = useT(automationsEditorCatalog, automationsModelCatalog, automationsRunHistoryCatalog)
@@ -63,56 +56,52 @@ export const AutomationRunPane = ({
 
     return (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            {/* The run line, with a hairline under it that sets the transcript apart. */}
-            <div className="flex shrink-0 items-center gap-2.5 border-0 border-b border-solid border-colorSplit px-3.5 py-3">
-                {onBack ? (
-                    <button
-                        type="button"
-                        onClick={onBack}
-                        aria-label={t("automations.editor.backToRunList")}
-                        className={cn(
-                            "flex shrink-0 cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent p-1.5 text-muted-foreground",
-                            phone && "-my-2 -ml-3 size-11",
-                            ICON_LINK,
-                        )}
-                    >
-                        <CaretLeft aria-hidden size={16} />
-                    </button>
-                ) : null}
-                <span
-                    aria-hidden
-                    className={cn("size-2 shrink-0 rounded-full", runDotClass(delivery))}
-                />
-                {/* One line: the run's name and when it ran are one fact, and stacking them
-                    made a two-line header for two short strings. */}
-                <span className="flex min-w-0 flex-1 items-baseline gap-2">
-                    <span className="shrink-0 text-[14px] font-medium text-foreground">
-                        {label}
-                        <span className="sr-only"> — {runOutcomeLabel(delivery)}</span>
-                    </span>
-                    {meta ? (
-                        <span className="min-w-0 truncate text-[12px] leading-4 text-muted-foreground">
-                            {meta}
-                        </span>
-                    ) : null}
-                </span>
-                {sessionId && sessionHref ? (
-                    <a
-                        href={sessionHref(sessionId)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={t("automations.runHistory.openRunInNewTab")}
-                        title={t("automations.runHistory.openRunInNewTab")}
-                        className={cn(
-                            "flex shrink-0 items-center justify-center rounded-[6px] p-1.5 text-muted-foreground",
-                            phone && "-my-2 -mr-2 size-11",
-                            ICON_LINK,
-                        )}
-                    >
-                        <ArrowSquareOut aria-hidden size={16} />
-                    </a>
-                ) : null}
-            </div>
+            {/* Narrow, with no host back: the pane header leads back to the list. */}
+            {onBack ? (
+                <PaneHeader back={{title: t("automations.editor.runHistory"), onBack}} />
+            ) : null}
+            {/* One line: the run's Mark and name, its status, when and how long, and open. */}
+            <ItemViewTitle
+                className="shrink-0 border-0 border-b border-solid border-border-muted px-4 pb-3 pt-4"
+                mark={
+                    <IconTile size={24}>
+                        <Play />
+                    </IconTile>
+                }
+                title={label}
+                description={phone && meta ? meta : undefined}
+                status={
+                    <>
+                        <AutomationRunStatusBadge delivery={delivery} />
+                        {meta && !phone ? (
+                            <span className="min-w-0 shrink truncate text-meta tabular-nums text-muted-foreground">
+                                {meta}
+                            </span>
+                        ) : null}
+                    </>
+                }
+                actions={
+                    sessionId && sessionHref ? (
+                        <SimpleTooltip title={t("automations.runHistory.openRunInNewTab")}>
+                            <Button
+                                asChild
+                                variant="ghost"
+                                size="icon-compact"
+                                className="-mr-1.5"
+                                aria-label={t("automations.runHistory.openRunInNewTab")}
+                            >
+                                <a
+                                    href={sessionHref(sessionId)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    <ArrowSquareOut aria-hidden />
+                                </a>
+                            </Button>
+                        </SimpleTooltip>
+                    ) : null
+                }
+            />
             <div className="flex min-h-0 flex-1 flex-col">
                 {sessionId ? (
                     renderConversation(sessionId)

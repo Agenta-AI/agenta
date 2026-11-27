@@ -24,22 +24,22 @@ export const SettingsSection = ({
         <div className="flex flex-col gap-0.5">
             <h2
                 className={cn(
-                    "m-0 text-[13px] font-medium leading-[18px]",
-                    danger ? "text-colorError" : "text-muted-foreground",
+                    "m-0 text-label font-medium",
+                    danger ? "text-destructive" : "text-muted-foreground",
                 )}
             >
                 {title}
             </h2>
             {description ? (
-                <p className="m-0 text-[13px] text-muted-foreground">{description}</p>
+                <p className="m-0 text-label text-muted-foreground">{description}</p>
             ) : null}
         </div>
         {framed ? (
             <div
                 className={cn(
-                    "flex flex-col divide-y divide-solid overflow-hidden rounded-[10px] border border-solid bg-background",
+                    "flex flex-col divide-y divide-solid overflow-hidden rounded-lg border border-solid bg-background",
                     danger
-                        ? "border-colorErrorBorder divide-colorErrorBorder"
+                        ? "border-destructive/40 divide-destructive/40"
                         : "border-border divide-border",
                 )}
             >
@@ -67,13 +67,13 @@ export const SettingsRow = ({
     children?: ReactNode
 } & Omit<ComponentProps<"div">, "title">) => (
     <div
-        className={cn("flex flex-wrap items-center gap-x-6 gap-y-3 px-[18px] py-4", className)}
+        className={cn("flex flex-wrap items-center gap-x-6 gap-y-3 px-4 py-4", className)}
         {...rest}
     >
         <div className="flex min-w-0 flex-[1_1_260px] flex-col gap-0.5">
             <span className="font-medium text-foreground">{title}</span>
             {description ? (
-                <span className="text-[13px] text-muted-foreground">{description}</span>
+                <span className="text-label text-muted-foreground">{description}</span>
             ) : null}
             {children}
         </div>

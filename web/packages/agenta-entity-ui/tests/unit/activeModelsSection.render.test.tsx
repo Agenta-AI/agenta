@@ -31,7 +31,6 @@ const render = async (props: Partial<ActiveModelsSectionProps> = {}) => {
                 options: options(5),
                 onToggle: vi.fn(),
                 onSelectAll: vi.fn(),
-                onClear: vi.fn(),
                 onAddManual,
                 manualPlaceholder: "Add a model ID",
                 ...props,

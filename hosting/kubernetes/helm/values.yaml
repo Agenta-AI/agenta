@@ -50,6 +50,13 @@
 # Agenta — License (https://agenta.ai/pricing)
 # ================================================================== #
 agenta:
+  # Picks the default database names (agenta_<license>_*). The api, services,
+  # runner, web and web-mobile images are the same public images for both values.
+  # With ee, setting web.image.repository (for example the private
+  # ghcr.io/agenta-ai/internal-ee-agenta-web) runs that build's ./ee/server.js.
+  # With ee, the services ignore provider keys from the environment (llm.*) unless
+  # AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED is true.
+  # Changing it on an existing install points it at other, empty databases.
   license: oss
 
   # People may store their own accounts (custom secrets, Composio connections,
@@ -178,6 +185,22 @@ postgres:
 # ================================================================== #
 posthog:
   apiKey: "phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7"
+
+# ================================================================== #
+# telemetry: what this instance sends to Agenta.
+# See https://docs.agenta.ai/self-host/telemetry
+# ================================================================== #
+telemetry:
+  enabled: true
+  # production, development, ci or test. Empty lets the API detect it.
+  # Set test on an instance that only runs tests, so its events can be left out.
+  instanceKind: ""
+
+# ================================================================== #
+# releases: the update check that reads Agenta's public release list.
+# ================================================================== #
+releases:
+  updateCheckEnabled: true
 
 # ================================================================== #
 # postgresql (Bitnami subchart) — bundled deployment.
@@ -444,6 +467,11 @@ redisDurable:
 # services:
 #   gunicorn:
 #     keepAlive: 620           # same meaning and default as api.gunicorn.keepAlive
+# alembic:
+#   activeDeadlineSeconds: 3600  # seconds the migration Job may run before Kubernetes
+#                                # stops it and the upgrade fails. A data migration on a
+#                                # database with tens of thousands of organizations can
+#                                # take ten minutes or more.
 
 # ================================================================== #
 # networkPolicy — lock the bundled data stores down to this release.

@@ -33,8 +33,18 @@ import {providerTitleForKind} from "@agenta/entities/secret"
 import {useT} from "@agenta/i18n"
 import providerDrawerCatalog from "@agenta/i18n/catalogs/entityUi.providerDrawer"
 import providerListCatalog from "@agenta/i18n/catalogs/entityUi.providerList"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Badge, Button, Divider} from "@agenta/ui/ui"
+import {
+    Badge,
+    Button,
+    cn,
+    Divider,
+    Sheet,
+    SheetContent,
+    SheetFooter,
+    SheetHeader,
+    SheetTitle,
+    SimpleTooltip,
+} from "@agenta/ui/ui"
 import {ArrowLeft, ArrowSquareOut, WarningCircle} from "@phosphor-icons/react"
 
 import {DrawerFooter} from "../drawers/shared/DrawerFooter"
@@ -110,7 +120,7 @@ type DrawerView =
 /** The provider's logo in the 28px tile the catalog rows use. */
 const ProviderTile = ({kind}: {kind: string}) => {
     return (
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-md border border-solid border-border bg-background">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted">
             {createElement(providerIconFor(kind), {className: "size-4"})}
         </span>
     )
@@ -141,7 +151,7 @@ const CARD_BODY_STYLE = {display: "flex", flexDirection: "column"} as const
 
 /** The catalog's footer is a paper strip rather than a button row. */
 const LIST_FOOTER_STYLE = {
-    background: "var(--ag-colorFillQuaternary)",
+    background: "var(--secondary)",
     padding: "10px 24px",
 } as const
 
@@ -248,14 +258,17 @@ const ProviderDrawer = ({
     const showSubscriptionRows = isPlayground && showSubscriptions
 
     const backButton = (
-        <button
-            type="button"
-            aria-label={t("entityUi.providerDrawer.backToCatalog")}
-            onClick={goBack}
-            className="flex shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 text-colorText"
-        >
-            <ArrowLeft size={16} />
-        </button>
+        <SimpleTooltip title={t("entityUi.providerDrawer.backToCatalog")}>
+            <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t("entityUi.providerDrawer.backToCatalog")}
+                onClick={goBack}
+                className="shrink-0"
+            >
+                <ArrowLeft size={16} />
+            </Button>
+        </SimpleTooltip>
     )
 
     /**
@@ -281,7 +294,7 @@ const ProviderDrawer = ({
             <span className="flex min-w-0 items-center gap-2" style={{maxWidth: titleMaxWidth}}>
                 {backButton}
                 <span className="truncate">{view.pair.name}</span>
-                <span className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-control-sm bg-colorFillTertiary px-1.5 py-0.5 text-field-sm font-normal text-colorTextSecondary">
+                <span className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-control-sm bg-secondary px-1.5 py-0.5 text-field-sm font-normal text-muted-foreground">
                     {harnessMarkNode(view.pair.harness)}
                     {harnessMetaFor(view.pair.harness).label}
                 </span>
@@ -323,7 +336,7 @@ const ProviderDrawer = ({
                 onCancel={onCardCancel}
                 left={
                     cardSave?.error ? (
-                        <span className="flex items-center gap-1 text-colorError">
+                        <span className="flex items-center gap-1 text-destructive">
                             <WarningCircle size={16} />
                             {cardSave.error}
                         </span>
@@ -345,7 +358,7 @@ const ProviderDrawer = ({
                 onSubmit={() => pairSave?.submit()}
             />
         ) : isSettings ? (
-            <p className="m-0 flex w-full items-center justify-between gap-4 text-field-sm text-colorTextSecondary">
+            <p className="m-0 flex w-full items-center justify-between gap-4 text-field-sm text-muted-foreground">
                 <span>{t("entityUi.providerDrawer.subscriptionsConfigured")}</span>
                 <a
                     href={subscriptionDocsUrl}
@@ -358,86 +371,102 @@ const ProviderDrawer = ({
                 </a>
             </p>
         ) : visibleCount ? (
-            <p className="m-0 text-field-sm text-colorTextSecondary">
+            <p className="m-0 text-field-sm text-muted-foreground">
                 {t("entityUi.providerDrawer.connectedCount", {count: visibleCount})}
             </p>
         ) : undefined
 
     return (
-        <EnhancedDrawer
+        <Sheet
             open={open}
-            onClose={onClose}
-            title={title}
-            width={width}
-            // The built-in X leads the header on the catalog level; a pushed level leads with its
-            // back arrow instead, so the two never sit side by side.
-            closable={!showsBack}
-            footer={footer}
-            styles={
-                view.level === "catalog"
-                    ? {body: LIST_BODY_STYLE, footer: LIST_FOOTER_STYLE}
-                    : {body: CARD_BODY_STYLE, footer: CARD_FOOTER_STYLE}
-            }
+            onOpenChange={(next) => {
+                if (!next) onClose()
+            }}
         >
-            {view.level === "catalog" ? (
-                <>
-                    {showConnected ? (
-                        <PlaygroundConnectedSection
-                            connections={userConnections}
-                            organizationConnections={
-                                context === "completion" ? organizationConnections : undefined
-                            }
-                            onSelect={(picked) =>
-                                showView({
-                                    level: "connection",
-                                    kind: picked.kind,
-                                    connection: picked,
-                                    pushed: true,
-                                })
-                            }
+            <SheetContent side="right" style={{width, maxWidth: "calc(100% - 1rem)"}}>
+                {/* A pushed level leads with its back arrow, so the X shows only on the catalog. */}
+                <SheetHeader showCloseButton={!showsBack}>
+                    <SheetTitle className="min-w-0">{title}</SheetTitle>
+                </SheetHeader>
+                <div
+                    className={cn(
+                        "min-h-0 flex-1 overflow-y-auto p-4 text-field-md text-foreground",
+                        footer == null && "rounded-b-[inherit]",
+                    )}
+                    style={view.level === "catalog" ? LIST_BODY_STYLE : CARD_BODY_STYLE}
+                >
+                    {view.level === "catalog" ? (
+                        <>
+                            {showConnected ? (
+                                <PlaygroundConnectedSection
+                                    connections={userConnections}
+                                    organizationConnections={
+                                        context === "completion"
+                                            ? organizationConnections
+                                            : undefined
+                                    }
+                                    onSelect={(picked) =>
+                                        showView({
+                                            level: "connection",
+                                            kind: picked.kind,
+                                            connection: picked,
+                                            pushed: true,
+                                        })
+                                    }
+                                />
+                            ) : null}
+                            <ProviderCatalogList onSelect={onPickProvider} />
+                            {/* `showSubscriptions` gates the MOUNTED rows only: a deployment that mounts
+                                nothing still runs a hosted subscription. */}
+                            {isPlayground ? (
+                                <PlaygroundSubscriptionsSection
+                                    onSelectPair={(pair) => showView({level: "subscription", pair})}
+                                    hostedCards={
+                                        <>
+                                            <SubscriptionConnectionCard
+                                                connection={chatgptConnection}
+                                            />
+                                            <SubscriptionTokenCard connection={claudeConnection} />
+                                        </>
+                                    }
+                                    showMounted={showSubscriptionRows}
+                                    hostedFamilies={hostedFamilies}
+                                />
+                            ) : null}
+                        </>
+                    ) : view.level === "subscription" ? (
+                        <SubscriptionPairCard
+                            key={view.pair.key}
+                            pair={view.pair}
+                            docsUrl={subscriptionDocsUrl}
+                            onDone={goBack}
+                            onSaveStateChange={setPairSave}
                         />
-                    ) : null}
-                    <ProviderCatalogList onSelect={onPickProvider} />
-                    {/* `showSubscriptions` gates the MOUNTED rows only: a deployment that mounts
-                        nothing still runs a hosted subscription. */}
-                    {isPlayground ? (
-                        <PlaygroundSubscriptionsSection
-                            onSelectPair={(pair) => showView({level: "subscription", pair})}
-                            hostedCards={
-                                <>
-                                    <SubscriptionConnectionCard connection={chatgptConnection} />
-                                    <SubscriptionTokenCard connection={claudeConnection} />
-                                </>
-                            }
-                            showMounted={showSubscriptionRows}
-                            hostedFamilies={hostedFamilies}
+                    ) : (
+                        <ProviderConnectionCard
+                            key={view.connection?.id ?? view.kind}
+                            kind={view.kind}
+                            connection={cardConnection}
+                            connections={ownConnections}
+                            organization={organization}
+                            ownerChoice={context === "settings" ? ownerChoice : undefined}
+                            onSaveStateChange={setCardSave}
+                            onSaved={(savedConnectionId) => {
+                                onSaved?.(savedConnectionId)
+                                onClose()
+                            }}
                         />
-                    ) : null}
-                </>
-            ) : view.level === "subscription" ? (
-                <SubscriptionPairCard
-                    key={view.pair.key}
-                    pair={view.pair}
-                    docsUrl={subscriptionDocsUrl}
-                    onDone={goBack}
-                    onSaveStateChange={setPairSave}
-                />
-            ) : (
-                <ProviderConnectionCard
-                    key={view.connection?.id ?? view.kind}
-                    kind={view.kind}
-                    connection={cardConnection}
-                    connections={ownConnections}
-                    organization={organization}
-                    ownerChoice={context === "settings" ? ownerChoice : undefined}
-                    onSaveStateChange={setCardSave}
-                    onSaved={(savedConnectionId) => {
-                        onSaved?.(savedConnectionId)
-                        onClose()
-                    }}
-                />
-            )}
-        </EnhancedDrawer>
+                    )}
+                </div>
+                {footer != null ? (
+                    <SheetFooter
+                        style={view.level === "catalog" ? LIST_FOOTER_STYLE : CARD_FOOTER_STYLE}
+                    >
+                        {footer}
+                    </SheetFooter>
+                ) : null}
+            </SheetContent>
+        </Sheet>
     )
 }
 

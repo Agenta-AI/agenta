@@ -4,9 +4,8 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import uiLlmProviderCatalog from "@agenta/i18n/catalogs/ui.llmProvider"
-import {CaretLeft, CaretRight, Check, X} from "@phosphor-icons/react"
+import {CaretDownIcon, CaretLeft, CaretRight, Check, X} from "@phosphor-icons/react"
 import clsx from "clsx"
-import {ChevronDown} from "lucide-react"
 
 import {Input} from "../components/ui/input"
 import {Popover, PopoverAnchor, PopoverContent, PopoverTrigger} from "../components/ui/popover"
@@ -417,25 +416,25 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
     const renderTooltipContent = (metadata: Record<string, unknown>) => (
         <div className="flex flex-col gap-0.5">
             {typeof metadata.description === "string" && metadata.description && (
-                <span className="mb-0.5 inline-block max-w-[220px] text-[12px]">
+                <span className="mb-0.5 inline-block max-w-[220px] text-meta">
                     {metadata.description}
                 </span>
             )}
             {(metadata.input !== undefined || metadata.output !== undefined) && (
                 <>
                     <div className="flex justify-between gap-4">
-                        <span className="text-nowrap text-[12px]">
+                        <span className="text-nowrap text-meta">
                             {t("ui.llmProvider.inputLabel")}
                         </span>
-                        <span className="text-nowrap text-[12px]">
+                        <span className="text-nowrap text-meta">
                             ${formatCost(metadata.input as number)} / 1M
                         </span>
                     </div>
                     <div className="flex justify-between gap-4">
-                        <span className="text-nowrap text-[12px]">
+                        <span className="text-nowrap text-meta">
                             {t("ui.llmProvider.outputLabel")}{" "}
                         </span>
-                        <span className="text-nowrap text-[12px]">
+                        <span className="text-nowrap text-meta">
                             ${formatCost(metadata.output as number)} / 1M
                         </span>
                     </div>
@@ -460,13 +459,13 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                     <span className="flex min-w-0 items-center gap-1.5">
                         <span className="truncate">{option.label}</span>
                         {view && option.tag ? (
-                            <span className="shrink-0 rounded-control-sm bg-muted px-1.5 text-field-sm text-colorTextSecondary">
+                            <span className="shrink-0 rounded-control-sm bg-muted px-1.5 text-field-sm text-muted-foreground">
                                 {option.tag}
                             </span>
                         ) : null}
                     </span>
                     {view && caption ? (
-                        <span className="truncate text-field-sm text-colorTextTertiary">
+                        <span className="truncate text-field-sm text-muted-foreground">
                             {caption}
                         </span>
                     ) : null}
@@ -494,7 +493,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                         <TooltipContent
                             side="right"
                             container={container ?? undefined}
-                            className="bg-colorBgElevated text-colorText [&_svg]:fill-colorBgElevated"
+                            className="bg-popover text-foreground [&_svg]:fill-popover"
                         >
                             {renderTooltipContent(option.metadata ?? {})}
                         </TooltipContent>
@@ -523,7 +522,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                     <TooltipContent
                         side="top"
                         container={container ?? undefined}
-                        className="rounded-control-sm text-[11px]"
+                        className="rounded-control-sm text-caption"
                     >
                         {sectionTooltip}
                     </TooltipContent>
@@ -536,7 +535,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
         return (
             <div
                 role="presentation"
-                className="flex items-center gap-1.5 px-3 py-1 text-[11px] text-colorTextTertiary"
+                className="flex items-center gap-1.5 px-3 py-1 text-caption text-muted-foreground"
             >
                 {single ? <span>{t("ui.llmProvider.via")}</span> : null}
                 {Icon && <Icon className="w-3 h-3 shrink-0" />}
@@ -566,12 +565,12 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
             }}
         >
             <span className="flex w-3 shrink-0 items-center justify-center">
-                {isSelected(option) ? <Check size={12} className="text-colorText" /> : null}
+                {isSelected(option) ? <Check size={12} className="text-foreground" /> : null}
             </span>
             <span className="flex min-w-0 flex-1 items-baseline gap-1.5 overflow-hidden">
-                <span className="truncate text-xs">{option.label}</span>
+                <span className="truncate text-label">{option.label}</span>
                 {option.hint ? (
-                    <span className="shrink-0 text-field-sm text-colorTextTertiary">
+                    <span className="shrink-0 text-field-sm text-muted-foreground">
                         {option.hint}
                     </span>
                 ) : null}
@@ -591,9 +590,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
             onClick={() => handleSelect(option.value, option.metadata)}
             className={clsx(
                 ROW_CLASS,
-                isSelected(option)
-                    ? "bg-controlItemBgActive font-semibold"
-                    : "data-[active=true]:bg-accent",
+                isSelected(option) ? "bg-selected font-semibold" : "data-[active=true]:bg-accent",
             )}
         >
             {renderOption(option, "flat")}
@@ -603,7 +600,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
     let flatRowIndex = -1
 
     // antd greys only the placeholder/arrow, and turns the whole control red on error.
-    const adornmentColor = invalid ? "text-error" : "text-placeholder"
+    const adornmentColor = invalid ? "text-destructive" : "text-muted-foreground"
 
     return (
         <Popover
@@ -650,7 +647,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                 </span>
                             )}
                         </span>
-                        <ChevronDown className={clsx("size-3 shrink-0", adornmentColor)} />
+                        <CaretDownIcon className={clsx("size-3 shrink-0", adornmentColor)} />
                     </button>
                 </PopoverTrigger>
             )}
@@ -741,7 +738,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                 variant="ghost"
                                 className={clsx(
                                     // 13px on a phone, 14px from md up (Input defaults to 16px).
-                                    "rounded-none py-1.5 text-[13px] md:text-sm",
+                                    "rounded-none py-1.5 text-label",
                                     searchSuffix ? "pr-20" : "pr-8",
                                 )}
                             />
@@ -758,11 +755,11 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                         searchSuffix ? "right-14" : "right-2",
                                     )}
                                 >
-                                    <X size={12} className="text-placeholder" />
+                                    <X size={12} className="text-muted-foreground" />
                                 </button>
                             )}
                             {searchSuffix ? (
-                                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-field-sm text-placeholder">
+                                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-field-sm text-muted-foreground">
                                     {searchSuffix}
                                 </span>
                             ) : null}
@@ -776,11 +773,11 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                 id={listId}
                                 role="listbox"
                                 aria-label={ariaLabel ?? t("ui.controls.options")}
-                                className="max-h-[256px] overflow-y-auto"
+                                className="max-h-64 overflow-y-auto"
                                 onWheel={handleWheelScroll}
                             >
                                 {flatItems.length === 0 ? (
-                                    <div className="py-4 text-center text-field-sm text-placeholder">
+                                    <div className="py-4 text-center text-field-sm text-muted-foreground">
                                         {emptyText}
                                     </div>
                                 ) : (
@@ -804,7 +801,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                             >
                                                 <div
                                                     role="presentation"
-                                                    className="flex items-center gap-1 px-3 py-[5px] text-field-sm text-placeholder"
+                                                    className="flex items-center gap-1 px-3 py-[5px] text-field-sm text-muted-foreground"
                                                 >
                                                     {GroupIcon && <GroupIcon className="w-3 h-3" />}
                                                     <span>{group.label}</span>
@@ -826,7 +823,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                     {/* When not searching and has model options with showGroup: provider/model panels */}
                     {showPanels && (
                         <>
-                            <div className="relative flex min-h-[220px] min-w-0">
+                            <div className="relative flex min-h-55 min-w-0">
                                 <div
                                     className={clsx(
                                         "flex min-w-0 flex-col",
@@ -886,7 +883,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                                     )}
                                                     <span className="flex min-w-0 flex-1 flex-col">
                                                         <span
-                                                            className="truncate text-xs"
+                                                            className="truncate text-label"
                                                             title={displayName}
                                                         >
                                                             {displayName}
@@ -897,18 +894,18 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                                                 {group.tag ? (
                                                                     <span
                                                                         className={clsx(
-                                                                            "shrink-0 rounded-control-sm px-1.5 text-[11px]",
+                                                                            "shrink-0 rounded-control-sm px-1.5 text-caption",
                                                                             group.tagTone ===
                                                                                 "olive"
                                                                                 ? "bg-[var(--ag-ref-environment-bg)] text-[var(--ag-ref-environment-text)]"
-                                                                                : "bg-muted text-colorTextSecondary",
+                                                                                : "bg-muted text-muted-foreground",
                                                                         )}
                                                                     >
                                                                         {group.tag}
                                                                     </span>
                                                                 ) : null}
                                                                 {group.caption ? (
-                                                                    <span className="min-w-0 break-words text-[11px] text-colorTextTertiary">
+                                                                    <span className="min-w-0 break-words text-caption text-muted-foreground">
                                                                         {group.caption}
                                                                     </span>
                                                                 ) : null}
@@ -917,12 +914,12 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                                     </span>
                                                     {isDisabled ? null : (
                                                         <>
-                                                            <span className="text-field-sm tabular-nums text-colorTextTertiary">
+                                                            <span className="text-field-sm tabular-nums text-muted-foreground">
                                                                 {group.options.length}
                                                             </span>
                                                             <CaretRight
                                                                 size={12}
-                                                                className="flex-shrink-0 text-colorTextTertiary"
+                                                                className="flex-shrink-0 text-muted-foreground"
                                                             />
                                                         </>
                                                     )}
@@ -942,7 +939,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                         className={clsx(
                                             "overflow-y-auto py-1",
                                             singleColumn
-                                                ? "max-h-[320px] w-full"
+                                                ? "max-h-80 w-full"
                                                 : "absolute inset-y-0 right-0 border-0 border-l border-solid border-border",
                                         )}
                                         style={
@@ -956,11 +953,11 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                                 onClick={() => setActiveModelIndex(null)}
                                                 className={clsx(
                                                     ROW_CLASS,
-                                                    "border-0 bg-transparent text-left text-colorTextSecondary hover:bg-accent",
+                                                    "border-0 bg-transparent text-left text-muted-foreground hover:bg-accent",
                                                 )}
                                             >
                                                 <CaretLeft size={12} className="flex-shrink-0" />
-                                                <span className="truncate text-xs">
+                                                <span className="truncate text-label">
                                                     {groupDisplayName(hoveredGroup)}
                                                 </span>
                                             </button>

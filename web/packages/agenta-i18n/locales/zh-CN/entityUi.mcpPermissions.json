@@ -14,7 +14,7 @@
     "couldNotReadTools": "无法读取此服务器的工具",
     "notConnectedYet": "{{name}} 尚未连接，因此无法列出其工具。",
     "noAccess": "你无权访问此服务器的工具。",
-    "toolListUnreadable": "无法读取工具列表。",
+    "toolListUnreadable": "服务器没有响应。请稍后重试。",
     "connect": "连接",
     "retryTools": "重试读取工具",
     "strandedRules": "这些规则针对的工具已被此服务器的筛选器隐藏。在移除它们之前，Agent 无法运行。",

@@ -4,8 +4,17 @@
  */
 import type {AgentSecretBinding} from "@agenta/entities/secret"
 import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import secretAttachmentCatalog from "@agenta/i18n/catalogs/entityUi.secretAttachment"
-import {EnhancedModal} from "@agenta/ui/components/modal"
+import {
+    Button,
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    LoadingButton,
+} from "@agenta/ui/ui"
 
 import type {AgentSecretRequestSeed} from "./agentSecretRules"
 import {SecretAttachFields} from "./attach/SecretAttachFields"
@@ -59,6 +68,7 @@ export function AgentSecretAttachmentModal({
     container,
 }: AgentSecretAttachmentModalProps) {
     const t = useT(secretAttachmentCatalog)
+    const tCommon = useT(commonCatalog)
     const form = useSecretAttachForm({
         open,
         revisionId: baseRevisionId,
@@ -77,40 +87,50 @@ export function AgentSecretAttachmentModal({
         : t("entityUi.secretAttachment.attachTitle")
 
     return (
-        <EnhancedModal
-            open={open}
-            onCancel={onClose}
-            zIndex={zIndex}
-            getContainer={container ?? undefined}
-            contained={!!container}
-            width={480}
-            destroyOnClose
-            title={
-                <span className="flex min-w-0 items-baseline gap-2">
-                    <span className="shrink-0">{title}</span>
-                    <span className="min-w-0 truncate text-xs font-normal text-colorTextSecondary">
-                        · {target.label}
-                    </span>
-                </span>
-            }
-            okText={form.submitLabel}
-            onOk={() =>
-                void form.submit().then((attached) => {
-                    if (attached) onClose()
-                })
-            }
-            confirmLoading={form.submitting}
-            okButtonProps={{disabled: !form.canSubmit}}
-        >
-            <SecretAttachFields
-                form={form}
-                request={request}
-                agentDirty={dirty}
-                container={container}
-                // The shared Select portals its list to <body> at z-50; one layer above the modal
-                // keeps the options over it (#6733).
-                popupZIndex={zIndex + 1}
-            />
-        </EnhancedModal>
+        // Contained runs non-modal: the host drawer already traps focus.
+        <Dialog open={open} onOpenChange={(next) => !next && onClose()} modal={!container}>
+            <DialogContent
+                container={container ?? undefined}
+                contained={!!container}
+                className="max-w-[480px]"
+                style={{zIndex}}
+            >
+                <DialogHeader>
+                    <DialogTitle>
+                        <span className="flex min-w-0 items-baseline gap-2">
+                            <span className="shrink-0">{title}</span>
+                            <span className="min-w-0 truncate text-meta font-normal text-muted-foreground">
+                                · {target.label}
+                            </span>
+                        </span>
+                    </DialogTitle>
+                </DialogHeader>
+                <SecretAttachFields
+                    form={form}
+                    request={request}
+                    agentDirty={dirty}
+                    container={container}
+                    // The shared Select portals its list to <body> at z-50; one layer above the modal
+                    // keeps the options over it (#6733).
+                    popupZIndex={zIndex + 1}
+                />
+                <DialogFooter>
+                    <Button variant="ghost" onClick={onClose}>
+                        {tCommon("common.cancel")}
+                    </Button>
+                    <LoadingButton
+                        loading={form.submitting}
+                        disabled={!form.canSubmit}
+                        onClick={() =>
+                            void form.submit().then((attached) => {
+                                if (attached) onClose()
+                            })
+                        }
+                    >
+                        {form.submitLabel}
+                    </LoadingButton>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     )
 }

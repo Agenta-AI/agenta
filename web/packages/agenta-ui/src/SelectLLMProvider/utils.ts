@@ -1,4 +1,4 @@
-import {Anthropic, LLMIconMap, OpenAi, Pi} from "../LLMIcons"
+import {Claude, LLMIconMap, OpenAi, Pi} from "../LLMIcons"
 
 import type {ProviderGroup, ProviderOption} from "./types"
 
@@ -78,7 +78,7 @@ export const getProviderIcon = (key: string): React.FC<{className?: string}> | n
 const HARNESS_ICON_MAP: Record<string, React.FC<{className?: string}>> = {
     pi_core: Pi,
     codex: OpenAi,
-    claude: Anthropic,
+    claude: Claude,
 }
 
 /** The mark for a harness id, or null for one Agenta has no logo for. */

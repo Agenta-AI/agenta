@@ -6,7 +6,7 @@ export function BuilderHeroFallback({className}: {className?: string}) {
         <svg
             data-hero-fallback=""
             viewBox="-100 -100 200 200"
-            className={cn("absolute inset-0 size-full text-colorText", className)}
+            className={cn("absolute inset-0 size-full text-foreground", className)}
         >
             {[-30, 0, 30].map((x) => (
                 <circle key={x} cx={x} cy={0} r={9} fill="currentColor" />

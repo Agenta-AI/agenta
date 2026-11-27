@@ -1,11 +1,12 @@
 {
     "scheduledTriggers": "Scheduled triggers",
     "appTriggers": "App triggers",
+    "automations": "Automations",
+    "automationsHint": "Run this agent on a schedule, or when something happens in an app.",
     "deleteFailed": "Couldn't delete this automation. Try again.",
     "runs": "Runs",
     "settings": "Settings",
     "history": "History",
     "seeAllRuns": "See all runs",
-    "lastRun": "Last run",
-    "didNotFinish": "did not finish"
+    "lastRun": "Last run"
 }

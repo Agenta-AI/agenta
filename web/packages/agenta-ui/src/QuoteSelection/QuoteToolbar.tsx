@@ -9,7 +9,7 @@ import {Copy, Quotes} from "@phosphor-icons/react"
 const GAP = 8
 
 const actionClass = (touch?: boolean) =>
-    `flex cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-1.5 text-[11px] font-medium text-popover-foreground hover:bg-accent [&_svg]:shrink-0 [&_svg]:text-muted-foreground ${
+    `flex cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-1.5 text-caption font-medium text-popover-foreground hover:bg-accent [&_svg]:shrink-0 [&_svg]:text-muted-foreground ${
         touch ? "h-6" : "h-5"
     }`
 
@@ -50,7 +50,7 @@ export const QuoteToolbar = ({anchor, bounds, onCopy, onReply, touch}: QuoteTool
             data-quote-ignore="true"
             role="toolbar"
             aria-label={t("ui.quoteSelection.quoteActions")}
-            className="absolute z-30 flex items-center rounded-lg border border-solid border-border/60 bg-popover p-0.5 shadow-md"
+            className="absolute z-30 flex items-center rounded-lg bg-popover p-0.5 shadow-overlay"
             style={{top, left, opacity: size.height ? 1 : 0}}
             // A mousedown inside the pill would collapse the very selection it acts on.
             onMouseDown={(e) => e.preventDefault()}

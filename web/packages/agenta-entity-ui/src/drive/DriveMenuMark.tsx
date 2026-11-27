@@ -4,6 +4,6 @@ import {Check} from "@phosphor-icons/react"
 export const SelectedMark = ({on, className = "ml-auto"}: {on: boolean; className?: string}) => (
     <Check
         aria-hidden
-        className={`size-4 shrink-0 ${className} ${on ? "text-colorText" : "invisible"}`}
+        className={`size-4 shrink-0 ${className} ${on ? "text-foreground" : "invisible"}`}
     />
 )

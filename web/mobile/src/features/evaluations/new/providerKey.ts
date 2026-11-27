@@ -1,6 +1,6 @@
 import {toProviderConnections, vaultSecretsQueryAtom} from "@agenta/entities/secret"
 import {normalizeWorkflowTypeKey, workflowMolecule} from "@agenta/entities/workflow"
-import {isEE} from "@agenta/shared/api"
+import {isCloud} from "@agenta/shared/api"
 import {message, notification} from "@agenta/ui/app-message"
 import {getDefaultStore} from "jotai"
 
@@ -14,9 +14,9 @@ const isAiCritique = (revisionId: string): boolean => {
     return key !== null && LEGACY_AI_CRITIQUE_KEYS.has(key)
 }
 
-/** True when the project has no provider key. An EE deployment serves built-in models, so it never blocks. */
+/** True when the project has no provider key. Cloud serves built-in models, so it never blocks. */
 const lacksProviderKey = async (): Promise<boolean> => {
-    if (isEE()) return false
+    if (isCloud()) return false
     // The vault query is not mounted on this page, so read the answer of a fresh request.
     const {data} = await getDefaultStore().get(vaultSecretsQueryAtom).refetch({throwOnError: true})
     return toProviderConnections(data ?? []).length === 0

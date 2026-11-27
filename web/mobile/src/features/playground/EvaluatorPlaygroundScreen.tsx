@@ -2,9 +2,22 @@ import {useCallback, useEffect, useState} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import type {WorkflowRevisionSelectionResult} from "@agenta/entity-ui/selection"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {evaluatorChainController, playgroundController} from "@agenta/playground"
 import type {RunOnMode} from "@agenta/playground-ui/panels/evaluator"
 import {preloadEditorPlugins} from "@agenta/ui/editor"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
 import {useAtomValue, useStore} from "jotai"
 
 import {PageNotFound} from "@/components/PageNotFound"
@@ -30,6 +43,7 @@ export const EvaluatorPlaygroundScreen = ({
     const store = useStore()
     const selection = useEvaluatorPlaygroundSelection()
     const leaveDialog = usePlaygroundLeaveGuard()
+    const t = useT(commonCatalog)
     const {status, evaluatorRevisionId, primaryRevisionId, appRevisionId} = selection
     const name = useAtomValue(workflowMolecule.selectors.artifactName(evaluatorRevisionId ?? ""))
     // A connected app means "Run on an app output", whatever was picked before.
@@ -107,7 +121,53 @@ export const EvaluatorPlaygroundScreen = ({
                     onWorkflowRevisionCommitted={followCommit}
                 />
             )}
-            {leaveDialog}
+            <AlertDialog
+                open={Boolean(leaveDialog.request)}
+                onOpenChange={(next) => {
+                    if (!next && !leaveDialog.pending) leaveDialog.close()
+                }}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{leaveDialog.request?.title ?? ""}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {leaveDialog.request?.message ?? ""}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {leaveDialog.error ? (
+                        <p className="m-0 text-body text-destructive">{leaveDialog.error}</p>
+                    ) : null}
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                variant="outline"
+                                onClick={leaveDialog.close}
+                                disabled={leaveDialog.pending}
+                            >
+                                {leaveDialog.request?.cancelText ?? t("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant={
+                                    leaveDialog.request?.danger === false
+                                        ? "default"
+                                        : "destructive"
+                                }
+                                disabled={leaveDialog.pending}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    void leaveDialog.runConfirm()
+                                }}
+                            >
+                                {leaveDialog.pending
+                                    ? t("common.working")
+                                    : (leaveDialog.request?.okText ?? t("common.confirm"))}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     )
 }

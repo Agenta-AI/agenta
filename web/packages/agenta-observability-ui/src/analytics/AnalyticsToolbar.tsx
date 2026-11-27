@@ -149,8 +149,8 @@ export const AnalyticsToolbar = ({
     const openingCustom = useRef(false)
 
     return (
-        // The toolbar buttons (range, Filter, Group) are 44 px high on a phone, the touch size.
-        <div className="flex flex-wrap items-center gap-2 max-md:[&>button]:h-11">
+        // One size on every screen: nothing grows on a phone (SIZE-02).
+        <div className="flex flex-wrap items-center gap-2">
             <Popover open={customOpen} onOpenChange={setCustomOpen}>
                 <DropdownMenu open={rangeOpen} onOpenChange={onRangeOpenChange}>
                     <PopoverAnchor asChild>
@@ -209,7 +209,7 @@ export const AnalyticsToolbar = ({
                             <>
                                 <DropdownMenuSeparator />
                                 <div className="flex flex-col gap-2 px-2 py-1.5">
-                                    <span className="text-xs text-muted-foreground">
+                                    <span className="text-meta text-muted-foreground">
                                         {t("observabilityUi.analytics.planKeeps", {
                                             plan: retention.planName,
                                             days: retention.days,
@@ -275,7 +275,7 @@ export const AnalyticsToolbar = ({
                 return (
                     <span
                         key={dim.key}
-                        className="inline-flex h-7 items-center gap-1.5 rounded-md bg-muted pl-2.5 pr-1 text-xs"
+                        className="inline-flex h-control-sm items-center gap-1.5 rounded-md bg-secondary pl-2.5 pr-1 text-label"
                     >
                         <span className="text-muted-foreground">{t(dim.label)}</span>
                         <span className="max-w-[220px] truncate">
@@ -289,7 +289,7 @@ export const AnalyticsToolbar = ({
                                 dim: t(dim.label),
                             })}
                             onClick={() => onFiltersChange({...filters, [dim.key]: []})}
-                            className="relative grid size-5 cursor-pointer place-items-center rounded border-0 bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground max-md:after:absolute max-md:after:-inset-3 max-md:after:content-['']"
+                            className="relative grid size-5 cursor-pointer place-items-center rounded border-0 bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
                         >
                             <X size={12} />
                         </button>

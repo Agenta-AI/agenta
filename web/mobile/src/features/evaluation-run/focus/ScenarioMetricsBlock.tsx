@@ -10,7 +10,7 @@ import {ScenarioFieldCard} from "./ScenarioFieldCard"
  */
 export const ScenarioMetricsBlock = ({cells, error}: {cells: ScenarioCell[]; error?: string}) =>
     error ? (
-        <p role="alert" className="m-0 break-words text-sm text-destructive">
+        <p role="alert" className="m-0 break-words text-body text-destructive">
             {error}
         </p>
     ) : (

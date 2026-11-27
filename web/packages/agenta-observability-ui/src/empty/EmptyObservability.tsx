@@ -34,10 +34,10 @@ export const EmptyObservability = memo(
                         image={<ProhibitIcon size={32} />}
                         description={
                             <div className="flex flex-col gap-2">
-                                <span className="text-lg font-medium text-colorText">
+                                <span className="text-title text-foreground">
                                     {t("observabilityUi.empty.rateLimitReached")}
                                 </span>
-                                <span className="text-colorTextSecondary">
+                                <span className="text-muted-foreground">
                                     {rateLimitMessage || t("observabilityUi.empty.quotaReached")}
                                     {upgradeAction ? <> {upgradeAction}</> : null}
                                 </span>
@@ -52,13 +52,13 @@ export const EmptyObservability = memo(
             return (
                 <div className="py-16">
                     <EmptyPlaceholder
-                        image={<TreeStructureIcon size={32} className="text-colorTextQuaternary" />}
+                        image={<TreeStructureIcon size={32} className="text-muted-foreground" />}
                         description={
                             <div className="flex flex-col gap-2">
-                                <span className="text-lg font-medium text-colorText">
+                                <span className="text-title text-foreground">
                                     {t("observabilityUi.empty.noTracesFound")}
                                 </span>
-                                <span className="text-colorTextSecondary">
+                                <span className="text-muted-foreground">
                                     {t("observabilityUi.empty.adjustTraces")}
                                 </span>
                             </div>

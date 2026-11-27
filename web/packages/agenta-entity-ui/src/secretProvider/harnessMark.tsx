@@ -21,7 +21,7 @@ const PiMark = ({className}: {className?: string}) => (
     <span
         aria-hidden
         className={cn(
-            "inline-flex size-4 shrink-0 items-center justify-center rounded-[4px] bg-colorText font-serif text-[10px] italic leading-none text-colorBgContainer",
+            "inline-flex size-4 shrink-0 items-center justify-center rounded-sm bg-foreground font-serif text-caption italic leading-none text-background",
             className,
         )}
     >

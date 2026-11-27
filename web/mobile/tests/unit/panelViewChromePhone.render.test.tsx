@@ -11,21 +11,18 @@ import {
 import {cleanup, fireEvent, render, screen} from "@testing-library/react"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-import {AgentPanelContext, type AgentPanelApi} from "@/features/agent-layout/agentPanelContext"
-import {PanelViewChrome} from "@/features/agent-layout/PanelViewChrome"
+import {
+    PanelChromeContext,
+    PanelViewChrome,
+    type PanelChromeControls,
+} from "@/features/agent-layout/PanelViewChrome"
 
 afterEach(cleanup)
 
-const panel = (phone: boolean): AgentPanelApi => ({
-    content: "configuration",
-    toggle: vi.fn(async () => true),
-    close: vi.fn(async () => true),
-    configTab: "agent",
-    setConfigTab: vi.fn(),
-    wide: false,
-    setWide: vi.fn(),
+const controls = (phone: boolean): PanelChromeControls => ({
     phone,
-    available: {files: true, configuration: true, builder: false},
+    widen: {wide: false, setWide: vi.fn()},
+    onClose: vi.fn(),
 })
 
 const Body = () => {
@@ -41,13 +38,6 @@ const readOnlyView = defineView<object>({
     Component: Body,
 })
 
-const noWidenView = defineView<object>({
-    id: "test.noWiden",
-    apply: "on_save",
-    widenButton: false,
-    Component: Body,
-})
-
 const OpenOnMount = ({def}: {def: ViewDef<object>}) => {
     const stack = useViewStack()
     const {open} = stack
@@ -58,7 +48,7 @@ const OpenOnMount = ({def}: {def: ViewDef<object>}) => {
 }
 
 const tree = (phone: boolean, def: ViewDef<object> = view) => (
-    <AgentPanelContext.Provider value={panel(phone)}>
+    <PanelChromeContext.Provider value={controls(phone)}>
         <ViewStackHost
             chrome={PanelViewChrome}
             rootTitle={phone ? "Configuration" : "Agent"}
@@ -66,7 +56,7 @@ const tree = (phone: boolean, def: ViewDef<object> = view) => (
         >
             <OpenOnMount def={def} />
         </ViewStackHost>
-    </AgentPanelContext.Provider>
+    </PanelChromeContext.Provider>
 )
 
 const renderChrome = (phone: boolean) => render(tree(phone))
@@ -88,10 +78,10 @@ describe("PanelViewChrome", () => {
         expect(screen.queryByTestId("phone-screen-header")).toBeNull()
     })
 
-    it("on the desktop a view with widenButton: false keeps Close but has no widen button", async () => {
-        render(tree(false, noWidenView))
+    it("on the desktop every view offers widen and Close, a form view too", async () => {
+        render(tree(false, readOnlyView))
         expect(await screen.findByRole("button", {name: "Close"})).toBeTruthy()
-        expect(screen.queryByRole("button", {name: "Widen the panel"})).toBeNull()
+        expect(screen.getByRole("button", {name: "Widen the panel"})).toBeTruthy()
     })
 
     it("a resize across the phone width keeps the open view and its edits", async () => {

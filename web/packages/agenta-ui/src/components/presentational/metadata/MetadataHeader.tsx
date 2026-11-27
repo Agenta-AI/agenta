@@ -79,7 +79,7 @@ export function MetadataHeader({
     return (
         <div
             className={cn(
-                "w-full justify-between text-xs px-1 py-1",
+                "w-full justify-between text-label px-1 py-1",
                 flexLayouts.rowCenter,
                 textColors.muted,
                 className,
