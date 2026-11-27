@@ -10,14 +10,14 @@ import {
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it} from "vitest"
 
-import {evaluatorMetric, invocationMetric} from "./runOverviewFixtures"
-
 import {CompareEvaluatorTable} from "@/features/evaluation-run/compare/overview/CompareEvaluatorTable"
 import {
     CompareSummaryTable,
     type CompareColumn,
 } from "@/features/evaluation-run/compare/overview/CompareSummaryTable"
 import type {OverviewMetric} from "@/features/evaluation-run/overview/useRunOverview"
+
+import {evaluatorMetric, invocationMetric} from "./runOverviewFixtures"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
@@ -92,7 +92,7 @@ describe("compare evaluator rows", () => {
         expect(badgeOf("score")?.textContent).toBe("−0.08")
         expect(badgeOf("score")?.className).toContain("text-destructive")
 
-        // Each line's bar is in its run's color.
+        // Each line has one bar, keyed by its run (the bar takes the run's color).
         const bars = [
             ...host.querySelectorAll<HTMLElement>(
                 '[data-testid="metric-ev-step:success"] [data-segment]',

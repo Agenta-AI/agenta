@@ -13,17 +13,13 @@ import runOverviewCatalog from "@agenta/i18n/catalogs/evaluations.runOverview"
 import {ShareBar} from "@agenta/ui/components/presentational/charts"
 import {Badge} from "@agenta/ui/ui"
 
+import {dataColor, percent} from "../../overview/MetricCell"
 import {compareColor} from "../compareColor"
 
 import {RunSwatch, type CompareColumn} from "./CompareSummaryTable"
 import {useChangeText} from "./useChangeText"
 
 const COLUMNS = "grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-[240px_minmax(0,1fr)]"
-
-/** `data-1` to `data-6` in order, then again from `data-1` (COLOR-05), as in one run. */
-const dataColor = (index: number) => `var(--data-${(index % 6) + 1})`
-
-const percent = (share: number) => `${Math.round(share * 100)}%`
 
 const BADGE = {up: "success", down: "destructive", flat: "default"} as const
 

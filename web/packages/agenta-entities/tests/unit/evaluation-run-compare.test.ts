@@ -130,6 +130,15 @@ describe("change of the newest run", () => {
         expect(compareChange(4.1234, 4.1199, "number")).toEqual({kind: "none"})
     })
 
+    it("reads the difference of the values as shown, across a rounding boundary", () => {
+        // Shown as 0.51 and 0.50: the change is +0.01, never a signed zero.
+        expect(compareChange(0.506, 0.504, "unit")).toEqual({kind: "difference", delta: 0.01})
+        // Shown as 0.35 and 0.33.
+        expect(compareChange(0.346, 0.334, "unit")).toEqual({kind: "difference", delta: 0.02})
+        // Shown as 4.12 and 4.11.
+        expect(compareChange(4.1151, 4.1149, "number")).toEqual({kind: "difference", delta: 0.01})
+    })
+
     it("is missing when either run has no value", () => {
         expect(compareChange(null, 0.5, "rate")).toEqual({kind: "missing"})
         expect(compareChange(0.5, undefined, "unit")).toEqual({kind: "missing"})
@@ -186,7 +195,9 @@ describe("compare summary rows", () => {
             "errors",
         ])
         const row = (id: RunTile["id"]) => rows.find((candidate) => candidate.id === id)
-        expect(row("passed")?.tiles.map((tile) => tile?.value)).toEqual(["67%", "78%"])
+        expect(
+            row("passed")?.tiles.map((tile) => (tile && tile !== "loading" ? tile.value : tile)),
+        ).toEqual(["67%", "78%"])
         expect(row("passed")?.change).toEqual({kind: "points", points: 11})
         // One of the two runs has no cost.
         expect(row("cost")?.change).toEqual({kind: "missing"})
@@ -197,8 +208,18 @@ describe("compare summary rows", () => {
     it("has no Passed row when no run has a binary metric, and waits for a run that loads", () => {
         const rows = buildCompareSummaryRows([tilesOf(null, 0.01), null], {newest: 1, before: 0})
         expect(rows.map((row) => row.id)).not.toContain("passed")
-        expect(rows[0].tiles[1]).toBeNull()
+        expect(rows[0].tiles[1]).toBe("loading")
         expect(rows[0].change).toEqual({kind: "missing"})
+    })
+
+    it("has no Passed tile, not a loading one, for a loaded run without a binary metric", () => {
+        const rows = buildCompareSummaryRows(
+            [tilesOf({passed: 6, total: 9}, 0.01), tilesOf(null, 0.01)],
+            {newest: 1, before: 0},
+        )
+        const passed = rows.find((row) => row.id === "passed")
+        expect(passed?.tiles[1]).toBeNull()
+        expect(passed?.change).toEqual({kind: "missing"})
     })
 })
 

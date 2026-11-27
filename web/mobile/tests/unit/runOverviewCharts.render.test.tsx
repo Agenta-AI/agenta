@@ -5,6 +5,9 @@ import {buildEvaluatorRows} from "@agenta/entities/evaluationRun"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
+import {EvaluatorResultsSection} from "@/features/evaluation-run/overview/EvaluatorResultsSection"
+import type {OverviewMetric} from "@/features/evaluation-run/overview/useRunOverview"
+
 import {
     BOOLEAN,
     CATEGORICAL,
@@ -13,9 +16,6 @@ import {
     NUMERIC,
     RUN_ID,
 } from "./runOverviewFixtures"
-
-import {EvaluatorResultsSection} from "@/features/evaluation-run/overview/EvaluatorResultsSection"
-import type {OverviewMetric} from "@/features/evaluation-run/overview/useRunOverview"
 
 // The line and radar charts are tested in @agenta/ui. Here, record what the cards hand them.
 const charts = vi.hoisted(() => ({line: [] as unknown[]}))

@@ -545,9 +545,9 @@ export type CompareChange =
 const round3Sig = (value: number) => Number(value.toPrecision(3))
 
 /**
- * `newest` against `before`: pass rates in points (the difference of the rounded percents, so
- * it matches the values shown), other values as an absolute difference. "none" when the rounded
- * values are equal; "missing" when either value is not there.
+ * `newest` against `before`, from the values as they are shown: pass rates in points (the
+ * difference of the rounded percents), other values as the difference of the rounded values.
+ * "none" when the rounded values are equal; "missing" when either value is not there.
  */
 export function compareChange(
     newest: number | null | undefined,
@@ -566,15 +566,12 @@ export function compareChange(
         const points = Math.round(newest * 100) - Math.round(before * 100)
         return points === 0 ? {kind: "none"} : {kind: "points", points}
     }
-    if (scale === "unit") {
-        const delta = Math.round((newest - before) * 100) / 100
-        return Math.round(newest * 100) === Math.round(before * 100)
-            ? {kind: "none"}
-            : {kind: "difference", delta}
-    }
-    return round3Sig(newest) === round3Sig(before)
-        ? {kind: "none"}
-        : {kind: "difference", delta: newest - before}
+    // The difference of the values as shown, so the change always matches the two lines.
+    const delta =
+        scale === "unit"
+            ? (Math.round(newest * 100) - Math.round(before * 100)) / 100
+            : round3Sig(round3Sig(newest) - round3Sig(before))
+    return delta === 0 ? {kind: "none"} : {kind: "difference", delta}
 }
 
 /** A difference with its sign: "+0.12", "−0.08" (a minus sign, not a hyphen). */
@@ -594,10 +591,14 @@ const TILE_FORMAT: Record<RunTileId, (value: number) => string> = {
 /** A tile value in the tile's own format, for example a cost difference as "$0.002". */
 export const formatTileAmount = (id: RunTileId, value: number) => TILE_FORMAT[id](value)
 
-/** One row of the compare summary: the tile of each run (null while a run loads) and the change. */
+/**
+ * One row of the compare summary: the tile of each run and the change. A tile is "loading" while
+ * its run loads, and null when the loaded run has no such tile (no "Passed" without a binary
+ * metric).
+ */
 export interface CompareSummaryRow {
     id: RunTileId
-    tiles: (RunTile | null)[]
+    tiles: (RunTile | "loading" | null)[]
     change: CompareChange
 }
 
@@ -612,12 +613,18 @@ export function buildCompareSummaryRows(
     roles: CompareRoles | null,
 ): CompareSummaryRow[] {
     return TILE_ORDER.flatMap((id) => {
-        const tiles = tilesByRun.map((tiles) => tiles?.find((tile) => tile.id === id) ?? null)
-        if (tiles.every((tile) => tile === null)) return []
+        const tiles = tilesByRun.map((tiles) =>
+            tiles ? (tiles.find((tile) => tile.id === id) ?? null) : ("loading" as const),
+        )
+        if (!tiles.some((tile) => tile !== null && tile !== "loading")) return []
+        const amountOf = (index: number) => {
+            const tile = tiles[index]
+            return tile && tile !== "loading" ? tile.amount : undefined
+        }
         const change = roles
             ? compareChange(
-                  tiles[roles.newest]?.amount,
-                  tiles[roles.before]?.amount,
+                  amountOf(roles.newest),
+                  amountOf(roles.before),
                   id === "passed" ? "rate" : "number",
               )
             : ({kind: "missing"} as const)
@@ -648,7 +655,7 @@ export interface CompareEvaluatorRow {
 }
 
 /** The value a change reads: the pass rate of a binary metric, the mean of a numeric one. */
-export function compareMetricValue(kind: MetricKind, stats: MetricStats | null): number | null {
+function compareMetricValue(kind: MetricKind, stats: MetricStats | null): number | null {
     if (kind === "binary") return chartValue(stats)
     return kind === "numeric" ? (stats?.mean ?? null) : null
 }
@@ -663,8 +670,13 @@ export function buildCompareEvaluatorRows(
     rowsByRun: readonly (readonly EvaluatorRow[])[],
     roles: CompareRoles | null,
 ): CompareEvaluatorRow[] {
-    const order: {key: string; name: string; metrics: Map<string, EvaluatorRowMetric>}[] = []
-    rowsByRun.forEach((rows) => {
+    // Each metric keeps its first entry (one with a value, if any) and one stats per run.
+    const order: {
+        key: string
+        name: string
+        metrics: Map<string, {metric: EvaluatorRowMetric; stats: (MetricStats | null)[]}>
+    }[] = []
+    rowsByRun.forEach((rows, runIndex) => {
         for (const row of rows) {
             const key = row.evaluatorId ?? row.stepKey
             let entry = order.find((candidate) => candidate.key === key)
@@ -673,23 +685,22 @@ export function buildCompareEvaluatorRows(
                 order.push(entry)
             }
             for (const metric of row.metrics) {
-                const known = entry.metrics.get(metric.id)
-                if (!known || (!known.stats && metric.stats)) entry.metrics.set(metric.id, metric)
+                let known = entry.metrics.get(metric.id)
+                if (!known) {
+                    known = {metric, stats: rowsByRun.map(() => null)}
+                    entry.metrics.set(metric.id, known)
+                }
+                if (!known.metric.stats && metric.stats) known.metric = metric
+                known.stats[runIndex] ??= metric.stats
             }
         }
     })
-    const statsOf = (runIndex: number, key: string, id: string) =>
-        rowsByRun[runIndex]
-            .filter((row) => (row.evaluatorId ?? row.stepKey) === key)
-            .flatMap((row) => row.metrics)
-            .find((metric) => metric.id === id)?.stats ?? null
 
     return order.map(({key, name, metrics}) => ({
         key,
         name,
         metrics: [...metrics.values()]
-            .map((metric): CompareRowMetric => {
-                const stats = rowsByRun.map((_, index) => statsOf(index, key, metric.id))
+            .map(({metric, stats}): CompareRowMetric => {
                 const present = stats.filter((value): value is MetricStats => value !== null)
                 const unitScale =
                     metric.kind === "numeric" && present.length > 0 && present.every(isUnitScale)

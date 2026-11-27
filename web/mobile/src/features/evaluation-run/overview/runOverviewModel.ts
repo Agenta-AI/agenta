@@ -40,7 +40,7 @@ export function runOverviewModel({
     references: RunReferences | null
     metrics: readonly OverviewMetric[]
     metricsPending: boolean
-    names: OverviewNames
+    names: Pick<OverviewNames, "evaluators">
     scenarioMetrics: ScenarioMetricsState
 }): {rows: EvaluatorRow[]; failures: RunFailures | null; tiles: RunTile[]} {
     const online = header.kind === "online"

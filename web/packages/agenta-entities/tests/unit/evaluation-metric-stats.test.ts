@@ -5,7 +5,6 @@ import {
     formatDuration,
     formatTokens,
     frequencyBars,
-    histogramBars,
     metricSummary,
     normalizeMetricStats,
 } from "../../src/evaluationRun"
@@ -42,25 +41,6 @@ describe("metric stats", () => {
         expect(metricSummary(stats({median: 1234.5, max: 9}))?.label).toBe("median")
         expect(metricSummary(stats({max: 7}))?.label).toBe("max")
         expect(metricSummary(stats({type: "numeric/continuous"}))).toBeNull()
-    })
-
-    it("Histogram labels come from each bin interval even when a bin is missing", () => {
-        const bars = histogramBars(
-            stats({
-                type: "numeric/continuous",
-                min: 0,
-                max: 3,
-                hist: [
-                    {bin: 1, count: 4, interval: [0, 1]},
-                    // The API left out the empty bin [1, 2].
-                    {bin: 3, count: 2, interval: [2, 3]},
-                ],
-            }),
-        )
-        expect(bars).toEqual([
-            {category: "0–1", value: 4},
-            {category: "2–3", value: 2},
-        ])
     })
 
     it("Frequency bars sort by count, then true before false", () => {

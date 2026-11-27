@@ -174,17 +174,6 @@ export interface MetricBar {
     value: number
 }
 
-/**
- * Histogram rows. Each label comes from its own bin's interval, so a bin the API left out (an
- * empty one) does not shift the labels of the bins after it.
- */
-export function histogramBars(stats: MetricStats | null | undefined): MetricBar[] {
-    return (stats?.distribution ?? []).map(({interval: [from, to], count}) => ({
-        category: from === to ? format3Sig(from) : `${format3Sig(from)}–${format3Sig(to)}`,
-        value: count,
-    }))
-}
-
 const frequencyLabel = (value: unknown): string => {
     if (value === true) return "true"
     if (value === false) return "false"

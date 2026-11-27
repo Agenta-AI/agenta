@@ -84,7 +84,7 @@ export const CompareOverviewTab = ({
     }, [scenarioErrors])
 
     const hasMetrics = runs.some((run) => run.metrics.some((metric) => metric.kind === "evaluator"))
-    const failed = runs.some((run) => run.metricsError)
+    const failed = runs.some((run) => run.metricsError || run.scenarioError)
     const retry = () => {
         for (const run of runs) {
             if (run.metricsError)

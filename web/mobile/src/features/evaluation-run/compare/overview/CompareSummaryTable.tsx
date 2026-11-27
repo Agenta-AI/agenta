@@ -1,5 +1,6 @@
 import {
     formatTileAmount,
+    TILE_MISSING,
     type CompareSummaryRow,
     type RunTileId,
 } from "@agenta/entities/evaluationRun"
@@ -98,34 +99,39 @@ export const CompareSummaryTable = ({
                                 >
                                     {t(LABEL_KEY[row.id])}
                                 </th>
-                                {row.tiles.map((tile, index) => (
-                                    <td
-                                        key={columns[index]?.runId ?? index}
-                                        className="min-w-30 px-3 py-2 align-top"
-                                    >
-                                        <span className="flex flex-col">
-                                            <span className="tabular-nums text-foreground">
-                                                {tile?.value ?? "…"}
+                                {row.tiles.map((cell, index) => {
+                                    const tile = cell === "loading" ? null : cell
+                                    return (
+                                        <td
+                                            key={columns[index]?.runId ?? index}
+                                            className="min-w-30 px-3 py-2 align-top"
+                                        >
+                                            <span className="flex flex-col">
+                                                <span className="tabular-nums text-foreground">
+                                                    {cell === "loading"
+                                                        ? "…"
+                                                        : (tile?.value ?? TILE_MISSING)}
+                                                </span>
+                                                {tile?.detail ? (
+                                                    <span
+                                                        className={`text-meta ${
+                                                            isFailureDetail(tile.detail)
+                                                                ? "text-destructive"
+                                                                : "text-muted-foreground"
+                                                        }`}
+                                                    >
+                                                        {detail(tile.detail)}
+                                                    </span>
+                                                ) : null}
+                                                {tile?.assertions ? (
+                                                    <span className="text-caption text-muted-foreground">
+                                                        {assertions(tile)}
+                                                    </span>
+                                                ) : null}
                                             </span>
-                                            {tile?.detail ? (
-                                                <span
-                                                    className={`text-meta ${
-                                                        isFailureDetail(tile.detail)
-                                                            ? "text-destructive"
-                                                            : "text-muted-foreground"
-                                                    }`}
-                                                >
-                                                    {detail(tile.detail)}
-                                                </span>
-                                            ) : null}
-                                            {tile?.assertions ? (
-                                                <span className="text-caption text-muted-foreground">
-                                                    {assertions(tile)}
-                                                </span>
-                                            ) : null}
-                                        </span>
-                                    </td>
-                                ))}
+                                        </td>
+                                    )
+                                })}
                                 <td
                                     data-testid="compare-change"
                                     className="px-3 py-2 text-right align-top tabular-nums text-muted-foreground"

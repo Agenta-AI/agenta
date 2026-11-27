@@ -10,8 +10,7 @@ import {
     type RunHeader,
     type RunReferences,
 } from "@agenta/entities/evaluationRun"
-import {testsetQueryAtomFamily} from "@agenta/entities/testset"
-import {workflowArtifactQueryAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
+import {workflowArtifactQueryAtomFamily} from "@agenta/entities/workflow"
 import {atom, useAtomValue} from "jotai"
 
 import {metricDisplayLabel} from "../../metricLabel"
@@ -33,7 +32,7 @@ export interface CompareRunOverview {
     metrics: OverviewMetric[]
     metricsPending: boolean
     metricsError: Error | null
-    names: OverviewNames
+    names: Pick<OverviewNames, "evaluators">
     /** The per-test-case rows behind "Passed", read once per run as for one run. */
     scenarioMetrics: ScenarioMetricsState
     scenarioError: Error | null
@@ -63,8 +62,6 @@ export function useCompareOverview(runIds: readonly string[]): CompareRunOvervie
                         ...(references?.evaluators.map((evaluator) => evaluator.evaluatorId) ?? []),
                     ].map((id) => [id, nameOf(id)]),
                 )
-                const applicationId = references?.applicationId ?? null
-                const revisionId = references?.revisionId ?? null
                 return {
                     runId,
                     slot,
@@ -85,17 +82,7 @@ export function useCompareOverview(runIds: readonly string[]): CompareRunOvervie
                     metricsError: metricsQuery.isError ? metricsQuery.error : null,
                     scenarioMetrics: scenarioMetricsStateOf(scenarioQuery),
                     scenarioError: scenarioQuery.isError ? scenarioQuery.error : null,
-                    names: {
-                        evaluators,
-                        testsets: (references?.testsets ?? []).map(
-                            (testset) =>
-                                get(testsetQueryAtomFamily(testset.testsetId)).data?.name ?? null,
-                        ),
-                        application: applicationId ? (nameOf(applicationId) ?? null) : null,
-                        variant: revisionId
-                            ? get(workflowMolecule.selectors.variantLabel(revisionId))
-                            : null,
-                    },
+                    names: {evaluators},
                 }
             }),
         )
