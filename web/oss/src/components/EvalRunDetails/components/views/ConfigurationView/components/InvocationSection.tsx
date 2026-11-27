@@ -16,7 +16,7 @@ import PromptConfigCard from "./PromptConfigCard"
 import {DefList, DefRow, SectionCard, SectionSkeleton} from "./SectionPrimitives"
 
 const {Text} = Typography
-const JsonEditor = dynamic(() => import("@agenta/ui/editor").then((module) => module.Editor), {
+const JsonEditor = dynamic(() => import("@agenta/editor/editor").then((module) => module.Editor), {
     ssr: false,
 })
 interface InvocationSectionProps {

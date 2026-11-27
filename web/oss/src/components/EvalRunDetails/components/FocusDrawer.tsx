@@ -62,7 +62,7 @@ import FocusDrawerHeader from "./FocusDrawerHeader"
 import FocusDrawerSidePanel from "./FocusDrawerSidePanel"
 import {SectionCard} from "./views/ConfigurationView/components/SectionPrimitives"
 
-const JsonEditor = dynamic(() => import("@agenta/ui/editor").then((module) => module.Editor), {
+const JsonEditor = dynamic(() => import("@agenta/editor/editor").then((module) => module.Editor), {
     ssr: false,
 })
 // const JsonEditor = dynamic(() => import("@/oss/components/Editor/Editor"), {ssr: false})

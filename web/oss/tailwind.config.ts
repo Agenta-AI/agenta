@@ -157,6 +157,7 @@ export const createConfig = (content: string[] = []): Config => {
             "./node_modules/@tremor/**/*.{js,ts,jsx,tsx}",
             // Path to @agenta packages
             "../packages/agenta-ui/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-editor/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-annotation-ui/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-entity-ui/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-automation-ui/src/**/*.{js,ts,jsx,tsx}",

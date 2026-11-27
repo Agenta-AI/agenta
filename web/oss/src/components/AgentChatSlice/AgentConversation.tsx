@@ -41,6 +41,7 @@ import {
 import {getInteractionAvailability, getLivePendingApprovals} from "@agenta/chat/model"
 import {withoutSharedSenderAcceptanceMessages} from "@agenta/chat/model"
 import {hasSessionChat, sessionMessagesAtom, setSessionStatusAtom} from "@agenta/chat/state"
+import {type RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 import {
     contextWindowForModel,
     harnessCapabilitiesAtomFamily,
@@ -55,7 +56,6 @@ import {buildRenderMap, isPendingClientToolInteraction} from "@agenta/playground
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {isOverlayOpen} from "@agenta/shared/utils"
 import {modal} from "@agenta/ui/app-message"
-import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {isAltChord} from "@agenta/ui/shortcuts"
 import {type FileUIPart, type UIMessage} from "ai"
 import {useAtomValue, useSetAtom, useStore} from "jotai"

@@ -1,6 +1,6 @@
 import {type ReactNode, type RefObject} from "react"
 
-import {RichChatInput, type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import {RichChatInput, type RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 import {ArrowCounterClockwise} from "@phosphor-icons/react"
 import {Button} from "antd"
 

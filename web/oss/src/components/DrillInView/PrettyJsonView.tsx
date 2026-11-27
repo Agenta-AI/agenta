@@ -5,7 +5,7 @@ import {
     EditorProvider,
     useLexicalComposerContext,
     SET_MARKDOWN_VIEW,
-} from "@agenta/ui"
+} from "@agenta/editor/editor"
 import {
     isChatMessagesArray,
     normalizeChatMessages,

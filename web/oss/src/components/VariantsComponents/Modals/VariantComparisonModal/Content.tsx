@@ -12,7 +12,7 @@ import {
 } from "./store/comparisonModalStore"
 
 const {Title, Text} = Typography
-const DiffView = dynamic(() => import("@agenta/ui/editor").then((module) => module.DiffView), {
+const DiffView = dynamic(() => import("@agenta/editor/editor").then((module) => module.DiffView), {
     ssr: false,
 })
 

@@ -2,8 +2,8 @@
 @import "@agenta/auth-ui/auth.css";
 @import "@agenta/ui/surfaces.css";
 @import "./animations.css";
-@import "@agenta/ui/editor-theme.css";
-@import "@agenta/ui/code-editor-styles.css";
+@import "@agenta/editor/editor-theme.css";
+@import "@agenta/editor/code-editor-styles.css";
 @import "./human-evals.css";
 @import "./loading.css";
 @import "./evaluations.css";

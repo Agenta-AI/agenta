@@ -1,9 +1,9 @@
 import {useCallback, useRef} from "react"
 
+import type {RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 import {appTemplatesQueryAtom} from "@agenta/entities/workflow"
 import {captureFirstAgentIntent} from "@agenta/shared/analytics"
 import {PageLayout} from "@agenta/ui"
-import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"

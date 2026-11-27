@@ -1,4 +1,4 @@
-import type {TokenPathSuggestion} from "@agenta/ui/editor"
+import type {TokenPathSuggestion} from "@agenta/editor/editor"
 
 /**
  * One envelope slot's contribution to the prompt editor's JSONPath

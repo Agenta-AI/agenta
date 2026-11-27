@@ -1,5 +1,5 @@
 import {restoreRefusedDraft} from "@agenta/chat/assets"
-import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import type {RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 
 /**
  * Send one run-this-turn request (a trigger's Run in playground, Save as template) and settle it.

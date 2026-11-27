@@ -1,4 +1,4 @@
-import {SharedEditorProps} from "@agenta/ui/shared-editor"
+import {SharedEditorProps} from "@agenta/editor/shared-editor"
 import {DropdownProps} from "antd"
 
 import type {EnhancedButtonProps} from "@/oss/components/LegacyKit"

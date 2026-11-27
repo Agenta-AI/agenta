@@ -1,7 +1,7 @@
 import {act, createElement, type RefObject} from "react"
 
+import type {RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 import type {AgentStarterTemplate} from "@agenta/entities/workflow"
-import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 

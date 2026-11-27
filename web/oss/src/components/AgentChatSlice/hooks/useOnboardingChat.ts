@@ -1,10 +1,10 @@
 import {type RefObject, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {type RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {type AgentSetupSelection, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {captureFirstAgentIntent, classifyAgentIntent} from "@agenta/shared/analytics"
 import {generateId} from "@agenta/shared/utils"
-import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {type UIMessage} from "ai"
 import {useAtomValue} from "jotai"
 

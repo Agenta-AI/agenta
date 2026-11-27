@@ -23,6 +23,8 @@
 
 import {useMemo, type ReactNode} from "react"
 
+import {EditorProvider} from "@agenta/editor/editor"
+import {SharedEditor} from "@agenta/editor/shared-editor"
 import {
     DrillInUIProvider,
     GatewayToolsBridgeProvider,
@@ -32,8 +34,6 @@ import {
 import {useLLMProviderConfig} from "@agenta/entity-ui/secretProvider"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {useSkillsBridge} from "@agenta/skills-ui"
-import {EditorProvider} from "@agenta/ui/editor"
-import {SharedEditor} from "@agenta/ui/shared-editor"
 import {getDefaultStore} from "jotai"
 
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"

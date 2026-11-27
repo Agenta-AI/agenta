@@ -12,10 +12,10 @@
 
 import {useMemo} from "react"
 
+import type {TokenPathSuggestion} from "@agenta/editor/editor"
 import type {RunnablePort} from "@agenta/entities/runnable"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {KNOWN_ENVELOPE_SLOTS} from "@agenta/shared/utils"
-import type {TokenPathSuggestion} from "@agenta/ui/editor"
 import {atom} from "jotai"
 import {useAtomValue} from "jotai"
 

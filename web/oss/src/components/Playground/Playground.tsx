@@ -1,5 +1,6 @@
 import {type ComponentProps, type FC, useEffect} from "react"
 
+import {preloadEditorPlugins} from "@agenta/editor/editor"
 import {executeToolCall} from "@agenta/entities/gatewayTool"
 import {
     GatewayToolAssistantActions,
@@ -7,7 +8,6 @@ import {
     type PlaygroundUIProviders,
 } from "@agenta/playground-ui"
 import {useLocalDraftWarning} from "@agenta/playground-ui/hooks"
-import {preloadEditorPlugins} from "@agenta/ui"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 

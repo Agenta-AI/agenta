@@ -1,8 +1,8 @@
 import {ReactNode} from "react"
 
+import {SharedEditor} from "@agenta/editor/shared-editor"
 import {dataUriToObjectUrl, isBase64, isUrl} from "@agenta/shared/utils"
 import {ImagePreview} from "@agenta/ui/components/presentational"
-import {SharedEditor} from "@agenta/ui/shared-editor"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 

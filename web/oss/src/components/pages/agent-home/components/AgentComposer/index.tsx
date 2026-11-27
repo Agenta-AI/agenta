@@ -1,6 +1,6 @@
 import {type RefObject} from "react"
 
-import {RichChatInput, type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import {RichChatInput, type RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 import {Button, Tooltip} from "antd"
 import {ArrowRight, Bold, Code2, Italic, Paperclip} from "lucide-react"
 

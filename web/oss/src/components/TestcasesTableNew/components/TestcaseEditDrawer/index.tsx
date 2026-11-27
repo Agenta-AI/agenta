@@ -1,11 +1,11 @@
 import {useCallback, useMemo} from "react"
 
+import {type PropertyType} from "@agenta/editor/drill-in"
 import {
     TestcaseDataEditor,
     type RootDrawerViewMode,
     type TestcaseDataEditorColumn,
 } from "@agenta/entity-ui/testcase"
-import {type PropertyType} from "@agenta/ui/drill-in"
 import {Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 

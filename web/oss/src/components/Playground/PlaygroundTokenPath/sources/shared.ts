@@ -2,7 +2,7 @@
  * Helpers shared across envelope sources.
  */
 
-import type {TokenPathSuggestion} from "@agenta/ui/editor"
+import type {TokenPathSuggestion} from "@agenta/editor/editor"
 
 /**
  * Dig sub-path names out of the synthetic schema the grouping helper
