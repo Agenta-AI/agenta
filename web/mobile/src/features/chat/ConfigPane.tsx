@@ -1,6 +1,6 @@
 import {useContext} from "react"
 
-import {AgentEditorContext} from "@agenta/entity-ui/drill-in"
+import {AgentEditorContext, ConfigSectionGroupsContext} from "@agenta/entity-ui/drill-in"
 import {AgentBuildPanel} from "@agenta/playground-ui/agent-build"
 
 /**
@@ -37,16 +37,19 @@ export const ConfigPane = ({
                     : "ag-panel-raised ag-scroll-no-bar flex h-full min-h-0 w-full flex-col overflow-y-auto max-md:[container-type:size]"
             }
         >
-            <AgentBuildPanel
-                className={column ? "mx-auto w-full max-w-content-md" : undefined}
-                revisionId={entityId}
-                disabled={readOnly}
-                // Automations and files have their own places in the panel.
-                operations={false}
-                stickyHeaderTop={0}
-                // The operational sections (and their drawers) live in the Automations tab.
-                automationDrawer={null}
-            />
+            {/* The page titles its sections in groups; a pane keeps one flat list. */}
+            <ConfigSectionGroupsContext.Provider value={page}>
+                <AgentBuildPanel
+                    className={column ? "mx-auto w-full max-w-content-md" : undefined}
+                    revisionId={entityId}
+                    disabled={readOnly}
+                    // Automations and files have their own places in the panel.
+                    operations={false}
+                    stickyHeaderTop={0}
+                    // The operational sections (and their drawers) live in the Automations tab.
+                    automationDrawer={null}
+                />
+            </ConfigSectionGroupsContext.Provider>
         </div>
     )
 }

@@ -49,5 +49,8 @@
     "countServer_other": "{{count}} 个服务器",
     "countSkill_other": "{{count}} 个 Skill",
     "countTool_other": "{{count}} 个工具",
-    "removeName": "移除 {{name}}"
+    "removeName": "移除 {{name}}",
+    "groupSetup": "模型和指令",
+    "groupUses": "可使用的内容",
+    "groupMore": "更多设置"
 }

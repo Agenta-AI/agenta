@@ -199,11 +199,16 @@ export const AutomationDetailScreen = ({
                 }
                 actions={
                     automation ? (
-                        <AutomationActionsMenu
-                            automation={automation}
-                            base={base}
-                            onLeave={leave}
-                        />
+                        // Run now is a page action: in the title row beside the menu, at its
+                        // height and on the column's right edge (the compact bar on a phone).
+                        <>
+                            {runNow}
+                            <AutomationActionsMenu
+                                automation={automation}
+                                base={base}
+                                onLeave={leave}
+                            />
+                        </>
                     ) : undefined
                 }
             >
@@ -226,7 +231,6 @@ export const AutomationDetailScreen = ({
                         includeEvent={draft.includeEvent}
                         onChangeIncludeEvent={setIncludeEvent}
                         onToggle={onToggle}
-                        runNow={runNow}
                         onDiscard={discard}
                         onSave={() => void save()}
                     />

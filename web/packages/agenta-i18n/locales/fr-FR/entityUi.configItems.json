@@ -63,5 +63,8 @@
     "countTool_one": "{{count}} outil",
     "countTool_many": "{{count}} outils",
     "countTool_other": "{{count}} outils",
-    "removeName": "Retirer {{name}}"
+    "removeName": "Retirer {{name}}",
+    "groupSetup": "Modèle et instructions",
+    "groupUses": "Ce qu'il peut utiliser",
+    "groupMore": "Autres paramètres"
 }
