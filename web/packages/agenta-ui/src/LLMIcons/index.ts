@@ -14,11 +14,11 @@
 
 import Agenta from "./assets/Agenta"
 import AlephAlpha from "./assets/AlephAlpha"
-import Claude from "./assets/Claude"
 import AnyScale from "./assets/AnyScale"
 import Azure from "./assets/Azure"
 import Bedrock from "./assets/Bedrock"
 import Cerebus from "./assets/Cerebus"
+import Claude from "./assets/Claude"
 import DeepInfra from "./assets/DeepInfra"
 import Fireworks from "./assets/Fireworks"
 import Gemini from "./assets/Gemini"

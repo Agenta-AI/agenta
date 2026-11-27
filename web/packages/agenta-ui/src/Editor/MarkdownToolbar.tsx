@@ -10,9 +10,9 @@ import {
 } from "react"
 
 import {useT} from "@agenta/i18n"
-import {shortcutFaces} from "@agenta/shared/utils"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import uiEditorCatalog from "@agenta/i18n/catalogs/ui.editor"
+import {shortcutFaces} from "@agenta/shared/utils"
 import {$createCodeNode, $isCodeNode} from "@lexical/code"
 import {$isLinkNode, TOGGLE_LINK_COMMAND} from "@lexical/link"
 import {INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND, ListNode} from "@lexical/list"

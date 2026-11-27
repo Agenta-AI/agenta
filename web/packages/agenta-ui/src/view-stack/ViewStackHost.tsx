@@ -19,7 +19,6 @@ import {
 } from "./context"
 import {useReportOpenViewItem} from "./openItem"
 import {useSystemBack} from "./systemBack"
-import {viewEnterClass, type ViewDirection} from "./ViewStep"
 import type {
     ViewChromeProps,
     ViewDef,
@@ -29,6 +28,7 @@ import type {
     ViewStack,
     ViewTarget,
 } from "./types"
+import {viewEnterClass, type ViewDirection} from "./ViewStep"
 
 interface Entry {
     /** Unique per open; a new key remounts the view, which drops its local form. */

@@ -2,12 +2,22 @@ import {useEffect, useState} from "react"
 
 import {useProfile} from "@agenta/entities/profile"
 import {createT, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsLicenseCatalog from "@agenta/i18n/catalogs/settings.license"
-import {Button} from "@agenta/ui/ui"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
 import {useMutation, useQueryClient} from "@tanstack/react-query"
 
 import {AddLicenseKeyDialog} from "./AddLicenseKeyDialog"
-import {ConfirmModal} from "./ConfirmModal"
 import {
     activateInstanceLicense,
     isInvalidLicenseKey,
@@ -42,7 +52,7 @@ const errorMessage = (error: unknown) =>
  * (`#key=`) asks to confirm, then adds its key.
  */
 export const LicenseTab = ({projectId}: SettingsTabProps) => {
-    const t = useT(settingsLicenseCatalog)
+    const t = useT(settingsLicenseCatalog, commonCatalog)
     const queryClient = useQueryClient()
     const license = useInstanceLicense(projectId)
     const limits = useLicenseUsage(projectId)
@@ -171,20 +181,56 @@ export const LicenseTab = ({projectId}: SettingsTabProps) => {
                 onClose={() => setDialogOpen(false)}
             />
 
-            <ConfirmModal
+            <AlertDialog
                 open={canAddKey && Boolean(linkKey)}
-                title={t("settings.license.confirmTitle")}
-                description={t("settings.license.confirmDescription")}
-                confirmLabel={t("settings.license.addKey")}
-                destructive={false}
-                pending={activate.isPending}
-                error={linkKey ? error : null}
-                onConfirm={() => linkKey && activate.mutate(linkKey)}
-                onClose={() => {
+                onOpenChange={(next) => {
+                    if (next || activate.isPending) return
                     setError(null)
                     dismissLinkKey()
                 }}
-            />
+            >
+                <AlertDialogContent
+                    onEscapeKeyDown={(event) => {
+                        if (activate.isPending) event.preventDefault()
+                    }}
+                >
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{t("settings.license.confirmTitle")}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t("settings.license.confirmDescription")}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {linkKey && error ? (
+                        <p className="m-0 text-body text-destructive">{error}</p>
+                    ) : null}
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                variant="outline"
+                                disabled={activate.isPending}
+                                onClick={() => {
+                                    setError(null)
+                                    dismissLinkKey()
+                                }}
+                            >
+                                {t("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        {/* preventDefault keeps it open: it closes on success and stays for the error. */}
+                        <AlertDialogAction asChild>
+                            <Button
+                                disabled={activate.isPending}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    if (linkKey) activate.mutate(linkKey)
+                                }}
+                            >
+                                {t("settings.license.addKey")}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }
