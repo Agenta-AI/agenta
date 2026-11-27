@@ -117,7 +117,7 @@ export const DriveFilePreview = ({
                                     variant="outline"
                                     size="icon-sm"
                                     aria-label={t("entityUi.drivePreview.copyFilePath")}
-                                    className="!h-7 !w-7 !p-0 !text-muted-foreground hover:!text-foreground"
+                                    className="!text-muted-foreground hover:!text-foreground"
                                 >
                                     <Copy size={14} />
                                 </Button>
