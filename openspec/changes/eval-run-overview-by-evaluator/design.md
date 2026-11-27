@@ -70,10 +70,10 @@ Rules:
 
 - Every evaluator step of the run gets a row, also a step with no metric yet (from `runReferencesAtomFamily`, `E/state/runDetails.ts:116-128`).
 - Paths under `attributes.ag.metrics.` stay out of the rows, as today (`E/state/runMetrics.ts:259`).
-- The catalog keeps `string` and `json` metrics, so they can show as "not summarized". Only a path with no stat blob is dropped.
+- The catalog keeps `string` and `json` metrics. Only a path with no stat blob is dropped. The rows leave text metrics out (decided by Mahmoud, 2026-11-27): an evaluator step whose metrics are all text has no row and its text metrics are not counted in "{n} metrics". A step with no metric yet keeps its row with "No results yet".
 - Two metrics are never merged. A metric never shows as both a pass rate and a score.
 - The row name is the evaluator name, else its slug (`M/overview/useRunOverview.ts:45-74`). The metric label is today's display label (`M/metricLabel.ts:7-13`).
-- Inside a row, metrics are ordered by kind (binary, numeric, categorical, not summarized), then by label. The order does not change while a running run polls.
+- Inside a row, metrics are ordered by kind (binary, numeric, categorical), then by label. The order does not change while a running run polls.
 
 ### 2. Metric kind and the cell of each kind
 
@@ -84,7 +84,7 @@ The kind comes from `stats.type`. A legacy blob with no type uses today's tests 
 | Binary | `binary` | Pass rate as the value ("93%"), "63 of 68" next to it, and a bar: passed in `success`, failed in `destructive`. |
 | Numeric | `numeric/continuous`, `numeric/discrete` | Mean as the value ("0.82"), "mean" next to it, and a small histogram (decision 4). |
 | Categorical | `categorical/single`, `categorical/multiple` | A share bar with one segment per value in `data-1` to `data-6` (in order, then again from `data-1`), and a caption "formal 60%, casual 29%, rude 10%". |
-| Not summarized | `string`, `json`, anything else | The label and "not summarized". |
+| Text | `string`, `json`, anything else | Not shown (decided by Mahmoud, 2026-11-27). |
 
 - The pass rate is true count divided by (true + false) count of `frequency` (`E/core/metricStats.ts:123-135`).
 - A categorical share is a value's count divided by the sum of all value counts. For `categorical/multiple` this is the share of all chosen values, not of test cases.
@@ -98,7 +98,7 @@ The kind comes from `stats.type`. A legacy blob with no type uses today's tests 
 | Mean divided by the largest mean over runs, as the radar does today (`E/core/metricStats.ts:256-264`) | A 1 to 5 rating at 4.0 draws as a full axis. The value has no fixed meaning. |
 
 - A numeric metric is "on a 0 to 1 scale" when its run-level `min` is 0 or more and its `max` is 1 or less. Compare uses the `min` and `max` of every compared run.
-- Categorical and not summarized metrics are not in the chart.
+- Categorical and text metrics are not in the chart.
 - Numeric metrics that are not on a 0 to 1 scale: see decision 5.
 
 ### 4. Score histograms: the server bins them (decided by Mahmoud, Q1 option C)
@@ -178,7 +178,7 @@ Up to six tiles, in this order.
 
 - An assertion is one value of a binary metric for one test case.
 - A test case passed when every binary value it has is true. A binary metric with no value for that test case does not make it fail. A test case with no binary value at all is not counted.
-- The value and the first line come from the per-test-case rows: one request per run, `POST /evaluations/metrics/query` with `{metrics: {run_ids: [runId], scenario_ids: true}, windowing: {limit: 5000}}`, read by a new atom `runScenarioMetricsQueryAtomFamily(runId)` that polls like the run-level query. The browser computes the count. This can move to the server later as a run-level field.
+- The value and the first line come from the per-test-case rows: one request per run, `POST /evaluations/metrics/query` with `{metrics: {run_ids: [runId], scenario_ids: true}, windowing: {limit: 5000}}`, read by a new atom `runScenarioMetricsQueryAtomFamily(runId)` that loads once when the run has finished (and again on "Try again" after a failure). It never polls: a running run would send a large request every 5 s (design review, 2026-11-27). A running run shows "—" in the "Passed" value until it finishes. The browser computes the count. This can move to the server later as a run-level field.
 - "92 of 138 assertions true" comes from the run-level `frequency` of every binary metric (true count over true plus false count). It needs no per-test-case data.
 - A run with no binary metric shows no "Passed" tile (five tiles).
 - The per-test-case rows are not available when the request fails, when it returns 5,000 rows, or for an online run (decision 8). Then the tile shows "—" as the value, no "of … test cases" line, and the assertions line. A failed request goes to `console.error`; the page shows no alert.
@@ -249,7 +249,7 @@ Up to six tiles, in this order.
 - Change text: "+5 points", "−5 points", "+0.12", "−0.12", "no change" (after rounding to whole points or 2 decimals). A metric not on a 0 to 1 scale uses 3 significant digits. When one of the two runs has no value: "—".
 - Metric change is a `Badge`: `success` up, `destructive` down, `default` for "no change". Changes in the summary table are plain `muted-foreground` text, because up is good for some values (passed) and bad for others (cost).
 - Summary rows: Test cases, Passed, Cost per test case, Duration per test case, Tokens per test case, Errors. Each cell has the value and the lines of the tile. The "Passed" row is left out when no compared run has a binary metric. Compare reads the per-test-case rows of each compared run with the same atom as one run (at most 5 requests, finished runs only, so no poll).
-- Metric lines, one per run: binary is a bar of the pass rate with "75% 3 of 4"; numeric on 0 to 1 is a bar of the mean with "0.82 mean"; other numeric is the mean with no bar; categorical is a `ShareBar` with no change badge; not summarized is one line "not summarized". A run without the metric shows "—".
+- Metric lines, one per run: binary is a bar of the pass rate with "75% 3 of 4"; numeric on 0 to 1 is a bar of the mean with "0.82 mean"; other numeric is the mean with no bar; categorical is a `ShareBar` with no change badge; text metrics are not shown. A run without the metric shows "—".
 - Rows match across runs with `compareMetricKey` (`E/core/runCompare.ts:212-223`), grouped by its evaluator part. Two steps of the same evaluator in one run share one row (documented limit, see Risks).
 - Compare uses no histograms.
 
@@ -279,7 +279,7 @@ Every new string. Strings from the mockups are marked (m); strings Mahmoud gave 
 - Tiles: "Test cases" (m), "Traces" (plain), "all finished" (m), "some test cases failed to run" (m), "Passed" (M), "{passed} of {total} test cases" (M), "{true} of {total} assertions true" (M), "Cost" (m), "Duration" (m), "Tokens" (m), "per case, average" (m), "per trace, average" (plain), "Errors" (m), "total" (m).
 - Chart: "Metrics" (m), "Bars" (m), "Radar" (m), "Chart type" (m, aria), "Metrics: {k} of {n}" (m), "Every metric of this run." (m), "The {k} lowest of {n} metrics." (m), "Each value is on one scale from 0 to 1." (m), "A radar chart needs at least 3 metrics." (m), "{n} metrics are not on a 0 to 1 scale and are not in the chart." and "1 metric is not on a 0 to 1 scale and is not in the chart." (plain), "Search metrics" (plain), "Radar chart of the selected metrics" (m, aria), "Bar chart of the selected metrics" (plain, aria).
 - Toolbar: "Search evaluators and metrics" (m), "Filter" (m), "Filter: all evaluators" (m), "Evaluator" (plain), "Group: evaluator" (m), "Sort: lowest first" (m), "Sort: name" (plain), "Sort: largest drop first" (m), "Lowest first", "Name", "Largest drop first" (plain), "No evaluators match this search." (plain).
-- Table: "Evaluator" (m), "Metrics" (plain), "{n} metrics" and "1 metric" (m), "mean" (m), "{passed} of {total}" (m), "{passed} passed, {failed} failed" (m), "{from} to {to}: {count} of {total} test cases" (m), axis end labels from the bins, for example "0" and "1" (m), "not summarized" (brief), "No results yet" (plain), "Passed" (m), "Failed" (m), "Score distribution: every chart goes from 0 to 1, and bar height is the share of test cases" (m, when every histogram is on 0 to 1), "Score distribution: bar height is the share of test cases" (m, shortened, when a histogram has another range), "Over time" (plain).
+- Table: "Evaluator" (m), "Metrics" (plain), "{n} metrics" and "1 metric" (m), "mean" (m), "{passed} of {total}" (m), "{passed} passed, {failed} failed" (m), "{from} to {to}: {count} of {total} test cases" (m), axis end labels from the bins, for example "0" and "1" (m), "No results yet" (plain), "Passed" (m), "Failed" (m), "Score distribution: every chart goes from 0 to 1, and bar height is the share of test cases" (m, when every histogram is on 0 to 1), "Score distribution: bar height is the share of test cases" (m, shortened, when a histogram has another range), "Over time" (plain).
 - Compare: "Summary" (m), "Change" (m), "newest" (m), "before" (m), "Cost per test case" (m), "Duration per test case" (m), "Tokens per test case" (m), "The change column compares the newest evaluation with the one before it." (m), "Metrics, one line per evaluation" (m), "+{n} points", "−{n} points" (m), "no change" (m), "The {k} metrics that changed most between the two newest evaluations, of {n}." (m), "Every metric of these evaluations." (plain), "Radar chart with one shape per evaluation" (m, aria).
 - Kept as they are: "Unable to load evaluator metrics", "Unable to refresh evaluator metrics. The scores below may be out of date.", "Try again", "Preparing evaluator metrics", "No metric values generated", "No evaluator metrics available", "Temporal evaluator metrics" and their descriptions, and the human-run annotate prompt (`M/overview/MetricCardsSection.tsx:50-117`).
 
