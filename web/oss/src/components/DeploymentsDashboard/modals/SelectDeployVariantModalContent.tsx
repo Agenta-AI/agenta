@@ -10,12 +10,12 @@ import {
 import {CommitMessageInput} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {VersionBadge} from "@agenta/ui/components/presentational"
-import {textColors} from "@agenta/ui/styles"
 import {InfiniteVirtualTableFeatureShell, useTableManager} from "@agenta/ui/table"
 import {Typography} from "antd"
 import {getDefaultStore} from "jotai"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {textColors} from "@/oss/components/LegacyKit"
 import type {RegistryRevisionRow} from "@/oss/components/VariantsComponents/store/registryStore"
 import {registryPaginatedStore} from "@/oss/components/VariantsComponents/store/registryStore"
 import {createRegistryColumns} from "@/oss/components/VariantsComponents/Table/assets/registryColumns"

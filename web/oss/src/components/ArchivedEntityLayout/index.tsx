@@ -1,7 +1,8 @@
-import {EmptyPlaceholder as EmptyComponent} from "@agenta/ui/components/presentational"
 import {ArrowLeft} from "@phosphor-icons/react"
 import {Button, Typography} from "antd"
 import {useRouter} from "next/router"
+
+import {EmptyPlaceholder as EmptyComponent} from "@/oss/components/LegacyKit"
 
 import type {ArchivedEntityLayoutProps} from "./types"
 

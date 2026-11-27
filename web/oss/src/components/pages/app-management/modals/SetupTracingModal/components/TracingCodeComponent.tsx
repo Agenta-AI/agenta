@@ -1,6 +1,7 @@
-import {CopyButton} from "@agenta/ui"
 import {Flex, Space, Typography} from "antd"
 import {IBM_Plex_Mono} from "next/font/google"
+
+import {CopyButton} from "@/oss/components/LegacyKit"
 
 const ibm_plex_mono = IBM_Plex_Mono({weight: "400", subsets: ["latin"]})
 

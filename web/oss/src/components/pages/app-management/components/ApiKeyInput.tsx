@@ -3,7 +3,7 @@ import {useMemo, useState} from "react"
 import {fetchAllProjects} from "@agenta/entities/project"
 import {createApiKey} from "@agenta/settings"
 import {message} from "@agenta/ui/app-message"
-import {LoadingButton} from "@agenta/ui/ui"
+import {LoadingButton} from "@agenta/ui/composed"
 import {Input, Space, Typography} from "antd"
 
 import {useOrgData} from "@/oss/state/org"

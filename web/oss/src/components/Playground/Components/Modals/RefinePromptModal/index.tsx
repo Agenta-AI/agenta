@@ -8,8 +8,9 @@
 
 import {useCallback, useEffect} from "react"
 
-import {EnhancedModal} from "@agenta/ui"
 import {useAtom, useSetAtom} from "jotai"
+
+import {EnhancedModal} from "@/oss/components/LegacyKit"
 
 import RefinePromptModalContent from "./assets/RefinePromptModalContent"
 import {refineModalOpenAtomFamily, resetRefineModalAtomFamily} from "./store/refinePromptStore"

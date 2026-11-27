@@ -5,11 +5,11 @@
  */
 import {useState} from "react"
 
-import {CopyButton} from "@agenta/ui/components/presentational"
 import {Tag} from "@agenta/ui/components/presentational"
 import {CaretRight} from "@phosphor-icons/react"
 
 import {ThemeMode, useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
+import {CopyButton} from "@/oss/components/LegacyKit"
 
 import {resolveToolDisplay} from "../../assets/toolDisplay"
 

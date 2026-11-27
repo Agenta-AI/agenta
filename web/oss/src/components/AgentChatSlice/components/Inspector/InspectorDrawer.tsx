@@ -5,11 +5,12 @@
  * local lens/raw state.
  */
 import {revalidateSessionRecordsAtom, sessionRecordsQueryFamily} from "@agenta/entities/session"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {Button} from "@agenta/ui/ui"
 import {ArrowClockwise, BracketsCurly, DownloadSimple} from "@phosphor-icons/react"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
+import {EnhancedDrawer} from "@/oss/components/LegacyKit"
 import {downloadText} from "@/oss/lib/helpers/fileManipulations"
 
 import {LensBody} from "./LensBody"

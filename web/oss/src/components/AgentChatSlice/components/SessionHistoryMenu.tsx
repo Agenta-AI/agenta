@@ -4,14 +4,8 @@ import {sessionMessagesAtom} from "@agenta/chat/state"
 import {killSession} from "@agenta/entities/session"
 import {timeAgo} from "@agenta/shared/utils"
 import {message, modal} from "@agenta/ui/app-message"
-import {
-    Button,
-    EmptyState,
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-    SimpleTooltip,
-} from "@agenta/ui/ui"
+import {EmptyState, SimpleTooltip} from "@agenta/ui/composed"
+import {Button, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {Archive, ArrowCounterClockwise, CaretRight, Power, Trash} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
 import clsx from "clsx"

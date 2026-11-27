@@ -19,7 +19,7 @@ import {EmptyState, ExecutionHeader, useEntitySelector} from "@agenta/playground
 import ExecutionItems, {
     type PlaygroundGenerationsProps,
 } from "@agenta/playground-ui/execution-items"
-import {paneSlideHoldMs, SplitPane} from "@agenta/ui/ui"
+import {paneSlideHoldMs, SplitPane} from "@agenta/ui/composed"
 import {Button, Splitter, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"

@@ -4,7 +4,8 @@
  * toggle). Placed in the thread's session controls; clicking again collapses the panel.
  */
 import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {Button} from "@agenta/ui/ui"
 import {MagnifyingGlass} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 

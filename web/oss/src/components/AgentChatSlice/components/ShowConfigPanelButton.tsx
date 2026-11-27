@@ -4,8 +4,9 @@
  */
 import {configPanelCollapsedAtom} from "@agenta/chat/state"
 import {shortcutAria} from "@agenta/shared/utils"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {useSetAtom} from "jotai"
 import {ChevronsRight} from "lucide-react"
 

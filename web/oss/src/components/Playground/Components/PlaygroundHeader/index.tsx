@@ -20,9 +20,9 @@ import {playgroundController, isAgentModeAtomFamily} from "@agenta/playground"
 import {AgentPageHeader} from "@agenta/playground-ui/agent-page-header"
 import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
 import {PlaygroundModeSwitch} from "@agenta/playground-ui/mode-switch"
-import {textColors} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {VersionBadge} from "@agenta/ui/components/presentational"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {ShortcutsHelpButton} from "@agenta/ui/shortcuts"
 import {
     Button,
@@ -32,7 +32,6 @@ import {
     DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {
     CaretDown,
@@ -58,6 +57,7 @@ import {
 import {AgentIconTrigger} from "@/oss/components/AgentIconChip"
 import {AgentNameInline} from "@/oss/components/EntityIdentity"
 import EvaluatorTemplateDropdown from "@/oss/components/Evaluators/components/EvaluatorTemplateDropdown"
+import {textColors} from "@/oss/components/LegacyKit"
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
