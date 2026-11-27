@@ -288,6 +288,7 @@ describe("Testcase drawer", () => {
 
         it("puts short values in the grid and long values in sections, in column order", () => {
             const id = addRow({
+                ticket_id: "T-20418",
                 language: "en",
                 question: "Line one\nline two\nline three",
                 tier: "gold",
@@ -297,7 +298,9 @@ describe("Testcase drawer", () => {
             content({testcaseId: id, view: "form"})
 
             expect(input("language")?.value).toBe("en")
+            expect(input("language")?.className).not.toContain("font-mono")
             expect(input("tier")?.value).toBe("gold")
+            expect(input("ticket_id")?.className).toContain("font-mono")
             expect(input("language")?.closest("section")).toBeNull()
             expect(
                 [...host.querySelectorAll("section")].map((item) =>

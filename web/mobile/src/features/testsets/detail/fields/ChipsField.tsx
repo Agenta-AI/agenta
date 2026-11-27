@@ -1,13 +1,11 @@
 import {useEffect, useState} from "react"
 
+import {CHIPS_SHOWN} from "@agenta/chat/value-view"
 import {inferPrimitiveFromText} from "@agenta/entity-ui/testcase"
 import {useT} from "@agenta/i18n"
 import editorCatalog from "@agenta/i18n/catalogs/testsets.testcaseEditor"
 import {Button} from "@agenta/ui/ui"
 import {X} from "@phosphor-icons/react"
-
-/** A list shows this many chips until "+N more". */
-export const CHIPS_SHOWN = 10
 
 const chipText = (item: unknown) => (typeof item === "string" ? item : JSON.stringify(item))
 

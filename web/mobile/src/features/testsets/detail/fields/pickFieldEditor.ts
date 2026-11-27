@@ -4,6 +4,9 @@ import {detectValueShape, type ValueShape} from "@agenta/shared/utils"
 /** A grid text field is one line of at most this many characters. */
 export const GRID_TEXT_MAX_CHARS = 140
 
+/** A column that holds an identifier (`ticket_id`, `folder_hash`, `git_commit`): drawn in mono. */
+export const isIdKey = (key: string) => /(?:^|[_.-])(?:id|uuid|hash|sha|commit)$/i.test(key)
+
 /** The editor a field draws. */
 export type FieldEditorKind =
     | "text"

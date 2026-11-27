@@ -3,6 +3,7 @@ import {describe, expect, it} from "vitest"
 import {
     editorKind,
     GRID_TEXT_MAX_CHARS,
+    isIdKey,
     pickFieldEditor,
 } from "@/features/testsets/detail/fields/pickFieldEditor"
 
@@ -73,5 +74,23 @@ describe("pickFieldEditor", () => {
         expect(editorKind(pick, pick.defaultView)).toBe("text")
         expect(editorKind(pickFieldEditor(true), "text")).toBe("boolean")
         expect(editorKind(pick, pick.defaultView)).toBe("text")
+    })
+})
+
+describe("isIdKey", () => {
+    it("names the identifier columns the board draws in mono", () => {
+        for (const key of [
+            "id",
+            "ticket_id",
+            "scenario_id",
+            "folder_hash",
+            "git_commit",
+            "org.uuid",
+        ]) {
+            expect(isIdKey(key), key).toBe(true)
+        }
+        for (const key of ["title", "idea", "valid", "identity", "commitment"]) {
+            expect(isIdKey(key), key).toBe(false)
+        }
     })
 })

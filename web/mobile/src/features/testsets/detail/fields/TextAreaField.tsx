@@ -1,8 +1,7 @@
 import {useCallback} from "react"
 
+import {FieldFold} from "@agenta/chat/value-view"
 import {TextField} from "@agenta/ui/drill-in"
-
-import {FieldFold} from "./FieldFold"
 
 /**
  * A text of several lines: the drill-in text editor (it grows with the text and marks

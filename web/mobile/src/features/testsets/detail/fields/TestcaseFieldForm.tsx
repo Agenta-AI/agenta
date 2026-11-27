@@ -1,6 +1,6 @@
 import {useCallback, useRef, useState} from "react"
 
-import {ValueField} from "@agenta/chat/value-view"
+import {ValueField, valueAsText} from "@agenta/chat/value-view"
 import type {ViewType} from "@agenta/entity-ui/view-types"
 import {useT} from "@agenta/i18n"
 import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
@@ -10,7 +10,7 @@ import {copyToClipboard} from "@agenta/ui/utils"
 
 import {FieldEditor, fieldText} from "./FieldEditor"
 import {FieldMenu, type FieldColumnActions} from "./FieldMenu"
-import {editorKind, pickFieldEditor, type FieldEditorPick} from "./pickFieldEditor"
+import {editorKind, isIdKey, pickFieldEditor, type FieldEditorPick} from "./pickFieldEditor"
 
 export type {FieldColumnActions} from "./FieldMenu"
 
@@ -48,9 +48,6 @@ const useTypeHint = () => {
         }
     }
 }
-
-const copyText = (value: unknown) =>
-    typeof value === "string" ? value : JSON.stringify(value ?? null, null, 2)
 
 /**
  * The test case as a form: the short values in a two-column grid, every other value as a section
@@ -103,7 +100,7 @@ export const TestcaseFieldForm = ({
             view={field.view}
             list={field.pick.shape === "array-scalars"}
             onViewChange={(view) => setView(field.key, view)}
-            onCopy={() => void copyToClipboard(copyText(value[field.key]))}
+            onCopy={() => void copyToClipboard(valueAsText(value[field.key]))}
             column={viewOnly ? null : (columnActions?.(field.key) ?? null)}
         />
     )
@@ -120,6 +117,7 @@ export const TestcaseFieldForm = ({
                 kind={field.kind}
                 view={field.view}
                 markdownEdit={editing[field.key] === true}
+                mono={isIdKey(field.key)}
                 collapseSignal={collapseSignal}
                 onChange={onFieldChange ? (next) => onFieldChange(field.key, next) : undefined}
             />
@@ -151,7 +149,9 @@ export const TestcaseFieldForm = ({
                                             fieldText(value[field.key]) === ""
                                                 ? "text-muted-foreground"
                                                 : "text-foreground"
-                                        } ${field.pick.shape === "number" ? "text-right tabular-nums" : ""}`}
+                                        } ${field.pick.shape === "number" ? "text-right tabular-nums" : ""} ${
+                                            isIdKey(field.key) ? "font-mono" : ""
+                                        }`}
                                     >
                                         {fieldText(value[field.key]) ||
                                             tv("chat.valueView.emptyText")}
