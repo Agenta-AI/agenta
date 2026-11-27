@@ -9,6 +9,42 @@ import {replaceDataUpdate} from "./testcaseDataUpdate"
 import {TestcaseEditorDrawerContent} from "./TestcaseEditorDrawerContent"
 import {TestcaseQueueButton} from "./TestcaseQueuePicker"
 
+/** A column change made from the drawer's field menu while the drawer is open. */
+export type DrawerColumnChange =
+    | {kind: "add"; key: string}
+    | {kind: "rename"; from: string; to: string}
+    | {kind: "delete"; keys: string[]}
+
+/**
+ * The row as it was when the drawer opened, with the column changes made since then: Cancel
+ * undoes the row's edits, not a column change that reached every row. A change the snapshot
+ * already holds (it was taken after the change) leaves it as it is. A new column is empty, as
+ * the commit sends it.
+ */
+export const withColumnChanges = (
+    data: Record<string, unknown>,
+    changes: readonly DrawerColumnChange[],
+): Record<string, unknown> =>
+    changes.reduce<Record<string, unknown>>((current, change) => {
+        if (change.kind === "add") {
+            return Object.hasOwn(current, change.key) ? current : {...current, [change.key]: ""}
+        }
+        if (change.kind === "delete") {
+            return Object.fromEntries(
+                Object.entries(current).filter(([key]) => !change.keys.includes(key)),
+            )
+        }
+        if (!Object.hasOwn(current, change.from) || Object.hasOwn(current, change.to)) {
+            return current
+        }
+        return Object.fromEntries(
+            Object.entries(current).map(([key, value]) => [
+                key === change.from ? change.to : key,
+                value,
+            ]),
+        )
+    }, data)
+
 /**
  * The drawer of one testcase, with previous and next over the rows of the grid.
  *
@@ -30,6 +66,7 @@ export const TestcaseEditorDrawer = ({
     discardOnCancel = false,
     columnActions,
     onAddColumn,
+    columnChanges = [],
 }: {
     testcaseId: string | null
     testcaseNumber: number | undefined
@@ -45,6 +82,8 @@ export const TestcaseEditorDrawer = ({
     /** The field menu's Rename column and Delete column; the page asks before each. */
     columnActions?: (key: string) => FieldColumnActions | null
     onAddColumn?: () => void
+    /** The column changes made from the field menu since the drawer opened. */
+    columnChanges?: readonly DrawerColumnChange[]
 }) => {
     const id = testcaseId ?? ""
     const isNewRow = id.startsWith("new-")
@@ -54,15 +93,19 @@ export const TestcaseEditorDrawer = ({
     const update = useSetAtom(testcaseMolecule.actions.update)
     const remove = useSetAtom(testcaseMolecule.actions.delete)
 
-    // Cancel puts the row back as it was when the drawer opened, fields added since included.
+    // Cancel puts the row back as it was when the drawer opened, fields added since included,
+    // with the column changes made since then.
     // A row added with "Add row" had no state before the drawer, so Cancel removes it.
     const restore = useCallback(
         (start: Testcase) => {
             if (!id) return
             if (discardOnCancel) remove(id)
-            else update(id, replaceDataUpdate(testcase?.data ?? {}, start.data ?? {}))
+            else {
+                const restored = withColumnChanges(start.data ?? {}, columnChanges)
+                update(id, replaceDataUpdate(testcase?.data ?? {}, restored))
+            }
         },
-        [discardOnCancel, id, remove, testcase?.data, update],
+        [columnChanges, discardOnCancel, id, remove, testcase?.data, update],
     )
 
     const renderContent = useCallback(

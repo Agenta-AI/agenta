@@ -12,7 +12,10 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import type {FieldColumnActions} from "@/features/testsets/detail/fields/TestcaseFieldForm"
-import {TestcaseEditorDrawer} from "@/features/testsets/detail/TestcaseEditorDrawer"
+import {
+    TestcaseEditorDrawer,
+    withColumnChanges,
+} from "@/features/testsets/detail/TestcaseEditorDrawer"
 import {TestcaseEditorDrawerContent} from "@/features/testsets/detail/TestcaseEditorDrawerContent"
 
 const seen = vi.hoisted(() => ({
@@ -192,6 +195,59 @@ describe("Testcase drawer", () => {
         act(() => (seen.drawer?.onRestoreSessionStart as (data: unknown) => void)(start))
 
         expect(store.get(testcaseMolecule.atoms.data(id))?.data).toEqual({question: "Q"})
+    })
+
+    it("Cancel keeps a column change made from the drawer and undoes the row's edits", () => {
+        const id =
+            store.set(testcaseMolecule.actions.add, {data: {question: "Q", answer: "A", old: 1}})
+                ?.id ?? ""
+        const start = store.get(testcaseMolecule.atoms.data(id))
+        const changes = [
+            {kind: "rename" as const, from: "question", to: "prompt"},
+            {kind: "delete" as const, keys: ["old"]},
+            {kind: "add" as const, key: "notes"},
+        ]
+        act(() =>
+            root.render(
+                <TestcaseEditorDrawer
+                    testcaseId={id}
+                    testcaseNumber={1}
+                    viewOnly={false}
+                    hasPrevious={false}
+                    hasNext={false}
+                    onPrevious={vi.fn()}
+                    onNext={vi.fn()}
+                    onClose={vi.fn()}
+                    onOpenCommit={vi.fn()}
+                    columnChanges={changes}
+                />,
+            ),
+        )
+        // The row after the edits and the column changes.
+        act(() => {
+            store.set(testcaseMolecule.actions.update, id, {
+                data: {prompt: "Q", answer: "A2", notes: "n", old: undefined, question: undefined},
+            })
+        })
+
+        act(() => (seen.drawer?.onRestoreSessionStart as (data: unknown) => void)(start))
+
+        expect(store.get(testcaseMolecule.atoms.data(id))?.data).toEqual({
+            prompt: "Q",
+            answer: "A",
+            notes: "",
+        })
+    })
+
+    it("a column change the snapshot already holds leaves it as it is", () => {
+        // Taken after `a` was renamed to `b` and a new `a` was added.
+        const later = {a: "", b: "old a"}
+        expect(
+            withColumnChanges(later, [
+                {kind: "rename", from: "a", to: "b"},
+                {kind: "add", key: "a"},
+            ]),
+        ).toEqual(later)
     })
 
     it("Cancel on a row just added removes the row from the grid", () => {
@@ -457,6 +513,38 @@ describe("Testcase drawer", () => {
             type(editor, '{ "b": [1, 2], "a": 1 }')
 
             expect(dataOf(id)).toEqual({payload: '{ "b": [1, 2], "a": 1 }'})
+        })
+
+        it("JSON written as text stores a typed scalar as typed, and the editor keeps it", () => {
+            const id = addRow({payload: '{"a":1}'})
+            content({testcaseId: id, view: "form"})
+            const editor = () =>
+                section("payload")?.querySelector<HTMLTextAreaElement>(
+                    '[data-testid="rich-editor"]',
+                ) as HTMLTextAreaElement
+
+            type(editor(), "5")
+            expect(dataOf(id)).toEqual({payload: "5"})
+            expect(editor().value).toBe("5")
+
+            type(editor(), "50")
+            expect(dataOf(id)).toEqual({payload: "50"})
+            expect(editor().value).toBe("50")
+        })
+
+        it("JSON written as text that an outside update makes an object stores objects", () => {
+            const id = addRow({payload: '{"a":1}'})
+            content({testcaseId: id, view: "form"})
+            act(() => {
+                store.set(testcaseMolecule.actions.update, id, {data: {payload: {a: 2}}})
+            })
+            const editor = section("payload")?.querySelector<HTMLTextAreaElement>(
+                '[data-testid="rich-editor"]',
+            ) as HTMLTextAreaElement
+
+            type(editor, '{"a": 3}')
+
+            expect(dataOf(id)).toEqual({payload: {a: 3}})
         })
 
         it("an empty YAML field stores null, not a missing value", () => {

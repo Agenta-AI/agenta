@@ -293,12 +293,12 @@ describe("Test set page", () => {
         expect(state.drawer).toMatchObject({testcaseId: "case-1", discardOnCancel: false})
     })
 
-    it("A column renamed from the drawer starts the drawer again, so Cancel cannot undo it on one row", async () => {
+    it("A column renamed from the drawer reaches the drawer's Cancel, and closing the drawer forgets it", async () => {
         const renameColumn = vi.fn(async () => ({ok: true}))
         state.editor = loadedEditor({renameColumn, columnEditBlocked: null})
         render()
         act(() => state.openRow?.("case-1"))
-        expect(state.drawerMounts).toBe(1)
+        expect(state.drawer?.columnChanges).toEqual([])
         const actions = (state.drawer?.columnActions as (key: string) => Record<string, unknown>)(
             "question",
         )
@@ -319,8 +319,14 @@ describe("Test set page", () => {
         })
 
         expect(renameColumn).toHaveBeenCalledWith("question", "prompt")
-        expect(state.drawerMounts).toBe(2)
-        expect(state.drawer).toMatchObject({testcaseId: "case-1"})
+        expect(state.drawer?.columnChanges).toEqual([
+            {kind: "rename", from: "question", to: "prompt"},
+        ])
+        expect(state.drawerMounts).toBe(1)
+
+        act(() => (state.drawer?.onClose as () => void)())
+        act(() => state.openRow?.("case-2"))
+        expect(state.drawer?.columnChanges).toEqual([])
     })
 
     describe("an archived test set", () => {

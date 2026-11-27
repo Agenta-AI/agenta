@@ -43,6 +43,7 @@ import {ColumnDialog, type ColumnDialogStep} from "./ColumnDialogs"
 import {columnHeaderTarget} from "./columnHeaderTarget"
 import type {FieldColumnActions} from "./fields/TestcaseFieldForm"
 import {TestsetDetailSkeleton} from "./states/TestsetDetailSkeleton"
+import type {DrawerColumnChange} from "./TestcaseEditorDrawer"
 import {TestsetGrid} from "./TestsetGrid"
 import {TestsetHeader} from "./TestsetHeader"
 import {TESTCASE_QUERY_PARAM, testsetRevisionPath} from "./testsetRouteId"
@@ -204,9 +205,11 @@ export const TestsetDetailScreen = ({
     // grid's rule (`columnHeaderTarget`): a top-level column can be renamed and deleted; an
     // object split into nested columns is a group, deleted by its own key.
     const [fieldColumnStep, setFieldColumnStep] = useState<ColumnDialogStep | null>(null)
-    // A column change from the drawer reaches every row, so Cancel must not undo it on the open
-    // row only: the drawer starts again on the changed row, as if its edits were applied.
-    const [drawerSession, setDrawerSession] = useState(0)
+    // A column change from the drawer reaches every row, so the drawer's Cancel keeps it.
+    const [drawerColumnChanges, setDrawerColumnChanges] = useState<DrawerColumnChange[]>([])
+    useEffect(() => {
+        if (openRowId === null) setDrawerColumnChanges([])
+    }, [openRowId])
     const fieldColumnActions = useCallback(
         (key: string): FieldColumnActions | null => {
             const blockedReason = editor.columnEditBlocked
@@ -241,12 +244,24 @@ export const TestsetDetailScreen = ({
         [columns, editor.columnEditBlocked],
     )
     const submitFieldColumnStep = useCallback(
-        (name: string) => {
-            if (fieldColumnStep?.kind === "rename")
-                return editor.renameColumn(fieldColumnStep.columnKey, name)
-            if (fieldColumnStep?.kind === "delete")
-                return editor.deleteColumns(fieldColumnStep.columnKeys)
-            return editor.addColumn(name)
+        async (name: string) => {
+            const step = fieldColumnStep
+            const result =
+                step?.kind === "rename"
+                    ? await editor.renameColumn(step.columnKey, name)
+                    : step?.kind === "delete"
+                      ? await editor.deleteColumns(step.columnKeys)
+                      : await editor.addColumn(name)
+            if (result.ok) {
+                const change: DrawerColumnChange =
+                    step?.kind === "rename"
+                        ? {kind: "rename", from: step.columnKey, to: name}
+                        : step?.kind === "delete"
+                          ? {kind: "delete", keys: step.columnKeys}
+                          : {kind: "add", key: name}
+                setDrawerColumnChanges((changes) => [...changes, change])
+            }
+            return result
         },
         [editor, fieldColumnStep],
     )
@@ -420,7 +435,6 @@ export const TestsetDetailScreen = ({
             ) : null}
             {drawerLoaded ? (
                 <TestcaseEditorDrawer
-                    key={drawerSession}
                     testcaseId={openRowId}
                     testcaseNumber={
                         navigation.currentIndex >= 0 ? navigation.currentIndex + 1 : undefined
@@ -438,16 +452,14 @@ export const TestsetDetailScreen = ({
                     discardOnCancel={openRowId !== null && openRowId === addedRowId}
                     columnActions={fieldColumnActions}
                     onAddColumn={editor.columnEditBlocked ? undefined : openAddColumn}
+                    columnChanges={drawerColumnChanges}
                 />
             ) : null}
             <ColumnDialog
                 step={fieldColumnStep}
                 onClose={() => setFieldColumnStep(null)}
                 onSubmit={submitFieldColumnStep}
-                onDone={() => {
-                    setFieldColumnStep(null)
-                    setDrawerSession((session) => session + 1)
-                }}
+                onDone={() => setFieldColumnStep(null)}
             />
         </>
     )

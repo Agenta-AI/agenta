@@ -1,6 +1,7 @@
 import {useCallback, useMemo} from "react"
 
 import {ValueField} from "@agenta/chat/value-view"
+import {parseCodeString} from "@agenta/entity-ui/testcase"
 import type {ViewType} from "@agenta/entity-ui/view-types"
 import {useT} from "@agenta/i18n"
 import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
@@ -54,14 +55,18 @@ export const FieldEditor = ({
     const t = useT(valueViewCatalog)
     const setValue = useCallback((_path: string[], next: unknown) => onChange?.(next), [onChange])
     const text = fieldText(value)
-    // JSON written as text edits as its parsed value. It is parsed once per stored text: a render
-    // for another field is then not an outside change, and a typed draft stays.
+    // JSON written as text edits as its parsed value and is stored as text again, while the
+    // stored value is still a string (an outside update to an object makes edits store objects).
+    const asText = pick.parsedFromText && typeof value === "string"
+    // Parsed once per stored text: a render for another field is then not an outside change,
+    // and a typed draft stays. Text the shape rule does not read as JSON (a typed `5`) is read
+    // as JSON, as the editor reads it.
     const parsed = useMemo(
         () =>
-            pick.parsedFromText && typeof value === "string"
-                ? (parseStructuredJson(value) ?? value)
+            asText
+                ? (parseStructuredJson(value) ?? parseCodeString<unknown>(value, "json", value))
                 : value,
-        [pick.parsedFromText, value],
+        [asText, value],
     )
 
     switch (kind) {
@@ -137,7 +142,7 @@ export const FieldEditor = ({
             )
         case "code": {
             const format = view === "yaml" ? "yaml" : "json"
-            // JSON written as text is stored as text again: the typed JSON as it is.
+            // JSON written as text is stored as the typed JSON, as it is.
             return (
                 <CodeField
                     id={name}
@@ -147,7 +152,7 @@ export const FieldEditor = ({
                         onChange
                             ? (next, typed) =>
                                   onChange(
-                                      pick.parsedFromText
+                                      asText
                                           ? format === "json"
                                               ? typed
                                               : JSON.stringify(next, null, 2)
