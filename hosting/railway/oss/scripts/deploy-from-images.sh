@@ -140,7 +140,6 @@ render_api_like_wrapper() {
     cat > "$dir/Dockerfile" <<EOF
 FROM ${AGENTA_API_IMAGE}
 
-ENV AGENTA_LICENSE=oss
 ENV AGENTA_API_URL=http://api.railway.internal:8000/api
 ENV AGENTA_API_INTERNAL_URL=http://api.railway.internal:8000/api
 ENV REDIS_URI=redis://redis.railway.internal:6379/0
@@ -158,7 +157,6 @@ render_api_wrapper() {
     cat > "$dir/Dockerfile" <<EOF
 FROM ${AGENTA_API_IMAGE}
 
-ENV AGENTA_LICENSE=oss
 ENV PORT=8000
 ENV SCRIPT_NAME=/api
 ENV REDIS_URI=redis://redis.railway.internal:6379/0
@@ -233,8 +231,6 @@ render_alembic_wrapper() {
     cp "$ROOT_DIR/hosting/railway/oss/alembic/create_databases.py" "$dir/create_databases.py"
     cat > "$dir/Dockerfile" <<EOF
 FROM ${AGENTA_API_IMAGE}
-
-ENV AGENTA_LICENSE=oss
 
 COPY create_databases.py /tmp/create_databases.py
 CMD ["sh", "-c", "/opt/venv/bin/python /tmp/create_databases.py && /opt/venv/bin/python -m ee.databases.postgres.migrations.runner"]

@@ -28,7 +28,7 @@ On an open source database, the first start adds tables and rows, and this canno
 
 Pull the new images and restart, as in the [standard upgrade](#standard-upgrade-process) or the [Helm chart upgrade](#helm-chart-upgrade). Keep your compose files, Helm values and Railway template as they are. You do not change images, env files or databases.
 
-Do not change `AGENTA_LICENSE`. It picks the default database names (`agenta_oss_*` or `agenta_ee_*`), not the plan. A different value points the install at other, empty databases.
+Do not change or remove `AGENTA_LICENSE`. It picks the default database names (`agenta_oss_*` or `agenta_ee_*`), not the plan. A different value, or no value, can point the install at other, empty databases.
 
 ### What the first start does on an open source database
 
@@ -171,10 +171,11 @@ Creating and renaming a project needs the owner or admin role. Deleting a projec
 
 ### Enterprise: run the preflight before the upgrade
 
-The upgrade adds a unique index on project memberships. It stops when the database holds two membership rows for the same user and project. Before you upgrade, run the preflight from a checkout of the new release, with `POSTGRES_URI_CORE` set to your core database:
+The upgrade adds a unique index on project memberships. It stops when the database holds two membership rows for the same user and project. Before you upgrade, run the preflight from a checkout of the new release, with `POSTGRES_URI_CORE` set to your core database. In 0.124.0 the preflight reads `AGENTA_LICENSE` to run the Enterprise steps, so keep `AGENTA_LICENSE=ee` in this command:
 
 ```bash
 cd api
+export POSTGRES_URI_CORE=postgresql+asyncpg://username:password@localhost:5432/agenta_ee_core
 AGENTA_LICENSE=ee uv run --no-sync python -m entrypoints.memberships_check --apply
 ```
 
@@ -188,7 +189,8 @@ The same unique index is added on open source. If the upgrade stops with `projec
 
 ```bash
 cd api
-AGENTA_LICENSE=oss uv run --no-sync python -m entrypoints.memberships_check --apply
+export POSTGRES_URI_CORE=postgresql+asyncpg://username:password@localhost:5432/agenta_oss_core
+uv run --no-sync python -m entrypoints.memberships_check --apply
 ```
 
 It keeps the oldest row of each duplicate pair and prints each deleted row with its role. Use `--report` first to see what it would change.
