@@ -222,6 +222,8 @@ releases:
 #    start on the old data directory. This digest is the multi-arch `latest`
 #    of 2026-11-26, PostgreSQL 18.7.0, the major version that installs already
 #    run. Do not change the major version without a dump and restore.
+#    The digest has priority over `image.tag`. To use another tag or a mirror,
+#    set `image.digest` to your own digest or to "".
 # ================================================================== #
 postgresql:
   enabled: true
