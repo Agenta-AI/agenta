@@ -1,18 +1,11 @@
 import {useMemo} from "react"
 
-import {
-    buildEvaluatorRows,
-    passedTestCases,
-    runFailures,
-    runTiles,
-    type PassedState,
-    type RunHeader,
-    type RunReferences,
-} from "@agenta/entities/evaluationRun"
+import type {RunHeader, RunReferences} from "@agenta/entities/evaluationRun"
 
 import {EvaluatorResultsSection} from "./EvaluatorResultsSection"
 import {RunFailuresAlert} from "./RunFailuresAlert"
 import {RunMetaTiles} from "./RunMetaTiles"
+import {runOverviewModel} from "./runOverviewModel"
 import type {OverviewMetric, OverviewNames, ScenarioMetricsState} from "./useRunOverview"
 
 export interface RunOverviewViewProps {
@@ -41,52 +34,11 @@ export const RunOverviewView = ({
 }: RunOverviewViewProps) => {
     const online = header.kind === "online"
 
-    const rows = useMemo(
+    const {rows, failures, tiles} = useMemo(
         () =>
-            buildEvaluatorRows(
-                (references?.evaluators ?? []).map((evaluator) => ({
-                    stepKey: evaluator.stepKey,
-                    evaluatorId: evaluator.evaluatorId,
-                    name: names.evaluators[evaluator.evaluatorId] ?? evaluator.slug,
-                })),
-                metrics,
-                {runWideOnly: online},
-            ),
-        [references, names.evaluators, metrics, online],
+            runOverviewModel({header, references, metrics, metricsPending, names, scenarioMetrics}),
+        [header, references, metrics, metricsPending, names, scenarioMetrics],
     )
-
-    const failures = useMemo(() => {
-        if (scenarioMetrics.status !== "ready") return null
-        return runFailures(
-            scenarioMetrics.rows,
-            scenarioMetrics.failedSteps,
-            (references?.evaluators ?? []).map((evaluator) => evaluator.stepKey),
-        )
-    }, [scenarioMetrics, references])
-
-    const tiles = useMemo(() => {
-        const binary = rows.flatMap((row) => row.metrics.filter((m) => m.kind === "binary"))
-        // Without the complete failed steps, a test case that did not run could count as passed.
-        const counted =
-            scenarioMetrics.status === "ready" && failures
-                ? passedTestCases(scenarioMetrics.rows, binary, failures.notRunIds)
-                : null
-        const passed: PassedState =
-            scenarioMetrics.status === "ready"
-                ? counted
-                    ? {status: "ready", ...counted}
-                    : {status: "unavailable"}
-                : scenarioMetrics
-        return runTiles({
-            status: header.status,
-            online,
-            invocation: metrics.filter((metric) => metric.kind === "invocation"),
-            binaryStats: binary.map((metric) => metric.stats),
-            passed,
-            metricsPending,
-            failures,
-        })
-    }, [rows, scenarioMetrics, header.status, online, metrics, metricsPending, failures])
 
     const failed = failures && failures.notRun + failures.evaluatorFailed > 0
 

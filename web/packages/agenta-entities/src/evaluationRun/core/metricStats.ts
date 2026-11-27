@@ -8,8 +8,6 @@
  * @packageDocumentation
  */
 
-import type {RadarAxis} from "@agenta/ui/components/presentational/charts"
-
 export interface MetricFrequency {
     value: unknown
     count: number
@@ -207,81 +205,6 @@ export function frequencyBars(stats: MetricStats | null | undefined, limit?: num
     return rows
         .slice(0, limit ?? rows.length)
         .map((item) => ({category: frequencyLabel(item.value), value: item.count}))
-}
-
-/** One metric of one run, as the radar reads it. */
-export interface RadarMetricInput {
-    /** Same id across runs: the axis key. */
-    id: string
-    kind: "evaluator" | "invocation"
-    /** Axis title, for example "Exact match: success" or "Duration". */
-    name: string
-    stats: MetricStats | null
-}
-
-/** The invocation axes the radar adds, in order, when there are fewer than 3 evaluator axes. */
-export const RADAR_FALLBACK_INVOCATION_IDS = ["duration", "cost"] as const
-
-/**
- * Radar axes over the runs in `runIds` (the series keys). Evaluator axes come first; Duration and
- * Cost invocation axes are added when there are fewer than 3 evaluator axes. A boolean axis has a
- * max of 100; a numeric axis has the largest `max` over the runs, else `max(mean, 1)`. A run with
- * no value on an axis gets null, not 0.
- */
-export function radarAxes(
-    metricsByRun: Readonly<Record<string, readonly RadarMetricInput[]>>,
-    runIds: readonly string[],
-): RadarAxis[] {
-    const order: RadarMetricInput[] = []
-    const seen = new Set<string>()
-    for (const runId of runIds) {
-        for (const metric of metricsByRun[runId] ?? []) {
-            if (seen.has(metric.id)) continue
-            seen.add(metric.id)
-            order.push(metric)
-        }
-    }
-    const toAxis = (axisMetric: RadarMetricInput): RadarAxis | null => {
-        const statsByRun = runIds.map(
-            (runId) =>
-                (metricsByRun[runId] ?? []).find((metric) => metric.id === axisMetric.id)?.stats ??
-                null,
-        )
-        const isBoolean = statsByRun.some((stats) => isBooleanMetricStats(stats))
-        const rawByRun = statsByRun.map((stats) =>
-            isBoolean ? booleanTruePercent(stats) : (metricSummary(stats)?.value ?? null),
-        )
-        if (rawByRun.every((raw) => raw === null)) return null
-
-        let max = 100
-        if (!isBoolean) {
-            const maxes = statsByRun.flatMap((stats) =>
-                stats?.max !== undefined ? [stats.max] : [],
-            )
-            const means = rawByRun.flatMap((raw) => (raw === null ? [] : [raw]))
-            max = maxes.length ? Math.max(...maxes) : Math.max(...means, 1)
-            if (max <= 0) max = 1
-        }
-
-        const values: Record<string, {normalized: number; raw: number} | null> = {}
-        runIds.forEach((runId, index) => {
-            const raw = rawByRun[index]
-            values[runId] =
-                raw === null ? null : {raw, normalized: Math.min(Math.max(raw / max, 0), 1)}
-        })
-        return {name: axisMetric.name, max, values}
-    }
-
-    // Count only axes that carry a value: a categorical metric draws no axis, so it must not
-    // keep the invocation axes out.
-    const evaluatorAxes = order
-        .filter((metric) => metric.kind === "evaluator")
-        .flatMap((metric) => toAxis(metric) ?? [])
-    if (evaluatorAxes.length >= 3) return evaluatorAxes
-    const invocationAxes = RADAR_FALLBACK_INVOCATION_IDS.flatMap((id) =>
-        order.filter((metric) => metric.kind === "invocation" && metric.id === id),
-    ).flatMap((metric) => toAxis(metric) ?? [])
-    return [...evaluatorAxes, ...invocationAxes]
 }
 
 /** USD. 2 decimals from $1, else 3 significant digits ("$0.000123"). */

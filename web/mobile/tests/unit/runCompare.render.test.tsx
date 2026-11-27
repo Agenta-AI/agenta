@@ -8,7 +8,7 @@ import {queryClientAtom} from "jotai-tanstack-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-// Only HTTP, the router and the toast are fake: the run, metric and scenario reads, the compare
+// Only HTTP (axios and the Fern evaluations client), the router and the toast are fake: the run, metric and scenario reads, the compare
 // rules and the compared views are the real code.
 const http = vi.hoisted(() => ({
     post: vi.fn(),
@@ -21,6 +21,13 @@ vi.mock("@agenta/shared/api", async (original) => ({
     ...(await original<typeof import("@agenta/shared/api")>()),
     axios: http,
     getAgentaApiUrl: () => "https://agenta.test/api",
+}))
+// The per-test-case metric rows are read through the Fern evaluations client; the same fake
+// server answers them.
+const fern = vi.hoisted(() => ({queryMetrics: vi.fn()}))
+vi.mock("@agenta/sdk/resources", async (original) => ({
+    ...(await original<typeof import("@agenta/sdk/resources")>()),
+    getEvaluationsClient: () => fern,
 }))
 const router = vi.hoisted(() => ({query: {} as Record<string, string>, replace: vi.fn()}))
 vi.mock("next/router", () => ({
@@ -111,6 +118,7 @@ interface ServedRun {
     app: ServedApp
     status: string
     durationMs: number
+    createdAt: string
     scenarios: Scenario[]
 }
 
@@ -120,13 +128,27 @@ const unanswered: string[] = []
 let runs: ServedRun[] = []
 
 /** A run on the same test set, app and evaluator; ids are new in each test (the caches keep runs). */
-function addRun(name: string, spec: Partial<Omit<ServedRun, "id" | "name">> = {}): string {
+function addRun(
+    name: string,
+    spec: Partial<Omit<ServedRun, "id" | "name" | "createdAt">> = {},
+): string {
     const id = `run-${++counter}`
     const scenarios = (spec.scenarios ?? []).map((scenario) => ({
         ...scenario,
         id: `${id}-${scenario.id}`,
     }))
-    runs.push({id, name, app: DEFAULT_APP, status: "success", durationMs: 500, ...spec, scenarios})
+    // Each run is created one second after the one before it: the last one added is the newest.
+    const createdAt = new Date(Date.parse("2026-11-05T19:33:17Z") + counter * 1000).toISOString()
+    runs.push({
+        id,
+        name,
+        app: DEFAULT_APP,
+        status: "success",
+        durationMs: 500,
+        createdAt,
+        ...spec,
+        scenarios,
+    })
     return id
 }
 
@@ -135,7 +157,7 @@ const runBody = (run: ServedRun) => ({
     name: run.name,
     description: null,
     status: run.status,
-    created_at: "2026-11-05T19:33:17Z",
+    created_at: run.createdAt,
     flags: {is_live: false, is_active: false, is_closed: false},
     data: {steps: stepsOf(run.app), mappings: MAPPINGS},
 })
@@ -157,7 +179,7 @@ interface RequestBody {
     workflow_refs?: {id: string}[]
     workflow_revision_refs?: {id: string}[]
     run?: {ids?: string[]}
-    metrics?: {run_ids?: string[]; scenario_ids?: string[] | false}
+    metrics?: {run_ids?: string[]; scenario_ids?: string[] | boolean}
     scenario?: {run_ids?: string[]}
     result?: {scenario_ids?: string[]}
     testcase_ids?: string[]
@@ -192,6 +214,21 @@ function answer(url: string, body: RequestBody | undefined) {
             return {data: {count: metrics.length, metrics}}
         }
         const scenarioIds = body?.metrics?.scenario_ids
+        if (scenarioIds === true) {
+            // Every per-test-case row of the run, behind the "Passed" count.
+            const ids = body?.metrics?.run_ids ?? []
+            const metrics = runs
+                .filter((run) => ids.includes(run.id))
+                .flatMap((run) =>
+                    run.scenarios.map((s) => ({
+                        id: `m-${s.id}`,
+                        run_id: run.id,
+                        scenario_id: s.id,
+                        data: {ev: {[SUCCESS]: binary([s.success])}},
+                    })),
+                )
+            return {data: {count: metrics.length, metrics}}
+        }
         const ids = Array.isArray(scenarioIds) ? scenarioIds : []
         const metrics = ids.flatMap((id) => {
             const found = scenarioOf(id)
@@ -322,6 +359,10 @@ const rowOf = (run: string, country: string) =>
         .map((span) => span.parentElement?.parentElement ?? null)
         .find((row) => row?.textContent?.includes(country)) ?? null
 const lastReplace = () => router.replace.mock.calls.at(-1)?.[0]
+const scenarioMetricReads = () =>
+    fern.queryMetrics.mock.calls.filter(
+        ([body]) => (body as RequestBody)?.metrics?.scenario_ids === true,
+    )
 const runLevelMetricReads = () =>
     http.post.mock.calls.filter(
         ([url, body]) =>
@@ -341,6 +382,10 @@ beforeEach(() => {
     unanswered.length = 0
     Object.values(http).forEach((fn) => fn.mockReset())
     http.post.mockImplementation(async (url: string, body: RequestBody) => answer(url, body))
+    fern.queryMetrics.mockReset()
+    fern.queryMetrics.mockImplementation(
+        async (body: RequestBody) => answer("/evaluations/metrics/query", body).data,
+    )
     http.get.mockResolvedValue({data: {}})
     router.replace.mockReset()
     toast.info.mockReset()
@@ -502,7 +547,7 @@ describe("compare chips", () => {
 })
 
 describe("compared overview", () => {
-    it("Shows one summary column, one radar series and one bar per run, read in one metric request", async () => {
+    it("Shows one summary column and one line per run, the change of the newest run, one run-level metric request and one per-test-case request per run", async () => {
         const base = addRun("Capitals: default", {
             durationMs: 261,
             scenarios: [
@@ -513,48 +558,96 @@ describe("compared overview", () => {
         const verbose = addRun("Capitals: verbose", {
             durationMs: 565,
             scenarios: [
-                {id: "s1", testcase: "tc-1", success: false},
+                {id: "s1", testcase: "tc-1", success: true},
                 {id: "s2", testcase: "tc-2", success: false},
             ],
         })
-        await open(base, {compare: verbose})
+        // Added last, so created last: the newest run. The page's run is the oldest.
+        const short = addRun("Capitals: short", {
+            durationMs: 300,
+            scenarios: [
+                {id: "s1", testcase: "tc-1", success: true},
+                {id: "s2", testcase: "tc-2", success: true},
+            ],
+        })
+        await open(base, {compare: `${verbose},${short}`})
+        const summaryCells = (key: string) =>
+            [...host.querySelectorAll(`[data-testid="compare-summary-${key}"] td`)].map(
+                (td) => td.textContent,
+            )
         await until(
-            () => Boolean(host.querySelector('section[aria-label="Exact Match: Success"]')),
-            "compared overview shown",
-        )
-
-        await until(
-            () =>
-                host.querySelector('[data-testid="compare-summary-duration"]')?.textContent ===
-                "Duration (Avg)261 ms565 ms",
-            "both runs' metrics shown",
+            () => summaryCells("passed")[2]?.startsWith("100%") ?? false,
+            "compared overview shown with the per-test-case counts",
         )
         expect(compareModule.loads).toBe(1)
+
         // A poll left over from an earlier test may land here too: count this page's reads.
         const reads = runLevelMetricReads().filter(([, body]) =>
             (body as RequestBody).metrics?.run_ids?.includes(base),
         )
         expect(reads).toHaveLength(1)
-        expect((reads[0][1] as RequestBody).metrics?.run_ids).toEqual([base, verbose])
-
-        // The first table is the summary; the charts add their own data tables after it.
-        const summary = host.querySelector("table")
-        const columns = [...(summary?.querySelectorAll("thead th") ?? [])].map(
-            (th) => th.textContent,
+        expect((reads[0][1] as RequestBody).metrics?.run_ids).toEqual([base, verbose, short])
+        const perTestCase = scenarioMetricReads().flatMap(
+            ([body]) => (body as RequestBody).metrics?.run_ids ?? [],
         )
-        expect(columns).toEqual(["Field", "Capitals: default", "Capitals: verbose"])
-        const cellsOf = (key: string) =>
-            [...host.querySelectorAll(`[data-testid="compare-summary-${key}"] td`)].map(
-                (td) => td.textContent,
-            )
-        expect(cellsOf("evaluation")).toEqual(["Capitals: default", "Capitals: verbose"])
-        expect(cellsOf("duration")).toEqual(["261 ms", "565 ms"])
-        expect(cellsOf(`ev-1:${SUCCESS}`)).toEqual(["100.00%", "0.00%"])
+        expect(perTestCase.filter((id) => [base, verbose, short].includes(id)).sort()).toEqual(
+            [base, verbose, short].sort(),
+        )
 
-        const card = host.querySelector<HTMLElement>('section[aria-label="Exact Match: Success"]')
-        expect(card?.textContent).toContain("100.00%")
-        expect(card?.textContent).toContain("0.00%")
-        expect(card?.textContent).toContain("-100%")
+        // One column per run in today's order, the newest run and the run before it named.
+        const header = [...host.querySelectorAll("table thead th")].map((th) => th.textContent)
+        expect(header).toEqual([
+            "Summary",
+            "Capitals: default",
+            "Capitals: verbosebefore",
+            "Capitals: shortnewest",
+            "Change",
+        ])
+        const swatches = [...host.querySelectorAll<HTMLElement>("table thead th span[aria-hidden]")]
+        expect(swatches.map((swatch) => swatch.style.backgroundColor)).toEqual([
+            "var(--data-1)",
+            "var(--data-2)",
+            "var(--data-3)",
+        ])
+
+        expect(summaryCells("passed")).toEqual([
+            "100%2 of 2 test cases2 of 2 assertions true",
+            "50%1 of 2 test cases1 of 2 assertions true",
+            "100%2 of 2 test cases2 of 2 assertions true",
+            "+50 points",
+        ])
+        expect(summaryCells("duration")).toEqual([
+            "261 msper case, average",
+            "565 msper case, average",
+            "300 msper case, average",
+            "−265 ms",
+        ])
+        expect(summaryCells("errors").at(-1)).toBe("—")
+        expect(host.textContent).toContain(
+            "The change column compares the newest evaluation with the one before it.",
+        )
+
+        // One evaluator row; its metric has one line per run and the change as a badge.
+        const metric = host.querySelector(
+            `[data-testid="evaluator-ev-1"] [data-testid="metric-ev-1:${SUCCESS}"]`,
+        )
+        expect(host.querySelector('[data-testid="evaluator-ev-1"]')?.textContent).toContain(
+            "Exact Match",
+        )
+        expect(
+            [base, verbose, short].map(
+                (id) => metric?.querySelector(`[data-testid="line-${id}"]`)?.textContent,
+            ),
+        ).toEqual([
+            "Capitals: default100% 2 of 2",
+            "Capitals: verbose50% 1 of 2",
+            "Capitals: short100% 2 of 2",
+        ])
+        expect(metric?.querySelector('[data-testid="compare-change"]')?.textContent).toBe(
+            "+50 points",
+        )
+        // No metric cards.
+        expect(host.querySelector('section[aria-label="Exact Match: Success"]')).toBeNull()
     })
 
     it("A run page without ?compare= does not load the compared overview", async () => {

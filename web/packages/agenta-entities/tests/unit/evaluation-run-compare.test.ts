@@ -1,8 +1,7 @@
 /**
  * The compare rules the /m run page uses: which runs the URL compares, how the picker filters
  * candidates, how one metric is found in every run, the change of the newest run against the run
- * before it, the compare summary and evaluator rows, the delta and bars of the old compare cards,
- * and how scenario rows and column groups of
+ * before it, the compare summary and evaluator rows, and how scenario rows and column groups of
  * compared runs line up.
  */
 import {describe, expect, it} from "vitest"
@@ -20,14 +19,12 @@ import {
 } from "../../src/evaluationRun/core/evaluatorRows"
 import {normalizeMetricStats} from "../../src/evaluationRun/core/metricStats"
 import {
-    compareDelta,
     compareMetricKey,
     compareRunIds,
     compareStatusCounts,
     filterCompareRuns,
     matchCompareGroupKey,
     matchCompareRows,
-    mergeCompareBars,
     runConfigDiff,
     type RunConfigDiff,
     type RunConfigIdentity,
@@ -287,57 +284,6 @@ describe("compare evaluator rows", () => {
         const change = metricRow.metrics[0].change
         expect(change?.kind).toBe("difference")
         expect(change?.kind === "difference" && change.delta).toBeCloseTo(2.6)
-    })
-})
-
-describe("delta against the base run", () => {
-    it.each([
-        [0, 100, "-100%", "negative"],
-        [100, 100, "0%", "neutral"],
-        [56.5, 50, "+13%", "positive"],
-        [10, 0, "-", "neutral"],
-        [null, 100, "-", "neutral"],
-        [50, undefined, "-", "neutral"],
-    ])("%s against %s reads %s", (value, base, text, tone) => {
-        expect(compareDelta(value, base)).toEqual({text, tone})
-    })
-})
-
-describe("bars of several runs", () => {
-    it("puts each category once with the value of every run", () => {
-        expect(
-            mergeCompareBars([
-                [
-                    {category: "True", values: {a: 100}},
-                    {category: "False", values: {a: 0}},
-                ],
-                [
-                    {category: "True", values: {b: 0}},
-                    {category: "False", values: {b: 100}},
-                ],
-            ]),
-        ).toEqual([
-            {category: "True", values: {a: 100, b: 0}},
-            {category: "False", values: {a: 0, b: 100}},
-        ])
-    })
-
-    it("sorts numeric ranges by their start and keeps other labels in first-seen order", () => {
-        expect(
-            mergeCompareBars([
-                [{category: "0.5–1", values: {a: 2}}],
-                [
-                    {category: "0–0.5", values: {b: 1}},
-                    {category: "0.5–1", values: {b: 3}},
-                ],
-            ]).map((datum) => datum.category),
-        ).toEqual(["0–0.5", "0.5–1"])
-        expect(
-            mergeCompareBars([
-                [{category: "Paris", values: {a: 2}}],
-                [{category: "Lyon", values: {b: 1}}],
-            ]).map((datum) => datum.category),
-        ).toEqual(["Paris", "Lyon"])
     })
 })
 

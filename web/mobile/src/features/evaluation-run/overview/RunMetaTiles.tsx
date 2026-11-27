@@ -2,8 +2,12 @@ import type {RunTile, RunTileDetail} from "@agenta/entities/evaluationRun"
 import {formatNumber, useT} from "@agenta/i18n"
 import runOverviewCatalog from "@agenta/i18n/catalogs/evaluations.runOverview"
 
-/** The run's totals as tiles: test cases, passed, cost, duration, tokens, errors. */
-export const RunMetaTiles = ({tiles, online}: {tiles: readonly RunTile[]; online: boolean}) => {
+/** A detail line in red: test cases that did not run, or errors split by where they came from. */
+export const isFailureDetail = (detail: RunTileDetail) =>
+    detail.kind === "notRun" || detail.kind === "errorsSplit"
+
+/** The label and the lines of a tile as text; the compare summary uses the same lines. */
+export function useRunTileText(online: boolean) {
     const t = useT(runOverviewCatalog)
     const label = (tile: RunTile) =>
         tile.id === "testCases"
@@ -42,6 +46,19 @@ export const RunMetaTiles = ({tiles, online}: {tiles: readonly RunTile[]; online
                 })
         }
     }
+    const assertions = (tile: RunTile) =>
+        tile.assertions
+            ? t("evaluations.runOverview.assertionsTrue", {
+                  passed: formatNumber(tile.assertions.passed),
+                  total: formatNumber(tile.assertions.total),
+              })
+            : null
+    return {label, detail, assertions}
+}
+
+/** The run's totals as tiles: test cases, passed, cost, duration, tokens, errors. */
+export const RunMetaTiles = ({tiles, online}: {tiles: readonly RunTile[]; online: boolean}) => {
+    const {label, detail, assertions} = useRunTileText(online)
 
     return (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 @min-[960px]/page:grid-cols-6">
@@ -64,7 +81,7 @@ export const RunMetaTiles = ({tiles, online}: {tiles: readonly RunTile[]; online
                     {tile.detail ? (
                         <span
                             className={`truncate text-meta ${
-                                tile.detail.kind === "notRun" || tile.detail.kind === "errorsSplit"
+                                isFailureDetail(tile.detail)
                                     ? "text-destructive"
                                     : "text-muted-foreground"
                             }`}
@@ -74,10 +91,7 @@ export const RunMetaTiles = ({tiles, online}: {tiles: readonly RunTile[]; online
                     ) : null}
                     {tile.assertions ? (
                         <span className="text-caption text-muted-foreground">
-                            {t("evaluations.runOverview.assertionsTrue", {
-                                passed: formatNumber(tile.assertions.passed),
-                                total: formatNumber(tile.assertions.total),
-                            })}
+                            {assertions(tile)}
                         </span>
                     ) : null}
                 </div>

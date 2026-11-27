@@ -222,59 +222,6 @@ export function compareMetricKey(metric: {
     return evaluator ? `${evaluator}:${metric.metricKey}` : metric.id
 }
 
-export type CompareDeltaTone = "positive" | "negative" | "neutral"
-
-/**
- * A compared run's value against the base run's, in percent, as the old metric cards print it:
- * "+12%", "-100%", "0%", or "-" when either value is missing or the base is 0.
- */
-export function compareDelta(
-    value: number | null | undefined,
-    base: number | null | undefined,
-): {text: string; tone: CompareDeltaTone} {
-    if (
-        typeof value !== "number" ||
-        typeof base !== "number" ||
-        !Number.isFinite(value) ||
-        !Number.isFinite(base) ||
-        base === 0
-    ) {
-        return {text: "-", tone: "neutral"}
-    }
-    const rounded = Math.round(((value - base) / base) * 100)
-    if (rounded > 0) return {text: `+${rounded}%`, tone: "positive"}
-    if (rounded < 0) return {text: `${rounded}%`, tone: "negative"}
-    return {text: "0%", tone: "neutral"}
-}
-
-/** One bar group of a chart: its category and the value of each series. */
-export interface CompareBarDatum {
-    category: string
-    values: Readonly<Record<string, number | null>>
-}
-
-/**
- * The bars of several runs in one chart: each category once, with the value of every run that has
- * it. Categories keep the order they first appear in, base run first; when every category is a
- * number or a numeric range ("0.5–1"), they are sorted by their first number.
- */
-export function mergeCompareBars(
-    series: readonly (readonly CompareBarDatum[])[],
-): CompareBarDatum[] {
-    const merged = new Map<string, CompareBarDatum>()
-    for (const data of series) {
-        for (const datum of data) {
-            const entry = merged.get(datum.category) ?? {category: datum.category, values: {}}
-            entry.values = {...entry.values, ...datum.values}
-            merged.set(datum.category, entry)
-        }
-    }
-    const rows = [...merged.values()]
-    const start = (category: string) => Number.parseFloat(category)
-    const numeric = rows.every(({category}) => /^-?\d/.test(category))
-    return numeric ? rows.sort((a, b) => start(a.category) - start(b.category)) : rows
-}
-
 /**
  * Each base row followed by the matching row of every compared run, as the old scenarios table
  * lays them out. A row matches on its test case, else on its position. `row` is null when the

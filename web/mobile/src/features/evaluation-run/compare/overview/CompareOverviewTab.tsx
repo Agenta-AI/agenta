@@ -1,19 +1,27 @@
-import {useMemo} from "react"
+import {useEffect, useMemo} from "react"
 
-import {runLevelMetricsQueryAtomFamily} from "@agenta/entities/evaluationRun"
+import {
+    buildCompareEvaluatorRows,
+    buildCompareSummaryRows,
+    compareRoles,
+    runLevelMetricsQueryAtomFamily,
+    runScenarioMetricsQueryAtomFamily,
+} from "@agenta/entities/evaluationRun"
+import {Alert, Button} from "@agenta/ui/ui"
 import {useStore} from "jotai"
 
-import {RunRadarCard, showsRadar, useRunRadar} from "../../overview/RunRadarCard"
-import {useRunReferenceLinks} from "../../overview/useRunReferenceLinks"
+import {runOverviewModel} from "../../overview/runOverviewModel"
+import {EvaluatorTableSkeleton} from "../../states/EvaluatorTableSkeleton"
+import {OverviewEmpty} from "../../states/OverviewEmpty"
 
-import {CompareMetricCards} from "./CompareMetricCards"
-import {buildCompareSummaryRows} from "./compareSummaryRows"
-import {CompareSummaryTable} from "./CompareSummaryTable"
+import {CompareEvaluatorTable} from "./CompareEvaluatorTable"
+import {CompareSummaryTable, type CompareColumn} from "./CompareSummaryTable"
 import {useCompareOverview} from "./useCompareOverview"
 
 /**
- * The Overview tab while runs are compared, as in the old app: the summary with one column per
- * run, the radar with one series per run, and one card per evaluator metric with a bar per run.
+ * The Overview tab while runs are compared, in the shape of one run: the summary with one column
+ * per run and the change of the newest run against the run before it, then one row per evaluator
+ * with one line per run for each metric.
  */
 export const CompareOverviewTab = ({
     runId,
@@ -24,59 +32,93 @@ export const CompareOverviewTab = ({
 }) => {
     const runIds = useMemo(() => [runId, ...compareIds], [runId, compareIds])
     const runs = useCompareOverview(runIds)
-    const links = useRunReferenceLinks()
     const store = useStore()
-    const rows = useMemo(() => buildCompareSummaryRows(runs, links), [runs, links])
-    const columns = useMemo(
-        () =>
-            runs.map((run) => ({
-                runId: run.runId,
-                slot: run.slot,
-                name: run.header?.name ?? "…",
-            })),
-        [runs],
-    )
-    const radarRuns = useMemo(
-        () =>
-            runs.map((run) => ({
-                id: run.runId,
-                name: run.header?.name ?? run.runId,
-                metrics: run.metrics,
-            })),
-        [runs],
-    )
-    const radar = useRunRadar(radarRuns)
-    const withRadar = showsRadar(
-        radar.axes.length,
-        runs.some((run) => run.metricsPending),
-    )
+
+    const {columns, summary, rows} = useMemo(() => {
+        const models = runs.map((run) =>
+            run.header
+                ? runOverviewModel({
+                      header: run.header,
+                      references: run.references,
+                      metrics: run.metrics,
+                      metricsPending: run.metricsPending,
+                      names: run.names,
+                      scenarioMetrics: run.scenarioMetrics,
+                  })
+                : null,
+        )
+        const roles = compareRoles(runs.map((run) => run.header?.createdAt))
+        return {
+            columns: runs.map(
+                (run, index): CompareColumn => ({
+                    runId: run.runId,
+                    slot: run.slot,
+                    name: run.header?.name ?? "…",
+                    role:
+                        index === roles?.newest
+                            ? "newest"
+                            : index === roles?.before
+                              ? "before"
+                              : null,
+                }),
+            ),
+            summary: buildCompareSummaryRows(
+                models.map((model) => model?.tiles ?? null),
+                roles,
+            ),
+            rows: buildCompareEvaluatorRows(
+                models.map((model) => model?.rows ?? []),
+                roles,
+            ),
+        }
+    }, [runs])
+
+    // One text for all failed per-test-case reads, so each failure is logged once.
+    const scenarioErrors = runs
+        .flatMap((run) => (run.scenarioError ? [`${run.runId}: ${run.scenarioError.message}`] : []))
+        .join("\n")
+    useEffect(() => {
+        if (scenarioErrors) {
+            console.error("[CompareOverview] per-test-case metrics failed to load", scenarioErrors)
+        }
+    }, [scenarioErrors])
+
+    const hasMetrics = runs.some((run) => run.metrics.some((metric) => metric.kind === "evaluator"))
+    const failed = runs.some((run) => run.metricsError)
     const retry = () => {
         for (const run of runs) {
             if (run.metricsError)
                 void store.get(runLevelMetricsQueryAtomFamily(run.runId)).refetch()
+            if (run.scenarioError)
+                void store.get(runScenarioMetricsQueryAtomFamily(run.runId)).refetch()
         }
     }
 
     return (
         <div className="flex flex-col gap-6">
-            <section
-                aria-labelledby="run-overview-title"
-                className="box-border flex flex-col gap-4 rounded-lg border border-solid border-border bg-card p-4"
-            >
-                <header>
-                    <h2 id="run-overview-title" className="m-0 text-title text-foreground">
-                        Run summary
-                    </h2>
-                    <p className="m-0 text-body text-muted-foreground">
-                        What the compared runs tested and their average results
-                    </p>
-                </header>
-                <div className={`grid grid-cols-1 gap-6 ${withRadar ? "lg:grid-cols-2" : ""}`}>
-                    <CompareSummaryTable runs={columns} rows={rows} />
-                    {withRadar ? <RunRadarCard runs={radarRuns} radar={radar} /> : null}
-                </div>
-            </section>
-            <CompareMetricCards runs={runs} onRetry={retry} />
+            <CompareSummaryTable columns={columns} rows={summary} />
+            {failed ? (
+                <Alert
+                    type="error"
+                    showIcon
+                    message="Unable to load evaluator metrics"
+                    action={
+                        <Button size="sm" onClick={retry}>
+                            Try again
+                        </Button>
+                    }
+                />
+            ) : null}
+            {hasMetrics ? (
+                <CompareEvaluatorTable rows={rows} columns={columns} />
+            ) : runs.some((run) => run.metricsPending) ? (
+                <EvaluatorTableSkeleton label="Preparing evaluator metrics" />
+            ) : failed ? null : (
+                <OverviewEmpty
+                    title="No metric values generated"
+                    description="The evaluator metrics defined for these runs did not emit any values."
+                />
+            )}
         </div>
     )
 }
