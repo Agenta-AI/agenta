@@ -42,6 +42,7 @@ export const AgentConfigHost = ({
     shown = true,
     widen,
     onClose,
+    page = false,
     onWorkflowRevisionCommitted,
     guardRef,
     children,
@@ -62,6 +63,8 @@ export const AgentConfigHost = ({
     shown?: boolean
     widen?: PanelChromeControls["widen"]
     onClose?: () => void
+    /** The agent's Configuration page, not a pane: its view header drops the pane's rule. */
+    page?: boolean
     /** A commit made in the pane; the container pins the new revision. */
     onWorkflowRevisionCommitted: (revisionId: string) => void
     /** The page's hold on the stack, so it can close the views before it changes the pane. */
@@ -87,8 +90,8 @@ export const AgentConfigHost = ({
         if (!shown) closeSection()
     }, [shown, closeSection])
     const chrome = useMemo<PanelChromeControls>(
-        () => ({phone, widen, onClose}),
-        [phone, widen, onClose],
+        () => ({phone, widen, onClose, page}),
+        [phone, widen, onClose, page],
     )
     return (
         // The bridge holds the stack, so an open view gets the same host parts as the tab's root.

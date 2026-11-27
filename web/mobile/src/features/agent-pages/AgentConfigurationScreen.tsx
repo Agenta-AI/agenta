@@ -164,6 +164,7 @@ export const AgentConfigurationScreen = ({
                             sectionScreen={sectionScreen}
                             onWorkflowRevisionCommitted={pin}
                             guardRef={guard}
+                            page
                         >
                             {() => (
                                 <>

@@ -17,6 +17,8 @@ export interface PanelChromeControls {
     widen?: {wide: boolean; setWide: (wide: boolean) => void}
     /** Closes the container; without it the header has no Close. */
     onClose?: () => void
+    /** A page body, not a pane: the header is a plain crumb line with no rule under it. */
+    page?: boolean
 }
 
 export const PanelChromeContext = createContext<PanelChromeControls>({phone: false})
@@ -43,7 +45,7 @@ export const PanelViewChrome = ({
     children,
 }: ViewChromeProps) => {
     const t = useT(commonCatalog)
-    const {phone, widen, onClose} = useContext(PanelChromeContext)
+    const {phone, widen, onClose, page} = useContext(PanelChromeContext)
     const setWide = widen?.setWide ?? noWiden
     // The widen lasts while the views are open: closing them restores the stored width.
     useEffect(() => () => setWide(false), [setWide])
@@ -67,6 +69,7 @@ export const PanelViewChrome = ({
                         widen ? {wide: widen.wide, onToggle: () => setWide(!widen.wide)} : undefined
                     }
                     onClose={onClose}
+                    className={page ? "h-8 border-b-0" : undefined}
                 />
             )}
             {/* Edge to edge: each view pads itself. */}
