@@ -14,7 +14,9 @@ export function EmptyAccountBox({text, children}: {text: string; children?: Reac
             <IconTile size={32} className="bg-background" aria-hidden>
                 <UserCircle />
             </IconTile>
-            <span className="min-w-0 flex-1 text-label leading-5 text-muted-foreground">{text}</span>
+            <span className="min-w-0 flex-1 text-label leading-5 text-muted-foreground">
+                {text}
+            </span>
             {children}
         </div>
     )

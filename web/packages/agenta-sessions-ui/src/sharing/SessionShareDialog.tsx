@@ -316,29 +316,29 @@ export const SessionShareDialog = ({
                                         onAddMembers={onAddMembers}
                                         // The role the invite gives, inside the field (one control, not three).
                                         end={
-                                        <Select
-                                            value={inviteRole}
-                                            onValueChange={(value) =>
-                                                setInviteRole(value as SessionRole)
-                                            }
-                                        >
-                                            <SelectTrigger
+                                            <Select
+                                                value={inviteRole}
+                                                onValueChange={(value) =>
+                                                    setInviteRole(value as SessionRole)
+                                                }
+                                            >
+                                                <SelectTrigger
                                                     variant="ghost"
                                                     size="sm"
                                                     aria-label={copy.inviteRoleLabel}
                                                     className="-mr-1.5 h-control-xs w-auto shrink-0"
                                                 >
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="viewer">
-                                                    {sessionRoleCopy.viewer.label}
-                                                </SelectItem>
-                                                <SelectItem value="participant">
-                                                    {sessionRoleCopy.participant.label}
-                                                </SelectItem>
-                                            </SelectContent>
-                                        </Select>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="viewer">
+                                                        {sessionRoleCopy.viewer.label}
+                                                    </SelectItem>
+                                                    <SelectItem value="participant">
+                                                        {sessionRoleCopy.participant.label}
+                                                    </SelectItem>
+                                                </SelectContent>
+                                            </Select>
                                         }
                                     />
                                     <LoadingButton
@@ -402,76 +402,73 @@ export const SessionShareDialog = ({
                                 </div>
                             ) : null}
                             {grants.map((grant) => {
-                                    const person = byId.get(grant.user_id) ?? {
-                                        user_id: grant.user_id,
-                                        email: "",
-                                    }
-                                    return (
-                                        <div
-                                            key={grant.user_id}
-                                            data-testid="session-grant-row"
-                                            className="flex h-row-double items-center gap-2"
-                                        >
-                                            <PersonAvatar person={person} size="default" />
-                                            <div className="flex min-w-0 flex-1 flex-col">
-                                                <span className="truncate text-label">
-                                                    {nameOf(grant.user_id)}
+                                const person = byId.get(grant.user_id) ?? {
+                                    user_id: grant.user_id,
+                                    email: "",
+                                }
+                                return (
+                                    <div
+                                        key={grant.user_id}
+                                        data-testid="session-grant-row"
+                                        className="flex h-row-double items-center gap-2"
+                                    >
+                                        <PersonAvatar person={person} size="default" />
+                                        <div className="flex min-w-0 flex-1 flex-col">
+                                            <span className="truncate text-label">
+                                                {nameOf(grant.user_id)}
+                                            </span>
+                                            {person.name ? (
+                                                <span className="truncate text-meta text-muted-foreground">
+                                                    {person.email}
                                                 </span>
-                                                {person.name ? (
-                                                    <span className="truncate text-meta text-muted-foreground">
-                                                        {person.email}
-                                                    </span>
-                                                ) : null}
-                                                {grant.role === "participant" &&
-                                                person.can_run_sessions === false ? (
-                                                    <span className="text-meta text-muted-foreground">
-                                                        {copy.grantViewOnlyByRole}
-                                                    </span>
-                                                ) : null}
-                                            </div>
-                                            <span className={ROLE_COLUMN_CLASS}>
-                                                {isOwner ? (
-                                                    <SessionGrantRoleMenu
-                                                        role={grant.role}
-                                                        canSend={person.can_run_sessions !== false}
-                                                        personName={nameOf(grant.user_id)}
-                                                        saving={saving === grant.user_id}
-                                                        onChangeRole={(role) => {
-                                                            if (role === "participant") {
-                                                                setWidening({
-                                                                    kind: "raise",
-                                                                    userId: grant.user_id,
-                                                                })
-                                                            } else {
-                                                                void run(grant.user_id, () =>
-                                                                    onUpsertGrant(
-                                                                        grant.user_id,
-                                                                        role,
-                                                                    ),
-                                                                )
-                                                            }
-                                                        }}
-                                                        onRemove={() =>
+                                            ) : null}
+                                            {grant.role === "participant" &&
+                                            person.can_run_sessions === false ? (
+                                                <span className="text-meta text-muted-foreground">
+                                                    {copy.grantViewOnlyByRole}
+                                                </span>
+                                            ) : null}
+                                        </div>
+                                        <span className={ROLE_COLUMN_CLASS}>
+                                            {isOwner ? (
+                                                <SessionGrantRoleMenu
+                                                    role={grant.role}
+                                                    canSend={person.can_run_sessions !== false}
+                                                    personName={nameOf(grant.user_id)}
+                                                    saving={saving === grant.user_id}
+                                                    onChangeRole={(role) => {
+                                                        if (role === "participant") {
+                                                            setWidening({
+                                                                kind: "raise",
+                                                                userId: grant.user_id,
+                                                            })
+                                                        } else {
                                                             void run(grant.user_id, () =>
-                                                                onRevokeGrant(grant.user_id),
+                                                                onUpsertGrant(grant.user_id, role),
                                                             )
                                                         }
-                                                    />
-                                                ) : (
-                                                    <span className="px-1.5 text-label">
-                                                        {
-                                                            sessionRoleCopy[
-                                                                person.can_run_sessions === false
-                                                                    ? "viewer"
-                                                                    : grant.role
-                                                            ].label
-                                                        }
-                                                    </span>
-                                                )}
-                                            </span>
-                                        </div>
-                                    )
-                                })}
+                                                    }}
+                                                    onRemove={() =>
+                                                        void run(grant.user_id, () =>
+                                                            onRevokeGrant(grant.user_id),
+                                                        )
+                                                    }
+                                                />
+                                            ) : (
+                                                <span className="px-1.5 text-label">
+                                                    {
+                                                        sessionRoleCopy[
+                                                            person.can_run_sessions === false
+                                                                ? "viewer"
+                                                                : grant.role
+                                                        ].label
+                                                    }
+                                                </span>
+                                            )}
+                                        </span>
+                                    </div>
+                                )
+                            })}
                         </section>
 
                         <section className="flex flex-col gap-2">

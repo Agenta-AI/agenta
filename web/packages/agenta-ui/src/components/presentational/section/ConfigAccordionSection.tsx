@@ -325,11 +325,7 @@ export function ConfigAccordionSection({
         >
             {iconTile ? (
                 // A 28 px tile with a 16 px glyph: one step up from the item rows' Mark.
-                <IconTile
-                    size={24}
-                    className="size-7 [&_svg]:size-4"
-                    style={{color: iconColor}}
-                >
+                <IconTile size={24} className="size-7 [&_svg]:size-4" style={{color: iconColor}}>
                     {icon}
                 </IconTile>
             ) : (

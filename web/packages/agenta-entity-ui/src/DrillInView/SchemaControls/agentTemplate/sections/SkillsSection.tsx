@@ -166,9 +166,7 @@ const SkillsList = ({
     const name = entry ? describeSkill(entry).name : ""
     const kind = ITEM_KINDS.skill
     if (skills.length === 0) {
-        return disabled ? null : (
-            <SectionEmpty>{kind.emptyLabel}</SectionEmpty>
-        )
+        return disabled ? null : <SectionEmpty>{kind.emptyLabel}</SectionEmpty>
     }
     return (
         <>
@@ -208,10 +206,7 @@ const SkillsList = ({
                 })}
             </div>
             {removing ? (
-                <AlertDialog
-                    open
-                    onOpenChange={(next) => (next ? undefined : setRemoving(null))}
-                >
+                <AlertDialog open onOpenChange={(next) => (next ? undefined : setRemoving(null))}>
                     <AlertDialogContent data-testid="remove-from-agent-dialog">
                         <AlertDialogHeader>
                             <AlertDialogTitle>

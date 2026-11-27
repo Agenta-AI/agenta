@@ -54,7 +54,14 @@ import {
     SearchInput,
     SimpleTooltip,
 } from "@agenta/ui/ui"
-import {ArrowsLeftRight, CaretRight, Check, MagnifyingGlass, Plus, Star} from "@phosphor-icons/react"
+import {
+    ArrowsLeftRight,
+    CaretRight,
+    Check,
+    MagnifyingGlass,
+    Plus,
+    Star,
+} from "@phosphor-icons/react"
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
@@ -963,7 +970,9 @@ export function IntegrationCatalog({
                             message={t("entityUi.integrationDrawer.appsUnavailable")}
                             description={
                                 <div className="flex items-start justify-between gap-4">
-                                    <span>{t("entityUi.integrationDrawer.appsUnavailableDetail")}</span>
+                                    <span>
+                                        {t("entityUi.integrationDrawer.appsUnavailableDetail")}
+                                    </span>
                                     <Button
                                         size="sm"
                                         variant="outline"

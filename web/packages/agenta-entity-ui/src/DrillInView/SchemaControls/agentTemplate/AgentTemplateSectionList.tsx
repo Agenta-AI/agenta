@@ -157,7 +157,7 @@ export const AgentTemplateSectionList = ({
                                     ? card.summary
                                     : !pane && s.empty
                                       ? undefined
-                                      : ((!pane && s.panelSummary) || s.summary)
+                                      : (!pane && s.panelSummary) || s.summary
                             }
                             preview={card?.preview}
                             extra={s.extra}

@@ -192,7 +192,10 @@ export const MemberPicker = ({
                     ) : null}
                     {end ? (
                         // Its own clicks stay its own: they must not focus the search.
-                        <span className="ml-auto flex shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <span
+                            className="ml-auto flex shrink-0"
+                            onClick={(e) => e.stopPropagation()}
+                        >
                             {end}
                         </span>
                     ) : null}

@@ -28,11 +28,7 @@ const stripTrailingNewlines = (text: string) => {
  * re-serialising the file): it moves a clean baseline instead of making the draft dirty, so
  * opening a file never writes it.
  */
-export const applyDriveDraftChange = (
-    draft: DriveDraft,
-    text: string,
-    edit = true,
-): DriveDraft => {
+export const applyDriveDraftChange = (draft: DriveDraft, text: string, edit = true): DriveDraft => {
     if (!edit && !isDriveDraftDirty(draft)) return {...draft, baseline: text, value: text}
     if (draft.baseline === null) {
         // A hydration echo (the seed, normalised) is the baseline, not an edit.

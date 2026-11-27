@@ -44,13 +44,7 @@ const access = {
 function Harness({initial}: {initial: AgentaToolsMap}) {
     const [tools, setTools] = useState(initial)
     saved = tools
-    return (
-        <AgentaToolsSection
-            tools={tools}
-            onChange={setTools}
-            access={access}
-        />
-    )
+    return <AgentaToolsSection tools={tools} onChange={setTools} access={access} />
 }
 beforeEach(() => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)

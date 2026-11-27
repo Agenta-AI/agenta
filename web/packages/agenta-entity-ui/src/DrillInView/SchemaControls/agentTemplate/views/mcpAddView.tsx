@@ -16,8 +16,5 @@ export const mcpAddView = defineView<McpAddViewParams>({
     apply: "immediate",
     readOnlyOnPhone: true,
     actionRow: false,
-    Component: lazyView(
-        () => import("./McpAddViewBody"),
-        <McpServerListSkeleton />,
-    ),
+    Component: lazyView(() => import("./McpAddViewBody"), <McpServerListSkeleton />),
 })

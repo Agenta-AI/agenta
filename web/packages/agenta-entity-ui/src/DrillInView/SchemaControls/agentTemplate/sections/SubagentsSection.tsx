@@ -177,10 +177,7 @@ const SubagentSectionBody = ({
                 <SubagentList {...listProps} />
             )}
             {removing ? (
-                <AlertDialog
-                    open
-                    onOpenChange={(next) => (next ? undefined : setRemoving(null))}
-                >
+                <AlertDialog open onOpenChange={(next) => (next ? undefined : setRemoving(null))}>
                     <AlertDialogContent data-testid="remove-from-agent-dialog">
                         <AlertDialogHeader>
                             <AlertDialogTitle>

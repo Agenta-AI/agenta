@@ -408,8 +408,7 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
                     <div className="text-body">
                         {t("settings.accessSecurityTab.deleteDomainBody", {
                             name:
-                                deletingDomain?.slug ??
-                                t("settings.accessSecurityTab.thisDomain"),
+                                deletingDomain?.slug ?? t("settings.accessSecurityTab.thisDomain"),
                         })}
                     </div>
                     {deletingDomain && domainError ? (

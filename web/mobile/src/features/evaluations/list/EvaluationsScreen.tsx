@@ -337,7 +337,7 @@ export const EvaluationsScreen = ({
                                 {actions.confirmDialog.pending
                                     ? t("common.working")
                                     : (actions.confirmDialog.request?.okText ??
-                                          t("common.confirm"))}
+                                      t("common.confirm"))}
                             </Button>
                         </AlertDialogAction>
                     </AlertDialogFooter>

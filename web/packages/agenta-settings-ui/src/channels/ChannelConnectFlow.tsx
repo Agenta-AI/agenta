@@ -1041,10 +1041,7 @@ export const ChannelConnectFlow = ({
                 )}
 
                 {/* The method's content enters when the method changes (MOTION-01). */}
-                <div
-                    key={methodKey}
-                    className="ag-view-enter flex flex-col gap-6"
-                >
+                <div key={methodKey} className="ag-view-enter flex flex-col gap-6">
                     {/* SLACK · hosted */}
                     {isSlack && mode === "hosted" ? (
                         <div className="flex flex-col gap-2">

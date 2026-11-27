@@ -7,12 +7,6 @@
 
 export {default as AgentSetupCard, type AgentSetupCardProps} from "./AgentSetupCard"
 export {default as AccountRow, type AccountRowProps} from "./AccountRow"
-export {
-    SETUP_COPY,
-    setupBadge,
-    setupFootnote,
-    setupLead,
-    setupTitle,
-} from "./copy"
+export {SETUP_COPY, setupBadge, setupFootnote, setupLead, setupTitle} from "./copy"
 export {SetupCardFrame, type SetupCardBadge, type SetupCardFrameProps} from "./SetupCardFrame"
 export {useAgentSetupStep, type AgentSetupDraft, type AgentSetupStep} from "./useAgentSetupStep"

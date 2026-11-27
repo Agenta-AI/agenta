@@ -16,8 +16,5 @@ export interface IntegrationViewParams {
 export const integrationView = defineView<IntegrationViewParams>({
     id: "agent.integration",
     apply: "immediate",
-    Component: lazyView(
-        () => import("./IntegrationViewBody"),
-        <ToolPermissionsViewSkeleton />,
-    ),
+    Component: lazyView(() => import("./IntegrationViewBody"), <ToolPermissionsViewSkeleton />),
 })

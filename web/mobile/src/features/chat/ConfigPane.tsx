@@ -4,7 +4,6 @@ import {AgentEditorContext, SectionListLayoutContext} from "@agenta/entity-ui/dr
 import {AgentBuildPanel} from "@agenta/playground-ui/agent-build"
 import {cn} from "@agenta/ui/styles"
 
-
 /**
  * The Agent tab of the panel: the SHARED config panel, the same sections the desktop playground
  * renders.

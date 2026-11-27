@@ -26,8 +26,5 @@ const McpServerViewSkeleton = () => (
 export const mcpServerView = defineView<McpServerViewParams>({
     id: "mcp.server",
     apply: "immediate",
-    Component: lazyView(
-        () => import("./McpServerViewBody"),
-        <McpServerViewSkeleton />,
-    ),
+    Component: lazyView(() => import("./McpServerViewBody"), <McpServerViewSkeleton />),
 })

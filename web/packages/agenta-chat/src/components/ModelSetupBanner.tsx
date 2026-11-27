@@ -19,10 +19,7 @@ export interface ModelSetupBannerProps {
  * The one banner the needs-setup check raises, and only for a model item. Tools, MCP servers,
  * secrets and app connections never reach it: they show a tag on their own card.
  */
-export const ModelSetupBanner = ({
-    revisionId,
-    onSetUp,
-}: ModelSetupBannerProps) => {
+export const ModelSetupBanner = ({revisionId, onSetUp}: ModelSetupBannerProps) => {
     const t = useT(chatModelSetupBannerCatalog)
     const {blocked, canFix} = useAgentModelSetup(revisionId)
     const action =

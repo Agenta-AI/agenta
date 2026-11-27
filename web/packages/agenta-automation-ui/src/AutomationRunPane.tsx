@@ -92,7 +92,11 @@ export const AutomationRunPane = ({
                             className="-mr-1.5"
                             aria-label={t("automations.runHistory.openRunInNewTab")}
                         >
-                            <a href={sessionHref(sessionId)} target="_blank" rel="noopener noreferrer">
+                            <a
+                                href={sessionHref(sessionId)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >
                                 <ArrowSquareOut aria-hidden />
                             </a>
                         </Button>

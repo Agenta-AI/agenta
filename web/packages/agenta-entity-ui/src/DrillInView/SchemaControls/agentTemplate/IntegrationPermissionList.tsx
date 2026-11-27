@@ -334,9 +334,7 @@ const ToolRow = memo(function ToolRow({
                         variant="filled"
                         aria-label={t("entityUi.permissionDrawer.permissionFor", {tool: tool.key})}
                         // One width for every value, so the column lines up; full width on a phone (M09).
-                        triggerClassName={`${
-                            phone ? "w-full gap-2" : "w-32 shrink-0 gap-2"
-                        } ${
+                        triggerClassName={`${phone ? "w-full gap-2" : "w-32 shrink-0 gap-2"} ${
                             permission === "deny" && !plainDeny
                                 ? "bg-destructive/10 text-destructive"
                                 : ""
@@ -731,7 +729,8 @@ export function IntegrationDrawerBody({
     // reason, and this query carries no shared search atom to fight over.
     const {actions, complete, isLoading, error} = useToolIntegrationCatalog(target.integration)
     // The app's name in what people read, never its key.
-    const appName = useToolIntegrationDetail(target.integration).integration?.name || target.integration
+    const appName =
+        useToolIntegrationDetail(target.integration).integration?.name || target.integration
 
     // Kept separate from the stale-key pass in the body: this one walks the whole catalog, and it
     // must not rerun each time a per-tool click gives `permissions` a new identity.

@@ -213,11 +213,7 @@ export function AddSkillsBody({addedSlugs, onAdd, onRemove, onNewSkill}: AddSkil
     const failed = query.isError && registry.length === 0
 
     return (
-        <div
-            ref={rootRef}
-            tabIndex={-1}
-            className="flex min-h-0 flex-1 flex-col pt-3 outline-none"
-        >
+        <div ref={rootRef} tabIndex={-1} className="flex min-h-0 flex-1 flex-col pt-3 outline-none">
             {/* Fixed above the scroll. pt-1 keeps the focus ring inside the body's clip. */}
             <div className="flex shrink-0 items-center gap-2 px-4 pb-2 pt-1">
                 <SearchInput

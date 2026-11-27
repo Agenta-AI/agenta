@@ -81,7 +81,15 @@ const Empty = ({children}: {children: ReactNode}) => (
 )
 
 /** One item line: a 24px Mark, 8px to its name, an optional value at the end. */
-const MarkLine = ({mark, children, end}: {mark: ReactNode; children: ReactNode; end?: ReactNode}) => (
+const MarkLine = ({
+    mark,
+    children,
+    end,
+}: {
+    mark: ReactNode
+    children: ReactNode
+    end?: ReactNode
+}) => (
     <div className="flex h-8 items-center gap-2 text-body-sm">
         {mark}
         <span className="min-w-0 flex-1 truncate">{children}</span>

@@ -360,7 +360,11 @@ export const AgentLayoutBody = ({
                 </div>
             ) : null}
             {canConfigure && (mounted.has("configuration") || content === "configuration") ? (
-                <div className={shown === "configuration" ? "ag-view-enter h-full min-h-0" : "hidden"}>
+                <div
+                    className={
+                        shown === "configuration" ? "ag-view-enter h-full min-h-0" : "hidden"
+                    }
+                >
                     <ConfigurationContent
                         key={agentId}
                         agentId={agentId!}

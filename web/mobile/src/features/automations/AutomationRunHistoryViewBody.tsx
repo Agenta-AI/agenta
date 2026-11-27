@@ -22,10 +22,7 @@ const AutomationRunHistoryViewBody = ({params}: ViewProps<AutomationRunHistoryVi
     useViewTitle(t("automations.editor.runHistory"))
     // While one run fills the view, the pane header's Back returns to the list (one back per screen).
     const [runBack, setRunBack] = useState<(() => void) | null>(null)
-    const onRunBackChange = useCallback(
-        (back: (() => void) | null) => setRunBack(() => back),
-        [],
-    )
+    const onRunBackChange = useCallback((back: (() => void) | null) => setRunBack(() => back), [])
     useViewForm({
         dirty: false,
         valid: true,

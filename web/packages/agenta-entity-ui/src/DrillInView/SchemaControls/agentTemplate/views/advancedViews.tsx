@@ -22,10 +22,7 @@ export const executionView = defineView<AdvancedViewParams>({
     id: "agent.advanced.execution",
     apply: "immediate",
     readOnlyOnPhone: true,
-    Component: lazyView(
-        () => import("./ExecutionViewBody"),
-        <AdvancedPartSkeleton body="field" />,
-    ),
+    Component: lazyView(() => import("./ExecutionViewBody"), <AdvancedPartSkeleton body="field" />),
 })
 
 /** "Agenta tools" (F04 f10): today's body, with Cancel and Save. */

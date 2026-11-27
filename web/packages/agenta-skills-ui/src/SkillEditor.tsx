@@ -10,13 +10,7 @@ import {cn} from "@agenta/ui/styles"
 import {Button, Field, IconTile, RightPane, SimpleTooltip, Textarea} from "@agenta/ui/ui"
 import {ArrowLeft, CaretRight, Files} from "@phosphor-icons/react"
 
-import {
-    baseOf,
-    descriptionTooLong,
-    dirOf,
-    isMarkdownPath,
-    type SkillDraft,
-} from "./skillDraft"
+import {baseOf, descriptionTooLong, dirOf, isMarkdownPath, type SkillDraft} from "./skillDraft"
 import {SkillFilesPanel} from "./SkillFilesPanel"
 import {SkillMarkdownFrame} from "./SkillMarkdownFrame"
 import {useFillPageHeight} from "./useFillPageHeight"

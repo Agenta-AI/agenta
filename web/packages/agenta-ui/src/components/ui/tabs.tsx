@@ -108,9 +108,7 @@ function TabsIndicator() {
                     "motion-safe:transition-[transform,width] motion-safe:duration-[var(--duration-base)] motion-safe:ease-[var(--ease-in-out)]",
             )}
             style={
-                box
-                    ? {transform: `translateX(${box.left}px)`, width: box.width}
-                    : {display: "none"}
+                box ? {transform: `translateX(${box.left}px)`, width: box.width} : {display: "none"}
             }
         />
     )
