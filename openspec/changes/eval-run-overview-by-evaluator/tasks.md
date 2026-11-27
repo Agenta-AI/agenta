@@ -24,7 +24,7 @@ Files: `E/core/evaluatorRows.ts` (new), `E/core/index.ts`, `E/index.ts`, `E/stat
 - [ ] 1.10 Mobile tests: rewrite `web/mobile/tests/unit/runOverviewCharts.render.test.tsx` for the table and the states; replace `runSummaryTable.render.test.tsx` with `runOverviewTiles.render.test.tsx` and `runMetaLine.render.test.tsx`. Update `runDetailsHeader.render.test.tsx`.
 - [ ] 1.11 Measure the per-test-case response size of the dev copy run and write it in the PR body.
 - [ ] 1.12 Acceptance on the dev copy: the meta line shows the test set, application, variant and date; the tiles show values ("Passed" with "N of M test cases" and "N of M assertions true"); each evaluator is one row; every binary metric shows "N of M" and a bar; every score shows the server's histogram with its two axis ends labeled (0 and 1 once Part E is deployed and the run is refreshed); no radar, no summary list, no metric cards. A live run on the dev copy still shows its charts under "Over time".
-- [ ] 1.13 Failed test cases (design decision 6, question 5 option A): `runFailures` from the per-test-case rows, `RunFailuresAlert` above the tiles, the "Test cases", "Passed" and "Errors" tiles with the failure counts, and the striped "no result" part in a row. Render tests for the alert and the tiles.
+- [ ] 1.13 Failed test cases (design decision 6, question 5 option A): `runFailures` from the per-test-case rows, `RunFailuresAlert` above the tiles, the "Test cases", "Passed" and "Errors" tiles with the failure counts, and the striped "no result" part in a row. Render tests for the alert and the tiles. Changed 2026-11-27 (Mahmoud): no alert for test cases that did not run; the "N did not run" line of the "Test cases" tile has a tooltip with that text. The alert stays for evaluator failures only.
 
 ## 2. Part B: metrics chart, picker and bars or radar (on A)
 
@@ -52,14 +52,14 @@ Files: `E/core/evaluatorRows.ts` (`compareChange`), `E/core/runCompare.ts`, `M/c
 
 ## 4. Part D: toolbar search, filter, group and sort (on A; can run with B and C)
 
-Files: `M/overview/EvaluatorToolbar.tsx` (new), `M/overview/evaluatorTableView.ts` (new, pure: search, filter and sort of rows), `M/overview/RunOverviewView.tsx`, `M/compare/overview/CompareOverviewTab.tsx` (if C is merged, else a follow-up commit), the catalog `evaluations.runOverview`.
+Files: `M/overview/EvaluatorToolbar.tsx` (new), `E/core/evaluatorRowsView.ts` (new, pure: search, filter and sort of rows), `M/overview/RunOverviewView.tsx`, `M/compare/overview/CompareOverviewTab.tsx` (if C is merged, else a follow-up commit), the catalog `evaluations.runOverview`.
 
-- [ ] 4.1 Add `filterAndSortRows(rows, {search, evaluators, sort})` with unit tests: search by evaluator name and by metric label, filter, "Lowest first", "Name", "Largest drop first", rows with no chartable value last.
-- [ ] 4.2 Build `EvaluatorToolbar` with `PageToolbar`, `FilterMenu` (section "Evaluator"), `GroupMenu` (one option "Evaluator") and a sort menu like `web/mobile/src/features/marketplace/TemplateSortMenu.tsx` (decision 11).
-- [ ] 4.3 Place the toolbar between the chart and the table; show "No evaluators match this search." when nothing matches.
-- [ ] 4.4 Use the toolbar in compare with the default sort "Largest drop first".
-- [ ] 4.5 Mobile tests in `web/mobile/tests/unit/runOverviewToolbar.render.test.tsx`: search narrows rows and not the chart, the filter hides rows, the sort orders rows, the no-match text.
-- [ ] 4.6 Acceptance on the dev copy: typing part of a metric name leaves only that evaluator's row; clearing an evaluator in the filter hides its row; "Sort: name" orders rows by name; the chart does not change.
+- [x] 4.1 Add `filterAndSortRows(rows, {search, evaluators, sort})` with unit tests: search by evaluator name and by metric label, filter, "Lowest first", "Name", "Largest drop first", rows with no chartable value last. Built for one run ("Lowest first", "Name"); "Largest drop first" comes with 4.4.
+- [x] 4.2 Build `EvaluatorToolbar` with `PageToolbar`, `FilterMenu` (section "Evaluator"), `GroupMenu` (one option "Evaluator") and a sort menu like `web/mobile/src/features/marketplace/TemplateSortMenu.tsx` (decision 11).
+- [x] 4.3 Place the toolbar between the chart and the table; show "No evaluators match this search." when nothing matches.
+- [ ] 4.4 Use the toolbar in compare with the default sort "Largest drop first". Not done: compare (Part C, PR 8631) is not in this stack; a follow-up after C lands.
+- [x] 4.5 Mobile tests in `web/mobile/tests/unit/runOverviewToolbar.render.test.tsx`: search narrows rows and not the chart, the filter hides rows, the sort orders rows, the no-match text.
+- [x] 4.6 Acceptance on the dev copy: typing part of a metric name leaves only that evaluator's row; clearing an evaluator in the filter hides its row; "Sort: name" orders rows by name; the chart does not change. Done on the dev copy run, 2026-11-27.
 
 ## 5. Part E: server bin rule for evaluator score histograms (backend, own lane, independent of A to D)
 

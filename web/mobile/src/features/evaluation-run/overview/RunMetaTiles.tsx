@@ -1,6 +1,7 @@
 import type {RunTile, RunTileDetail} from "@agenta/entities/evaluationRun"
 import {formatNumber, useT} from "@agenta/i18n"
 import runOverviewCatalog from "@agenta/i18n/catalogs/evaluations.runOverview"
+import {SimpleTooltip} from "@agenta/ui/ui"
 
 /** The run's totals as tiles: test cases, passed, cost, duration, tokens, errors. */
 export const RunMetaTiles = ({tiles, online}: {tiles: readonly RunTile[]; online: boolean}) => {
@@ -61,10 +62,34 @@ export const RunMetaTiles = ({tiles, online}: {tiles: readonly RunTile[]; online
                               })
                             : tile.value}
                     </span>
-                    {tile.detail ? (
+                    {tile.detail?.kind === "notRun" ? (
+                        // Test cases that did not run are told here, not in an alert over the page.
+                        <SimpleTooltip
+                            title={
+                                <>
+                                    <span className="block">
+                                        {t("evaluations.runOverview.notRunAlert", {
+                                            count: tile.detail.count,
+                                            total: tile.detail.total,
+                                        })}
+                                    </span>
+                                    <span className="block">
+                                        {t("evaluations.runOverview.notRunCounts")}
+                                    </span>
+                                </>
+                            }
+                        >
+                            <span
+                                tabIndex={0}
+                                className="max-w-full cursor-help self-start truncate text-meta text-destructive underline decoration-dotted underline-offset-2"
+                            >
+                                {detail(tile.detail)}
+                            </span>
+                        </SimpleTooltip>
+                    ) : tile.detail ? (
                         <span
                             className={`truncate text-meta ${
-                                tile.detail.kind === "notRun" || tile.detail.kind === "errorsSplit"
+                                tile.detail.kind === "errorsSplit"
                                     ? "text-destructive"
                                     : "text-muted-foreground"
                             }`}

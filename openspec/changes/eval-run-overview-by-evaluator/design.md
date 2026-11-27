@@ -190,7 +190,7 @@ Up to six tiles, in this order.
 Failed test cases (decision page question 5, built as the recommended option A; still open with Mahmoud):
 
 - The stored status of each step result tells which steps failed: one `POST /evaluations/results/query` with `{result: {run_ids: [runId], statuses: ["failure", "errors"]}, windowing: {limit: 5000}}`, read with the per-test-case rows. A test case "did not run" when a step that is not an evaluator step (the application) failed. An evaluator "failed" on a test case that ran when that evaluator step failed. The trace errors metric is not used for this: it also counts an error inside the application that the application recovered from.
-- When there is at least one such test case: a red alert above the tiles with the two counts and a "Show test cases" link to the Scenarios tab (the link does not filter the table); the "Test cases" tile shows "{ran} of {total}" and "{n} did not run"; "Passed" counts only the test cases that ran ("{passed} of {ran} that ran"); the "Errors" tile shows the failed test cases with "{runs} runs, {evaluator} evaluator", as on the canvas page "run with failed test cases". Each row shows a striped "no result" part for the test cases its evaluator failed on.
+- When there is at least one such test case: the "Test cases" tile shows "{ran} of {total}" and "{n} did not run", with a dotted underline and a tooltip that says why they did not run and that they count as neither passed nor failed; a red alert above the tiles only when an evaluator failed on a test case that ran, with its count and a "Show test cases" link to the Scenarios tab (the link does not filter the table). Decided by Mahmoud on 2026-11-27: no alert for test cases that did not run; "Passed" counts only the test cases that ran ("{passed} of {ran} that ran"); the "Errors" tile shows the failed test cases with "{runs} runs, {evaluator} evaluator", as on the canvas page "run with failed test cases". Each row shows a striped "no result" part for the test cases its evaluator failed on.
 - Without failures, or without the per-test-case rows, the tiles keep the run-level values above and no alert shows.
 
 ### 7. The meta line under the title
@@ -242,6 +242,7 @@ Failed test cases (decision page question 5, built as the recommended option A; 
 - Filter: a `FilterMenu` with one section "Evaluator", one checkbox per evaluator. Default: all.
 - Group: a `GroupMenu` with one option, "Evaluator", always on. Mahmoud asked to keep the control; a second option can come later without a layout change.
 - Sort, one run: "Lowest first" (default) by the row's lowest chart value; rows with no chartable metric go last. "Name" by evaluator name.
+- The search, filter and sort of the rows are pure functions in `E/core/evaluatorRowsView.ts` (`filterAndSortRows`, `lowestChartValue`). The filter keeps the step keys of the hidden rows, so a row that appears on a later poll is shown.
 - Sort, compare: "Largest drop first" (default) by the row's most negative change; "Lowest first" by the newest run's lowest value; "Name".
 - No match: "No evaluators match this search."
 
