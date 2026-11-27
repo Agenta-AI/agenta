@@ -1,8 +1,8 @@
 from typing import Sequence, Dict, List, Optional
-from threading import Thread
+from threading import Lock, Thread
 from os import environ
+from time import monotonic
 
-import requests
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
     OTLPSpanExporter,
 )
@@ -81,23 +81,6 @@ class InlineTraceExporter(SpanExporter):
         return trace
 
 
-class _CredentialSession(requests.Session):
-    """Adds the credentials of the current OTLP context to each request.
-
-    The OTLP HTTP client in opentelemetry 1.45 sends every request through the
-    session it is given, so this is the supported place to set the header. The
-    credentials are read per request, so nothing is shared between groups.
-    """
-
-    def request(self, method, url, *args, headers=None, **kwargs):  # type: ignore[override]
-        credentials = OTLPContext.get().credentials
-
-        if credentials:
-            headers = {**(headers or {}), "Authorization": credentials}
-
-        return super().request(method, url, *args, headers=headers, **kwargs)
-
-
 class OTLPExporter(OTLPSpanExporter):
     def __init__(
         self,
@@ -105,11 +88,43 @@ class OTLPExporter(OTLPSpanExporter):
         credentials: Optional[TTLLRUCache] = None,
         **kwargs,
     ):
-        kwargs.setdefault("session", _CredentialSession())
-
         super().__init__(*args, **kwargs)
 
         self.credentials = credentials
+        self._threads: List[Thread] = []
+        self._threads_lock = Lock()
+
+        # The OTLP HTTP client of opentelemetry 1.45 sends every request through
+        # the transport session. Wrap that session (also one loaded from a
+        # credential provider) so each request carries the credentials of the
+        # group that is exporting. Nothing is shared between groups. A provider
+        # session that sets Authorization itself still wins, as it did with
+        # opentelemetry 1.43, because the provider owns the collector auth.
+        session = self._client._transport._session
+        request = session.request
+
+        def request_with_credentials(method, url, *args, headers=None, **kwargs):
+            credentials = OTLPContext.get().credentials
+
+            if credentials:
+                headers = {**(headers or {}), "Authorization": credentials}
+
+            return request(method, url, *args, headers=headers, **kwargs)
+
+        session.request = request_with_credentials
+
+    def shutdown(self) -> None:
+        # Let the accepted async groups finish before the exporter closes. Each
+        # group stops retrying after the export timeout, so wait at most that
+        # long in total. A response that never completes must not block exit.
+        deadline = monotonic() + self._client._timeout
+        with self._threads_lock:
+            threads, self._threads = self._threads, []
+
+        for thread in threads:
+            thread.join(max(deadline - monotonic(), 0))
+
+        super().shutdown()
 
     def _export_group(
         self,
@@ -144,6 +159,9 @@ class OTLPExporter(OTLPSpanExporter):
                     daemon=False,
                 )
                 thread.start()
+                with self._threads_lock:
+                    self._threads = [t for t in self._threads if t.is_alive()]
+                    self._threads.append(thread)
                 results.append(True)
             else:
                 try:
