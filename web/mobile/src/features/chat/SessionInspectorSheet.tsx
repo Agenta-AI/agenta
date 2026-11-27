@@ -7,15 +7,8 @@ import {
 } from "@agenta/entities/session"
 import {useT} from "@agenta/i18n"
 import chatMobileSessionsCatalog from "@agenta/i18n/catalogs/chat.mobileSessions"
-import {
-    Button,
-    Sheet,
-    SheetContent,
-    SheetDescription,
-    SheetHeader,
-    SheetTitle,
-    SimpleTooltip,
-} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {Button, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle} from "@agenta/ui/ui"
 import {ArrowClockwise, DownloadSimple} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 

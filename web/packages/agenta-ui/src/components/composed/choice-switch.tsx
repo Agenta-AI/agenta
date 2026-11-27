@@ -1,7 +1,7 @@
 /** Two or more choices side by side, each a label and a short note: a Segmented whose choices need a word of explanation. */
 import {useLayoutEffect, useRef, useState, type KeyboardEvent} from "react"
 
-import {cn} from "./utils"
+import {cn} from "../ui/utils"
 
 export interface ChoiceSwitchOption<Value extends string> {
     value: Value

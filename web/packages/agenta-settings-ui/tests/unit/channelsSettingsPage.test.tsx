@@ -7,7 +7,6 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 vi.mock("@agenta/ui/ui", () => {
     const Wrap = ({children}: {children?: React.ReactNode}) => <div>{children}</div>
     return {
-        SimpleTooltip: ({children}: {children?: React.ReactNode}) => <>{children}</>,
         Alert: ({message}: {message: string}) => <div role="alert">{message}</div>,
         cn: (...classes: unknown[]) => classes.filter(Boolean).join(" "),
         SheetFooter: ({children}: {children?: React.ReactNode}) => <div>{children}</div>,
@@ -30,7 +29,6 @@ vi.mock("@agenta/ui/ui", () => {
         Input: ({value, onChange, ...props}: React.ComponentProps<"input">) => (
             <input value={value} onChange={onChange} data-testid={props["data-testid"]} />
         ),
-        PasswordInput: () => <input />,
         RadioGroup: Wrap,
         RadioGroupItem: () => <span />,
         Select: Wrap,
@@ -41,6 +39,12 @@ vi.mock("@agenta/ui/ui", () => {
         SkeletonBlock: () => <span data-testid="skeleton" />,
         Spinner: () => <span />,
         Switch: () => <span />,
+    }
+})
+vi.mock("@agenta/ui/composed", () => {
+    return {
+        SimpleTooltip: ({children}: {children?: React.ReactNode}) => <>{children}</>,
+        PasswordInput: () => <input />,
     }
 })
 vi.mock("../../src/channels/icons", () => ({AgentaMark: () => null, platformLogo: () => null}))

@@ -6,10 +6,10 @@ import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 import {CaretDownIcon, CircleNotchIcon, X} from "@phosphor-icons/react"
 
-import {CollapseCaret} from "./collapse-caret"
-import {Popover, PopoverAnchor, PopoverContent} from "./popover"
-import {selectTriggerVariants, type SelectTriggerProps} from "./select"
-import {cn} from "./utils"
+import {CollapseCaret} from "../ui/collapse-caret"
+import {Popover, PopoverAnchor, PopoverContent} from "../ui/popover"
+import {selectTriggerVariants, type SelectTriggerProps} from "../ui/select"
+import {cn} from "../ui/utils"
 
 /**
  * TreeSelect — single-select over an inline, arbitrarily nested tree; the replacement for antd

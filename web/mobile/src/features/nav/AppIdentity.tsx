@@ -1,6 +1,6 @@
 import {useT} from "@agenta/i18n"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
-import {IconTile} from "@agenta/ui/ui"
+import {IconTile} from "@agenta/ui/composed"
 import {CheckIcon, Gavel, TextboxIcon} from "@phosphor-icons/react"
 
 /**

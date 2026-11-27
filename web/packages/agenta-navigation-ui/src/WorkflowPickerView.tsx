@@ -2,12 +2,12 @@ import type {MouseEvent, ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
-    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {CaretDown} from "@phosphor-icons/react"
 import clsx from "clsx"

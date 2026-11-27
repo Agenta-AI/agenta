@@ -22,7 +22,8 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsAuditCatalog from "@agenta/i18n/catalogs/settings.audit"
 import settingsAuditEventTypesCatalog from "@agenta/i18n/catalogs/settings.auditEventTypes"
-import {Button, Combobox, SearchInput, type ComboboxOptionGroup} from "@agenta/ui/ui"
+import {SearchInput} from "@agenta/ui/composed"
+import {Button, Combobox, type ComboboxOptionGroup} from "@agenta/ui/ui"
 import {useAtom, useSetAtom} from "jotai"
 
 import {

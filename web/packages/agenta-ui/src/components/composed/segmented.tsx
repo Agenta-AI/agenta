@@ -2,7 +2,7 @@ import * as React from "react"
 
 import {cva, type VariantProps} from "class-variance-authority"
 
-import {cn} from "./utils"
+import {cn} from "../ui/utils"
 
 /**
  * Segmented — a custom cva primitive in @agenta/ui (NO Radix). A single-select control: a

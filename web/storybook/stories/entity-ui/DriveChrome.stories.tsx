@@ -10,7 +10,7 @@ import {
     FolderList,
     FolderTile,
 } from "@agenta/entity-ui/drive"
-import {SplitPane} from "@agenta/ui/ui"
+import {SplitPane} from "@agenta/ui/composed"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {expect, userEvent, within} from "storybook/test"
 

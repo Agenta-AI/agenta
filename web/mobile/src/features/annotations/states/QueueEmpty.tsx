@@ -1,6 +1,7 @@
 import {useT} from "@agenta/i18n"
 import queueScreensCatalog from "@agenta/i18n/catalogs/annotation.queueScreens"
-import {Button, EmptyState} from "@agenta/ui/ui"
+import {EmptyState} from "@agenta/ui/composed"
+import {Button} from "@agenta/ui/ui"
 import {Tray} from "@phosphor-icons/react"
 import Link from "next/link"
 

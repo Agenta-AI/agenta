@@ -10,9 +10,9 @@ import {useMemo, useState} from "react"
 import type {OrganizationSecretProjects} from "@agenta/entities/secret"
 import {useT} from "@agenta/i18n"
 import organizationProjectsCatalog from "@agenta/i18n/catalogs/entityUi.organizationProjects"
+import {ChoiceSwitch} from "@agenta/ui/composed"
 import {
     Button,
-    ChoiceSwitch,
     Command,
     CommandEmpty,
     CommandGroup,

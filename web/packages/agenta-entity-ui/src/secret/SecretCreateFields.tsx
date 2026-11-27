@@ -3,7 +3,8 @@ import type {Ref} from "react"
 
 import {useT} from "@agenta/i18n"
 import secretFormCatalog from "@agenta/i18n/catalogs/entityUi.secretForm"
-import {AutosizeTextarea, Field, Input} from "@agenta/ui/ui"
+import {AutosizeTextarea} from "@agenta/ui/composed"
+import {Field, Input} from "@agenta/ui/ui"
 
 import type {SecretFormController} from "./SecretForm"
 

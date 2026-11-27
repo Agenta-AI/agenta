@@ -3,6 +3,7 @@ import {Fragment, useLayoutEffect, useRef} from "react"
 import {driveRootLabel} from "@agenta/entities/drive"
 import {useT} from "@agenta/i18n"
 import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {
     Breadcrumb,
     BreadcrumbItem,
@@ -11,7 +12,6 @@ import {
     BreadcrumbPage,
     BreadcrumbSeparator,
     Button,
-    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {House} from "@phosphor-icons/react"
 

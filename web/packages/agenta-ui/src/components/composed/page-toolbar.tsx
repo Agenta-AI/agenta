@@ -4,8 +4,8 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import {MagnifyingGlassIcon, XIcon} from "@phosphor-icons/react"
 
-import {InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput} from "./input-group"
-import {cn} from "./utils"
+import {InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput} from "../ui/input-group"
+import {cn} from "../ui/utils"
 
 /**
  * A page's toolbar: search, then filters, then the end slot (a view switch) at the far edge.

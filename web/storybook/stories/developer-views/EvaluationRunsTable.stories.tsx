@@ -1,5 +1,5 @@
 import {setUserAtoms} from "@agenta/entities/shared/user"
-import {PageToolbar} from "@agenta/ui/ui"
+import {PageToolbar} from "@agenta/ui/composed"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {atom} from "jotai"
 import {expect, userEvent, within} from "storybook/test"

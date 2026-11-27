@@ -8,7 +8,7 @@ import type {WritableAtom} from "jotai"
 import {useAtom} from "jotai"
 import {atom} from "jotai"
 
-import {SearchInput} from "../../components/ui/input-composed"
+import {SearchInput} from "../../components/composed/input-affix"
 import {useIsNarrowScreen} from "../../hooks/useMediaQuery"
 import {cn} from "../../utils/styles"
 import type {ColumnDefs} from "../columnDef"

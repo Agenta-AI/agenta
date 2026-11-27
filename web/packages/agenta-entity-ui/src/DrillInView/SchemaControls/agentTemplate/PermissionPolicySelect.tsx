@@ -9,8 +9,8 @@ import type {ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import permissionDrawerCatalog from "@agenta/i18n/catalogs/entityUi.permissionDrawer"
+import {IconTile} from "@agenta/ui/composed"
 import {
-    IconTile,
     Select,
     SelectContent,
     SelectItem,

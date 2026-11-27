@@ -31,12 +31,12 @@ import {useT} from "@agenta/i18n"
 import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 import {filterItems} from "@agenta/shared/utils"
 
-import {EmptyState} from "../ui/empty-state"
+import {SearchInput} from "../composed"
+import {EmptyState} from "../composed/empty-state"
 import {Spinner} from "../ui/spinner"
 import {Tooltip, TooltipContent, TooltipTrigger} from "../ui/tooltip"
 
 import {EntityListItem} from "./ListItem"
-import {SearchInput} from "./SearchInput"
 
 // ============================================================================
 // TYPES
@@ -227,7 +227,7 @@ export function SearchablePopoverList<T>({
                 <div className="box-border border-0 border-b border-solid border-border-muted p-2">
                     <SearchInput
                         value={searchTerm}
-                        onChange={setSearchTerm}
+                        onValueChange={setSearchTerm}
                         placeholder={effectiveSearchPlaceholder}
                         autoFocus={false}
                     />

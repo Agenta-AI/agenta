@@ -1,10 +1,10 @@
 import {useEffect, useState, type FormEvent} from "react"
 
+import {LoadingButton} from "@agenta/ui/composed"
 import {
     Button,
     Field,
     Input,
-    LoadingButton,
     SheetDescription,
     SheetFooter,
     SheetHeader,

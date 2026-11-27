@@ -11,8 +11,9 @@ import {
 import {useT} from "@agenta/i18n"
 import marketplaceCatalog from "@agenta/i18n/catalogs/marketplace.page"
 import {LoadError} from "@agenta/ui/components/presentational"
+import {SearchInput} from "@agenta/ui/composed"
 import {ListTable} from "@agenta/ui/list-table"
-import {Kbd, SearchInput} from "@agenta/ui/ui"
+import {Kbd} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 

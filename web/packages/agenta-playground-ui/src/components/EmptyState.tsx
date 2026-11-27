@@ -4,7 +4,7 @@
  * Displayed when no runnable has been added to the playground yet.
  */
 
-import {IconTile} from "@agenta/ui/ui"
+import {IconTile} from "@agenta/ui/composed"
 import {Play, Lightning} from "@phosphor-icons/react"
 import {Button, Empty, Space, Typography} from "antd"
 

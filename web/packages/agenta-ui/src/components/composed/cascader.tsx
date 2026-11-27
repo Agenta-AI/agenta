@@ -6,9 +6,9 @@ import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 import {CaretDownIcon, CaretRightIcon, CircleNotchIcon, X} from "@phosphor-icons/react"
 
-import {Popover, PopoverAnchor, PopoverContent} from "./popover"
-import {selectTriggerVariants, type SelectTriggerProps} from "./select"
-import {cn} from "./utils"
+import {Popover, PopoverAnchor, PopoverContent} from "../ui/popover"
+import {selectTriggerVariants, type SelectTriggerProps} from "../ui/select"
+import {cn} from "../ui/utils"
 
 /**
  * Cascader — multi-column hierarchical single-select, the replacement for antd `<Cascader />`.

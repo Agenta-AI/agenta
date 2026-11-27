@@ -15,6 +15,7 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import permissionDrawerCatalog from "@agenta/i18n/catalogs/entityUi.permissionDrawer"
 import {humanizeActionKey} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
+import {IconTile, ItemViewTitle, SearchInput, SkeletonRows} from "@agenta/ui/composed"
 import {useIsPhone} from "@agenta/ui/phone"
 import {
     Badge,
@@ -24,10 +25,6 @@ import {
     EmptyHeader,
     EmptyMedia,
     EmptyTitle,
-    IconTile,
-    ItemViewTitle,
-    SearchInput,
-    SkeletonRows,
 } from "@agenta/ui/ui"
 import {Wrench} from "@phosphor-icons/react"
 import {useAtom} from "jotai"

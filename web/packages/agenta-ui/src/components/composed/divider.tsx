@@ -2,7 +2,7 @@ import * as React from "react"
 
 import {cva} from "class-variance-authority"
 
-import {cn} from "./utils"
+import {cn} from "../ui/utils"
 
 /**
  * Divider — a presentational @agenta/ui port of antd `Divider` (no Radix). Reproduces antd's

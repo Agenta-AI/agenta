@@ -11,8 +11,9 @@ import {
 import {createT, useT, type CatalogKey} from "@agenta/i18n"
 import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
 import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {DownloadSimple} from "@phosphor-icons/react"
 
 import {FOLDER_LIST_TRACKS} from "./DriveExplorerSkeleton"

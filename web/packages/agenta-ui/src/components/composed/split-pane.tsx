@@ -3,7 +3,7 @@ import * as React from "react"
 import {useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 
-import {cn} from "./utils"
+import {cn} from "../ui/utils"
 
 /**
  * SplitPane — a two-pane horizontal split with one DRIVEN pane (its width is a controlled

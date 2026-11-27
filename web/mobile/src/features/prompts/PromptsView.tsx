@@ -2,7 +2,7 @@ import type {ReactNode} from "react"
 
 import type {Folder} from "@agenta/entities/workflow"
 import {LoadError} from "@agenta/ui/components/presentational"
-import {PageToolbar} from "@agenta/ui/ui"
+import {PageToolbar} from "@agenta/ui/composed"
 
 import type {PromptsDialog} from "./promptDialogState"
 import type {PromptsRow} from "./promptRow"

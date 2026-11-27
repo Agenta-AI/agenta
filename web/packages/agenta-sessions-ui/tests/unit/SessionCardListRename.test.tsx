@@ -6,8 +6,8 @@
  * close, and the row must swap its title for an input that saves what you type.
  */
 import {act, createElement, type ReactNode} from "react"
-import {createRoot, type Root} from "react-dom/client"
 
+import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 const menuStub = vi.hoisted(() => ({
@@ -59,7 +59,6 @@ vi.mock("motion/react", async () => {
 vi.mock("@agenta/ui/ui", async () => {
     const {createElement} = await import("react")
     return {
-        SimpleTooltip: ({children}: {children: ReactNode}) => children,
         SkeletonBlock: () => null,
         ContextMenu: ({children}: {children: ReactNode}) => children,
         ContextMenuTrigger: ({children}: {children: ReactNode}) => children,
@@ -76,6 +75,11 @@ vi.mock("@agenta/ui/ui", async () => {
         ContextMenuItem: ({children, onSelect}: {children: ReactNode; onSelect?: () => void}) =>
             createElement("button", {onClick: onSelect}, children),
         ContextMenuSeparator: () => createElement("hr"),
+    }
+})
+vi.mock("@agenta/ui/composed", () => {
+    return {
+        SimpleTooltip: ({children}: {children: ReactNode}) => children,
     }
 })
 vi.mock("../../src/SessionAgentName", () => ({SessionAgentName: () => null}))

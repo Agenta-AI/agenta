@@ -3,6 +3,7 @@ import type {ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import skillsPageCatalog from "@agenta/i18n/catalogs/skills.page"
 import type {SkillOriginInfo} from "@agenta/skills"
+import {LoadingButton, SimpleTooltip} from "@agenta/ui/composed"
 import {useIsExpandedWindow} from "@agenta/ui/hooks"
 import {
     Button,
@@ -11,8 +12,6 @@ import {
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-    LoadingButton,
-    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {
     Archive,

@@ -13,15 +13,8 @@ import toolConnectionsCatalog from "@agenta/i18n/catalogs/entityUi.toolConnectio
 import {getAgentaApiUrl, getAgentaWebUrl, getHostQueryClient} from "@agenta/shared/api"
 import {dayjs} from "@agenta/shared/utils"
 import {modal} from "@agenta/ui/app-message"
-import {
-    Divider,
-    LoadingButton,
-    Sheet,
-    SheetContent,
-    SheetHeader,
-    SheetTitle,
-    Spinner,
-} from "@agenta/ui/ui"
+import {Divider, LoadingButton} from "@agenta/ui/composed"
+import {Sheet, SheetContent, SheetHeader, SheetTitle, Spinner} from "@agenta/ui/ui"
 import {ArrowClockwise, Trash, XCircle} from "@phosphor-icons/react"
 import {useAtom} from "jotai"
 

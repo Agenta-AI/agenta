@@ -2,7 +2,8 @@ import {type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import drawerSharedCatalog from "@agenta/i18n/catalogs/entityUi.drawerShared"
-import {Button, Divider, LoadingButton} from "@agenta/ui/ui"
+import {Divider, LoadingButton} from "@agenta/ui/composed"
+import {Button} from "@agenta/ui/ui"
 
 /**
  * Shared footer for entity config drawers (triggers: schedule + subscription; tools: integration

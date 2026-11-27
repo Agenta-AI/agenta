@@ -5,10 +5,6 @@
  * These components work with any data type and don't depend on entity-specific APIs.
  */
 
-// Search
-export {SearchInput} from "./SearchInput"
-export type {SearchInputProps} from "./SearchInput"
-
 // List items
 export {ListItem, EntityListItem} from "./ListItem"
 export type {ListItemProps, EntityListItemProps} from "./ListItem"

@@ -22,8 +22,8 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 
 import {cn, flexLayouts, gapClasses, justifyClasses} from "../../utils/styles"
+import {LoadingButton} from "../composed/loading-button"
 import {Button} from "../ui/button"
-import {LoadingButton} from "../ui/button-composed"
 
 // ============================================================================
 // TYPES

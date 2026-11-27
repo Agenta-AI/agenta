@@ -15,7 +15,8 @@ import {useT} from "@agenta/i18n"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {Keyboard} from "@phosphor-icons/react"
 
-import {Button, SimpleTooltip} from "../components/ui"
+import {SimpleTooltip} from "../components/composed"
+import {Button} from "../components/ui"
 
 import {KeyboardShortcutsSheet, useShortcutsSheetHotkey} from "./KeyboardShortcutsSheet"
 import {ShortcutKeys} from "./ShortcutKeys"

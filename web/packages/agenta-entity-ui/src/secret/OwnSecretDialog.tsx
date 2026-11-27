@@ -5,15 +5,8 @@
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import secretFormCatalog from "@agenta/i18n/catalogs/entityUi.secretForm"
-import {
-    Button,
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    LoadingButton,
-} from "@agenta/ui/ui"
+import {LoadingButton} from "@agenta/ui/composed"
+import {Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "@agenta/ui/ui"
 
 import {ACCOUNT_COPY} from "../accounts/copy"
 

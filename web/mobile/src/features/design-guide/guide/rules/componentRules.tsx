@@ -1,13 +1,5 @@
-import {
-    Alert,
-    Badge,
-    Button,
-    EmptyState,
-    Field,
-    IconTile,
-    Input,
-    SkeletonBlock,
-} from "@agenta/ui/ui"
+import {EmptyState, IconTile} from "@agenta/ui/composed"
+import {Alert, Badge, Button, Field, Input, SkeletonBlock} from "@agenta/ui/ui"
 import {ArrowClockwiseIcon, CopyIcon, PlusIcon, RobotIcon, TrashIcon} from "@phosphor-icons/react"
 
 import type {RuleExample} from "../types"

@@ -7,6 +7,31 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 vi.mock("@agenta/ui/ui", () => {
     const Wrap = ({children}: {children: React.ReactNode}) => <div>{children}</div>
     return {
+        Accordion: Wrap,
+        AccordionContent: Wrap,
+        AccordionItem: Wrap,
+        AccordionTrigger: Wrap,
+        Alert: ({message}: {message: string}) => <div role="alert">{message}</div>,
+        SheetFooter: ({children}: {children?: React.ReactNode}) => <div>{children}</div>,
+        Button: ({children, onClick, disabled, ...props}: React.ComponentProps<"button">) => (
+            <button disabled={disabled} onClick={onClick} data-testid={props["data-testid"]}>
+                {children}
+            </button>
+        ),
+        Input: () => <input />,
+        RadioGroup: Wrap,
+        RadioGroupItem: () => <span />,
+        Select: Wrap,
+        SelectContent: Wrap,
+        SelectItem: Wrap,
+        SelectTrigger: Wrap,
+        SelectValue: () => null,
+        Spinner: () => <span />,
+        Switch: () => <span />,
+    }
+})
+vi.mock("@agenta/ui/composed", () => {
+    return {
         ItemViewTitle: ({
             title,
             description,
@@ -26,28 +51,7 @@ vi.mock("@agenta/ui/ui", () => {
             </div>
         ),
         SimpleTooltip: ({children}: {children?: React.ReactNode}) => <>{children}</>,
-        Accordion: Wrap,
-        AccordionContent: Wrap,
-        AccordionItem: Wrap,
-        AccordionTrigger: Wrap,
-        Alert: ({message}: {message: string}) => <div role="alert">{message}</div>,
-        SheetFooter: ({children}: {children?: React.ReactNode}) => <div>{children}</div>,
-        Button: ({children, onClick, disabled, ...props}: React.ComponentProps<"button">) => (
-            <button disabled={disabled} onClick={onClick} data-testid={props["data-testid"]}>
-                {children}
-            </button>
-        ),
-        Input: () => <input />,
         PasswordInput: () => <input />,
-        RadioGroup: Wrap,
-        RadioGroupItem: () => <span />,
-        Select: Wrap,
-        SelectContent: Wrap,
-        SelectItem: Wrap,
-        SelectTrigger: Wrap,
-        SelectValue: () => null,
-        Spinner: () => <span />,
-        Switch: () => <span />,
     }
 })
 import {mapConnectionRow, mapSpaceRow, nameSpacesFrom} from "../../src/channels/actions"

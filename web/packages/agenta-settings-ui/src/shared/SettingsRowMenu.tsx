@@ -2,6 +2,7 @@ import {Fragment, useRef, useState, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import settingsSharedCatalog from "@agenta/i18n/catalogs/settings.shared"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {BottomSheetMenu, useIsPhone} from "@agenta/ui/phone"
 import {
     Button,
@@ -10,7 +11,6 @@ import {
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-    SimpleTooltip,
     Switch,
 } from "@agenta/ui/ui"
 import {DotsThreeVertical} from "@phosphor-icons/react"

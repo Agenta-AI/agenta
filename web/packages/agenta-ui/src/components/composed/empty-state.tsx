@@ -2,8 +2,15 @@ import * as React from "react"
 
 import {TrayIcon} from "@phosphor-icons/react"
 
-import {Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle} from "./empty"
-import {cn} from "./utils"
+import {
+    Empty,
+    EmptyContent,
+    EmptyDescription,
+    EmptyHeader,
+    EmptyMedia,
+    EmptyTitle,
+} from "../ui/empty"
+import {cn} from "../ui/utils"
 
 /**
  * EmptyState — antd Empty's props over the shadcn Empty parts. `image="default"|"simple"` both

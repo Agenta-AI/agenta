@@ -17,11 +17,11 @@ import type {SchemaProperty} from "@agenta/entities/shared"
 import {useT} from "@agenta/i18n"
 import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {Tag} from "@agenta/ui/components/presentational"
+import {InputAffix} from "@agenta/ui/composed"
 import {
     Badge,
     Button,
     Field,
-    InputAffix,
     Tooltip,
     TooltipContent,
     TooltipProvider,

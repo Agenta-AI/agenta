@@ -5,6 +5,7 @@ import channelsActionsCatalog from "@agenta/i18n/catalogs/channels.actions"
 import channelsLabelsCatalog from "@agenta/i18n/catalogs/channels.labels"
 import channelsPeopleCatalog from "@agenta/i18n/catalogs/channels.people"
 import commonCatalog from "@agenta/i18n/catalogs/common"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {
     Alert,
     Button,
@@ -14,7 +15,6 @@ import {
     SelectItem,
     SelectTrigger,
     SelectValue,
-    SimpleTooltip,
     Spinner,
 } from "@agenta/ui/ui"
 import {UsersThree, X} from "@phosphor-icons/react"

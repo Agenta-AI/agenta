@@ -19,11 +19,12 @@ import React, {useCallback, useEffect, useMemo, useRef, useState, type CSSProper
 import {useT} from "@agenta/i18n"
 import selectionCatalog from "@agenta/i18n/catalogs/entityUi.selection"
 import {cn} from "@agenta/ui"
-import {EntityListItem, SearchInput} from "@agenta/ui/components/selection"
+import {EntityListItem} from "@agenta/ui/components/selection"
+import {SearchInput} from "@agenta/ui/composed"
+import {EmptyState} from "@agenta/ui/composed"
 import {
     Button,
     Checkbox,
-    EmptyState,
     Popover,
     PopoverContent,
     PopoverTrigger,
@@ -762,7 +763,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                 <div className="flex-1">
                     <SearchInput
                         value={searchTerm}
-                        onChange={setSearchTerm}
+                        onValueChange={setSearchTerm}
                         placeholder={t("entityUi.selection.searchLevel", {
                             label: labelInSentence(rootLabel),
                         })}

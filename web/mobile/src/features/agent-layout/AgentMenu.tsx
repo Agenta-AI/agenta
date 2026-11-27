@@ -7,6 +7,7 @@ import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
 import agentsListCatalog from "@agenta/i18n/catalogs/agents.list"
 import {openAgentVersionHistoryAtom} from "@agenta/playground-ui/agent-version-history"
 import {InlineRenameInput} from "@agenta/sessions-ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {BottomSheetMenu} from "@agenta/ui/phone"
 import {
     Button,
@@ -14,7 +15,6 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
-    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {
     Archive,

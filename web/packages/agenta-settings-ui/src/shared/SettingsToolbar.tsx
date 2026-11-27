@@ -2,7 +2,8 @@ import type {ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import settingsSharedCatalog from "@agenta/i18n/catalogs/settings.shared"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {Button} from "@agenta/ui/ui"
 import {ArrowClockwise} from "@phosphor-icons/react"
 
 export interface SettingsToolbarProps {

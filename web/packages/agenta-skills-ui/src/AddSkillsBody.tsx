@@ -11,6 +11,7 @@ import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {skillsResolveDataAtom, skillsResolveQueryAtom} from "@agenta/skills/state"
 import {SkillMark} from "@agenta/ui/agent-icon"
+import {SearchInput, SimpleTooltip} from "@agenta/ui/composed"
 import type {AddSkillsBodyProps} from "@agenta/ui/drill-in"
 import {useScrollFadeEdges} from "@agenta/ui/hooks"
 import {
@@ -26,8 +27,6 @@ import {
     EmptyHeader,
     EmptyMedia,
     EmptyTitle,
-    SearchInput,
-    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {Check, DotsThreeVertical, MagnifyingGlass, Plus, Trash} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"

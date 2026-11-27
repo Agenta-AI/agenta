@@ -11,15 +11,12 @@ import React, {useCallback, useId, useMemo} from "react"
 
 import {useT} from "@agenta/i18n"
 import selectionCatalog from "@agenta/i18n/catalogs/entityUi.selection"
-import {
-    EntityBreadcrumb,
-    EntityListItem,
-    SearchInput,
-    VirtualEntityList,
-} from "@agenta/ui/components/selection"
+import {EntityBreadcrumb, EntityListItem, VirtualEntityList} from "@agenta/ui/components/selection"
 import {LoadAllButton, LoadMoreButton} from "@agenta/ui/components/selection"
+import {SearchInput} from "@agenta/ui/composed"
+import {EmptyState} from "@agenta/ui/composed"
 import {cn} from "@agenta/ui/styles"
-import {Button, EmptyState, Spinner} from "@agenta/ui/ui"
+import {Button, Spinner} from "@agenta/ui/ui"
 import {ArrowLeftIcon} from "@phosphor-icons/react"
 
 import {useBreadcrumbMode} from "../../../hooks"
@@ -256,7 +253,7 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
                 <div className="mb-2">
                     <SearchInput
                         value={searchTerm}
-                        onChange={setSearchTerm}
+                        onValueChange={setSearchTerm}
                         placeholder={t("entityUi.selection.searchLevel", {
                             label: labelInSentence(currentLevelLabel),
                         })}

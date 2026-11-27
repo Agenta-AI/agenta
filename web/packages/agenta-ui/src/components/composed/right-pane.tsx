@@ -6,10 +6,9 @@ import {ArrowLeftIcon, XIcon} from "@phosphor-icons/react"
 import {createPortal} from "react-dom"
 
 import {COMPACT_WINDOW_QUERY, useIsExpandedWindow, useWindowMatch} from "../../hooks/useWindowMatch"
-
-import {Button} from "./button"
-import {Sheet, SheetContent, SheetTitle} from "./sheet"
-import {cn} from "./utils"
+import {Button} from "../ui/button"
+import {Sheet, SheetContent, SheetTitle} from "../ui/sheet"
+import {cn} from "../ui/utils"
 
 /**
  * The right pane (LAYOUT-04): one slot of the layout that any page, component or package can

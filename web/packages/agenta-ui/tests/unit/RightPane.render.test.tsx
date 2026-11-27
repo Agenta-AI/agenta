@@ -4,7 +4,7 @@ import {useState} from "react"
 import {act, cleanup, fireEvent, render, screen} from "@testing-library/react"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {RightPane, RightPaneHost} from "../../src/components/ui/right-pane"
+import {RightPane, RightPaneHost} from "../../src/components/composed/right-pane"
 
 /** A controllable `matchMedia`: the expanded-window query follows `wide`. */
 let wide = true

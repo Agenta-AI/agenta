@@ -2,7 +2,7 @@
 import {cleanup, fireEvent, render, screen} from "@testing-library/react"
 import {afterEach, describe, expect, it} from "vitest"
 
-import {DateRangePicker} from "../../src/components/ui/date-range-picker"
+import {DateRangePicker} from "../../src/components/composed/date-range-picker"
 
 /**
  * The day grid was reachable but not operable: every day carried `tabIndex={-1}` and no key

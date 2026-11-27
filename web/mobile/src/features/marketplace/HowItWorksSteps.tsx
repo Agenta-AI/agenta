@@ -1,4 +1,4 @@
-import {IconTile} from "@agenta/ui/ui"
+import {IconTile} from "@agenta/ui/composed"
 import {LightningIcon} from "@phosphor-icons/react"
 
 import {AppTile} from "./AppTile"

@@ -110,6 +110,7 @@ import type {SimpleChatMessage, MessageContent, ToolCall} from "@agenta/shared/t
 
 ```typescript
 import {...} from "@agenta/ui/ui"                 // shadcn primitives (Button, Dialog, Sheet, ...)
+import {...} from "@agenta/ui/composed"           // built from the primitives (SimpleTooltip, LoadingButton, Segmented, SplitPane, ...)
 import {...} from "@agenta/ui"                    // presentational components, cn, textColors
 import {...} from "@agenta/ui/table"              // InfiniteVirtualTable, paginated stores
 import {...} from "@agenta/ui/editor"             // Editor, JSON parsing utilities
@@ -188,6 +189,7 @@ import {
 
 ```text
 Need a primitive (button, dialog, ...)? → @agenta/ui/ui
+Need a kit composition (SimpleTooltip, LoadingButton, Segmented, RightPane, ...)? → @agenta/ui/composed
 Need a modal?                          → Dialog from @agenta/ui/ui (EnhancedModal for antd-style call sites)
 Class-name utils or theme colors?      → cn, textColors, bgColors from @agenta/ui
 Section layout primitives?             → SectionCard, SectionLabel, ConfigBlock from @agenta/ui

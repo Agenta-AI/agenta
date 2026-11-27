@@ -3,7 +3,8 @@ import {useState, type FormEvent} from "react"
 import {ShowErrorMessage, FIELD_CLASS, KEYCAP_CLASS, useAuthFailureText} from "@agenta/auth-ui"
 import {useT} from "@agenta/i18n"
 import resetCatalog from "@agenta/i18n/catalogs/auth.resetPassword"
-import {Input, LoadingButton} from "@agenta/ui/ui"
+import {LoadingButton} from "@agenta/ui/composed"
+import {Input} from "@agenta/ui/ui"
 
 import {submitNewPasswordDetailed} from "@/lib/auth"
 

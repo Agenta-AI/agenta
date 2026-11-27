@@ -11,10 +11,10 @@ import {useT} from "@agenta/i18n"
 import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 
 import {cn, flexLayouts, justifyClasses, textColors} from "../../utils/styles"
-import {EmptyState} from "../ui/empty-state"
+import {SearchInput} from "../composed"
+import {EmptyState} from "../composed/empty-state"
 import {Spinner} from "../ui/spinner"
 
-import {SearchInput} from "./SearchInput"
 import {AdaptiveList, SimpleList, VirtualList} from "./VirtualList"
 
 // ============================================================================
@@ -173,7 +173,7 @@ export function SearchableList<T>({
                 <div className={cn("mb-2", searchClassName)}>
                     <SearchInput
                         value={searchValue}
-                        onChange={onSearchChange}
+                        onValueChange={onSearchChange}
                         placeholder={searchPlaceholder}
                         autoFocus={searchAutoFocus}
                         disabled={searchDisabled}

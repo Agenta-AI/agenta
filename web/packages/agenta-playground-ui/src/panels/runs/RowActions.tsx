@@ -1,6 +1,7 @@
 import {useT} from "@agenta/i18n"
 import runsCatalog from "@agenta/i18n/catalogs/playground.runs"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {Button} from "@agenta/ui/ui"
 import {ArrowsOutLineHorizontal, Copy, MinusCircle} from "@phosphor-icons/react"
 
 export interface RowActionsProps {

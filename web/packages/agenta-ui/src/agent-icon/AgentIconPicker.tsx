@@ -6,7 +6,7 @@ import uiAgentIconCatalog from "@agenta/i18n/catalogs/ui.agentIcon"
 import {MagnifyingGlassIcon} from "@phosphor-icons/react"
 import {useVirtualizer} from "@tanstack/react-virtual"
 
-import {SearchInput} from "../components/ui/input-composed"
+import {SearchInput} from "../components/composed/input-affix"
 import {Spinner} from "../components/ui/spinner"
 import {cn} from "../components/ui/utils"
 

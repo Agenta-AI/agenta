@@ -17,8 +17,8 @@ import {useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 
+import {LoadingButton} from "./composed/loading-button"
 import {Button, type ButtonProps} from "./ui/button"
-import {LoadingButton} from "./ui/button-composed"
 import {
     DropdownMenu,
     DropdownMenuContent,

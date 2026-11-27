@@ -12,6 +12,7 @@ import {Suspense, lazy, useEffect, useRef, type ReactNode, type RefObject} from 
 import {useT} from "@agenta/i18n"
 import chatChatComposerCatalog from "@agenta/i18n/catalogs/chat.chatComposer"
 import {isOverlayOpen} from "@agenta/shared/utils"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import {
     registerQuoteSubmit,
@@ -24,7 +25,7 @@ import type {
     RichChatInputHandle,
     SlashCommandSection,
 } from "@agenta/ui/rich-chat-input"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {Paperclip} from "@phosphor-icons/react"
 
 import {acceptAttrFor} from "../assets/attachmentRules"

@@ -20,9 +20,9 @@ import {useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {Clock} from "@phosphor-icons/react"
 
-import {Button} from "./button"
-import {Popover, PopoverContent, PopoverTrigger} from "./popover"
-import {cn} from "./utils"
+import {Button} from "../ui/button"
+import {Popover, PopoverContent, PopoverTrigger} from "../ui/popover"
+import {cn} from "../ui/utils"
 
 export interface TimePickerProps {
     /** `"HH:mm"`, 24-hour. Empty string or undefined means unset. */

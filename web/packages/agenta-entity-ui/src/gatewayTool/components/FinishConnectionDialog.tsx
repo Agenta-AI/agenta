@@ -2,6 +2,7 @@ import {useState, type ReactNode} from "react"
 
 import {richText, useT} from "@agenta/i18n"
 import toolConnectionsCatalog from "@agenta/i18n/catalogs/entityUi.toolConnections"
+import {LoadingButton} from "@agenta/ui/composed"
 import {
     Button,
     Dialog,
@@ -10,7 +11,6 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-    LoadingButton,
 } from "@agenta/ui/ui"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 

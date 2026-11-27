@@ -4,18 +4,9 @@ import {useT} from "@agenta/i18n"
 import agentSidebarCatalog from "@agenta/i18n/catalogs/agentSidebar"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import {SidebarLayoutContext} from "@agenta/navigation-ui"
+import {IconTile, SimpleTooltip} from "@agenta/ui/composed"
 import {BottomSheet} from "@agenta/ui/phone"
-import {
-    cn,
-    IconTile,
-    Input,
-    MENU_ITEM,
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-    SimpleTooltip,
-    Spinner,
-} from "@agenta/ui/ui"
+import {cn, Input, MENU_ITEM, Popover, PopoverContent, PopoverTrigger, Spinner} from "@agenta/ui/ui"
 import {CaretDownIcon, CheckIcon, PlusIcon, RobotIcon, SparkleIcon} from "@phosphor-icons/react"
 
 import {SwitcherTile, type SwitcherTileSize} from "./SwitcherTile"

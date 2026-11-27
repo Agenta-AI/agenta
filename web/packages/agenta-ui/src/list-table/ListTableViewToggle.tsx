@@ -4,7 +4,7 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import {ListIcon, SquaresFourIcon} from "@phosphor-icons/react"
 
-import {Segmented, type SegmentedOption} from "../components/ui/segmented"
+import {Segmented, type SegmentedOption} from "../components/composed/segmented"
 import {cn} from "../components/ui/utils"
 
 import type {ListTableView} from "./types"

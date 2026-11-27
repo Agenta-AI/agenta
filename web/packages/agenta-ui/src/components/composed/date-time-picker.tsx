@@ -20,9 +20,10 @@ import {useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {dayjs} from "@agenta/shared/utils"
 
-import {DatePicker} from "./date-picker"
+import {DatePicker} from "../ui/date-picker"
+import {cn} from "../ui/utils"
+
 import {TimePicker} from "./time-picker"
-import {cn} from "./utils"
 
 type Dayjs = ReturnType<typeof dayjs>
 

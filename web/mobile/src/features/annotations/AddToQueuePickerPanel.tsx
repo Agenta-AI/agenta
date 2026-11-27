@@ -1,4 +1,5 @@
-import {Button, SearchInput} from "@agenta/ui/ui"
+import {SearchInput} from "@agenta/ui/composed"
+import {Button} from "@agenta/ui/ui"
 import {PlusIcon} from "@phosphor-icons/react"
 
 import {AddToQueuePickerEmpty} from "./states/AddToQueuePickerEmpty"

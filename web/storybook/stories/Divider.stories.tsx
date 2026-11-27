@@ -1,4 +1,4 @@
-import {Divider} from "@agenta/ui/ui"
+import {Divider} from "@agenta/ui/composed"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 const meta = {

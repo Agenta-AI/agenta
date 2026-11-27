@@ -4,18 +4,9 @@ import {richText, useT, createT} from "@agenta/i18n"
 import channelsConnectCatalog from "@agenta/i18n/catalogs/channels.connect"
 import channelsTeamsCatalog from "@agenta/i18n/catalogs/channels.teams"
 import commonCatalog from "@agenta/i18n/catalogs/common"
+import {InputAffix, PasswordInput, SimpleTooltip} from "@agenta/ui/composed"
 import {scrollBehavior} from "@agenta/ui/styles"
-import {
-    Alert,
-    Button,
-    Field,
-    Input,
-    InputAffix,
-    PasswordInput,
-    SimpleTooltip,
-    Spinner,
-    Textarea,
-} from "@agenta/ui/ui"
+import {Alert, Button, Field, Input, Spinner, Textarea} from "@agenta/ui/ui"
 import {PaneFooter, ViewStep} from "@agenta/ui/view-stack"
 import {
     ArrowLeft,

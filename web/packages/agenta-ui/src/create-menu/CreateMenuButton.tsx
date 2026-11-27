@@ -3,13 +3,13 @@ import {Fragment, useRef, type ReactNode} from "react"
 
 import {GitBranch, PencilSimple, Plus, UploadSimple} from "@phosphor-icons/react"
 
+import {LoadingButton} from "../components/composed"
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-    LoadingButton,
     type ButtonProps,
 } from "../components/ui"
 import {cn} from "../utils/styles"

@@ -4,13 +4,8 @@ import {type ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
-import {
-    Button,
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuTrigger,
-    SimpleTooltip,
-} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {Button, DropdownMenu, DropdownMenuContent, DropdownMenuTrigger} from "@agenta/ui/ui"
 import {DotsThreeVertical} from "@phosphor-icons/react"
 
 export function TriggerActionsMenu({

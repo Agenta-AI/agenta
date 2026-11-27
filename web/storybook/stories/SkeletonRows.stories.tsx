@@ -1,4 +1,4 @@
-import {SkeletonRows} from "@agenta/ui/ui"
+import {SkeletonRows} from "@agenta/ui/composed"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 const meta = {

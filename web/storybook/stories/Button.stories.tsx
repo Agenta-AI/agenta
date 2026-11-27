@@ -1,5 +1,6 @@
 import {EnhancedButton, RunButton} from "@agenta/ui/components/presentational"
-import {Button as ShadButton, LoadingButton} from "@agenta/ui/ui"
+import {LoadingButton} from "@agenta/ui/composed"
+import {Button as ShadButton} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 

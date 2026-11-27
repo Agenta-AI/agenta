@@ -3,7 +3,7 @@
 import {type FileOrigin} from "@agenta/entities/drive"
 import {useT} from "@agenta/i18n"
 import drivePreviewCatalog from "@agenta/i18n/catalogs/entityUi.drivePreview"
-import {SimpleTooltip as Tooltip} from "@agenta/ui/ui"
+import {SimpleTooltip as Tooltip} from "@agenta/ui/composed"
 
 /** The info color at 55% — the recent-file left rule. */
 export const AGENT_ACCENT_SOFT = "color-mix(in oklab, var(--info) 55%, transparent)"

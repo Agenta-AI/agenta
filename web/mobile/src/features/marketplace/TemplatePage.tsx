@@ -1,7 +1,8 @@
 import {categorySlug, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import marketplaceCatalog from "@agenta/i18n/catalogs/marketplace.page"
-import {BackLink, Badge, Button} from "@agenta/ui/ui"
+import {BackLink} from "@agenta/ui/composed"
+import {Badge, Button} from "@agenta/ui/ui"
 import {CheckIcon, LinkSimpleIcon} from "@phosphor-icons/react"
 import Link from "next/link"
 

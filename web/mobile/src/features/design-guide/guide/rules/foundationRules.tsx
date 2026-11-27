@@ -1,4 +1,5 @@
-import {Badge, Button, IconTile, Switch} from "@agenta/ui/ui"
+import {IconTile} from "@agenta/ui/composed"
+import {Badge, Button, Switch} from "@agenta/ui/ui"
 import {
     CheckIcon,
     GearIcon,

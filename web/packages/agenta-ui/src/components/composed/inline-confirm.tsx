@@ -3,8 +3,8 @@ import * as React from "react"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 
-import {Button} from "./button"
-import {cn} from "./utils"
+import {Button} from "../ui/button"
+import {cn} from "../ui/utils"
 
 /**
  * InlineConfirm — a confirm step rendered in place, directly under the control that opened it,

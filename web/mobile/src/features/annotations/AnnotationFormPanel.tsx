@@ -1,14 +1,8 @@
 import {useEffect, useMemo, useState} from "react"
 
 import {annotationFormController, annotationSessionController} from "@agenta/annotation"
-import {
-    Accordion,
-    AccordionContent,
-    AccordionItem,
-    AccordionTrigger,
-    Alert,
-    LoadingButton,
-} from "@agenta/ui/ui"
+import {LoadingButton} from "@agenta/ui/composed"
+import {Accordion, AccordionContent, AccordionItem, AccordionTrigger, Alert} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {AnnotationEvaluatorSection} from "./AnnotationEvaluatorSection"

@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import {InputNumber} from "@agenta/ui/ui"
+import {InputNumber} from "@agenta/ui/composed"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 const meta = {

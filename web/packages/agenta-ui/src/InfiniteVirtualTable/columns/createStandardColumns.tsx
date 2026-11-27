@@ -5,6 +5,7 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import uiTableCatalog from "@agenta/i18n/catalogs/ui.table"
 import {Copy, DotsThreeVertical, DownloadSimple} from "@phosphor-icons/react"
 
+import {SimpleTooltip} from "../../components/composed/simple-tooltip"
 import {InitialsAvatar} from "../../components/presentational/avatar"
 import {CopyButton} from "../../components/presentational/CopyButton"
 import {StatusIndicator, type StatusTone} from "../../components/presentational/status"
@@ -15,7 +16,6 @@ import {
     DropdownMenuContent,
     DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu"
-import {SimpleTooltip} from "../../components/ui/tooltip-composed"
 import {copyToClipboard} from "../../utils/copyToClipboard"
 import type {ColumnDef, ColumnDefs} from "../columnDef"
 import ColumnVisibilityMenuTrigger from "../components/columnVisibility/ColumnVisibilityMenuTrigger"

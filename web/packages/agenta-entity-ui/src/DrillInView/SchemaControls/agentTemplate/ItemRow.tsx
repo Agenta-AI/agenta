@@ -8,9 +8,9 @@ import {type ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {ConfigRowTriangle, Tag} from "@agenta/ui/components/presentational"
+import {IconTile} from "@agenta/ui/composed"
 import {cn} from "@agenta/ui/styles"
 import {
-    IconTile,
     SkeletonBlock,
     Tooltip,
     TooltipContent,

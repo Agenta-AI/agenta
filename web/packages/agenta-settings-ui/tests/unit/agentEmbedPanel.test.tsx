@@ -26,26 +26,9 @@ vi.mock("@agenta/ui/ui", () => {
     }
     return {
         Alert: ({message}: {message: React.ReactNode}) => <div role="alert">{message}</div>,
-        EmptyState: ({
-            title,
-            description,
-            children,
-        }: {
-            title: React.ReactNode
-            description: React.ReactNode
-            children: React.ReactNode
-        }) => (
-            <div data-testid="agent-embed-empty">
-                {title}
-                {description}
-                {children}
-            </div>
-        ),
         Button,
-        LoadingButton: Button,
         Input: (props: React.ComponentProps<"input">) => <input {...props} />,
         Textarea: (props: React.ComponentProps<"textarea">) => <textarea {...props} />,
-        SimpleTooltip: ({children}: {children: React.ReactNode}) => <>{children}</>,
         Switch: ({
             checked,
             onCheckedChange,
@@ -70,6 +53,45 @@ vi.mock("@agenta/ui/ui", () => {
         SelectItem: () => null,
         SelectTrigger: () => null,
         SelectValue: () => null,
+    }
+})
+vi.mock("@agenta/ui/composed", () => {
+    const Button = ({
+        children,
+        onClick,
+        disabled,
+        loading: _loading,
+        ...rest
+    }: React.ComponentProps<"button"> & {loading?: boolean; variant?: string; size?: string}) => {
+        const {variant: _v, size: _s, ...props} = rest as Record<string, unknown>
+        return (
+            <button
+                onClick={onClick}
+                disabled={disabled}
+                {...(props as React.ComponentProps<"button">)}
+            >
+                {children}
+            </button>
+        )
+    }
+    return {
+        EmptyState: ({
+            title,
+            description,
+            children,
+        }: {
+            title: React.ReactNode
+            description: React.ReactNode
+            children: React.ReactNode
+        }) => (
+            <div data-testid="agent-embed-empty">
+                {title}
+                {description}
+                {children}
+            </div>
+        ),
+        LoadingButton: Button,
+        SimpleTooltip: ({children}: {children: React.ReactNode}) => <>{children}</>,
         Segmented: ({
             options,
             onChange,

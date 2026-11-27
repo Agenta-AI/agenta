@@ -1,8 +1,9 @@
 import {useT} from "@agenta/i18n"
 import filesPaneCatalog from "@agenta/i18n/catalogs/entityUi.filesPane"
 import {shortcutAria} from "@agenta/shared/utils"
+import {SimpleTooltip, type SimpleTooltipProps} from "@agenta/ui/composed"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
-import {Button, SimpleTooltip, type SimpleTooltipProps} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {Folder, FolderOpen} from "@phosphor-icons/react"
 
 export function FilesPaneToggle({

@@ -10,14 +10,8 @@ import {
     sidebarSessionSearchQueryAtom,
     sidebarSessionSearchResultsAtom,
 } from "@agenta/navigation"
-import {
-    CommandDialog,
-    CommandGroup,
-    CommandInput,
-    CommandItem,
-    CommandList,
-    SkeletonRows,
-} from "@agenta/ui/ui"
+import {SkeletonRows} from "@agenta/ui/composed"
+import {CommandDialog, CommandGroup, CommandInput, CommandItem, CommandList} from "@agenta/ui/ui"
 import {useAtom, useAtomValue} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"

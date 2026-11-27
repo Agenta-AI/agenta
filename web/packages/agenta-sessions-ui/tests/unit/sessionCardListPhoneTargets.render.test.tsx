@@ -4,8 +4,8 @@
  * The card list on a phone: a row opens on a tap anywhere.
  */
 import {act, createElement, type ReactNode} from "react"
-import {createRoot, type Root} from "react-dom/client"
 
+import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 vi.mock("@agenta/shared/utils", () => ({timeAgo: () => "now"}))
@@ -53,13 +53,15 @@ vi.mock("motion/react", async () => {
     }
 })
 vi.mock("@agenta/ui/ui", () => ({
-    SimpleTooltip: ({children}: {children: ReactNode}) => children,
     SkeletonBlock: () => null,
     ContextMenu: ({children}: {children: ReactNode}) => children,
     ContextMenuTrigger: ({children}: {children: ReactNode}) => children,
     ContextMenuContent: () => null,
     ContextMenuItem: () => null,
     ContextMenuSeparator: () => null,
+}))
+vi.mock("@agenta/ui/composed", () => ({
+    SimpleTooltip: ({children}: {children: ReactNode}) => children,
 }))
 vi.mock("../../src/SessionAgentName", () => ({SessionAgentName: () => null}))
 vi.mock("../../src/SessionAutomationKind", () => ({SessionAutomationKind: () => null}))

@@ -5,7 +5,7 @@ import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {CaretDown, CaretUp} from "@phosphor-icons/react"
 import {cva, type VariantProps} from "class-variance-authority"
 
-import {cn} from "./utils"
+import {cn} from "../ui/utils"
 
 /**
  * InputNumber — a cva numeric input in @agenta/ui that reproduces the subset of antd

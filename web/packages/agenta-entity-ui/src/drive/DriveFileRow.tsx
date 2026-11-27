@@ -20,7 +20,8 @@ import {AGENT_FILES_DIR, fileOrigin, type DriveRecentFile} from "@agenta/entitie
 import {type Mount} from "@agenta/entities/session"
 import {useT} from "@agenta/i18n"
 import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
-import {SimpleTooltip as Tooltip, Spinner} from "@agenta/ui/ui"
+import {SimpleTooltip as Tooltip} from "@agenta/ui/composed"
+import {Spinner} from "@agenta/ui/ui"
 import {ArrowClockwise, FolderSimple} from "@phosphor-icons/react"
 
 import {driveFileIcon} from "./driveIcons"

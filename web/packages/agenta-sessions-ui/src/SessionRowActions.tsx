@@ -14,6 +14,7 @@ import {
 
 import {useT} from "@agenta/i18n"
 import sessionsRowsCatalog from "@agenta/i18n/catalogs/sessions.rows"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {
     Button,
     DropdownMenu,
@@ -21,7 +22,6 @@ import {
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {DotsThreeIcon} from "@phosphor-icons/react"
 import {useRouter} from "next/router"

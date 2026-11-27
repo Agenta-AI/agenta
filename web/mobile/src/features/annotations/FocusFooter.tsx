@@ -1,7 +1,8 @@
 import {annotationSessionController, getAddToTestsetDisabledReason} from "@agenta/annotation"
 import {useModifierKey} from "@agenta/shared/hooks"
+import {LoadingButton, SimpleTooltip} from "@agenta/ui/composed"
 import {useMediaQuery} from "@agenta/ui/hooks"
-import {Button, Kbd, LoadingButton, SimpleTooltip} from "@agenta/ui/ui"
+import {Button, Kbd} from "@agenta/ui/ui"
 import {CaretLeft, CaretRight, Plus} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 

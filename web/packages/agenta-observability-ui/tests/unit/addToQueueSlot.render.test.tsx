@@ -64,6 +64,8 @@ vi.mock("@agenta/ui/ui", () => ({
     DropdownMenu: ({children}: {children: ReactNode}) => <>{children}</>,
     DropdownMenuContent: () => null,
     DropdownMenuTrigger: ({children}: {children: ReactNode}) => <>{children}</>,
+}))
+vi.mock("@agenta/ui/composed", () => ({
     SimpleTooltip: ({children}: {children: ReactNode}) => <>{children}</>,
 }))
 

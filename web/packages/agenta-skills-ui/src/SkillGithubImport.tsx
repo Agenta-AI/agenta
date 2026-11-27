@@ -11,7 +11,8 @@ import {
 } from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {message} from "@agenta/ui/app-message"
-import {Alert, Button, Field, Input, LoadingButton, SkeletonRows} from "@agenta/ui/ui"
+import {LoadingButton, SkeletonRows} from "@agenta/ui/composed"
+import {Alert, Button, Field, Input} from "@agenta/ui/ui"
 
 import {SkillCandidateList, type SkillCandidate, type UnavailableSkill} from "./SkillCandidateList"
 

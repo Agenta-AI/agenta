@@ -18,6 +18,7 @@ import {
     type AnalyticsRetention,
     type AnalyticsWindow,
 } from "@agenta/observability/analytics"
+import {DateRangeCalendar, type DateRangeValue} from "@agenta/ui/composed"
 import {
     FilterMenu,
     GroupMenu,
@@ -27,7 +28,6 @@ import {
 import {getProviderDisplayName, getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {
     Button,
-    DateRangeCalendar,
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
@@ -36,7 +36,6 @@ import {
     Popover,
     PopoverAnchor,
     PopoverContent,
-    type DateRangeValue,
 } from "@agenta/ui/ui"
 import {
     Cloud,

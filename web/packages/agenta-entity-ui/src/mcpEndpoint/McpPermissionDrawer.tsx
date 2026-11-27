@@ -41,7 +41,8 @@ import mcpPermissionsCatalog from "@agenta/i18n/catalogs/entityUi.mcpPermissions
 import {projectIdAtom} from "@agenta/shared/state"
 import {McpServerMark} from "@agenta/ui/agent-icon"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
-import {Alert, Button, InlineConfirm, SimpleTooltip} from "@agenta/ui/ui"
+import {InlineConfirm, SimpleTooltip} from "@agenta/ui/composed"
+import {Alert, Button} from "@agenta/ui/ui"
 import {ArrowClockwise, CaretLeft, Trash, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 

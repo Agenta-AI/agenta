@@ -5,7 +5,8 @@ import {workflowMolecule} from "@agenta/entities/workflow"
 import {executionItemController, playgroundController} from "@agenta/playground"
 import {getEvaluatorVerdictFromOutput} from "@agenta/playground/utils"
 import type {DropdownButtonOption, DropdownButtonOptionStatus} from "@agenta/ui/components"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {Button} from "@agenta/ui/ui"
 import {
     ArrowsOutLineHorizontalIcon,
     CopySimpleIcon,

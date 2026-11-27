@@ -1,6 +1,7 @@
 import {useT} from "@agenta/i18n"
 import analyticsCatalog from "@agenta/i18n/catalogs/observabilityUi.analytics"
-import {Button, IconTile} from "@agenta/ui/ui"
+import {IconTile} from "@agenta/ui/composed"
+import {Button} from "@agenta/ui/ui"
 import {ChartBar, Plus} from "@phosphor-icons/react"
 
 const GHOST = Array.from(

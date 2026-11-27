@@ -19,6 +19,7 @@ import skillCatalog from "@agenta/i18n/catalogs/entityUi.skillForm"
 import skillViewCatalog from "@agenta/i18n/catalogs/entityUi.skillView"
 import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {message} from "@agenta/ui/app-message"
+import {AutosizeTextarea, SimpleTooltip} from "@agenta/ui/composed"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import {BottomSheet, useIsPhone} from "@agenta/ui/phone"
 import {cn} from "@agenta/ui/styles"
@@ -30,7 +31,6 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-    AutosizeTextarea,
     Button,
     CollapseCaret,
     Field,
@@ -38,7 +38,6 @@ import {
     Popover,
     PopoverContent,
     PopoverTrigger,
-    SimpleTooltip,
     Switch,
 } from "@agenta/ui/ui"
 import {

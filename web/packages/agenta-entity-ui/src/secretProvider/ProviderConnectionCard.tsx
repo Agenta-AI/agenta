@@ -53,8 +53,9 @@ import providerKeyFormCatalog from "@agenta/i18n/catalogs/entityUi.providerKeyFo
 import {projectIdAtom} from "@agenta/shared/state"
 import type {OwnerKind} from "@agenta/shared/types"
 import {message} from "@agenta/ui/app-message"
+import {InputAffix, PasswordInput, Segmented} from "@agenta/ui/composed"
 import {cn} from "@agenta/ui/styles"
-import {Button, InputAffix, PasswordInput, Segmented, Spinner, Textarea} from "@agenta/ui/ui"
+import {Button, Spinner, Textarea} from "@agenta/ui/ui"
 import {WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 

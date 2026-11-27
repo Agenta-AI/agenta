@@ -3,9 +3,9 @@ import type {CSSProperties} from "react"
 import type {AgentStarterTemplate} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import marketplaceCatalog from "@agenta/i18n/catalogs/marketplace.page"
+import {LoadingButton} from "@agenta/ui/composed"
 import {
     Button,
-    LoadingButton,
     Sheet,
     SheetContent,
     SheetDescription,

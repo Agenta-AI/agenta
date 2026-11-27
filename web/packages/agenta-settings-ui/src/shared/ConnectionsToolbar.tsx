@@ -4,8 +4,8 @@ import {OWNER_ICON, useOwnerWord} from "@agenta/entity-ui/secret"
 import {useT} from "@agenta/i18n"
 import settingsSharedCatalog from "@agenta/i18n/catalogs/settings.shared"
 import type {OwnerKind} from "@agenta/shared/types"
+import {PageToolbar, Segmented} from "@agenta/ui/composed"
 import {useIsPhone} from "@agenta/ui/phone"
-import {PageToolbar, Segmented} from "@agenta/ui/ui"
 
 import {SettingsPageToolbar} from "../SettingsPageShell"
 

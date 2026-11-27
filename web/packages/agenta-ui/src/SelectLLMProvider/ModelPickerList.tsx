@@ -15,7 +15,7 @@ import uiLlmProviderCatalog from "@agenta/i18n/catalogs/ui.llmProvider"
 import {Check} from "@phosphor-icons/react"
 import clsx from "clsx"
 
-import {SearchInput} from "../components/ui/input-composed"
+import {SearchInput} from "../components/composed/input-affix"
 import {MENU_ITEM} from "../components/ui/menu-item"
 
 import ManageProvidersRow from "./ManageProvidersRow"

@@ -5,8 +5,8 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import viewStackCatalog from "@agenta/i18n/catalogs/ui.viewStack"
 import {ArrowLeft, CaretRight, X} from "@phosphor-icons/react"
 
+import {SimpleTooltip} from "../components/composed/simple-tooltip"
 import {Button} from "../components/ui/button"
-import {SimpleTooltip} from "../components/ui/tooltip-composed"
 import {cn} from "../components/ui/utils"
 
 import type {ViewChromeProps} from "./types"

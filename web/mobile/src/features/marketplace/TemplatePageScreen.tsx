@@ -7,7 +7,7 @@ import {useT} from "@agenta/i18n"
 import marketplaceCatalog from "@agenta/i18n/catalogs/marketplace.page"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
-import {LoadingButton} from "@agenta/ui/ui"
+import {LoadingButton} from "@agenta/ui/composed"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {PageTitle} from "@/components/PageTitle"

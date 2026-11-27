@@ -6,6 +6,7 @@ import {messagesToText} from "@agenta/observability/traceDrawer"
 import {sanitizeDataWithBlobUrls} from "@agenta/shared/utils"
 import {getStringOrJson} from "@agenta/shared/utils"
 import {CopyButton} from "@agenta/ui/components/presentational"
+import {Segmented, SimpleTooltip} from "@agenta/ui/composed"
 import {
     Editor as EditorWrapper,
     EditorProvider,
@@ -26,8 +27,6 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
     Input,
-    Segmented,
-    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {copyToClipboard} from "@agenta/ui/utils"
 import {

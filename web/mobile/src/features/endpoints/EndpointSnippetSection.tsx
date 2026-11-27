@@ -2,7 +2,7 @@ import {useState} from "react"
 
 import {CodeBlock, type AppEndpointLang, type AppEndpointSnippets} from "@agenta/settings-ui"
 import {message} from "@agenta/ui/app-message"
-import {Segmented} from "@agenta/ui/ui"
+import {Segmented} from "@agenta/ui/composed"
 
 const LANGS: {value: AppEndpointLang; label: string}[] = [
     {value: "python", label: "Python"},

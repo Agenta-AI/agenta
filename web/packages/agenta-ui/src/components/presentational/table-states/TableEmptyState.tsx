@@ -18,7 +18,7 @@ import {useT} from "@agenta/i18n"
 import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 
 import {cn, flexLayouts, justifyClasses} from "../../../utils/styles"
-import {EmptyState} from "../../ui/empty-state"
+import {EmptyState} from "../../composed/empty-state"
 
 export interface TableEmptyStateProps {
     /** Message to display (default: "No data found") */

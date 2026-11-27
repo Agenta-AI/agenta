@@ -1,6 +1,7 @@
 import {useMemo, useRef, useState, type FormEvent} from "react"
 
-import {Alert, Button, Field, Input, LoadingButton, SheetFooter, Textarea} from "@agenta/ui/ui"
+import {LoadingButton} from "@agenta/ui/composed"
+import {Alert, Button, Field, Input, SheetFooter, Textarea} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 
 import {FeedbackFieldCard} from "./FeedbackFieldCard"

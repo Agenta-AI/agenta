@@ -2,8 +2,9 @@ import type {ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import channelsConnectCatalog from "@agenta/i18n/catalogs/channels.connect"
+import {IconTile} from "@agenta/ui/composed"
 import {SelectMarkCheck} from "@agenta/ui/list-table"
-import {Badge, IconTile, RadioGroup, RadioGroupItem} from "@agenta/ui/ui"
+import {Badge, RadioGroup, RadioGroupItem} from "@agenta/ui/ui"
 
 export interface ChoiceCardOption<T extends string> {
     value: T

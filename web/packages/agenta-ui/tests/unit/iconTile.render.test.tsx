@@ -2,7 +2,7 @@
 import {cleanup, render} from "@testing-library/react"
 import {afterEach, describe, expect, it} from "vitest"
 
-import {IconTile} from "../../src/components/ui/icon-tile"
+import {IconTile} from "../../src/components/composed/icon-tile"
 
 afterEach(cleanup)
 

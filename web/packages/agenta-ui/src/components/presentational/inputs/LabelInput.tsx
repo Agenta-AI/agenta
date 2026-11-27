@@ -21,9 +21,13 @@ import {memo} from "react"
 
 import clsx from "clsx"
 
+import {
+    AutosizeTextarea,
+    type AutosizeTextareaProps,
+    PasswordInput,
+} from "../../composed/input-affix"
 import {Field} from "../../ui/field"
 import {Input, type InputProps} from "../../ui/input"
-import {AutosizeTextarea, type AutosizeTextareaProps, PasswordInput} from "../../ui/input-composed"
 
 export interface LabelInputProps extends Omit<InputProps, "type"> {
     label: string

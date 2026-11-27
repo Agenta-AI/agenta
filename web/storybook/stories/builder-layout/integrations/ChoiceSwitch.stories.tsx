@@ -1,6 +1,6 @@
 import {useState} from "react"
 
-import {ChoiceSwitch} from "@agenta/ui/ui"
+import {ChoiceSwitch} from "@agenta/ui/composed"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 const choices = [

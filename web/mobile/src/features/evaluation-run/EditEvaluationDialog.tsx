@@ -2,6 +2,7 @@ import {useEffect, useMemo, useState} from "react"
 
 import {message} from "@agenta/ui/app-message"
 import {VersionBadge} from "@agenta/ui/components/presentational"
+import {LoadingButton} from "@agenta/ui/composed"
 import {
     Button,
     Dialog,
@@ -11,7 +12,6 @@ import {
     DialogTitle,
     Input,
     Label,
-    LoadingButton,
     Textarea,
 } from "@agenta/ui/ui"
 import {XIcon} from "@phosphor-icons/react"

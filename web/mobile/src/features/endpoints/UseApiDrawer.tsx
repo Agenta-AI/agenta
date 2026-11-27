@@ -3,9 +3,9 @@ import {useState} from "react"
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import type {AppEndpointLang, AppEndpointSnippets} from "@agenta/settings-ui"
 import {message} from "@agenta/ui/app-message"
+import {Segmented} from "@agenta/ui/composed"
 import {
     Button,
-    Segmented,
     Select,
     SelectContent,
     SelectItem,

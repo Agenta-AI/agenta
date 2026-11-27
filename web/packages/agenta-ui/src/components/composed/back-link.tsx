@@ -3,7 +3,7 @@ import * as React from "react"
 import {ArrowLeftIcon} from "@phosphor-icons/react"
 import {Slot, Slottable} from "@radix-ui/react-slot"
 
-import {cn} from "./utils"
+import {cn} from "../ui/utils"
 
 /**
  * An item page's way up on an expanded window: "← Automations" over the title. The label names

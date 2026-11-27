@@ -1,7 +1,7 @@
 import type {HTMLProps} from "react"
 
+import type {AutosizeTextareaProps} from "../components/composed/input-affix"
 import type {InputProps} from "../components/ui/input"
-import type {AutosizeTextareaProps} from "../components/ui/input-composed"
 import type {EditorProps} from "../Editor"
 
 export interface PasteLimitExceededPayload {

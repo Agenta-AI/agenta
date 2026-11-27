@@ -3,16 +3,8 @@ import {useCallback, useMemo, useRef, useState, type ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
-import {
-    Button,
-    IconTile,
-    MENU_ITEM,
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-    SimpleTooltip,
-    cn,
-} from "@agenta/ui/ui"
+import {IconTile, SimpleTooltip} from "@agenta/ui/composed"
+import {Button, MENU_ITEM, Popover, PopoverContent, PopoverTrigger, cn} from "@agenta/ui/ui"
 import {
     ArrowLeft,
     ArrowsLeftRight,

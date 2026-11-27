@@ -9,9 +9,9 @@ import {memo, useState, useMemo} from "react"
 
 import {useT} from "@agenta/i18n"
 import presetModalCatalog from "@agenta/i18n/catalogs/entityUi.presetModal"
+import {Divider, SearchInput, Segmented} from "@agenta/ui/composed"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {cn} from "@agenta/ui/styles"
-import {Divider, SearchInput, Segmented} from "@agenta/ui/ui"
 import yaml from "js-yaml"
 
 import type {PresetContentProps} from "./types"

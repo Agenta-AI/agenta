@@ -1,6 +1,7 @@
 /** Loading bodies for the config drawers, passed as `EnhancedDrawer`'s `bodyFallback`. */
+import {SkeletonRows} from "@agenta/ui/composed"
 import {cn} from "@agenta/ui/styles"
-import {SkeletonBlock, SkeletonRows} from "@agenta/ui/ui"
+import {SkeletonBlock} from "@agenta/ui/ui"
 
 /** Label + field pairs: the shape of the item and section forms. */
 export function FormDrawerSkeleton() {

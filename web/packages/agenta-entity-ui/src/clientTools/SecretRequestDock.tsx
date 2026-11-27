@@ -12,6 +12,7 @@ import {commitAgentCredentialsAtom, workflowMolecule} from "@agenta/entities/wor
 import {useT} from "@agenta/i18n"
 import clientToolsCatalog from "@agenta/i18n/catalogs/entityUi.clientTools"
 import type {ClientToolMeta} from "@agenta/shared/clientTools"
+import {LoadingButton} from "@agenta/ui/composed"
 import {
     Button,
     DropdownMenu,
@@ -19,7 +20,6 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
     Input,
-    LoadingButton,
     Textarea,
 } from "@agenta/ui/ui"
 import {DotsThree, PencilSimple} from "@phosphor-icons/react"

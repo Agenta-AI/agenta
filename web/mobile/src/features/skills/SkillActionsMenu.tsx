@@ -3,6 +3,7 @@ import {useCallback} from "react"
 import {createT, useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -18,7 +19,6 @@ import {
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {
     Archive,

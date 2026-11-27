@@ -4,10 +4,10 @@ import type {AnnotationDto} from "@agenta/entities/annotation/dto"
 import {useT} from "@agenta/i18n"
 import annotateCatalog from "@agenta/i18n/catalogs/observability.annotate"
 import {projectIdAtom} from "@agenta/shared/state"
+import {LoadingButton} from "@agenta/ui/composed"
 import {
     Alert,
     Button,
-    LoadingButton,
     Sheet,
     SheetContent,
     SheetDescription,

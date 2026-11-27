@@ -3,7 +3,8 @@ import type {ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import agentPickerCatalog from "@agenta/i18n/catalogs/entityUi.agentPicker"
-import {EmptyState, SkeletonBlock} from "@agenta/ui/ui"
+import {EmptyState} from "@agenta/ui/composed"
+import {SkeletonBlock} from "@agenta/ui/ui"
 import {PlusIcon} from "@phosphor-icons/react"
 
 export interface AgentCardGridProps {

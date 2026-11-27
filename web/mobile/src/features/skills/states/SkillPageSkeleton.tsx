@@ -1,7 +1,8 @@
 import {useT} from "@agenta/i18n"
 import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
+import {RightPane} from "@agenta/ui/composed"
 import {useIsExpandedWindow} from "@agenta/ui/hooks"
-import {RightPane, SkeletonBlock} from "@agenta/ui/ui"
+import {SkeletonBlock} from "@agenta/ui/ui"
 import {Files} from "@phosphor-icons/react"
 
 const FILE_ROWS = 8

@@ -6,7 +6,7 @@ import {
     getTokenBreakdown,
 } from "@agenta/observability"
 import {TokenBreakdownList} from "@agenta/ui/components/presentational"
-import {SimpleTooltip} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {Coins, PlusCircle, Timer} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 

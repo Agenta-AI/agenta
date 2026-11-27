@@ -5,16 +5,9 @@ import agentChannelsCatalog from "@agenta/i18n/catalogs/agentPages.channels"
 import channelsHubCatalog from "@agenta/i18n/catalogs/channels.hub"
 import channelsPageCatalog from "@agenta/i18n/catalogs/channels.page"
 import commonCatalog from "@agenta/i18n/catalogs/common"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {PhoneScreenHeader, useIsPhone} from "@agenta/ui/phone"
-import {
-    Alert,
-    Button,
-    Sheet,
-    SheetContent,
-    SheetTitle,
-    SimpleTooltip,
-    SkeletonBlock,
-} from "@agenta/ui/ui"
+import {Alert, Button, Sheet, SheetContent, SheetTitle, SkeletonBlock} from "@agenta/ui/ui"
 import {ArrowLeft, CaretRight, ChatCircleText, Code} from "@phosphor-icons/react"
 
 import {SettingsCatalogSection, type SettingsCatalogItem} from "../shared/SettingsCatalog"

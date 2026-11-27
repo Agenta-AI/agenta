@@ -1,5 +1,5 @@
+import {LoadingButton} from "../composed/loading-button"
 import {Button, type ButtonProps} from "../ui/button"
-import {LoadingButton} from "../ui/button-composed"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../ui/tooltip"
 import {cn} from "../ui/utils"
 

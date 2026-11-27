@@ -4,7 +4,7 @@
  * Renders a number value as an input number field.
  */
 
-import {InputNumber} from "../../components/ui/input-number"
+import {InputNumber} from "../../components/composed/input-number"
 
 import type {BaseFieldProps} from "./types"
 

@@ -8,6 +8,7 @@ import type {
     ShareDisclosure,
     Visibility,
 } from "@agenta/entities/sharing"
+import {ChoiceSwitch, LoadingButton} from "@agenta/ui/composed"
 import {
     Alert,
     AlertDialog,
@@ -18,8 +19,6 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
     Button,
-    ChoiceSwitch,
-    LoadingButton,
     Select,
     SelectContent,
     SelectItem,

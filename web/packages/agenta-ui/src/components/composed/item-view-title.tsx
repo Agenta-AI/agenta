@@ -1,7 +1,7 @@
 import * as React from "react"
 
-import {SkeletonBlock} from "./skeleton"
-import {cn} from "./utils"
+import {SkeletonBlock} from "../ui/skeleton"
+import {cn} from "../ui/utils"
 
 /** The name as a field: the title's own text style, a hover fill, and the field's focus ring. */
 export type ItemViewTitleEditable = Omit<

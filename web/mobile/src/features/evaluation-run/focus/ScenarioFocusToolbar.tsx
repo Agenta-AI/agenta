@@ -1,6 +1,7 @@
 import {useState} from "react"
 
-import {Button, Segmented} from "@agenta/ui/ui"
+import {Segmented} from "@agenta/ui/composed"
+import {Button} from "@agenta/ui/ui"
 import {copyToClipboard} from "@agenta/ui/utils"
 import {
     ArrowsIn,

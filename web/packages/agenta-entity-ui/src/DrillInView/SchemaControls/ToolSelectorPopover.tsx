@@ -21,18 +21,11 @@ import {
 
 import {createT, useT} from "@agenta/i18n"
 import toolSelectorCatalog from "@agenta/i18n/catalogs/entityUi.toolSelector"
+import {EmptyState, InputAffix} from "@agenta/ui/composed"
 import type {GatewayToolsBridge} from "@agenta/ui/drill-in"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
-import {
-    Button,
-    EmptyState,
-    InputAffix,
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-    Spinner,
-} from "@agenta/ui/ui"
+import {Button, Popover, PopoverContent, PopoverTrigger, Spinner} from "@agenta/ui/ui"
 import {
     CaretRight,
     Check,

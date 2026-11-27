@@ -19,7 +19,7 @@
 import type {CSSProperties, ReactNode} from "react"
 
 import {cn, flexLayouts, gapClasses, layoutSizes, spacingClasses} from "../../../utils/styles"
-import {Divider} from "../../ui/divider"
+import {Divider} from "../../composed/divider"
 
 // ============================================================================
 // TYPES

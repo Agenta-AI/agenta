@@ -57,6 +57,7 @@ import {
 import {customNamedSecretsAtom} from "@agenta/entities/secret"
 import {createT, richText, useT, type CatalogKey} from "@agenta/i18n"
 import mcpJourneyCatalog from "@agenta/i18n/catalogs/entityUi.mcpJourney"
+import {LoadingButton, SimpleTooltip} from "@agenta/ui/composed"
 import {
     Alert,
     Button,
@@ -68,14 +69,12 @@ import {
     DialogTitle,
     Field,
     Input,
-    LoadingButton,
     Select,
     SelectContent,
     SelectItem,
     SelectSeparator,
     SelectTrigger,
     SelectValue,
-    SimpleTooltip,
     SkeletonBlock,
     Spinner,
 } from "@agenta/ui/ui"

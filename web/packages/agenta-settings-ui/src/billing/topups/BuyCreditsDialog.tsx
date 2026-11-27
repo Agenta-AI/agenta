@@ -3,6 +3,7 @@ import {useEffect, useState} from "react"
 import {useT, type CatalogKey} from "@agenta/i18n"
 import billingTopupsCatalog from "@agenta/i18n/catalogs/billing.topups"
 import commonCatalog from "@agenta/i18n/catalogs/common"
+import {LoadingButton} from "@agenta/ui/composed"
 import {
     Alert,
     Button,
@@ -12,7 +13,6 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-    LoadingButton,
     RadioGroup,
 } from "@agenta/ui/ui"
 

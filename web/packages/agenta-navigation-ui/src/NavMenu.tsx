@@ -18,6 +18,7 @@ import type {
     SidebarMenuMode,
 } from "@agenta/navigation"
 import {HeightCollapse} from "@agenta/ui/components/presentational"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {
     Badge,
     Button,
@@ -28,7 +29,6 @@ import {
     DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-    SimpleTooltip,
     SkeletonBlock,
     cn,
 } from "@agenta/ui/ui"

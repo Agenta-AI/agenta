@@ -1,7 +1,7 @@
 /** The account switch (the kit ChoiceSwitch): checked state, click, arrow keys and focus, disabled. */
 import {act, createElement} from "react"
 
-import {ChoiceSwitch} from "@agenta/ui/ui"
+import {ChoiceSwitch} from "@agenta/ui/composed"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 

@@ -6,16 +6,9 @@ import phoneCatalog from "@agenta/i18n/catalogs/ui.phone"
 import type {SidebarScope} from "@agenta/navigation"
 import {sidebarOpenGroupsAtomFamily, sidebarSessionSearchOpenAtom} from "@agenta/navigation"
 import {SidebarLayoutContext, SidebarShell} from "@agenta/navigation-ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {SidebarSheet, useIsPhone} from "@agenta/ui/phone"
-import {
-    Button,
-    Sheet,
-    SheetContent,
-    SheetHeader,
-    SheetTitle,
-    SheetTrigger,
-    SimpleTooltip,
-} from "@agenta/ui/ui"
+import {Button, Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger} from "@agenta/ui/ui"
 import {atom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 

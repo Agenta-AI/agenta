@@ -15,6 +15,7 @@ import {
 } from "@agenta/skills/state"
 import {buildRegistrySections, SkillCreateWays} from "@agenta/skills-ui"
 import {LoadError} from "@agenta/ui/components/presentational"
+import {LoadingButton, PageToolbar} from "@agenta/ui/composed"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {COMPACT_WINDOW_QUERY, useWindowMatch} from "@agenta/ui/hooks"
 import {ListTableSelectionToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
@@ -28,8 +29,6 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
     Button,
-    LoadingButton,
-    PageToolbar,
 } from "@agenta/ui/ui"
 import {Archive, ArrowUUpLeft, Plus} from "@phosphor-icons/react"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"

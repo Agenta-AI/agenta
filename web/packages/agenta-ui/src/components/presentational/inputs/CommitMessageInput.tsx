@@ -21,8 +21,8 @@ import {useT} from "@agenta/i18n"
 import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 
 import {cn, textColors} from "../../../utils/styles"
+import {AutosizeTextarea} from "../../composed/input-affix"
 import {Field} from "../../ui/field"
-import {AutosizeTextarea} from "../../ui/input-composed"
 
 /** Default max length for commit/deploy messages */
 export const COMMIT_MESSAGE_MAX_LENGTH = 500

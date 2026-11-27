@@ -15,8 +15,8 @@ import {useDebounceInput} from "@agenta/shared/hooks"
 import clsx from "clsx"
 import {v4 as uuidv4} from "uuid"
 
+import {AutosizeTextarea} from "../components/composed/input-affix"
 import {Input} from "../components/ui/input"
-import {AutosizeTextarea} from "../components/ui/input-composed"
 import {Spinner} from "../components/ui/spinner"
 import {Editor, isLargeRichTextDocument} from "../Editor"
 

@@ -1,7 +1,7 @@
 import * as React from "react"
 
-import {SkeletonBlock} from "./skeleton"
-import {cn} from "./utils"
+import {SkeletonBlock} from "../ui/skeleton"
+import {cn} from "../ui/utils"
 
 /**
  * SkeletonRows — the loading state for a list of rows: N bars at the row's own height.

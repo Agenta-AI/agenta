@@ -17,7 +17,6 @@ vi.mock("@agenta/ui/ui", async () => {
         "data-testid"?: string
     }
     return {
-        SimpleTooltip: ({children}: {children?: React.ReactNode}) => <>{children}</>,
         Alert: ({message}: {message: string}) => <div role="alert">{message}</div>,
         SheetFooter: ({children}: {children?: React.ReactNode}) => <div>{children}</div>,
         Button: ({children, onClick, disabled, ...props}: React.ComponentProps<"button">) => (
@@ -67,6 +66,9 @@ vi.mock("@agenta/ui/ui", async () => {
         },
     }
 })
+vi.mock("@agenta/ui/composed", () => ({
+    SimpleTooltip: ({children}: {children?: React.ReactNode}) => <>{children}</>,
+}))
 import {ChannelAdvancedSection} from "../../src/channels/ChannelAdvancedSection"
 import {NOOP_ACTIONS} from "../../src/channels/helpers"
 import type {ChannelPlatform, ChannelsActions} from "../../src/channels/types"

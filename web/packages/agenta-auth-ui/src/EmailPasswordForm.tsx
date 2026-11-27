@@ -3,13 +3,13 @@ import {useEffect, useState, type FormEvent} from "react"
 import {classifyAuthFailure, signInDetailed, signUpDetailed} from "@agenta/auth"
 import {useT} from "@agenta/i18n"
 import emailPasswordCatalog from "@agenta/i18n/catalogs/auth.emailPasswordForm"
+import {LoadingButton} from "@agenta/ui/composed"
 import {
     Input,
     InputGroup,
     InputGroupAddon,
     InputGroupButton,
     InputGroupInput,
-    LoadingButton,
     cn,
 } from "@agenta/ui/ui"
 import {Check, Eye, EyeSlash} from "@phosphor-icons/react"

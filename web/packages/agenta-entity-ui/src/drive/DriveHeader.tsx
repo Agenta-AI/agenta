@@ -6,6 +6,7 @@ import {type DriveId} from "@agenta/entities/drive"
 import {useT} from "@agenta/i18n"
 import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {getShortcut, shortcutAria, shortcutFaces} from "@agenta/shared/utils"
+import {SimpleTooltip as Tooltip} from "@agenta/ui/composed"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {
     Button,
@@ -14,7 +15,6 @@ import {
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-    SimpleTooltip as Tooltip,
 } from "@agenta/ui/ui"
 import {PaneHeader} from "@agenta/ui/view-stack"
 import {

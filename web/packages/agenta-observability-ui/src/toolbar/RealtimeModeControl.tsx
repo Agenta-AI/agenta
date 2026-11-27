@@ -3,7 +3,7 @@ import {useCallback} from "react"
 import {useT} from "@agenta/i18n"
 import toolbarCatalog from "@agenta/i18n/catalogs/observabilityUi.toolbar"
 import {realtimeModeAtom} from "@agenta/observability"
-import {Segmented, type SegmentedProps, type SegmentedValue} from "@agenta/ui/ui"
+import {Segmented, type SegmentedProps, type SegmentedValue} from "@agenta/ui/composed"
 import {useAtom} from "jotai"
 
 /**

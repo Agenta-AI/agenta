@@ -1,6 +1,6 @@
 import {useT} from "@agenta/i18n"
 import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
-import {LoadingButton} from "@agenta/ui/ui"
+import {LoadingButton} from "@agenta/ui/composed"
 import {ArrowsClockwise} from "@phosphor-icons/react"
 
 import {useSkillUpdates, useSkillUpdatesBusy, useSkillsWithUpdates} from "./useSkillUpdates"

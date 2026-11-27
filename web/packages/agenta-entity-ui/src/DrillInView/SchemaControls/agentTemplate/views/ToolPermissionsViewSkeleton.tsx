@@ -1,7 +1,7 @@
 /** The loading shape of the integration and MCP server views: the one-line title over the permission body (STATE-02). */
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import {ItemViewTitleSkeleton} from "@agenta/ui/ui"
+import {ItemViewTitleSkeleton} from "@agenta/ui/composed"
 
 import {ToolPermissionsSkeleton} from "../../DrawerSkeletons"
 

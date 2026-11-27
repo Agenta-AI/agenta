@@ -5,15 +5,8 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {useT} from "@agenta/i18n"
 import triggerDeliveriesCatalog from "@agenta/i18n/catalogs/entityUi.triggerDeliveries"
-import {
-    Button,
-    EmptyState,
-    Sheet,
-    SheetContent,
-    SheetHeader,
-    SheetTitle,
-    Skeleton,
-} from "@agenta/ui/ui"
+import {EmptyState} from "@agenta/ui/composed"
+import {Button, Sheet, SheetContent, SheetHeader, SheetTitle, Skeleton} from "@agenta/ui/ui"
 import {useAtom} from "jotai"
 
 import {DeliveryDetails} from "./DeliveryDetails"

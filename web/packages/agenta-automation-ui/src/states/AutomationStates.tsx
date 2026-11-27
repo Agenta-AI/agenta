@@ -1,7 +1,8 @@
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import {Button, IconTile, ItemViewTitleSkeleton, SkeletonBlock} from "@agenta/ui/ui"
+import {IconTile, ItemViewTitleSkeleton} from "@agenta/ui/composed"
+import {Button, SkeletonBlock} from "@agenta/ui/ui"
 import {Funnel, MagnifyingGlass} from "@phosphor-icons/react"
 
 /**

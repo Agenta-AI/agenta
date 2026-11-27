@@ -2,7 +2,7 @@ import * as React from "react"
 
 import {cva, type VariantProps} from "class-variance-authority"
 
-import {cn} from "./utils"
+import {cn} from "../ui/utils"
 
 /**
  * IconTile is the Mark: the square that leads a row, a header or an empty state (CONS-01).

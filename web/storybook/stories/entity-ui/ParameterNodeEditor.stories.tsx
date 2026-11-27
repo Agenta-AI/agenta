@@ -1,8 +1,8 @@
 import {useState, type ReactNode} from "react"
 
 import {RailField} from "@agenta/entity-ui/drawers/shared"
+import {AutosizeTextarea} from "@agenta/ui/composed"
 import {
-    AutosizeTextarea,
     Button,
     Combobox,
     Input,

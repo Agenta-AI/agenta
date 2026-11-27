@@ -19,8 +19,8 @@ import {
     type SidebarSessionStatusFilter,
     type SidebarSessionTypeFilter,
 } from "@agenta/navigation"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {FilterMenu, type FilterMenuSection} from "@agenta/ui/filter-menu"
-import {SimpleTooltip} from "@agenta/ui/ui"
 import {
     FunnelSimpleIcon,
     HourglassIcon,

@@ -2,10 +2,10 @@ import {useState} from "react"
 
 import {createApiKey} from "@agenta/settings"
 import {message} from "@agenta/ui/app-message"
+import {LoadingButton} from "@agenta/ui/composed"
 import {
     Button,
     Input,
-    LoadingButton,
     Sheet,
     SheetContent,
     SheetDescription,

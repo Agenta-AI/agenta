@@ -3,8 +3,8 @@ import {useCallback, useState} from "react"
 import {createT, useT} from "@agenta/i18n"
 import triggerSharedCatalog from "@agenta/i18n/catalogs/entityUi.triggerShared"
 import {message} from "@agenta/ui"
+import {LoadingButton} from "@agenta/ui/composed"
 import {
-    LoadingButton,
     Tooltip,
     TooltipContent,
     TooltipProvider,

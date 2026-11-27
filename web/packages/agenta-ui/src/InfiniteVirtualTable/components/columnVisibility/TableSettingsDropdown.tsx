@@ -5,6 +5,7 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import uiTableCatalog from "@agenta/i18n/catalogs/ui.table"
 import {DownloadSimple, Eye, GearSix, Trash} from "@phosphor-icons/react"
 
+import {SimpleTooltip} from "../../../components/composed/simple-tooltip"
 import {Button} from "../../../components/ui/button"
 import {
     DropdownMenu,
@@ -12,7 +13,6 @@ import {
     DropdownMenuTrigger,
 } from "../../../components/ui/dropdown-menu"
 import {Popover, PopoverAnchor, PopoverContent} from "../../../components/ui/popover"
-import {SimpleTooltip} from "../../../components/ui/tooltip-composed"
 import {renderTableMenuItems, type TableMenuItem} from "../../tableMenu"
 import type {ColumnVisibilityState} from "../../types"
 

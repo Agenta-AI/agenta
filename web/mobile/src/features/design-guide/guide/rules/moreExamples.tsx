@@ -1,4 +1,5 @@
-import {Badge, Button, IconTile, Input} from "@agenta/ui/ui"
+import {IconTile} from "@agenta/ui/composed"
+import {Badge, Button, Input} from "@agenta/ui/ui"
 import {
     ArrowLeftIcon,
     ChatsIcon,

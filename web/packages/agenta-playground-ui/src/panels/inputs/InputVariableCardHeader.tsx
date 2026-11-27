@@ -9,8 +9,9 @@ import {
 import {useT} from "@agenta/i18n"
 import inputsCatalog from "@agenta/i18n/catalogs/playground.inputs"
 import {message} from "@agenta/ui/app-message"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {TypeChip, type ChipVariant} from "@agenta/ui/type-chip"
-import {Badge, Button, SimpleTooltip} from "@agenta/ui/ui"
+import {Badge, Button} from "@agenta/ui/ui"
 import {CaretDown, CaretRight, CopySimple, Database, Info} from "@phosphor-icons/react"
 
 const EXPECTED_CHIP: Partial<Record<NonNullable<ExpectedType>, ChipVariant>> = {

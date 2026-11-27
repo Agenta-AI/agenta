@@ -1,12 +1,6 @@
 import type {SimpleQueueTableRow} from "@agenta/entities/simpleQueue"
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-    PageToolbar,
-} from "@agenta/ui/ui"
+import {PageToolbar} from "@agenta/ui/composed"
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@agenta/ui/ui"
 
 import {QueueListTable} from "./QueueListTable"
 import {QueueLoadMore} from "./QueueLoadMore"

@@ -2,8 +2,8 @@ import * as React from "react"
 
 import {CircleNotchIcon} from "@phosphor-icons/react"
 
-import {Button, type ButtonProps} from "./button"
-import {cn} from "./utils"
+import {Button, type ButtonProps} from "../ui/button"
+import {cn} from "../ui/utils"
 
 /**
  * LoadingButton — Button with a busy state. Kept OUT of Button itself (stock shadcn's

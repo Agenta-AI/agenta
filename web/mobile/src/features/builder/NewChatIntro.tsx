@@ -1,7 +1,7 @@
 import {useT} from "@agenta/i18n"
 import builderPanelCatalog from "@agenta/i18n/catalogs/builder.panel"
 import {BuilderIcon} from "@agenta/ui/agent-icon"
-import {IconTile} from "@agenta/ui/ui"
+import {IconTile} from "@agenta/ui/composed"
 
 /**
  * The top of a new builder chat: a 40 px neutral Mark, the question and what the builder can do.

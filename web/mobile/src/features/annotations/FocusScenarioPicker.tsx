@@ -1,5 +1,6 @@
 import {annotationSessionController, truncateScenarioId} from "@agenta/annotation"
 import {message} from "@agenta/ui/app-message"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {
     Badge,
     Button,
@@ -8,7 +9,6 @@ import {
     SelectItem,
     SelectTrigger,
     SelectValue,
-    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {copyToClipboard} from "@agenta/ui/utils"
 import {ArrowSquareOut, Copy} from "@phosphor-icons/react"

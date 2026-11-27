@@ -1,9 +1,9 @@
 import {useT} from "@agenta/i18n"
 import viewStackCatalog from "@agenta/i18n/catalogs/ui.viewStack"
 
+import {SimpleTooltip} from "../components/composed/simple-tooltip"
 import {Button} from "../components/ui/button"
 import {Spinner} from "../components/ui/spinner"
-import {SimpleTooltip} from "../components/ui/tooltip-composed"
 import {cn} from "../components/ui/utils"
 
 import type {ViewChromeProps} from "./types"

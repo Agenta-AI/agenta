@@ -30,6 +30,7 @@
         "./chat-message": "./src/ChatMessage/index.ts",
         "./code-editor-styles.css": "./src/styles/code-editor-styles.css",
         "./components": "./src/components/index.ts",
+        "./composed": "./src/components/composed/index.ts",
         "./components/modal": "./src/components/modal/index.ts",
         "./components/page-width": "./src/components/pageWidth.ts",
         "./components/presentational": "./src/components/presentational/index.ts",

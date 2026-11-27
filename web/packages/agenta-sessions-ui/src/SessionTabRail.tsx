@@ -32,8 +32,9 @@ import {
     useSessionTabRows,
     type UseSessionCardListArgs,
 } from "@agenta/sessions/state"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
-import {SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
+import {SkeletonBlock} from "@agenta/ui/ui"
 import {PencilSimpleIcon, XIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"

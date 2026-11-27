@@ -9,6 +9,7 @@ import {
     type SharingPerson,
     type SharingWriteResult,
 } from "@agenta/sessions-ui/sharing"
+import {LoadingButton} from "@agenta/ui/composed"
 import {
     AlertDialog,
     AlertDialogCancel,
@@ -18,7 +19,6 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
     Button,
-    LoadingButton,
 } from "@agenta/ui/ui"
 
 import {agentSharingCopy as copy} from "./copy"

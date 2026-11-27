@@ -1,5 +1,6 @@
 import {annotationSessionController} from "@agenta/annotation"
-import {Button, EmptyState, LoadingButton} from "@agenta/ui/ui"
+import {EmptyState, LoadingButton} from "@agenta/ui/composed"
+import {Button} from "@agenta/ui/ui"
 import {Check, Plus} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 import Link from "next/link"

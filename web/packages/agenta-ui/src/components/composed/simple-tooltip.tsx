@@ -6,7 +6,7 @@ import {
     TooltipProvider,
     type TooltipShortcut,
     TooltipTrigger,
-} from "./tooltip"
+} from "../ui/tooltip"
 
 /**
  * A label stays shut while its own menu or popover is open, and on focus a script moved there

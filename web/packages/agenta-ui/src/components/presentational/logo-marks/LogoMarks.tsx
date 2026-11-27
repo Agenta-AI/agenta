@@ -1,7 +1,7 @@
 import {useT} from "@agenta/i18n"
 import uiStatusCatalog from "@agenta/i18n/catalogs/ui.status"
 
-import {SimpleTooltip} from "../../ui"
+import {SimpleTooltip} from "../../composed"
 
 /** A run of brand logos, side by side, each naming itself on hover. */
 export interface LogoMark {

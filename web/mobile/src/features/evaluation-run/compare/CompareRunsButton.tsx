@@ -5,7 +5,8 @@ import {
     type CompareBlockReason,
     type EvaluationRun,
 } from "@agenta/entities/evaluationRun"
-import {Button, Popover, PopoverContent, PopoverTrigger, SimpleTooltip} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {Button, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import dynamic from "next/dynamic"
 
 import {CompareRunsSkeleton} from "./states/CompareRunsSkeleton"

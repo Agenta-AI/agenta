@@ -1,6 +1,7 @@
 import type {KeyboardEvent, ReactNode, Ref} from "react"
 
-import {SkeletonBlock, cn, PageToolbar} from "@agenta/ui/ui"
+import {PageToolbar} from "@agenta/ui/composed"
+import {SkeletonBlock, cn} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 
 import {SettingsGroupHeading} from "./SettingsGroupHeading"

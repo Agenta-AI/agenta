@@ -4,7 +4,7 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import {CheckCircle, Info, WarningCircle, XCircle, X} from "@phosphor-icons/react"
 
-import {cn} from "./utils"
+import {cn} from "../ui/utils"
 
 /**
  * Notification — an @agenta/ui re-skin of one antd `notification` card, plus

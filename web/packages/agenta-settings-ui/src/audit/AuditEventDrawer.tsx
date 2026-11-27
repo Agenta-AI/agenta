@@ -14,14 +14,8 @@ import settingsAuditCatalog from "@agenta/i18n/catalogs/settings.audit"
 import settingsAuditEventTypesCatalog from "@agenta/i18n/catalogs/settings.auditEventTypes"
 import {dayjs} from "@agenta/shared/utils"
 import {CopyButton} from "@agenta/ui/components/presentational"
-import {
-    EmptyState,
-    Sheet,
-    SheetContent,
-    SheetDescription,
-    SheetHeader,
-    SheetTitle,
-} from "@agenta/ui/ui"
+import {EmptyState} from "@agenta/ui/composed"
+import {Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
 import {localDate, localFromNow} from "../shared/localDate"

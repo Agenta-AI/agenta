@@ -1,7 +1,8 @@
 import {useT} from "@agenta/i18n"
 import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
 import {SessionAccessChip, sessionSharingCopy} from "@agenta/sessions-ui/sharing"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {Button} from "@agenta/ui/ui"
 import {ExportIcon} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 

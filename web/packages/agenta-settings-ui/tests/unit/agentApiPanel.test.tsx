@@ -15,6 +15,15 @@ vi.mock("@agenta/ui/ui", () => ({
         <button onClick={onClick}>{children}</button>
     ),
     Input: (props: React.ComponentProps<"input">) => <input {...props} />,
+    Switch: ({
+        checked,
+        onCheckedChange,
+    }: {
+        checked: boolean
+        onCheckedChange: (value: boolean) => void
+    }) => <button role="switch" aria-checked={checked} onClick={() => onCheckedChange(!checked)} />,
+}))
+vi.mock("@agenta/ui/composed", () => ({
     LoadingButton: ({children, onClick}: React.ComponentProps<"button">) => (
         <button onClick={onClick}>{children}</button>
     ),
@@ -34,13 +43,6 @@ vi.mock("@agenta/ui/ui", () => ({
             ))}
         </div>
     ),
-    Switch: ({
-        checked,
-        onCheckedChange,
-    }: {
-        checked: boolean
-        onCheckedChange: (value: boolean) => void
-    }) => <button role="switch" aria-checked={checked} onClick={() => onCheckedChange(!checked)} />,
 }))
 
 import {AgentApiPanel} from "../../src/publish/AgentApiPanel"

@@ -1,7 +1,8 @@
 import {useState} from "react"
 
 import {FormView} from "@agenta/entity-ui/view-types"
-import {Button, Input, InputNumber, Switch} from "@agenta/ui/ui"
+import {InputNumber} from "@agenta/ui/composed"
+import {Button, Input, Switch} from "@agenta/ui/ui"
 import {MinusCircle, Plus} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 

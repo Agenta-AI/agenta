@@ -2,7 +2,7 @@ import {useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import publishCatalog from "@agenta/i18n/catalogs/publish"
-import {SimpleTooltip} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {CaretDown, CaretRight, Info} from "@phosphor-icons/react"
 
 /**

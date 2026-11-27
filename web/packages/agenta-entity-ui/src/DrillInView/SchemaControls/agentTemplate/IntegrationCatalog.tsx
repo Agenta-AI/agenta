@@ -38,6 +38,7 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import integrationDrawerCatalog from "@agenta/i18n/catalogs/entityUi.integrationDrawer"
 import {connectionDisplayName} from "@agenta/shared/utils"
 import {HeightCollapse, ScrollSentinel} from "@agenta/ui"
+import {IconTile, SearchInput, SimpleTooltip} from "@agenta/ui/composed"
 import {useScrollFadeEdges} from "@agenta/ui/hooks"
 import {
     Alert,
@@ -50,9 +51,6 @@ import {
     EmptyHeader,
     EmptyMedia,
     EmptyTitle,
-    IconTile,
-    SearchInput,
-    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {
     ArrowsLeftRight,

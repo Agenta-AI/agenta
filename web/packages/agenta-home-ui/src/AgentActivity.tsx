@@ -1,7 +1,8 @@
 import {useT} from "@agenta/i18n"
 import agentActivityCatalog from "@agenta/i18n/catalogs/home.agentActivity"
 import {timeAgo} from "@agenta/shared/utils"
-import {SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {SkeletonBlock} from "@agenta/ui/ui"
 
 import {useAgentLastSession} from "./useAgentActivity"
 

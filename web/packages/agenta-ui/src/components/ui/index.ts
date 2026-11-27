@@ -1,11 +1,9 @@
 /**
- * @agenta/ui/ui — @agenta/ui component layer (base, re-skinned to the app theme
- * via the shared --ag-* token bridge). These are the consolidation targets that replace
- * the antd-based presets. Import via `@agenta/ui/ui`.
+ * @agenta/ui/ui — the shadcn primitives, re-skinned to the app theme via the shared --ag-*
+ * token bridge, plus the small parts they share (`cn`, `MENU_ITEM`, `CollapseCaret`,
+ * `FieldHelp`, `DialogScope`). Only shadcn registry components live here; components built
+ * from them are in `@agenta/ui/composed`.
  */
-export {BackLink} from "./back-link"
-export {PageToolbar} from "./page-toolbar"
-export {RightPane, RightPaneHost, type RightPaneProps} from "./right-pane"
 export {Badge, badgeVariants, statusBadgeVariant, type BadgeProps, type BadgeVariant} from "./badge"
 export {
     Button,
@@ -15,7 +13,6 @@ export {
     type LegacyButtonSize,
     type LegacyButtonType,
 } from "./button"
-export {LoadingButton, type LoadingButtonProps} from "./button-composed"
 export {Input, Textarea, inputVariants, type InputProps, type TextareaProps} from "./input"
 export {
     InputGroup,
@@ -24,15 +21,6 @@ export {
     InputGroupText,
     InputGroupInput,
 } from "./input-group"
-export {InputNumber, inputNumberVariants, type InputNumberProps} from "./input-number"
-export {
-    InputAffix,
-    SearchInput,
-    PasswordInput,
-    AutosizeTextarea,
-    type InputAffixProps,
-    type AutosizeTextareaProps,
-} from "./input-composed"
 export {
     Select,
     SelectGroup,
@@ -57,8 +45,6 @@ export {
 export {Kbd, KbdGroup, kbdVariants, type KbdProps} from "./kbd"
 export {MENU_ITEM, MENU_ITEM_INSET} from "./menu-item"
 export {CollapseCaret, type CollapseCaretProps} from "./collapse-caret"
-export {CarouselDots, type CarouselDotsProps} from "./carousel-dots"
-export {SimpleTooltip, type SimpleTooltipProps} from "./tooltip-composed"
 export {RadioGroup, RadioGroupItem, type RadioGroupProps} from "./radio-group"
 export {
     Combobox,
@@ -67,26 +53,8 @@ export {
     type ComboboxProps,
 } from "./combobox"
 export {Switch, type SwitchProps} from "./switch"
-export {Divider, type DividerProps} from "./divider"
 export {Slider} from "./slider"
-export {Cascader, type CascaderOption, type CascaderProps} from "./cascader"
-export {
-    DateRangePicker,
-    DateRangeCalendar,
-    type DateRangeValue,
-    type DateRangePickerProps,
-    type DateRangeCalendarProps,
-} from "./date-range-picker"
-export {TreeSelect, type TreeSelectOption, type TreeSelectProps} from "./tree-select"
 export {Toaster} from "./toast"
-export {
-    Notification,
-    NotificationViewport,
-    notificationPlacements,
-    type NotificationProps,
-    type NotificationPlacement,
-    type NotificationType,
-} from "./notification"
 export {Tabs, TabsList, TabsTrigger, TabsContent} from "./tabs"
 export {Checkbox, type CheckboxProps} from "./checkbox"
 export {Alert, alertVariants, type AlertProps} from "./alert"
@@ -114,14 +82,6 @@ export {
     ContextMenuItem,
     ContextMenuSeparator,
 } from "./context-menu"
-export {
-    SplitPane,
-    paneSlideHoldMs,
-    usePaneSlide,
-    paneSlideMs,
-    PANE_SLIDE_MS,
-    type SplitPaneProps,
-} from "./split-pane"
 export {Accordion, AccordionItem, AccordionTrigger, AccordionContent} from "./accordion"
 export {
     Skeleton,
@@ -193,15 +153,6 @@ export {
     type ProgressStatus,
 } from "./progress"
 export {
-    Segmented,
-    segmentedTrackVariants,
-    segmentedItemVariants,
-    segmentedThumbVariants,
-    type SegmentedProps,
-    type SegmentedValue,
-} from "./segmented"
-export {ChoiceSwitch, type ChoiceSwitchOption, type ChoiceSwitchProps} from "./choice-switch"
-export {
     Avatar,
     AvatarImage,
     AvatarFallback,
@@ -220,16 +171,6 @@ export {
     EmptyContent,
     emptyMediaVariants,
 } from "./empty"
-export {EmptyState, type EmptyStateProps} from "./empty-state"
-export {
-    IconTile,
-    iconTileVariants,
-    type IconTileProps,
-    type IconTileSize,
-    type IconTileTone,
-} from "./icon-tile"
-export {InlineConfirm, type InlineConfirmProps} from "./inline-confirm"
-export {SkeletonRows, type SkeletonRowsProps} from "./skeleton-rows"
 export {Label} from "./label"
 export {Field, fieldLabelVariants, type FieldProps} from "./field"
 export {FieldHelp, type FieldHelpProps} from "./field-help"
@@ -244,8 +185,6 @@ export {
 } from "./breadcrumb"
 export {Calendar, type CalendarProps} from "./calendar"
 export {DatePicker, type DatePickerProps} from "./date-picker"
-export {DateTimePicker, type DateTimePickerProps} from "./date-time-picker"
-export {TimePicker, type TimePickerProps} from "./time-picker"
 export {cn} from "./utils"
 export {
     ChartContainer,
@@ -256,9 +195,3 @@ export {
     ChartStyle,
     type ChartConfig,
 } from "./chart"
-export {
-    ItemViewTitle,
-    ItemViewTitleSkeleton,
-    type ItemViewTitleEditable,
-    type ItemViewTitleProps,
-} from "./item-view-title"

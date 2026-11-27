@@ -1,6 +1,6 @@
 import {useT} from "@agenta/i18n"
 import builderContextCatalog from "@agenta/i18n/catalogs/builder.context"
-import {SimpleTooltip} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {Robot} from "@phosphor-icons/react"
 
 /**

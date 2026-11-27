@@ -1,6 +1,7 @@
 import {SESSION_TABS, type SessionView} from "@agenta/annotation"
+import {Segmented} from "@agenta/ui/composed"
 import {useMediaQuery} from "@agenta/ui/hooks"
-import {Segmented, Tabs, TabsList, TabsTrigger} from "@agenta/ui/ui"
+import {Tabs, TabsList, TabsTrigger} from "@agenta/ui/ui"
 
 const WIDE_QUERY = "(min-width: 640px)"
 

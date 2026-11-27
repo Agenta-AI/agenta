@@ -15,7 +15,8 @@ import {
     type AnalyticsMetric,
     type AnalyticsWindow,
 } from "@agenta/observability/analytics"
-import {Segmented, cn} from "@agenta/ui/ui"
+import {Segmented} from "@agenta/ui/composed"
+import {cn} from "@agenta/ui/ui"
 import {CaretRight} from "@phosphor-icons/react"
 
 import {SERIES_COLORS, analyticsColor} from "../colors"

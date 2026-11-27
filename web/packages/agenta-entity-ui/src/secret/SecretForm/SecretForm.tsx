@@ -15,14 +15,13 @@ import {CustomSecretFormat} from "@agenta/entities/secret"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import secretFormCatalog from "@agenta/i18n/catalogs/entityUi.secretForm"
+import {Segmented, SimpleTooltip} from "@agenta/ui/composed"
 import {TypeChip} from "@agenta/ui/type-chip"
 import {
     Button,
     Field,
     Input,
-    Segmented,
     Select,
-    SimpleTooltip,
     SelectContent,
     SelectItem,
     SelectTrigger,

@@ -3,7 +3,7 @@ import {useEffect, useState, type ReactNode} from "react"
 import {DriveFileGlyph} from "@agenta/entity-ui/drive"
 import {useT} from "@agenta/i18n"
 import chatAttachmentCardCatalog from "@agenta/i18n/catalogs/chat.attachmentCard"
-import {SimpleTooltip as Tooltip} from "@agenta/ui/ui"
+import {SimpleTooltip as Tooltip} from "@agenta/ui/composed"
 import {
     ArrowClockwise,
     DownloadSimple,

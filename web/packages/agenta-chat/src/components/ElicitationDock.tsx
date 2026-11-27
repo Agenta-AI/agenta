@@ -31,7 +31,8 @@ import {
     serializeElicitationContent,
     type ElicitationRequestPayload,
 } from "@agenta/shared/utils"
-import {Button, LoadingButton, Spinner} from "@agenta/ui/ui"
+import {LoadingButton} from "@agenta/ui/composed"
+import {Button, Spinner} from "@agenta/ui/ui"
 import {CaretLeft, CaretRight, Question, X} from "@phosphor-icons/react"
 
 import type {ClientToolOutputHandler} from "../clientTools/ClientToolPart"

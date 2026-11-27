@@ -11,6 +11,7 @@ import {
 import {useT} from "@agenta/i18n"
 import providerKeyFormCatalog from "@agenta/i18n/catalogs/entityUi.providerKeyForm"
 import keyFormCatalog from "@agenta/i18n/catalogs/onboarding.keyForm"
+import {LoadingButton} from "@agenta/ui/composed"
 import {
     Button,
     Command,
@@ -20,7 +21,6 @@ import {
     CommandItem,
     CommandList,
     Input,
-    LoadingButton,
     Popover,
     PopoverContent,
     PopoverTrigger,

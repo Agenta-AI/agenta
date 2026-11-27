@@ -1,4 +1,5 @@
-import {Button, Field, InputNumber} from "@agenta/ui/ui"
+import {InputNumber} from "@agenta/ui/composed"
+import {Button, Field} from "@agenta/ui/ui"
 
 import {
     CONCURRENCY_FIELDS,

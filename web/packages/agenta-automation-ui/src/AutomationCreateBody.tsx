@@ -2,7 +2,8 @@ import {type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
-import {ItemViewTitle, Switch} from "@agenta/ui/ui"
+import {ItemViewTitle} from "@agenta/ui/composed"
+import {Switch} from "@agenta/ui/ui"
 
 import {AutomationAgentField} from "./AutomationAgentField"
 import {AutomationInstructionField} from "./AutomationInstructionField"

@@ -33,6 +33,7 @@ import {
     extractBasicStats,
     type ChatExtractionPreference,
 } from "@agenta/ui/cell-renderers"
+import {LoadingButton} from "@agenta/ui/composed"
 import {
     EXPORT_RESOLVE_SKIP,
     InfiniteVirtualTableFeatureShell,
@@ -41,7 +42,6 @@ import {
     type TableScopeConfig,
     type TableExportColumnContext,
 } from "@agenta/ui/table"
-import {LoadingButton} from "@agenta/ui/ui"
 import {
     ArrowSquareOut,
     CaretDown,

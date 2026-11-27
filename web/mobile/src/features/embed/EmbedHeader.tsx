@@ -1,4 +1,5 @@
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {Button} from "@agenta/ui/ui"
 import {ChatsCircle, NotePencil, X} from "@phosphor-icons/react"
 
 import {EmbedAvatar} from "./EmbedAvatar"

@@ -22,7 +22,7 @@ import {
 } from "@agenta/auth-ui"
 import {richText, useT} from "@agenta/i18n"
 import signInCatalog from "@agenta/i18n/catalogs/auth.signIn"
-import {LoadingButton} from "@agenta/ui/ui"
+import {LoadingButton} from "@agenta/ui/composed"
 import {useRouter} from "next/router"
 
 import {AgentaLogo} from "@/components/AgentaLogo"

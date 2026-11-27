@@ -12,12 +12,12 @@ import {useT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {composerPrefillRequestAtom} from "@agenta/shared/state"
 import {BuilderIcon} from "@agenta/ui/agent-icon"
+import {IconTile} from "@agenta/ui/composed"
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
-    IconTile,
 } from "@agenta/ui/ui"
 import {useSetAtom} from "jotai"
 

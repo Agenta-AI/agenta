@@ -18,6 +18,7 @@ import {AgentChip} from "@agenta/entity-ui/agent"
 import {useT} from "@agenta/i18n"
 import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
 import {LoadError} from "@agenta/ui/components/presentational"
+import {PageToolbar} from "@agenta/ui/composed"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {
@@ -27,7 +28,7 @@ import {
     ListTableViewToggle,
     type ListTableColumn,
 } from "@agenta/ui/list-table"
-import {Button, PageToolbar} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 

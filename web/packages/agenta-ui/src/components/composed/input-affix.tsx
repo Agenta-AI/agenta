@@ -4,9 +4,10 @@ import {useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {Eye, EyeSlash, MagnifyingGlass, XCircle} from "@phosphor-icons/react"
 
-import {type InputProps, Textarea, type TextareaProps, inputVariants} from "./input"
-import {SimpleTooltip} from "./tooltip-composed"
-import {cn} from "./utils"
+import {type InputProps, Textarea, type TextareaProps, inputVariants} from "../ui/input"
+import {cn} from "../ui/utils"
+
+import {SimpleTooltip} from "./simple-tooltip"
 
 /**
  * Compositions over the Input primitive, covering the antd features shadcn's Input

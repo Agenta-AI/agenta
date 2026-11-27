@@ -27,8 +27,9 @@ import {
 } from "@agenta/observability/traceDrawer"
 import {projectIdAtom} from "@agenta/shared/state"
 import {Tag} from "@agenta/ui/components/presentational"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {ArrowLeft, CaretDown, CaretUp} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 

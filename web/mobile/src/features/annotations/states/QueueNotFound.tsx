@@ -1,4 +1,5 @@
-import {Button, EmptyState} from "@agenta/ui/ui"
+import {EmptyState} from "@agenta/ui/composed"
+import {Button} from "@agenta/ui/ui"
 import Link from "next/link"
 
 /** The queue request settled with no queue: it was deleted, or the link is wrong. */

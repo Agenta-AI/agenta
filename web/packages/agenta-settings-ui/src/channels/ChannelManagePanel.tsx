@@ -6,17 +6,8 @@ import channelsLabelsCatalog from "@agenta/i18n/catalogs/channels.labels"
 import channelsManageCatalog from "@agenta/i18n/catalogs/channels.manage"
 import channelsTeamsCatalog from "@agenta/i18n/catalogs/channels.teams"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import {
-    Alert,
-    Button,
-    Checkbox,
-    Input,
-    ItemViewTitle,
-    PasswordInput,
-    SimpleTooltip,
-    Spinner,
-    Switch,
-} from "@agenta/ui/ui"
+import {ItemViewTitle, PasswordInput, SimpleTooltip} from "@agenta/ui/composed"
+import {Alert, Button, Checkbox, Input, Spinner, Switch} from "@agenta/ui/ui"
 import {PaneFooter} from "@agenta/ui/view-stack"
 import {
     ArrowSquareOut,

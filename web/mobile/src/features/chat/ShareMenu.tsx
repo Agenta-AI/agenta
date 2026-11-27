@@ -7,13 +7,13 @@ import {
 } from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import chatShareMenuCatalog from "@agenta/i18n/catalogs/chat.shareMenu"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {
     Button,
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
-    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {Broadcast, ExportIcon, FileZip, Storefront} from "@phosphor-icons/react"
 import {useAtomValue, useStore} from "jotai"

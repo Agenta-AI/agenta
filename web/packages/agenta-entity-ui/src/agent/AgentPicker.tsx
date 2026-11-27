@@ -3,18 +3,16 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {createT, useT} from "@agenta/i18n"
 import agentPickerCatalog from "@agenta/i18n/catalogs/entityUi.agentPicker"
+import {EmptyState, IconTile, type IconTileSize} from "@agenta/ui/composed"
 import {
     Button,
     cn,
-    EmptyState,
-    IconTile,
     MENU_ITEM,
     Popover,
     PopoverContent,
     PopoverTrigger,
     SkeletonBlock,
     Spinner,
-    type IconTileSize,
 } from "@agenta/ui/ui"
 import {Check, MagnifyingGlass, Plus, Robot} from "@phosphor-icons/react"
 import {CaretDown} from "@phosphor-icons/react"

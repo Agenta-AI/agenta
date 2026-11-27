@@ -1,6 +1,7 @@
 import {useState} from "react"
 
-import {Badge, Button, Segmented} from "@agenta/ui/ui"
+import {Segmented} from "@agenta/ui/composed"
+import {Badge, Button} from "@agenta/ui/ui"
 import {Wrench} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 

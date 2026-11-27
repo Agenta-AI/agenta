@@ -12,15 +12,8 @@ import {useT} from "@agenta/i18n"
 import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
 import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {CopyButton} from "@agenta/ui/components/presentational"
-import {
-    Button,
-    Empty,
-    EmptyDescription,
-    EmptyHeader,
-    EmptyMedia,
-    EmptyTitle,
-    SimpleTooltip as Tooltip,
-} from "@agenta/ui/ui"
+import {SimpleTooltip as Tooltip} from "@agenta/ui/composed"
+import {Button, Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle} from "@agenta/ui/ui"
 import {Folder, FolderSimple, GitBranch} from "@phosphor-icons/react"
 import {AnimatePresence, motion} from "motion/react"
 

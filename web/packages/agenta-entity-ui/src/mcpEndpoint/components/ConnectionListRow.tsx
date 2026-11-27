@@ -18,7 +18,8 @@ import {getMcpConnectionStatusLabel, type McpConnectionStatus} from "@agenta/ent
 import {useT} from "@agenta/i18n"
 import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
 import {McpServerMark} from "@agenta/ui/agent-icon"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {Button} from "@agenta/ui/ui"
 import {Check, Plus} from "@phosphor-icons/react"
 
 import {CatalogListRow} from "../../DrillInView/SchemaControls/agentTemplate/CatalogListRow"

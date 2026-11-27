@@ -4,7 +4,7 @@ import {useT} from "@agenta/i18n"
 import toolbarCatalog from "@agenta/i18n/catalogs/observabilityUi.toolbar"
 import {filtersAtom, traceTabsAtom, type TraceTabTypes} from "@agenta/observability"
 import {getHostQueryClient} from "@agenta/shared/api"
-import {Segmented, type SegmentedProps, type SegmentedValue} from "@agenta/ui/ui"
+import {Segmented, type SegmentedProps, type SegmentedValue} from "@agenta/ui/composed"
 import {useAtom, useAtomValue} from "jotai"
 
 import {useDropFilterField, useUpdateFilter} from "./filterControls"

@@ -6,7 +6,8 @@ import {
     parseOutputMetrics,
 } from "@agenta/annotation"
 import {resolveOutputSchema, workflowMolecule} from "@agenta/entities/workflow"
-import {Badge, Button, Segmented, SkeletonBlock} from "@agenta/ui/ui"
+import {Segmented} from "@agenta/ui/composed"
+import {Badge, Button, SkeletonBlock} from "@agenta/ui/ui"
 import {CaretDown} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"

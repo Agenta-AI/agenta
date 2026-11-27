@@ -9,6 +9,7 @@ import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationV
 import subagentViewsCatalog from "@agenta/i18n/catalogs/entityUi.subagentViews"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {agentIconChrome, type AgentIconSelection} from "@agenta/ui/agent-icon"
+import {EmptyState, SearchInput, SimpleTooltip} from "@agenta/ui/composed"
 import {cn} from "@agenta/ui/styles"
 import {
     Button,
@@ -16,9 +17,6 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
-    EmptyState,
-    SearchInput,
-    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {Check, DotsThreeVertical, Plus, Robot, Trash} from "@phosphor-icons/react"
 

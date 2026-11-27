@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import {cn} from "./utils"
+import {cn} from "../ui/utils"
 
 /** CarouselDots — a slide pager: a muted dot per slide, a pill for the current one, 24px targets. */
 export interface CarouselDotsProps extends Omit<React.ComponentProps<"div">, "onSelect"> {

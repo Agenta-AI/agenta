@@ -10,6 +10,7 @@ import {
 import {useT} from "@agenta/i18n"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import type {SidebarArrange, SidebarConfig} from "@agenta/navigation"
+import {SimpleTooltip} from "@agenta/ui/composed"
 import {
     Button,
     MENU_ITEM,
@@ -17,7 +18,6 @@ import {
     Popover,
     PopoverContent,
     PopoverTrigger,
-    SimpleTooltip,
     cn,
 } from "@agenta/ui/ui"
 import {ArrowCounterClockwise, DotsThree, PushPin} from "@phosphor-icons/react"

@@ -1,6 +1,6 @@
 import {useT} from "@agenta/i18n"
 import phoneCatalog from "@agenta/i18n/catalogs/ui.phone"
-import {BackLink} from "@agenta/ui/ui"
+import {BackLink} from "@agenta/ui/composed"
 import Link from "next/link"
 
 /** Where Back goes: the parent page's link, or an in-page return (another view of this page). */

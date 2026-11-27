@@ -1,3 +1,4 @@
+import {IconTile} from "@agenta/ui/composed"
 import {
     Badge,
     Button,
@@ -7,7 +8,6 @@ import {
     CommandItem,
     CommandList,
     CommandSeparator,
-    IconTile,
     MENU_ITEM,
 } from "@agenta/ui/ui"
 import {

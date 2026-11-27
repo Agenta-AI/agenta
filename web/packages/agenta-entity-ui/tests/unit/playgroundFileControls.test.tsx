@@ -1,7 +1,7 @@
 import {act} from "react"
-import {createRoot} from "react-dom/client"
 
 import {Provider, createStore} from "jotai"
+import {createRoot} from "react-dom/client"
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
 const fixture = vi.hoisted(() => ({
@@ -38,10 +38,12 @@ vi.mock("@agenta/ui/ui", () => ({
     }: React.ButtonHTMLAttributes<HTMLButtonElement> & {variant?: string; size?: string}) => (
         <button {...props}>{children}</button>
     ),
+    SkeletonBlock: () => <span data-loading />,
+}))
+vi.mock("@agenta/ui/composed", () => ({
     SimpleTooltip: ({children, title}: {children: React.ReactNode; title: React.ReactNode}) => (
         <span data-tooltip={typeof title === "string" ? title : undefined}>{children}</span>
     ),
-    SkeletonBlock: () => <span data-loading />,
 }))
 import StorageFilesHeader from "../../src/drive/StorageFilesHeader"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =

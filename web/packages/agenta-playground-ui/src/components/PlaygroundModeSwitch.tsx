@@ -1,5 +1,5 @@
 import {chatPanelMaximizedAtom} from "@agenta/chat/state"
-import {Segmented} from "@agenta/ui/ui"
+import {Segmented} from "@agenta/ui/composed"
 import {useAtom} from "jotai"
 
 /**

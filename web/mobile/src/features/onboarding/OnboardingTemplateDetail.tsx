@@ -3,7 +3,7 @@ import type {ReactNode} from "react"
 import {PROVIDERS, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import galleryCatalog from "@agenta/i18n/catalogs/onboarding.gallery"
-import {LoadingButton} from "@agenta/ui/ui"
+import {LoadingButton} from "@agenta/ui/composed"
 import {ArrowRight, Lightning} from "@phosphor-icons/react"
 
 import type {OnboardingCreateState} from "./OnboardingCreateState"

@@ -2,10 +2,10 @@
 import {cleanup, render, screen} from "@testing-library/react"
 import {afterEach, describe, expect, it} from "vitest"
 
+import {SearchInput} from "../../src/components/composed/input-affix"
 import {inputVariants} from "../../src/components/ui/input"
-import {cn} from "../../src/components/ui/utils"
-import {SearchInput} from "../../src/components/ui/input-composed"
 import {Select, SelectTrigger, SelectValue} from "../../src/components/ui/select"
+import {cn} from "../../src/components/ui/utils"
 
 /**
  * The canvas draws form fields at 34px, search fields at 30px and selects at the control height, all radius 6

@@ -7,7 +7,8 @@ import {useMemo} from "react"
 
 import {useT} from "@agenta/i18n"
 import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
-import {EmptyState, SkeletonBlock} from "@agenta/ui/ui"
+import {EmptyState} from "@agenta/ui/composed"
+import {SkeletonBlock} from "@agenta/ui/ui"
 
 import {SkillCard} from "./SkillCard"
 import {SourceRefreshButton} from "./SourceRefreshButton"

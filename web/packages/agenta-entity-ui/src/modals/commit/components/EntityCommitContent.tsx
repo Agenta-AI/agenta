@@ -19,9 +19,10 @@ import {
 } from "@agenta/shared/utils"
 import {CommitMessageInput} from "@agenta/ui/components/presentational"
 import {VersionBadge} from "@agenta/ui/components/presentational"
+import {InputAffix} from "@agenta/ui/composed"
 import {DiffView} from "@agenta/ui/editor"
 import {cn, textColors} from "@agenta/ui/styles"
-import {Alert, Badge, Button, Input, InputAffix, RadioGroup, RadioGroupItem} from "@agenta/ui/ui"
+import {Alert, Badge, Button, Input, RadioGroup, RadioGroupItem} from "@agenta/ui/ui"
 import {ArrowClockwise, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
