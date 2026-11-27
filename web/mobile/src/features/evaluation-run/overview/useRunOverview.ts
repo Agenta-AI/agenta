@@ -32,21 +32,22 @@ export interface OverviewNames {
 
 interface OverviewNameIds {
     evaluatorIds: string[]
-    testsetIds: string[]
+    testsetIds?: string[]
     /** The test set revisions whose version the run does not name; "" for the others. */
     testsetRevisionIds?: string[]
-    applicationId: string | null
-    revisionId: string | null
+    applicationId?: string | null
+    revisionId?: string | null
 }
 
 /**
- * The names the overview shows. The atom is rebuilt only when an id changes: the catalog and the
+ * The names of a run's evaluators, test sets, application and variant. The atom is rebuilt only when an id changes: the catalog and the
  * references are new arrays after every poll, and a new atom would read all the names again.
  */
 export function useOverviewNames(ids: OverviewNameIds): OverviewNames {
-    const {applicationId, revisionId} = ids
+    const applicationId = ids.applicationId ?? null
+    const revisionId = ids.revisionId ?? null
     const evaluatorKey = [...new Set(ids.evaluatorIds)].join(",")
-    const testsetKey = ids.testsetIds.join(",")
+    const testsetKey = (ids.testsetIds ?? []).join(",")
     const testsetRevisionKey = (ids.testsetRevisionIds ?? []).join(",")
     const namesAtom = useMemo(() => {
         const evaluatorIds = evaluatorKey ? evaluatorKey.split(",") : []
@@ -75,8 +76,8 @@ export function useOverviewNames(ids: OverviewNameIds): OverviewNames {
 }
 
 /**
- * The per-test-case rows behind the "Passed" tile and the failed test cases. They load once the run has finished; a running
- * or online run never reads them, so they are not available there.
+ * The per-test-case rows behind the "Passed" tile and the failed test cases. They load once the
+ * run has finished; a running or online run never reads them, so they are not available there.
  */
 export type ScenarioMetricsState =
     | {status: "pending"}
@@ -90,15 +91,12 @@ export function useRunOverview(runId: string) {
     const catalog = useAtomValue(runMetricCatalogAtomFamily(runId))
     const scenarioQuery = useAtomValue(runScenarioMetricsQueryAtomFamily(runId))
 
-    // Only the evaluator names: the test set, application and variant are in the header's meta line.
+    // Only the evaluator names; the header's meta line reads the others.
     const names = useOverviewNames({
         evaluatorIds: [
             ...catalog.flatMap((entry) => entry.evaluatorId ?? []),
             ...(references?.evaluators.map((evaluator) => evaluator.evaluatorId) ?? []),
         ],
-        testsetIds: [],
-        applicationId: null,
-        revisionId: null,
     })
 
     const metrics = useMemo<OverviewMetric[]>(

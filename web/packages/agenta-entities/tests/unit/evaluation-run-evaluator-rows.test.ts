@@ -368,6 +368,15 @@ describe("run tiles", () => {
         expect(runTiles({...base, status: "running"})[0].detail).toBeNull()
         expect(runTiles({...base, online: true})[2].detail).toEqual({kind: "perTrace"})
     })
+
+    it("An online run uses only run-wide invocation stats, not its latest time bucket", () => {
+        const bucketOnly = invocation.map((entry) => ({...entry, statsAreRunWide: false}))
+
+        const online = runTiles({...base, online: true, binaryStats: [], invocation: bucketOnly})
+        expect(online.map((tile) => tile.value)).toEqual(["—", "—", "—", "—", "—"])
+        const offline = runTiles({...base, binaryStats: [], invocation: bucketOnly})
+        expect(offline[0].value).toBe("9")
+    })
 })
 
 describe("failed test cases", () => {

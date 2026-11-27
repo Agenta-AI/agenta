@@ -88,12 +88,7 @@ export const RunOverviewView = ({
         return runTiles({
             status: header.status,
             online,
-            // An online run without a run-wide row has only its latest time bucket: not the run.
-            invocation: metrics
-                .filter((metric) => metric.kind === "invocation")
-                .map((metric) =>
-                    online && !metric.statsAreRunWide ? {...metric, stats: null} : metric,
-                ),
+            invocation: metrics.filter((metric) => metric.kind === "invocation"),
             binaryStats: binary.map((metric) => metric.stats),
             passed,
             metricsPending,

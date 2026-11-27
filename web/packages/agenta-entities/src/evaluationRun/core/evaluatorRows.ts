@@ -365,7 +365,7 @@ export interface RunTilesInput {
     status: string | null
     online: boolean
     /** The invocation entries of the catalog: cost, duration, tokens, errors. */
-    invocation: readonly {id: string; stats: MetricStats | null}[]
+    invocation: readonly {id: string; stats: MetricStats | null; statsAreRunWide?: boolean}[]
     /** The stats of every binary metric of the run. */
     binaryStats: readonly (MetricStats | null)[]
     passed: PassedState
@@ -396,7 +396,11 @@ export function runTiles({
     metricsPending,
     failures = null,
 }: RunTilesInput): RunTile[] {
-    const statsOf = (id: string) => invocation.find((entry) => entry.id === id)?.stats ?? null
+    // An online run without a run-wide row has only its latest time bucket, which is not the run.
+    const statsOf = (id: string) => {
+        const entry = invocation.find((item) => item.id === id)
+        return entry && (!online || entry.statsAreRunWide !== false) ? entry.stats : null
+    }
     const show = (value: number | undefined, format: (value: number) => string, loaded: boolean) =>
         value !== undefined
             ? format(value)
