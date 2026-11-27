@@ -40,8 +40,9 @@ interface OverviewNameIds {
 }
 
 /**
- * The names of a run's evaluators, test sets, application and variant. The atom is rebuilt only when an id changes: the catalog and the
- * references are new arrays after every poll, and a new atom would read all the names again.
+ * The names of a run's evaluators, test sets, application and variant. The atom is rebuilt only
+ * when an id changes: the catalog and the references are new arrays after every poll, and a new
+ * atom would read all the names again.
  */
 export function useOverviewNames(ids: OverviewNameIds): OverviewNames {
     const applicationId = ids.applicationId ?? null

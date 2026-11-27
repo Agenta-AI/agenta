@@ -1,5 +1,5 @@
 /**
- * Every per-test-case metric row of one run, read once the run has finished. It feeds the
+ * Every per-test-case metric row of one run, read when the run has finished. It feeds the
  * "Passed" tile and the failed test cases of the overview. It does not poll: a running run would
  * send a large request every few seconds. Online runs never read it (one row per trace, no upper
  * bound). A save or a re-run on this page invalidates it.
@@ -42,7 +42,7 @@ export const runScenarioMetricsQueryAtomFamily = atomFamily((runId: string) =>
                 }),
             enabled: Boolean(runId && projectId) && finished,
             // As stale as the run-level metrics: a save made elsewhere (an annotation queue) shows
-            // when the overview opens again, and a tab switch or a focus does not read it again.
+            // when the overview opens again after 30 s. A window focus does not read it again.
             staleTime: 30_000,
             refetchOnWindowFocus: false,
             retry: false,

@@ -292,10 +292,10 @@ describe("passed test cases", () => {
 
 describe("run tiles", () => {
     const invocation = [
-        {id: "cost", stats: {mean: 0.021, count: 9}},
-        {id: "duration", stats: {mean: 1500, count: 9}},
-        {id: "tokens", stats: {mean: 950, count: 9}},
-        {id: "errors", stats: {sum: 2, count: 9}},
+        {id: "cost", stats: {mean: 0.021, count: 9}, statsAreRunWide: true},
+        {id: "duration", stats: {mean: 1500, count: 9}, statsAreRunWide: true},
+        {id: "tokens", stats: {mean: 950, count: 9}, statsAreRunWide: true},
+        {id: "errors", stats: {sum: 2, count: 9}, statsAreRunWide: true},
     ]
     const base: RunTilesInput = {
         status: "success",
