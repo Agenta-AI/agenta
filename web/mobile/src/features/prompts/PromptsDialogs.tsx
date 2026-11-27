@@ -7,15 +7,28 @@ import {
     type FoldersById,
     type MoveItem,
 } from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
+import {FolderIcon} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
 
 import {RenameAppDialog} from "../app-overview/RenameAppDialog"
 
-import {ArchivePromptDialog} from "./dialogs/ArchivePromptDialog"
-import {DeleteFolderDialog} from "./dialogs/DeleteFolderDialog"
 import {FolderNameDialog} from "./dialogs/FolderNameDialog"
 import {MoveToFolderDialog} from "./dialogs/MoveToFolderDialog"
 import type {PromptsDialog} from "./promptDialogState"
+import {promptsCopy} from "./promptsCopy"
 import type {ActionResult, usePromptFolderActions} from "./usePromptFolderActions"
 
 type Actions = ReturnType<typeof usePromptFolderActions>
@@ -61,6 +74,7 @@ export const PromptsDialogs = ({
     actions: Actions
     onClose: () => void
 }) => {
+    const t = useT(commonCatalog)
     const queryClient = useQueryClient()
     const [error, setError] = useState<string | null>(null)
     // A new dialog starts without the last one's failure.
@@ -78,6 +92,9 @@ export const PromptsDialogs = ({
     const folders: Folder[] = [...foldersById.values()]
     const move = moveTarget(dialog)
     const common = {pending: actions.pending, error, onClose}
+    const closeUnlessPending = (next: boolean) => {
+        if (!next && !actions.pending) onClose()
+    }
 
     return (
         <>
@@ -118,25 +135,85 @@ export const PromptsDialogs = ({
                     }
                 }}
             />
-            <DeleteFolderDialog
-                {...common}
-                open={dialog?.kind === "deleteFolder"}
-                folderName={dialog?.kind === "deleteFolder" ? dialog.folder.name : null}
-                onConfirm={() => {
-                    if (dialog?.kind === "deleteFolder")
-                        void finish(actions.deleteFolder(dialog.folder))
-                }}
-            />
-            <ArchivePromptDialog
-                {...common}
-                open={dialog?.kind === "archivePrompt"}
-                promptName={dialog?.kind === "archivePrompt" ? (dialog.prompt.name ?? "") : ""}
-                onConfirm={() => {
-                    if (dialog?.kind === "archivePrompt") {
-                        void finish(actions.archivePrompt(dialog.prompt))
-                    }
-                }}
-            />
+            <AlertDialog open={dialog?.kind === "deleteFolder"} onOpenChange={closeUnlessPending}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{promptsCopy.deleteDialog.title}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {promptsCopy.deleteDialog.description}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="flex flex-col gap-2 text-body">
+                        <span>{promptsCopy.deleteDialog.about}</span>
+                        <span className="flex min-w-0 items-center gap-2 font-medium">
+                            <FolderIcon className="size-4 shrink-0" />
+                            <span className="truncate">
+                                {(dialog?.kind === "deleteFolder" ? dialog.folder.name : null) ||
+                                    promptsCopy.deleteDialog.fallbackName}
+                            </span>
+                        </span>
+                    </div>
+                    {error ? <p className="m-0 text-body text-destructive">{error}</p> : null}
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button variant="outline" onClick={onClose} disabled={actions.pending}>
+                                {t("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant="destructive"
+                                disabled={actions.pending}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    if (dialog?.kind === "deleteFolder")
+                                        void finish(actions.deleteFolder(dialog.folder))
+                                }}
+                            >
+                                {actions.pending
+                                    ? t("common.working")
+                                    : promptsCopy.deleteDialog.confirm}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+            <AlertDialog open={dialog?.kind === "archivePrompt"} onOpenChange={closeUnlessPending}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{promptsCopy.archiveDialog.title}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {promptsCopy.archiveDialog.text(
+                                dialog?.kind === "archivePrompt" ? (dialog.prompt.name ?? "") : "",
+                            )}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {error ? <p className="m-0 text-body text-destructive">{error}</p> : null}
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button variant="outline" onClick={onClose} disabled={actions.pending}>
+                                {t("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant="destructive"
+                                disabled={actions.pending}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    if (dialog?.kind === "archivePrompt") {
+                                        void finish(actions.archivePrompt(dialog.prompt))
+                                    }
+                                }}
+                            >
+                                {actions.pending
+                                    ? t("common.working")
+                                    : promptsCopy.archiveDialog.confirm}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
             {dialog?.kind === "renamePrompt" ? (
                 // The one rename dialog: the app overview uses it too. It blocks a name another
                 // app already has, and it closes itself when the save is done.

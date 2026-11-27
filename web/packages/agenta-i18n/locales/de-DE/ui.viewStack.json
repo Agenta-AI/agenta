@@ -1,12 +1,8 @@
 {
     "cancel": "Abbrechen",
     "close": "Schließen",
-    "discard": "Verwerfen",
-    "done": "Fertig",
-    "keepEditing": "Weiter bearbeiten",
     "save": "Speichern",
-    "saveChanges": "Änderungen speichern",
     "saveFailed": "Die Änderung konnte nicht gespeichert werden. Versuchen Sie es erneut.",
     "saving": "Speichern…",
-    "unsavedChanges": "Sie haben nicht gespeicherte Änderungen"
+    "widen": "Bereich verbreitern"
 }

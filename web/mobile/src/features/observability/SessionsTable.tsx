@@ -24,8 +24,7 @@ export const SessionsTable = ({onOpenSession}: {onOpenSession: (sessionId: strin
                     // The rows open a drawer, so the keyboard reaches them and shows where it is.
                     onRow: (record) => ({
                         tabIndex: 0,
-                        className:
-                            "cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid focus-visible:outline-ring",
+                        className: "cursor-pointer focus-ring focus-visible:-outline-offset-2",
                         onKeyDown: openOnKey(() => onOpenSession(record.session_id)),
                     }),
                 }}

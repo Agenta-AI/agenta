@@ -52,15 +52,15 @@ const ProviderCatalogList = ({onSelect}: ProviderCatalogListProps) => {
                             return (
                                 <li
                                     key={entry.kind}
-                                    className="flex items-center gap-3 border-0 border-b border-solid border-colorSplit px-6 py-2"
+                                    className="flex items-center gap-3 border-0 border-b border-solid border-border-muted px-6 py-2"
                                 >
                                     <Icon className="size-5 shrink-0" />
                                     <span className="flex min-w-0 flex-1 flex-col">
-                                        <span className="truncate text-xs text-colorText">
+                                        <span className="truncate text-meta text-foreground">
                                             {entry.title}
                                         </span>
                                         {entry.subtitle ? (
-                                            <span className="truncate text-[11px] text-colorTextTertiary">
+                                            <span className="truncate text-caption text-muted-foreground">
                                                 {entry.subtitle}
                                             </span>
                                         ) : null}

@@ -23,7 +23,7 @@ export const AutomationLastRunCell = ({automation}: {automation: Automation}) =>
 
     if (!newest) {
         return (
-            <span className="text-[13px] text-muted-foreground">
+            <span className="text-label text-muted-foreground">
                 {t("automations.editor.never")}
             </span>
         )
@@ -35,13 +35,13 @@ export const AutomationLastRunCell = ({automation}: {automation: Automation}) =>
     return (
         <span className="flex min-w-0 flex-col">
             <span
-                className="truncate text-[13px] text-foreground"
+                className="truncate text-label text-foreground"
                 title={newest.created_at ?? undefined}
             >
                 {when}
             </span>
             {caption ? (
-                <span className="truncate text-[12px] text-muted-foreground">{caption}</span>
+                <span className="truncate text-meta text-muted-foreground">{caption}</span>
             ) : null}
         </span>
     )

@@ -34,7 +34,6 @@ This key has no env-var or `env.py` equivalent.
 
 | Env var | env.py path | values.yaml path |
 |---|---|---|
-| `AGENTA_LICENSE` | `agenta.license` | `agenta.license` |
 | `AGENTA_WEB_URL` | `agenta.web_url` | `agenta.webUrl` |
 | `AGENTA_APP_ORIGINS` | `agenta.app_origins` | n/a |
 | `AGENTA_SERVICES_URL` | `agenta.services_url` | `agenta.servicesUrl` |
@@ -45,16 +44,24 @@ This key has no env-var or `env.py` equivalent.
 | `AGENTA_SERVICES_INTERNAL_KEY` | `agenta.services_internal_key` | `agenta.servicesInternalKey` |
 | `AGENTA_RUNNER_TOKEN` | n/a (read by the runner and its caller) | `agenta.runnerToken` |
 
-`AGENTA_LICENSE` picks the default database names: `oss` (the default) gives `agenta_oss_core`,
-`agenta_oss_tracing` and `agenta_oss_supertokens`, and `ee` gives `agenta_ee_*`. The web
-container also reads it for the classic web app, and the services container reads it for
-[provider keys from the environment](#llm-provider-api-keys). It does not decide the plan or the
-features: a [license key](#license) does. `POSTGRES_DB_PREFIX` and the `POSTGRES_URI_*` variables
-override the names it picks. See [postgres](#postgres).
+A new install does not set `AGENTA_LICENSE` for the API. The env file examples set
+`POSTGRES_DB_PREFIX` instead. See [postgres](#postgres).
 
-:::warning Do not change `AGENTA_LICENSE` on an install that has data
-The install then opens other database names, which are empty, and looks as if its data is gone.
-To move to a paid plan, add a [license key](/self-host/license-keys) instead.
+Existing installs that set AGENTA_LICENSE keep working; new installs do not need it.
+
+On such an install, the API reads `AGENTA_LICENSE` only for the default database names. Each of
+the three databases gets its name on its own: from its `POSTGRES_URI_*` variable, else from
+`POSTGRES_DB_PREFIX`, else from `AGENTA_LICENSE`. `ee` gives `agenta_ee_core`,
+`agenta_ee_tracing` and `agenta_ee_supertokens`. Any other value, or no value, gives `agenta_oss_*`.
+The web container still reads it to pick the classic web (`/w`) build, and the services container
+reads it for [provider keys from the environment](#llm-provider-api-keys). For this reason, the
+Enterprise env file examples and the Helm value `agenta.license` keep it. It does not decide the
+plan or the features: a [license key](#license) does.
+
+:::warning Do not change or remove `AGENTA_LICENSE` on an install that has data
+A database that has neither its `POSTGRES_URI_*` variable nor `POSTGRES_DB_PREFIX` set then opens
+another database name, which is empty, and the install looks as if its data is gone. To move to a paid plan, add a
+[license key](/self-host/license-keys) instead.
 :::
 
 `AGENTA_AUTH_KEY`, `AGENTA_CRYPT_KEY`, `AGENTA_SERVICES_INTERNAL_KEY`, and `AGENTA_RUNNER_TOKEN`

@@ -118,6 +118,14 @@ describe("formatRunError", () => {
         ])
     })
 
+    it("shows a plain sentence for a system message and keeps its text for the fold", () => {
+        const text = "No user message to send (prompt/messages empty)."
+        const error = formatRunError(text)
+
+        expect(error.paragraphs).toEqual(["Something went wrong."])
+        expect(error.raw).toBe(text)
+    })
+
     it("keeps no raw text when the message only gained a period", () => {
         const error = formatRunError("Failed to fetch")
 

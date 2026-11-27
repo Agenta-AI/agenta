@@ -58,7 +58,7 @@ export function McpSignIn({
                     </Button>
                 </form>
             ) : null}
-            {error ? <span className="text-xs text-[var(--ag-colorError)]">{error}</span> : null}
+            {error ? <span className="text-meta text-destructive">{error}</span> : null}
         </>
     )
 }

@@ -2,8 +2,22 @@ import {useCallback, useMemo, useState} from "react"
 
 import {testcaseDataController, type TestcaseTableRow} from "@agenta/entities/testcase"
 import {useTestcaseDrawerNavigation} from "@agenta/entity-ui/testcase"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -18,7 +32,7 @@ import {useBindProjectContext} from "../../context/useBindProjectContext"
 import {useProjectPermission} from "../../context/useProjectPermission"
 import {useDeveloperPageFrame, useDetailHeaderTop} from "../../developer/developerPageFrame"
 import {AppShell} from "../../nav/AppShell"
-import {NavDrawer} from "../../nav/NavDrawer"
+import {PageBackBar} from "../../page-layout/PageBackBar"
 
 import {ArchivedTestsetNotice} from "./ArchivedTestsetNotice"
 import {TestsetDetailSkeleton} from "./states/TestsetDetailSkeleton"
@@ -68,6 +82,8 @@ export const TestsetDetailScreen = ({
     const PAGE_FRAME = useDeveloperPageFrame()
     const headerTop = useDetailHeaderTop()
     useBindWorkspaceMembers()
+    const tNav = useT(navigationCatalog)
+    const tCommon = useT(commonCatalog)
     useBindProjectContext(projectId)
     const router = useRouter()
     const queryClient = useQueryClient()
@@ -108,8 +124,6 @@ export const TestsetDetailScreen = ({
         projectId,
         testsetId: header?.testsetId,
         revisionId,
-        name: header?.testsetName ?? "",
-        version: header?.revisionVersion,
         list: revisions,
         base,
         leave: go,
@@ -203,32 +217,44 @@ export const TestsetDetailScreen = ({
                 <ScreenScaffold
                     fill
                     header={
-                        <div className={`box-border shrink-0 px-4 pt-3 ${headerTop} ${PAGE_FRAME}`}>
-                            <div className="flex min-w-0 items-start gap-2">
-                                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                {ready ? (
-                                    <div className="min-w-0 flex-1">
-                                        <TestsetHeader
-                                            header={header}
-                                            revisionId={revisionId}
-                                            isNew={isNew}
-                                            canEdit={canEdit}
-                                            canExport={canExport}
-                                            revisions={revisions}
-                                            onPickRevision={(id) =>
-                                                go(testsetRevisionPath(base, id))
-                                            }
-                                            onSaveDetails={details.save}
-                                            savingDetails={details.pending}
-                                            exporting={exporter.exporting}
-                                            onExport={(format) => void exporter.exportAs(format)}
-                                            archiveDisabledReason={archive.disabledReason}
-                                            onArchive={archive.request}
-                                        />
-                                    </div>
-                                ) : null}
+                        <>
+                            <PageBackBar
+                                back={{
+                                    label: tNav("navigation.items.testSets"),
+                                    href: `${base}/testsets`,
+                                }}
+                                column={`box-border px-4 ${PAGE_FRAME}`}
+                            />
+                            <div
+                                className={`box-border shrink-0 px-4 pt-6 ${headerTop} ${PAGE_FRAME}`}
+                            >
+                                <div className="flex min-w-0 items-start gap-2">
+                                    {ready ? (
+                                        <div className="min-w-0 flex-1">
+                                            <TestsetHeader
+                                                header={header}
+                                                revisionId={revisionId}
+                                                isNew={isNew}
+                                                canEdit={canEdit}
+                                                canExport={canExport}
+                                                revisions={revisions}
+                                                onPickRevision={(id) =>
+                                                    go(testsetRevisionPath(base, id))
+                                                }
+                                                onSaveDetails={details.save}
+                                                savingDetails={details.pending}
+                                                exporting={exporter.exporting}
+                                                onExport={(format) =>
+                                                    void exporter.exportAs(format)
+                                                }
+                                                archiveDisabledReason={archive.disabledReason}
+                                                onArchive={archive.request}
+                                            />
+                                        </div>
+                                    ) : null}
+                                </div>
                             </div>
-                        </div>
+                        </>
                     }
                 >
                     <div
@@ -240,7 +266,53 @@ export const TestsetDetailScreen = ({
                     </div>
                 </ScreenScaffold>
             </AppShell>
-            {archive.modal}
+            <AlertDialog
+                open={archive.open}
+                onOpenChange={(next) => {
+                    if (!next && !archive.pending) archive.close()
+                }}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to archive the following?
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="flex flex-col gap-0.5 text-body">
+                        <span className="text-meta text-muted-foreground">Revisions only</span>
+                        <span className="font-medium">
+                            {header?.testsetName ?? ""} v{header?.revisionVersion ?? "#"}
+                        </span>
+                    </div>
+                    {archive.error ? (
+                        <p className="m-0 text-body text-destructive">{archive.error}</p>
+                    ) : null}
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                variant="outline"
+                                onClick={archive.close}
+                                disabled={archive.pending}
+                            >
+                                {tCommon("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant="destructive"
+                                disabled={archive.pending}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    void archive.confirmArchive()
+                                }}
+                            >
+                                {archive.pending ? tCommon("common.working") : "Archive"}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
             {importOpen && header?.testsetId ? (
                 <ImportRevisionDialog
                     open

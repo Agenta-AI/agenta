@@ -21,7 +21,7 @@ export const ScenarioGroupCell = ({cells, error}: {cells: ScenarioCell[]; error?
             ))}
             {hidden > 0 ? (
                 <span
-                    className="w-fit rounded-full border border-border px-1.5 text-[11px] text-muted-foreground"
+                    className="w-fit rounded-md border border-border px-1.5 text-caption text-muted-foreground"
                     title={`${hidden} more ${hidden === 1 ? "value" : "values"} in this scenario`}
                 >
                     +{hidden}

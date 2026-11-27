@@ -45,13 +45,15 @@ const openIn = async (view: ViewDef<Record<string, never>>) => {
 afterEach(cleanup)
 
 describe("ViewDef.actionRow", () => {
-    it("an immediate view keeps its Done row by default", async () => {
+    // An immediate view has no Done; its row holds only the footer start slot.
+    it("an immediate view keeps its action row by default, with no Done", async () => {
         await openIn(withRow)
-        expect(screen.getByRole("button", {name: "Done"})).toBeTruthy()
+        expect(document.querySelector("[data-footer-start]")).toBeTruthy()
+        expect(screen.queryByRole("button", {name: "Done"})).toBeNull()
     })
 
     it("false draws no action row", async () => {
         await openIn(noRow)
-        expect(screen.queryByRole("button", {name: "Done"})).toBeNull()
+        expect(document.querySelector("[data-footer-start]")).toBeNull()
     })
 })

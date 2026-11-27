@@ -22,8 +22,7 @@ import {
 import {richText, useT} from "@agenta/i18n"
 import chatConnectionDockCatalog from "@agenta/i18n/catalogs/chat.connectionDock"
 import {isOverlayOpen} from "@agenta/shared/utils"
-import {Button} from "@agenta/ui/ui"
-import {Spinner} from "@phosphor-icons/react"
+import {Button, Spinner} from "@agenta/ui/ui"
 import {
     motion,
     useMotionValue,
@@ -59,8 +58,7 @@ const DOT_PILL_MAX_STRETCH = 0.35
 /** Travel speed (px/s) that earns the full stretch; the longest hop in a 5-dot row roughly hits it. */
 const DOT_PILL_PEAK_VELOCITY = 420
 
-const CARD_SURFACE =
-    "rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer"
+const CARD_SURFACE = "rounded-lg border border-solid border-border-muted bg-background"
 
 export interface ConnectionDockProps {
     /** The whole dock state from `useConnectionDock` — passed as one object so a new field never
@@ -221,7 +219,7 @@ const PeekCard = ({
         <>
             <div
                 aria-hidden
-                className={`${CARD_SURFACE} pointer-events-none absolute bottom-0 flex items-start overflow-hidden px-3 pt-1.5 shadow-sm transition-all duration-300 ease-out motion-reduce:transition-none`}
+                className={`${CARD_SURFACE} pointer-events-none absolute bottom-0 flex items-start overflow-hidden px-3 pt-1.5 shadow-raised transition-all duration-300 ease-out motion-reduce:transition-none`}
                 style={{
                     left: currentInset,
                     right: currentInset,
@@ -234,7 +232,7 @@ const PeekCard = ({
                     style={{opacity: revealed ? 1 : 0}}
                 >
                     <IntegrationTile label={label} logo={logo} size={14} />
-                    <span className="whitespace-nowrap text-xs text-colorTextSecondary">
+                    <span className="whitespace-nowrap text-meta text-muted-foreground">
                         {label}
                     </span>
                 </span>
@@ -338,7 +336,7 @@ const ConnectPill = ({activeIndex}: {activeIndex: number}) => {
     return (
         <motion.span
             aria-hidden
-            className="pointer-events-none absolute left-0 top-1/2 rounded-full bg-colorText"
+            className="pointer-events-none absolute left-0 top-1/2 rounded-md bg-foreground"
             style={{
                 width: DOT_PILL_WIDTH,
                 height: DOT_SIZE,
@@ -381,8 +379,8 @@ const Dot = ({
             style={{paddingLeft: DOT_PAD, paddingRight: DOT_PAD}}
         >
             <span
-                className={`rounded-full transition-colors duration-200 motion-reduce:transition-none ${
-                    meta.settled ? "bg-colorTextQuaternary" : "bg-colorFill"
+                className={`rounded-md transition-colors duration-200 motion-reduce:transition-none ${
+                    meta.settled ? "bg-border-strong" : "bg-selected"
                 }`}
                 style={{width: DOT_SIZE, height: DOT_SIZE}}
             />
@@ -428,7 +426,7 @@ const ConnectCard = ({
         <div className={`${CARD_SURFACE} relative z-20 flex flex-col gap-2.5 p-3`}>
             <div className="flex items-center gap-2">
                 <IntegrationTile label={label} logo={logo} size={20} />
-                <span className="text-xs font-medium text-colorText">
+                <span className="text-label text-foreground">
                     {t("chat.connectionDock.agentWaiting")}
                 </span>
                 {total > 1 ? (
@@ -539,19 +537,19 @@ const ConnectBody = ({
         <>
             {phase === "connecting" ? (
                 <div className="flex items-center gap-2">
-                    <Spinner size={13} className="shrink-0 animate-spin text-colorPrimary" />
-                    <span className="text-xs text-colorTextSecondary">
+                    <Spinner aria-hidden className="size-3.5 text-muted-foreground" />
+                    <span className="text-meta text-muted-foreground">
                         {t("chat.connectionDock.connecting", {name})}
                     </span>
                 </div>
             ) : phase === "error" || errorText ? (
-                <span className="text-xs text-colorError" title={errorText ?? undefined}>
+                <span className="text-meta text-destructive" title={errorText ?? undefined}>
                     {errorText ?? t("chat.connectionDock.connectionFailed")}
                 </span>
             ) : (
-                <span className="text-xs text-colorTextSecondary">
+                <span className="text-meta text-muted-foreground">
                     {richText(t("chat.connectionDock.connectPrompt", {name}), {
-                        name: (text) => <span className="font-medium text-colorText">{text}</span>,
+                        name: (text) => <span className="font-medium text-foreground">{text}</span>,
                     })}
                 </span>
             )}
@@ -566,7 +564,7 @@ const ConnectBody = ({
                     <>
                         <Button
                             variant="ghost"
-                            className={`text-colorTextSecondary ${touchCls}`}
+                            className={`text-muted-foreground ${touchCls}`}
                             onClick={decline}
                             disabled={Boolean(errorText)}
                         >

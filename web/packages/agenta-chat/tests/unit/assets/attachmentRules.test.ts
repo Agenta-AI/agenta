@@ -6,36 +6,11 @@ import {
     describeAccepted,
     exceedsAttachmentLimit,
     formatBytes,
-    isAcceptedType,
     validateIncoming,
 } from "../../../src/assets/attachmentRules"
 
 const makeFile = (name: string, type: string, size: number): File =>
     new File([new Uint8Array(size)], name, {type})
-
-describe("isAcceptedType", () => {
-    it("matches an exact type", () => {
-        expect(isAcceptedType("application/pdf", DEFAULT_ATTACHMENT_LIMITS)).toBe(true)
-    })
-
-    it("matches a type/ prefix", () => {
-        expect(isAcceptedType("image/png", DEFAULT_ATTACHMENT_LIMITS)).toBe(true)
-    })
-
-    it("accepts any type under the defaults (the 'other' kind is enabled)", () => {
-        expect(isAcceptedType("application/zip", DEFAULT_ATTACHMENT_LIMITS)).toBe(true)
-    })
-
-    it("rejects a kind the limits exclude", () => {
-        const narrowed = {
-            ...DEFAULT_ATTACHMENT_LIMITS,
-            kinds: ["image", "audio", "document"] as const,
-        }
-        expect(isAcceptedType("application/zip", {...narrowed, kinds: [...narrowed.kinds]})).toBe(
-            false,
-        )
-    })
-})
 
 describe("formatBytes", () => {
     it("formats sub-KB sizes in bytes", () => {

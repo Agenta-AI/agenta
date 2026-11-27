@@ -82,7 +82,7 @@ describe("ToolManagementList on a phone", () => {
             "ZendeskEach person's own account",
             "SlackOne shared account",
         ])
-        expect(container.querySelector("[aria-label=Remove]")).toBeNull()
+        expect(container.querySelector('[aria-label^="Remove"]')).toBeNull()
     })
 
     it("keeps whose account it uses next to the setup reason, with no tag (M08)", () => {
@@ -107,6 +107,6 @@ describe("ToolManagementList on a phone", () => {
     it("keeps the desktop rows with their bin outside a phone", () => {
         renderList(null)
         expect(container.textContent).not.toContain("Each person's own account")
-        expect(container.querySelectorAll("[aria-label=Remove]")).toHaveLength(2)
+        expect(container.querySelectorAll('[aria-label^="Remove "]')).toHaveLength(2)
     })
 })

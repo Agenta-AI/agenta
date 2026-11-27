@@ -12,7 +12,7 @@ export const SecretRequestWidget = ({meta}: ClientToolWidgetProps) => {
     const name = envVar ?? asked ?? t("entityUi.clientTools.aSecret")
     const strong = {name: (text: string) => <strong className="font-medium">{text}</strong>}
     return (
-        <span className="text-sm text-colorText">
+        <span className="text-label text-foreground">
             {meta.settled
                 ? output?.status === "configured"
                     ? richText(t("entityUi.clientTools.youAddedSecret", {name}), strong)

@@ -20,7 +20,7 @@ export const SessionAgentName = ({agentId}: {agentId: string | null}) => {
     if (!agentId) {
         return (
             <span
-                className="text-xs text-colorTextTertiary"
+                className="text-meta text-muted-foreground"
                 title={t("sessions.rows.noAgentTooltip")}
             >
                 {t("sessions.rows.noAgentYet")}
@@ -29,7 +29,7 @@ export const SessionAgentName = ({agentId}: {agentId: string | null}) => {
     }
 
     return (
-        <span className="text-xs text-colorTextSecondary truncate">
+        <span className="text-meta text-muted-foreground truncate">
             {name || t("sessions.rows.agent")}
         </span>
     )

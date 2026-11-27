@@ -14,7 +14,9 @@ import {useEffect, useRef, useState} from "react"
 import {type DroppedFile} from "@agenta/entities/drive"
 import {type SessionDriveData} from "@agenta/entities/drive"
 import {type MountFile} from "@agenta/entities/session"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
+import {useT} from "@agenta/i18n"
+import driveRailCatalog from "@agenta/i18n/catalogs/entityUi.driveRail"
+import {Sheet, SheetContent, SheetTitle} from "@agenta/ui/ui"
 import dynamic from "next/dynamic"
 
 import {type DriveId, type DriveScope} from "./DriveExplorer"
@@ -91,36 +93,42 @@ export function FilesDrawer({
         if (!open) setExpanded(false)
     }, [open])
     const driveGeneration = useDriveGeneration(drive.mount?.id)
+    const t = useT(driveRailCatalog)
 
     return (
-        <EnhancedDrawer
-            rootClassName="ag-drawer-elevated"
+        <Sheet
             open={open}
-            onClose={onClose}
-            placement="right"
-            // Two-pane (tree + preview) needs the room; expand for near-full width.
-            width={expanded ? EXPANDED_WIDTH : NORMAL_WIDTH}
-            destroyOnClose
-            // Headerless: DriveExplorer renders the one header (with its own close button).
-            closable={false}
-            title={null}
-            styles={{
-                body: {padding: 0, display: "flex", flexDirection: "column", minHeight: 0},
+            onOpenChange={(next) => {
+                if (!next) onClose()
             }}
         >
-            <DriveExplorer
-                key={driveGeneration}
-                drive={drive}
-                explicitFiles={explicitFiles}
-                scope={scope}
-                initialPath={initialPath}
-                onClose={onClose}
-                driveIds={driveIds}
-                expanded={expanded}
-                onToggleExpand={() => setExpanded((v) => !v)}
-                stagedFiles={stagedFiles}
-                onStagedChange={onStagedChange}
-            />
-        </EnhancedDrawer>
+            <SheetContent
+                side="right"
+                className="ag-drawer-elevated"
+                // Two-pane (tree + preview) needs the room; expand for near-full width.
+                style={{
+                    width: expanded ? EXPANDED_WIDTH : NORMAL_WIDTH,
+                    maxWidth: "calc(100% - 1rem)",
+                }}
+            >
+                {/* Headerless: DriveExplorer renders the one header (with its own close button). */}
+                <SheetTitle className="sr-only">{t("entityUi.driveRail.files")}</SheetTitle>
+                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto rounded-[inherit] p-0 text-field-md text-foreground">
+                    <DriveExplorer
+                        key={driveGeneration}
+                        drive={drive}
+                        explicitFiles={explicitFiles}
+                        scope={scope}
+                        initialPath={initialPath}
+                        onClose={onClose}
+                        driveIds={driveIds}
+                        expanded={expanded}
+                        onToggleExpand={() => setExpanded((v) => !v)}
+                        stagedFiles={stagedFiles}
+                        onStagedChange={onStagedChange}
+                    />
+                </div>
+            </SheetContent>
+        </Sheet>
     )
 }

@@ -97,7 +97,7 @@ export const ApiKeysPage = ({
                 }
                 renderRow={(record) => (
                     <>
-                        <span className="truncate font-mono text-[13px]">
+                        <span className="truncate text-code">
                             {record.prefix.padEnd(20, "\u2022")}
                         </span>
                         {shows("created_at") ? (

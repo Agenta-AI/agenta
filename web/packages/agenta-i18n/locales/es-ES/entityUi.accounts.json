@@ -1,5 +1,4 @@
 {
-    "label": "Cuenta",
     "eachPersonSignIn": "El inicio de sesión de cada persona",
     "projectSignIn": "El inicio de sesión del proyecto",
     "connectAnother": "Conectar otra cuenta de {{name}}",
@@ -12,11 +11,17 @@
     "addOne": "Añadir uno",
     "addAnotherSecret": "Añadir otro secreto",
     "addYourSecret": "Añade tu secreto",
-    "whoCanUseIt": "Quién puede usarlo",
-    "onlyMe": "Solo yo",
-    "onlyMeSecretNote": "Lo eliges cuando un agente pide tu propio valor.",
-    "everyoneInProject": "Todos en {{project}}",
-    "everyoneInThisProject": "Todos en este proyecto",
-    "everyoneSecretNote": "Los creadores pueden adjuntarlo a los agentes de este proyecto.",
-    "userSecretRow": "El secreto propio de cada persona"
+    "userSecretRow": "El secreto propio de cada persona",
+    "owner": "Propietario",
+    "ownerUser": "Personal",
+    "ownerProject": "Proyecto",
+    "ownerOrganization": "Organización",
+    "ownerUserNote": "Solo tú puedes usarlo. Te acompaña a todos los proyectos.",
+    "ownerProjectNote": "Todos en {{project}} pueden añadirlo a un agente.",
+    "ownerProjectNoteThis": "Todos en este proyecto pueden añadirlo a un agente.",
+    "ownerOrganizationNoteThis": "Se guarda una vez para la organización. Tú eliges qué proyectos pueden usarlo.",
+    "connectionsAll": "Todas las conexiones",
+    "connectionsUser": "Conexiones personales",
+    "connectionsProject": "Conexiones del proyecto",
+    "connectionsOrganization": "Conexiones de la organización"
 }

@@ -130,6 +130,10 @@ export const SessionShareDialogBound = ({
             }}
             people={people}
             members={membersQuery.data?.members ?? []}
+            onAddMembers={() => {
+                onClose()
+                void router.push(`/w/${workspaceId}/p/${projectId}/settings?tab=workspace`)
+            }}
             membersSearch={typed}
             onMembersSearch={setTyped}
             membersLoading={membersQuery.isPending}

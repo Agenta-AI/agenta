@@ -105,15 +105,15 @@ const STATE_GLYPHS: Record<Exclude<ActivityState, "idle">, Icon> = {
 
 /** Colour carries three meanings: warning = your turn, disabled = never ran, error = the run stopped. */
 const NODE_TONE: Partial<Record<ActivityState, string>> = {
-    awaiting: "border-colorWarning/40 text-colorWarning",
-    deferred: "text-colorTextDisabled",
-    "not-handled": "text-colorTextDisabled",
-    failed: "border-colorError/40 text-colorError",
+    awaiting: "border-warning/40 text-warning",
+    deferred: "text-muted-foreground",
+    "not-handled": "text-muted-foreground",
+    failed: "border-destructive/40 text-destructive",
 }
 
 /** Live text: a periodic gradient one `text-shimmer` cycle moves exactly one tile, so the loop never blinks. */
 export const LIVE_TEXT_CLASS =
-    "bg-[linear-gradient(90deg,var(--ag-colorTextQuaternary)_0%,var(--ag-colorText)_50%,var(--ag-colorTextQuaternary)_100%)] bg-clip-text motion-safe:animate-text-shimmer motion-safe:bg-[length:200%_100%] motion-safe:text-transparent"
+    "bg-[linear-gradient(90deg,var(--muted-foreground)_0%,var(--foreground)_50%,var(--muted-foreground)_100%)] bg-clip-text motion-safe:animate-text-shimmer motion-safe:bg-[length:200%_100%] motion-safe:text-transparent"
 
 export interface ActivityNodeProps {
     icon: ActivityIcon
@@ -134,20 +134,20 @@ export const ActivityNode = ({
     appLabel,
     yourTurn,
 }: ActivityNodeProps) => {
-    const tone = NODE_TONE[state] ?? (yourTurn ? NODE_TONE.awaiting : "text-colorTextTertiary")
+    const tone = NODE_TONE[state] ?? (yourTurn ? NODE_TONE.awaiting : "text-muted-foreground")
     const stateGlyph = state === "idle" ? null : STATE_GLYPHS[state]
     const Glyph = stateGlyph ?? KIND_GLYPHS[icon]
     const showLogo = !stateGlyph && !!logo
     return (
         <span
             aria-hidden
-            className={`relative z-10 flex size-6 shrink-0 items-center justify-center rounded-full border border-colorBorderSecondary bg-colorBgContainer ${tone}`}
+            className={`relative z-10 flex size-6 shrink-0 items-center justify-center rounded-md border border-border-muted bg-background ${tone}`}
         >
             {showLogo ? (
                 <IntegrationTile label={appLabel ?? ""} logo={logo} size={16} />
             ) : (
                 <Glyph
-                    size={13}
+                    size={14}
                     className={state === "running" ? "motion-safe:animate-spin" : undefined}
                 />
             )}
@@ -155,7 +155,7 @@ export const ActivityNode = ({
     )
 }
 
-/** One step's row: the node, the sentence, a caret; the `after` box is the ~44px touch target. */
+/** One step's row: the node, the sentence, a caret. The same size on touch (SIZE-02). */
 export const StepRow = ({
     open,
     onToggle,
@@ -175,12 +175,12 @@ export const StepRow = ({
             onClick={onToggle}
             aria-expanded={open}
             aria-controls={open === undefined ? undefined : controls}
-            className="relative -ml-1.5 flex w-fit max-w-full min-w-0 cursor-pointer items-center gap-3.5 rounded-md border-0 bg-transparent px-1.5 py-0.5 text-left group/row after:absolute after:-inset-y-2 after:inset-x-0 after:content-['']"
+            className="relative -ml-1.5 flex w-fit max-w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-1.5 py-0.5 text-left group/row"
         >
             {children}
         </button>
     ) : (
-        <div className="flex min-w-0 items-center gap-3.5 py-0.5">{children}</div>
+        <div className="flex min-w-0 items-center gap-2 py-0.5">{children}</div>
     )
 
 /** The caret at the end of an expandable row. */
@@ -194,7 +194,7 @@ export const WaitingGlyph = ({kind = "approval"}: {kind?: WaitingKind}) => {
     const Glyph = kind === "approval" ? ShieldCheck : KIND_GLYPHS[kind]
     return (
         <span aria-hidden className="flex size-6 shrink-0 items-center justify-center">
-            <Glyph size={13} />
+            <Glyph size={14} />
         </span>
     )
 }

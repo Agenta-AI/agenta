@@ -39,7 +39,6 @@ vi.mock("@/components/ContentRail", () => ({
 vi.mock("@/components/ScreenScaffold", () => ({
     ScreenScaffold: ({children}: {children?: ReactNode}) => children,
 }))
-vi.mock("@/components/StatusTag", () => ({StatusTag: () => null}))
 vi.mock("@/features/context/useBindProjectContext", () => ({
     useBindProjectContext: () => undefined,
 }))

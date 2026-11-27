@@ -16,7 +16,7 @@
     "couldNotReadTools": "Impossible de lire les outils de ce serveur",
     "notConnectedYet": "{{name}} n’est pas encore connecté, ses outils ne peuvent donc pas être listés.",
     "noAccess": "Vous n’avez pas accès aux outils de ce serveur.",
-    "toolListUnreadable": "Impossible de lire la liste des outils.",
+    "toolListUnreadable": "Le serveur n’a pas répondu. Réessayez dans un instant.",
     "connect": "Connecter",
     "retryTools": "Réessayer les outils",
     "strandedRules": "Règles pour des outils masqués par le filtre de ce serveur. L’agent ne peut pas s’exécuter tant qu’elles ne sont pas supprimées.",

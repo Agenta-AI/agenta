@@ -25,6 +25,13 @@ import {
 
 const tModelHarness = createT(modelHarnessCatalog)
 
+/** One icon per part: its row in the list and the Mark on its view (ICON-05). */
+export const ADVANCED_PART_ICONS = {
+    execution: <Cube size={16} />,
+    agentaTools: <Toolbox size={16} />,
+    buildKit: <Hammer size={16} />,
+}
+
 export interface AdvancedPartRow {
     key: string
     icon: ReactNode
@@ -65,14 +72,14 @@ export const useAdvancedPartRows = (
         [
             parts.execution && {
                 key: "execution",
-                icon: <Cube size={16} />,
+                icon: ADVANCED_PART_ICONS.execution,
                 title: t("entityUi.modelHarness.execution"),
                 summary: sandboxSummary(parts.sandbox),
                 view: executionView,
             },
             parts.tools && {
                 key: "agenta-tools",
-                icon: <Toolbox size={16} />,
+                icon: ADVANCED_PART_ICONS.agentaTools,
                 title: t("entityUi.modelHarness.agentaTools"),
                 summary:
                     agentaTools.status === "ready"
@@ -87,7 +94,7 @@ export const useAdvancedPartRows = (
             },
             parts.buildKit && {
                 key: "build-kit",
-                icon: <Hammer size={16} />,
+                icon: ADVANCED_PART_ICONS.buildKit,
                 title: t("entityUi.modelHarness.buildKit"),
                 view: buildKitView,
             },

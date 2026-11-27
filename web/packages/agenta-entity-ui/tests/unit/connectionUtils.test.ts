@@ -24,7 +24,6 @@ import {
     modelIdFromConfig,
     modelDisplayName,
     modelLabel,
-    modelSelectionMode,
     providerForModel,
     vaultModelGroups,
     vaultPickedProviderFamily,
@@ -291,18 +290,12 @@ describe("connectionUtils: capability gating (inspect-fed)", () => {
         expect(harnessAllowsProvider(CAPABILITIES, "claude", "openai")).toBe(false)
     })
 
-    it("exposes the per-harness model selection mode", () => {
-        expect(modelSelectionMode(CAPABILITIES, "pi_core")).toBe("provider/id")
-        expect(modelSelectionMode(CAPABILITIES, "claude")).toBe("alias")
-    })
-
     it("is permissive when the map or harness is missing", () => {
         expect(allowedProviders(null, "pi_core")).toEqual(["*"])
         expect(allowedProviders(CAPABILITIES, "future-harness")).toEqual(["*"])
         expect(allowedProviders(CAPABILITIES, null)).toEqual(["*"])
         expect(allowedConnectionModes(undefined, "pi_core")).toEqual(["agenta", "self_managed"])
         expect(harnessAllowsProvider(CAPABILITIES, "future-harness", "whatever")).toBe(true)
-        expect(modelSelectionMode(null, "pi_core")).toBe("provider/id")
     })
 })
 

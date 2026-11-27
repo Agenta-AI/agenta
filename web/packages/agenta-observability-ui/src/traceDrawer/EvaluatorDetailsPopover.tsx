@@ -7,8 +7,7 @@ import {useT} from "@agenta/i18n"
 import spanCatalog from "@agenta/i18n/catalogs/observabilityUi.traceSpan"
 import {useEvaluatorNavigation} from "@agenta/observability/traceDrawer"
 import {formatLocalDateTime} from "@agenta/shared/utils/dateTime"
-import {EnhancedButton} from "@agenta/ui/components/presentational"
-import {Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
+import {Button, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
 import {getTraceDrawerReferences} from "./referenceSlots"
@@ -86,7 +85,7 @@ const EvaluatorDetailsPopover = ({
                 </div>
                 <div className="flex flex-col gap-2 *:text-nowrap">
                     <div className="flex items-center justify-between gap-3">
-                        <span className="text-colorTextSecondary">
+                        <span className="text-muted-foreground">
                             {t("observabilityUi.traceSpan.evaluatorId")}
                         </span>
                         <ReferenceTag
@@ -114,7 +113,7 @@ const EvaluatorDetailsPopover = ({
                         />
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                        <span className="text-colorTextSecondary">
+                        <span className="text-muted-foreground">
                             {t("observabilityUi.traceSpan.evaluatorType")}
                         </span>
                         <span>
@@ -125,32 +124,31 @@ const EvaluatorDetailsPopover = ({
                         </span>
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                        <span className="text-colorTextSecondary">
+                        <span className="text-muted-foreground">
                             {t("observabilityUi.traceSpan.createdAt")}
                         </span>
                         <span>{formatDateTime(createdAt)}</span>
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                        <span className="text-colorTextSecondary">
+                        <span className="text-muted-foreground">
                             {t("observabilityUi.traceSpan.createdBy")}
                         </span>
                         <UserAuthorLabel name={createdBy} showAvatar />
                     </div>
                 </div>
                 {target ? (
-                    <EnhancedButton
-                        type="default"
-                        size="small"
-                        block
-                        href={target.href}
-                        onClick={(event) => {
-                            event?.stopPropagation?.()
-                        }}
-                    >
-                        {isHuman
-                            ? t("observabilityUi.traceSpan.openRegistry")
-                            : t("observabilityUi.traceSpan.openPlayground")}
-                    </EnhancedButton>
+                    <Button variant="outline" size="sm" asChild>
+                        <a
+                            href={target.href}
+                            onClick={(event) => {
+                                event.stopPropagation()
+                            }}
+                        >
+                            {isHuman
+                                ? t("observabilityUi.traceSpan.openRegistry")
+                                : t("observabilityUi.traceSpan.openPlayground")}
+                        </a>
+                    </Button>
                 ) : null}
             </div>
         </div>
@@ -170,7 +168,7 @@ const EvaluatorDetailsPopover = ({
             <PopoverContent
                 side="bottom"
                 align="start"
-                className="w-auto max-w-[420px] p-3 text-sm"
+                className="w-auto max-w-[420px] p-3 text-body"
             >
                 {popoverContent}
             </PopoverContent>

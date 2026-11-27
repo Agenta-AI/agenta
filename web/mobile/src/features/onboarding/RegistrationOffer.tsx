@@ -85,7 +85,7 @@ export const RegistrationOffer = ({
                         href={CONTACT_URL}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-foreground text-[13px] underline"
+                        className="text-foreground text-body-sm underline"
                     >
                         {t("onboarding.registrationOffer.talkAboutEnterprise")}
                     </a>

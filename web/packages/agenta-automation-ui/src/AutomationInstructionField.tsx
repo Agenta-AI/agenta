@@ -25,6 +25,8 @@ import {
 } from "@agenta/entity-ui/gatewayTrigger"
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
+import triggerScheduleCatalog from "@agenta/i18n/catalogs/entityUi.triggerSchedule"
+import triggerSharedCatalog from "@agenta/i18n/catalogs/entityUi.triggerShared"
 import {Checkbox} from "@agenta/ui/ui"
 import {CaretRight, ChatCircle} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -75,7 +77,7 @@ export const AutomationInstructionField = ({
     /** Why the automation cannot be created yet; the create screen's only use. */
     error?: string
 }) => {
-    const t = useT(automationsEditorCatalog)
+    const t = useT(automationsEditorCatalog, triggerScheduleCatalog, triggerSharedCatalog)
     const isEvent = kind === "event"
     const inputsText = useMemo(() => JSON.stringify(inputsFields ?? {}, null, 2), [inputsFields])
 
@@ -172,7 +174,11 @@ export const AutomationInstructionField = ({
     }
 
     return (
-        <AutomationField label={t("automations.editor.instruction")} error={error}>
+        <AutomationField
+            label={t("automations.editor.instruction")}
+            helper={t("entityUi.triggerSchedule.sentEveryRun")}
+            error={error}
+        >
             <MessageComposer
                 inputsText={inputsText}
                 onChange={onChange}
@@ -209,7 +215,7 @@ function EventInstruction({
     automation: Automation | null
     error?: string
 }) {
-    const t = useT(automationsEditorCatalog)
+    const t = useT(automationsEditorCatalog, triggerScheduleCatalog, triggerSharedCatalog)
     // The catalog is keyed by integration, which the automation knows only through its connection.
     const {connections} = useTriggerConnectionsQuery()
     const integrationKey =
@@ -237,7 +243,11 @@ function EventInstruction({
     }, [])
 
     return (
-        <AutomationField label={t("automations.editor.instruction")} error={error}>
+        <AutomationField
+            label={t("automations.editor.instruction")}
+            helper={t("entityUi.triggerShared.sentEachEvent")}
+            error={error}
+        >
             <div className="flex flex-col gap-3">
                 <EventMessageComposer
                     inputsText={inputsText}
@@ -247,7 +257,7 @@ function EventInstruction({
                     insertApi={insertApi}
                     fields={<EventFieldTags fields={fields} used={used} onInsert={onInsert} />}
                 />
-                <label className="flex cursor-pointer items-center gap-2 text-[13px] text-foreground">
+                <label className="flex cursor-pointer items-center gap-2 text-label text-foreground">
                     <Checkbox
                         checked={includeEvent}
                         onCheckedChange={(checked) => onChangeIncludeEvent(checked === true)}
@@ -257,7 +267,7 @@ function EventInstruction({
                 {/* A closed row, "What the agent gets · Preview ›"; the preview opens under it
                     (F05 f4). */}
                 {preview === null ? null : (
-                    <div className="flex flex-col border-0 border-b border-solid border-colorSplit">
+                    <div className="flex flex-col border-0 border-b border-solid border-border-muted">
                         <button
                             type="button"
                             aria-expanded={showPreview}
@@ -269,15 +279,15 @@ function EventInstruction({
                                 size={14}
                                 className="shrink-0 text-muted-foreground"
                             />
-                            <span className="text-[13px] font-medium text-foreground">
+                            <span className="text-label font-medium text-foreground">
                                 {t("automations.editor.whatAgentGets")}
                             </span>
                             {lastEvent ? (
-                                <span className="text-[13px] text-muted-foreground">
+                                <span className="text-label text-muted-foreground">
                                     {t("automations.editor.fromLastEvent")}
                                 </span>
                             ) : null}
-                            <span className="ml-auto truncate text-xs text-colorTextTertiary">
+                            <span className="ml-auto truncate text-meta text-muted-foreground">
                                 {t("automations.editor.preview")}
                             </span>
                             <CaretRight
@@ -290,7 +300,7 @@ function EventInstruction({
                             />
                         </button>
                         {showPreview ? (
-                            <pre className="m-0 mb-3 max-h-[320px] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted px-3 py-2 font-[inherit] text-[13px] text-foreground">
+                            <pre className="m-0 mb-3 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted px-3 py-2 font-[inherit] text-label text-foreground">
                                 {preview}
                             </pre>
                         ) : null}

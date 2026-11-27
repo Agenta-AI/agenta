@@ -169,8 +169,10 @@ afterEach(async () => {
 })
 
 describe("opening a subscription view", {timeout: 30_000}, () => {
-    it("starts a device login for ChatGPT", async () => {
+    it("starts a device login for ChatGPT on Connect, not on open", async () => {
         await render("chatgpt")
+        expect(startLogin).not.toHaveBeenCalled()
+        await press("Connect ChatGPT")
         await waitFor(() => expect(startLogin).toHaveBeenCalledOnce())
     })
 
@@ -411,6 +413,7 @@ describe("an organization subscription", {timeout: 30_000}, () => {
             subscription: {provider: "chatgpt", loginState: "pending_login"},
         } as ProviderConnection)
         await render("chatgpt", chatgpt, ACME)
+        await press("Connect ChatGPT")
         await waitFor(() => expect(text()).toContain("ABCD-1234"))
         await chooseSelectedProjects()
 
@@ -433,6 +436,7 @@ describe("an organization subscription", {timeout: 30_000}, () => {
             subscription: {provider: "chatgpt", loginState: "pending_login"},
         } as ProviderConnection)
         await render("chatgpt", chatgpt, ACME)
+        await press("Connect ChatGPT")
         await waitFor(() => expect(text()).toContain("ABCD-1234"))
         await chooseSelectedProjects()
         await waitFor(() => expect(setProjects).toHaveBeenCalledOnce())

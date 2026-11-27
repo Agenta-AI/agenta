@@ -11,7 +11,7 @@ const formatStarted = (createdAt: string | null | undefined): string => {
 }
 
 const ROW =
-    "flex items-center gap-2 rounded-md border-0 bg-transparent px-3 py-2.5 text-left text-xs text-foreground hover:bg-accent"
+    "flex items-center gap-2 rounded-md border-0 bg-transparent px-3 py-2.5 text-left text-label text-foreground hover:bg-accent focus-ring"
 
 /** "New chat", then the visitor's conversations on this embed, newest first. Opening one reopens it. */
 export const EmbedConversationList = ({

@@ -39,16 +39,16 @@ export type SyncState = "unmodified" | "modified" | "new" | "hidden"
 const STATUS: Record<QueryStatus | ExecutionStatus, {tone: Tone; labelKey: StatusTextKey}> = {
     loading: {tone: "warning", labelKey: "ui.status.loading"},
     pending: {tone: "warning", labelKey: "common.pending"},
-    running: {tone: "processing", labelKey: "ui.status.running"},
-    error: {tone: "error", labelKey: "ui.status.error"},
+    running: {tone: "info", labelKey: "ui.status.running"},
+    error: {tone: "destructive", labelKey: "ui.status.error"},
     success: {tone: "success", labelKey: "ui.status.success"},
     ready: {tone: "success", labelKey: "ui.status.ready"},
     idle: {tone: "default", labelKey: "ui.status.idle"},
 }
 
 const SYNC: Partial<Record<SyncState, {tone: Tone; labelKey: StatusTextKey}>> = {
-    modified: {tone: "blue", labelKey: "ui.status.edited"},
-    new: {tone: "green", labelKey: "ui.status.new"},
+    modified: {tone: "info", labelKey: "ui.status.edited"},
+    new: {tone: "success", labelKey: "ui.status.new"},
 }
 
 const ENV_LABEL: Record<EnvironmentName, StatusTextKey> = {
@@ -60,14 +60,14 @@ const ENV_LABEL: Record<EnvironmentName, StatusTextKey> = {
 function mappingTone(status: MappingStatus): Tone {
     switch (status) {
         case "auto":
-            return "blue"
+            return "info"
         case "manual":
-            return "green"
+            return "success"
         case "missing":
         case "invalid_path":
-            return "red"
+            return "destructive"
         case "type_mismatch":
-            return "orange"
+            return "warning"
         default:
             return "default"
     }
@@ -114,7 +114,7 @@ export interface TagProps extends Omit<BadgeProps, "variant" | "icon" | "childre
 }
 
 // Canonical "small" geometry (was duplicated & divergent across the old facades).
-const SMALL = "text-xs py-0"
+const SMALL = "text-meta py-0"
 
 function TagImpl({
     tone,
@@ -159,7 +159,7 @@ function TagImpl({
                 borderColor: `var(--ag-env-${name}-border)`,
             }
     } else if (draft) {
-        variant = "draft"
+        variant = "default"
         content = label ?? t("ui.status.draft")
         leadingIcon = showIcon === false ? undefined : (icon ?? <PencilSimpleLine size={14} />)
     } else if (sync != null) {
@@ -191,7 +191,7 @@ function TagImpl({
                 // antd's close-icon slot: 3px inset (Badge's own gap-1 is 4px) and colorIcon grey.
                 <span
                     title={t("ui.status.discardChanges")}
-                    className="-ml-px inline-flex cursor-pointer text-colorIcon"
+                    className="-ml-px inline-flex cursor-pointer text-muted-foreground"
                     onClick={onDismiss}
                 >
                     <X size={12} />

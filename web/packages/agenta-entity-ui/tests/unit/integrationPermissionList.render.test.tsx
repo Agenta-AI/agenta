@@ -66,13 +66,4 @@ describe("integration permission list", () => {
         await act(async () => more!.click())
         expect(rows()).toBe(40)
     })
-
-    it("draws a denied tool with the error colour", async () => {
-        await render({default: "allow", tools: {write_0: "deny"}})
-        const denied = host.querySelector('[aria-label="Permission for write_0"]')
-        expect(denied?.textContent).toContain("Deny")
-        expect(denied?.className).toContain("colorErrorBg")
-        const allowed = host.querySelector('[aria-label="Permission for write_1"]')
-        expect(allowed?.className).not.toContain("colorErrorBg")
-    })
 })

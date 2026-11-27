@@ -103,14 +103,14 @@ export const DeleteRevisionDialog = ({
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 {failed ? (
-                    <p className="m-0 text-sm text-destructive">
+                    <p className="m-0 text-body text-destructive">
                         Couldn't check this app's revisions.{" "}
                         <button type="button" className="underline" onClick={() => void retry()}>
                             Try again
                         </button>
                     </p>
                 ) : only ? null : (
-                    <p className="m-0 text-sm text-muted-foreground">
+                    <p className="m-0 text-body text-muted-foreground">
                         This action cannot be undone.
                     </p>
                 )}

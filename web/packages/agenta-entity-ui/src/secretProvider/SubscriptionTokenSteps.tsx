@@ -22,9 +22,7 @@ const CopyCommand = () => {
     }, [copied])
     return (
         <div className="flex items-center justify-between gap-2 rounded-lg border border-solid border-border bg-muted/40 py-1 pl-3 pr-1">
-            <code className="select-all font-mono text-[13px] text-foreground">
-                {SETUP_COMMAND}
-            </code>
+            <code className="select-all font-mono text-label text-foreground">{SETUP_COMMAND}</code>
             <Button
                 size="sm"
                 variant="ghost"
@@ -72,14 +70,14 @@ export const SubscriptionTokenSteps = ({
         <ol className="m-0 flex list-none flex-col p-0">
             <SignInStep index={1} title={t("entityUi.subscriptionSignIn.runCommand")}>
                 <CopyCommand />
-                <span className="text-[12px] leading-5 text-muted-foreground">
+                <span className="text-meta leading-5 text-muted-foreground">
                     {richText(t("entityUi.subscriptionSignIn.youNeedInstalled"), {
                         link: (text) => (
                             <a
                                 href={CLAUDE_CODE_SETUP_URL}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="text-colorText underline underline-offset-2"
+                                className="text-foreground underline underline-offset-2"
                             >
                                 {text}
                             </a>
@@ -88,7 +86,7 @@ export const SubscriptionTokenSteps = ({
                 </span>
             </SignInStep>
             <SignInStep index={2} title={t("entityUi.subscriptionSignIn.signInToClaude")}>
-                <span className="text-[12px] leading-5 text-muted-foreground">
+                <span className="text-meta leading-5 text-muted-foreground">
                     {t("entityUi.subscriptionSignIn.browserOpens")}
                 </span>
             </SignInStep>
@@ -107,7 +105,7 @@ export const SubscriptionTokenSteps = ({
                     autoComplete="off"
                     spellCheck={false}
                     placeholder="sk-ant-oat01-…"
-                    className="font-mono md:text-[12px]"
+                    className="font-mono text-meta"
                     value={token.value}
                     disabled={token.checking}
                     aria-invalid={token.error ? true : undefined}
@@ -119,7 +117,7 @@ export const SubscriptionTokenSteps = ({
                 {token.error ? (
                     <span
                         role="alert"
-                        className="flex items-start gap-1.5 text-xs text-destructive"
+                        className="flex items-start gap-1.5 text-meta text-destructive"
                     >
                         <WarningCircle size={14} className="mt-px shrink-0" />
                         <span>
@@ -127,7 +125,7 @@ export const SubscriptionTokenSteps = ({
                         </span>
                     </span>
                 ) : (
-                    <span className="text-[11px] leading-5 text-colorTextTertiary">
+                    <span className="text-caption leading-5 text-muted-foreground">
                         {t("entityUi.subscriptionSignIn.tokenWorksOneYear")}
                     </span>
                 )}

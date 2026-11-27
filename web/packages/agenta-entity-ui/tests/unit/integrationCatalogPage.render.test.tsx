@@ -44,6 +44,11 @@ vi.mock("@agenta/entities/gatewayTool", async (importOriginal) => ({
     }),
 }))
 
+vi.mock("../../src/gatewayTool/components/IntegrationConnectionDetail", () => ({
+    IntegrationConnectionDetail: ({connection}: {connection: {id: string}}) =>
+        createElement("div", {"data-testid": "connection-detail"}, connection.id),
+}))
+
 import {IntegrationCatalog} from "../../src/DrillInView/SchemaControls/agentTemplate/IntegrationCatalog"
 
 let host: HTMLDivElement
@@ -149,7 +154,7 @@ describe("the integration list on the Settings page", () => {
         expect(text()).not.toContain("No accounts of your own")
     })
 
-    it("runs a project connection from a row click", async () => {
+    it("opens a project connection's detail from a row click", async () => {
         const connection = {
             id: "c1",
             slug: "github-main",
@@ -159,20 +164,13 @@ describe("the integration list on the Settings page", () => {
             flags,
         }
         state.connections = [connection]
-        const onRun = vi.fn()
-        await mount(
-            createElement(IntegrationCatalog, {
-                layout: "page",
-                onConnect: vi.fn(),
-                run: {label: "Run action", onRun},
-            }),
-        )
+        await mount(createElement(IntegrationCatalog, {layout: "page", onConnect: vi.fn()}))
         const row = [...document.querySelectorAll<HTMLElement>("[role=button]")].find((node) =>
             (node.textContent ?? "").includes("Main"),
         )
         expect(row).toBeDefined()
         await act(async () => row!.click())
-        expect(onRun).toHaveBeenCalledWith(connection)
+        expect(document.querySelector("[data-testid=connection-detail]")?.textContent).toBe("c1")
     })
 
     it("picks a category with the chips on a page and keeps the select in a panel", async () => {

@@ -6,7 +6,6 @@ import {personalAccountsAccessAtom} from "@agenta/entities/secret"
 import {agentRequirementsAtomFamily, requirementForItem} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
-import {Button} from "@agenta/ui/ui"
 import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 
@@ -24,12 +23,13 @@ import {
 } from "../IntegrationPermissionList"
 import {integrationTargetOf, removeIntegrationByRef} from "../itemKinds/tool"
 import {needsSetupReasonText, needsSetupLabel} from "../needsSetupText"
-import {IntegrationRemoveDialog} from "../sections/IntegrationsSection"
 import {useAgentConfigWriter} from "../useAgentConfigWriter"
 import {useAgentTools} from "../useAgentTools"
 
 import {integrationConnectView} from "./integrationConnectView"
 import type {IntegrationViewParams} from "./integrationView"
+import {RemovedItemState} from "./RemovedItemState"
+import {RemoveFromAgentDialog} from "./RemoveFromAgentDialog"
 import {RemoveFromAgentFooter} from "./RemoveFromAgentFooter"
 
 const noCreate = () => undefined
@@ -98,14 +98,10 @@ const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewPar
 
     if (!integrationTarget || !row) {
         return (
-            <div className="flex flex-col items-start gap-3 px-4 py-6 text-sm">
-                <span className="text-colorTextSecondary">
-                    {t("entityUi.integrationViews.removedState")}
-                </span>
-                <Button variant="outline" size="sm" onClick={() => void nav.back()}>
-                    {t("entityUi.integrationViews.back")}
-                </Button>
-            </div>
+            <RemovedItemState
+                message={t("entityUi.integrationViews.removedState")}
+                onBack={() => void nav.back()}
+            />
         )
     }
 
@@ -143,7 +139,7 @@ const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewPar
 
     return (
         <div className="flex min-h-0 flex-1 flex-col">
-            <div className="shrink-0 px-4 pb-1 pt-3.5">
+            <div className="shrink-0 px-4 pt-4">
                 <IntegrationTitle
                     target={integrationTarget}
                     connectionSlug={eachPerson ? "" : connectionSlug}
@@ -184,13 +180,17 @@ const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewPar
                 )}
             </div>
             {writer.readOnly ? null : <RemoveFromAgentFooter onClick={() => setConfirming(true)} />}
-            {confirming ? (
-                <IntegrationRemoveDialog
-                    row={row}
-                    onRemove={remove}
-                    onClose={() => setConfirming(false)}
-                />
-            ) : null}
+            <RemoveFromAgentDialog
+                open={confirming}
+                name={name}
+                body={
+                    eachPerson
+                        ? t("entityUi.integrationViews.accountsStay")
+                        : t("entityUi.integrationViews.connectionStays")
+                }
+                onConfirm={remove}
+                onCancel={() => setConfirming(false)}
+            />
         </div>
     )
 }

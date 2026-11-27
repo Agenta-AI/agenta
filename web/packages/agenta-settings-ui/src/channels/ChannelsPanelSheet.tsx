@@ -1,6 +1,14 @@
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import {Button, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle} from "@agenta/ui/ui"
+import {
+    Button,
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetHeader,
+    SheetTitle,
+    SimpleTooltip,
+} from "@agenta/ui/ui"
 import {ArrowLeft} from "@phosphor-icons/react"
 
 import type {ChannelsPanelRenderProps} from "./useChannelPanel"
@@ -59,14 +67,16 @@ export const ChannelsPanelSheet = ({
                 <SheetHeader className="py-3.5">
                     <div className="flex min-w-0 items-center gap-2.5">
                         {onBack ? (
-                            <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label={t("common.back")}
-                                onClick={onBack}
-                            >
-                                <ArrowLeft />
-                            </Button>
+                            <SimpleTooltip title={t("common.back")}>
+                                <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    aria-label={t("common.back")}
+                                    onClick={onBack}
+                                >
+                                    <ArrowLeft />
+                                </Button>
+                            </SimpleTooltip>
                         ) : null}
                         {icon ? (
                             <span className="flex flex-none items-center text-foreground [&_svg]:size-4">
@@ -76,13 +86,11 @@ export const ChannelsPanelSheet = ({
                         {/* On a phone the subtitle goes under the title, where it has the width to
                         be read; beside the title it was cut to a few words. */}
                         <div className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
-                            <SheetTitle className="flex-none text-[15px]">{title}</SheetTitle>
+                            <SheetTitle className="flex-none text-body">{title}</SheetTitle>
                             {/* A div: the subtitle may be the agent picker, a button. */}
                             {subtitle ? (
                                 <SheetDescription asChild>
-                                    <div className="min-w-0 text-[13px] sm:truncate">
-                                        {subtitle}
-                                    </div>
+                                    <div className="min-w-0 text-label sm:truncate">{subtitle}</div>
                                 </SheetDescription>
                             ) : null}
                         </div>

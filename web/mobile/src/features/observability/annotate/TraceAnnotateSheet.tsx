@@ -26,7 +26,7 @@ import {useHumanEvaluators} from "./useHumanEvaluators"
 import {useTraceAnnotationForm} from "./useTraceAnnotationForm"
 
 const Message = ({children}: {children: string}) => (
-    <div className="flex flex-1 items-center justify-center p-4 text-center text-sm text-muted-foreground">
+    <div className="flex flex-1 items-center justify-center p-4 text-center text-body text-muted-foreground">
         {children}
     </div>
 )
@@ -78,7 +78,7 @@ export const TraceAnnotateSheet = ({
         <Sheet open onOpenChange={(next) => !next && !form.isSaving && onClose()}>
             <SheetContent
                 side="right"
-                className="flex w-full flex-col overflow-hidden max-sm:inset-0 max-sm:rounded-none sm:w-[440px] sm:max-w-[calc(100vw-1rem)]"
+                className="flex w-full flex-col overflow-hidden max-sm:inset-0 max-sm:rounded-none sm:w-110 sm:max-w-[calc(100vw-1rem)]"
             >
                 <SheetHeader>
                     <div className="flex min-w-0 items-center gap-2">

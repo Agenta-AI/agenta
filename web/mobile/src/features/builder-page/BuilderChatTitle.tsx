@@ -16,7 +16,8 @@ import {useRouter} from "next/router"
 import {builderChatHref} from "../builder/builderChatHref"
 import {SessionRowMenu} from "../sessions/SessionRowMenu"
 
-const titleClass = "min-w-0 flex-1 truncate text-[15px] font-semibold leading-5 text-colorText"
+// The session header's agent name: the kit small button text, medium weight.
+const titleClass = "min-w-0 flex-1 truncate text-btn-sm font-medium text-foreground"
 
 /** A saved builder chat's title and its "⋯" menu: the session row's actions (B03). */
 export const BuilderChatTitle = ({
@@ -75,7 +76,7 @@ export const BuilderChatTitle = ({
                 <InlineRenameInput
                     rename={rename}
                     ariaLabel={t("sessions.rows.sessionName")}
-                    className={`${titleClass} rounded-[6px] border border-solid border-colorBorder bg-colorBgContainer px-1.5 py-0.5`}
+                    className={`${titleClass} rounded-md border border-solid border-border bg-background px-1.5 py-0.5`}
                 />
             ) : (
                 <span className={titleClass}>{title}</span>
@@ -95,7 +96,7 @@ export const BuilderChatTitle = ({
                         title={actionsLabel}
                         className="shrink-0"
                     >
-                        <DotsThree aria-hidden weight="bold" />
+                        <DotsThree aria-hidden />
                     </Button>
                 }
             />

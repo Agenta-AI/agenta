@@ -24,13 +24,13 @@ export const ConfigSection = ({
     >
         <header className="flex min-w-0 flex-col gap-0.5">
             <div className="flex min-w-0 items-center gap-2">
-                <h2 id={`${id}-title`} className="m-0 text-base font-semibold text-foreground">
+                <h2 id={`${id}-title`} className="m-0 text-title text-foreground">
                     {title}
                 </h2>
                 {differs ? <DiffersBadge /> : null}
             </div>
             {subtitle ? (
-                <p className="m-0 truncate text-sm text-muted-foreground">{subtitle}</p>
+                <p className="m-0 truncate text-label text-muted-foreground">{subtitle}</p>
             ) : null}
         </header>
         {children}

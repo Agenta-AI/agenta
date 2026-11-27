@@ -75,7 +75,7 @@ export function ConnectionActionConfirm({
                     <DialogDescription>{t(copy.body)}</DialogDescription>
                 </DialogHeader>
                 {error ? (
-                    <p role="alert" className="m-0 text-sm text-colorError">
+                    <p role="alert" className="m-0 text-body text-destructive">
                         {error}
                     </p>
                 ) : null}

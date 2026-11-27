@@ -1,24 +1,26 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 import Router, {useRouter} from "next/router"
 
+import {useNewAgentAction} from "../agents/useNewAgentAction"
 import {startBlankSession} from "../chat/useStartBlankSession"
+import {useCurrentProject} from "../context/useCurrentProject"
 
 import {orderAgentsLikeMainSidebar, useMainSidebarAgentOrder} from "./agentOrder"
 import {agentSessionsQuery} from "./agentSessionsQuery"
 import {AgentSidebarSwitcher, type SwitcherCurrent} from "./AgentSidebarSwitcher"
-import {currentSidebar, openAgentSidebar, useSelectedSidebar} from "./selectedSidebar"
+import {
+    currentSidebar,
+    openAgentSidebar,
+    openMainSidebar,
+    useSelectedSidebar,
+} from "./selectedSidebar"
 import {switchTarget} from "./switchAgent"
 
-/**
- * The switcher, connected: the agents the person can see, in the main sidebar's order, and a
- * pick that keeps the same kind of page (see `switchTarget`) and shows the picked agent's
- * sidebar. "Builder" opens the builder page. The agent sidebar and the builder sidebar both use
- * it.
- */
+/** The switcher with the project's agents in the main sidebar's order, and what each pick opens. */
 export const ConnectedAgentSwitcher = ({
     projectURL,
     projectId,
@@ -33,6 +35,11 @@ export const ConnectedAgentSwitcher = ({
     const router = useRouter()
     const queryClient = useQueryClient()
     const selected = useSelectedSidebar()
+    const projectName = useCurrentProject("", projectId)?.project_name
+    const newAgent = useNewAgentAction(projectURL)
+    // The create's own latch stays set after it hands off; here it ends when the route moves on.
+    const [createdFrom, setCreatedFrom] = useState<string | null>(null)
+    const creating = createdFrom === router.asPath && newAgent.creating && !newAgent.error
     const catalog = useAtomValue(agentWorkflowsListQueryStateAtom).data
     const {chatCounts, manualOrder} = useMainSidebarAgentOrder()
     const agents = useMemo(
@@ -77,8 +84,18 @@ export const ConnectedAgentSwitcher = ({
             agents={agents}
             current={current}
             collapsed={collapsed}
+            projectName={projectName}
             onPick={(id) => void onPick(id)}
-            onPickBuilder={() => void router.push(`${projectURL}/builder`)}
+            onAllAgents={() => {
+                openMainSidebar()
+                void router.push(`${projectURL}/agents`)
+            }}
+            onNewAgent={() => {
+                setCreatedFrom(router.asPath)
+                void newAgent.create()
+            }}
+            creating={creating}
+            createError={newAgent.error}
         />
     )
 }

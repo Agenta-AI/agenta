@@ -252,7 +252,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
 
         if (fields.length === 0 && !jsonMode) {
             return (
-                <span className="text-xs text-colorTextDescription">
+                <span className="text-meta text-muted-foreground">
                     {t("entityUi.schemaForm.noInputParameters")}
                 </span>
             )
@@ -261,7 +261,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
         if (jsonMode) {
             return (
                 <div className="flex flex-col gap-1">
-                    <div className="rounded-lg border border-solid border-gray-300 dark:border-gray-700 overflow-hidden">
+                    <div className="rounded-lg border border-solid border-border overflow-hidden">
                         <Editor
                             initialValue={lastFormSnapshot.current}
                             onChange={handleJsonChange}
@@ -273,7 +273,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                             disabled={disabled}
                         />
                     </div>
-                    {jsonError && <span className="text-xs text-colorError">{jsonError}</span>}
+                    {jsonError && <span className="text-meta text-destructive">{jsonError}</span>}
                 </div>
             )
         }
@@ -319,10 +319,10 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                             {fields.map((f, i) => (
                                 <span
                                     key={f.name}
-                                    className={`h-0.5 flex-1 rounded-full ${
+                                    className={`h-0.5 flex-1 rounded-sm ${
                                         i < (onReview ? fields.length : step + 1)
-                                            ? "bg-colorPrimary"
-                                            : "bg-colorFillSecondary"
+                                            ? "bg-primary"
+                                            : "bg-secondary"
                                     }`}
                                 />
                             ))}
@@ -331,20 +331,20 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                             {/* Stepper promotes the active question to a header — field labels
                                 are hidden below (hideLabel), this IS the question. */}
                             {onReview ? (
-                                <span className="text-[13px] font-semibold">
+                                <span className="text-label font-semibold">
                                     {t("entityUi.schemaForm.reviewAnswers")}
                                 </span>
                             ) : (
                                 <div className="flex min-w-0 flex-col">
-                                    <span className="text-[13px] font-semibold">
-                                        <span className="text-colorPrimary">{`${step + 1}. `}</span>
+                                    <span className="text-label font-semibold">
+                                        <span className="text-primary">{`${step + 1}. `}</span>
                                         {fields[step].label}
                                         {fields[step].required && (
-                                            <span className="text-red-500 ml-1">*</span>
+                                            <span className="text-destructive ml-1">*</span>
                                         )}
                                     </span>
                                     {fields[step].description && (
-                                        <span className="text-xs leading-snug text-colorTextDescription">
+                                        <span className="text-meta leading-snug text-muted-foreground">
                                             {fields[step].description}
                                         </span>
                                     )}
@@ -354,7 +354,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                 {!onReview && !fields[step].required && (
                                     <Button
                                         variant="ghost"
-                                        className="h-6 px-1.5 text-xs opacity-60"
+                                        className="h-6 px-1.5 text-meta opacity-60"
                                         onClick={() => {
                                             // Skip = no answer: clear the field (incl. a schema
                                             // default the user didn't endorse). setFieldValue
@@ -375,13 +375,13 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                     variant="ghost"
                                     size="icon-sm"
                                     aria-label={t("entityUi.schemaForm.previousQuestion")}
-                                    className="h-6 w-6 p-0 text-colorPrimary"
+                                    className="h-6 w-6 p-0 text-primary"
                                     disabled={step === 0}
                                     onClick={() => setStep(step - 1)}
                                 >
                                     <CaretLeft size={12} />
                                 </Button>
-                                <span className="text-xs tabular-nums text-colorTextDescription">
+                                <span className="text-meta tabular-nums text-muted-foreground">
                                     {`${Math.min(step + 1, fields.length)}/${fields.length}`}
                                 </span>
                                 <Button
@@ -392,7 +392,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                             ? t("entityUi.schemaForm.onReview")
                                             : t("entityUi.schemaForm.nextQuestion")
                                     }
-                                    className="h-6 w-6 p-0 text-colorPrimary"
+                                    className="h-6 w-6 p-0 text-primary"
                                     disabled={onReview}
                                     onClick={() => setStep(step + 1)}
                                 >
@@ -431,17 +431,17 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                             onKeyDown={(e) => {
                                                 if (e.key === "Enter") setStep(i)
                                             }}
-                                            className="flex cursor-pointer items-center justify-between gap-3 rounded-md bg-colorFillQuaternary px-3 py-2 hover:bg-colorFillTertiary"
+                                            className="flex cursor-pointer items-center justify-between gap-3 rounded-md bg-secondary px-3 py-2 hover:bg-accent"
                                         >
-                                            <span className="text-xs text-colorTextDescription">
+                                            <span className="text-meta text-muted-foreground">
                                                 {field.label}
                                             </span>
                                             {empty && field.required ? (
-                                                <span className="text-xs text-colorError">
+                                                <span className="text-meta text-destructive">
                                                     {t("entityUi.schemaForm.required")}
                                                 </span>
                                             ) : (
-                                                <span className="text-xs max-w-[60%] truncate">
+                                                <span className="text-meta max-w-[60%] truncate">
                                                     {formatReviewValue(field, value)}
                                                 </span>
                                             )}
@@ -479,16 +479,16 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                               more of the fields above. */}
                                           <AccordionTrigger
                                               caret="end"
-                                              className="items-center gap-1.5 py-2 text-xs"
+                                              className="items-center gap-1.5 py-2 text-meta"
                                           >
                                               <span className="flex h-[22px] shrink-0 items-center">
                                                   <SlidersHorizontal
                                                       aria-hidden
                                                       size={13}
-                                                      className="text-colorTextDescription"
+                                                      className="text-muted-foreground"
                                                   />
                                               </span>
-                                              <span className="text-xs text-colorTextDescription">
+                                              <span className="text-meta text-muted-foreground">
                                                   {optionalLabel
                                                       ? optionalLabel(optionalFields.length)
                                                       : t("entityUi.schemaForm.optionalCount", {
@@ -581,7 +581,7 @@ const requiredMessage = () => tNow("entityUi.schemaForm.neededBeforeRun")
  */
 function FieldLabel({field}: {field: FormFieldDescriptor}) {
     return (
-        <span className="inline-flex items-center gap-1 text-[13px] font-medium leading-tight">
+        <span className="inline-flex items-center gap-1 text-label font-medium leading-tight">
             <span>{field.label}</span>
             {/* No "Required" marker on the label: every field in these schemas is either needed
                 or plainly optional under its own heading, and the word repeated down a column
@@ -742,14 +742,14 @@ function MultiEnumWithOther({
 // the whole dark-mode problem (nested yellow rectangles once an input sits inside a card).
 const choiceCardCls = (selected: boolean) =>
     `flex cursor-pointer items-start gap-2 rounded-lg p-3 transition-colors ${
-        selected ? "bg-colorFillSecondary" : "bg-colorFillQuaternary hover:bg-colorFillTertiary"
+        selected ? "bg-secondary" : "bg-secondary hover:bg-accent"
     }`
 
 /** Digit hotkey badge (1..9) — pressing the digit selects the card (see the group onKeyDown). */
 const DigitBadge = ({digit}: {digit: number}) => (
     <span
         aria-hidden
-        className="ml-auto flex shrink-0 items-center self-stretch pl-3 text-xs leading-none text-colorTextTertiary"
+        className="ml-auto flex shrink-0 items-center self-stretch pl-3 text-meta leading-none text-muted-foreground"
     >
         {digit}
     </span>
@@ -760,18 +760,14 @@ const CardIndicator = ({checked, multiple}: {checked: boolean; multiple?: boolea
     <span
         aria-hidden
         className={`mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center border border-solid transition-colors ${
-            multiple ? "rounded" : "rounded-full"
-        } ${
-            checked
-                ? "border-colorPrimary bg-colorPrimary"
-                : "border-colorBorder bg-colorBgContainer"
-        }`}
+            multiple ? "rounded" : "rounded-sm"
+        } ${checked ? "border-primary bg-primary" : "border-border-strong bg-background"}`}
     >
         {checked &&
             (multiple ? (
-                <Check size={9} weight="bold" className="text-white" />
+                <Check size={9} weight="bold" className="text-background" />
             ) : (
-                <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                <span className="h-1.5 w-1.5 rounded-round bg-background" />
             ))}
     </span>
 )
@@ -901,9 +897,9 @@ function ChoiceCards({
                 >
                     <CardIndicator checked={isChecked(o.value)} multiple={multiple} />
                     <div className="flex min-w-0 flex-col">
-                        <span className="text-xs font-medium">{o.label ?? o.value}</span>
+                        <span className="text-label font-medium">{o.label ?? o.value}</span>
                         {o.description && (
-                            <span className="text-xs leading-snug text-colorTextDescription">
+                            <span className="text-meta leading-snug text-muted-foreground">
                                 {o.description}
                             </span>
                         )}
@@ -928,7 +924,7 @@ function ChoiceCards({
                                 focusOther()
                             }
                         }}
-                        className="text-xs font-medium"
+                        className="text-label font-medium"
                     >
                         {t("entityUi.schemaForm.otherCard")}
                     </span>
@@ -981,7 +977,7 @@ function ChoiceCards({
                         }}
                         variant="ghost"
                         spellCheck={false}
-                        className="bg-colorBgContainer px-2"
+                        className="bg-background px-2"
                     />
                 </div>
                 {options.length < 9 && <DigitBadge digit={options.length + 1} />}
@@ -1041,17 +1037,17 @@ function SchemaFormField({
                 type="multiple"
                 variant="ghost"
                 defaultValue={field.required ? ["obj"] : undefined}
-                className={depth > 0 ? "-mx-2 border-l border-gray-200 ml-2" : "-mx-4 mb-2"}
+                className={depth > 0 ? "-mx-2 border-l border-border ml-2" : "-mx-4 mb-2"}
             >
                 <AccordionItem value="obj">
                     <AccordionTrigger className="py-2">
                         <div className="flex flex-col leading-tight">
                             <span className="font-medium">
                                 {field.label}
-                                {field.required && <span className="text-red-500 ml-1">*</span>}
+                                {field.required && <span className="text-destructive ml-1">*</span>}
                             </span>
                             {field.description && (
-                                <span className="text-xs leading-snug text-colorTextDescription">
+                                <span className="text-meta leading-snug text-muted-foreground">
                                     {field.description}
                                 </span>
                             )}
@@ -1290,16 +1286,16 @@ function ArrayField({
     const primitiveItemType = field.itemSchema?.type as string | undefined
 
     return (
-        <div className={depth > 0 ? "ml-2 border-l border-gray-200 pl-3 mb-3" : "mb-3"}>
+        <div className={depth > 0 ? "ml-2 border-l border-border pl-3 mb-3" : "mb-3"}>
             {!hideLabel && (
                 <div className="flex items-center justify-between mb-2">
                     <div className="flex flex-col leading-tight">
                         <span className="font-medium">
                             {field.label}
-                            {field.required && <span className="text-red-500 ml-1">*</span>}
+                            {field.required && <span className="text-destructive ml-1">*</span>}
                         </span>
                         {field.description && (
-                            <span className="text-xs font-normal leading-snug text-colorTextDescription">
+                            <span className="text-meta font-normal leading-snug text-muted-foreground">
                                 {field.description}
                             </span>
                         )}
@@ -1330,7 +1326,7 @@ function ArrayField({
                 {(fields, {add, remove}) => (
                     <div className="flex flex-col gap-2">
                         {fields.length === 0 && (
-                            <span className="text-xs text-colorTextDescription">
+                            <span className="text-meta text-muted-foreground">
                                 {t("entityUi.schemaForm.noItemsAdded")}
                             </span>
                         )}
@@ -1382,7 +1378,7 @@ function ArrayField({
                         )}
 
                         <Button
-                            variant="dashed"
+                            variant="outline"
                             size="sm"
                             onClick={() => add(hasObjectItems ? {} : undefined)}
                             disabled={disabled}
@@ -1419,7 +1415,7 @@ function ArrayObjectItem({
             type="multiple"
             variant="ghost"
             defaultValue={["item"]}
-            className="relative -mx-2 rounded-lg border border-solid border-gray-200"
+            className="relative -mx-2 rounded-lg border border-solid border-border"
         >
             {/* antd Collapse `extra` slot — a button can't nest in the Radix trigger button,
                 so the remove action overlays the header's right edge instead. */}
@@ -1438,7 +1434,7 @@ function ArrayObjectItem({
             </Button>
             <AccordionItem value="item">
                 <AccordionTrigger className="py-2">
-                    <span className="text-xs">Item {name + 1}</span>
+                    <span className="text-meta">Item {name + 1}</span>
                 </AccordionTrigger>
                 <AccordionContent forceMount className="data-[state=closed]:hidden">
                     {itemChildren.map((child) => {
@@ -1458,7 +1454,7 @@ function ArrayObjectItem({
                                     key={child.name}
                                     type="multiple"
                                     variant="ghost"
-                                    className="-mx-2 ml-2 border-l border-gray-200"
+                                    className="-mx-2 ml-2 border-l border-border"
                                 >
                                     <AccordionItem value="nested">
                                         <AccordionTrigger className="py-2">
@@ -1591,7 +1587,7 @@ function JsonFieldEditor({
     )
 
     return (
-        <div className="rounded-lg border border-solid border-gray-300 dark:border-gray-700 overflow-hidden">
+        <div className="rounded-lg border border-solid border-border overflow-hidden">
             <Editor
                 initialValue={value || placeholder || "{}"}
                 onChange={handleChange}

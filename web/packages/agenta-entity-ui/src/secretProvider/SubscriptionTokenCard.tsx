@@ -32,20 +32,20 @@ const SubscriptionTokenCard = ({
     const showSteps = open && !connected
 
     return (
-        <section className="flex flex-col gap-3 rounded-md border border-solid border-colorBorderSecondary p-4 text-xs">
+        <section className="flex flex-col gap-3 rounded-md border border-solid border-border-muted p-4 text-meta">
             <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-col gap-0.5">
-                    <span className="text-sm font-medium text-colorText">{name}</span>
+                    <span className="text-label font-medium text-foreground">{name}</span>
                     {connected ? (
-                        <span className="flex items-center gap-1.5 text-colorSuccess">
+                        <span className="flex items-center gap-1.5 text-success">
                             <span
                                 aria-hidden
-                                className="size-1.5 shrink-0 rounded-full bg-colorSuccess"
+                                className="size-1.5 shrink-0 rounded-round bg-success"
                             />
                             {t("entityUi.subscriptionSignIn.connectedStatus")}
                         </span>
                     ) : (
-                        <span className="text-colorTextSecondary">
+                        <span className="text-muted-foreground">
                             {t("entityUi.subscriptionSignIn.pasteToken")}
                         </span>
                     )}
@@ -71,7 +71,7 @@ const SubscriptionTokenCard = ({
             </div>
 
             {showSteps ? (
-                <div className="flex flex-col gap-3 rounded-md bg-colorFillQuaternary p-3">
+                <div className="flex flex-col gap-3 rounded-md bg-secondary p-3">
                     <SubscriptionTokenSteps token={token} />
                     <div className="flex items-center gap-2">
                         <Button

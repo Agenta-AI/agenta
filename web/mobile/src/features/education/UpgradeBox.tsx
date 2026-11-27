@@ -72,27 +72,27 @@ export const UpgradeBox = () => {
         <section
             aria-label={t("education.whatsNew.releasesBehind", {count: notInstalled.length})}
             data-testid="upgrade-box"
-            className="flex flex-col gap-3 rounded-xl border border-solid border-colorBorderSecondary bg-muted p-4 md:mr-8"
+            className="flex flex-col gap-3 rounded-xl border border-solid border-border-muted bg-muted p-4 sm:mr-8"
         >
             {/* The count first, readable at a glance, in the color of the update marks. */}
-            <span className="flex items-center gap-1.5 text-[12px] font-medium text-muted-foreground">
+            <span className="flex items-center gap-1.5 text-meta font-medium text-muted-foreground">
                 <span
                     aria-hidden
                     data-update-size={size}
-                    className={cn("size-2 rounded-full", UPDATE_SIZE_COLOR[size].bg)}
+                    className={cn("size-2 rounded-round", UPDATE_SIZE_COLOR[size].bg)}
                 />
                 {t("education.whatsNew.releasesBehind", {count: notInstalled.length})}
             </span>
             <div className="flex flex-col gap-1">
-                <p className="m-0 text-[15px] font-semibold text-foreground">
+                <p className="m-0 text-title font-semibold text-foreground">
                     {t("education.whatsNew.upgradeVersions", {running, latest: latest.id})}
                 </p>
-                <p className="m-0 text-[13.5px] leading-5 text-muted-foreground">
+                <p className="m-0 text-body-sm leading-5 text-muted-foreground">
                     {t("education.whatsNew.notInstalledCount", {count: notInstalled.length})}
                     {securityCount > 0 ? (
                         <>
                             {" "}
-                            <span className="font-medium text-colorErrorText">
+                            <span className="font-medium text-destructive">
                                 {t("education.whatsNew.securityFixCount", {count: securityCount})}
                             </span>
                         </>
@@ -111,7 +111,7 @@ export const UpgradeBox = () => {
 
             {/* Nothing until the permission check answers, so an admin never sees the member line. */}
             {permission.pending ? null : !permission.allowed ? (
-                <p className="m-0 text-[13px] text-muted-foreground">
+                <p className="m-0 text-body-sm text-muted-foreground">
                     {t("education.whatsNew.askAdmin")}
                 </p>
             ) : method && commands ? (
@@ -119,7 +119,7 @@ export const UpgradeBox = () => {
                     {extraSteps.map((release) => (
                         <p
                             key={release.id}
-                            className="m-0 rounded-lg border border-solid border-colorWarningBorder bg-colorWarningBg px-3 py-2 text-[13px] leading-5 text-colorWarningText"
+                            className="m-0 rounded-lg border border-solid border-warning/30 bg-warning/10 px-3 py-2 text-body-sm leading-5 text-warning"
                         >
                             <strong>
                                 {t("education.whatsNew.extraSteps", {version: release.id})}
@@ -134,10 +134,10 @@ export const UpgradeBox = () => {
                             </a>
                         </p>
                     ))}
-                    <span className="text-[12px] font-medium text-muted-foreground">
+                    <span className="text-meta font-medium text-muted-foreground">
                         {t("education.whatsNew.commandsTitle")}
                     </span>
-                    <pre className="m-0 overflow-x-auto rounded-lg border border-solid border-colorBorderSecondary bg-background p-3 font-mono text-[12px] leading-[1.6] text-foreground">
+                    <pre className="m-0 overflow-x-auto rounded-lg border border-solid border-border-muted bg-background p-3 font-mono text-meta leading-[1.6] text-foreground">
                         <code>{commands}</code>
                     </pre>
                     <div className="flex flex-wrap gap-2">
@@ -173,7 +173,7 @@ export const UpgradeBox = () => {
                                 : t("education.whatsNew.copyPrompt")}
                         </Button>
                     </div>
-                    <p className="m-0 text-[12px] leading-[1.5] text-muted-foreground">
+                    <p className="m-0 text-meta leading-[1.5] text-muted-foreground">
                         {t("education.whatsNew.commandsNote", {latest: latest.id})}
                     </p>
                 </div>

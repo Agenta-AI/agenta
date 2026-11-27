@@ -86,7 +86,7 @@ export const EditableRevisionDrawerBody = ({
     }
     if (!local && !query.isPending && !query.data) {
         return (
-            <p className="text-muted-foreground m-0 p-6 text-center text-sm">
+            <p className="text-muted-foreground m-0 p-6 text-center text-body">
                 {t("playground.panels.revisionUnavailable")}
             </p>
         )

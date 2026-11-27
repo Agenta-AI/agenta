@@ -21,10 +21,10 @@ import {useDriveFileDownload} from "./useDriveFileDownload"
 
 // shadcn has no info/warning role, so the tints come from the palette's semantic bridge.
 const TONE_SQUARE: Record<DriveKindTone, string> = {
-    info: "bg-colorInfoBg text-colorInfo",
-    warning: "bg-colorWarningBg text-colorWarning",
-    success: "bg-colorSuccessBg text-colorSuccess",
-    error: "bg-colorErrorBg text-colorError",
+    info: "bg-info/10 text-info",
+    warning: "bg-warning/10 text-warning",
+    success: "bg-success/10 text-success",
+    error: "bg-destructive/10 text-destructive",
     neutral: "bg-muted text-muted-foreground",
 }
 
@@ -67,7 +67,7 @@ const OpenOverlay = ({path, name}: {path: string; name: string}) => {
             type="button"
             aria-label={t("entityUi.driveExplorer.openName", {name})}
             onClick={() => openQuickLook({path})}
-            className="absolute inset-0 cursor-pointer rounded-lg border-0 bg-transparent p-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="absolute inset-0 cursor-pointer rounded-lg border-0 bg-transparent p-0 focus-ring"
         />
     )
 }
@@ -95,8 +95,8 @@ export function DriveFileTile({
     return (
         <div
             className={cn(
-                "relative flex min-w-0 items-center gap-3 rounded-lg border border-solid border-border/60 bg-background p-2.5 pl-3 transition-colors",
-                deleted ? "opacity-70" : "hover:bg-muted/50",
+                "relative flex min-w-0 items-center gap-3 rounded-lg border border-solid border-border-muted bg-background p-2.5 pl-3 transition-colors",
+                deleted ? "opacity-70" : "hover:bg-accent",
             )}
         >
             {!deleted ? <OpenOverlay path={path} name={name} /> : null}
@@ -104,13 +104,13 @@ export function DriveFileTile({
             <span className="flex min-w-0 flex-1 flex-col">
                 <span
                     className={cn(
-                        "min-w-0 truncate text-[13px] font-medium text-foreground",
+                        "min-w-0 truncate text-label font-medium text-foreground",
                         deleted && "line-through",
                     )}
                 >
                     {name}
                 </span>
-                <span className="min-w-0 truncate text-xs text-muted-foreground">
+                <span className="min-w-0 truncate text-meta text-muted-foreground">
                     {meta.join(" · ")}
                 </span>
             </span>

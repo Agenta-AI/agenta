@@ -80,5 +80,7 @@
     "view": "Ver",
     "working": "Processando…",
     "yourRole": "Sua função",
-    "dialog": "Caixa de diálogo"
+    "dialog": "Caixa de diálogo",
+    "resizePane": "Redimensionar painel",
+    "you": "Você"
 }

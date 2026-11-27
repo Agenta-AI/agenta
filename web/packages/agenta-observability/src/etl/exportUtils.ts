@@ -1,5 +1,5 @@
 import type {TraceSpan} from "@agenta/entities/trace"
-import {formatCurrency, formatLatency, formatTokenUsage} from "@agenta/shared/utils"
+import {formatCurrencyPrecise, formatLatency, formatTokenUsage} from "@agenta/shared/utils"
 import {formatDay} from "@agenta/shared/utils/dateTime"
 
 import type {TraceSpanNode} from "../core/traceSpan"
@@ -33,7 +33,7 @@ export const createTraceObject = (trace: TraceSpanNode | TraceSpan) => {
     const inputs = getAgDataInputs(trace)
     const outputs = getAgDataOutputs(trace)
     const duration = formatLatency(getLatency(trace))
-    const cost = formatCurrency(getCost(trace))
+    const cost = formatCurrencyPrecise(getCost(trace))
     const usage = formatTokenUsage(getTokens(trace))
 
     const normalizedStatus = `${trace.status_code || ""}`.toLowerCase()

@@ -5,6 +5,7 @@ import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {Eye, EyeSlash, MagnifyingGlass, XCircle} from "@phosphor-icons/react"
 
 import {type InputProps, Textarea, type TextareaProps, inputVariants} from "./input"
+import {SimpleTooltip} from "./tooltip-composed"
 import {cn} from "./utils"
 
 /**
@@ -47,6 +48,7 @@ export function InputAffix({
     value,
     defaultValue,
     ref,
+    onKeyDown,
     ...rest
 }: InputAffixProps) {
     const t = useT(uiControlsCatalog)
@@ -79,6 +81,16 @@ export function InputAffix({
         el?.focus()
     }
 
+    // Escape clears a filled clearable input first; the next Escape reaches the container.
+    const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+        onKeyDown?.(event)
+        if (event.key !== "Escape" || !showClear || event.defaultPrevented) return
+        if (event.isPropagationStopped()) return
+        event.preventDefault()
+        event.stopPropagation()
+        handleClear()
+    }
+
     return (
         <span
             data-slot="input-affix"
@@ -100,11 +112,9 @@ export function InputAffix({
                 disabled={disabled}
                 {...(isControlled ? {value} : {defaultValue})}
                 onChange={handleChange}
+                onKeyDown={handleKeyDown}
                 className={cn(
-                    // On a phone the field itself is the 44px tap area: it reaches past the
-                    // frame, centred, with a transparent background, so the frame keeps its size.
-                    "min-w-0 flex-1 border-0 bg-transparent p-0 font-[inherit] text-base text-foreground outline-none placeholder:text-muted-foreground max-md:h-11 md:text-sm",
-                    size.startsWith("compact") && "md:text-[13px]",
+                    "min-w-0 flex-1 border-0 bg-transparent p-0 font-[inherit] text-field-md text-foreground outline-none placeholder:text-muted-foreground",
                 )}
                 {...rest}
             />
@@ -152,15 +162,19 @@ export function PasswordInput(props: InputAffixProps) {
             data-slot="password-input"
             type={show ? "text" : "password"}
             suffix={
-                <button
-                    type="button"
-                    tabIndex={-1}
-                    onClick={() => setShow((s) => !s)}
-                    aria-label={show ? t("ui.controls.hideValue") : t("ui.controls.showValue")}
-                    className="flex items-center border-0 bg-transparent p-0 text-muted-foreground hover:text-foreground"
+                <SimpleTooltip
+                    title={show ? t("ui.controls.hideValue") : t("ui.controls.showValue")}
                 >
-                    {show ? <EyeSlash size={14} /> : <Eye size={14} />}
-                </button>
+                    <button
+                        type="button"
+                        tabIndex={-1}
+                        onClick={() => setShow((s) => !s)}
+                        aria-label={show ? t("ui.controls.hideValue") : t("ui.controls.showValue")}
+                        className="flex items-center border-0 bg-transparent p-0 text-muted-foreground hover:text-foreground"
+                    >
+                        {show ? <EyeSlash size={14} /> : <Eye size={14} />}
+                    </button>
+                </SimpleTooltip>
             }
             {...props}
         />

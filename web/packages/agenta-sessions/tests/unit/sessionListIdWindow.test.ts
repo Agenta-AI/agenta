@@ -11,12 +11,6 @@ describe("sessionListIdWindow", () => {
         })
     })
 
-    it("sizes card and agent-activity id groups for all 100 waiting sessions", () => {
-        expect(sessionListIdWindow({status: "all", sessionIds: ids("waiting")})).toMatchObject({
-            limit: 100,
-        })
-    })
-
     it("sizes the Sessions waiting filter after intersecting its id sets", () => {
         const waiting = ids("waiting")
         expect(

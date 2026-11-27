@@ -30,7 +30,7 @@ export const HomeSkeleton = ({className}: {className?: string}) => (
             <SkeletonBlock className="h-[114px] w-full rounded-lg" />
 
             <div className="-mx-2 flex flex-col gap-2">
-                <div className="mb-1 mx-2 flex items-center gap-5 border-0 border-b border-solid border-b-[var(--ag-colorSplit)] px-1.5 pb-[7px]">
+                <div className="mb-1 mx-2 flex items-center gap-5 border-0 border-b border-solid border-b-border-muted px-1.5 pb-[7px]">
                     <SkeletonBlock className="h-4 w-20" />
                     <SkeletonBlock className="h-4 w-16" />
                     <span className="flex-1" />

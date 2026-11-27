@@ -40,7 +40,7 @@ import {
     type WorkflowRevisionSelectionResult,
 } from "@agenta/entity-ui"
 import {entitySelectorController} from "@agenta/playground"
-import {EnhancedModal} from "@agenta/ui/components/modal"
+import {Dialog, DialogContent, DialogHeader, DialogTitle} from "@agenta/ui/ui"
 import {CaretRight} from "@phosphor-icons/react"
 import {Input, Button, Tabs, Space, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -252,7 +252,7 @@ function EntitySelectorContent({
         key: tab,
         label: SELECTOR_TAB_LABELS[tab] ?? tab,
         children: (
-            <div className="pt-2 min-h-[200px]">
+            <div className="pt-2 min-h-50">
                 {tab === "workflow" && <WorkflowRevisionSelector onSelect={onSelect} />}
                 {tab === "evaluator" && <EvaluatorSelector onSelect={onSelect} />}
                 {tab === "testcase" && <TestcaseSelector onSelect={onSelect} />}
@@ -300,15 +300,14 @@ export function EntitySelectorModal({onSelection}: EntitySelectorModalProps) {
     }, [onSelection])
 
     return (
-        <EnhancedModal
-            open={isOpen}
-            title={config.title ?? "Select Entity"}
-            onCancel={handleCancel}
-            footer={null}
-            width={480}
-        >
-            <EntitySelectorContent config={config} onSelect={handleSelect} />
-        </EnhancedModal>
+        <Dialog open={isOpen} onOpenChange={(next) => !next && handleCancel()}>
+            <DialogContent className="max-w-[480px]">
+                <DialogHeader>
+                    <DialogTitle>{config.title ?? "Select Entity"}</DialogTitle>
+                </DialogHeader>
+                <EntitySelectorContent config={config} onSelect={handleSelect} />
+            </DialogContent>
+        </Dialog>
     )
 }
 

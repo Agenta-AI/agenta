@@ -41,17 +41,17 @@ export const StashedKeysToggle = ({variableName, paths}: StashedKeysToggleProps)
                 type="button"
                 aria-expanded={open}
                 onClick={() => setOpen((previous) => !previous)}
-                className="flex items-center gap-1 self-start border-0 bg-transparent p-0 text-left text-xs text-muted-foreground"
+                className="flex items-center gap-1 self-start border-0 bg-transparent p-0 text-left text-meta text-muted-foreground"
             >
                 {open ? <CaretDown size={12} /> : <CaretRight size={12} />}
                 {summary}
             </button>
             {open ? (
-                <ul className="m-0 flex list-none flex-col gap-1 border-0 border-l-2 border-solid border-border p-0 pl-2">
+                <ul className="m-0 flex list-none flex-col gap-1 border-0 border-l border-solid border-border p-0 pl-2">
                     {paths.map((entry) => (
                         <li
                             key={entry.path}
-                            className="flex min-w-0 items-baseline gap-2 py-0.5 text-xs"
+                            className="flex min-w-0 items-baseline gap-2 py-0.5 text-label font-normal"
                         >
                             <code className="shrink-0 font-mono text-primary">
                                 {variableName}.{entry.path}

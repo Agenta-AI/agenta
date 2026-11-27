@@ -1,12 +1,10 @@
 // @vitest-environment jsdom
 /**
- * Which builder chat the panel opens (task 24.1, the 2-day rule), the age labels of the lists,
- * and the chat link per user and project with the chats the query no longer returns.
+ * Which builder chat the panel opens (task 24.1, the 2-day rule) and the age labels of the lists.
  */
 import builderPanelCatalog from "@agenta/i18n/catalogs/builder.panel"
-import {afterEach, describe, expect, it, vi} from "vitest"
+import {describe, expect, it} from "vitest"
 
-import {readBuilderChats, rememberBuilderChat} from "@/features/builder/builderChatLink"
 import {chatAge, sessionToOpen} from "@/features/builder/openRule"
 import {READY_REQUESTS} from "@/features/builder/quickActions"
 import type {BuilderChatRow} from "@/features/builder/useBuilderChatList"
@@ -17,11 +15,6 @@ const row = (id: string, hours: number, running = false): BuilderChatRow => ({
     session_id: id,
     updated_at: hoursAgo(hours),
     flags: {is_running: running},
-})
-
-afterEach(() => {
-    window.localStorage.clear()
-    vi.restoreAllMocks()
 })
 
 describe("sessionToOpen", () => {
@@ -54,29 +47,6 @@ describe("chatAge", () => {
         expect(chatAge(hoursAgo(5), NOW)).toEqual({unit: "hour", count: 5})
         expect(chatAge(hoursAgo(72), NOW)).toEqual({unit: "day", count: 3})
         expect(chatAge(null, NOW)).toBeNull()
-    })
-})
-
-describe("the chat link", () => {
-    it("keeps chats per user and project, newest first", () => {
-        rememberBuilderChat("u1", "p1", "agent-1", "c1")
-        rememberBuilderChat("u1", "p1", "agent-1", "c2")
-        rememberBuilderChat("u2", "p1", "agent-1", "other-user")
-        rememberBuilderChat("u1", "p2", "agent-1", "other-project")
-        expect(readBuilderChats("u1", "p1", "agent-1")).toEqual(["c2", "c1"])
-        expect(readBuilderChats("u2", "p1", "agent-1")).toEqual(["other-user"])
-        expect(readBuilderChats("u1", "p2", "agent-1")).toEqual(["other-project"])
-    })
-
-    it("reads nothing and throws nothing when storage refuses", () => {
-        vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
-            throw new Error("denied")
-        })
-        vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-            throw new Error("denied")
-        })
-        expect(readBuilderChats("u1", "p1", "agent-1")).toEqual([])
-        expect(rememberBuilderChat("u1", "p1", "agent-1", "c1")).toBe(false)
     })
 })
 

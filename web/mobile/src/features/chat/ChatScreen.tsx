@@ -12,12 +12,12 @@ import {fetchSessionRecordsAtom, isSessionFresh} from "@agenta/entities/session"
 import {useT} from "@agenta/i18n"
 import chatMobileScreenCatalog from "@agenta/i18n/catalogs/chat.mobileScreen"
 import {projectIdAtom} from "@agenta/shared/state"
+import {Badge} from "@agenta/ui/ui"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {ContentRail} from "@/components/ContentRail"
 import {ContentRailCapContext} from "@/components/contentRailCap"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {StatusTag} from "@/components/StatusTag"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {pendingTasksAtom} from "../home/pendingTask"
@@ -178,7 +178,7 @@ export const ChatScreen = ({
     // This tab's run state knows of a send or an approval wait before liveness does.
     const runStatus = useAtomValue(sessionStatusAtomFamily(sessionId))
     const turnActive = running || runStatus === "running" || runStatus === "awaiting"
-    // An open view form with edits holds the move too; the header then offers "Update to vN".
+    // An open view form with edits holds the move too, until it is saved or closed.
     const viewFormDirty = useAtomValue(viewFormDirtyAtom)
     // Across a switch the bar still holds the last session's revision and agent, and an active
     // turn keeps the revision it started on, so neither may move this session's pin.
@@ -385,7 +385,7 @@ const ReplayScreen = ({
                     {/* Why there is no composer. The session may still name an agent (the link
                         carries it) and only be missing a revision — don't claim it has none. */}
                     {readOnly ? null : (
-                        <p className="text-muted-foreground border-colorBorderSecondary m-0 shrink-0 border-x-0 border-t-0 border-b border-solid px-4 py-1.5 text-xs">
+                        <p className="text-muted-foreground border-border-muted m-0 shrink-0 border-x-0 border-t-0 border-b border-solid px-4 py-1.5 text-meta">
                             {agentId
                                 ? t("chat.mobileScreen.readOnlyNoRevision")
                                 : t("chat.mobileScreen.readOnlyNoAgent")}
@@ -394,9 +394,17 @@ const ReplayScreen = ({
                     {running ? (
                         <div className="border-border shrink-0 border-b px-4 py-2">
                             <ContentRail className="flex items-center justify-between">
-                                <StatusTag tone="running" dot>
+                                <Badge
+                                    variant="info"
+                                    icon={
+                                        <span
+                                            aria-hidden
+                                            className="size-1.5 rounded-round bg-current"
+                                        />
+                                    }
+                                >
                                     {t("chat.mobileScreen.running")}
-                                </StatusTag>
+                                </Badge>
                             </ContentRail>
                         </div>
                     ) : null}
@@ -433,7 +441,7 @@ const ReplayScreen = ({
     // The read-only replay is a conversation too: its approval card answers keys by the focus.
     // Its rails take the session column, as the live conversation's do.
     const rootedScaffold = (
-        <ContentRailCapContext.Provider value="max-w-[720px]">
+        <ContentRailCapContext.Provider value="max-w-content-md">
             <ConversationRoot>{scaffold}</ConversationRoot>
         </ContentRailCapContext.Provider>
     )

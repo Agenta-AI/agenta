@@ -91,7 +91,7 @@ export const SessionListPanel = ({
                     <Link
                         href={viewAllHref}
                         onClick={handleWaitingClick}
-                        className="shrink-0 rounded bg-colorWarningBg px-1.5 py-0.5 text-xs leading-none text-colorWarningText"
+                        className="shrink-0 rounded bg-warning/10 px-1.5 py-0.5 text-meta leading-none text-warning"
                     >
                         {t("sessions.rows.waitingBadge", {count: list.waitingTotal})}
                     </Link>

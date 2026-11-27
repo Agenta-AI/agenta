@@ -40,17 +40,12 @@ export function MessageComposer({
                 autoSize={{minRows: 3, maxRows: 8}}
                 disabled={disabled}
             />
-            <span
-                className={`text-xs leading-snug ${
-                    wouldReplace
-                        ? "text-[var(--ag-colorWarningText)]"
-                        : "text-[var(--ag-colorTextDescription)]"
-                }`}
-            >
-                {wouldReplace
-                    ? t("entityUi.triggerSchedule.richerInputsSchedule")
-                    : t("entityUi.triggerSchedule.sentEveryRun")}
-            </span>
+            {/* The usual hint lives in the host label's "?" (FORM-01); only the warning shows here. */}
+            {wouldReplace ? (
+                <span className="text-meta leading-snug text-warning">
+                    {t("entityUi.triggerSchedule.richerInputsSchedule")}
+                </span>
+            ) : null}
         </div>
     )
 }

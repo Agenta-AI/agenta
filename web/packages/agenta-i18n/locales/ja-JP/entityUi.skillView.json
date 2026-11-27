@@ -30,7 +30,5 @@
     "or": "または",
     "expandEditor": "エディターを広げる",
     "shrinkEditor": "エディターを小さくする",
-    "removedState": "このスキルはもうエージェントにありません。",
-    "registryLeaveDescription": "このスキルの変更をスキルレジストリに保存しますか、それとも破棄しますか?",
-    "back": "戻る"
+    "removedState": "このスキルはもうエージェントにありません。"
 }

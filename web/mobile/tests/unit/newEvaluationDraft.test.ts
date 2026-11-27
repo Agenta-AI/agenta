@@ -65,12 +65,9 @@ describe("new evaluation draft", () => {
         )
         expect(named.name).toBe("default-v3-greetings-abc12")
         expect(run(named, {type: "pickApp", app: otherApp}).name).toBe("")
-        const cleared = run(
-            {...named, name: "mine"},
-            {type: "setName", name: ""},
-            {type: "blurName"},
-        )
-        expect(cleared.name).toBe("default-v3-greetings-abc12")
+        const emptied = run({...named, name: "mine"}, {type: "setName", name: ""})
+        expect(emptied.name).toBe("")
+        expect(run(emptied, {type: "blurName"}).name).toBe("default-v3-greetings-abc12")
     })
 
     it("Picking another app clears revisions, test set, evaluators, name and settings", () => {
@@ -103,16 +100,6 @@ describe("new evaluation draft", () => {
         expect(run(picked, {type: "pickApp", app: {...app}})).toBe(picked)
     })
 
-    it("One revision and a test set produce variant-vN-testset-suffix", () => {
-        const draft = run(
-            start(),
-            {type: "pickApp", app},
-            {type: "pickRevision", revision: revisionA},
-            {type: "pickTestset", testset},
-        )
-        expect(draft.name).toBe("default-v3-greetings-abc12")
-    })
-
     it("Several revisions produce N-variants-testset-suffix", () => {
         const draft = run(
             start(),
@@ -138,18 +125,6 @@ describe("new evaluation draft", () => {
             {type: "pickRevision", revision: revisionB},
         )
         expect(draft.name).toBe("My run")
-    })
-
-    it("A cleared name returns to the auto name", () => {
-        const draft = run(
-            start(),
-            {type: "pickApp", app},
-            {type: "pickRevision", revision: revisionA},
-            {type: "pickTestset", testset},
-            {type: "setName", name: ""},
-        )
-        expect(draft.name).toBe("")
-        expect(run(draft, {type: "blurName"}).name).toBe("default-v3-greetings-abc12")
     })
 
     it("Human mode keeps only one revision", () => {

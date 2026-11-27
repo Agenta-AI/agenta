@@ -34,7 +34,7 @@ const ALL_AGENTS = "all"
 
 /** The status filters get the dot a row paints, so the filter and the row read alike. */
 const StatusDot = ({className}: {className: string}) => (
-    <span aria-hidden className={`size-1.5 rounded-full ${className}`} />
+    <span aria-hidden className={`size-1.5 rounded-round ${className}`} />
 )
 
 /**
@@ -101,6 +101,7 @@ export const SessionFilterMenu = ({
                 // automation is a trigger that ran one.
                 icon: <Lightning size={ICON} />,
                 value: mode ? "automation" : "chat",
+                defaultValue: "chat",
                 options: [
                     {
                         value: "chat",
@@ -122,6 +123,7 @@ export const SessionFilterMenu = ({
                 label: t("sessions.mobileList.status"),
                 icon: <Broadcast size={ICON} />,
                 value: status,
+                defaultValue: "all",
                 // Ordered by what it costs to miss, and each dot is the one a row of that status
                 // paints. `live` is not offered: "the sandbox is up" is a fact about the
                 // infrastructure, and Running answers the question a reader is actually asking.
@@ -136,17 +138,17 @@ export const SessionFilterMenu = ({
                         label: waitingCount
                             ? t("sessions.mobileList.waitingCount", {count: waitingCount})
                             : t("sessions.mobileList.waiting"),
-                        icon: <StatusDot className="bg-[var(--ag-run-status-warning)]" />,
+                        icon: <StatusDot className="bg-warning" />,
                     },
                     {
                         value: "running",
                         label: t("sessions.mobileList.running"),
-                        icon: <StatusDot className="bg-[var(--ag-run-status-success)]" />,
+                        icon: <StatusDot className="bg-success" />,
                     },
                     {
                         value: "idle",
                         label: t("sessions.mobileList.idle"),
-                        icon: <StatusDot className="bg-[var(--ag-run-status-default)]" />,
+                        icon: <StatusDot className="bg-muted-foreground" />,
                     },
                 ],
                 onChange: (value) => setStatus(value as SessionStatusFilter),
@@ -167,6 +169,7 @@ export const SessionFilterMenu = ({
                       label: t("sessions.mobileList.agent"),
                       icon: <Robot size={ICON} />,
                       value: agentId ?? ALL_AGENTS,
+                      defaultValue: ALL_AGENTS,
                       options: [
                           {
                               value: ALL_AGENTS,
@@ -195,6 +198,7 @@ export const SessionFilterMenu = ({
                 label: t("sessions.mobileList.lastActivity"),
                 icon: <ClockCounterClockwise size={ICON} />,
                 value: view.activity,
+                defaultValue: defaultView.activity,
                 options: [
                     {
                         value: "all",
@@ -280,6 +284,7 @@ export const SessionFilterMenu = ({
     }, [
         agentId,
         agents,
+        defaultView.activity,
         archivedOnly,
         lockedAgent,
         mode,
@@ -310,15 +315,10 @@ export const SessionFilterMenu = ({
         <FilterMenu
             sections={sections}
             align="start"
-            // Icon alone: the table beside it is already the subject, and the word "Filter" added
-            // a second label to a toolbar that has one.
-            label={null}
-            triggerAriaLabel={t("sessions.mobileList.filterAndGroup")}
             size="default"
-            // The square icon size is 28; the search field is 32.
-            triggerClassName="size-8 max-md:size-11"
             // A page locked to one agent is narrowed to it, so the dot shows there too (A02).
-            active={changed || Boolean(lockedAgent)}
+            // The locked agent narrows the list with no choice in the menu.
+            active={Boolean(lockedAgent)}
             onReset={onReset}
             resetDisabled={!changed}
         />

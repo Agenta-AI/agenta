@@ -313,7 +313,7 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
                 <div
                     data-slot="drawer-body"
                     className={cn(
-                        "min-h-0 flex-1 overflow-y-auto p-4 text-field-md text-colorText",
+                        "min-h-0 flex-1 overflow-y-auto p-4 text-field-md text-foreground",
                         !hasHeader && "rounded-t-[inherit]",
                         footer == null && "rounded-b-[inherit]",
                         slotClassNames?.body,

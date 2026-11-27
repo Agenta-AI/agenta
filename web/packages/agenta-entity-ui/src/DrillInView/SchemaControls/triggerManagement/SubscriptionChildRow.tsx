@@ -10,7 +10,7 @@ import {EventSourcePicker} from "../../../gatewayTrigger/drawers/shared/EventSou
 import {ProviderLogo} from "../sectionGroups"
 
 import {PHONE_LINE_CLASS, PHONE_NAME_CLASS, PHONE_ROW_CLASS, PhoneRowSwitch} from "./phoneRow"
-import {LINE_CLASS, NAME_CLASS, ROW_CLASS, RowStatusDot, RowTile} from "./rowParts"
+import {LINE_CLASS, NAME_CLASS, ROW_CLASS, ROW_LEAD_GAP, RowStatusDot, RowTile} from "./rowParts"
 import {TriggerActionsMenu} from "./TriggerActionsMenu"
 import {useSubscriptionRun} from "./useSubscriptionRun"
 
@@ -98,9 +98,7 @@ export function SubscriptionChildRow({
                     phone
                         ? `${PHONE_ROW_CLASS} ${disabled ? "cursor-default" : "cursor-pointer"}`
                         : `${ROW_CLASS} ${
-                              disabled
-                                  ? "cursor-default"
-                                  : "cursor-pointer hover:border-[var(--ag-colorBorder)]"
+                              disabled ? "cursor-default" : "cursor-pointer hover:border-border"
                           }`
                 }
             >
@@ -116,23 +114,23 @@ export function SubscriptionChildRow({
                             open()
                         }
                     }}
-                    className={`flex min-w-0 flex-1 items-center ${phone ? "gap-3 self-stretch" : "gap-2.5"}`}
+                    className={`focus-ring flex min-w-0 flex-1 items-center rounded-sm ${phone ? "gap-3 self-stretch" : ROW_LEAD_GAP}`}
                 >
                     {/* The app's logo when the catalog has one; else a dark tile with a white
                         lightning glyph, as the canvas draws an app trigger. */}
                     {logo ? (
-                        <RowTile className="border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgContainer)] [&_img]:size-4">
+                        <RowTile className="border border-solid border-border-muted bg-background [&_img]:size-4">
                             <ProviderLogo logo={logo} size={16} />
                         </RowTile>
                     ) : (
-                        <RowTile className="bg-[var(--ag-colorBgSpotlight)]">
+                        <RowTile>
                             <Lightning />
                         </RowTile>
                     )}
                     <div className="min-w-0 flex-1">
                         <div
-                            className={`${phone ? PHONE_NAME_CLASS : NAME_CLASS} font-normal ${
-                                primaryMuted ? "italic text-[var(--ag-colorTextTertiary)]" : ""
+                            className={`${phone ? PHONE_NAME_CLASS : NAME_CLASS} ${
+                                primaryMuted ? "italic text-muted-foreground" : ""
                             }`}
                         >
                             {primary}

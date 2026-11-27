@@ -15,7 +15,7 @@ export interface RepeatNavProps {
 export const RepeatNav = ({current, total, onPrev, onNext}: RepeatNavProps) => {
     const t = useT(runsCatalog)
     return (
-        <div className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
+        <div className="mb-1 flex items-center gap-1 text-meta text-muted-foreground">
             <span className="text-nowrap">{t("playground.runs.totalRepeats")}</span>
             <Button
                 variant="ghost"

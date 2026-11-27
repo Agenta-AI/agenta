@@ -1,17 +1,15 @@
 /**
  * The saved `gateway_connection` entry — qa.md F10, F11, F12, F14, and F16.
  *
- * These cover the parts an author can lose silently: the read-only partition, a group rollup that
- * must NOT resolve `inherit`, a saved tool key the provider catalog dropped, and the connection
- * swap, which must replace the one entry the format allows rather than appending a second.
+ * These cover the parts an author can lose silently: the read-only partition, a saved tool key
+ * the provider catalog dropped, and the connection swap, which must replace the one entry the
+ * format allows rather than appending a second.
  */
 import {agentItemIdentity} from "@agenta/entities/workflow/commitDiff"
 import {describe, expect, it} from "vitest"
 
 import {
     partitionToolsByAccess,
-    rollupGroupPermission,
-    rollupLabel,
     savedToolPermission,
     shownToolPermission,
     withStaleTools,
@@ -197,35 +195,7 @@ describe("F10: the read-only and write partition", () => {
     })
 })
 
-describe("F11: a group rollup summarizes the saved values", () => {
-    it("reports one shared value when the tools agree", () => {
-        const permissions: GatewayConnectionPermissions = {default: "allow", tools: {}}
-        const rollup = rollupGroupPermission(["GET_ISSUE", "LIST_ISSUES"], permissions)
-        expect(rollup).toEqual({kind: "shared", permission: "allow"})
-        expect(rollupLabel(rollup)).toBe("runs automatically")
-    })
-
-    it('a group saved inherit reads "follows agent policy" and is never resolved', () => {
-        const permissions: GatewayConnectionPermissions = {
-            default: "inherit",
-            tools: {GET_ISSUE: "inherit"},
-        }
-        const rollup = rollupGroupPermission(["GET_ISSUE", "LIST_ISSUES"], permissions)
-        // Resolving would need the agent-wide mode, which this layer does not own.
-        expect(rollup).toEqual({kind: "shared", permission: "inherit"})
-        expect(rollupLabel(rollup)).toBe("follows agent policy")
-    })
-
-    it("reports mixed when the saved values disagree", () => {
-        const permissions: GatewayConnectionPermissions = {
-            default: "inherit",
-            tools: {DELETE_REPOSITORY: "deny"},
-        }
-        const rollup = rollupGroupPermission(["CREATE_ISSUE", "DELETE_REPOSITORY"], permissions)
-        expect(rollup).toEqual({kind: "mixed"})
-        expect(rollupLabel(rollup)).toBe("mixed")
-    })
-
+describe("F11: the permission each tool shows and saves", () => {
     it("allow_reads shows as allow for reads and ask for everything else", () => {
         const permissions: GatewayConnectionPermissions = {default: "allow_reads", tools: {}}
         expect(shownToolPermission(permissions, {key: "FETCH_EMAILS", readOnly: true})).toBe(
@@ -233,19 +203,6 @@ describe("F11: a group rollup summarizes the saved values", () => {
         )
         expect(shownToolPermission(permissions, {key: "SEND_EMAIL", readOnly: false})).toBe("ask")
         expect(shownToolPermission(permissions, {key: "UNKNOWN"})).toBe("ask")
-        expect(
-            rollupGroupPermission(
-                [
-                    {key: "FETCH_EMAILS", readOnly: true},
-                    {key: "LIST_LABELS", readOnly: true},
-                ],
-                permissions,
-            ),
-        ).toEqual({kind: "shared", permission: "allow"})
-        expect(rollupGroupPermission([{key: "SEND_EMAIL", readOnly: false}], permissions)).toEqual({
-            kind: "shared",
-            permission: "ask",
-        })
     })
 
     it("a tool with no entry of its own reads the entry default", () => {

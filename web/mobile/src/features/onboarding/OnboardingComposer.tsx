@@ -64,7 +64,7 @@ export const OnboardingComposer = ({
                         onClick={() => void inputRef.current?.setMarkdown(text)}
                         className={cn(
                             // White on the grey card, outlined, so they read as buttons beside the white composer.
-                            "bg-background text-foreground/80 ring-border hover:text-foreground hover:ring-foreground/30 min-h-7 cursor-pointer rounded-md border-0 px-2.5 py-[5px] text-xs leading-4 ring-1 transition-shadow",
+                            "bg-background text-muted-foreground ring-border hover:text-foreground hover:bg-[image:linear-gradient(var(--accent),var(--accent))] min-h-control-sm cursor-pointer rounded-md border-0 px-2 py-1 text-label ring-1 transition-colors",
                             FOCUS_RING,
                         )}
                     >

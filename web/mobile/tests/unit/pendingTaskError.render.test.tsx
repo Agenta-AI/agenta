@@ -41,7 +41,7 @@ describe("PendingTaskError", () => {
         ])
         expect(view.className).toBe("")
         expect(view.firstElementChild?.className).toContain("px-3")
-        expect(alert.parentElement?.className).toContain("bg-colorErrorBg")
+        expect(alert.parentElement?.className).toContain("bg-destructive/10")
         expect(alert.parentElement?.className).toContain("sm:flex-row")
         expect(alert.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true")
     })

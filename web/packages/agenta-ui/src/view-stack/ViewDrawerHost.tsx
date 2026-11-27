@@ -1,10 +1,19 @@
 import {useCallback, useEffect, useRef, useState, type MutableRefObject} from "react"
 
-import {EnhancedDrawer} from "../drawer/EnhancedDrawer"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+
+import {Dialog, DialogContent, DialogTitle} from "../components/ui/dialog"
+import {Sheet, SheetContent, SheetTitle} from "../components/ui/sheet"
 import {useIsPhone} from "../phone/useIsPhone"
 
 import {useViewStack} from "./context"
-import {DrawerCloseContext, DrawerViewChrome} from "./DrawerViewChrome"
+import {
+    DrawerBareContext,
+    DrawerCloseContext,
+    DrawerDialogContext,
+    DrawerViewChrome,
+} from "./DrawerViewChrome"
 import {PhoneViewChrome} from "./PhoneViewChrome"
 import type {ViewDef, ViewStack, ViewTarget} from "./types"
 import {ViewStackHost} from "./ViewStackHost"
@@ -19,6 +28,8 @@ export interface ViewRequest<P = unknown> {
 /** Today's drawer widths: a wide view (an editor) and the rest. */
 const WIDE_WIDTH = 920
 const WIDTH = 580
+/** A dialog's width, as the forms' modals before the view stack. */
+const DIALOG_WIDTH = 520
 
 /**
  * A container that keeps a drawer: one view stack inside a drawer shell, opened on `request`.
@@ -29,15 +40,25 @@ export const ViewDrawerHost = <P,>({
     request,
     onClosed,
     width,
+    title,
     stackRef: outerStackRef,
+    presentation = "drawer",
+    bare = false,
 }: {
     request: ViewRequest<P>
     /** The stack is empty: the caller drops the request. */
     onClosed: () => void
     width?: number
+    /** The dialog's accessible name, e.g. the item's name; falls back to "Dialog". */
+    title?: string
     /** Receives the drawer's stack, so a later request opens in it. */
     stackRef?: MutableRefObject<ViewStack | null>
+    /** `dialog`: a centred modal on wide screens, a bottom sheet on a phone. */
+    presentation?: "drawer" | "dialog"
+    /** No header row: for a view that heads itself (a logo and a title); Close moves beside it. */
+    bare?: boolean
 }) => {
+    const t = useT(commonCatalog)
     const [open, setOpen] = useState(true)
     // On a phone the drawer covers the screen with the phone chrome (back arrow, 44 px buttons)
     // and follows the phone rules (read-only views).
@@ -48,27 +69,112 @@ export const ViewDrawerHost = <P,>({
         void stackRef.current?.closeAll()
     }, [])
     const finish = useCallback(() => setOpen(false), [])
+    // A dialog on a phone rises from the bottom, as the phone's other sheets.
+    const sheet = presentation === "dialog" && phone
+    const body = (
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto rounded-[inherit] p-0 text-field-md text-foreground">
+            <DrawerCloseContext.Provider value={close}>
+                <DrawerBareContext.Provider value={bare && (!phone || sheet)}>
+                    <DrawerDialogContext.Provider value={presentation === "dialog"}>
+                        <ViewStackHost
+                            chrome={phone && !sheet ? PhoneViewChrome : DrawerViewChrome}
+                            phone={phone}
+                        >
+                            <OpenOnMount
+                                request={request as ViewRequest}
+                                stackRef={stackRef}
+                                onEmpty={finish}
+                            />
+                        </ViewStackHost>
+                    </DrawerDialogContext.Provider>
+                </DrawerBareContext.Provider>
+            </DrawerCloseContext.Provider>
+        </div>
+    )
+    if (sheet) {
+        return (
+            <Sheet
+                open={open}
+                onOpenChange={(next) => {
+                    if (!next) close()
+                }}
+            >
+                <SheetContent
+                    side="bottom"
+                    className="max-h-[85dvh] gap-0 rounded-t-2xl pt-2"
+                    style={{paddingBottom: "env(safe-area-inset-bottom)"}}
+                    aria-describedby={undefined}
+                    // A control that focused itself keeps focus; else Radix moves focus inside.
+                    onOpenAutoFocus={(e) => {
+                        if (
+                            (e.currentTarget as HTMLElement | null)?.contains(
+                                document.activeElement,
+                            )
+                        )
+                            e.preventDefault()
+                    }}
+                    onCloseAutoFocus={() => onClosed()}
+                    onEscapeKeyDown={(e) => {
+                        e.preventDefault()
+                        void stackRef.current?.back()
+                    }}
+                >
+                    <div
+                        aria-hidden
+                        className="mx-auto mb-1 h-[5px] w-9 shrink-0 rounded-sm bg-border"
+                    />
+                    <SheetTitle className="sr-only">{title || t("common.dialog")}</SheetTitle>
+                    {body}
+                </SheetContent>
+            </Sheet>
+        )
+    }
+    if (presentation === "dialog") {
+        return (
+            <Dialog
+                open={open}
+                onOpenChange={(next) => {
+                    if (!next) close()
+                }}
+            >
+                <DialogContent
+                    showCloseButton={false}
+                    className="max-h-[min(760px,calc(100dvh-2rem))] gap-0 overflow-hidden p-0"
+                    style={{maxWidth: width ?? DIALOG_WIDTH}}
+                    onOpenAutoFocus={(e) => {
+                        if (
+                            (e.currentTarget as HTMLElement | null)?.contains(
+                                document.activeElement,
+                            )
+                        )
+                            e.preventDefault()
+                    }}
+                    onCloseAutoFocus={() => onClosed()}
+                    // Escape is the stack's, as in the drawer.
+                    onEscapeKeyDown={(e) => {
+                        e.preventDefault()
+                        void stackRef.current?.back()
+                    }}
+                >
+                    <DialogTitle className="sr-only">{title || t("common.dialog")}</DialogTitle>
+                    {body}
+                </DialogContent>
+            </Dialog>
+        )
+    }
     return (
-        <EnhancedDrawer
-            rootClassName="ag-drawer-elevated"
+        <Sheet
             open={open}
-            onClose={close}
-            afterOpenChange={(next) => {
-                if (!next) onClosed()
+            onOpenChange={(next) => {
+                if (!next) close()
             }}
-            placement="right"
-            width={width ?? (request.view.wide ? WIDE_WIDTH : WIDTH)}
-            closable={false}
-            // Escape is the stack's: back one level (guarded), and the drawer closes with the
-            // stack. The drawer reports Escape only while it is the top layer, so an open menu
-            // inside a view takes its own Escape first.
-            keyboard={false}
-            onEscapeKeyDown={() => void stackRef.current?.back()}
-            styles={{
-                body: {padding: 0, display: "flex", flexDirection: "column"},
-                ...(phone
-                    ? {
-                          content: {
+        >
+            <SheetContent
+                side="right"
+                className="ag-drawer-elevated"
+                style={
+                    phone
+                        ? {
                               inset: 0,
                               width: "100%",
                               maxWidth: "100%",
@@ -76,21 +182,29 @@ export const ViewDrawerHost = <P,>({
                               // Clear of the notch and the home bar, as the Channels connect layer.
                               paddingTop: "env(safe-area-inset-top)",
                               paddingBottom: "env(safe-area-inset-bottom)",
-                          },
-                      }
-                    : null),
-            }}
-        >
-            <DrawerCloseContext.Provider value={close}>
-                <ViewStackHost chrome={phone ? PhoneViewChrome : DrawerViewChrome} phone={phone}>
-                    <OpenOnMount
-                        request={request as ViewRequest}
-                        stackRef={stackRef}
-                        onEmpty={finish}
-                    />
-                </ViewStackHost>
-            </DrawerCloseContext.Provider>
-        </EnhancedDrawer>
+                          }
+                        : {
+                              width: width ?? (request.view.wide ? WIDE_WIDTH : WIDTH),
+                              maxWidth: "calc(100% - 1rem)",
+                          }
+                }
+                // A control that focused itself on mount keeps focus.
+                onOpenAutoFocus={(e) => {
+                    if ((e.currentTarget as HTMLElement | null)?.contains(document.activeElement))
+                        e.preventDefault()
+                }}
+                onCloseAutoFocus={() => onClosed()}
+                // Escape is the stack's: back one level (guarded), and the drawer closes with the
+                // stack. Radix reports Escape only while the drawer is the top layer.
+                onEscapeKeyDown={(e) => {
+                    e.preventDefault()
+                    void stackRef.current?.back()
+                }}
+            >
+                <SheetTitle className="sr-only">{title || t("common.dialog")}</SheetTitle>
+                {body}
+            </SheetContent>
+        </Sheet>
     )
 }
 

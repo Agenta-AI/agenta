@@ -54,4 +54,33 @@ describe("driveDraft", () => {
         expect(typedMeanwhile.value).toBe("v2x")
         expect(isDriveDraftDirty(typedMeanwhile)).toBe(true)
     })
+
+    // Opening CLAUDE.md in the rich view wrote the file back with no edit.
+    it("text the editor produces on its own never makes the draft dirty", () => {
+        const opened = applyDriveDraftChange(
+            seedDriveDraft("Line one\nline two\n"),
+            "Line one\n\nline two",
+            false,
+        )
+        expect(isDriveDraftDirty(opened)).toBe(false)
+        expect(opened.value).toBe("Line one\n\nline two")
+        const echoedThenReserialised = applyDriveDraftChange(
+            applyDriveDraftChange(seedDriveDraft("a\nb\n"), "a\nb"),
+            "a\n\nb",
+            false,
+        )
+        expect(isDriveDraftDirty(echoedThenReserialised)).toBe(false)
+    })
+
+    it("an edit after the editor's own output is dirty against that output", () => {
+        const opened = applyDriveDraftChange(seedDriveDraft("a\nb\n"), "a\n\nb", false)
+        const edited = applyDriveDraftChange(opened, "a\n\nbc")
+        expect(isDriveDraftDirty(edited)).toBe(true)
+        expect(edited.value).toBe("a\n\nbc")
+    })
+
+    it("editor output during an unsaved edit keeps the draft dirty", () => {
+        const edited = applyDriveDraftChange(seedDriveDraft("a"), "ab")
+        expect(isDriveDraftDirty(applyDriveDraftChange(edited, "ab\n", false))).toBe(true)
+    })
 })

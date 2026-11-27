@@ -18,7 +18,7 @@ export const RunMetricValue = ({
     text: string
 }) => {
     if (state === "loading") return <SkeletonBlock active className="h-4 w-1/2 rounded" />
-    if (state === "error") return <span className="text-[13px] text-muted-foreground">—</span>
+    if (state === "error") return <span className="text-label text-muted-foreground">—</span>
     const view = runMetricCellView(kind, stats, text)
     if (view.kind === "bar") {
         return (
@@ -27,5 +27,5 @@ export const RunMetricValue = ({
             </span>
         )
     }
-    return <span className="block truncate text-[13px] text-foreground">{view.text}</span>
+    return <span className="block truncate text-label text-foreground">{view.text}</span>
 }

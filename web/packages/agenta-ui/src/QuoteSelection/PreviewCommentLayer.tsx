@@ -169,18 +169,18 @@ const PinCard = ({
     return (
         <div className="flex flex-col gap-2" data-quote-ignore="true">
             {quote.note ? (
-                <p className="m-0 whitespace-pre-wrap text-[13px] leading-5 text-popover-foreground">
+                <p className="m-0 whitespace-pre-wrap text-label leading-5 text-popover-foreground">
                     {quote.note}
                 </p>
             ) : null}
-            <p className="m-0 line-clamp-3 border-0 border-l-2 border-solid border-border pl-2 text-xs leading-4 text-muted-foreground">
+            <p className="m-0 line-clamp-3 border-0 border-l border-solid border-border-strong pl-2 text-meta text-muted-foreground">
                 {truncateQuoteText(readableQuoteText(quote))}
             </p>
             <div className="flex justify-end gap-1">
                 <Button size="xs" variant="ghost" onClick={onEdit}>
                     {t("common.edit")}
                 </Button>
-                <Button size="xs" variant="destructive" onClick={onDelete}>
+                <Button size="xs" variant="destructive-ghost" onClick={onDelete}>
                     {t("common.delete")}
                 </Button>
             </div>
@@ -404,10 +404,10 @@ export const PreviewCommentLayer = ({
                         aria-label={t("ui.quoteSelection.commentN", {n: number})}
                         onClick={isTouch ? () => setOpenPin(quote.id) : undefined}
                         // The square bottom-left corner is the tail; it sits on the commented point.
-                        className={`absolute z-20 flex origin-bottom-left -translate-y-full cursor-pointer items-center justify-center rounded-full rounded-bl-none border-0 bg-primary px-1.5 font-semibold leading-none tabular-nums text-btn-primary-fg shadow-md ring-2 ring-background transition-transform hover:scale-110 ${
+                        className={`absolute z-20 flex origin-bottom-left -translate-y-full cursor-pointer items-center justify-center rounded-md rounded-bl-none border-0 bg-primary px-1.5 font-semibold leading-none tabular-nums text-primary-foreground shadow-md ring-2 ring-background transition-transform hover:scale-110 ${
                             isTouch
-                                ? "h-7 min-w-7 text-xs after:absolute after:-inset-2 after:content-['']"
-                                : "h-6 min-w-6 text-[11px]"
+                                ? "h-7 min-w-7 text-label after:absolute after:-inset-2 after:content-['']"
+                                : "h-6 min-w-6 text-caption"
                         }`}
                         style={{top, left}}
                     >

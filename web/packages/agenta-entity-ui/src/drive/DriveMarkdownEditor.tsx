@@ -1,5 +1,5 @@
 /** The Files pane's body for an editable markdown / text file: the shared {@link MarkdownEditor} over the draft. */
-import {useCallback, useRef, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import {type DriveEditorMode, useDriveFileDraft} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
@@ -41,7 +41,24 @@ export function DriveMarkdownEditor({
     onNavigate,
     linkExists,
 }: DriveMarkdownEditorProps) {
-    const {value, onChange} = useDriveFileDraft(mount, path)
+    const {value, onChange: onDraftChange} = useDriveFileDraft(mount, path)
+    // The rich view re-serialises the file when it loads or switches view. Only text that follows
+    // the person's own input counts as an edit, so opening a file never saves it.
+    const userInput = useRef(false)
+    const markInput = useCallback(() => {
+        userInput.current = true
+    }, [])
+    // A view switch re-serialises too: a click before it is not an edit.
+    useEffect(() => {
+        userInput.current = false
+    }, [mode])
+    const onChange = useCallback(
+        (text: string) => {
+            onDraftChange(text, userInput.current)
+            userInput.current = false
+        },
+        [onDraftChange],
+    )
     const onKeyDown = useDriveSaveKey(onSave)
     // A link to a neighbouring file opens it here; a web URL stays Lexical's (a new tab).
     const onLinkClick = useDriveLinkClick(displayPath ?? path, onNavigate, linkExists)
@@ -59,9 +76,16 @@ export function DriveMarkdownEditor({
             {ready ? null : <DriveEditorSkeleton lines={7} />}
             <div
                 ref={quoteRootRef}
-                className="relative flex min-h-0 flex-1 flex-col text-sm"
+                className="relative flex min-h-0 flex-1 flex-col text-body"
                 hidden={!ready}
                 onKeyDown={onKeyDown}
+                onBeforeInputCapture={markInput}
+                onKeyDownCapture={markInput}
+                onPasteCapture={markInput}
+                onCutCapture={markInput}
+                onDropCapture={markInput}
+                // The formatting bar is portalled into row 2 but still bubbles here.
+                onPointerDownCapture={markInput}
                 {...quotable}
             >
                 <QuoteSelectionLayer rootRef={quoteRootRef} sessionId={quoteSessionId} />

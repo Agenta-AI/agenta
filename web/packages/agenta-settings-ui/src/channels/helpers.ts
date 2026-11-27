@@ -20,6 +20,12 @@ const t = createT(channelsLabelsCatalog, channelsStatusCatalog)
 /** A multi-line row built on Button: left-aligned, wrapping, sized by its content. */
 export const ROW_BUTTON = "h-auto justify-start whitespace-normal text-left"
 
+/** A group heading inside a channel view, the same as the list's group heading. */
+export const SECTION_LABEL = "text-label font-medium text-muted-foreground"
+
+/** A block or step title inside a channel view, the same as a kit Field label. */
+export const BLOCK_TITLE = "text-label font-medium text-foreground"
+
 /** Every platform, in the order the Channels card lists them. */
 export const CHANNEL_PLATFORMS: ChannelPlatform[] = [
     "slack",
@@ -267,7 +273,7 @@ export const summarizeConnection = (
     if (!connection) {
         return {
             sub: t(NOT_CONNECTED_SUBS[platform]),
-            subClass: "text-colorTextTertiary",
+            subClass: "text-muted-foreground",
             dotClass: "",
             connected: false,
             needsAttention: false,
@@ -278,8 +284,8 @@ export const summarizeConnection = (
     if (connection.status === "revoked") {
         return {
             sub: t(REVOKED_SUBS[platform]),
-            subClass: "text-colorError",
-            dotClass: "bg-colorError",
+            subClass: "text-destructive",
+            dotClass: "bg-destructive",
             connected: true,
             needsAttention: true,
             action: "manage",
@@ -291,8 +297,8 @@ export const summarizeConnection = (
     if (connection.status === "pending") {
         return {
             sub: t("channels.status.pending"),
-            subClass: "text-colorWarning",
-            dotClass: "bg-colorWarning",
+            subClass: "text-warning",
+            dotClass: "bg-warning",
             connected: false,
             needsAttention: false,
             action: "connect",
@@ -302,8 +308,8 @@ export const summarizeConnection = (
     if (connectionScope(connection, agentId) === "unassigned") {
         return {
             sub: t("channels.status.unassigned"),
-            subClass: "text-colorWarning",
-            dotClass: "bg-colorWarning",
+            subClass: "text-warning",
+            dotClass: "bg-warning",
             connected: true,
             needsAttention: true,
             action: "connect-here",
@@ -313,8 +319,8 @@ export const summarizeConnection = (
     if (connectionScope(connection, agentId) === "elsewhere") {
         return {
             sub: t("channels.status.connectedTo", {agent: answeringAgentName(connection)}),
-            subClass: "text-colorTextSecondary",
-            dotClass: "bg-colorTextQuaternary",
+            subClass: "text-muted-foreground",
+            dotClass: "bg-border-strong",
             connected: true,
             needsAttention: false,
             action: "connect-here",
@@ -325,8 +331,8 @@ export const summarizeConnection = (
     if (connection.agentOff) {
         return {
             sub: channelSharingCopy.off,
-            subClass: "text-colorTextTertiary",
-            dotClass: "bg-colorTextQuaternary",
+            subClass: "text-muted-foreground",
+            dotClass: "bg-border-strong",
             connected: true,
             needsAttention: false,
             action: "manage",
@@ -337,8 +343,8 @@ export const summarizeConnection = (
     if (removed > 0) {
         return {
             sub: t("channels.status.botRemoved", {count: removed}),
-            subClass: "text-colorWarning",
-            dotClass: "bg-colorWarning",
+            subClass: "text-warning",
+            dotClass: "bg-warning",
             connected: true,
             needsAttention: true,
             action: "manage",
@@ -357,8 +363,8 @@ export const summarizeConnection = (
                 : t("channels.labels.answersNowhere")
     return {
         sub: `${botHandle(connection)} · ${where}`,
-        subClass: "text-colorTextTertiary",
-        dotClass: "bg-colorSuccess",
+        subClass: "text-muted-foreground",
+        dotClass: "bg-success",
         connected: true,
         needsAttention: false,
         action: "manage",
@@ -512,3 +518,14 @@ export const splitIdList = (text: string): string[] =>
         .split(/[,，、]/)
         .map((value) => value.trim())
         .filter(Boolean)
+
+/** Turns `\uXXXX` escapes into the characters, keeping the ones JSON must escape. */
+export const unescapeUnicode = (text: string): string =>
+    text.replace(
+        /(?<!\\)((?:\\\\)*)\\u([0-9a-fA-F]{4})/g,
+        (match, slashes: string, hex: string) => {
+            const code = parseInt(hex, 16)
+            if (code < 0x20 || code === 0x22 || code === 0x5c) return match
+            return slashes + String.fromCharCode(code)
+        },
+    )

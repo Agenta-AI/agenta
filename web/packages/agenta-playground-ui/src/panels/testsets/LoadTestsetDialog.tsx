@@ -175,7 +175,7 @@ export const LoadTestsetDialog = ({
                                     </div>
                                 </>
                             ) : (
-                                <p className="m-auto text-sm text-muted-foreground">
+                                <p className="m-auto text-body text-muted-foreground">
                                     {t("playground.testsets.selectToPreview")}
                                 </p>
                             )}
@@ -187,11 +187,11 @@ export const LoadTestsetDialog = ({
                         <Alert
                             type="warning"
                             showIcon
-                            className="text-xs"
+                            className="text-label font-normal"
                             message={t("playground.testsets.cannotSelect")}
                         />
                     ) : (
-                        <p className="m-0 text-sm text-muted-foreground">
+                        <p className="m-0 text-body text-muted-foreground">
                             {selection.selectedRevisionId
                                 ? t("playground.testsets.selectedOf", {
                                       selected: selection.selectedIds.length,

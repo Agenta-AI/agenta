@@ -10,5 +10,7 @@
     "eventAutomation": "Ereignis-Automatisierung",
     "onEvent": "bei Ereignis",
     "firesOn": "Wird bei {{eventKey}} ausgelöst",
-    "firesWhenEventArrives": "Wird ausgelöst, wenn das Ereignis eintrifft"
+    "firesWhenEventArrives": "Wird ausgelöst, wenn das Ereignis eintrifft",
+    "mcpCount_one": "{{count}} MCP-Server",
+    "mcpCount_other": "{{count}} MCP-Server"
 }

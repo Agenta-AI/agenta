@@ -55,7 +55,7 @@ export const TemplatePreviewSheet = ({
                     <>
                         <SheetHeader className="py-2.5">
                             <div className="flex min-w-0 items-center gap-2">
-                                <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs">
+                                <span className="text-muted-foreground min-w-0 flex-1 truncate text-meta">
                                     {t("marketplace.page.title")} /{" "}
                                     <span className="text-foreground">
                                         {categoryText(template.category)}
@@ -83,10 +83,8 @@ export const TemplatePreviewSheet = ({
                         <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-5 py-5 lg:px-6">
                             <div className="flex flex-col gap-3">
                                 <AppTileStack apps={templateProviders(template)} size="lg" />
-                                <SheetTitle className="text-xl font-semibold">
-                                    {template.name}
-                                </SheetTitle>
-                                <SheetDescription className="text-sm leading-relaxed">
+                                <SheetTitle className="text-title">{template.name}</SheetTitle>
+                                <SheetDescription className="text-body">
                                     {template.overview || template.description}
                                 </SheetDescription>
                             </div>

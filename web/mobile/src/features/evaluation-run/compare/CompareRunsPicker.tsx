@@ -58,7 +58,7 @@ export const CompareRunsPicker = ({
             <div className="flex flex-col gap-2 border-0 border-b border-solid border-border p-3">
                 <div className="flex items-start justify-between gap-3">
                     <CompareTestsetNames runId={base.id} />
-                    <span className="flex shrink-0 items-center gap-2 text-xs text-foreground">
+                    <span className="flex shrink-0 items-center gap-2 text-label text-foreground">
                         {`Selected: ${selected.length}/${MAX_COMPARISON_RUNS}`}
                         {selected.length ? (
                             <Button size="xs" variant="link" onClick={() => onChange([])}>
@@ -84,7 +84,7 @@ export const CompareRunsPicker = ({
             ) : shown.length === 0 ? (
                 <CompareRunsNoMatch />
             ) : (
-                <ul className="m-0 flex max-h-[360px] list-none flex-col overflow-y-auto p-1">
+                <ul className="m-0 flex max-h-90 list-none flex-col overflow-y-auto p-1">
                     {shown.map((run) => (
                         <li key={run.id}>
                             <CompareRunRow

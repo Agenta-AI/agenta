@@ -142,6 +142,7 @@ export {
     formatCompact,
     formatCompactNumber, // deprecated alias
     formatCurrency,
+    formatCurrencyPrecise,
     formatLatency,
     formatNumber, // deprecated alias
     formatPercent,

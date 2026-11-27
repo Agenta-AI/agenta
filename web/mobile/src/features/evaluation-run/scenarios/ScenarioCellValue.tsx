@@ -1,6 +1,5 @@
 import {MetricCellContent, SmartCellContent} from "@agenta/ui/cell-renderers"
-
-import {StatusTag} from "@/components/StatusTag"
+import {Badge} from "@agenta/ui/ui"
 
 import type {ScenarioCell} from "./scenarioColumns"
 
@@ -14,15 +13,15 @@ export const ScenarioCellValue = ({cell, lines = 3}: {cell: ScenarioCell; lines?
     const {value} = cell
     if (value === undefined || value === null || value === "") return EMPTY
     if (cell.kind === "metrics") {
-        return <MetricCellContent value={value} metricKey={cell.path} className="text-xs" />
+        return <MetricCellContent value={value} metricKey={cell.path} className="text-meta" />
     }
     if (typeof value === "boolean") {
-        return <StatusTag tone={value ? "live" : "muted"}>{String(value)}</StatusTag>
+        return <Badge variant={value ? "success" : "default"}>{String(value)}</Badge>
     }
     if (typeof value === "string" || typeof value === "number") {
         return (
             <p
-                className="m-0 break-words text-sm"
+                className="m-0 break-words text-body"
                 style={{
                     display: "-webkit-box",
                     WebkitBoxOrient: "vertical",
@@ -35,7 +34,7 @@ export const ScenarioCellValue = ({cell, lines = 3}: {cell: ScenarioCell; lines?
         )
     }
     if (cell.kind === "evaluator") {
-        return <MetricCellContent value={value} metricKey={cell.path} className="text-xs" />
+        return <MetricCellContent value={value} metricKey={cell.path} className="text-meta" />
     }
     return <SmartCellContent value={value} maxLines={lines} showPopover={false} />
 }

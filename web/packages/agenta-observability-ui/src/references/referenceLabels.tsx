@@ -23,7 +23,7 @@ type Props = ReferenceLabelProps & Record<string, unknown>
 
 const str = (value: unknown): string | null => (typeof value === "string" && value ? value : null)
 
-const Placeholder = () => <span className="text-colorTextSecondary">—</span>
+const Placeholder = () => <span className="text-muted-foreground">—</span>
 
 /** An app or an evaluator: both are workflows, read by id. */
 const useWorkflow = (id: string | null) => {

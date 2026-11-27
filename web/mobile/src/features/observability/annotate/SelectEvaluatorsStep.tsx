@@ -110,7 +110,7 @@ export const SelectEvaluatorsStep = ({
                 ) : null}
             </div>
             {shown.length === 0 ? (
-                <p className="m-0 py-6 text-center text-sm text-muted-foreground">
+                <p className="m-0 py-6 text-center text-body text-muted-foreground">
                     {t("observability.annotate.noResults")}
                 </p>
             ) : (
@@ -122,17 +122,17 @@ export const SelectEvaluatorsStep = ({
                         return (
                             <li key={evaluator.id} data-testid="evaluator-row">
                                 <SimpleTooltip title={evaluator.description} side="left">
-                                    <label className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 hover:bg-muted has-[:disabled]:cursor-not-allowed">
+                                    <label className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 hover:bg-accent has-[:disabled]:cursor-not-allowed">
                                         <Checkbox
                                             aria-label={name}
                                             checked={locked || selected.includes(slug)}
                                             disabled={locked || !slug}
                                             onCheckedChange={(next) => toggle(slug, next === true)}
                                         />
-                                        <span className="min-w-0 flex-1 truncate text-sm">
+                                        <span className="min-w-0 flex-1 truncate text-label">
                                             {name}
                                         </span>
-                                        <span className="shrink-0 text-xs text-muted-foreground">
+                                        <span className="shrink-0 text-meta text-muted-foreground">
                                             {metricLabel}
                                         </span>
                                     </label>

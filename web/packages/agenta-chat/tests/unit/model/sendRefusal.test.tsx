@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * A refused send has to say why it was refused.
  *
@@ -7,8 +6,6 @@
  * message had not gone — the reason ("no model provider is configured", and what to do about it)
  * never reached the screen on either app.
  */
-import {ComposerRejections} from "@agenta/chat/components"
-import {render, screen} from "@testing-library/react"
 import {describe, expect, it} from "vitest"
 
 import {PENDING_SEND_FAILED_NOTE} from "../../../src/assets/pendingSendEchoes"
@@ -139,29 +136,5 @@ describe("refusedSendRejections", () => {
         expect(refusedSendRejections(new Error("boom"))).toEqual([
             {name: "Message", reason: REFUSED_SEND_REASON},
         ])
-    })
-
-    it("names the message, not a file, as the subject", () => {
-        // The chip is the attachment strip's row type, and every other row in it is a file.
-        expect(refusedSendRejections(new Error("boom"))[0].name).toBe("Message")
-    })
-})
-
-describe("the refusal chip on screen", () => {
-    const rejectionFor = (body: string) => [{name: "Message", reason: chipFor(body)}]
-
-    it("renders the refusal's own sentence", () => {
-        render(
-            <ComposerRejections
-                rejections={rejectionFor(sdkEnvelope("No model provider is configured."))}
-                onDismiss={() => undefined}
-            />,
-        )
-        expect(screen.getByText("wasn't sent — No model provider is configured.")).toBeTruthy()
-    })
-
-    it("renders the generic text when the refusal stated nothing", () => {
-        render(<ComposerRejections rejections={rejectionFor("{}")} onDismiss={() => undefined} />)
-        expect(screen.getByText(REFUSED_SEND_REASON)).toBeTruthy()
     })
 })

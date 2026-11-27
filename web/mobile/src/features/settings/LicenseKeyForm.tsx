@@ -40,7 +40,7 @@ export const LicenseKeyForm = ({
                     className="font-mono text-xs"
                 />
             </label>
-            {error ? <p className="text-colorError m-0 text-sm">{error}</p> : null}
+            {error ? <p className="text-destructive m-0 text-sm">{error}</p> : null}
             <Button type="submit" className="self-start" disabled={!trimmed || pending}>
                 {pending ? t("settings.license.adding") : t("settings.license.addKey")}
             </Button>

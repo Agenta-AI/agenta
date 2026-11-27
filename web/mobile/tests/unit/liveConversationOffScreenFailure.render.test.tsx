@@ -178,12 +178,6 @@ vi.mock("@agenta/entity-ui/agent", () => ({AgentIntroCard: () => null}))
 vi.mock("@agenta/entity-ui/clientTools", () => ({
     SecretRequestDock: () => <div data-testid="secret-dock" />,
 }))
-vi.mock("@agenta/entity-ui/onboarding", () => ({
-    PersonalAccountsCard: () => null,
-}))
-vi.mock("@/features/chat/usePersonalSetupStep", () => ({
-    usePersonalSetupStep: () => ({open: false, items: [], pendingKeys: new Set()}),
-}))
 vi.mock("@agenta/shared/utils", () => ({isOnScreen: () => true, isOverlayOpen: () => false}))
 // The builder's approval choices load the entities package, which needs the real utils.
 vi.mock("@/features/chat/useBuilderApprovalChoices", () => ({

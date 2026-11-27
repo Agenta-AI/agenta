@@ -46,7 +46,7 @@ export const Variants: Story = {
                 <Skeleton paragraph={false} />
             </Row>
             <Row label="avatar (circle, lg)">
-                <SkeletonAvatar size="large" shape="circle" />
+                <SkeletonAvatar size="large" shape="mark" />
             </Row>
         </div>
     ),

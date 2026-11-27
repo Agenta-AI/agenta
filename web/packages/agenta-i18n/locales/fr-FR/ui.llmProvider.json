@@ -7,5 +7,6 @@
     "outputLabel": "Sortie :",
     "providers": "Fournisseurs",
     "selectProvider": "Sélectionnez un fournisseur",
+    "signInToPick": "Votre abonnement demande une nouvelle connexion. Ouvrez Gérer les fournisseurs de modèles pour vous reconnecter.",
     "via": "via"
 }

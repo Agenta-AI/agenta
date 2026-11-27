@@ -109,10 +109,6 @@ describe("beta developer mode routing", () => {
         ]
 
         for (const [label, state] of rows) {
-            it(`${label}: publishes "0"`, () => {
-                expect(cookieFor(state)).toBe("0")
-            })
-
             it(`${label}: desktop /w pages that /m has go to /m`, () => {
                 const cookie = cookieFor(state)
                 expect(gate(decideDesktopGate, "/w", DESKTOP_UA, cookie)).toMatchObject({

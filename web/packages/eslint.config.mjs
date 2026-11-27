@@ -37,6 +37,11 @@ const includePrettierRule = process.env.DISABLE_PRETTIER !== "true"
  * `no-restricted-imports` must spread this into its own `paths`, or it drops the bans.
  */
 export const restrictedImportPaths = [
+    {
+        name: "lucide-react",
+        message:
+            "Use @phosphor-icons/react. One icon library (ICON-01 in @agenta/ui/design/rules.json).",
+    },
     // Root barrel statically imports the monolithic AgentaApiClient (all 27 resource
     // clients, ~300KB parsed) into any eager import graph. Regressed once (June fix, July relapse).
     {

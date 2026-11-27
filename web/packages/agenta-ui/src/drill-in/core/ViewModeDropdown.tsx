@@ -45,7 +45,7 @@ function ViewModeDropdownInner<TValue extends string = string>({
                     variant="ghost"
                     size="sm"
                     disabled={disabled}
-                    className="inline-flex h-6 items-center gap-1 px-2 text-xs text-colorText"
+                    className="inline-flex h-6 items-center gap-1 px-2 text-label text-foreground"
                 >
                     <span className="font-medium">{selectedOption?.label ?? value}</span>
                     <CaretDown size={14} className="mt-px opacity-65" />
@@ -57,11 +57,7 @@ function ViewModeDropdownInner<TValue extends string = string>({
                         key={option.value}
                         onClick={() => onChange(option.value)}
                         // antd `selectedKeys` highlight.
-                        className={
-                            option.value === value
-                                ? "bg-controlItemBgActive text-colorPrimary"
-                                : undefined
-                        }
+                        className={option.value === value ? "bg-selected text-primary" : undefined}
                     >
                         {option.label}
                     </DropdownMenuItem>

@@ -32,7 +32,7 @@ const NodeHeader: FC<NodeHeaderProps> = ({depth, folded, onToggle, children, ext
                 aria-expanded={!folded}
                 aria-label={folded ? t("common.expand") : t("common.collapse")}
                 onClick={onToggle}
-                className="mr-1 inline-flex cursor-pointer items-center rounded-sm border-0 bg-transparent p-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus-ring"
+                className="mr-1 inline-flex cursor-pointer items-center rounded-sm border-0 bg-transparent p-0 focus-ring"
             >
                 <CollapseCaret open={!folded} size={12} />
             </button>

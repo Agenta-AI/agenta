@@ -58,7 +58,7 @@ export const EmbedFile = ({
             type="button"
             disabled={!fileId}
             onClick={() => void download()}
-            className="flex max-w-full items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground hover:bg-accent disabled:opacity-70"
+            className="flex max-w-full items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1.5 text-label text-foreground hover:bg-accent focus-ring disabled:opacity-50"
         >
             <File size={14} className="shrink-0 text-muted-foreground" />
             <span className="truncate">{name}</span>

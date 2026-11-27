@@ -98,6 +98,11 @@ describe("the builder chat link", () => {
         expect(window.localStorage.getItem(builderChatsKey("u1", "p1"))).toContain("chat-a")
         expect(readBuilderChats("u2", "p1", "agent-1")).toEqual([])
         expect(readBuilderChats("u1", "p2", "agent-1")).toEqual([])
+        rememberBuilderChat("u2", "p1", "agent-1", "other-user")
+        rememberBuilderChat("u1", "p2", "agent-1", "other-project")
+        expect(readBuilderChats("u2", "p1", "agent-1")).toEqual(["other-user"])
+        expect(readBuilderChats("u1", "p2", "agent-1")).toEqual(["other-project"])
+        expect(readBuilderChats("u1", "p1", "agent-1")).toEqual(["chat-a", "chat-b"])
     })
 
     it("keeps a chat with its first agent", () => {
@@ -115,6 +120,7 @@ describe("the builder chat link", () => {
             throw new Error("denied")
         })
         expect(() => rememberBuilderChat("u1", "p1", "agent-1", "chat-a")).not.toThrow()
+        expect(rememberBuilderChat("u1", "p1", "agent-1", "chat-a")).toBe(false)
         expect(readBuilderChats("u1", "p1", "agent-1")).toEqual([])
     })
 

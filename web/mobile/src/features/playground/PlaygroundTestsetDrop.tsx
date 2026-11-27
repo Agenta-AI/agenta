@@ -6,7 +6,7 @@ import {TestsetFileDrop} from "../testsets/create/TestsetFileDrop"
  */
 export const PlaygroundTestsetDrop = ({onFile}: {onFile: (file: File) => void}) => (
     <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-foreground">Create a new test set</span>
+        <span className="text-label text-foreground">Create a new test set</span>
         <TestsetFileDrop
             file={null}
             preview={[]}

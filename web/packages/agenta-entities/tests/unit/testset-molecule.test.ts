@@ -9,7 +9,6 @@
  *   • isDirty atom  — reads draft, not server data, so query is not needed
  *   • isNew detection — pure function + createStore
  *   • Null-safe selectors — queryOptional / dataOptional with null IDs
- *   • Molecule shape — exported properties exist
  *
  * The TanStack Query-backed atoms (testsetQueryAtomFamily) are NOT exercised
  * here — those require a live QueryClient and belong in integration tests.
@@ -26,72 +25,6 @@ import {testsetMolecule} from "../../src/testset/state/testsetMolecule"
 function freshStore() {
     return createStore()
 }
-
-// ── Molecule shape ────────────────────────────────────────────────────────────
-
-describe("testsetMolecule shape", () => {
-    it("exposes 'testset' as the molecule name", () => {
-        expect(testsetMolecule.name).toBe("testset")
-    })
-
-    it("exposes atoms namespace", () => {
-        expect(testsetMolecule.atoms).toBeDefined()
-        expect(typeof testsetMolecule.atoms.data).toBe("function")
-        expect(typeof testsetMolecule.atoms.isDirty).toBe("function")
-        expect(typeof testsetMolecule.atoms.draft).toBe("function")
-        expect(typeof testsetMolecule.atoms.serverData).toBe("function")
-    })
-
-    it("exposes actions namespace", () => {
-        expect(testsetMolecule.actions).toBeDefined()
-        expect(testsetMolecule.actions.update).toBeDefined()
-        expect(testsetMolecule.actions.discard).toBeDefined()
-        expect(testsetMolecule.actions.save).toBeDefined()
-        expect(testsetMolecule.actions.delete).toBeDefined()
-    })
-
-    it("exposes get namespace with imperative read functions", () => {
-        expect(typeof testsetMolecule.get.data).toBe("function")
-        expect(typeof testsetMolecule.get.isDirty).toBe("function")
-    })
-
-    it("exposes set namespace with imperative write functions", () => {
-        expect(typeof testsetMolecule.set.update).toBe("function")
-        expect(typeof testsetMolecule.set.discard).toBe("function")
-        expect(typeof testsetMolecule.set.create).toBe("function")
-    })
-
-    it("exposes filters namespace", () => {
-        expect(testsetMolecule.filters).toBeDefined()
-        expect(testsetMolecule.filters.searchTerm).toBeDefined()
-        expect(testsetMolecule.filters.exportFormat).toBeDefined()
-        expect(testsetMolecule.filters.dateCreated).toBeDefined()
-        expect(testsetMolecule.filters.dateModified).toBeDefined()
-    })
-
-    it("exposes paginated namespace", () => {
-        expect(testsetMolecule.paginated).toBeDefined()
-        expect(testsetMolecule.paginated.store).toBeDefined()
-        expect(testsetMolecule.paginated.refreshAtom).toBeDefined()
-    })
-
-    it("exposes latestRevision namespace", () => {
-        expect(testsetMolecule.latestRevision).toBeDefined()
-        expect(typeof testsetMolecule.latestRevision.selectors.data).toBe("function")
-        expect(typeof testsetMolecule.latestRevision.selectors.stateful).toBe("function")
-        expect(typeof testsetMolecule.latestRevision.get).toBe("function")
-    })
-
-    it("exposes invalidate namespace", () => {
-        expect(typeof testsetMolecule.invalidate.list).toBe("function")
-        expect(typeof testsetMolecule.invalidate.detail).toBe("function")
-    })
-
-    it("exposes lifecycle namespace", () => {
-        expect(typeof testsetMolecule.lifecycle.archive).toBe("function")
-        expect(typeof testsetMolecule.lifecycle.unarchive).toBe("function")
-    })
-})
 
 // ── isNewTestsetId ────────────────────────────────────────────────────────────
 

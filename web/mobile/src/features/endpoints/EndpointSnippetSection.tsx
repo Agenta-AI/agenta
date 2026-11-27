@@ -36,7 +36,7 @@ export const EndpointSnippetSection = ({
             <CodeBlock
                 label={FILE[lang]}
                 code={snippets[lang]}
-                maxHeightClass="max-h-[420px]"
+                maxHeightClass="max-h-105"
                 onCopyError={() => message.error("Couldn't copy the snippet")}
                 data-testid={testId}
             />

@@ -66,7 +66,7 @@ const Node = ({
             className="list-none"
         >
             <div
-                className="flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-colorFillTertiary"
+                className="flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-accent"
                 style={{paddingLeft: depth * 16 + 4}}
             >
                 {hasChildren ? (
@@ -75,7 +75,7 @@ const Node = ({
                         aria-label={expanded ? `Collapse ${key}` : `Expand ${key}`}
                         aria-expanded={expanded}
                         onClick={() => onToggleExpand(key)}
-                        className="flex size-4 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-colorTextSecondary"
+                        className="flex size-4 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-muted-foreground"
                     >
                         <CollapseCaret open={expanded} size={12} />
                     </button>

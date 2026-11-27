@@ -15,7 +15,8 @@ import {AnalyticsCard} from "./AnalyticsCard"
 const VISIBLE = 6
 // Below this a rate is noise (1 of 2 is not "50% failing"), so it reads muted.
 const MIN_RUNS = 5
-const GRID = "grid grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_76px_52px] items-center gap-3 text-sm"
+const GRID =
+    "grid grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_76px_52px] items-center gap-3 text-label font-normal"
 
 export interface FailureRateCardProps {
     data: AnalyticsWindowData
@@ -73,7 +74,7 @@ export const FailureRateCard = ({
             empty={totals.failed ? null : emptyText("failedRuns")}
         >
             <div className="flex flex-col">
-                <div className={cn(GRID, "h-7 text-xs text-muted-foreground")}>
+                <div className={cn(GRID, "h-7 text-meta text-muted-foreground")}>
                     <span>{t("observabilityUi.analytics.colAgent")}</span>
                     <span>{t("observabilityUi.analytics.colMainReason")}</span>
                     <span className="text-right">{t("observabilityUi.analytics.colFailed")}</span>
@@ -120,7 +121,7 @@ export const FailureRateCard = ({
                         </button>
                     )
                 })}
-                <div className="flex items-center justify-between gap-3 border-0 border-t border-solid border-border pt-2 text-xs text-muted-foreground">
+                <div className="flex items-center justify-between gap-3 border-0 border-t border-solid border-border pt-2 text-meta text-muted-foreground">
                     <span>
                         {clean > 0
                             ? t("observabilityUi.analytics.cleanAgents", {count: clean})
@@ -130,7 +131,7 @@ export const FailureRateCard = ({
                         <button
                             type="button"
                             onClick={() => setShowAll(!showAll)}
-                            className="cursor-pointer border-0 bg-transparent p-0 text-xs text-foreground underline underline-offset-2"
+                            className="cursor-pointer border-0 bg-transparent p-0 text-meta text-foreground underline underline-offset-2"
                         >
                             {showAll
                                 ? t("observabilityUi.analytics.showTop", {count: VISIBLE})

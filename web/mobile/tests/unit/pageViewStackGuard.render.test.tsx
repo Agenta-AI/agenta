@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
- * The page's stack guard asks before any navigation drops an open form with edits, Back and
- * Forward included, and on "Keep editing" after Back it returns the browser to the page's entry.
+ * The page's stack guard: a navigation with an open form that has edits closes the views first
+ * (leaving never asks, the edits drop), then goes on; Back goes on with replace, a link with push.
  */
 import {act} from "react"
 
@@ -37,11 +37,13 @@ const router = vi.hoisted(() => {
 vi.mock("next/router", () => ({useRouter: () => router}))
 
 const {PageViewStackGuard} = await import("@/features/agent-pages/PageViewStackGuard")
+type PageViewStackGuardApi =
+    import("@/features/agent-pages/PageViewStackGuard").PageViewStackGuardApi
 
 const Chrome = ({children}: ViewChromeProps) => <div>{children}</div>
 const DirtyBody = () => {
     useViewTitle("Morning check")
-    useViewForm({dirty: true, valid: true, save: async () => true, leaveDescription: "Leave?"})
+    useViewForm({dirty: true, valid: true, save: async () => true})
     return null
 }
 const dirtyView = defineView<Record<string, never>>({
@@ -68,11 +70,9 @@ const start = (url: string, shallow = false) => {
     }
     return aborted
 }
-const button = (text: string) =>
-    [...document.querySelectorAll("button")].find((node) => node.textContent === text)
-
 let host: HTMLDivElement
 let root: Root
+let guardRef: {current: PageViewStackGuardApi | null}
 beforeEach(async () => {
     ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
     router.handlers.clear()
@@ -81,7 +81,7 @@ beforeEach(async () => {
     host = document.createElement("div")
     document.body.append(host)
     root = createRoot(host)
-    const guardRef = {current: null}
+    guardRef = {current: null}
     await act(async () =>
         root.render(
             <ViewStackHost chrome={Chrome}>
@@ -99,43 +99,41 @@ afterEach(() => {
 })
 
 describe("PageViewStackGuard", () => {
-    it("lets Back go on with replace after Discard", async () => {
-        window.history.replaceState(null, "", "/m/agents/a?view=configuration&tab=agent")
-        await act(async () => {
-            start("/m/agents/a?view=configuration&tab=agent", true)
-        })
-        await act(async () => button("Discard")!.click())
-        expect(router.replace).toHaveBeenCalledWith(
-            "/m/agents/a?view=configuration&tab=agent",
-            undefined,
-            {shallow: true},
-        )
-        expect(router.push).not.toHaveBeenCalled()
-    })
-
-    it("stops a link away from the page, asks, and goes on after Discard", async () => {
-        let aborted = false
-        await act(async () => {
-            aborted = start("/m/settings")
-        })
-        expect(aborted).toBe(true)
-        await act(async () => button("Discard")!.click())
-        expect(router.push).toHaveBeenCalledWith("/m/settings", undefined, {shallow: false})
-    })
-
-    it("stops Back too, and on Keep editing puts the page's address back", async () => {
-        // Back has moved the browser already, to a shallow tab entry of this page.
+    it("lets Back go on with replace, with no question, and closes the views", async () => {
         window.history.replaceState(null, "", "/m/agents/a?view=configuration&tab=agent")
         let aborted = false
         await act(async () => {
             aborted = start("/m/agents/a?view=configuration&tab=agent", true)
         })
         expect(aborted).toBe(true)
-        await act(async () => button("Keep editing")!.click())
-        expect(router.push).toHaveBeenCalledWith(
-            "/agents/a?view=configuration&tab=automations",
+        expect(document.querySelector("[role='alertdialog']")).toBeNull()
+        expect(router.replace).toHaveBeenCalledWith(
+            "/m/agents/a?view=configuration&tab=agent",
             undefined,
             {shallow: true},
         )
+        expect(router.push).not.toHaveBeenCalled()
+        expect(stack.depth).toBe(0)
+    })
+
+    it("stops a link away from the page, closes the views and goes on with push", async () => {
+        let aborted = false
+        await act(async () => {
+            aborted = start("/m/settings")
+        })
+        expect(aborted).toBe(true)
+        expect(router.push).toHaveBeenCalledWith("/m/settings", undefined, {shallow: false})
+        expect(stack.depth).toBe(0)
+    })
+
+    it("lets the page's own navigation through after allowNext", async () => {
+        guardRef.current?.allowNext()
+        let aborted = true
+        await act(async () => {
+            aborted = start("/m/agents/a?view=configuration&tab=agent", true)
+        })
+        expect(aborted).toBe(false)
+        expect(router.push).not.toHaveBeenCalled()
+        expect(router.replace).not.toHaveBeenCalled()
     })
 })

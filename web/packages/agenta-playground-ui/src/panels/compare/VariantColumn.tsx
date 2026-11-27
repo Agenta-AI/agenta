@@ -34,7 +34,7 @@ export const VariantColumn = ({revisionIds, onClose, onShow}: VariantColumnProps
 
     return (
         <section className="flex flex-col">
-            <h2 className="sticky top-0 z-[1] m-0 flex h-12 items-center border-0 border-b border-solid border-border bg-background px-3 text-sm font-semibold">
+            <h2 className="sticky top-0 z-[1] m-0 flex h-12 items-center border-0 border-b border-solid border-border bg-background px-3 text-label font-semibold">
                 {t("playground.panels.variants")}
             </h2>
             <div className="flex flex-col gap-3 p-3">

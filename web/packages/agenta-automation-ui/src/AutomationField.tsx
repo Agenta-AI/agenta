@@ -1,11 +1,10 @@
-import type {ReactNode} from "react"
+import {Children, type ReactNode} from "react"
+
+import {Field} from "@agenta/ui/ui"
 
 /**
- * One row of the detail screen's field stack: a label, the control, and a muted line under it.
- *
- * The helper is part of the field, not an optional extra — every field here answers a question
- * the control itself cannot ("what does this agent bring?", "when does this run next?"). Only
- * the instruction field, whose composer explains itself, goes without one.
+ * One row of the automation form: the kit `Field`, help behind the label's "?" (FORM-01), the
+ * error under the control.
  */
 export const AutomationField = ({
     label,
@@ -14,23 +13,14 @@ export const AutomationField = ({
     children,
 }: {
     label: string
+    /** Help on demand, in the label's "?" tooltip. */
     helper?: ReactNode
-    /**
-     * What is wrong with this field right now. Takes the helper's line rather than adding one
-     * under it: the field has one place to speak, and while it is wrong that is what it says.
-     */
+    /** What is wrong with this field right now, shown under the control. */
     error?: string
     children: ReactNode
 }) => (
-    <div className="flex flex-col gap-[7px]">
-        <span className="text-[12px] font-medium leading-4 text-muted-foreground">{label}</span>
-        {children}
-        {error ? (
-            <span role="alert" className="text-[12px] leading-snug text-destructive">
-                {error}
-            </span>
-        ) : helper ? (
-            <span className="text-[12px] leading-snug text-muted-foreground">{helper}</span>
-        ) : null}
-    </div>
+    <Field label={label} tooltip={helper || undefined} error={error || undefined}>
+        {/* An array, so Field injects no id into controls that do not take one. */}
+        {Children.toArray(children)}
+    </Field>
 )

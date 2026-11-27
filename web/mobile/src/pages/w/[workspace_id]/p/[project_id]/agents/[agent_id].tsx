@@ -4,6 +4,8 @@ import {useRouter} from "next/router"
 import {AgentPageBuilderHost} from "@/features/agent-layout/AgentPageBuilderHost"
 import {isConfigurationTab} from "@/features/agent-pages/configurationTabs"
 import {AgentAnalyticsPageSkeleton} from "@/features/agent-pages/states/AgentAnalyticsPageSkeleton"
+import {AgentChannelsPageSkeleton} from "@/features/agent-pages/states/AgentChannelsPageSkeleton"
+import {AgentConfigurationPageSkeleton} from "@/features/agent-pages/states/AgentConfigurationPageSkeleton"
 import {isAgentOverviewEnabled, OPEN_PLAYGROUND} from "@/features/agents/agentEntry"
 import {AgentOverviewScreen} from "@/features/agents/AgentOverviewScreen"
 import {AgentPlaygroundRedirect} from "@/features/agents/AgentPlaygroundRedirect"
@@ -17,14 +19,14 @@ const AgentSessionsPage = dynamic(
 )
 const AgentChannelsPage = dynamic(
     () => import("@/features/agent-pages/AgentChannelsScreen").then((m) => m.AgentChannelsScreen),
-    {loading: () => <SessionsPageSkeleton />},
+    {loading: () => <AgentChannelsPageSkeleton />},
 )
 const AgentConfigurationPage = dynamic(
     () =>
         import("@/features/agent-pages/AgentConfigurationScreen").then(
             (m) => m.AgentConfigurationScreen,
         ),
-    {loading: () => <SessionsPageSkeleton />},
+    {loading: () => <AgentConfigurationPageSkeleton />},
 )
 const AgentAnalyticsPage = dynamic(
     () => import("@/features/agent-pages/AgentAnalyticsScreen").then((m) => m.AgentAnalyticsScreen),

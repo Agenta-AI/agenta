@@ -13,7 +13,7 @@
     "appSecret": "App-Secret",
     "appUninstalled": "{{platform}} hat die App deinstalliert",
     "botToken": "Bot-Token",
-    "botUserOAuthToken": "Bot User OAuth Token",
+    "botUserOAuthToken": "Bot user OAuth token",
     "channels": "Kanäle",
     "channelsAndGroupChats": "Kanäle und Gruppenchats",
     "channelsItsIn": "Kanäle, in denen er ist",
@@ -75,7 +75,7 @@
     "revokedHelpWhatsApp": "{{agent}} kann dort erst antworten, wenn Sie ein neues Zugriffstoken einfügen.",
     "runInviteFirst": "Zuerst /invite ausführen",
     "searchChannels": "Kanäle durchsuchen",
-    "signingSecret": "Signing Secret",
+    "signingSecret": "Signing secret",
     "since": "seit {{date}}",
     "telegramRevokedToken": "Telegram hat das Bot-Token widerrufen",
     "turnOnFailed": "{{platform}} konnte nicht aktiviert werden. Versuchen Sie es erneut.",
@@ -84,5 +84,6 @@
     "updateToken": "Token aktualisieren",
     "useOwnApp": "Eigene App verwenden",
     "useOwnBot": "Eigenen Bot verwenden",
-    "webhook": "Webhook"
+    "webhook": "Webhook",
+    "disconnectPendingConfirm": "Verknüpfung mit {{subject}} abbrechen? Sie ist nicht abgeschlossen, daher hat {{agent}} dort nie geantwortet."
 }
