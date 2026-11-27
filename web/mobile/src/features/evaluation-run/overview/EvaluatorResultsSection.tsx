@@ -1,25 +1,36 @@
-import {useEffect, useMemo} from "react"
+import {useEffect, useMemo, useState} from "react"
 
-import {isAggregatableMetric, metricKind, type EvaluatorRow} from "@agenta/entities/evaluationRun"
+import {
+    filterAndSortRows,
+    isAggregatableMetric,
+    metricKind,
+    type EvaluatorRow,
+    type EvaluatorRowsView,
+} from "@agenta/entities/evaluationRun"
 import {useT} from "@agenta/i18n"
 import runOverviewCatalog from "@agenta/i18n/catalogs/evaluations.runOverview"
 import evaluationScreensCatalog from "@agenta/i18n/catalogs/evaluations.screens"
 import annotateCatalog from "@agenta/i18n/catalogs/observability.annotate"
 import {Alert, Button} from "@agenta/ui/ui"
 
+import {EvaluatorsNoMatch} from "../states/EvaluatorsNoMatch"
 import {EvaluatorTableSkeleton} from "../states/EvaluatorTableSkeleton"
 import {OverviewEmpty} from "../states/OverviewEmpty"
 
 import {EvaluatorTable} from "./EvaluatorTable"
+import {EvaluatorToolbar} from "./EvaluatorToolbar"
 import {MetricsChart} from "./MetricsChart"
 import {TemporalMetricCard} from "./TemporalMetricCard"
 import type {OverviewMetric} from "./useRunOverview"
 
 const GRID = "grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3"
 
+const DEFAULT_VIEW: EvaluatorRowsView = {search: "", hidden: [], sort: "lowest"}
+
 /**
- * The evaluator results: the "Metrics" chart, one table row per evaluator step, and for an online run its charts over
- * time under "Over time". Also the loading, empty and error states of the metrics.
+ * The evaluator results: the "Metrics" chart, the toolbar, one table row per evaluator step, and
+ * for an online run its charts over time under "Over time". Also the loading, empty and error
+ * states of the metrics.
  */
 export const EvaluatorResultsSection = ({
     runId,
@@ -55,6 +66,9 @@ export const EvaluatorResultsSection = ({
     )
 
     const chartRuns = useMemo(() => [{key: runId, name: runName, rows}], [runId, runName, rows])
+    // The toolbar narrows and orders the table only; the chart keeps every row.
+    const [view, setView] = useState(DEFAULT_VIEW)
+    const shownRows = useMemo(() => filterAndSortRows(rows, view), [rows, view])
 
     useEffect(() => {
         if (error) console.error("[RunOverview] metrics failed to load", error)
@@ -130,7 +144,14 @@ export const EvaluatorResultsSection = ({
                 />
             ) : null}
             <MetricsChart runs={chartRuns} />
-            <EvaluatorTable rows={rows} noResultByStep={noResultByStep} />
+            <div className="flex flex-col gap-3">
+                <EvaluatorToolbar rows={rows} view={view} onChange={setView} />
+                {shownRows.length > 0 ? (
+                    <EvaluatorTable rows={shownRows} noResultByStep={noResultByStep} />
+                ) : (
+                    <EvaluatorsNoMatch />
+                )}
+            </div>
             {overTime.length > 0 ? (
                 <section aria-labelledby="run-over-time" className="flex flex-col gap-3">
                     <h2 id="run-over-time" className="m-0 text-subtitle text-foreground">
