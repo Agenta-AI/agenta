@@ -5,6 +5,7 @@ tests in this file seed their own organizations and assert only on them; they sh
 xdist group so two global repairs never interleave with another test's broken shapes.
 """
 
+import asyncio
 from uuid import uuid4
 
 import pytest
@@ -472,7 +473,7 @@ async def test_owner_roles_revision_makes_the_organization_owner_owner():
     )
     owner = seeded.owner_id
     member = seeded.user_ids["m"]
-    statements = load_revision_module(_OWNER_ROLES).REPAIR_STATEMENTS
+    repair = load_revision_module(_OWNER_ROLES).repair
     try:
         # The oss stage state after v0.131.1: the owner's organization row and every
         # project row of the owner say `viewer`.
@@ -491,11 +492,7 @@ async def test_owner_roles_revision_makes_the_organization_owner_owner():
         )
 
         async with rolled_back_connection(organizations=[seeded]) as conn:
-            first = [
-                (await conn.execute(text(statement))).rowcount
-                for statement in statements
-            ]
-            assert first == [1, 2]
+            assert await conn.run_sync(repair) == [1, 2]
 
             roles = await _organization_roles(conn, seeded.organization_id)
             assert roles[owner] == ["owner"]
@@ -511,11 +508,54 @@ async def test_owner_roles_revision_makes_the_organization_owner_owner():
                 conn, seeded.project_ids, seeded.user_ids["w"]
             ) == {p: ["viewer"] for p in seeded.project_ids}
 
-            second = [
-                (await conn.execute(text(statement))).rowcount
-                for statement in statements
-            ]
-            assert second == [0, 0]
+            assert await conn.run_sync(repair) == [0, 0]
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+async def test_owner_roles_revision_never_gives_owner_back_after_a_transfer():
+    """An ownership transfer that commits while the revision runs keeps its roles: the
+    revision waits for it and then reads the new owner."""
+
+    seeded = await seed_organization(members={"new": "editor"})
+    former = seeded.owner_id
+    new = seeded.user_ids["new"]
+    repair = load_revision_module(_OWNER_ROLES).repair
+    engine = get_transactions_engine()._engine
+    member_role = (
+        "UPDATE organization_members SET role = :role "
+        "WHERE organization_id = :org AND user_id = :u"
+    )
+    try:
+        await execute(
+            member_role,
+            {"role": "viewer", "org": seeded.organization_id, "u": former},
+        )
+        async with engine.connect() as transfer, engine.connect() as migration:
+            transfer_transaction = await transfer.begin()
+            for user_id, role in ((former, "editor"), (new, "owner")):
+                await transfer.execute(
+                    text(member_role),
+                    {"role": role, "org": seeded.organization_id, "u": user_id},
+                )
+            await transfer.execute(
+                text("UPDATE organizations SET owner_id = :u WHERE id = :org"),
+                {"u": new, "org": seeded.organization_id},
+            )
+
+            migration_transaction = await migration.begin()
+            await migration.execute(text("SET LOCAL lock_timeout = '20s'"))
+            running = asyncio.create_task(migration.run_sync(repair))
+            await asyncio.sleep(1)
+            assert not running.done()
+
+            await transfer_transaction.commit()
+            await asyncio.wait_for(running, timeout=20)
+            roles = await _organization_roles(migration, seeded.organization_id)
+            await migration_transaction.rollback()
+
+        assert roles[former] == ["editor"]
+        assert roles[new] == ["owner"]
     finally:
         await delete_seeded_organization(seeded)
 
