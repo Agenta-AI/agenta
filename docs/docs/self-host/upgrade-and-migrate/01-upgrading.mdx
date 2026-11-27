@@ -28,7 +28,7 @@ On an open source database, the first start adds tables and rows, and this canno
 
 Pull the new images and restart, as in the [standard upgrade](#standard-upgrade-process) or the [Helm chart upgrade](#helm-chart-upgrade). Keep your compose files, Helm values and Railway template as they are. You do not change images, env files or databases.
 
-Do not change `AGENTA_LICENSE`. It picks the default database names (`agenta_oss_*` or `agenta_ee_*`), not the plan. A different value points the install at other, empty databases.
+Do not change or remove `AGENTA_LICENSE`. It picks the default database names (`agenta_oss_*` or `agenta_ee_*`), not the plan. A different value, or no value, can point the install at other, empty databases.
 
 ### What the first start does on an open source database
 
@@ -175,7 +175,7 @@ The upgrade adds a unique index on project memberships. It stops when the databa
 
 ```bash
 cd api
-AGENTA_LICENSE=ee uv run --no-sync python -m entrypoints.memberships_check --apply
+uv run --no-sync python -m entrypoints.memberships_check --apply
 ```
 
 It deletes the newer row of each duplicate pair, keeps the oldest, and prints each deleted row with its role. Demo rows (`is_demo`) are not part of this step; the upgrade deletes them. It also adds the project rows that members of an organization without the RBAC entitlement need. It adds these rows only before the upgrade: after the upgrade has run, `--apply` skips this step and says so. To see what it would change first, run it with `--report` instead of `--apply`; that writes a `report.json` and changes nothing.
@@ -188,7 +188,7 @@ The same unique index is added on open source. If the upgrade stops with `projec
 
 ```bash
 cd api
-AGENTA_LICENSE=oss uv run --no-sync python -m entrypoints.memberships_check --apply
+uv run --no-sync python -m entrypoints.memberships_check --apply
 ```
 
 It keeps the oldest row of each duplicate pair and prints each deleted row with its role. Use `--report` first to see what it would change.
