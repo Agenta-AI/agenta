@@ -199,7 +199,9 @@ describe("a command runs at most once (Codex R4 duplicate launch)", () => {
         const r = await run(command, options);
         if (isLaunch(command) && !lost) {
           lost = true;
-          await sleep(300); // the supervisor has taken its claim
+          // The side effect proves the supervisor took its claim and started the command.
+          const effects = `${ws.inSandbox(ws.cwd)}/effects.txt`;
+          for (let i = 0; i < 250 && !existsSync(effects); i += 1) await sleep(20);
           throw new Error("socket hang up (injected: the command started, the answer was lost)");
         }
         return r;
