@@ -187,6 +187,16 @@ describe("ActivityTimeline", () => {
         expect(line.getAttribute("aria-expanded")).toBe("false")
     })
 
+    it("passes each step its duration", () => {
+        mount({
+            steps: [{...toolStep("output-available"), durationMs: 1_500}],
+            answerStarted: true,
+            sessionTurnDurationMs: 389_000,
+        })
+        expect(screen.getAllByRole("button")[0].textContent).toContain("Worked for 6 m 29 s")
+        expect(document.body.textContent).toContain("1.5 s")
+    })
+
     it("says Answering while the agent writes a message and no step runs", () => {
         mount({steps: [], streaming: true, answerStarted: true, writing: true})
         expect(screen.getAllByRole("button")[0].textContent).toContain("Answering")

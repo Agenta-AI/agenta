@@ -20,6 +20,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {unwrapToolUseError} from "../../assets/toolFormat"
 import {useAgentDisplayName} from "../../hooks/useAgentDisplayName"
+import {formatElapsed} from "../../hooks/useTurnClock"
 import {
     approvalVerdictText,
     isNonFinalRunnerError,
@@ -223,77 +224,82 @@ interface StepViewProps {
     appLabel?: string
     /** The run's latest step while the run goes on: it reads live even once its call settled. */
     live?: boolean
+    durationMs?: number
 }
 
-const ActivityToolStepView = memo(({part, files, display, logo, appLabel, live}: StepViewProps) => {
-    const t = useT(chatActivityCatalog)
-    const state = stateOf(part, display)
-    const input = (part as {input?: unknown}).input
-    const output = (part as {output?: unknown}).output
-    const errorText = (part as {errorText?: string}).errorText
-    const rawState = part.state as string
+/** A call's time at the end of its row: "0.42 s", "12.4 s", "2 m 11 s". */
+const formatStepDuration = (ms: number) =>
+    ms < 60_000 ? `${Number((ms / 1000).toPrecision(3))} s` : formatElapsed(ms, {live: false})
 
-    // Presence, not truthiness: a `null` output is real.
-    const hasInput = input !== undefined
-    const hasOutput = rawState === "output-available" && output !== undefined
-    const hasNote = errorText !== undefined && state === "deferred"
-    // A step that wrote one file opens that file; its payload is the file itself.
-    const openFile = useOpenFile()
-    const opensFile = files.length === 1 && openFile !== null
-    // The file a read or an edit names: its name in the sentence opens it too.
-    const namedPath = files[0]?.path ?? pathArgument(input)
-    const openNamed = openFile && namedPath ? () => openFile(namedPath) : undefined
-    const expandable = !opensFile && (hasInput || hasOutput || hasNote)
+const ActivityToolStepView = memo(
+    ({part, files, display, logo, appLabel, live, durationMs}: StepViewProps) => {
+        const t = useT(chatActivityCatalog)
+        const state = stateOf(part, display)
+        const input = (part as {input?: unknown}).input
+        const output = (part as {output?: unknown}).output
+        const errorText = (part as {errorText?: string}).errorText
+        const rawState = part.state as string
 
-    const rowKey = toolRowKey(part.toolCallId ?? display.raw)
-    const stored = useAtomValue(expandedValueAtomFamily(rowKey))
-    const setExpanded = useSetAtom(setExpandedAtom)
-    const open = expandable && (stored ?? false)
-    const panelId = useId()
-    // Format a payload only once opened; keep it mounted after so closing animates.
-    const [everOpen, setEverOpen] = useState(open)
-    useEffect(() => {
-        if (open) setEverOpen(true)
-    }, [open])
+        // Presence, not truthiness: a `null` output is real.
+        const hasInput = input !== undefined
+        const hasOutput = rawState === "output-available" && output !== undefined
+        const hasNote = errorText !== undefined && state === "deferred"
+        // A step that wrote one file opens that file; its payload is the file itself.
+        const openFile = useOpenFile()
+        const opensFile = files.length === 1 && openFile !== null
+        // The file a read or an edit names: its name in the sentence opens it too.
+        const namedPath = files[0]?.path ?? pathArgument(input)
+        const openNamed = openFile && namedPath ? () => openFile(namedPath) : undefined
+        const expandable = !opensFile && (hasInput || hasOutput || hasNote)
 
-    // One file is already named in the sentence; a run of them gets chips.
-    const chips = files.length > 1 ? files : []
-    const others = chips.length ? chips.length - 1 : 0
+        const rowKey = toolRowKey(part.toolCallId ?? display.raw)
+        const stored = useAtomValue(expandedValueAtomFamily(rowKey))
+        const setExpanded = useSetAtom(setExpandedAtom)
+        const open = expandable && (stored ?? false)
+        const panelId = useId()
+        // Format a payload only once opened; keep it mounted after so closing animates.
+        const [everOpen, setEverOpen] = useState(open)
+        useEffect(() => {
+            if (open) setEverOpen(true)
+        }, [open])
 
-    const header: ReactNode = (
-        <>
-            <ActivityNode
-                icon={display.icon}
-                state={state}
-                logo={logo}
-                appLabel={appLabel}
-                yourTurn={
-                    (state === "running" || state === "queued" || state === "awaiting") &&
-                    (display.icon === "ask" ||
-                        display.icon === "connect" ||
-                        display.icon === "secret")
-                }
-            />
-            <span
-                className={`min-w-0 truncate text-label text-foreground transition-colors group-hover/row:text-muted-foreground ${
-                    live || state === "running" || state === "queued" || state === "awaiting"
-                        ? LIVE_TEXT_CLASS
-                        : ""
-                }`}
-            >
-                <Sentence part={part} display={display} state={state} onOpenFile={openNamed} />
-                {others ? t("chat.activity.andOthers", {count: others}) : null}
-            </span>
-            {opensFile ? (
-                <ArrowSquareOut size={12} className="shrink-0 text-muted-foreground" />
-            ) : expandable ? (
-                <StepCaret open={open} />
-            ) : null}
-        </>
-    )
+        // One file is already named in the sentence; a run of them gets chips.
+        const chips = files.length > 1 ? files : []
+        const others = chips.length ? chips.length - 1 : 0
 
-    return (
-        <div className="flex min-w-0 flex-col gap-2">
+        const header: ReactNode = (
+            <>
+                <ActivityNode
+                    icon={display.icon}
+                    state={state}
+                    logo={logo}
+                    appLabel={appLabel}
+                    yourTurn={
+                        (state === "running" || state === "queued" || state === "awaiting") &&
+                        (display.icon === "ask" ||
+                            display.icon === "connect" ||
+                            display.icon === "secret")
+                    }
+                />
+                <span
+                    className={`min-w-0 truncate text-label text-foreground transition-colors group-hover/row:text-muted-foreground ${
+                        live || state === "running" || state === "queued" || state === "awaiting"
+                            ? LIVE_TEXT_CLASS
+                            : ""
+                    }`}
+                >
+                    <Sentence part={part} display={display} state={state} onOpenFile={openNamed} />
+                    {others ? t("chat.activity.andOthers", {count: others}) : null}
+                </span>
+                {opensFile ? (
+                    <ArrowSquareOut size={12} className="shrink-0 text-muted-foreground" />
+                ) : expandable ? (
+                    <StepCaret open={open} />
+                ) : null}
+            </>
+        )
+
+        const row = (
             <StepRow
                 open={expandable ? open : undefined}
                 controls={panelId}
@@ -307,35 +313,53 @@ const ActivityToolStepView = memo(({part, files, display, logo, appLabel, live}:
             >
                 {header}
             </StepRow>
-            {chips.length ? <FileChips files={chips} onOpen={openFile} /> : null}
-            <RevealCollapse open={open}>
-                <div id={panelId} className="flex min-w-0 flex-col gap-2 pl-8">
-                    {everOpen ? (
-                        <>
-                            {hasInput ? (
-                                <ToolIOBlock label={t("chat.activity.labelInput")} value={input} />
-                            ) : null}
-                            {hasNote ? (
-                                // A harness wraps a tool's own message in its
-                                // `tool_use_error` envelope; the reader wants the message.
-                                // Its other call site is the desktop's ToolActivity.
-                                <ToolIOBlock
-                                    label={t("chat.activity.labelNote")}
-                                    value={unwrapToolUseError(errorText)}
-                                />
-                            ) : hasOutput ? (
-                                <ToolIOBlock
-                                    label={t("chat.activity.labelResult")}
-                                    value={output}
-                                />
-                            ) : null}
-                        </>
-                    ) : null}
-                </div>
-            </RevealCollapse>
-        </div>
-    )
-})
+        )
+
+        return (
+            <div className="flex min-w-0 flex-col gap-2">
+                {durationMs === undefined ? (
+                    row
+                ) : (
+                    <div className="flex min-w-0 items-center gap-2">
+                        {row}
+                        <span className="ml-auto shrink-0 text-meta tabular-nums text-muted-foreground">
+                            {formatStepDuration(durationMs)}
+                        </span>
+                    </div>
+                )}
+                {chips.length ? <FileChips files={chips} onOpen={openFile} /> : null}
+                <RevealCollapse open={open}>
+                    <div id={panelId} className="flex min-w-0 flex-col gap-2 pl-8">
+                        {everOpen ? (
+                            <>
+                                {hasInput ? (
+                                    <ToolIOBlock
+                                        label={t("chat.activity.labelInput")}
+                                        value={input}
+                                    />
+                                ) : null}
+                                {hasNote ? (
+                                    // A harness wraps a tool's own message in its
+                                    // `tool_use_error` envelope; the reader wants the message.
+                                    // Its other call site is the desktop's ToolActivity.
+                                    <ToolIOBlock
+                                        label={t("chat.activity.labelNote")}
+                                        value={unwrapToolUseError(errorText)}
+                                    />
+                                ) : hasOutput ? (
+                                    <ToolIOBlock
+                                        label={t("chat.activity.labelResult")}
+                                        value={output}
+                                    />
+                                ) : null}
+                            </>
+                        ) : null}
+                    </div>
+                </RevealCollapse>
+            </div>
+        )
+    },
+)
 ActivityToolStepView.displayName = "ActivityToolStepView"
 
 /** Re-resolve once the catalog names the app and hands over its logo; only `sourceKey` rows mount it. */
@@ -344,11 +368,13 @@ const CatalogToolStep = ({
     files,
     base,
     live,
+    durationMs,
 }: {
     part: ToolUIPart
     files: FileActivity[]
     base: ResolvedToolDisplay
     live?: boolean
+    durationMs?: number
 }) => {
     const {integration} = useToolIntegrationDetail(base.sourceKey ?? "")
     const name = integration?.name
@@ -362,6 +388,7 @@ const CatalogToolStep = ({
             logo={integration?.logo ?? null}
             appLabel={name}
             live={live}
+            durationMs={durationMs}
         />
     )
 }
@@ -372,18 +399,28 @@ const AgentToolStep = ({
     files,
     base,
     live,
+    durationMs,
 }: {
     part: ToolUIPart
     files: FileActivity[]
     base: ResolvedToolDisplay
     live?: boolean
+    durationMs?: number
 }) => {
     const agentName = useAgentDisplayName(base.agentRef)
     const display = useMemo(
         () => (agentName ? displayFor(part, undefined, undefined, undefined, agentName) : base),
         [part, base, agentName],
     )
-    return <ActivityToolStepView part={part} files={files} display={display} live={live} />
+    return (
+        <ActivityToolStepView
+            part={part}
+            files={files}
+            display={display}
+            live={live}
+            durationMs={durationMs}
+        />
+    )
 }
 
 /** One tool call on the timeline: kind node, sentence, tap for its input and result. */
@@ -391,10 +428,13 @@ export const ActivityToolStep = ({
     part,
     files,
     live,
+    durationMs,
 }: {
     part: ToolUIPart
     files: FileActivity[]
     live?: boolean
+    /** How long the call took: shown at the end of the row. The playground passes none. */
+    durationMs?: number
 }) => {
     // A skin registered after this row mounted has to reach it.
     const skinVersion = useSyncExternalStore(
@@ -409,10 +449,34 @@ export const ActivityToolStep = ({
         [part, skinVersion, textVersion],
     )
     if (base.sourceKey) {
-        return <CatalogToolStep part={part} files={files} base={base} live={live} />
+        return (
+            <CatalogToolStep
+                part={part}
+                files={files}
+                base={base}
+                live={live}
+                durationMs={durationMs}
+            />
+        )
     }
     if (base.agentRef) {
-        return <AgentToolStep part={part} files={files} base={base} live={live} />
+        return (
+            <AgentToolStep
+                part={part}
+                files={files}
+                base={base}
+                live={live}
+                durationMs={durationMs}
+            />
+        )
     }
-    return <ActivityToolStepView part={part} files={files} display={base} live={live} />
+    return (
+        <ActivityToolStepView
+            part={part}
+            files={files}
+            display={base}
+            live={live}
+            durationMs={durationMs}
+        />
+    )
 }

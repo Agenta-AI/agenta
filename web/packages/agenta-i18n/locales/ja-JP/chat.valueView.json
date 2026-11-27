@@ -38,5 +38,14 @@
     "valueTrue": "真",
     "valueFalse": "偽",
     "turnLabel": "ターン {{n}}",
-    "systemPrompt": "システムプロンプト"
+    "systemPrompt": "システムプロンプト",
+    "fieldsMatch_other": "{{count}} 件中 {{matched}} 件のフィールドが一致",
+    "columnField": "フィールド",
+    "columnOutput": "出力",
+    "columnExpected": "期待値 ({{key}} から)",
+    "same": "一致",
+    "differs": "不一致",
+    "match": "一致",
+    "mismatch": "不一致",
+    "missing": "なし"
 }

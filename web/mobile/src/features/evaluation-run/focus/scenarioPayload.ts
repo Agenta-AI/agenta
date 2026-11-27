@@ -45,3 +45,20 @@ export function scenarioPayload(
     )
     return {inputs: valuesOf("testset"), outputs: valuesOf("application"), evaluators}
 }
+
+/** What the Raw view of each drawer tab shows: its own part of the test case. */
+export function scenarioTabPayload(
+    payload: ScenarioPayload,
+    tab: "io" | "results" | "metadata",
+    row: ScenarioRow,
+): unknown {
+    if (tab === "io") return {inputs: payload.inputs, outputs: payload.outputs}
+    if (tab === "results") return {evaluators: payload.evaluators}
+    return {
+        status: row.invocation?.status ?? null,
+        metrics: row.metrics,
+        testcase_id: row.testcaseId,
+        scenario_id: row.scenario.id,
+        trace_id: row.invocation?.traceId ?? null,
+    }
+}

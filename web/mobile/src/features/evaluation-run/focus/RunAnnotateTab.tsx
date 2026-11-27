@@ -13,7 +13,6 @@ import {RunStatusTag} from "../overview/RunStatusTag"
 import {ScenariosLoadMoreError} from "../scenarios/states/ScenariosLoadMoreError"
 import {ScenariosRefreshError} from "../scenarios/states/ScenariosRefreshError"
 import {useRunScenarios} from "../scenarios/useRunScenarios"
-import {useScenarioGroupLabels} from "../scenarios/useScenarioGroupLabels"
 
 import {RunAnnotateBody} from "./RunAnnotateBody"
 import {ScenarioNavigator} from "./ScenarioNavigator"
@@ -32,7 +31,6 @@ import {useScenarioStepper} from "./useScenarioStepper"
 export const RunAnnotateTab = ({runId, header}: {runId: string; header: RunHeader}) => {
     const {isOpen, onSaved} = useRunAnnotationSession(runId)
     const scenarios = useRunScenarios(runId)
-    const labels = useScenarioGroupLabels(scenarios.columnGroups)
     const {rows, hasMore, loadMore, isFetchingMore, loadMoreError} = scenarios
     const [picked, setPicked] = useState<string | null>(null)
     const {current, onNext} = useScenarioStepper({
@@ -97,7 +95,6 @@ export const RunAnnotateTab = ({runId, header}: {runId: string; header: RunHeade
                 runId={runId}
                 row={current}
                 groups={scenarios.columnGroups}
-                labels={labels}
                 onRetry={scenarios.retryValues}
                 onSaved={onSaved}
                 invocation={invocation}

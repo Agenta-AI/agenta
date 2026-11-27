@@ -26,6 +26,8 @@ export type ActivityStep =
           part: ToolUIPart
           /** Files this step wrote — several consecutive writes fold into one step. */
           files: FileActivity[]
+          /** How long the call took, when a trace recorded it. */
+          durationMs?: number
       }
 
 export interface ActivitySplit {

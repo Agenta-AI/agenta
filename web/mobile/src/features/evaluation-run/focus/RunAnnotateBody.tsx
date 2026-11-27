@@ -26,7 +26,6 @@ export const RunAnnotateBody = ({
     runId,
     row,
     groups,
-    labels,
     onRetry,
     onSaved,
     invocation,
@@ -34,7 +33,6 @@ export const RunAnnotateBody = ({
     runId: string
     row: ScenarioRow
     groups: RunColumnGroup[]
-    labels: Record<string, string>
     onRetry: () => void
     onSaved: OnAnnotationsSaved
     invocation: ScenarioInvocationState
@@ -48,13 +46,14 @@ export const RunAnnotateBody = ({
     return (
         <div className="flex min-h-0 flex-1 flex-col gap-3 md:flex-row md:gap-4">
             <div className="flex min-w-0 flex-col rounded-lg border border-solid border-border bg-background md:flex-1">
-                <ScenarioFocusBody
-                    row={row}
-                    groups={contentGroups}
-                    labels={labels}
-                    onRetry={onRetry}
-                    awaitingRun={!hasOutput && !invocation.running}
-                />
+                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 pt-2">
+                    <ScenarioFocusBody
+                        row={row}
+                        groups={contentGroups}
+                        onRetry={onRetry}
+                        awaitingRun={!hasOutput && !invocation.running}
+                    />
+                </div>
             </div>
             <div className="flex w-full shrink-0 flex-col overflow-hidden rounded-lg border border-solid border-border bg-background md:w-85 lg:w-100">
                 {hasOutput ? (

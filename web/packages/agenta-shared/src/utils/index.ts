@@ -131,6 +131,8 @@ export {
     unwrapWrapperKey,
 } from "./valueShape"
 export type {DetectedValue, ValueMessage, ValueShape} from "./valueShape"
+export {compareWithExpected} from "./valueCompare"
+export type {CompareRow, CompareStatus, ExpectedComparison} from "./valueCompare"
 
 // JSON detection utilities
 export {
