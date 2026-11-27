@@ -25,9 +25,6 @@ const TABLE_ROWS_SHOWN = 5
 /** A text longer than this does not fit a table cell, which cannot open. */
 const TABLE_CELL_CHARS = 80
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-    typeof value === "object" && value !== null && !Array.isArray(value)
-
 /** A Markdown link, `[label](target)`: a cell draws only its label. */
 const MARKDOWN_LINK = /\[[^\]]*\]\([^)\s]+\)/
 
@@ -296,21 +293,15 @@ export const ValueBody = ({
                     />
                 )
             case "object-flat":
-            case "object-nested": {
-                // A single wrapper key ({"output": {...}}) is dropped: its rows are the value.
-                const keys = isRecord(drawn) ? Object.keys(drawn) : []
-                const inner =
-                    keys.length === 1 && depth === 0
-                        ? (drawn as Record<string, unknown>)[keys[0]]
-                        : null
-                const rows =
-                    isRecord(inner) && Object.keys(inner).length > 0
-                        ? inner
-                        : (drawn as Record<string, unknown> | unknown[])
+            case "object-nested":
                 return (
-                    <ValueRows value={rows} depth={depth} unfolded={unfolded} stateKey={stateKey} />
+                    <ValueRows
+                        value={drawn as Record<string, unknown> | unknown[]}
+                        depth={depth}
+                        unfolded={unfolded}
+                        stateKey={stateKey}
+                    />
                 )
-            }
         }
     })()
 

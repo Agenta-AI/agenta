@@ -2,14 +2,18 @@ import {createReferenceLabels} from "@agenta/observability-ui/traceDrawer"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 
+import {TESTCASE_QUERY_PARAM} from "@/features/testsets/detail/testsetRouteId"
+
 const routes = createReferenceLabels({
     app: (base, {appId}) => `${base}/apps/${encodeURIComponent(appId)}/overview`,
     variant: (base, {appId, revisionId}) =>
         `${base}/variants?app=${encodeURIComponent(appId)}&revisionId=${encodeURIComponent(revisionId)}`,
     environment: (base, {appId}) =>
         `${base}/variants?app=${encodeURIComponent(appId)}&tab=deployments`,
-    testset: (base, {testsetId, revisionId}) =>
-        `${base}/testsets/${encodeURIComponent(revisionId ?? testsetId)}`,
+    testset: (base, {testsetId, revisionId, testcaseId}) =>
+        `${base}/testsets/${encodeURIComponent(revisionId ?? testsetId)}${
+            testcaseId ? `?${TESTCASE_QUERY_PARAM}=${encodeURIComponent(testcaseId)}` : ""
+        }`,
 })
 
 export type TraceReferenceKind = keyof typeof routes

@@ -17,7 +17,11 @@ export interface ReferenceHrefs {
     app: (base: string, args: {appId: string}) => string
     variant: (base: string, args: {appId: string; revisionId: string}) => string
     environment: (base: string, args: {appId: string; slug: string}) => string
-    testset: (base: string, args: {testsetId: string; revisionId: string | null}) => string
+    /** With `testcaseId`, the link opens that test case (the host adds its query parameter). */
+    testset: (
+        base: string,
+        args: {testsetId: string; revisionId: string | null; testcaseId: string | null},
+    ) => string
 }
 
 type Props = ReferenceLabelProps & Record<string, unknown>
@@ -200,7 +204,7 @@ export const createReferenceLabels = (routes: ReferenceHrefs) => {
             useMemo(() => latestRevisionForTestsetAtomFamily(testsetId ?? ""), [testsetId]),
         )
         const revisionId = str(props.revisionId) ?? latest?.id ?? null
-        const routeHref = useHref("testset", testsetId ? {testsetId, revisionId} : null)
+        const routeHref = useHref("testset", testsetId ? {testsetId, revisionId, testcaseId} : null)
         const href = str(props.href) ?? routeHref
         if (!testsetId) return <Placeholder />
         if (query.isPending) return <ReferenceChipSkeleton />

@@ -47,7 +47,7 @@ export interface EvaluatorResultSummary {
     /** Reasons and JSON outputs: only on expand. */
     text: EvaluatorResultMetric[]
     /** True and all binary metrics with a value. */
-    binary: {passed: number; total: number}
+    assertions: {passed: number; total: number}
     /** A false binary metric, or an error. An evaluator with no binary metric never fails. */
     failed: boolean
 }
@@ -93,7 +93,7 @@ export function summarizeEvaluatorResult(
         inline,
         short,
         text,
-        binary: {passed, total: binaries.length},
+        assertions: {passed, total: binaries.length},
         failed: state === "error" || failedNames.length > 0,
     }
 }
@@ -139,9 +139,9 @@ const MAIN_NUMBERS = 2
 export function assertionSummary(
     summaries: readonly EvaluatorResultSummary[],
 ): AssertionSummaryValue {
-    const total = summaries.reduce((sum, summary) => sum + summary.binary.total, 0)
+    const total = summaries.reduce((sum, summary) => sum + summary.assertions.total, 0)
     if (total > 0) {
-        const passed = summaries.reduce((sum, summary) => sum + summary.binary.passed, 0)
+        const passed = summaries.reduce((sum, summary) => sum + summary.assertions.passed, 0)
         return {kind: "assertions", passed, total}
     }
     const items: {name: string; value: number}[] = []

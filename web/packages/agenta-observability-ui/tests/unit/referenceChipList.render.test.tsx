@@ -57,7 +57,8 @@ beforeAll(() => {
         app: (base, {appId}) => `${base}/apps/${appId}`,
         variant: (base, {revisionId}) => `${base}/variants/${revisionId}`,
         environment: (base, {slug}) => `${base}/environments/${slug}`,
-        testset: (base, {testsetId}) => `${base}/testsets/${testsetId}`,
+        testset: (base, {testsetId, testcaseId}) =>
+            `${base}/testsets/${testsetId}${testcaseId ? `?testcase_id=${testcaseId}` : ""}`,
     })
     configureTraceDrawerReferences(labels)
 })
@@ -88,15 +89,19 @@ it("draws the application with its variant and version, the evaluator and the te
                 {key: "testset", id: "ts-1"},
                 {key: "testcase", id: "da65bedc-7feb"},
             ]}
-            hrefOf={(chip) => (chip.kind === "testcase" ? "/testcase-link" : undefined)}
+            hrefOf={(chip) => (chip.kind === "evaluator" ? "/evaluator-link" : undefined)}
         />,
     )
     const chips = [...container.querySelectorAll("a, span.inline-flex.h-6")]
     const text = chips.map((chip) => chip.textContent)
     expect(text).toEqual(["lead_scorer / with_site_textv8", "Tone check", "support-faq / da65be"])
-    // The app chip keeps the routes' link; the test case chip takes the caller's.
+    // The routes build the app link and the test case link (with the test case); the caller's
+    // link replaces the evaluator's.
     expect(chips[0].getAttribute("href")).toBe("/w/ws/p/project-1/apps/app-1")
-    expect(chips[2].getAttribute("href")).toBe("/testcase-link")
+    expect(chips[1].getAttribute("href")).toBe("/evaluator-link")
+    expect(chips[2].getAttribute("href")).toBe(
+        "/w/ws/p/project-1/testsets/ts-1?testcase_id=da65bedc-7feb",
+    )
 })
 
 it("draws nothing with no references", () => {

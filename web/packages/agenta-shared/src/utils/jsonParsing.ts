@@ -418,12 +418,15 @@ const mayEndJson5Value = (text: string): boolean => {
     return text.slice(text.lastIndexOf("\n") + 1).includes("//")
 }
 
+/** Text longer than this (100 KB) is not tried as JSON5, only as strict JSON. */
+const JSON5_MAX_CHARS = 100_000
+
 /**
  * Try to parse a string as structured JSON, tolerating:
  * - whitespace
  * - markdown fenced code blocks (```json ... ```)
  * - one level of string-wrapping (e.g. a JSON-stringified JSON)
- * - JSON5 syntax (single quotes, trailing commas, etc.)
+ * - JSON5 syntax (single quotes, trailing commas, etc.), for text up to 100 KB
  *
  * Returns the parsed object/array, or null if not structured.
  */
@@ -456,7 +459,8 @@ export const parseStructuredJson = (value: string): unknown | null => {
     const strictParsed = toStructured(tryParseJson(candidate))
     if (strictParsed !== null) return strictParsed
 
-    if (!mayEndJson5Value(candidate)) return null
+    // JSON5 is slow on large text; above this size only strict JSON parses.
+    if (candidate.length > JSON5_MAX_CHARS || !mayEndJson5Value(candidate)) return null
     try {
         return toStructured(JSON5.parse(candidate))
     } catch {

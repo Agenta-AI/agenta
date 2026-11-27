@@ -262,9 +262,9 @@ describe("ValueField shapes", () => {
         expect(screen.getByText("Lea Brandt")).toBeTruthy()
     })
 
-    it("removes a single wrapper key", () => {
+    it("keeps a single wrapper key: the trace view unwraps it itself", () => {
         render(<ValueField value={{output: {tier: "gold", seats: 5}}} />)
-        expect(screen.queryByText("output")).toBeNull()
+        expect(screen.getByText("output")).toBeTruthy()
         expect(screen.getByText("tier")).toBeTruthy()
     })
 
