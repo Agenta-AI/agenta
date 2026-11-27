@@ -17,6 +17,7 @@
     "typeLongText": "texte long",
     "typeMarkdown": "markdown",
     "typeJson": "JSON",
+    "typeYaml": "YAML",
     "typeList": "liste · {{count}}",
     "typeListOfObjects": "liste d'objets · {{count}}",
     "typeObject_one": "objet · {{count}} champ",

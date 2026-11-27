@@ -28,7 +28,10 @@ export const ChipsField = ({
     useEffect(() => setAll(false), [collapseSignal])
 
     const shown = all ? items : items.slice(0, CHIPS_SHOWN)
-    const typed = items.length > 0 && items.every((item) => typeof item !== "string")
+    // Decided once, so a list of numbers keeps adding numbers after its last item is removed.
+    const [typed] = useState(
+        () => items.length > 0 && items.every((item) => typeof item !== "string"),
+    )
 
     return (
         <div className="flex flex-wrap items-center gap-1 pl-1">

@@ -17,6 +17,7 @@
     "typeLongText": "长文本",
     "typeMarkdown": "Markdown",
     "typeJson": "JSON",
+    "typeYaml": "YAML",
     "typeList": "列表 · {{count}}",
     "typeListOfObjects": "对象列表 · {{count}}",
     "typeObject_other": "对象 · {{count}} 个字段",

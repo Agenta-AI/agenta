@@ -3,33 +3,40 @@ import {useCallback, useRef, useState} from "react"
 import {ValueField, valueAsText} from "@agenta/chat/value-view"
 import type {ViewType} from "@agenta/entity-ui/view-types"
 import {useT} from "@agenta/i18n"
-import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
 import editorCatalog from "@agenta/i18n/catalogs/testsets.testcaseEditor"
+import {isPlainObject} from "@agenta/shared/utils"
 import {Button, Segmented} from "@agenta/ui/ui"
 import {copyToClipboard} from "@agenta/ui/utils"
 
-import {FieldEditor, fieldText} from "./FieldEditor"
+import {FieldEditor} from "./FieldEditor"
 import {FieldMenu, type FieldColumnActions} from "./FieldMenu"
-import {editorKind, isIdKey, pickFieldEditor, type FieldEditorPick} from "./pickFieldEditor"
+import {
+    editorKind,
+    fitsEditor,
+    isIdKey,
+    pickFieldEditor,
+    type FieldEditorPick,
+} from "./pickFieldEditor"
 
 export type {FieldColumnActions} from "./FieldMenu"
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-    typeof value === "object" && value !== null && !Array.isArray(value)
-
 const countOf = (value: unknown) =>
-    Array.isArray(value) ? value.length : isRecord(value) ? Object.keys(value).length : 0
+    Array.isArray(value) ? value.length : isPlainObject(value) ? Object.keys(value).length : 0
 
 /** The muted word after a section name: what the value is, with its size. */
 const useTypeHint = () => {
     const t = useT(editorCatalog)
-    return (pick: FieldEditorPick, value: unknown) => {
-        if (pick.parsedFromText) return t("testsets.testcaseEditor.typeJson")
+    return (pick: FieldEditorPick, view: ViewType, value: unknown) => {
+        // The word follows the view the field shows in.
+        if (view === "json") return t("testsets.testcaseEditor.typeJson")
+        if (view === "yaml") return t("testsets.testcaseEditor.typeYaml")
+        if (view === "markdown") return t("testsets.testcaseEditor.typeMarkdown")
         const count = countOf(value)
         switch (pick.shape) {
-            case "markdown":
-                return t("testsets.testcaseEditor.typeMarkdown")
+            case "text-short":
             case "text-long":
+            case "markdown":
+                // A text outside the grid is a long text: several lines or a long line.
                 return t("testsets.testcaseEditor.typeLongText")
             case "array-scalars":
                 return t("testsets.testcaseEditor.typeList", {count})
@@ -70,7 +77,6 @@ export const TestcaseFieldForm = ({
     collapseSignal: number
 }) => {
     const t = useT(editorCatalog)
-    const tv = useT(valueViewCatalog)
     const typeHint = useTypeHint()
     const picks = useRef(new Map<string, FieldEditorPick>())
     const [views, setViews] = useState<Record<string, ViewType>>({})
@@ -83,11 +89,15 @@ export const TestcaseFieldForm = ({
 
     const fields = Object.keys(value).map((key) => {
         let pick = picks.current.get(key)
-        if (!pick) {
+        const chosen = views[key]
+        let view = chosen && pick?.views.includes(chosen) ? chosen : pick?.defaultView
+        // A value that no longer fits its editor gets a new one, in its first view.
+        if (!pick || !view || !fitsEditor(editorKind(pick, view), value[key])) {
             pick = pickFieldEditor(value[key])
             picks.current.set(key, pick)
+            view = chosen && pick.views.includes(chosen) ? chosen : pick.defaultView
+            if (!fitsEditor(editorKind(pick, view), value[key])) view = pick.defaultView
         }
-        const view = views[key] ?? pick.defaultView
         return {key, pick, view, kind: editorKind(pick, view)}
     })
     const inGrid = (field: (typeof fields)[number]) =>
@@ -96,7 +106,16 @@ export const TestcaseFieldForm = ({
     const menu = (field: (typeof fields)[number]) => (
         <FieldMenu
             name={field.key}
-            views={field.pick.views}
+            // View only draws text and markdown alike with `ValueField`, so a reader picks
+            // between the first view and the code views only.
+            views={
+                viewOnly
+                    ? field.pick.views.filter(
+                          (view) =>
+                              view === field.pick.defaultView || view === "json" || view === "yaml",
+                      )
+                    : field.pick.views
+            }
             view={field.view}
             list={field.pick.shape === "array-scalars"}
             onViewChange={(view) => setView(field.key, view)}
@@ -142,23 +161,12 @@ export const TestcaseFieldForm = ({
                             >
                                 {field.key}
                             </span>
-                            <div className="min-w-0">
-                                {viewOnly ? (
-                                    <span
-                                        className={`block truncate text-body ${
-                                            fieldText(value[field.key]) === ""
-                                                ? "text-muted-foreground"
-                                                : "text-foreground"
-                                        } ${field.pick.shape === "number" ? "text-right tabular-nums" : ""} ${
-                                            isIdKey(field.key) ? "font-mono" : ""
-                                        }`}
-                                    >
-                                        {fieldText(value[field.key]) ||
-                                            tv("chat.valueView.emptyText")}
-                                    </span>
-                                ) : (
-                                    editor(field)
-                                )}
+                            <div
+                                className={`min-w-0 ${field.pick.shape === "number" ? "text-right tabular-nums" : ""} ${
+                                    isIdKey(field.key) ? "font-mono" : ""
+                                }`}
+                            >
+                                {editor(field)}
                             </div>
                             {menu(field)}
                         </div>
@@ -174,7 +182,7 @@ export const TestcaseFieldForm = ({
                     <div className="flex min-h-6 items-center gap-1.5 pl-1">
                         <span className="text-body text-muted-foreground">{field.key}</span>
                         <span className="text-caption text-muted-foreground opacity-75">
-                            {typeHint(field.pick, value[field.key])}
+                            {typeHint(field.pick, field.view, value[field.key])}
                         </span>
                         <span className="flex-1" />
                         {field.kind === "markdown" && !viewOnly ? (

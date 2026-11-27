@@ -2,6 +2,7 @@ import {describe, expect, it} from "vitest"
 
 import {
     editorKind,
+    fitsEditor,
     GRID_TEXT_MAX_CHARS,
     isIdKey,
     pickFieldEditor,
@@ -86,11 +87,70 @@ describe("isIdKey", () => {
             "folder_hash",
             "git_commit",
             "org.uuid",
+            "commit-sha",
+            "userId",
+            "testcaseID",
+            "commitSHA",
+            "parentHash",
         ]) {
             expect(isIdKey(key), key).toBe(true)
         }
-        for (const key of ["title", "idea", "valid", "identity", "commitment"]) {
+        for (const key of [
+            "title",
+            "idea",
+            "valid",
+            "paid",
+            "void",
+            "grid",
+            "android",
+            "squid",
+            "PAID",
+            "identity",
+            "commitment",
+            "rehash",
+            "nosha",
+        ]) {
             expect(isIdKey(key), key).toBe(false)
         }
+    })
+})
+
+describe("empty list and object", () => {
+    it("open in the editor of their kind, not as a text", () => {
+        expect(kindOf([])).toMatchObject({grid: false, kind: "chips", views: ["form", "json"]})
+        expect(kindOf({})).toMatchObject({
+            grid: false,
+            kind: "keyRows",
+            views: ["form", "json", "yaml"],
+        })
+    })
+})
+
+describe("chat editor", () => {
+    it("edits a chat it writes back without a loss, and any other chat as JSON", () => {
+        const plain = [
+            {role: "user", content: "Hi"},
+            {role: "assistant", content: null, tool_calls: [{id: "c1"}]},
+        ]
+        expect(kindOf(plain)).toMatchObject({kind: "messages", views: ["chat", "json"]})
+        // The chat editor drops a key it does not know, so this chat edits as JSON.
+        expect(kindOf([{role: "user", content: "Hi", reasoning: "x"}])).toMatchObject({
+            kind: "code",
+            views: ["json", "yaml"],
+        })
+    })
+})
+
+describe("fitsEditor", () => {
+    it("says when a value can no longer stay in its editor", () => {
+        expect(fitsEditor("chips", ["a", 1])).toBe(true)
+        expect(fitsEditor("chips", {a: 1})).toBe(false)
+        expect(fitsEditor("keyRows", ["a"])).toBe(false)
+        expect(fitsEditor("boolean", "true")).toBe(false)
+        expect(fitsEditor("number", "12")).toBe(false)
+        expect(fitsEditor("text", null)).toBe(true)
+        expect(fitsEditor("text", "one\ntwo")).toBe(false)
+        expect(fitsEditor("textArea", "one\ntwo")).toBe(true)
+        expect(fitsEditor("code", {a: 1})).toBe(true)
     })
 })

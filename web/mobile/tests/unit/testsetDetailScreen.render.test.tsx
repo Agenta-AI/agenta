@@ -25,6 +25,7 @@ const state = vi.hoisted(() => ({
     rowAdded: null as null | ((id: string) => void),
     query: {} as Record<string, string>,
     morePages: false,
+    drawerMounts: 0,
 }))
 
 vi.mock("next/router", () => ({
@@ -33,12 +34,19 @@ vi.mock("next/router", () => ({
         push: vi.fn(),
     }),
 }))
-vi.mock("next/dynamic", () => ({
-    default: () => (props: Record<string, unknown>) => {
-        state.drawer = props
-        return null
-    },
-}))
+vi.mock("next/dynamic", async () => {
+    const {useEffect} = await import("react")
+    return {
+        default: () =>
+            function Drawer(props: Record<string, unknown>) {
+                state.drawer = props
+                useEffect(() => {
+                    state.drawerMounts += 1
+                }, [])
+                return null
+            },
+    }
+})
 vi.mock("@/features/developer/developerViewAccess", () => ({
     useDeveloperViewEnabled: () => state.viewEnabled,
 }))
@@ -161,6 +169,7 @@ describe("Test set page", () => {
         state.rowAdded = null
         state.query = {}
         state.morePages = false
+        state.drawerMounts = 0
         queryClient = new QueryClient()
         store = createStore()
         host = document.createElement("div")
@@ -282,6 +291,36 @@ describe("Test set page", () => {
         act(() => (state.drawer?.onClose as () => void)())
         act(() => state.openRow?.("case-1"))
         expect(state.drawer).toMatchObject({testcaseId: "case-1", discardOnCancel: false})
+    })
+
+    it("A column renamed from the drawer starts the drawer again, so Cancel cannot undo it on one row", async () => {
+        const renameColumn = vi.fn(async () => ({ok: true}))
+        state.editor = loadedEditor({renameColumn, columnEditBlocked: null})
+        render()
+        act(() => state.openRow?.("case-1"))
+        expect(state.drawerMounts).toBe(1)
+        const actions = (state.drawer?.columnActions as (key: string) => Record<string, unknown>)(
+            "question",
+        )
+        // A field with no column has no actions.
+        expect((state.drawer?.columnActions as (key: string) => unknown)("missing")).toBeNull()
+
+        act(() => (actions.onRename as () => void)())
+        const name = document.querySelector<HTMLInputElement>('[role="dialog"] input')
+        act(() => {
+            const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set
+            set?.call(name, "prompt")
+            name?.dispatchEvent(new Event("input", {bubbles: true}))
+        })
+        await act(async () => {
+            ;[...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]
+                .find((button) => button.textContent === "Rename")
+                ?.click()
+        })
+
+        expect(renameColumn).toHaveBeenCalledWith("question", "prompt")
+        expect(state.drawerMounts).toBe(2)
+        expect(state.drawer).toMatchObject({testcaseId: "case-1"})
     })
 
     describe("an archived test set", () => {

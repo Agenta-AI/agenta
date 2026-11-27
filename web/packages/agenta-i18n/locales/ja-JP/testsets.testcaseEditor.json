@@ -17,6 +17,7 @@
     "typeLongText": "長いテキスト",
     "typeMarkdown": "Markdown",
     "typeJson": "JSON",
+    "typeYaml": "YAML",
     "typeList": "リスト · {{count}}",
     "typeListOfObjects": "オブジェクトのリスト · {{count}}",
     "typeObject_other": "オブジェクト · {{count}} フィールド",

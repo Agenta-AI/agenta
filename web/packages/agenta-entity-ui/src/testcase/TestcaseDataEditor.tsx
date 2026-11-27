@@ -46,9 +46,6 @@ const DEFAULT_VALUE_BY_TYPE: Record<PropertyType, unknown> = {
 
 const tNow = createT(testcaseCatalog)
 
-const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
-    typeof value === "object" && value !== null && !Array.isArray(value)
-
 // Built when a field asks, so the labels are in the active language.
 // Chat-specific view mode and chip variants are scoped for v2.
 const testcaseViewOptions = (): FieldViewModeOption[] => [
@@ -103,7 +100,10 @@ function FullPayloadCodeEditor({
     // always an object, so typed text that is not one compares as an empty object.
     useEffect(() => {
         const typed = parseCodeString<unknown>(typedText.current, format, undefined)
-        if (typed !== undefined && deepEqual(isPlainRecord(typed) ? typed : {}, editableValue))
+        if (
+            typed !== undefined &&
+            deepEqual(normalizeTestcaseData(typed as Record<string, unknown>), editableValue)
+        )
             return
         typedText.current = displayValue
         setJsonText(displayValue)

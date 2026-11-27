@@ -25,9 +25,10 @@ export function toCodeString(value: unknown, format: CodeFormat): string {
     return JSON.stringify(value ?? null, null, 2) ?? ""
 }
 
+/** The value of the text, or `fallback` when it does not parse. Empty YAML is `null`. */
 export function parseCodeString<T = unknown>(value: string, format: CodeFormat, fallback: T): T {
     try {
-        return (format === "yaml" ? loadYaml(value) : JSON.parse(value)) as T
+        return (format === "yaml" ? (loadYaml(value) ?? null) : JSON.parse(value)) as T
     } catch {
         return fallback
     }
@@ -36,56 +37,119 @@ export function parseCodeString<T = unknown>(value: string, format: CodeFormat, 
 const lineAt = (text: string, position: number) =>
     text.slice(0, Math.max(0, position)).split("\n").length
 
-/** The offset of the parser's error: "position N" (V8) or "line L column C" (Firefox). */
-const errorPosition = (text: string, message: string): number | null => {
-    const position = /position (\d+)/.exec(message)
-    if (position) return Number(position[1])
-    const lineColumn = /line (\d+) column (\d+)/.exec(message)
-    if (!lineColumn) return null
-    const lines = text.split("\n")
-    const line = Math.min(Number(lineColumn[1]), lines.length)
-    const before = lines.slice(0, line - 1).reduce((sum, item) => sum + item.length + 1, 0)
-    return before + Number(lineColumn[2]) - 1
+/** A problem the scan found: what it is, and the offset of the line to name. */
+class JsonProblem {
+    constructor(
+        readonly problem: CodeProblem,
+        readonly at: number,
+    ) {}
 }
 
-/** The offset of the last character before `position` that is not a space. */
-const previousToken = (text: string, position: number) => {
-    let index = Math.min(position, text.length) - 1
-    while (index >= 0 && /\s/.test(text[index])) index -= 1
-    return index
+const NUMBER = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/
+const LITERAL = /^(?:true|false|null)\b/
+
+/**
+ * Finds the first problem of a JSON text by reading it, not from the parser's message: the
+ * browsers word (and place) their messages differently, and some give no position.
+ */
+function findJsonProblem(text: string): JsonProblem {
+    let index = 0
+    const skipSpace = () => {
+        while (index < text.length && /\s/.test(text[index])) index += 1
+    }
+    // The last character of the value before `index`: a missing comma belongs to its line.
+    const afterValue = () => {
+        let at = index - 1
+        while (at > 0 && /\s/.test(text[at])) at -= 1
+        return at
+    }
+    const string = () => {
+        const start = index
+        index += 1
+        while (index < text.length) {
+            const char = text[index]
+            if (char === "\\") index += 2
+            else if (char === '"') {
+                index += 1
+                return
+            } else if (char === "\n") break
+            else index += 1
+        }
+        throw new JsonProblem("missingQuote", start)
+    }
+    const value = (): void => {
+        skipSpace()
+        if (index >= text.length) throw new JsonProblem("endsEarly", text.length)
+        const char = text[index]
+        if (char === '"') return string()
+        if (char === "{" || char === "[") return list(char === "{" ? "}" : "]")
+        const rest = text.slice(index)
+        const token = NUMBER.exec(rest) ?? LITERAL.exec(rest)
+        if (token) {
+            index += token[0].length
+            return
+        }
+        // A word without quotes, such as `{"tier": gold}`.
+        throw new JsonProblem(/[A-Za-z_]/.test(char) ? "missingQuote" : "other", index)
+    }
+    const list = (close: "}" | "]") => {
+        index += 1
+        skipSpace()
+        if (text[index] === close) {
+            index += 1
+            return
+        }
+        for (;;) {
+            if (close === "}") {
+                skipSpace()
+                if (index >= text.length) throw new JsonProblem("endsEarly", text.length)
+                if (text[index] !== '"') throw new JsonProblem("missingQuote", index)
+                string()
+                skipSpace()
+                if (index >= text.length) throw new JsonProblem("endsEarly", text.length)
+                if (text[index] !== ":") throw new JsonProblem("other", index)
+                index += 1
+            }
+            value()
+            skipSpace()
+            if (index >= text.length) throw new JsonProblem("endsEarly", text.length)
+            const char = text[index]
+            if (char === close) {
+                index += 1
+                return
+            }
+            if (char !== ",") {
+                const closes = char === "}" || char === "]"
+                throw new JsonProblem(closes ? "other" : "missingComma", afterValue())
+            }
+            const comma = index
+            index += 1
+            skipSpace()
+            if (text[index] === close) throw new JsonProblem("extraComma", comma)
+        }
+    }
+    try {
+        value()
+        skipSpace()
+        if (index < text.length) {
+            // A comma after the last value, or a second value after the first.
+            const problem = text[index] === "," ? "extraComma" : "other"
+            return new JsonProblem(problem, index)
+        }
+        return new JsonProblem("other", text.length)
+    } catch (error) {
+        if (error instanceof JsonProblem) return error
+        throw error
+    }
 }
 
 function jsonParseError(text: string, message: string): CodeParseError {
-    const lower = message.toLowerCase()
-    if (lower.includes("unexpected end") || lower.includes("end of data")) {
-        return {message, line: text.split("\n").length, problem: "endsEarly"}
-    }
-    const position = errorPosition(text, message)
-    if (position === null) return {message, line: null, problem: "other"}
-    // The parser reached the end while it still waited for more.
-    if (position >= text.trimEnd().length) {
-        return {message, line: text.trimEnd().split("\n").length, problem: "endsEarly"}
-    }
-    if (lower.includes("unterminated string") || lower.includes("bad control character")) {
-        return {message, line: lineAt(text, position), problem: "missingQuote"}
-    }
-    const before = previousToken(text, position)
-    const next = text.slice(position).trimStart()[0]
-    // A comma right before a closing bracket.
-    if (before >= 0 && text[before] === "," && (next === "}" || next === "]")) {
-        return {message, line: lineAt(text, before), problem: "extraComma"}
-    }
-    // The parser stops at the next value; the comma belongs after the one before it.
-    if (lower.includes("expected ','") || lower.includes("expected ',' or")) {
-        return {message, line: lineAt(text, before + 1), problem: "missingComma"}
-    }
-    if (lower.includes("property name") || lower.includes("unexpected token")) {
-        return {message, line: lineAt(text, position), problem: "missingQuote"}
-    }
-    return {message, line: lineAt(text, position), problem: "other"}
+    const found = findJsonProblem(text)
+    const at = found.problem === "endsEarly" ? text.trimEnd().length : found.at
+    return {message, line: lineAt(text, at), problem: found.problem}
 }
 
-/** Why the text does not parse, with the line when the parser says it, or null when it does. */
+/** Why the text does not parse, with its line when one is known, or null when it parses. */
 export function codeParseError(value: string, format: CodeFormat): CodeParseError | null {
     try {
         if (format === "yaml") loadYaml(value)

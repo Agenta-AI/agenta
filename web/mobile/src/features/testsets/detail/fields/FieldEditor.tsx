@@ -1,21 +1,21 @@
-import {useCallback} from "react"
+import {useCallback, useMemo} from "react"
 
 import {ValueField} from "@agenta/chat/value-view"
 import type {ViewType} from "@agenta/entity-ui/view-types"
 import {useT} from "@agenta/i18n"
 import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
-import {parseStructuredJson} from "@agenta/shared/utils"
-import {MessagesField, NumberField} from "@agenta/ui/drill-in"
-import {Segmented} from "@agenta/ui/ui"
+import {isPlainObject, parseStructuredJson} from "@agenta/shared/utils"
+import {MessagesField} from "@agenta/ui/drill-in"
 
 import {ChipsField} from "./ChipsField"
 import {CodeField} from "./CodeField"
 import {KeyRowsField} from "./KeyRowsField"
 import type {FieldEditorKind, FieldEditorPick} from "./pickFieldEditor"
+import {NumberInput, TrueFalseSwitch} from "./ScalarFields"
 import {TextAreaField} from "./TextAreaField"
 
 /** A scalar as the text its input shows; null and a missing value show nothing. */
-export const fieldText = (value: unknown) =>
+const fieldText = (value: unknown) =>
     value === null || value === undefined
         ? ""
         : typeof value === "string"
@@ -23,15 +23,6 @@ export const fieldText = (value: unknown) =>
           : typeof value === "object"
             ? JSON.stringify(value)
             : String(value)
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-    typeof value === "object" && value !== null && !Array.isArray(value)
-
-const BOOLEAN_OPTIONS = [
-    // The JSON values themselves, not words: they read the same in every language.
-    {value: "true", label: "true"},
-    {value: "false", label: "false"},
-]
 
 /**
  * The editor of one field, as `kind` says. The boolean, number and chat editors are the drill-in
@@ -63,30 +54,28 @@ export const FieldEditor = ({
     const t = useT(valueViewCatalog)
     const setValue = useCallback((_path: string[], next: unknown) => onChange?.(next), [onChange])
     const text = fieldText(value)
+    // JSON written as text edits as its parsed value. It is parsed once per stored text: a render
+    // for another field is then not an outside change, and a typed draft stays.
+    const parsed = useMemo(
+        () =>
+            pick.parsedFromText && typeof value === "string"
+                ? (parseStructuredJson(value) ?? value)
+                : value,
+        [pick.parsedFromText, value],
+    )
 
     switch (kind) {
         case "boolean":
-            return (
-                <Segmented
-                    size="compact"
-                    aria-label={name}
-                    options={BOOLEAN_OPTIONS}
-                    value={value === true ? "true" : "false"}
-                    disabled={!onChange}
-                    onChange={(next) => onChange?.(next === "true")}
-                />
+            return typeof value === "boolean" && onChange ? (
+                <TrueFalseSwitch name={name} value={value} onChange={onChange} />
+            ) : (
+                <ValueField value={value} label={name} />
             )
         case "number":
-            return (
-                <div className="[&_[data-slot=input-number]]:border-transparent [&_[data-slot=input-number]]:bg-transparent [&_[data-slot=input-number]:hover]:border-border [&_input]:text-right">
-                    <NumberField
-                        item={{key: name, name, value}}
-                        stringValue={text}
-                        fullPath={[name]}
-                        setValue={setValue}
-                        valueMode="native"
-                    />
-                </div>
+            return typeof value === "number" && onChange ? (
+                <NumberInput name={name} value={value} onChange={onChange} />
+            ) : (
+                <ValueField value={value} label={name} />
             )
         case "text":
             return (
@@ -123,15 +112,13 @@ export const FieldEditor = ({
                 <ValueField value={value} label={name} />
             )
         case "chips":
-            return (
-                <ChipsField
-                    items={Array.isArray(value) ? value : []}
-                    collapseSignal={collapseSignal}
-                    onChange={onChange}
-                />
+            return Array.isArray(value) ? (
+                <ChipsField items={value} collapseSignal={collapseSignal} onChange={onChange} />
+            ) : (
+                <ValueField value={value} label={name} />
             )
         case "keyRows":
-            return isRecord(value) ? (
+            return isPlainObject(value) ? (
                 <KeyRowsField value={value} collapseSignal={collapseSignal} onChange={onChange} />
             ) : (
                 <ValueField value={value} label={name} />
@@ -150,11 +137,7 @@ export const FieldEditor = ({
             )
         case "code": {
             const format = view === "yaml" ? "yaml" : "json"
-            // JSON written as text edits as its parsed value and is stored as text again.
-            const parsed =
-                pick.parsedFromText && typeof value === "string"
-                    ? (parseStructuredJson(value) ?? value)
-                    : value
+            // JSON written as text is stored as text again: the typed JSON as it is.
             return (
                 <CodeField
                     id={name}

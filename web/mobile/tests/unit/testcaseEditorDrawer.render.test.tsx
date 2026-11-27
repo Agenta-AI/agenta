@@ -375,6 +375,150 @@ describe("Testcase drawer", () => {
             expect(editor().value).toBe('[\n  {"sku": "TL-204", "qty": 3}\n]')
         })
 
+        it("a number or a true or false value inside an object keeps its type", () => {
+            const id = addRow({context: {score: 4, strict: true, note: "line one\nline two"}})
+            content({testcaseId: id, view: "form"})
+            const field = section("context")?.querySelector<HTMLInputElement>(
+                "[data-slot=input-number] input",
+            ) as HTMLInputElement
+
+            type(field, "4.5")
+            act(() => field.dispatchEvent(new FocusEvent("focusout", {bubbles: true})))
+            const strict = host.querySelector('[role="radiogroup"][aria-label="strict"]')
+            act(() =>
+                [...(strict?.querySelectorAll<HTMLElement>('[role="radio"]') ?? [])]
+                    .find((item) => item.textContent === "false")
+                    ?.click(),
+            )
+
+            expect(dataOf(id)).toEqual({
+                context: {score: 4.5, strict: false, note: "line one\nline two"},
+            })
+        })
+
+        it("a text of several lines inside an object keeps its line breaks", () => {
+            const id = addRow({context: {note: "line one\nline two", lang: "en"}})
+            content({testcaseId: id, view: "form"})
+            const note = host.querySelector<HTMLTextAreaElement>('textarea[aria-label="note"]')
+            expect(note?.value).toBe("line one\nline two")
+
+            type(note as HTMLTextAreaElement, "line one\nline two\nline three")
+
+            expect(dataOf(id)).toEqual({
+                context: {note: "line one\nline two\nline three", lang: "en"},
+            })
+        })
+
+        it("a list inside an object that does not parse shows the error line and keeps its value", () => {
+            const id = addRow({context: {tags: ["a"], lang: "en"}})
+            content({testcaseId: id, view: "form"})
+
+            type(input("tags") as HTMLInputElement, '["a",')
+
+            expect(host.querySelector('[role="alert"]')?.textContent).toContain("Not valid JSON")
+            expect(input("tags")?.getAttribute("aria-invalid")).toBe("true")
+            expect(dataOf(id)).toEqual({context: {tags: ["a"], lang: "en"}})
+
+            type(input("tags") as HTMLInputElement, '["a", "b"]')
+
+            expect(host.querySelector('[role="alert"]')).toBeNull()
+            expect(dataOf(id)).toEqual({context: {tags: ["a", "b"], lang: "en"}})
+        })
+
+        it("a list changed into an object in the JSON view is not drawn as an empty list", () => {
+            const id = addRow({tags: ["a", "b"]})
+            content({testcaseId: id, view: "form"})
+            openMenu("tags")
+            act(() => menuItem("JSON")?.click())
+            const editor = section("tags")?.querySelector<HTMLTextAreaElement>(
+                '[data-testid="rich-editor"]',
+            ) as HTMLTextAreaElement
+            type(editor, '{"keep": "this"}')
+            expect(dataOf(id)).toEqual({tags: {keep: "this"}})
+
+            openMenu("tags")
+            act(() => menuItem("List")?.click())
+
+            // The field gets the editor of an object; no chip list with nothing in it.
+            expect(section("tags")?.textContent).not.toContain("Add item")
+            expect(
+                host.querySelector<HTMLTextAreaElement>('textarea[aria-label="keep"]')?.value,
+            ).toBe("this")
+            expect(dataOf(id)).toEqual({tags: {keep: "this"}})
+        })
+
+        it("JSON written as text stores the typed text, also when only spaces change", () => {
+            const id = addRow({payload: '{"a":1,"b":[1,2]}'})
+            content({testcaseId: id, view: "form"})
+            const editor = section("payload")?.querySelector<HTMLTextAreaElement>(
+                '[data-testid="rich-editor"]',
+            ) as HTMLTextAreaElement
+
+            type(editor, '{ "b": [1, 2], "a": 1 }')
+
+            expect(dataOf(id)).toEqual({payload: '{ "b": [1, 2], "a": 1 }'})
+        })
+
+        it("an empty YAML field stores null, not a missing value", () => {
+            const id = addRow({context: {a: 1}})
+            content({testcaseId: id, view: "form"})
+            openMenu("context")
+            act(() => menuItem("YAML")?.click())
+            const editor = section("context")?.querySelector<HTMLTextAreaElement>(
+                '[data-testid="rich-editor"]',
+            ) as HTMLTextAreaElement
+
+            type(editor, "")
+
+            expect(dataOf(id)).toEqual({context: null})
+        })
+
+        it("a JSON-as-text field keeps a draft that does not parse while another field changes", () => {
+            const id = addRow({payload: '{"a":1}', tier: "gold"})
+            content({testcaseId: id, view: "form"})
+            const editor = () =>
+                section("payload")?.querySelector<HTMLTextAreaElement>(
+                    '[data-testid="rich-editor"]',
+                ) as HTMLTextAreaElement
+
+            type(editor(), '{"a":')
+            type(input("tier") as HTMLInputElement, "silver")
+
+            expect(editor().value).toBe('{"a":')
+            expect(host.querySelector('[role="alert"]')).not.toBeNull()
+            expect(dataOf(id)).toEqual({payload: '{"a":1}', tier: "silver"})
+        })
+
+        it("a chat with message keys the chat editor drops opens as JSON", () => {
+            const messages = [{role: "user", content: "Hi", reasoning: "kept"}]
+            const id = addRow({messages})
+            content({testcaseId: id, view: "form"})
+            const editor = section("messages")?.querySelector<HTMLTextAreaElement>(
+                '[data-testid="rich-editor"]',
+            )
+            expect(JSON.parse(editor?.value ?? "null")).toEqual(messages)
+        })
+
+        it("Show as JSON on an empty list names the problem and its line, and the label says JSON", () => {
+            const id = addRow({behaviors: []})
+            content({testcaseId: id, view: "form"})
+            expect(section("behaviors")?.textContent).toContain("list · 0")
+            openMenu("behaviors")
+            act(() => menuItem("JSON")?.click())
+            expect(section("behaviors")?.textContent).toContain("JSON")
+            const editor = section("behaviors")?.querySelector<HTMLTextAreaElement>(
+                '[data-testid="rich-editor"]',
+            ) as HTMLTextAreaElement
+
+            // The change goes through the editor's change handler, as typing does.
+            type(editor, "[1, ]")
+
+            expect(host.querySelector('[role="alert"]')?.textContent).toBe(
+                "Not valid JSON: there is an extra comma in line 1. The field keeps its last valid value until you fix it.",
+            )
+            expect(dataOf(id)).toEqual({behaviors: []})
+        })
+
         it("an outside change replaces the typed text of a code field", () => {
             const id = addRow({items: [{a: 1}]})
             content({testcaseId: id, view: "form"})
@@ -496,11 +640,36 @@ describe("Testcase drawer", () => {
             expect(host.querySelector("input")).toBeNull()
             expect(host.textContent).toContain("gold")
             expect(host.textContent).toContain("empty text")
+            // Show as offers the first view and the code views: Text and Markdown draw alike.
+            openMenu("notes")
+            expect(menuItem("Markdown")).toBeUndefined()
+            expect(menuItem("JSON")).toBeDefined()
             expect(section("context")).not.toBeNull()
             openMenu("tier")
             expect(menuItem("Copy value")).toBeDefined()
             expect(menuItem("Delete column")).toBeUndefined()
             expect(host.textContent).not.toContain("Add field")
+        })
+
+        it("a reader sees the same values the editor shows", () => {
+            const values = {max_items: 5, is_urgent: true, ticket_id: "T-1", payload: '{"a":1}'}
+            const id = addRow(values)
+            content({testcaseId: id, view: "form"})
+            const edited = {
+                max_items: host.querySelector<HTMLInputElement>("[data-slot=input-number] input")
+                    ?.value,
+                is_urgent: host.querySelector('[aria-label="is_urgent"] [aria-checked="true"]')
+                    ?.textContent,
+                ticket_id: input("ticket_id")?.value,
+            }
+            expect(edited).toEqual({max_items: "5", is_urgent: "true", ticket_id: "T-1"})
+
+            content({testcaseId: id, view: "form", viewOnly: true})
+
+            expect(host.textContent).toContain("max_items5")
+            expect(host.textContent).toContain("is_urgenttrue")
+            expect(host.textContent).toContain("ticket_idT-1")
+            expect(dataOf(id)).toEqual(values)
         })
 
         it("Add field opens the page's add column step", () => {

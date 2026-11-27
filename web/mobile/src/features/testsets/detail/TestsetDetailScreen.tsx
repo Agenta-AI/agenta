@@ -40,6 +40,7 @@ import {PageBackBar} from "../../page-layout/PageBackBar"
 
 import {ArchivedTestsetNotice} from "./ArchivedTestsetNotice"
 import {ColumnDialog, type ColumnDialogStep} from "./ColumnDialogs"
+import {columnHeaderTarget} from "./columnHeaderTarget"
 import type {FieldColumnActions} from "./fields/TestcaseFieldForm"
 import {TestsetDetailSkeleton} from "./states/TestsetDetailSkeleton"
 import {TestsetGrid} from "./TestsetGrid"
@@ -199,14 +200,19 @@ export const TestsetDetailScreen = ({
         rows,
     ])
 
-    // The drawer's field menu changes the column of a field with the grid's column steps. A
-    // top-level column can be renamed and deleted; an object split into nested columns is a
-    // group, deleted by its own key.
+    // The drawer's field menu changes the column of a field with the grid's column steps and the
+    // grid's rule (`columnHeaderTarget`): a top-level column can be renamed and deleted; an
+    // object split into nested columns is a group, deleted by its own key.
     const [fieldColumnStep, setFieldColumnStep] = useState<ColumnDialogStep | null>(null)
+    // A column change from the drawer reaches every row, so Cancel must not undo it on the open
+    // row only: the drawer starts again on the changed row, as if its edits were applied.
+    const [drawerSession, setDrawerSession] = useState(0)
     const fieldColumnActions = useCallback(
         (key: string): FieldColumnActions | null => {
             const blockedReason = editor.columnEditBlocked
-            if (columns.some((column) => column.key === key && !column.parentKey)) {
+            const header = {key, label: key, title: key, groupPath: null}
+            const columnKeys = columnHeaderTarget({...header, isGroup: false}, columns)
+            if (columnKeys) {
                 return {
                     blockedReason,
                     onRename: () => setFieldColumnStep({kind: "rename", columnKey: key}),
@@ -214,24 +220,23 @@ export const TestsetDetailScreen = ({
                         setFieldColumnStep({
                             kind: "delete",
                             columnKey: key,
-                            columnKeys: [key],
+                            columnKeys,
                             isGroup: false,
                         }),
                 }
             }
-            if (columns.some((column) => column.parentKey && column.key.startsWith(`${key}.`))) {
-                return {
-                    blockedReason,
-                    onDelete: () =>
-                        setFieldColumnStep({
-                            kind: "delete",
-                            columnKey: key,
-                            columnKeys: [key],
-                            isGroup: true,
-                        }),
-                }
+            const groupKeys = columnHeaderTarget({...header, isGroup: true}, columns)
+            if (!groupKeys) return null
+            return {
+                blockedReason,
+                onDelete: () =>
+                    setFieldColumnStep({
+                        kind: "delete",
+                        columnKey: key,
+                        columnKeys: groupKeys,
+                        isGroup: true,
+                    }),
             }
-            return null
         },
         [columns, editor.columnEditBlocked],
     )
@@ -415,6 +420,7 @@ export const TestsetDetailScreen = ({
             ) : null}
             {drawerLoaded ? (
                 <TestcaseEditorDrawer
+                    key={drawerSession}
                     testcaseId={openRowId}
                     testcaseNumber={
                         navigation.currentIndex >= 0 ? navigation.currentIndex + 1 : undefined
@@ -438,7 +444,10 @@ export const TestsetDetailScreen = ({
                 step={fieldColumnStep}
                 onClose={() => setFieldColumnStep(null)}
                 onSubmit={submitFieldColumnStep}
-                onDone={() => setFieldColumnStep(null)}
+                onDone={() => {
+                    setFieldColumnStep(null)
+                    setDrawerSession((session) => session + 1)
+                }}
             />
         </>
     )

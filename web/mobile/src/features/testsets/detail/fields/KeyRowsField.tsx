@@ -1,30 +1,31 @@
-import {useEffect, useState} from "react"
+import {useEffect, useRef, useState} from "react"
 
-import {inferPrimitiveFromText} from "@agenta/entity-ui/testcase"
+import {codeParseError, textMatchesValue, type CodeParseError} from "@agenta/entity-ui/testcase"
 import {useT} from "@agenta/i18n"
 import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
 import editorCatalog from "@agenta/i18n/catalogs/testsets.testcaseEditor"
+import {isPlainObject} from "@agenta/shared/utils"
 import {Button} from "@agenta/ui/ui"
 import {CaretDown} from "@phosphor-icons/react"
 
-type Record_ = Record<string, unknown>
+import {CodeErrorLine} from "./CodeErrorLine"
+import {NumberInput, TrueFalseSwitch} from "./ScalarFields"
 
-const isRecord = (value: unknown): value is Record_ =>
-    typeof value === "object" && value !== null && !Array.isArray(value)
+type Record_ = Record<string, unknown>
 
 const setAt = (value: Record_, path: string[], next: unknown): Record_ => {
     const [key, ...rest] = path
     return {...value, [key]: rest.length === 0 ? next : setAt(value[key] as Record_, rest, next)}
 }
 
-/** A leaf keeps its type: a number or a boolean stays one while it reads as one. */
-const leafFromText = (text: string, before: unknown) =>
-    typeof before === "number" || typeof before === "boolean" ? inferPrimitiveFromText(text) : text
-
 const INPUT =
     "-ml-2 block h-6.5 w-[calc(100%+8px)] rounded-md border border-transparent bg-transparent px-1.75 text-body text-foreground tabular-nums outline-none hover:border-border focus:border-border-strong focus:bg-background"
 
-/** A list inside an object edits as JSON text; the text reaches the value when it parses. */
+/**
+ * A list inside an object edits as JSON text with the code field's rules: the text reaches the
+ * value when it parses, text that does not parse shows the error line, and the list keeps its
+ * last valid value.
+ */
 const ListLeaf = ({
     label,
     value,
@@ -35,30 +36,63 @@ const ListLeaf = ({
     onChange?: (next: unknown) => void
 }) => {
     const [text, setText] = useState(() => JSON.stringify(value))
+    const [error, setError] = useState<CodeParseError | null>(null)
+    const typed = useRef(text)
+    // Replace the typed text only when the list changes from outside.
     useEffect(() => {
-        setText((current) => {
-            try {
-                if (JSON.stringify(JSON.parse(current)) === JSON.stringify(value)) return current
-            } catch {
-                // Typed text that does not parse stays while the value is unchanged.
-            }
-            return JSON.stringify(value)
-        })
+        if (textMatchesValue(typed.current, "json", value)) return
+        typed.current = JSON.stringify(value)
+        setText(typed.current)
+        setError(null)
     }, [value])
     return (
-        <input
+        <span className="flex min-w-0 flex-col">
+            <input
+                aria-label={label}
+                aria-invalid={error !== null}
+                value={text}
+                readOnly={!onChange}
+                className={`${INPUT} font-mono text-meta ${error ? "!border-destructive" : ""}`}
+                onChange={(event) => {
+                    const next = event.target.value
+                    typed.current = next
+                    setText(next)
+                    const problem = codeParseError(next, "json")
+                    setError(problem)
+                    if (!problem) onChange?.(JSON.parse(next))
+                }}
+            />
+            {error ? <CodeErrorLine error={error} format="json" /> : null}
+        </span>
+    )
+}
+
+/**
+ * One value of a key row, with the editor of its type: the true / false switch, the number
+ * input, or text. The text box keeps line breaks, so a text of several lines stays as it is.
+ */
+const Leaf = ({
+    label,
+    value,
+    onChange,
+}: {
+    label: string
+    value: unknown
+    onChange?: (next: unknown) => void
+}) => {
+    if (Array.isArray(value)) return <ListLeaf label={label} value={value} onChange={onChange} />
+    if (onChange && typeof value === "boolean")
+        return <TrueFalseSwitch name={label} value={value} onChange={onChange} />
+    if (onChange && typeof value === "number")
+        return <NumberInput name={label} value={value} onChange={onChange} />
+    return (
+        <textarea
             aria-label={label}
-            value={text}
+            rows={1}
+            value={value === null || value === undefined ? "" : String(value)}
             readOnly={!onChange}
-            className={`${INPUT} font-mono text-meta`}
-            onChange={(event) => {
-                setText(event.target.value)
-                try {
-                    onChange?.(JSON.parse(event.target.value))
-                } catch {
-                    // Not valid yet: the value keeps its last valid list.
-                }
-            }}
+            className={`${INPUT} h-auto min-h-6.5 resize-none py-0.75 [field-sizing:content]`}
+            onChange={(event) => onChange?.(event.target.value)}
         />
     )
 }
@@ -80,7 +114,7 @@ const Rows = ({value, path, depth, folded, onToggle, onChange}: RowsProps) => {
                 const itemPath = [...path, key]
                 const id = itemPath.join("\u0000")
                 const indent = {gridTemplateColumns: `${depth * 12}px 140px minmax(0, 1fr)`}
-                if (isRecord(item)) {
+                if (isPlainObject(item)) {
                     const isFolded = folded.has(id)
                     const count = Object.keys(item).length
                     return (
@@ -139,19 +173,7 @@ const Rows = ({value, path, depth, folded, onToggle, onChange}: RowsProps) => {
                         >
                             {key}
                         </span>
-                        {Array.isArray(item) ? (
-                            <ListLeaf label={key} value={item} onChange={change} />
-                        ) : (
-                            <input
-                                aria-label={key}
-                                value={item === null || item === undefined ? "" : String(item)}
-                                readOnly={!change}
-                                className={`${INPUT} ${typeof item === "number" ? "text-right" : ""}`}
-                                onChange={(event) =>
-                                    change?.(leafFromText(event.target.value, item))
-                                }
-                            />
-                        )}
+                        <Leaf label={key} value={item} onChange={change} />
                     </div>
                 )
             })}
@@ -160,8 +182,8 @@ const Rows = ({value, path, depth, folded, onToggle, onChange}: RowsProps) => {
 }
 
 /**
- * An object as key rows: nested objects fold per key with their field count, a leaf is an inline
- * input that keeps its type, and "Add key" adds an empty key at the top level.
+ * An object as key rows: nested objects fold per key with their field count, a leaf has the
+ * editor of its type, and "Add key" adds an empty key at the top level.
  */
 export const KeyRowsField = ({
     value,
@@ -181,7 +203,7 @@ export const KeyRowsField = ({
         const all = new Set<string>()
         const walk = (item: Record_, path: string[]) => {
             for (const [key, child] of Object.entries(item)) {
-                if (!isRecord(child)) continue
+                if (!isPlainObject(child)) continue
                 all.add([...path, key].join("\u0000"))
                 walk(child, [...path, key])
             }

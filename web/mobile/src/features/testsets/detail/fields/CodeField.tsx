@@ -16,7 +16,7 @@ import {CodeErrorLine} from "./CodeErrorLine"
 
 /**
  * A field as JSON or YAML, with the root editor's rules: the typed text stays, it reaches the
- * draft only when it parses, and the text is replaced only when the value changes from outside.
+ * draft when it parses, and the text is replaced only when the value changes from outside.
  * Text that does not parse shows the error line, and the field keeps its last valid value.
  * `onChange` gets the parsed value and the typed text.
  */
@@ -45,13 +45,15 @@ export const CodeField = ({
 
     const handleChange = useCallback(
         (next: string) => {
-            if (!onChange) return
+            // The editor repeats the text it was given: not an edit.
+            if (!onChange || next === typed.current) return
             typed.current = next
             setText(next)
             const problem = codeParseError(next, format)
             setError(problem)
             if (problem) return
-            if (textMatchesValue(next, format, value)) return
+            // Every valid edit goes out, also one that only moves keys or spaces, so a value
+            // stored as text keeps exactly the typed text.
             onChange(parseCodeString<unknown>(next, format, value), next)
         },
         [format, onChange, value],
