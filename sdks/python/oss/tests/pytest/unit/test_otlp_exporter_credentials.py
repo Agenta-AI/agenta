@@ -46,13 +46,12 @@ def test_each_credential_group_uses_only_its_own_authorization(
         response.status_code = 200
         return response
 
-    exporter = OTLPExporter(
-        endpoint="http://localhost:1/v1/traces",
-        headers={"X-Static": "yes"},
-        credentials=credentials,
-    )
-
     with patch.object(requests.Session, "request", fake_request):
+        exporter = OTLPExporter(
+            endpoint="http://localhost:1/v1/traces",
+            headers={"X-Static": "yes"},
+            credentials=credentials,
+        )
         result = exporter.export(spans)
         if async_export:
             import threading
@@ -64,3 +63,26 @@ def test_each_credential_group_uses_only_its_own_authorization(
     assert result == SpanExportResult.SUCCESS
     assert sorted(h["Authorization"] for h in sent) == ["ApiKey one", "ApiKey two"]
     assert all(h.get("x-static") == "yes" for h in sent)
+
+
+def test_shutdown_waits_for_pending_async_groups(monkeypatch):
+    monkeypatch.setattr(exporters, "_ASYNC_EXPORT", True)
+
+    spans = _make_spans()
+    sent = []
+
+    def slow_request(self, method, url, *args, **kwargs):
+        import time
+
+        time.sleep(0.5)
+        sent.append(1)
+        response = requests.Response()
+        response.status_code = 200
+        return response
+
+    with patch.object(requests.Session, "request", slow_request):
+        exporter = OTLPExporter(endpoint="http://localhost:1/v1/traces")
+        exporter.export(spans)
+        exporter.shutdown()
+
+    assert sent
