@@ -112,7 +112,6 @@ export const AutomationActionsMenu = ({
                         <DotsThree
                             aria-hidden
                             className={surface === "list" ? "size-3.5" : "size-4"}
-                            weight="bold"
                         />
                     </Button>
                 </DropdownMenuTrigger>

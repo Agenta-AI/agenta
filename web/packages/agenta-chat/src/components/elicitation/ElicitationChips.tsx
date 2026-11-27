@@ -111,7 +111,7 @@ export const ElicitationChips = ({
                         }}
                         className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-muted-foreground hover:text-foreground"
                     >
-                        <X size={9} weight="bold" />
+                        <X size={9} />
                     </button>
                 </Badge>
             ))}

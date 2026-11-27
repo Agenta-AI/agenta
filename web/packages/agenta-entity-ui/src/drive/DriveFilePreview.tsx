@@ -129,7 +129,7 @@ export const DriveFilePreview = ({
                                     onClick={() => setMetaExpanded((v) => !v)}
                                     className={`!h-7 !w-7 !p-0 ${metaExpanded ? "!text-primary" : "!text-muted-foreground hover:!text-foreground"}`}
                                 >
-                                    <Info size={16} weight={metaExpanded ? "fill" : "regular"} />
+                                    <Info size={16} weight={metaExpanded ? "fill" : undefined} />
                                 </Button>
                             </Tooltip>
                             <DriveFileDownloadButton mount={mount} path={path} />

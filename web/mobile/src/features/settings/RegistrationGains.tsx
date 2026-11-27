@@ -17,7 +17,7 @@ export const RegistrationGains = () => {
             <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
                 {GAINS.map((gain) => (
                     <li key={gain} className="flex items-start gap-2 text-body-sm">
-                        <Check size={14} weight="bold" className="text-success mt-[3px] shrink-0" />
+                        <Check size={14} className="text-success mt-[3px] shrink-0" />
                         <span>
                             {richText(t(gain), {
                                 strong: (text) => <strong className="font-semibold">{text}</strong>,

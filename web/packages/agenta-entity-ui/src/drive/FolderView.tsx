@@ -199,7 +199,7 @@ export const FolderView = ({
                                     >
                                         <GitBranch
                                             size={16}
-                                            weight={repoExpanded ? "fill" : "regular"}
+                                            weight={repoExpanded ? "fill" : undefined}
                                         />
                                     </Button>
                                 </Tooltip>

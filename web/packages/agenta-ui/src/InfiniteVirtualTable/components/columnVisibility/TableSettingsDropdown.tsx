@@ -146,7 +146,7 @@ const TableSettingsDropdown = <RowType extends object>({
                                     aria-label={t("ui.table.tableSettings")}
                                     onClick={(e) => e.stopPropagation()}
                                 >
-                                    <GearSix size={16} weight="bold" />
+                                    <GearSix size={16} />
                                 </Button>
                             </DropdownMenuTrigger>
                         </span>
