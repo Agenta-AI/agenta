@@ -41,6 +41,8 @@
     "setUpAutomation": "自動化を設定",
     "agentMeta": "エージェント",
     "detailFallbackTitle": "自動化",
+    "leaveTitle": "保存せずに移動しますか?",
+    "leaveMessage": "この自動化には保存されていない変更があります。移動すると変更は破棄されます。",
     "noLongerExists": "この自動化はもう存在しません。",
     "noLongerExistsBody": "削除されたか、このリンクが古くなっています。戻ってこのエージェントの自動化を確認してください。",
     "backToAutomations": "自動化に戻る",

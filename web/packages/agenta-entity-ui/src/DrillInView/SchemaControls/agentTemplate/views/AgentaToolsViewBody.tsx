@@ -35,6 +35,7 @@ const AgentaToolsViewBody = ({target}: ViewProps<AdvancedViewParams>) => {
             if (draft) writer.update((agent) => withAgentaTools(agent, draft))
             return true
         },
+        leaveDescription: t("entityUi.configItems.saveOrDiscardDraft"),
     })
 
     return (

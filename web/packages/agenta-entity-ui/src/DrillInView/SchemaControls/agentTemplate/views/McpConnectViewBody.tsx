@@ -9,6 +9,7 @@ import {invalidateAgentRequirements} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
 import mcpJourneyCatalog from "@agenta/i18n/catalogs/entityUi.mcpJourney"
+import mcpViewsCatalog from "@agenta/i18n/catalogs/entityUi.mcpViews"
 import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 
@@ -28,7 +29,7 @@ const hasUserActivation = (): boolean => {
 }
 
 const McpConnectViewBody = ({params, nav}: ViewProps<McpConnectViewParams>) => {
-    const t = useT(mcpJourneyCatalog, mcpConnectCatalog)
+    const t = useT(mcpViewsCatalog, mcpJourneyCatalog, mcpConnectCatalog)
     const endpoints = useAtomValue(mcpEndpointsQueryAtom).data
     const existingNames = useMemo(
         () => (endpoints ?? []).map((endpoint) => endpoint.name),
@@ -41,7 +42,8 @@ const McpConnectViewBody = ({params, nav}: ViewProps<McpConnectViewParams>) => {
     const permitted = reconnect ? null : (params.owners ?? null)
     // "Who can use it" asks only when the opener allows both owners.
     const owners = permitted && permitted.length > 1 ? permitted : null
-    const [chosenOwner, setOwner] = useState<ConnectionOwner>(permitted?.[0] ?? "project")
+    const [initialOwner] = useState<ConnectionOwner>(permitted?.[0] ?? "project")
+    const [chosenOwner, setOwner] = useState(initialOwner)
     const owner = permitted?.includes(chosenOwner) ? chosenOwner : (permitted?.[0] ?? "project")
     const projectName = useProjectName(owners !== null)
     const journey = useMcpConnectJourney({
@@ -71,18 +73,25 @@ const McpConnectViewBody = ({params, nav}: ViewProps<McpConnectViewParams>) => {
     useViewTitle(reconnect ? t("entityUi.mcpConnect.reconnect") : t("entityUi.mcpJourney.connect"))
 
     const done = connected !== null || journey.state.status === "connected"
+    // The address the view opened with: empty, or a reconnect's saved one.
+    const [openingUrl] = useState(journey.state.url)
     useViewForm({
-        // Never dirty: leaving asks nothing and drops the pending connection (see below).
-        dirty: false,
+        // Until the connection is made, leaving asks only after the person changed the address or
+        // the owner. Leaving drops the pending connection (see below).
+        dirty:
+            !done &&
+            (journey.state.url.trim() !== openingUrl.trim() || chosenOwner !== initialOwner),
         saveWhenClean: true,
+        leaveDescription: t("entityUi.mcpViews.connectLeaveDescription"),
         valid: !done && screens.canConfirm && screens.screen !== "waiting",
         invalidReason: screens.confirmBlockedReason ?? undefined,
         saveLabel: screens.confirmLabel,
         // Each press runs the screen's action inside the press, so the provider's window can
         // open. The step stays on this view; the journey shows what happens next.
         save: async () => {
-            // A step that opens the provider's window needs the press itself, or the browser
-            // refuses the window and the journey sends the whole tab to the provider.
+            // A step that opens the provider's window needs the press itself: from the
+            // unsaved-changes dialog (after awaits) the browser would refuse the window and the
+            // journey would send the whole tab to the provider. The person stays on the step.
             if (screens.confirmOpensWindow && !hasUserActivation()) return "stay"
             screens.confirm()
             return "stay"
