@@ -134,12 +134,12 @@ const ENTITIES: SidebarEntity[] = [
                 return createElement(LightningIcon, {
                     size: 12,
                     // Fill means LIVE on both glyphs; the bolt shape alone says automation.
-                    weight: session.waiting || session.alive ? "fill" : "regular",
+                    weight: session.waiting || session.alive ? "fill" : undefined,
                     className: amber,
                 })
             return createElement(CircleIcon, {
                 size: 10,
-                weight: session.waiting || session.alive ? "fill" : "regular",
+                weight: session.waiting || session.alive ? "fill" : undefined,
                 className: amber,
             })
         },

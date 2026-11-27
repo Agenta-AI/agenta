@@ -331,7 +331,7 @@ export const ElicitationControl = ({
                                                 onClick={(event) => event.stopPropagation()}
                                                 className="flex shrink-0 items-center text-muted-foreground hover:text-foreground"
                                             >
-                                                <Info size={11} weight="bold" />
+                                                <Info size={11} />
                                             </span>
                                         </SimpleTooltip>
                                     ) : null}
@@ -354,7 +354,6 @@ export const ElicitationControl = ({
                                 ) : (
                                     <Check
                                         size={12}
-                                        weight="bold"
                                         aria-hidden
                                         className="ml-auto shrink-0 text-foreground"
                                     />

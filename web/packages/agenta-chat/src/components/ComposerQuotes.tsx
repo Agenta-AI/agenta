@@ -127,7 +127,7 @@ const QuoteTile = ({
                 onClick={onRemove}
                 className={CORNER_BUTTON}
             >
-                <X size={10} weight="bold" />
+                <X size={10} />
             </button>
         </div>
     )

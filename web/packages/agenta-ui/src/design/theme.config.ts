@@ -406,6 +406,9 @@ export const radius: ThemeVariable[] = [
     },
 ]
 
+// The icon weight lives in its own small module so the app shell can import it without this file.
+export {iconWeight} from "./icons"
+
 export const sizes: ThemeVariable[] = [
     {name: "control-xs", value: "24px", usage: "Controls inside inputs and dense toolbars."},
     {

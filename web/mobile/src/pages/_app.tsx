@@ -4,7 +4,9 @@ import "@/lib/prismManualMode"
 import {registerDriveMarkdown} from "@agenta/entity-ui/drive"
 import {DEFAULT_PAGE_TITLE} from "@agenta/shared/utils"
 import AppMessageContext from "@agenta/ui/app-message"
+import {iconWeight} from "@agenta/ui/design/icons"
 import {useVisualViewportHeight} from "@agenta/ui/hooks"
+import {IconContext} from "@phosphor-icons/react"
 import type {AppProps} from "next/app"
 import Head from "next/head"
 
@@ -27,6 +29,10 @@ import "@/styles/globals.css"
 // so the package never depends on a host's markdown stack.
 registerDriveMarkdown(DriveMarkdownRenderer)
 
+// Every Phosphor icon draws at the design system weight (ICON-01). One stable object, so the
+// context never changes identity between renders.
+const ICON_DEFAULTS = {weight: iconWeight}
+
 // Deliberately minimal: no provider fleet (the desktop _app's ~10 providers
 // are the reason this app exists as a separate bundle). AppProviders holds
 // only what the data layer needs: query client + jotai default store + SDK
@@ -44,15 +50,17 @@ export default function App({Component, pageProps, router}: AppProps) {
     // The embed widget runs inside other websites without an Agenta login: the data layer only.
     if (isEmbedPath(router.pathname)) {
         return (
-            <BareProviders>
-                <AppFonts />
-                <Component {...pageProps} />
-            </BareProviders>
+            <IconContext.Provider value={ICON_DEFAULTS}>
+                <BareProviders>
+                    <AppFonts />
+                    <Component {...pageProps} />
+                </BareProviders>
+            </IconContext.Provider>
         )
     }
 
     return (
-        <>
+        <IconContext.Provider value={ICON_DEFAULTS}>
             <AppFonts />
             <Head>
                 {/* `interactive-widget=resizes-content` makes the on-screen keyboard shrink
@@ -78,6 +86,6 @@ export default function App({Component, pageProps, router}: AppProps) {
                 <GlobalDrawers />
                 <TabRunFavicon />
             </AppProviders>
-        </>
+        </IconContext.Provider>
     )
 }
