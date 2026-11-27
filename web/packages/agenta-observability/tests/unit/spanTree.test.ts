@@ -1,8 +1,8 @@
 import {describe, expect, it} from "vitest"
 
-import {filterKeySpans, filterTree, isKeySpan} from "@agenta/observability/trace"
-
 import type {TraceSpanNode} from "../../src/core/traceSpan"
+
+import {filterKeySpans, filterTree, isKeySpan} from "@agenta/observability/trace"
 
 const span = (partial: Partial<TraceSpanNode>): TraceSpanNode =>
     ({span_id: "id", span_name: "span", ...partial}) as TraceSpanNode
@@ -29,6 +29,13 @@ describe("filterTree", () => {
 
     it("drops branches with no match anywhere", () => {
         expect(filterTree(span({span_name: "root", children: []}), "nope")).toBeNull()
+    })
+
+    it("matches the label a row shows in place of the name", () => {
+        const labelOf = (node: TraceSpanNode) => (node.span_id === "a" ? "Load the profile" : null)
+        const result = filterTree(tree, "profile", labelOf)
+
+        expect(result?.children?.map((c) => c.span_id)).toEqual(["a"])
     })
 
     it("does not mutate the input", () => {

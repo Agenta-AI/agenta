@@ -33,13 +33,16 @@ export interface AnnotationResultRowProps {
     origin: string | null
     metrics: AnnotationResultMetric[]
     author: AnnotationResultAuthor
+    /**
+     * The row rule's summary, with each kind read from the value (no run catalog here). The
+     * header's "Passed X of Y" counts the same summaries.
+     */
+    summary: EvaluatorResultSummary
 }
 
 export interface AnnotationResult extends AnnotationResultRowProps {
     /** Unique in one span. */
     key: string
-    /** The row rule's summary, with each kind read from the value (no run catalog here). */
-    summary: EvaluatorResultSummary
 }
 
 /** The Annotations header: the evaluator count and, with binary metrics, the passed count. */

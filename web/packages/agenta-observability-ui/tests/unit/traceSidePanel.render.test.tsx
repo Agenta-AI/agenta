@@ -82,22 +82,44 @@ describe("trace side panel", () => {
     })
 
     it("shows one chip row per entity and the linked spans when there are some", async () => {
-        harness.links = {
-            references: [
-                {key: "evaluator", id: "ev-1", slug: "faithfulness-judge"},
-                {key: "evaluator_revision", id: "evr-1", version: 3},
-                {key: "testset", id: "ts-1", slug: "support-faq"},
-                {key: "testcase", id: "tc-123456789"},
-            ],
-            links: [{trace_id: "t-2", span_id: "s-9", key: "invocation"}],
-        }
-        await render(<TraceSidePanel activeTrace={span() as never} />)
+        harness.links = {links: [{trace_id: "t-2", span_id: "s-9", key: "invocation"}]}
+        const references = [
+            {id: "ev-1", slug: "faithfulness-judge", attributes: {key: "evaluator"}},
+            {id: "evr-1", version: 3, attributes: {key: "evaluator_revision"}},
+            {id: "ts-1", slug: "support-faq", attributes: {key: "testset"}},
+            {id: "tc-123456789", attributes: {key: "testcase"}},
+        ]
+        await render(<TraceSidePanel activeTrace={span({references}) as never} />)
         // One chip per entity: the evaluator (with its revision) and the test case.
-        const references = host.querySelector('[data-testid="trace-references"]')
-        expect(references?.textContent).toBe("Referencesfaithfulness-judgesupport-faq")
+        const section = host.querySelector('[data-testid="trace-references"]')
+        expect(section?.textContent).toBe("Referencesfaithfulness-judgesupport-faq")
         expect(host.querySelector('[data-testid="trace-linked-spans"]')?.textContent).toContain(
             "invocation",
         )
+    })
+
+    it("shows the span's own references, not those of its annotations", async () => {
+        // The root span of an evaluation's app trace (recorded): the application with its
+        // variant and revision, and the test case. Each annotation names its evaluator.
+        const root = span({
+            references: [
+                {id: "app-1", slug: "bench-builder", attributes: {key: "application"}},
+                {id: "variant-1", attributes: {key: "application_variant"}},
+                {id: "revision-1", attributes: {key: "application_revision"}},
+                {id: "tc-da65bedc", attributes: {key: "testcase"}},
+            ],
+            annotations: [
+                {
+                    references: {evaluator: {slug: "bench-ask-before-outside-effects"}},
+                    origin: "custom",
+                    data: {outputs: {metrics: {success: true}}},
+                },
+            ],
+        })
+        await render(<TraceSidePanel activeTrace={root as never} />)
+        const section = host.querySelector('[data-testid="trace-references"]')
+        expect(section?.textContent).toBe("Referencesbench-builder—")
+        expect(section?.textContent).not.toContain("bench-ask-before-outside-effects")
     })
 
     it("draws each evaluator's annotation through the AnnotationResultRow slot", async () => {
@@ -138,6 +160,8 @@ describe("trace side panel", () => {
             origin: "human",
             metrics: [{name: "polite", value: false}],
             author: {userId: "user-1", at: "2026-11-27T09:00:00Z"},
+            // The row gets the summary the header counts, not a second one.
+            summary: expect.objectContaining({assertions: {passed: 0, total: 1}, failed: true}),
         })
     })
 

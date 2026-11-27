@@ -68,6 +68,7 @@ export const SpanAnnotations = ({annotations}: {annotations: AnnotationDto[]}) =
                             origin={result.origin}
                             metrics={result.metrics}
                             author={result.author}
+                            summary={result.summary}
                         />
                     ))}
                 </div>
@@ -118,7 +119,7 @@ const TraceSidePanel = ({
     return (
         <div className="flex flex-col gap-5 p-4" data-testid="trace-side-panel">
             <SpanMetricsGrid span={derived} />
-            <TraceReferences />
+            <TraceReferences span={derived} />
             <TraceLinkedSpans />
             <SpanAnnotations annotations={derived.annotations ?? []} />
         </div>

@@ -4,7 +4,6 @@ export {default as TraceLinkedSpans} from "./TraceLinkedSpans"
 export {default as TraceHeader} from "./TraceHeader"
 export {default as ResultTag, resultTagClass, type ResultTagProps} from "./ResultTag"
 export type * from "./traceTreeSettingsTypes"
-export {TRACE_TREE_DEFAULT_SETTINGS} from "./traceTreeSettingsTypes"
 export type * from "./traceHeaderTypes"
 export {default as TraceReferences} from "./TraceReferences"
 export {
@@ -17,19 +16,9 @@ export {
 } from "./referenceSlots"
 export {default as EvaluatorDetailsPopover} from "./EvaluatorDetailsPopover"
 export {default as TraceAnnotations} from "./TraceAnnotations"
-export {default as TraceSidePanel, SpanAnnotations} from "./TraceSidePanel"
+export {default as TraceSidePanel} from "./TraceSidePanel"
 export {default as SpanMetricsGrid} from "./SpanMetricsGrid"
-export {default as TraceTopBarActions} from "./TraceTopBarActions"
-export {
-    annotationResults,
-    annotationResultsHeader,
-    type AnnotationResult,
-    type AnnotationResultMetric,
-    type AnnotationResultRowProps,
-} from "./annotationResults"
-export {countTurns, groupTurns, userMessageOf, type TraceTurnRow} from "./groupTurns"
-export {toolSpanLabel} from "./toolSpanLabel"
-export {isSpanRunning} from "./spanRunning"
+export type {AnnotationResultRowProps} from "./annotationResults"
 export {default as TraceTree} from "./TraceTree"
 export {default as CustomTreeComponent} from "./CustomTreeComponent"
 export type * from "./traceTreeTypes"

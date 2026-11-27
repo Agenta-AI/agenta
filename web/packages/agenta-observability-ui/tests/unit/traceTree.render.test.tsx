@@ -158,6 +158,45 @@ describe("trace tree", () => {
         expect(text).toContain("2Now ship it.20s")
     })
 
+    it("hides the turn duration when Show latency is off", async () => {
+        localStorage.setItem(
+            "traceTreeSettings",
+            JSON.stringify({latency: false, cost: true, tokens: false, groupTurns: true}),
+        )
+        await render()
+        const text = host.textContent ?? ""
+        expect(text).toContain("1Fix the failing test in the date parser.")
+        expect(text).not.toContain("date parser.20s")
+    })
+
+    it("finds a tool span by the label its row shows", async () => {
+        await render()
+        const search = host.querySelector<HTMLInputElement>("input")!
+        await act(async () => {
+            const setValue = Object.getOwnPropertyDescriptor(
+                HTMLInputElement.prototype,
+                "value",
+            )!.set!
+            setValue.call(search, "run the tests")
+            search.dispatchEvent(new Event("input", {bubbles: true}))
+        })
+        expect(rows().some((row) => row?.includes("Run the tests"))).toBe(true)
+    })
+
+    it("gives each tree row its nesting level", async () => {
+        localStorage.setItem(
+            "traceTreeSettings",
+            JSON.stringify({latency: true, cost: true, tokens: false, visibility: "all"}),
+        )
+        await render()
+        const levels = Array.from(host.querySelectorAll('[role="treeitem"]')).map((item) =>
+            item.getAttribute("aria-level"),
+        )
+        expect(levels[0]).toBe("1")
+        expect(levels).toContain("2")
+        expect(levels).toContain("3")
+    })
+
     it("draws the spans as they are by default", async () => {
         await render()
         expect(host.textContent).not.toContain("1Fix the failing test")

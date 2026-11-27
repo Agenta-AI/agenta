@@ -58,6 +58,17 @@ describe("span body sections on /m", () => {
         expect(host.textContent).toContain("YAML")
     })
 
+    it("shows a plain text output in Raw YAML", async () => {
+        await render({section: "outputs", spanDataOverride: "Your order ships today."})
+        const option = (label: string) =>
+            Array.from(host.querySelectorAll<HTMLElement>("button, [role=radio]")).find(
+                (element) => element.textContent === label,
+            )
+        await act(async () => option("Raw")!.click())
+        await act(async () => option("YAML")!.click())
+        expect(host.textContent).toContain("Your order ships today.")
+    })
+
     it("shows one line, No output, for an empty output", async () => {
         await render({section: "outputs", spanDataOverride: null, mode: "formatted"})
         expect(host.querySelector('[data-testid="span-section-outputs"]')?.textContent).toBe(
@@ -111,14 +122,17 @@ describe("span body sections on /m", () => {
                 attributes: {
                     "exception.type": "ConnectionError",
                     "exception.message": "Max retries exceeded",
-                    "exception.stacktrace": "line 1\nline 2\nline 3\nline 4\nline 5",
+                    "exception.stacktrace": Array.from(
+                        {length: 12},
+                        (_, index) => `line ${index + 1}`,
+                    ).join("\n"),
                 },
             },
         })
         const text = host.textContent ?? ""
         expect(text).toContain("ConnectionError")
         expect(text).toContain("Max retries exceeded")
-        expect(text).toContain("Show stack trace, 5 lines")
-        expect(text).not.toContain("line 5")
+        // The shared fold: 8 lines shown, then "Show all".
+        expect(text).toContain("Show all 12 lines")
     })
 })

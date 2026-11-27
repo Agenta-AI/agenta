@@ -7,12 +7,22 @@ import type {TraceSpanNode} from "../core/traceSpan"
  * unfiltered tree around to restore when the search box is cleared.
  */
 
-/** Narrows a tree to spans whose name matches, keeping every ancestor that leads to a match. */
-export const filterTree = (node: TraceSpanNode, search: string): TraceSpanNode | null => {
-    const nameMatches = node.span_name?.toLowerCase().includes(search.toLowerCase())
+/**
+ * Narrows a tree to spans whose name matches, keeping every ancestor that leads to a match.
+ * `labelOf` gives the label a row shows in place of the name (a tool span's step); it matches too.
+ */
+export const filterTree = (
+    node: TraceSpanNode,
+    search: string,
+    labelOf?: (node: TraceSpanNode) => string | null,
+): TraceSpanNode | null => {
+    const needle = search.toLowerCase()
+    const nameMatches =
+        node.span_name?.toLowerCase().includes(needle) ||
+        labelOf?.(node)?.toLowerCase().includes(needle)
 
     const filteredChildren = (node.children || [])
-        .map((child) => filterTree(child, search))
+        .map((child) => filterTree(child, search, labelOf))
         .filter(Boolean) as TraceSpanNode[]
 
     if (nameMatches || filteredChildren.length > 0) {

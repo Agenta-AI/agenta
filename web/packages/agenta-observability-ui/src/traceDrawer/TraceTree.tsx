@@ -15,6 +15,7 @@ import {TraceRow} from "../trace/TraceRow"
 
 import CustomTreeComponent from "./CustomTreeComponent"
 import {countTurns, groupTurns, type TraceTurnRow} from "./groupTurns"
+import {toolSpanLabel} from "./toolSpanLabel"
 import TraceTreeSettings from "./TraceTreeSettings"
 import {TRACE_TREE_DEFAULT_SETTINGS, type TraceTreeSettingsState} from "./traceTreeSettingsTypes"
 import type {TraceTreeProps} from "./traceTreeTypes"
@@ -32,7 +33,7 @@ type TreeNode = TraceSpanNode | TurnNode
 
 const isTurnNode = (node: TreeNode): node is TurnNode => "turn" in node
 
-const TurnRow = ({turn}: {turn: TraceTurnRow}) => {
+const TurnRow = ({turn, showLatency}: {turn: TraceTurnRow; showLatency: boolean}) => {
     const t = useT(valueViewCatalog)
     const label = turn.message ?? t("chat.valueView.turnLabel", {n: turn.index})
     return (
@@ -43,7 +44,7 @@ const TurnRow = ({turn}: {turn: TraceTurnRow}) => {
             <SimpleTooltip title={label}>
                 <span className="min-w-0 flex-1 truncate text-label font-medium">{label}</span>
             </SimpleTooltip>
-            {turn.durationMs !== null ? (
+            {showLatency && turn.durationMs !== null ? (
                 <span className="shrink-0 font-mono text-meta text-muted-foreground tabular-nums">
                     {formatLatency(turn.durationMs / 1000)}
                 </span>
@@ -94,7 +95,8 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
     // Tree after the text search filter (the original behaviour).
     const searchedTree = useMemo(() => {
         if (!searchValue.trim()) return treeRoot
-        const result = filterTree(treeRoot as TraceSpanNode, searchValue)
+        // A tool row shows its step ("Run the tests"), so the search finds that text too.
+        const result = filterTree(treeRoot as TraceSpanNode, searchValue, toolSpanLabel)
         return result || {...treeRoot, children: []}
     }, [searchValue, treeRoot])
 
@@ -132,7 +134,7 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
     const renderTraceLabel = useCallback(
         (node: TreeNode) =>
             isTurnNode(node) ? (
-                <TurnRow turn={node.turn} />
+                <TurnRow turn={node.turn} showLatency={traceTreeSettings.latency} />
             ) : (
                 <TraceRow span={node} metrics={traceTreeSettings} oneLine />
             ),

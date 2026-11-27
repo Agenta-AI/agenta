@@ -96,6 +96,8 @@ const CompactNode = <TNode,>({
         <>
             <div
                 role="treeitem"
+                // The items are siblings in the DOM, so each says its own level.
+                aria-level={depth + 1}
                 aria-selected={nodeKey === selectedKey}
                 aria-expanded={children.length > 0 ? expanded : undefined}
                 className={cn(

@@ -1,7 +1,5 @@
-import {useMemo} from "react"
-
 import {EvaluatorResultRow, ValueViewProvider} from "@agenta/chat/value-view"
-import {isHumanOrigin, summarizeEvaluatorResult} from "@agenta/entities/evaluationRun"
+import {isHumanOrigin} from "@agenta/entities/evaluationRun"
 import {UserAuthorLabel} from "@agenta/entities/shared"
 import {useT} from "@agenta/i18n"
 import spanCatalog from "@agenta/i18n/catalogs/observabilityUi.traceSpan"
@@ -18,24 +16,16 @@ const ORIGIN_KEYS = {
 /**
  * The trace drawer's `AnnotationResultRow` slot on `/m`: one annotation of the span as an
  * evaluator result row, with its origin as the badge and its author as the byline. A human
- * annotation reads True or False. With no run catalog in the trace view, each metric's kind
- * comes from its value.
+ * annotation reads True or False. The summary comes from the drawer, so the row and the
+ * header's "Passed X of Y" read the same one.
  */
 export const TraceAnnotationResultRow = ({
     evaluatorName,
     origin,
-    metrics,
     author,
+    summary,
 }: AnnotationResultRowProps) => {
     const t = useT(spanCatalog)
-    const summary = useMemo(
-        () =>
-            summarizeEvaluatorResult(
-                metrics.map((metric) => ({...metric, kind: null})),
-                "done",
-            ),
-        [metrics],
-    )
     const originWord =
         origin && Object.hasOwn(ORIGIN_KEYS, origin)
             ? t(ORIGIN_KEYS[origin as keyof typeof ORIGIN_KEYS])

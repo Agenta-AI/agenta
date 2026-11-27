@@ -357,7 +357,10 @@ const AccordionTreePanel = ({
     const yamlOutput = useMemo(() => {
         if (panelViewMode !== "yaml") return ""
 
-        const yamlSource = isStringValue ? parsedStructuredString : sanitizedValue
+        // Raw offers YAML for any value: a string that is not JSON is dumped as the string.
+        const yamlSource = isStringValue
+            ? (parsedStructuredString ?? (rawOnly ? sanitizedValue : null))
+            : sanitizedValue
         if (yamlSource === null || yamlSource === undefined) return ""
 
         try {
@@ -370,7 +373,7 @@ const AccordionTreePanel = ({
                     tNow("observabilityUi.traceSpan.unknownError"),
             })
         }
-    }, [panelViewMode, isStringValue, parsedStructuredString, sanitizedValue])
+    }, [panelViewMode, isStringValue, parsedStructuredString, sanitizedValue, rawOnly])
 
     const decodedJsonOutput = useMemo(() => {
         if (panelViewMode !== "decoded-json") return ""

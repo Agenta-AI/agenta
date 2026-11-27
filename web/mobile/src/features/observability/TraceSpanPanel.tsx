@@ -1,11 +1,11 @@
 import {useId, useState} from "react"
 
-import {ValueField, ValueViewProvider, type ValueViewMode} from "@agenta/chat/value-view"
+import {FieldFold, ValueField, ValueViewProvider, type ValueViewMode} from "@agenta/chat/value-view"
 import {useT} from "@agenta/i18n"
 import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
 import spanCatalog from "@agenta/i18n/catalogs/observabilityUi.traceSpan"
 import {AccordionTreePanel} from "@agenta/observability-ui/traceDrawer"
-import {detectValueShape, getStringOrJson, lineCount, unwrapWrapperKey} from "@agenta/shared/utils"
+import {detectValueShape, getStringOrJson, unwrapWrapperKey} from "@agenta/shared/utils"
 import {CopyButton} from "@agenta/ui/components/presentational"
 import {Button, CollapseCaret, Segmented, SkeletonBlock, cn} from "@agenta/ui/ui"
 import {XCircleIcon} from "@phosphor-icons/react"
@@ -40,9 +40,6 @@ const SECTION_TITLES = {
     exception: "observabilityUi.traceSpan.exception",
 } as const
 
-/** A stack trace shows this many lines before "Show stack trace". */
-const STACK_LINES = 3
-
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === "object" && value !== null && !Array.isArray(value)
 
@@ -51,16 +48,10 @@ const text = (value: unknown) => (typeof value === "string" ? value : "")
 /** The span's "exception" event: its type, its message, and the stack folded. */
 const ExceptionBody = ({event}: {event: unknown}) => {
     const t = useT(spanCatalog)
-    const [stackOpen, setStackOpen] = useState(false)
     const attributes = isRecord(event) && isRecord(event.attributes) ? event.attributes : {}
     const type = text(attributes["exception.type"]) || t("observabilityUi.traceSpan.exception")
     const message = text(attributes["exception.message"])
     const stack = text(attributes["exception.stacktrace"])
-    const stackLines = stack ? lineCount(stack) : 0
-    const shownStack =
-        stackOpen || stackLines <= STACK_LINES
-            ? stack
-            : stack.split("\n").slice(0, STACK_LINES).join("\n")
     return (
         <div className="flex flex-col gap-2 rounded-md border border-solid border-destructive/30 bg-destructive/10 p-3">
             <span className="inline-flex items-center gap-1.5 text-label text-destructive">
@@ -69,22 +60,11 @@ const ExceptionBody = ({event}: {event: unknown}) => {
             </span>
             {message ? <div className="whitespace-pre-wrap break-words">{message}</div> : null}
             {stack ? (
-                <pre className="m-0 overflow-x-auto whitespace-pre rounded-md bg-background px-3 py-2 font-mono text-code-sm">
-                    {shownStack}
-                </pre>
-            ) : null}
-            {stackLines > STACK_LINES ? (
-                <Button
-                    type="button"
-                    variant="link"
-                    size="xs"
-                    className="self-start px-0"
-                    onClick={() => setStackOpen((open) => !open)}
-                >
-                    {stackOpen
-                        ? t("observabilityUi.traceSpan.hideStackTrace")
-                        : t("observabilityUi.traceSpan.showStackTrace", {count: stackLines})}
-                </Button>
+                <FieldFold text={stack}>
+                    <pre className="m-0 overflow-x-auto whitespace-pre rounded-md bg-background px-3 py-2 font-mono text-code-sm">
+                        {stack}
+                    </pre>
+                </FieldFold>
             ) : null}
         </div>
     )

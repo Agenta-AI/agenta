@@ -14,18 +14,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 const fixture = vi.hoisted(() => ({
     developerMode: true,
     lookupFails: false,
-    references: [] as Record<string, unknown>[],
 }))
-
-// The references a trace carries; the drawer reads them from the open trace.
-vi.mock("@agenta/observability/traceDrawer", async (importOriginal) => {
-    const actual = await importOriginal<typeof import("@agenta/observability/traceDrawer")>()
-    const {atom} = await import("jotai")
-    return {
-        ...actual,
-        linksAndReferencesAtom: atom(() => ({links: [], references: fixture.references})),
-    }
-})
 
 vi.mock("@agenta/shared/state", async (importOriginal) => {
     const actual = await importOriginal<typeof import("@agenta/shared/state")>()
@@ -56,6 +45,7 @@ vi.mock("@agenta/entities/workflow", async () => {
         workflowMolecule: {
             selectors: {
                 data: (id: string) => atom(revisions[id] ?? null),
+                variantLabel: (id: string) => atom(id === "rev-1" ? "default" : null),
                 query: () => atom({isPending: false, isError: false}),
                 variantLabel: (id: string) => atom(variantNames[id] ?? null),
             },
@@ -97,7 +87,6 @@ const link = () => host.querySelector("a")
 beforeEach(() => {
     fixture.developerMode = true
     fixture.lookupFails = false
-    fixture.references = []
     window.history.replaceState(null, "", "/m/w/ws-1/p/proj-1/observability")
     store = createStore()
     store.set(bindTraceDrawerProjectURLAtom, traceDrawerProjectURLSourceAtom)
@@ -142,13 +131,13 @@ describe("trace drawer references on /m", () => {
             ),
         })
         // The references a playground run sends with its request.
-        fixture.references = [
-            {key: "application", id: "app-1"},
-            {key: "application_variant", id: "app-1-variant"},
-            {key: "application_revision", id: "rev-1", version: "3"},
+        const references = [
+            {id: "app-1", attributes: {key: "application"}},
+            {id: "app-1-variant", attributes: {key: "application_variant"}},
+            {id: "rev-1", version: "3", attributes: {key: "application_revision"}},
         ]
 
-        await render(<TraceReferences />)
+        await render(<TraceReferences span={{references} as never} />)
 
         const links = [...host.querySelectorAll("a")].map((anchor) => [
             anchor.textContent,

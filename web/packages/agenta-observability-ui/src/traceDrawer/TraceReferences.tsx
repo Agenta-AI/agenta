@@ -1,21 +1,54 @@
 import {useT} from "@agenta/i18n"
 import drawerCatalog from "@agenta/i18n/catalogs/observabilityUi.traceDrawer"
+import type {TraceSpanNode} from "@agenta/observability"
 import {useEvaluatorNavigation} from "@agenta/observability/traceDrawer"
-import {linksAndReferencesAtom} from "@agenta/observability/traceDrawer"
-import {useAtomValue} from "jotai"
 
 import {mergeReferenceChips, type TraceReference} from "../references/mergeReferenceChips"
 import {ReferenceChipList} from "../references/ReferenceChipList"
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null && !Array.isArray(value)
+
+const text = (value: unknown): string | null => (typeof value === "string" && value ? value : null)
+
 /**
- * The References section of the side panel: one chip per entity (`ReferenceChipList`). An
- * evaluator chip links to the evaluator page the drawer knows. No section without references.
+ * The references of one span, as stored on the span: the `references` list (each with its key in
+ * `attributes.key`), else the `ag.references` map. Only the span itself: the references of its
+ * annotations (one evaluator each) and of its children are not the span's.
  */
-const TraceReferences = () => {
+export function spanReferences(span: TraceSpanNode | null | undefined): TraceReference[] {
+    if (!span) return []
+    const stored = (span as {references?: unknown}).references
+    if (Array.isArray(stored) && stored.length > 0) {
+        return stored.filter(isRecord).map((reference) => ({
+            key: isRecord(reference.attributes) ? text(reference.attributes.key) : null,
+            id: text(reference.id),
+            slug: text(reference.slug),
+            version: (reference.version as string | number | null | undefined) ?? null,
+        }))
+    }
+    const attributes = (span as {attributes?: unknown}).attributes
+    const ag = isRecord(attributes) && isRecord(attributes.ag) ? attributes.ag : null
+    if (!ag || !isRecord(ag.references)) return []
+    return Object.entries(ag.references)
+        .filter((entry): entry is [string, Record<string, unknown>] => isRecord(entry[1]))
+        .map(([key, reference]) => ({
+            key,
+            id: text(reference.id),
+            slug: text(reference.slug),
+            version: (reference.version as string | number | null | undefined) ?? null,
+        }))
+}
+
+/**
+ * The References section of the side panel: one chip per entity the span references
+ * (`ReferenceChipList`). An evaluator chip links to the evaluator page the drawer knows. No
+ * section without references.
+ */
+const TraceReferences = ({span}: {span: TraceSpanNode | null | undefined}) => {
     const t = useT(drawerCatalog)
-    const linksAndReferences = useAtomValue(linksAndReferencesAtom)
     const {buildEvaluatorTarget} = useEvaluatorNavigation()
-    const references = (linksAndReferences?.references ?? []) as TraceReference[]
+    const references = spanReferences(span)
 
     if (mergeReferenceChips(references).length === 0) return null
 
