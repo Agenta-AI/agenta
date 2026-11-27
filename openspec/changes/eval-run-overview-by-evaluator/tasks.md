@@ -30,12 +30,12 @@ Files: `E/core/evaluatorRows.ts` (new), `E/core/index.ts`, `E/index.ts`, `E/stat
 
 Files: `U/components/presentational/charts/BarChart.tsx`, `types.ts`, `M/overview/MetricsChart.tsx` (new), `M/overview/MetricPicker.tsx` (new), `M/overview/RunOverviewView.tsx`, the catalog `evaluations.runOverview`.
 
-- [ ] 2.1 Add the optional `valueLabel` and `verticalLabels` props to `BarChart` (decision 9). Extend `tests/unit/chartsBar.render.test.tsx`; the other tests of the charts stay as they are.
-- [ ] 2.2 Build `MetricsChart`: chart values from `chartValue`, one series in `var(--data-1)`, `yMax` 1; the radar with `normalized` = `raw` = the value; the note texts of decisions 3, 5 and 10.
-- [ ] 2.3 Build `MetricPicker` (decision 10): `Popover`, `Command`, `Checkbox` rows, "Metrics: {k} of {n}", default 16 lowest, selection kept across polls once changed. Put the two parts in a function that takes a list of runs, so Part C can pass several.
-- [ ] 2.4 Add the `Segmented` switch "Bars" and "Radar", with radar disabled under 3 metrics.
-- [ ] 2.5 Mobile tests in `web/mobile/tests/unit/runMetricsChart.render.test.tsx`: default 16 of 54 lowest first, picker changes the bars, radar disabled under 3, scores off the 0 to 1 scale left out with the count line, categorical and text metrics left out.
-- [ ] 2.6 Acceptance on the dev copy: the chart shows one bar per metric on 0 to 1 with values above the bars; the picker reads "Metrics: k of n" and changes the bars; the switch shows the radar with 3 metrics or more and is disabled with 2.
+- [x] 2.1 Add the optional `valueLabel` and `verticalLabels` props to `BarChart` (decision 9). Extend `tests/unit/chartsBar.render.test.tsx`; the other tests of the charts stay as they are.
+- [x] 2.2 Build `MetricsChart`: chart values from `chartValue`, one series in `var(--data-1)`, `yMax` 1; the radar with `normalized` = `raw` = the value; the note texts of decisions 3, 5 and 10.
+- [x] 2.3 Build `MetricPicker` (decision 10): `Popover`, `Command`, `Checkbox` rows, "Metrics: {k} of {n}", default 16 lowest, selection kept across polls once changed. Put the two parts in a function that takes a list of runs, so Part C can pass several.
+- [x] 2.4 Add the `Segmented` switch "Bars" and "Radar", with radar disabled under 3 metrics.
+- [x] 2.5 Mobile tests in `web/mobile/tests/unit/runMetricsChart.render.test.tsx`: default 16 of 54 lowest first, picker changes the bars, radar disabled under 3, scores off the 0 to 1 scale left out with the count line, categorical and text metrics left out.
+- [x] 2.6 Acceptance on the dev copy: the chart shows one bar per metric on 0 to 1 with values above the bars; the picker reads "Metrics: k of n" and changes the bars; the switch shows the radar with 3 metrics or more and is disabled with 2.
 
 ## 3. Part C: compare view of the same shape (on A; uses B's chart when B is merged)
 
