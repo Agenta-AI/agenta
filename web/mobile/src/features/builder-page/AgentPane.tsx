@@ -122,8 +122,12 @@ export const AgentPane = ({
             dirty,
         })
         if (action === "show") {
-            setTab("agent")
-            setAgentDot(false)
+            // The tab's open (clean) views close first, as on a tab switch, so Agent shows.
+            void (async () => {
+                if (guardRef.current && !(await guardRef.current.stack.closeAll())) return
+                setTab("agent")
+                setAgentDot(false)
+            })()
         } else if (action === "dot") setAgentDot(true)
         // Only a new save is followed; the pane tab on screen is read at that moment.
         // eslint-disable-next-line react-hooks/exhaustive-deps
