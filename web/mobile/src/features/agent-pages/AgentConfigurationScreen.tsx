@@ -6,6 +6,7 @@ import agentLayoutPanelCatalog from "@agenta/i18n/catalogs/agentLayout.panel"
 import agentPagesPageCatalog from "@agenta/i18n/catalogs/agentPages.page"
 import agentSidebarCatalog from "@agenta/i18n/catalogs/agentSidebar"
 import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
+import {AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
 import {composerPrefillRequestAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {PhoneScreenHeader, useIsPhone} from "@agenta/ui/phone"
@@ -124,7 +125,23 @@ export const AgentConfigurationScreen = ({
                 width="md"
                 title={configuration}
                 description={t("agentPages.page.configurationDescription")}
-                actions={<AgentBuilderButton />}
+                actions={
+                    <>
+                        {/* Quiet: Update to vN for a newer version, or a failed save's retry. */}
+                        {revisionId && tab !== "access" ? (
+                            <AgentRevisionStatus
+                                quiet
+                                revisionId={revisionId}
+                                historyWorkflowId={agentId}
+                                onUpdate={pin}
+                                // An open view may edit the held version, so it never moves under it.
+                                autoUpdate={!viewsOpen}
+                                phone={phone}
+                            />
+                        ) : null}
+                        <AgentBuilderButton />
+                    </>
+                }
                 screen={screen}
                 // Inside an item its own crumb and footer are the header (no page head over it).
                 headClassName={viewsOpen ? "hidden" : undefined}

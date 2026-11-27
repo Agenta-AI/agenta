@@ -66,6 +66,8 @@ export interface AgentRevisionStatusProps {
     phone?: boolean
     /** On a phone, the name of the screen the history's back arrow returns to. */
     backTitle?: string
+    /** Only what needs the person: "Update to vN" and a failed save's retry; nothing at rest. */
+    quiet?: boolean
     className?: string
 }
 
@@ -87,6 +89,7 @@ export const AgentRevisionStatus = ({
     checkKey,
     phone = false,
     backTitle,
+    quiet = false,
     className,
 }: AgentRevisionStatusProps) => {
     const t = useT(headerCatalog, revisionStatusCatalog)
@@ -250,6 +253,44 @@ export const AgentRevisionStatus = ({
             </button>
         ) : null
 
+    const statusControl = (
+        <StatusWrap tip={failed ? dot.tip : null}>
+            <span
+                role={failed ? "button" : undefined}
+                tabIndex={failed ? 0 : undefined}
+                aria-label={failed ? t("playground.agentHeader.retrySaving") : undefined}
+                onClick={failed ? () => void retrySave({revisionId}) : undefined}
+                onKeyDown={
+                    failed
+                        ? (event) => {
+                              if (event.key !== "Enter" && event.key !== " ") return
+                              event.preventDefault()
+                              void retrySave({revisionId})
+                          }
+                        : undefined
+                }
+                className={cn(
+                    "flex items-center gap-1.5 text-meta text-muted-foreground",
+                    failed && "cursor-pointer",
+                    failed && "",
+                )}
+            >
+                {statusBody}
+            </span>
+        </StatusWrap>
+    )
+
+    if (quiet) {
+        if (!updatePill && !failed && !historyDrawer) return null
+        return (
+            <div className={`flex items-center gap-2 ${className ?? ""}`}>
+                {updatePill}
+                {failed ? statusControl : null}
+                {historyDrawer}
+            </div>
+        )
+    }
+
     return (
         <div className={`flex items-center gap-2 ${className ?? ""}`}>
             {merged ? (
@@ -347,32 +388,7 @@ export const AgentRevisionStatus = ({
             {historyDrawer}
 
             {/* Tooltip only on failure: there it carries the error and the retry hint. */}
-            {merged ? null : (
-                <StatusWrap tip={failed ? dot.tip : null}>
-                    <span
-                        role={failed ? "button" : undefined}
-                        tabIndex={failed ? 0 : undefined}
-                        aria-label={failed ? t("playground.agentHeader.retrySaving") : undefined}
-                        onClick={failed ? () => void retrySave({revisionId}) : undefined}
-                        onKeyDown={
-                            failed
-                                ? (event) => {
-                                      if (event.key !== "Enter" && event.key !== " ") return
-                                      event.preventDefault()
-                                      void retrySave({revisionId})
-                                  }
-                                : undefined
-                        }
-                        className={cn(
-                            "flex items-center gap-1.5 text-meta text-muted-foreground",
-                            failed && "cursor-pointer",
-                            failed && "",
-                        )}
-                    >
-                        {statusBody}
-                    </span>
-                </StatusWrap>
-            )}
+            {merged ? null : statusControl}
         </div>
     )
 }
