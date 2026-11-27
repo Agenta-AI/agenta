@@ -27,7 +27,7 @@ export function BooleanField({item, stringValue, fullPath, setValue, valueMode}:
             />
             {/* The JSON value itself, not a word: it reads the same in every language. */}
             {/* eslint-disable-next-line agenta-i18n/no-hardcoded-text */}
-            <span className="text-xs text-colorTextSecondary">{boolValue ? "true" : "false"}</span>
+            <span className="text-meta text-muted-foreground">{boolValue ? "true" : "false"}</span>
         </div>
     )
 }

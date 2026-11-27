@@ -7,7 +7,6 @@
     "noSkillsYet": "还没有 Skill",
     "newSkill": "新 Skill",
     "locked": "已锁定",
-    "remove": "移除",
     "wordCount_other": "{{count}} 个词",
     "empty": "空",
     "entriesOpenIntegration": "{{count}} 个条目，请打开该集成。",
@@ -50,7 +49,5 @@
     "countServer_other": "{{count}} 个服务器",
     "countSkill_other": "{{count}} 个 Skill",
     "countTool_other": "{{count}} 个工具",
-    "change": "更改",
-    "policyHint": "Agent 无需询问即可执行的操作",
-    "modelVia": "通过 {{harness}}"
+    "removeName": "移除 {{name}}"
 }

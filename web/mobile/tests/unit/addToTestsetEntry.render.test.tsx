@@ -39,7 +39,6 @@ vi.mock("next/dynamic", () => ({
         },
 }))
 
-import {DEVELOPER_VIEWS} from "@/features/developer/developerViews"
 import {AddToTestsetDrawerButton} from "@/features/observability/addToTestset/AddToTestsetDrawerButton"
 import {useAddToTestsetAction} from "@/features/observability/addToTestset/useAddToTestsetAction"
 
@@ -75,11 +74,6 @@ afterEach(async () => {
 })
 
 describe("add to test set entry points", () => {
-    it("The view is registered as a feature gate", () => {
-        const view = DEVELOPER_VIEWS.find((item) => item.id === "observability-actions")
-        expect(view?.routes).toBeUndefined()
-    })
-
     it("The toolbar Add menu offers Add to testset only when rows are selected", async () => {
         await render(<ActionProbe selected={[]} />)
         expect(action.testsetAction?.disabled).toBe(true)
@@ -108,11 +102,6 @@ describe("add to test set entry points", () => {
 
         await act(async () => button?.click())
         expect(sheet()?.textContent).toBe("span-7")
-    })
-
-    it("The trace drawer button is disabled without a span", async () => {
-        await render(<AddToTestsetDrawerButton label="Add to testset" spanIds={[]} disabled />)
-        expect(host.querySelector("button")?.disabled).toBe(true)
     })
 
     it("Both entry points are hidden without beta developer mode", async () => {

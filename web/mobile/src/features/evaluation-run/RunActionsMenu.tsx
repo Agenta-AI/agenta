@@ -32,7 +32,7 @@ export const RunActionsMenu = ({
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <Button type="button" size="icon-sm" variant="ghost" aria-label="Run actions">
-                        <DotsThreeVertical aria-hidden size={18} weight="bold" />
+                        <DotsThreeVertical aria-hidden size={18} />
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">

@@ -6,7 +6,7 @@
  */
 import {createElement, type ReactNode} from "react"
 
-import {act, render} from "@testing-library/react"
+import {act, cleanup, fireEvent, render, screen} from "@testing-library/react"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
 const pin = vi.hoisted(() => vi.fn())
@@ -45,18 +45,24 @@ vi.mock("@agenta/ui/view-stack", async (importOriginal) => ({
 
 import {AgentPane} from "@/features/builder-page/AgentPane"
 
-const pane = (save: {toolCallId: string; revisionId: string} | null) =>
+const pane = (
+    save: {toolCallId: string; revisionId: string} | null,
+    guardRef: {current: unknown} = {current: null},
+) =>
     createElement(AgentPane, {
         agentId: "agent-a",
         builderSaveToolCallId: save?.toolCallId ?? null,
         builderSaveRevisionId: save?.revisionId ?? null,
-        guardRef: {current: null},
+        guardRef: guardRef as never,
         builderSessionId: "chat-1",
         workspaceId: "w",
         projectId: "p",
     })
 
-afterEach(() => pin.mockClear())
+afterEach(() => {
+    cleanup()
+    pin.mockClear()
+})
 
 describe("AgentPane follows a builder save", () => {
     it("pins a save that arrived before the pane mounted", () => {
@@ -71,5 +77,35 @@ describe("AgentPane follows a builder save", () => {
         act(() => view.rerender(pane({toolCallId: "c1", revisionId: "rev-1"})))
         expect(pin).toHaveBeenCalledTimes(1)
         expect(pin).toHaveBeenCalledWith("rev-1")
+    })
+})
+
+describe("AgentPane auto-follow with an open view", () => {
+    const guard = (closes: boolean) => ({
+        current: {stack: {dirty: false, closeAll: vi.fn(async () => closes)}, allowNext: vi.fn()},
+    })
+    const selected = () => screen.getByRole("tab", {selected: true}).textContent
+
+    it("closes the open clean view, then shows Agent", async () => {
+        const guardRef = guard(true)
+        const view = render(pane(null, guardRef))
+        await act(async () => fireEvent.click(screen.getByRole("tab", {name: /Automations/})))
+        expect(selected()).toMatch(/Automations/)
+        await act(async () =>
+            view.rerender(pane({toolCallId: "c1", revisionId: "rev-1"}, guardRef)),
+        )
+        expect(guardRef.current.stack.closeAll).toHaveBeenCalledTimes(2)
+        expect(selected()).toMatch(/Agent/)
+    })
+
+    it("stays on the tab when the view refuses to close", async () => {
+        const guardRef = guard(true)
+        const view = render(pane(null, guardRef))
+        await act(async () => fireEvent.click(screen.getByRole("tab", {name: /Automations/})))
+        guardRef.current.stack.closeAll.mockResolvedValue(false)
+        await act(async () =>
+            view.rerender(pane({toolCallId: "c1", revisionId: "rev-1"}, guardRef)),
+        )
+        expect(selected()).toMatch(/Automations/)
     })
 })

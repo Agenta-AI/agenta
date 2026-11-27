@@ -7,8 +7,17 @@
 
 import React, {useMemo, useCallback, useEffect, useState} from "react"
 
-import {EnhancedModal} from "@agenta/ui/components/modal"
-import {Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/ui/ui"
+import {
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    Tabs,
+    TabsContent,
+    TabsList,
+    TabsTrigger,
+} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {resolveAdapter} from "../adapters/createAdapter"
@@ -105,9 +114,7 @@ export interface EntitySelectorModalProps {
 export function EntitySelectorModal({
     width = 600,
     zIndex,
-    mask = true,
     maskClosable = true,
-    centered = true,
     className,
     footer = null,
 }: EntitySelectorModalProps) {
@@ -179,41 +186,45 @@ export function EntitySelectorModal({
     }
 
     return (
-        <EnhancedModal
-            open={isOpen}
-            title={title}
-            onCancel={handleCancel}
-            width={width}
-            zIndex={zIndex}
-            mask={mask}
-            maskClosable={maskClosable}
-            centered={centered}
-            className={className}
-            footer={footer}
-        >
-            {tabItems.length > 1 ? (
-                <Tabs value={activeTabKey} onValueChange={handleTabChange}>
-                    <TabsList>
+        <Dialog open={isOpen} onOpenChange={(next) => !next && handleCancel()}>
+            <DialogContent
+                className={className}
+                style={{maxWidth: width, ...(zIndex != null ? {zIndex} : {})}}
+                onPointerDownOutside={(e) => {
+                    if (!maskClosable) e.preventDefault()
+                }}
+                onInteractOutside={(e) => {
+                    if (!maskClosable) e.preventDefault()
+                }}
+            >
+                <DialogHeader>
+                    <DialogTitle>{title}</DialogTitle>
+                </DialogHeader>
+                {tabItems.length > 1 ? (
+                    <Tabs value={activeTabKey} onValueChange={handleTabChange}>
+                        <TabsList>
+                            {tabItems.map((tab) => (
+                                <TabsTrigger key={tab.key} value={tab.key}>
+                                    {tab.label}
+                                </TabsTrigger>
+                            ))}
+                        </TabsList>
                         {tabItems.map((tab) => (
-                            <TabsTrigger key={tab.key} value={tab.key}>
-                                {tab.label}
-                            </TabsTrigger>
+                            <TabsContent
+                                key={tab.key}
+                                value={tab.key}
+                                forceMount={visitedTabs.includes(tab.key) || undefined}
+                            >
+                                {tab.children}
+                            </TabsContent>
                         ))}
-                    </TabsList>
-                    {tabItems.map((tab) => (
-                        <TabsContent
-                            key={tab.key}
-                            value={tab.key}
-                            forceMount={visitedTabs.includes(tab.key) || undefined}
-                        >
-                            {tab.children}
-                        </TabsContent>
-                    ))}
-                </Tabs>
-            ) : tabItems.length === 1 ? (
-                tabItems[0].children
-            ) : null}
-        </EnhancedModal>
+                    </Tabs>
+                ) : tabItems.length === 1 ? (
+                    tabItems[0].children
+                ) : null}
+                {footer != null ? <DialogFooter>{footer}</DialogFooter> : null}
+            </DialogContent>
+        </Dialog>
     )
 }
 

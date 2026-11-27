@@ -31,7 +31,7 @@ afterEach(() => {
 const roleClasses = () =>
     Array.from(host.querySelectorAll("span.capitalize")).map((span) => [
         span.textContent,
-        span.className.split(" ").find((name) => name.startsWith("text-") && name !== "text-xs"),
+        span.className.split(" ").find((name) => name.startsWith("text-") && name !== "text-label"),
     ])
 
 describe("role label colors", () => {
@@ -60,9 +60,9 @@ describe("role label colors", () => {
             ),
         )
         expect(roleClasses()).toEqual([
-            ["system", "text-colorWarning"],
-            ["user", "text-colorInfo"],
-            ["assistant", "text-colorSuccess"],
+            ["system", "text-warning"],
+            ["user", "text-info"],
+            ["assistant", "text-success"],
         ])
     })
 })

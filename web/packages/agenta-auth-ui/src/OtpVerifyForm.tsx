@@ -3,13 +3,12 @@ import {useEffect, useRef, useState, type FormEvent} from "react"
 import {clearEmailCodeAttempt, resendEmailCode, submitEmailCodeDetailed} from "@agenta/auth"
 import {useT} from "@agenta/i18n"
 import otpVerifyCatalog from "@agenta/i18n/catalogs/auth.otpVerify"
-import {Button} from "@agenta/ui/ui"
+import {Button, Spinner} from "@agenta/ui/ui"
 import {
     ArrowClockwise,
     ArrowLeft,
     ArrowUpRight,
     CheckCircle,
-    CircleNotch,
     PaperPlaneTilt,
     Tray,
 } from "@phosphor-icons/react"
@@ -180,8 +179,8 @@ export const OtpVerifyForm = ({
     }
 
     return (
-        <div className="flex w-full flex-col gap-[22px]">
-            <form className="flex w-full flex-col gap-[10px]" onSubmit={submit} noValidate>
+        <div className="flex w-full flex-col gap-6">
+            <form className="flex w-full flex-col gap-2" onSubmit={submit} noValidate>
                 <div className={shakeClass}>
                     <OtpInput
                         ref={inputRef}
@@ -196,7 +195,7 @@ export const OtpVerifyForm = ({
                 </div>
                 {status === "verifying" ? (
                     <p className={STATUS_TEXT_CLASS}>
-                        <CircleNotch size={14} className="motion-safe:animate-spin" />
+                        <Spinner aria-hidden size="small" />
                         {t("auth.otpVerify.verifying")}
                     </p>
                 ) : status === "verified" ? (
@@ -214,12 +213,12 @@ export const OtpVerifyForm = ({
                 ) : null}
             </form>
 
-            <div className="flex items-center justify-between gap-2 border-0 border-t border-solid border-colorSplit pt-3.5">
+            <div className="flex items-center justify-between gap-2 border-0 border-t border-solid border-border-muted pt-3.5">
                 <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="-ml-2 text-[13px] text-muted-foreground hover:text-foreground"
+                    className="-ml-2 text-label text-muted-foreground hover:text-foreground"
                     onClick={restart}
                 >
                     <ArrowLeft size={14} />
@@ -229,7 +228,7 @@ export const OtpVerifyForm = ({
                     type="button"
                     variant="outline"
                     size="xs"
-                    className="rounded-lg text-xs font-medium tabular-nums"
+                    className="rounded-md text-label tabular-nums"
                     disabled={resendIn > 0 || status !== "idle"}
                     onClick={resend}
                 >
@@ -247,14 +246,14 @@ export const OtpVerifyForm = ({
                     href={inbox[1]}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="auth-rise flex items-start gap-3 rounded-[10px] border border-solid border-colorSplit bg-muted px-4 py-3.5 leading-5 text-foreground no-underline outline-none transition-colors hover:border-ring focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-[color:var(--ag-controlOutline)]"
+                    className="auth-rise flex items-start gap-3 rounded-lg border border-solid border-border-muted bg-muted px-4 py-3.5 leading-5 text-foreground no-underline outline-none transition-colors hover:border-ring focus-visible:border-ring focus-ring"
                 >
                     <Tray size={18} className="mt-px flex-none text-muted-foreground" />
                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <span className="text-sm font-medium">
+                        <span className="text-label">
                             {t("auth.otpVerify.openInbox", {inbox: inbox[0]})}
                         </span>
-                        <span className="truncate text-[13px] text-muted-foreground">
+                        <span className="truncate text-label text-muted-foreground">
                             {t("auth.otpVerify.sentTo", {email})}
                         </span>
                     </span>

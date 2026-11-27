@@ -47,7 +47,7 @@ const EventOptionLabel = ({eventType, label}: {eventType: string; label: string}
         <span className="truncate">{label}</span>
         <span
             data-event-raw
-            className="truncate font-mono text-[11px] font-normal text-muted-foreground"
+            className="truncate font-mono text-caption font-normal text-muted-foreground"
         >
             {eventType}
         </span>

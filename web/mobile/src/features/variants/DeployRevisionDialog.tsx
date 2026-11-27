@@ -105,16 +105,16 @@ export const DeployRevisionDialog = ({
                         <Skeleton className="h-9 w-full" />
                     </div>
                 ) : environments.isError ? (
-                    <p className="m-0 text-sm text-destructive">Couldn't load the environments</p>
+                    <p className="m-0 text-body text-destructive">Couldn't load the environments</p>
                 ) : choices.length === 0 ? (
-                    <p className="m-0 text-sm text-muted-foreground">No environments</p>
+                    <p className="m-0 text-body text-muted-foreground">No environments</p>
                 ) : (
                     <RadioGroup
                         value={picked ?? ""}
                         onValueChange={setPicked}
                         aria-label="Environment"
                     >
-                        <div className="grid grid-cols-[1fr_1fr] gap-x-3 px-1 text-xs text-muted-foreground">
+                        <div className="grid grid-cols-[1fr_1fr] gap-x-3 px-1 text-meta text-muted-foreground">
                             <span>Environment</span>
                             <span>Current variant</span>
                         </div>
@@ -129,7 +129,7 @@ export const DeployRevisionDialog = ({
                                 </span>
                                 {beta && entry.variantName ? (
                                     <VariantDetailsWithStatus
-                                        className="min-w-0 justify-start text-sm"
+                                        className="min-w-0 justify-start"
                                         variantName={entry.variantName}
                                         revision={entry.revision}
                                         showRevisionAsTag
@@ -137,7 +137,7 @@ export const DeployRevisionDialog = ({
                                         showLatestTag={false}
                                     />
                                 ) : (
-                                    <span className="truncate text-sm text-muted-foreground">
+                                    <span className="truncate text-label text-muted-foreground">
                                         {entry.current}
                                     </span>
                                 )}

@@ -14,10 +14,12 @@ export const EmbedGreeting = ({
     <div className="flex flex-col gap-3 p-1">
         <div className="flex flex-col items-start gap-2">
             <EmbedAvatar appearance={appearance} large />
-            <span className="text-sm font-semibold text-foreground">{appearance.name}</span>
+            <span className="text-title text-foreground">{appearance.name}</span>
         </div>
         {appearance.greeting ? (
-            <p className="m-0 whitespace-pre-line text-sm text-foreground">{appearance.greeting}</p>
+            <p className="m-0 whitespace-pre-line text-body text-foreground">
+                {appearance.greeting}
+            </p>
         ) : null}
         {appearance.starters.length ? (
             <div className="flex flex-col items-start gap-2">
@@ -26,7 +28,7 @@ export const EmbedGreeting = ({
                         key={starter}
                         type="button"
                         disabled={disabled}
-                        className="max-w-full cursor-pointer rounded-2xl border border-solid border-border bg-background px-3 py-1.5 text-left text-sm text-foreground transition-colors hover:border-primary hover:bg-accent disabled:cursor-default disabled:opacity-50"
+                        className="max-w-full cursor-pointer rounded-md border border-solid border-border bg-background px-3 py-1.5 text-left text-label text-foreground transition-colors hover:bg-accent focus-ring disabled:cursor-default disabled:opacity-50"
                         onClick={() => onStarter(starter)}
                     >
                         {starter}

@@ -6,14 +6,21 @@ import {
     useTriggerConnectionsQuery,
 } from "@agenta/entities/gatewayTrigger"
 import {createT, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import triggerConnectCatalog from "@agenta/i18n/catalogs/entityUi.triggerConnect"
 import {getAgentaApiUrl, getAgentaWebUrl, getHostQueryClient} from "@agenta/shared/api"
 import {defaultConnectionName, generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
-import {EnhancedModal, message, ModalContent, ModalFooter} from "@agenta/ui"
+import {message} from "@agenta/ui"
 import {
+    Button,
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
     Divider,
     Field,
     Input,
+    LoadingButton,
     Select,
     SelectContent,
     SelectItem,
@@ -97,6 +104,7 @@ export default function TriggerConnectDrawer({
     container = null,
 }: Props) {
     const t = useT(triggerConnectCatalog)
+    const tCommon = useT(commonCatalog)
     const [loading, setLoading] = useState(false)
     const nameTouchedRef = useRef(false)
     const slugSuffixRef = useRef(randomAlphanumeric(3))
@@ -233,17 +241,18 @@ export default function TriggerConnectDrawer({
     }, [slug, name, selectedMode, integrationKey, handleClose, onSuccess])
 
     return (
-        <EnhancedModal
-            open={open}
-            onCancel={handleClose}
-            title={t("entityUi.triggerConnect.connectTo", {name: integrationName})}
-            footer={null}
-            width={480}
-            destroyOnClose
-            getContainer={container ?? false}
-            contained={!!container}
-        >
-            <ModalContent>
+        // Contained runs non-modal: the host drawer already traps focus.
+        <Dialog open={open} onOpenChange={(next) => !next && handleClose()} modal={!container}>
+            <DialogContent
+                container={container ?? undefined}
+                contained={!!container}
+                className="max-w-[480px]"
+            >
+                <DialogHeader>
+                    <DialogTitle>
+                        {t("entityUi.triggerConnect.connectTo", {name: integrationName})}
+                    </DialogTitle>
+                </DialogHeader>
                 <div className="flex items-center gap-3">
                     {integrationLogo && (
                         <Image
@@ -258,7 +267,7 @@ export default function TriggerConnectDrawer({
                     <div className="flex flex-col min-w-0">
                         <span className="font-semibold leading-snug">{integrationName}</span>
                         {integrationDescription && (
-                            <span className="text-xs line-clamp-2 text-[var(--ag-colorTextDescription)]">
+                            <span className="text-meta line-clamp-2 text-muted-foreground">
                                 {integrationDescription}
                             </span>
                         )}
@@ -319,13 +328,15 @@ export default function TriggerConnectDrawer({
 
                 <Divider className="m-0" />
 
-                <ModalFooter
-                    onCancel={handleClose}
-                    onConfirm={handleSubmit}
-                    confirmLabel={t("entityUi.triggerConnect.connect")}
-                    isLoading={loading}
-                />
-            </ModalContent>
-        </EnhancedModal>
+                <div className="flex w-full items-center justify-end gap-2">
+                    <Button variant="outline" onClick={handleClose} disabled={loading}>
+                        {tCommon("common.cancel")}
+                    </Button>
+                    <LoadingButton loading={loading} onClick={handleSubmit}>
+                        {t("entityUi.triggerConnect.connect")}
+                    </LoadingButton>
+                </div>
+            </DialogContent>
+        </Dialog>
     )
 }

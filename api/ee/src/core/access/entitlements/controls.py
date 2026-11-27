@@ -14,7 +14,9 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from oss.src.utils.env import env
+from oss.src.utils.logging import get_module_logger
 
+from ee.src.core.licenses.cloud import is_cloud
 from ee.src.core.access.entitlements.types import (
     Category,
     Counter,
@@ -27,6 +29,14 @@ from ee.src.core.access.entitlements.types import (
     Tracker,
 )
 
+log = get_module_logger(__name__)
+
+# Outside cloud, the plans an instance gets without a paid key: no valid key, or a
+# free registration key. Env settings cannot change their flags.
+FREE_SELF_HOSTED_PLANS = (
+    DefaultPlan.SELF_HOSTED_COMMUNITY.value,
+    DefaultPlan.SELF_HOSTED_REGISTERED.value,
+)
 
 # ---------------------------------------------------------------------------
 # Override schemas
@@ -305,16 +315,18 @@ def _apply_default_plan_overlay(
     return plans, descriptions
 
 
-def _resolve_default_plan_slug(plans: Dict[str, Dict[Tracker, Any]]) -> str:
-    """Resolve the default plan slug for overlay targeting.
+def _resolve_overlay_target_plan_slug(plans: Dict[str, Dict[Tracker, Any]]) -> str:
+    """The plan `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` patches.
 
-    Mirrors `subscriptions.types.get_default_plan()` without importing it (to
-    avoid pulling subscription/Stripe code into the access-controls layer).
+    `AGENTA_ACCESS_DEFAULT_PLAN` when set; else `cloud_v0_hobby` on cloud and
+    `self_hosted_enterprise` (the plan of a paid key) outside cloud. Outside cloud this is
+    not the plan stored for new subscriptions (`get_default_plan()`), which is
+    `self_hosted_community`.
     """
     raw = env.agenta.access.default_plan
     if raw:
         return raw
-    if env.stripe.enabled:
+    if is_cloud():
         return DefaultPlan.CLOUD_V0_HOBBY.value
     return DefaultPlan.SELF_HOSTED_ENTERPRISE.value
 
@@ -345,11 +357,34 @@ def build_plan_controls() -> tuple[Dict[str, Dict[Tracker, Any]], Dict[str, str]
     plan_overlay_source = "none"
     if plan_overlay_payload is not None:
         plan_overlay = _parse_default_plan_overlay(plan_overlay_payload)
-        default_plan_slug = _resolve_default_plan_slug(plans)
+        default_plan_slug = _resolve_overlay_target_plan_slug(plans)
         plans, descriptions = _apply_default_plan_overlay(
             plans, descriptions, plan_overlay, default_plan_slug
         )
         plan_overlay_source = f"env→{default_plan_slug}"
 
+    if not is_cloud():
+        plans = _lock_free_self_hosted_plans(plans)
+        if env.agenta.access.default_plan:
+            log.warning(
+                "[access-controls] AGENTA_ACCESS_DEFAULT_PLAN has no effect outside "
+                "cloud: the plan comes from the license key"
+            )
+
     source = f"plans={plans_source} plan_overlay={plan_overlay_source}"
     return plans, descriptions, source
+
+
+def _lock_free_self_hosted_plans(
+    plans: Dict[str, Dict[Tracker, Any]],
+) -> Dict[str, Dict[Tracker, Any]]:
+    """Keep the free self-hosted plans in the map with the flags of the code table,
+    whatever `AGENTA_ACCESS_PLANS` or the default-plan overlay say, so no env setting
+    unlocks an enterprise feature without a paid license key."""
+    plans = dict(plans)
+    defaults = _default_plans()
+    for slug in FREE_SELF_HOSTED_PLANS:
+        entry = dict(plans.get(slug) or defaults[slug])
+        entry[Tracker.FLAGS] = dict(defaults[slug][Tracker.FLAGS])
+        plans[slug] = entry
+    return plans

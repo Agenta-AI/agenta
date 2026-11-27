@@ -112,10 +112,6 @@ vi.mock("@agenta/entities/workflow", async () => {
 vi.mock("@agenta/entity-ui/agent", () => ({AgentIntroCard: () => null}))
 vi.mock("@agenta/entity-ui/needs-setup", () => ({modelSetupPlaceholder: () => ""}))
 vi.mock("@agenta/entity-ui/clientTools", () => ({SecretRequestDock: () => null}))
-vi.mock("@agenta/entity-ui/onboarding", () => ({PersonalAccountsCard: () => null}))
-vi.mock("@/features/chat/usePersonalSetupStep", () => ({
-    usePersonalSetupStep: () => ({open: false, items: [], pendingKeys: new Set()}),
-}))
 vi.mock("@agenta/shared/utils", () => ({isOnScreen: () => true, isOverlayOpen: () => false}))
 vi.mock("@agenta/ui/app-message", () => ({message: {warning: vi.fn()}, modal: {}}))
 vi.mock("@agenta/ui/components/presentational", () => ({ChatBubble: () => null}))

@@ -255,39 +255,6 @@ describe("restoreRefusedSend for a send carrying attachments", () => {
     })
 })
 
-describe("restoreHeldRefusedSend has no row to fall back on", () => {
-    const emptyEditor = () => {
-        let markdown = ""
-        return {
-            getMarkdown: () => markdown,
-            setMarkdown: vi.fn((next: string) => {
-                markdown = next
-            }),
-        } as never
-    }
-
-    it("places what it can when the send carried files the tray cannot take back", async () => {
-        // The early rejection already dropped the echo row, so refusing here would leave the
-        // message in no visible place at all. The words go back; the files are already lost.
-        const restoreAttachments = vi.fn()
-        const slot = {
-            current: {text: "with a file", stagedFiles: [], fileParts: [{type: "file"}]} as never,
-        }
-        const editor = emptyEditor()
-
-        expect(await restoreHeldRefusedSend(slot, editor, restoreAttachments)).toBe(true)
-        expect(slot.current).toBeUndefined()
-    })
-
-    it("still keeps the send held behind a newer draft", async () => {
-        const slot = {current: {text: "refused", stagedFiles: []} as never}
-        const editor = {getMarkdown: () => "newer draft", setMarkdown: vi.fn()} as never
-
-        expect(await restoreHeldRefusedSend(slot, editor, vi.fn())).toBe(false)
-        expect(slot.current).toBeDefined()
-    })
-})
-
 /**
  * The live defect, at the helper. The desktop composer is Lexical, and `setMarkdown` schedules the
  * write rather than applying it, so reading the editor back in the calling tick answers "no" for a

@@ -2,6 +2,7 @@ import re
 from fnmatch import fnmatchcase
 
 from ee.src.core.access.controls import get_plan_entitlements, get_plans
+from ee.src.core.access.entitlements.service import plan_for
 from ee.src.core.access.entitlements.types import (
     ENDPOINTS,
     Category,
@@ -10,13 +11,11 @@ from ee.src.core.access.entitlements.types import (
     Throttle,
     Tracker,
 )
-from ee.src.core.subscriptions.service import SubscriptionsService
+from ee.src.core.licenses.cloud import is_cloud
 from ee.src.core.subscriptions.settings import get_free_plan
-from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from oss.src.middlewares.auth import SECRET_RESOLVE_GRANT, request_has_grant
-from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.throttling import Algorithm, check_throttles
@@ -26,10 +25,6 @@ log = get_module_logger(__name__)
 # Per-process warn-once flags; races may dupe a warning, never breaks routing.
 _warned_no_throttles = False
 _warned_fallback_pairs: set[tuple[str | None, str | None]] = set()
-
-subscriptions_service = SubscriptionsService(
-    subscriptions_dao=SubscriptionsDAO(),
-)
 
 
 def _normalize_path(request: Request) -> str:
@@ -204,34 +199,9 @@ def _throttle_suffix(
 
 
 async def _get_plan(organization_id: str) -> str | None:
-    cache_key = {
-        "organization_id": organization_id,
-    }
-
-    subscription_data = await get_cache(
-        namespace="entitlements:subscription",
-        key=cache_key,
-    )
-
-    if subscription_data is None:
-        subscription = await subscriptions_service.read(
-            organization_id=organization_id,
-        )
-
-        if not subscription:
-            return None
-
-        subscription_data = {
-            "plan": subscription.plan,
-        }
-
-        await set_cache(
-            namespace="entitlements:subscription",
-            key=cache_key,
-            value=subscription_data,
-        )
-
-    plan = subscription_data.get("plan") if subscription_data else None
+    # The entitlements own the shared `entitlements:subscription` cache entry and
+    # apply the instance plan outside cloud.
+    plan = await plan_for(organization_id)
     if not plan:
         return None
 
@@ -284,6 +254,11 @@ async def _plan_checks(
     plan = await _get_plan(organization_id)
 
     entitlements = get_plan_entitlements(plan) if plan else None
+
+    # The free plan is a cloud plan. Self-hosted, an organization with no plan, an
+    # unknown plan or a plan without throttles has none.
+    if not is_cloud() and not (entitlements or {}).get(Tracker.THROTTLES):
+        return [], Algorithm.GCRA
 
     # Unknown plan or plan without enforced throttles: fall back to the free
     # plan's throttle bucket so misconfigured / orphaned subscriptions still

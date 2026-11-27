@@ -12,9 +12,9 @@ import {
 import {AddActionsDropdown, deleteTraceModalAtom} from "@agenta/observability-ui"
 import {PageLayout} from "@agenta/ui"
 import {useIsNarrowScreen} from "@agenta/ui/hooks"
+import {ChatsIcon, NetworkIcon} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
 import {useSetAtom} from "jotai"
-import {MessagesSquare, Network} from "lucide-react"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
@@ -66,7 +66,7 @@ const TabLabel = ({tab}: {tab: ObservabilityTab}) => {
     const t = useT(screenCatalog)
     return (
         <span className="flex items-center gap-2">
-            {tab === "traces" ? <Network size={16} /> : <MessagesSquare size={16} />}
+            {tab === "traces" ? <NetworkIcon size={16} /> : <ChatsIcon size={16} />}
             <span>
                 {tab === "traces"
                     ? t("observability.screen.tracesTab")
@@ -250,7 +250,9 @@ const ObservabilityContent = ({
                         />
                         <div
                             ref={bodyRef}
-                            className="flex min-h-0 w-full flex-1 flex-col overflow-hidden"
+                            // The phone cards hang into the page gutter by their 16px padding, so
+                            // their icons sit on the title's line (ALIGN-01).
+                            className={`flex min-h-0 flex-1 flex-col overflow-hidden ${showsTable ? "w-full" : "-mx-4"}`}
                         >
                             {/* Cards on a phone, the real table on anything wider. The tables size
                             themselves from this flex parent, so there is no height to thread

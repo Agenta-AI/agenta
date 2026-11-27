@@ -61,12 +61,13 @@ export const SidebarSheet = ({
             >
                 <SheetTitle className="sr-only">{title}</SheetTitle>
                 {showHeader ? (
-                    <div className="-mx-2 flex h-[52px] shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary pl-1.5 pr-1">
+                    <div className="-mx-2 flex h-13 shrink-0 items-center gap-1 border-0 border-b border-solid border-border-muted pl-1.5 pr-1">
                         <div className="flex min-w-0 flex-1 items-center">{leading}</div>
                         <Button
                             variant="ghost"
+                            size="icon"
                             aria-label={t("ui.phone.closeSidebar")}
-                            className="size-11 shrink-0 rounded-lg p-0 text-colorTextSecondary [&_svg]:size-5"
+                            className="shrink-0 text-muted-foreground"
                             onClick={() => onOpenChange(false)}
                         >
                             <X />

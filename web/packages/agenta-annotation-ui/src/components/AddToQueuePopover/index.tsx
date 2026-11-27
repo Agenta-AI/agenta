@@ -212,7 +212,7 @@ const QueueListContent = ({
 
             <Divider className="!my-0" />
             {/* Queue list */}
-            <div className="max-h-[360px] overflow-y-auto">
+            <div className="max-h-90 overflow-y-auto">
                 {isLoading ? (
                     <div className="flex flex-col gap-3 px-4 py-2">
                         {Array.from({length: 4}).map((_, i) => (
@@ -221,7 +221,7 @@ const QueueListContent = ({
                     </div>
                 ) : filteredQueues.length === 0 ? (
                     <div className="py-8 text-center">
-                        <Typography.Text type="secondary" className="text-xs">
+                        <Typography.Text type="secondary" className="text-label font-normal">
                             {search.trim()
                                 ? t("annotation.queues.noMatchingQueues")
                                 : itemType === "traces"
@@ -235,7 +235,7 @@ const QueueListContent = ({
                             key={queue.id}
                             type="button"
                             disabled={submittingId !== null}
-                            className="w-full flex items-start gap-3 px-3 py-2 text-left bg-transparent border-0 cursor-pointer hover:bg-gray-50 disabled:opacity-50 disabled:cursor-wait"
+                            className="w-full flex items-start gap-3 px-3 py-2 text-left bg-transparent border-0 cursor-pointer hover:bg-accent focus-ring disabled:opacity-50 disabled:cursor-wait"
                             onClick={(event) => {
                                 event.stopPropagation()
                                 void handleSelect(queue)
@@ -248,7 +248,7 @@ const QueueListContent = ({
                                 >
                                     {queue.name || t("annotation.queues.untitled")}
                                 </Typography.Text>
-                                <Typography.Text type="secondary" className="text-[12px]">
+                                <Typography.Text type="secondary" className="text-meta">
                                     {t("annotation.queues.updated", {
                                         when: queue.updated_at
                                             ? dayjs(queue.updated_at)?.fromNow()

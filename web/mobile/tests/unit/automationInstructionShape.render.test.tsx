@@ -56,8 +56,21 @@ vi.mock("@agenta/entities/gatewayTrigger", async () => ({
 vi.mock("@agenta/entities/runnable", async () => ({
     ...(await import("../../../packages/agenta-entities/src/runnable/portHelpers")),
 }))
-vi.mock("@agenta/ui/ui", () => ({Checkbox: () => null}))
-vi.mock("@phosphor-icons/react", () => ({CaretRight: () => null, ChatCircle: () => null}))
+vi.mock("@agenta/ui/ui", () => ({
+    Checkbox: () => null,
+    // The kit field row: its label, then the control.
+    Field: ({label, children}: {label?: string; children?: ReactNode}) =>
+        createElement("div", null, label, children),
+    Tooltip: ({children}: {children?: unknown}) => children,
+    TooltipTrigger: ({children}: {children?: unknown}) => children,
+    TooltipContent: () => null,
+    TooltipProvider: ({children}: {children?: unknown}) => children,
+}))
+vi.mock("@phosphor-icons/react", () => ({
+    CaretRight: () => null,
+    ChatCircle: () => null,
+    Info: () => null,
+}))
 // The composer's editor is not this file's subject.
 vi.mock("@agenta/entity-ui/gatewayTrigger", async () => ({
     ...(await import("../../../packages/agenta-entity-ui/src/gatewayTrigger/scheduleText")),

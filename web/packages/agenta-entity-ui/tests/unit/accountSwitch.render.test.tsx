@@ -1,10 +1,9 @@
-/** The account switch: checked state, click, arrow keys and focus, disabled. */
+/** The account switch (the kit ChoiceSwitch): checked state, click, arrow keys and focus, disabled. */
 import {act, createElement} from "react"
 
+import {ChoiceSwitch} from "@agenta/ui/ui"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
-
-import {AccountSwitch} from "../../src/accounts/AccountSwitch"
 
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
@@ -21,7 +20,7 @@ const render = async (props: {
 }) => {
     await act(async () => {
         root.render(
-            createElement(AccountSwitch<string>, {...props, choices, "aria-label": "Account"}),
+            createElement(ChoiceSwitch<string>, {...props, choices, "aria-label": "Account"}),
         )
     })
 }
@@ -41,7 +40,7 @@ afterEach(async () => {
     vi.unstubAllGlobals()
 })
 
-describe("AccountSwitch", () => {
+describe("ChoiceSwitch", () => {
     it("checks the current choice and shows each note", async () => {
         await render({value: "agent", onChange: () => undefined})
         const [own, shared] = radios()

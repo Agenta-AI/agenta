@@ -43,7 +43,7 @@ const ScriptEditor = memo(function ScriptEditor({
 
     const header = (
         <div className="w-full flex items-start justify-between py-1">
-            <span className="text-sm font-semibold pl-2 text-colorText">
+            <span className="text-label font-semibold pl-2 text-foreground">
                 {t("entityUi.schemaControls.script")}
             </span>
             <div className="flex items-center gap-1 shrink-0">
@@ -84,8 +84,8 @@ const ScriptEditor = memo(function ScriptEditor({
                 syncWithInitialValueChanges
                 className={clsx(
                     "group/script",
-                    "!pt-[11px] !pb-[11px] [&_.agenta-editor-wrapper]:!mb-0 [&_.editor-code]:!pb-0",
-                    "[&_.agenta-editor-wrapper]:!pl-[20px]",
+                    "!pt-3 !pb-3 [&_.agenta-editor-wrapper]:!mb-0 [&_.editor-code]:!pb-0",
+                    "[&_.agenta-editor-wrapper]:!pl-5",
                     minimized && "[&_.agenta-editor-wrapper]:!hidden",
                 )}
                 state={disabled ? "readOnly" : "filled"}

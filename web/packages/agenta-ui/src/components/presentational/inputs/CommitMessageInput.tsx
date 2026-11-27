@@ -102,7 +102,7 @@ export const CommitMessageInput = memo(function CommitMessageInput({
                 />
                 {/* Reproduces antd `showCount`'s `.ant-input-data-count`: end-aligned, 12px,
                     colorTextDescription. It was 10px/quaternary, which the parity gate caught. */}
-                <span className={cn("self-end pt-0.5 text-xs", textColors.description)}>
+                <span className={cn("self-end pt-0.5 text-meta", textColors.description)}>
                     {value?.length ?? 0} / {maxLength}
                 </span>
             </div>

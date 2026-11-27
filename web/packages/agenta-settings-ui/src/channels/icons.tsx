@@ -132,7 +132,7 @@ export const QrPlaceholder = () => {
     return (
         <div
             aria-hidden="true"
-            className="text-colorText"
+            className="text-foreground"
             style={{
                 display: "grid",
                 gridTemplateColumns: "repeat(21,1fr)",

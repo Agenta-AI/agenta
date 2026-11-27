@@ -30,7 +30,7 @@ export function EntitySaveTitle() {
     return (
         <span>
             {title}
-            {typeLabel && <span className="font-normal text-gray-500"> {typeLabel}</span>}
+            {typeLabel && <span className="font-normal text-muted-foreground"> {typeLabel}</span>}
         </span>
     )
 }

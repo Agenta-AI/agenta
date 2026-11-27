@@ -104,7 +104,7 @@ const resolveSegments = (stats?: BasicStats): {label: string; value: number}[] =
 }
 
 /** Bar track background — matches Figma `remainingcolor` token */
-const TRACK_BG = "rgba(5, 23, 41, 0.06)"
+const TRACK_BG = "var(--secondary)"
 
 /**
  * Boolean bar layout matching Figma design:
@@ -136,10 +136,7 @@ const BooleanBar = memo(function BooleanBar({
                     className="flex flex-col items-start justify-center min-w-0"
                     style={{width: `${trueSeg.ratio * 100}%`}}
                 >
-                    <span
-                        className="text-[12px] leading-[18px] whitespace-nowrap"
-                        style={{color: TRUE_LABEL_COLOR}}
-                    >
+                    <span className="text-meta whitespace-nowrap" style={{color: TRUE_LABEL_COLOR}}>
                         {t("ui.status.trueValue")}
                     </span>
                     <TooltipProvider delayDuration={100}>
@@ -164,7 +161,7 @@ const BooleanBar = memo(function BooleanBar({
                     style={{width: `${falseSeg.ratio * 100}%`}}
                 >
                     <span
-                        className="text-[12px] leading-[18px] whitespace-nowrap"
+                        className="text-meta whitespace-nowrap"
                         style={{color: FALSE_LABEL_COLOR}}
                     >
                         {t("ui.status.falseValue")}
@@ -186,7 +183,7 @@ const BooleanBar = memo(function BooleanBar({
                     </TooltipProvider>
                 </div>
             </div>
-            <span className="text-xs whitespace-nowrap">
+            <span className="text-meta whitespace-nowrap">
                 {PercentFormatter.format(truePercent)}%
             </span>
         </div>
@@ -258,7 +255,7 @@ const EvaluatorMetricBar = memo(
                 )}
             >
                 <div
-                    className="flex w-full h-1.5 overflow-hidden rounded-full bg-gray-200"
+                    className="flex w-full h-1.5 overflow-hidden rounded-sm bg-secondary"
                     style={{width: "100%", maxWidth: width}}
                 >
                     {displaySegments.map((entry, index) => (
@@ -286,7 +283,7 @@ const EvaluatorMetricBar = memo(
                     ))}
                 </div>
                 <div
-                    className="flex w-full items-center justify-between gap-1 gap-y-1 text-xs leading-tight text-gray-600"
+                    className="flex w-full items-center justify-between gap-1 gap-y-1 text-meta text-muted-foreground"
                     style={{width: "100%", maxWidth: width}}
                 >
                     {legendEntries.map((entry, index) => (
@@ -296,13 +293,13 @@ const EvaluatorMetricBar = memo(
                             style={{color: getLabelColor(entry.label, index)}}
                         >
                             <span
-                                className="h-2 w-2 rounded-full"
+                                className="h-2 w-2 rounded-sm"
                                 style={{
                                     backgroundColor: getSegmentColor(entry.label, index),
                                 }}
                             />
                             <span className="font-medium max-w-[5rem] truncate">{entry.label}</span>
-                            <span className="text-[12px] text-gray-500">
+                            <span className="text-meta text-muted-foreground">
                                 {Formatter.format(entry.percent)}%
                             </span>
                         </div>

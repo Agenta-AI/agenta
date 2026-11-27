@@ -8,13 +8,13 @@ import {templateProviders} from "./marketplaceView"
 export const TemplateCardBody = ({template}: {template: AgentStarterTemplate}) => (
     <>
         <AppTileStack apps={templateProviders(template)} size="md" className="mb-1" />
-        <span className="truncate text-[14px] font-medium text-foreground" title={template.name}>
+        <span className="truncate text-body font-medium text-foreground" title={template.name}>
             {template.name}
         </span>
-        <span className="text-muted-foreground line-clamp-2 min-h-10 text-[12.5px] leading-5">
+        <span className="text-muted-foreground line-clamp-2 min-h-10 text-label leading-5">
             {template.description}
         </span>
-        <span className="text-placeholder mt-auto flex min-w-0 items-center gap-2 border-x-0 border-b-0 border-t border-solid border-border pt-2.5 text-[11.5px]">
+        <span className="text-muted-foreground mt-auto flex min-w-0 items-center gap-2 border-x-0 border-b-0 border-t border-solid border-border pt-2.5 text-meta">
             <LightningIcon weight="fill" aria-hidden className="size-3 shrink-0" />
             <span className="min-w-0 truncate">{template.trigger}</span>
             <span className="ml-auto shrink-0">{template.category}</span>

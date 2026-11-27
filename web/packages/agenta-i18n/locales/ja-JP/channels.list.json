@@ -6,5 +6,7 @@
     "bots": "ボット",
     "connectedCount_other": "{{count}} 件接続済み",
     "numbers": "番号",
-    "workspaces": "ワークスペース"
+    "workspaces": "ワークスペース",
+    "addFirstWorkspace": "ワークスペースを追加",
+    "addFirstNumber": "番号を追加"
 }

@@ -1,4 +1,8 @@
-import {evaluationRunQueryAtomFamily, type RunHeader} from "@agenta/entities/evaluationRun"
+import {
+    evaluationRunQueryAtomFamily,
+    runTagLabels,
+    type RunHeader,
+} from "@agenta/entities/evaluationRun"
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {CopyButton} from "@agenta/ui/components/presentational"
 import {Badge, Button} from "@agenta/ui/ui"
@@ -35,7 +39,7 @@ export const RunSummaryCard = ({
 }) => {
     const run = useAtomValue(evaluationRunQueryAtomFamily(runId)).data
     const name = run?.name?.trim() ?? ""
-    const tags = run?.tags ?? []
+    const tags = runTagLabels(run?.tags)
 
     return (
         <section
@@ -52,16 +56,14 @@ export const RunSummaryCard = ({
                 ) : null}
             </div>
             <div className="flex min-w-0 flex-col gap-1">
-                <h2 className="m-0 break-words text-base font-semibold text-foreground">
-                    {name || MISSING}
-                </h2>
+                <h2 className="m-0 break-words text-title text-foreground">{name || MISSING}</h2>
                 {header.description ? (
-                    <p className="m-0 break-words text-sm text-muted-foreground">
+                    <p className="m-0 break-words text-body text-muted-foreground">
                         {header.description}
                     </p>
                 ) : null}
             </div>
-            <p className="m-0 text-sm text-muted-foreground">
+            <p className="m-0 text-body text-muted-foreground">
                 {formatCreatedAt(header.createdAt)} by{" "}
                 <UserAuthorLabel userId={header.createdById} fallback={MISSING} />
             </p>
@@ -69,16 +71,13 @@ export const RunSummaryCard = ({
                 <ul className="m-0 flex list-none flex-wrap gap-1 p-0">
                     {tags.map((tag) => (
                         <li key={tag}>
-                            <Badge variant="outlined">{tag}</Badge>
+                            <Badge variant="default">{tag}</Badge>
                         </li>
                     ))}
                 </ul>
             ) : null}
             <div className="flex min-w-0 items-center gap-1">
-                <code
-                    className="min-w-0 truncate font-mono text-xs text-muted-foreground"
-                    title={runId}
-                >
+                <code className="min-w-0 truncate text-code-sm text-muted-foreground" title={runId}>
                     {shortId(runId)}
                 </code>
                 <CopyButton

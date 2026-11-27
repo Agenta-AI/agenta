@@ -160,6 +160,17 @@ const openList = async () => {
     await findByText("here:Model providers")
 }
 
+// The add view is the Settings catalog under the "Model providers" title; its search marks it.
+const openAdd = async () => {
+    await click(byText("Add a provider or subscription"))
+    await findByText("", 'input[placeholder="Search providers"]')
+}
+// A catalog row is a role=button row named by its "+" label.
+const pickCatalogRow = async (name: string) =>
+    click(document.querySelector(`[role="button"][aria-label="Connect ${name}"]`))
+// Back on the list: its add bar shows and no view sits above it.
+const backOnList = () => findByText("Add a provider or subscription")
+
 const connection = (id: string, extra: Record<string, unknown> = {}) => ({
     id,
     name: id,
@@ -167,6 +178,7 @@ const connection = (id: string, extra: Record<string, unknown> = {}) => ({
     title: id,
     secretKind: "provider_key",
     hasStoredCredential: true,
+    source: {},
     ...extra,
 })
 
@@ -220,8 +232,8 @@ describe("Model providers list", {timeout: 30_000}, () => {
         // The Claude sign-in expired: it says so and offers a new sign-in instead of Edit.
         expect(byText("Sign in needed")).toBeTruthy()
         // An amber tag (F09, M12), not plain text.
-        expect(byText("Sign in needed")?.className).toContain("bg-colorWarningBg")
-        expect(byText("Sign in needed")?.className).toContain("text-colorWarningText")
+        expect(byText("Sign in needed")?.className).toContain("bg-warning/10")
+        expect(byText("Sign in needed")?.className).toContain("text-warning")
         // The desktop lists Subscriptions first; a phone (M12) moves API keys above them.
         expect(text.indexOf("Subscriptions")).toBeLessThan(text.indexOf("API keys"))
         const group = (label: string) =>
@@ -239,21 +251,20 @@ describe("Model providers list", {timeout: 30_000}, () => {
 
     it("a picked provider replaces the add view; Save goes back to the list", async () => {
         await openList()
-        await click(byText("Add a provider or subscription"))
-        await findByText("here:Add")
+        await openAdd()
         const text = document.body.textContent ?? ""
         expect(text.indexOf("ChatGPT")).toBeLessThan(text.indexOf("Mistral AI"))
         expect(text).toContain("OpenAI-compatible endpoint")
         expect(text).toContain("Self-hosted or proxied models that speak the OpenAI API")
 
-        await click(byText("OpenAI", "button span"))
+        await pickCatalogRow("OpenAI")
         await findByText("here:OpenAI")
         // The form took the add view's place: the crumb goes Agent › Model providers › OpenAI.
         expect(byText("crumb:Model providers")).toBeTruthy()
-        expect(byText("here:Add")).toBeUndefined()
+        expect(document.querySelector('input[placeholder="Search providers"]')).toBeNull()
         await change(await findByText("", 'input[aria-label="key openai"]'), "sk-test")
         await click(byText("Save connection"))
-        await findByText("here:Model providers")
+        await backOnList()
         expect(fixture.saved).toEqual(["openai"])
         // The list and the picker read the vault, so the save refreshes it.
         expect(fixture.refreshed).toBe(1)
@@ -264,23 +275,21 @@ describe("Model providers list", {timeout: 30_000}, () => {
         fixture.afterSave = afterSave
         await openList()
         await click(byText("arm"))
-        await click(byText("Add a provider or subscription"))
-        await findByText("here:Add")
-        await click(byText("OpenAI", "button span"))
+        await openAdd()
+        await pickCatalogRow("OpenAI")
         await findByText("here:OpenAI")
         await click(byText("Save connection"))
-        await findByText("here:Model providers")
+        await backOnList()
 
         expect(afterSave).toHaveBeenCalledTimes(1)
         expect(afterSave).toHaveBeenCalledWith("new-id")
 
         // A second save in the same visit does not run it again.
-        await click(byText("Add a provider or subscription"))
-        await findByText("here:Add")
-        await click(byText("OpenAI", "button span"))
+        await openAdd()
+        await pickCatalogRow("OpenAI")
         await findByText("here:OpenAI")
         await click(byText("Save connection"))
-        await findByText("here:Model providers")
+        await backOnList()
         expect(afterSave).toHaveBeenCalledTimes(1)
     })
 
@@ -293,12 +302,11 @@ describe("Model providers list", {timeout: 30_000}, () => {
         await click(byText("crumb:Agent"))
         await click(byText("open"))
         await findByText("here:Model providers")
-        await click(byText("Add a provider or subscription"))
-        await findByText("here:Add")
-        await click(byText("OpenAI", "button span"))
+        await openAdd()
+        await pickCatalogRow("OpenAI")
         await findByText("here:OpenAI")
         await click(byText("Save connection"))
-        await findByText("here:Model providers")
+        await backOnList()
 
         expect(afterSave).not.toHaveBeenCalled()
     })
@@ -306,9 +314,8 @@ describe("Model providers list", {timeout: 30_000}, () => {
     it("a failed save keeps the form open", async () => {
         fixture.failSave = true
         await openList()
-        await click(byText("Add a provider or subscription"))
-        await findByText("here:Add")
-        await click(byText("OpenAI", "button span"))
+        await openAdd()
+        await pickCatalogRow("OpenAI")
         await change(await findByText("", 'input[aria-label="key openai"]'), "sk-test")
         await click(byText("Save connection"))
         await waitFor(() => expect(byText("here:OpenAI")).toBeTruthy())
@@ -318,7 +325,7 @@ describe("Model providers list", {timeout: 30_000}, () => {
 
     it("search with no match shows the production text", async () => {
         await openList()
-        await click(byText("Add a provider or subscription"))
+        await openAdd()
         const search = await findByText("", 'input[placeholder="Search providers"]')
         await change(search, "zzz")
         await findByText("No provider matches this search.")
@@ -332,7 +339,7 @@ describe("Model providers list", {timeout: 30_000}, () => {
         expect(document.body.textContent).toContain("Paste the token the command prints")
     })
 
-    it("the Agenta card lists every built-in model, with no switches and Done only", async () => {
+    it("the Agenta card lists every built-in model, with no switches and no Save", async () => {
         await openList()
         await click(document.querySelector("li button"))
         await findByText("here:Agenta")
@@ -346,7 +353,9 @@ describe("Model providers list", {timeout: 30_000}, () => {
         expect(byText("Provided by Agenta")).toBeTruthy()
         expect(document.querySelector('[role="checkbox"], input[type="checkbox"]')).toBeNull()
         expect(byText("Save")).toBeUndefined()
-        await click(byText("Done"))
+        // An instant view has no Done; the crumb goes back.
+        expect(byText("Done")).toBeUndefined()
+        await click(byText("crumb:Model providers"))
         await waitFor(() => expect(byText("here:Model providers")).toBeTruthy())
     })
 })

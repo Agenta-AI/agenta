@@ -15,13 +15,16 @@ from uuid import uuid4
 import pytest
 
 from oss.src.utils.common import is_ee
+from oss.tests.pytest.utils.membership_accounts import (
+    add_project_member,
+    create_project,
+)
 
 
 EXCHANGE = "/access/permissions/check"
 
-# EE: the owner's organization gets a plan with the RBAC entitlement and no project
-# limit. Without RBAC every member passes by design, and the Hobby plan allows one
-# project; these tests check the role rule and create a second project.
+# EE: the owner's organization gets a plan with the RBAC entitlement. Without RBAC
+# every member passes by design; these tests check the role rule.
 _OWNER_PLAN = "cloud_v0_business" if is_ee() else None
 
 
@@ -139,6 +142,18 @@ def _project_key(admin_api, *, project_id, user_id):
     assert response.status_code == 200, response.text
     key = next(iter(response.json()["accounts"][0]["api_keys"].values()))
     return key["value"], key["id"]
+
+
+def _second_project(admin_api, team, *, name):
+    """A second project of the owner's organization, through the platform admin route
+    (no project limit), with a project row for the owner."""
+    project_id = create_project(
+        admin_api, organization_id=team["organization_id"], name=name
+    )
+    add_project_member(
+        admin_api, project_id=project_id, user_id=team["owner_id"], role="owner"
+    )
+    return project_id
 
 
 def _exchange(admin_api, credentials, *, action="run_service", **params):
@@ -262,14 +277,7 @@ class TestRunPrincipal:
 
     def test_run_credential_cannot_leave_its_project(self, admin_api, team):
         # A second project of the same owner, with the owner's key of that project.
-        created = admin_api(
-            "POST",
-            "/projects/",
-            json={"name": f"m2-b-{uuid4().hex[:6]}"},
-            headers={"Authorization": team["owner_key"]},
-        )
-        assert created.status_code == 201, created.text
-        project_b = created.json()["project_id"]
+        project_b = _second_project(admin_api, team, name="m2-b")
         key_b, _ = _project_key(
             admin_api, project_id=project_b, user_id=team["owner_id"]
         )
@@ -416,16 +424,10 @@ class TestWorkspaceRoutesWithKeys:
     refused. Browser sessions are not confined."""
 
     def test_invite_needs_a_key_of_the_default_project(self, admin_api, team):
-        created = admin_api(
-            "POST",
-            "/projects/",
-            json={"name": f"m2-c-{uuid4().hex[:6]}"},
-            headers={"Authorization": team["owner_key"]},
-        )
-        assert created.status_code == 201, created.text
+        project_id = _second_project(admin_api, team, name="m2-c")
         other_key, _ = _project_key(
             admin_api,
-            project_id=created.json()["project_id"],
+            project_id=project_id,
             user_id=team["owner_id"],
         )
         path = (
@@ -436,7 +438,7 @@ class TestWorkspaceRoutesWithKeys:
         refused = admin_api(
             "POST",
             path,
-            params={"project_id": created.json()["project_id"]},
+            params={"project_id": project_id},
             json=[
                 {"email": f"m2-inv-{uuid4().hex[:8]}@agenta.ai", "roles": ["member"]}
             ],
@@ -461,16 +463,10 @@ class TestWorkspaceRoutesWithKeys:
         """Organization-level writes follow the same rule as the workspace routes: a
         key of a non-default project of the organization is refused."""
 
-        created = admin_api(
-            "POST",
-            "/projects/",
-            json={"name": f"m2-o-{uuid4().hex[:6]}"},
-            headers={"Authorization": team["owner_key"]},
-        )
-        assert created.status_code == 201, created.text
+        project_id = _second_project(admin_api, team, name="m2-o")
         other_key, _ = _project_key(
             admin_api,
-            project_id=created.json()["project_id"],
+            project_id=project_id,
             user_id=team["owner_id"],
         )
         other = {"Authorization": f"ApiKey {other_key}"}

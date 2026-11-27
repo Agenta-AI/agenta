@@ -14,9 +14,10 @@ export interface AgentPanelState {
     configTab: ConfigTab
 }
 
-export const PANEL_MIN = 360
+/** The right pane is the `panel-side` slot, 320 px (LAYOUT-04); a drag may widen it. */
+export const PANEL_MIN = 320
 export const PANEL_MAX = 640
-export const PANEL_DEFAULT = 440
+export const PANEL_DEFAULT = 320
 export const PANEL_WIDE = 760
 /** Below this window width the panel lies over the conversation instead of pushing it. */
 export const OVERLAY_BELOW = 1100

@@ -1,15 +1,18 @@
 import {useCallback, useMemo, useRef} from "react"
 
-import {analyticsIdentity, generateOrRetrieveDistinctId} from "@agenta/shared/analytics"
-import {useAtom} from "jotai"
+import {
+    adoptInstanceIdentity,
+    analyticsPersonProperties,
+    isCloudTelemetry,
+} from "@agenta/shared/analytics"
+import {getDefaultStore, useAtom, useAtomValue} from "jotai"
 import {type PostHog} from "posthog-js"
 
 import useIsomorphicLayoutEffect from "@/oss/hooks/useIsomorphicLayoutEffect"
-import {isDemo} from "@/oss/lib/helpers/utils"
 import {useProfileData} from "@/oss/state/profile"
 
 import {getEnv} from "../../dynamicEnv"
-import {posthogAtom} from "../store/atoms"
+import {instanceTelemetryAtom, posthogAtom} from "../store/atoms"
 
 interface ExtendedPostHog extends PostHog {
     identify: PostHog["identify"]
@@ -20,14 +23,13 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
     const trackingEnabled = getEnv("NEXT_PUBLIC_POSTHOG_API_KEY") !== ""
     const {user} = useProfileData()
     const [posthog] = useAtom(posthogAtom)
-    const baseDistinctId = useMemo(() => generateOrRetrieveDistinctId(), [])
-    const {id: analyticsId, properties: personProps} = useMemo(
-        () => analyticsIdentity(user, isDemo(), baseDistinctId),
-        [user, baseDistinctId],
-    )
+    const telemetry = useAtomValue(instanceTelemetryAtom)
+    const cloud = telemetry ? isCloudTelemetry(telemetry) : false
+    // Cloud and self-hosted both identify with the id the API gives.
+    const analyticsId = telemetry?.distinct_id ?? ""
+    const personProps = useMemo(() => analyticsPersonProperties(user, cloud), [user, cloud])
     const identifiedRef = useRef<string | null>(null)
     const personPropsIdentifiedRef = useRef<string | null>(null)
-    const aliasedRef = useRef(false)
 
     const identifiedPersonPropsKey = useMemo(() => {
         return personProps ? `${analyticsId}:${JSON.stringify(personProps)}` : null
@@ -36,7 +38,8 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
     const baseIdentify = useMemo(() => posthog?.identify?.bind(posthog), [posthog])
     const capture: PostHog["capture"] = useCallback(
         (...args) => {
-            if (trackingEnabled) {
+            // Read at call time: other hooks keep a bound copy of this wrapper.
+            if (trackingEnabled && getDefaultStore().get(instanceTelemetryAtom)?.enabled) {
                 return baseCapture?.(...args)
             }
             return undefined
@@ -61,15 +64,19 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
     }, [posthog, trackingEnabled])
 
     useIsomorphicLayoutEffect(() => {
-        if (!user?.email) {
-            personPropsIdentifiedRef.current = null
-            aliasedRef.current = false
-        }
+        if (!user?.email) personPropsIdentifiedRef.current = null
     }, [user?.email])
 
     useIsomorphicLayoutEffect(() => {
         if (!posthog) return
-        if (!analyticsId) return
+        // No answer from the API yet (or a new user): no identity to send.
+        if (!telemetry?.distinct_id || !analyticsId) return
+        // Self-hosted: the shared helper compares the browser's id with the API's, so it
+        // also restores the identity and properties after a sign-out without a reload.
+        if (!cloud) {
+            adoptInstanceIdentity(posthog, telemetry)
+            return
+        }
         const shouldIdentify =
             identifiedRef.current !== analyticsId ||
             (identifiedPersonPropsKey !== null &&
@@ -77,17 +84,14 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
 
         if (!shouldIdentify) return
 
-        if (isDemo() && user?.email && baseDistinctId !== analyticsId && !aliasedRef.current) {
-            posthog.alias?.(analyticsId, baseDistinctId)
-            aliasedRef.current = true
-        }
-
         identifiedRef.current = analyticsId
         if (identifiedPersonPropsKey) {
             personPropsIdentifiedRef.current = identifiedPersonPropsKey
         }
+        // A sign-out resets PostHog, which drops the registered properties.
+        if (telemetry.properties) posthog.register?.(telemetry.properties)
         identify(analyticsId, personProps)
-    }, [analyticsId, baseDistinctId, identify, personProps, posthog, user?.email])
+    }, [analyticsId, cloud, identify, personProps, posthog, telemetry])
 
     if (!posthog) return null
     return Object.assign(posthog, {identify, capture}) as ExtendedPostHog

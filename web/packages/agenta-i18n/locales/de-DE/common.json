@@ -80,5 +80,7 @@
     "view": "Ansehen",
     "working": "In Arbeit…",
     "yourRole": "Ihre Rolle",
-    "dialog": "Dialog"
+    "dialog": "Dialog",
+    "resizePane": "Bereich in der Größe ändern",
+    "you": "Sie"
 }

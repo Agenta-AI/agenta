@@ -1,4 +1,4 @@
-import {useCallback} from "react"
+import {useCallback, useState} from "react"
 
 import {
     AutomationRunHistoryError,
@@ -9,7 +9,7 @@ import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {sessionRoutePath} from "@agenta/sessions/link"
 import {useIsPhone} from "@agenta/ui/phone"
-import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
+import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import {useRouter} from "next/router"
 
 import {AutomationRunConversation} from "./AutomationRunConversation"
@@ -19,9 +19,24 @@ import {AutomationRunNowButton} from "./AutomationRunNowButton"
 /** The body of the run history view: the shared view in its panel frame, with this app's chat. */
 const AutomationRunHistoryViewBody = ({params}: ViewProps<AutomationRunHistoryViewParams>) => {
     const t = useT(automationsEditorCatalog)
-    useViewTitle(t("automations.editor.runHistory"))
-    const router = useRouter()
     const phone = useIsPhone()
+    // While one run fills the view, the pane header's Back returns to the list (one back per screen).
+    const [runBack, setRunBack] = useState<(() => void) | null>(null)
+    const [runTitle, setRunTitle] = useState<string | undefined>(undefined)
+    const onRunBackChange = useCallback((back: (() => void) | null, title?: string) => {
+        setRunBack(() => back)
+        setRunTitle(title)
+    }, [])
+    // A phone header names the open run, not "Run history" beside a Back to "Run history".
+    useViewTitle(phone && runTitle ? runTitle : t("automations.editor.runHistory"))
+    useViewForm({
+        dirty: false,
+        valid: true,
+        save: async () => true,
+        back: runBack ?? undefined,
+        backTitle: t("automations.editor.runHistory"),
+    })
+    const router = useRouter()
     const {automation, error, refetch} = useAutomation(params.automationId, params.kind)
     const base = `/w/${params.workspaceId}/p/${params.projectId}`
 
@@ -66,6 +81,7 @@ const AutomationRunHistoryViewBody = ({params}: ViewProps<AutomationRunHistoryVi
                     ) : null
                 }
                 renderConversation={renderConversation}
+                onRunBackChange={onRunBackChange}
             />
         </div>
     )

@@ -132,7 +132,7 @@ export const CodeEditorControl = memo(function CodeEditorControl({
                             | "typescript"
                             | undefined,
                     }}
-                    editorClassName="min-h-[200px]"
+                    editorClassName="min-h-50"
                     syncWithInitialValueChanges
                 />
             </EditorProvider>

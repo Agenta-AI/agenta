@@ -363,7 +363,7 @@ export function EnhancedModal(props: EnhancedModalProps) {
                 <div
                     data-slot="modal-body"
                     className={cn(
-                        "min-h-0 flex-1 overflow-y-auto px-4 pb-4 text-field-md text-colorText",
+                        "min-h-0 flex-1 overflow-y-auto px-4 pb-4 text-field-md text-foreground",
                         title == null && "pt-4",
                         resolvedClassNames?.body,
                     )}

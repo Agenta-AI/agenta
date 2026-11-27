@@ -17,8 +17,8 @@ import {
     type FilterMenuNode,
     type RowValidation,
 } from "@agenta/observability/filters"
-import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {
+    Button,
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
@@ -349,7 +349,7 @@ export function FilterRow({
 
     return (
         <div className="flex flex-col overflow-x-auto [&::-webkit-scrollbar]:!h-0 [&::-webkit-scrollbar]:!w-0">
-            <span className="text-field-md text-colorTextSecondary">
+            <span className="text-field-md text-muted-foreground">
                 {index === 0
                     ? t("observabilityUi.filters.where")
                     : t("observabilityUi.filters.and")}
@@ -359,7 +359,9 @@ export function FilterRow({
                 <div className="flex w-full items-center gap-2">
                     <DropdownMenu open={fieldMenuOpen} onOpenChange={onFieldMenuOpenChange}>
                         <DropdownMenuTrigger asChild>
-                            <EnhancedButton
+                            <Button
+                                variant="outline"
+                                size="default"
                                 className="flex w-[180px] items-center justify-between"
                                 disabled={disabled}
                             >
@@ -371,7 +373,7 @@ export function FilterRow({
                                           t("observabilityUi.filters.field"))}
                                 </span>
                                 <CaretDownIcon size={14} />
-                            </EnhancedButton>
+                            </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent
                             container={container}
@@ -413,7 +415,7 @@ export function FilterRow({
                         ))}
 
                     {isAnnotationField && (
-                        <span className="whitespace-nowrap text-field-md text-colorTextSecondary">
+                        <span className="whitespace-nowrap text-field-md text-muted-foreground">
                             {t("observabilityUi.filters.that")}
                         </span>
                     )}
@@ -471,12 +473,14 @@ export function FilterRow({
                     )}
 
                     {!disabled && showRemove && !annotationActive && (
-                        <EnhancedButton
-                            type="link"
-                            icon={<TrashIcon size={14} />}
+                        <Button
+                            variant="link"
+                            size="default"
                             aria-label={t("observabilityUi.filters.removeFilter")}
                             onClick={onRemove}
-                        />
+                        >
+                            <TrashIcon size={14} />
+                        </Button>
                     )}
                 </div>
 

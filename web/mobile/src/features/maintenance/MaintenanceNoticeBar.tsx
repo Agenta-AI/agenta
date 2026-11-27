@@ -1,10 +1,15 @@
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react"
 
-import {dismissNotice, isNoticeDismissed} from "@agenta/shared/analytics"
+import {useT} from "@agenta/i18n"
+import securityWarningCatalog from "@agenta/i18n/catalogs/shell.securityWarning"
+import {dismissNotice, isNoticeDismissed, type MaintenanceNotice} from "@agenta/shared/analytics"
 import {X} from "@phosphor-icons/react"
+import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {isAnalyticsAuthRoute} from "@/features/analytics/client"
+import {useSecurityWarning} from "@/features/education/useSecurityWarning"
+import {whatsNewAtom} from "@/features/education/whatsNewAtom"
 import {cn} from "@/lib/utils"
 
 import {useMaintenanceNotice} from "./useMaintenanceNotice"
@@ -22,19 +27,41 @@ const SCREEN_SAFE_TOP_VAR = "--ag-screen-safe-top"
  * flag. All its words come from the flag payload. It sits in the page flow and the message
  * wraps (a phone cannot show 240 characters on one line), so its height is measured and the
  * screen under it is shortened by exactly that, never covered.
+ *
+ * With no maintenance notice up, the same bar warns owners and admins of a security release
+ * newer than the running version (from the release feed). One bar at a time owns the height.
  */
 export const MaintenanceNoticeBar = () => {
-    const notice = useMaintenanceNotice()
+    const t = useT(securityWarningCatalog)
+    const maintenance = useMaintenanceNotice()
+    const security = useSecurityWarning()
+    const openWhatsNew = useSetAtom(whatsNewAtom)
     const router = useRouter()
     const authRoute = isAnalyticsAuthRoute(router.asPath || router.pathname || "")
     // Start hidden: localStorage is not readable during the server render.
-    const [dismissed, setDismissed] = useState(true)
+    const [maintenanceDismissed, setMaintenanceDismissed] = useState(true)
 
     useEffect(() => {
-        setDismissed(notice ? isNoticeDismissed(notice) : true)
-    }, [notice])
+        setMaintenanceDismissed(maintenance ? isNoticeDismissed(maintenance) : true)
+    }, [maintenance])
 
-    const visible = Boolean(notice) && !dismissed && !authRoute
+    const showMaintenance = Boolean(maintenance) && !maintenanceDismissed
+    const securityRelease = security.release
+    // The security link opens the What's new dialog on that release: its notes say why, and
+    // the dialog's upgrade box says how.
+    const notice: (MaintenanceNotice & {onLinkClick?: () => void}) | null = showMaintenance
+        ? maintenance
+        : securityRelease
+          ? {
+                id: `security-${securityRelease.id}`,
+                message: t("shell.securityWarning.message", {version: securityRelease.id}),
+                linkLabel: t("shell.securityWarning.howToUpgrade"),
+                onLinkClick: () => openWhatsNew({releaseId: securityRelease.id}),
+                tone: "warning",
+            }
+          : null
+
+    const visible = Boolean(notice) && !authRoute
 
     const barRef = useRef<HTMLDivElement>(null)
 
@@ -55,10 +82,13 @@ export const MaintenanceNoticeBar = () => {
         }
     }, [visible])
 
+    const {snooze: snoozeSecurity} = security
     const handleDismiss = useCallback(() => {
-        if (notice) dismissNotice(notice)
-        setDismissed(true)
-    }, [notice])
+        if (showMaintenance && maintenance) {
+            dismissNotice(maintenance)
+            setMaintenanceDismissed(true)
+        } else snoozeSecurity()
+    }, [maintenance, showMaintenance, snoozeSecurity])
 
     if (!visible || !notice) return null
 
@@ -67,17 +97,28 @@ export const MaintenanceNoticeBar = () => {
             ref={barRef}
             role="status"
             className={cn(
-                "flex shrink-0 items-center gap-2 px-3 pt-[calc(8px+env(safe-area-inset-top))] pb-2 text-sm font-medium",
+                "flex shrink-0 items-center gap-2 px-3 pt-[calc(8px+env(safe-area-inset-top))] pb-2 text-label",
                 notice.tone === "warning"
-                    ? "border-b border-[var(--ag-status-warning-border)] bg-[var(--ag-status-warning-bg)] text-[var(--ag-status-warning-text)]"
-                    : "bg-primary text-primary-foreground",
+                    ? "border-b border-solid border-warning/30 bg-warning/10 text-warning"
+                    : "border-b border-solid border-info/30 bg-info/10 text-info",
             )}
         >
             {/* Balances the close button so the text stays centred. */}
             <span aria-hidden className="size-6 shrink-0" />
             <p className="min-w-0 flex-1 text-center">
                 {notice.message}
-                {notice.linkHref ? (
+                {notice.onLinkClick ? (
+                    <>
+                        {" "}
+                        <button
+                            type="button"
+                            onClick={notice.onLinkClick}
+                            className="cursor-pointer whitespace-nowrap border-0 bg-transparent p-0 font-[inherit] text-[inherit] underline underline-offset-2 hover:opacity-80"
+                        >
+                            {notice.linkLabel}
+                        </button>
+                    </>
+                ) : notice.linkHref ? (
                     <>
                         {" "}
                         <a
@@ -95,7 +136,7 @@ export const MaintenanceNoticeBar = () => {
                 type="button"
                 aria-label="Dismiss this notice"
                 onClick={handleDismiss}
-                className="grid size-6 shrink-0 place-items-center rounded hover:opacity-80"
+                className="grid size-6 shrink-0 place-items-center rounded-md hover:bg-accent focus-ring"
             >
                 <X size={14} />
             </button>

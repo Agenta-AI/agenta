@@ -36,14 +36,14 @@ export const AuthShell = ({
     leaving = false,
 }: AuthShellProps) => (
     <main
-        className={`auth-redesign auth-shell flex min-h-dvh w-full items-center justify-center bg-background text-foreground lg:h-screen lg:overflow-hidden ${leaving ? "auth-shell-leaving" : ""}`}
+        className={`auth-redesign auth-shell flex min-h-dvh w-full items-center justify-center bg-background text-foreground lg:h-dvh lg:overflow-hidden ${leaving ? "auth-shell-leaving" : ""}`}
         data-display-font={displayFontUrl ? "serif" : undefined}
     >
         {displayFontUrl && (
             <style>{`@font-face{font-family:"Agenta Display";src:url("${cssUrl(displayFontUrl)}");font-weight:300;font-display:swap;}`}</style>
         )}
         {/* Capped so very large screens keep the column and panel in proportion. */}
-        <div className="flex w-full max-w-[3840px] self-stretch lg:max-h-[2160px] lg:self-center lg:h-full">
+        <div className="flex w-full max-w-[3840px] self-stretch lg:max-h-540 lg:self-center lg:h-full">
             <section className="relative z-[1] flex w-full flex-col overflow-y-auto [scrollbar-width:none] lg:w-1/2 lg:shrink-0">
                 {header ? (
                     <div
@@ -53,7 +53,7 @@ export const AuthShell = ({
                     </div>
                 ) : null}
                 <div className="flex flex-1 items-center justify-center px-[clamp(24px,4vw,48px)] py-[88px]">
-                    <div className="flex w-full max-w-[400px] flex-col gap-[22px]">{children}</div>
+                    <div className="flex w-full max-w-[400px] flex-col gap-6">{children}</div>
                 </div>
             </section>
             {banner === undefined ? <AuthSideBanner /> : banner}

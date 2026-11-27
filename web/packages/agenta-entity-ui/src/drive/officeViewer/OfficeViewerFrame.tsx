@@ -271,7 +271,7 @@ export function OfficeViewerFrame({
                 />
             ) : null}
             {slides ? (
-                <div className="flex shrink-0 items-center justify-between gap-2 border-0 border-t border-solid border-colorBorderSecondary px-2 py-1">
+                <div className="flex shrink-0 items-center justify-between gap-2 border-0 border-t border-solid border-border-muted px-2 py-1">
                     <Button
                         variant="ghost"
                         size="icon"
@@ -281,7 +281,7 @@ export function OfficeViewerFrame({
                     >
                         <CaretLeft />
                     </Button>
-                    <span className="min-w-12 text-center text-xs tabular-nums text-colorTextSecondary">
+                    <span className="min-w-12 text-center text-meta tabular-nums text-muted-foreground">
                         {slides.index + 1} / {slides.slideCount}
                     </span>
                     <Button
@@ -296,8 +296,8 @@ export function OfficeViewerFrame({
                 </div>
             ) : null}
             {pages ? (
-                <div className="flex shrink-0 items-center justify-between gap-2 border-0 border-t border-solid border-colorBorderSecondary px-3 py-1">
-                    <span className="text-xs tabular-nums text-colorTextSecondary">
+                <div className="flex shrink-0 items-center justify-between gap-2 border-0 border-t border-solid border-border-muted px-3 py-1">
+                    <span className="text-meta tabular-nums text-muted-foreground">
                         {reflow || !pages.slideCount
                             ? ""
                             : t("entityUi.drivePreview.pageOf", {

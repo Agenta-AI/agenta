@@ -20,12 +20,12 @@ export const SessionStatusIcon = ({
     <Tip title={status.label}>
         <span
             aria-label={status.label}
-            className="relative mt-0.5 flex shrink-0 text-colorTextTertiary"
+            className="relative mt-0.5 flex shrink-0 text-muted-foreground"
         >
             {automation ? <ClockIcon size={18} /> : <ChatCircleIcon size={18} />}
             <span
                 className={clsx(
-                    "absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border border-solid border-colorBgContainer",
+                    "absolute -right-0.5 -top-0.5 h-2 w-2 rounded-round border border-solid border-background",
                     status.dotClassName,
                     status.pulse && "motion-safe:animate-pulse",
                 )}

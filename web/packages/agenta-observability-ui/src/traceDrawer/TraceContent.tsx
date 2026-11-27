@@ -5,11 +5,9 @@ import drawerCatalog from "@agenta/i18n/catalogs/observabilityUi.traceDrawer"
 import {traceSidePanelOpenAtom} from "@agenta/observability/traceDrawer"
 import {getRawTraceSpanData} from "@agenta/observability/traceDrawer"
 import {TraceContentProps} from "@agenta/observability/traceDrawer"
-import {Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/ui/ui"
+import {SkeletonBlock, Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/ui/ui"
 import clsx from "clsx"
 import {useAtom} from "jotai"
-
-import {SkeletonBlock} from "../primitives/SkeletonBlock"
 
 import AccordionTreePanel from "./AccordionTreePanel"
 import AnnotationTabItem from "./AnnotationTabItem"
@@ -24,7 +22,7 @@ const loadingContent = (
     <div className="px-4 py-6">
         <div className="flex flex-col gap-2">
             {[0, 1, 2, 3, 4, 5].map((row) => (
-                <SkeletonBlock key={row} />
+                <SkeletonBlock key={row} className="max-w-[160px]" />
             ))}
         </div>
     </div>
@@ -88,10 +86,10 @@ const TraceContent = ({
                         label: t("observabilityUi.traceDrawer.tabOverview"),
                         children: (
                             <div className="flex flex-col items-center gap-1 px-4 py-12 text-center">
-                                <span className="text-sm font-medium">
+                                <span className="text-label">
                                     {t("observabilityUi.traceDrawer.traceNotFound")}
                                 </span>
-                                <span className="text-xs text-colorTextSecondary">
+                                <span className="text-meta text-muted-foreground">
                                     {t("observabilityUi.traceDrawer.traceNotFoundHint")}
                                 </span>
                             </div>
@@ -218,7 +216,7 @@ const TraceContent = ({
                                 {/* Opaque band: scrolled content must not show through the tabs. */}
                                 <div
                                     data-trace-tabs-band
-                                    className="sticky top-0 z-30 mb-2 bg-colorBgContainer px-4"
+                                    className="sticky top-0 z-30 mb-2 bg-background px-4"
                                 >
                                     <TabsList>
                                         {(items || []).map(
@@ -249,8 +247,8 @@ const TraceContent = ({
                         <div
                             className={
                                 stacked
-                                    ? "w-full border-0 border-t border-solid border-colorSplit"
-                                    : "w-[280px] min-w-[280px] shrink-0 border-0 border-l border-solid border-colorSplit"
+                                    ? "w-full border-0 border-t border-solid border-border-muted"
+                                    : "w-[280px] min-w-[280px] shrink-0 border-0 border-l border-solid border-border-muted"
                             }
                         >
                             <TraceSidePanel

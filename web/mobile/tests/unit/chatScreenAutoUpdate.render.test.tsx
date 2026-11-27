@@ -41,7 +41,6 @@ vi.mock("@agenta/shared/state", async () => {
 })
 vi.mock("@/components/ContentRail", () => ({ContentRail: () => null}))
 vi.mock("@/components/ScreenScaffold", () => ({ScreenScaffold: () => null}))
-vi.mock("@/components/StatusTag", () => ({StatusTag: () => null}))
 vi.mock("@/features/context/useBindProjectContext", () => ({
     useBindProjectContext: () => undefined,
 }))

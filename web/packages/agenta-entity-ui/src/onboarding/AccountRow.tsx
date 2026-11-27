@@ -164,7 +164,7 @@ const AccountRow = ({
                             label={providerLabel(slug)}
                             sublabel={
                                 optionConnected ? (
-                                    <span className="text-[10px] text-[var(--ag-colorSuccess)]">
+                                    <span className="text-caption text-success">
                                         {t("entityUi.onboarding.connected")}
                                     </span>
                                 ) : null
@@ -207,7 +207,7 @@ const AccountRow = ({
                 after={connectDrawer}
             >
                 {account.why ? (
-                    <p className="m-0 text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
+                    <p className="m-0 text-meta leading-snug text-muted-foreground">
                         {account.why}
                     </p>
                 ) : null}
@@ -231,14 +231,14 @@ const AccountRow = ({
             className={clsx(
                 "rounded-lg border border-solid p-3 transition-colors",
                 connected
-                    ? "border-[var(--ag-colorSuccessBorder)] bg-[var(--ag-colorSuccessBg)]"
+                    ? "border-success/30 bg-success/10"
                     : blocking
-                      ? "border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)]"
-                      : "border-[var(--ag-colorBorderSecondary)]",
+                      ? "border-warning/30 bg-warning/10"
+                      : "border-border-muted",
             )}
         >
             <div className="flex items-center gap-3">
-                <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgContainer)]">
+                <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-solid border-border-muted bg-background">
                     {logo ? (
                         <Image
                             src={logo}
@@ -249,19 +249,19 @@ const AccountRow = ({
                             className="object-contain"
                         />
                     ) : (
-                        <Plugs size={18} className="text-[var(--ag-colorTextSecondary)]" />
+                        <Plugs size={18} className="text-muted-foreground" />
                     )}
                 </span>
 
                 <div className="min-w-0 flex-1">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
-                        <span className="truncate text-xs font-medium text-[var(--ag-colorText)]">
+                        <span className="truncate text-label font-medium text-foreground">
                             {name}
                         </span>
                         {/* Static fallback for hosts without selection (the drawer): the choice is
                             at least stated, even where it cannot be taken. */}
                         {!onSelect && !connected && options.length ? (
-                            <span className="shrink-0 text-[10px] text-[var(--ag-colorTextTertiary)]">
+                            <span className="shrink-0 text-caption text-muted-foreground">
                                 {t("entityUi.onboarding.orProviders", {
                                     providers: options
                                         .filter((slug) => slug !== active)
@@ -271,7 +271,7 @@ const AccountRow = ({
                             </span>
                         ) : null}
                         {account.required ? (
-                            <span className="shrink-0 rounded-full border border-solid border-[var(--ag-colorWarningBorder)] px-1.5 text-[10px] font-medium text-[var(--ag-colorWarning)]">
+                            <span className="shrink-0 rounded-md border border-solid border-warning/30 px-1.5 text-caption font-medium text-warning">
                                 {t("entityUi.onboarding.required")}
                             </span>
                         ) : null}
@@ -279,7 +279,7 @@ const AccountRow = ({
                     {/* Only a template row carries a scope line; a detected one has nothing
                         per-account to say, so it gets no second line at all. */}
                     {account.why ? (
-                        <div className="truncate text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
+                        <div className="truncate text-meta leading-snug text-muted-foreground">
                             {account.why}
                         </div>
                     ) : null}
@@ -287,7 +287,7 @@ const AccountRow = ({
 
                 <div className="flex shrink-0 items-center gap-1">
                     {connected ? (
-                        <span className="flex items-center gap-1 text-xs font-medium text-[var(--ag-colorSuccess)]">
+                        <span className="flex items-center gap-1 text-label font-medium text-success">
                             <CheckCircle size={13} weight="fill" />
                             {t("entityUi.onboarding.connected")}
                         </span>

@@ -28,5 +28,6 @@
     "bedrockAccessKeys": "访问密钥",
     "bedrockAccessKeysHint": "一个访问密钥 ID 和一个秘密访问密钥。",
     "secretAccessKey": "秘密访问密钥",
-    "apiKeyOptional": "API 密钥（可选）"
+    "apiKeyOptional": "API 密钥（可选）",
+    "theCustomEndpoint": "OpenAI 兼容端点"
 }

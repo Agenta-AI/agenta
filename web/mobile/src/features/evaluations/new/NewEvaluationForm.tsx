@@ -314,7 +314,7 @@ export const NewEvaluationForm = ({
                         className="min-w-0 md:flex-1 md:overflow-y-auto md:pl-6"
                     >
                         {sectionError ? (
-                            <p role="alert" className="m-0 mb-3 text-sm text-destructive">
+                            <p role="alert" className="m-0 mb-3 text-body text-destructive">
                                 {sectionError}
                             </p>
                         ) : null}

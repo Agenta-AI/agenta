@@ -55,6 +55,34 @@ describe("validateTemplateVariable — JSONPath", () => {
         expect(result.valid).toBe(true)
         expect(result.suggestion).toBeUndefined()
     })
+
+    it("rejects `$.` (root with trailing dot, no field)", () => {
+        // Only the bare `$` is a valid empty form. `$.` has nothing
+        // after the dot so it can never resolve at render time —
+        // surface that as an authoring error in the editor.
+        const result = validateTemplateVariable("$.")
+        expect(result.valid).toBe(false)
+        expect(result.reason).toMatch(/has no field/i)
+    })
+
+    it("rejects `$<not-dot>...` (JSONPath root without dot)", () => {
+        // `$outputs.country` is not a JSONPath — JSONPath roots descend
+        // with `.` (or end at the bare `$`). Typeahead inserts the `.`;
+        // this branch is the safety net for when a user bypasses typeahead
+        // and types or pastes a bare `$<name>` form.
+        const noDot = validateTemplateVariable("$outputs.country")
+        expect(noDot.valid).toBe(false)
+        expect(noDot.reason).toMatch(/must be followed by `\.`/i)
+
+        // Same for single-segment `$foo` — also rejected.
+        const noDotSingle = validateTemplateVariable("$foo")
+        expect(noDotSingle.valid).toBe(false)
+        expect(noDotSingle.reason).toMatch(/must be followed by `\.`/i)
+
+        // Same for `$1` or other non-dot characters.
+        expect(validateTemplateVariable("$1").valid).toBe(false)
+        expect(validateTemplateVariable("$[0]").valid).toBe(false)
+    })
 })
 
 // ---------------------------------------------------------------------------
@@ -83,6 +111,37 @@ describe("validateTemplateVariable — JSON Pointer", () => {
 
     it("rejects '/' with no segments", () => {
         expect(validateTemplateVariable("/").valid).toBe(false)
+    })
+})
+
+// ---------------------------------------------------------------------------
+// validateTemplateVariable — mustache section close tags (single-segment /)
+// ---------------------------------------------------------------------------
+
+describe("validateTemplateVariable — mustache section close tags", () => {
+    // {{#languages}}...{{/languages}} — the close tag is a mustache section
+    // marker, not a JSON Pointer.
+
+    it("accepts `/dotted.identifier` (mustache dotted section close)", () => {
+        expect(validateTemplateVariable("/profile.name").valid).toBe(true)
+        expect(validateTemplateVariable("/a.b.c").valid).toBe(true)
+    })
+
+    it("accepts `/_underscored`", () => {
+        expect(validateTemplateVariable("/_private").valid).toBe(true)
+    })
+
+    it("does NOT short-circuit multi-segment JSON Pointers", () => {
+        // Multi-segment paths still go through the envelope-slot check.
+        const result = validateTemplateVariable("/wrong/path")
+        expect(result.valid).toBe(false)
+        expect(result.reason).toMatch(/Unknown envelope slot/i)
+    })
+
+    it("rejects identifier-shaped paths that aren't valid identifiers (numeric leading)", () => {
+        // Numeric-leading isn't a valid mustache identifier or an envelope
+        // slot — fall through to JSON Pointer validation and reject.
+        expect(validateTemplateVariable("/123abc").valid).toBe(false)
     })
 })
 

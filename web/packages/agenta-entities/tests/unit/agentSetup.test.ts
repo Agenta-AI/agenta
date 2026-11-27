@@ -1,8 +1,6 @@
 import {describe, expect, it} from "vitest"
 
 import {
-    appendSetupPreamble,
-    buildSetupPreamble,
     canCreateAgent,
     outstandingRequired,
     setupStatus,
@@ -74,99 +72,6 @@ describe("gating", () => {
                 }),
             ),
         ).toBe("ready")
-    })
-})
-
-describe("buildSetupPreamble", () => {
-    const accounts = [account("github", true), account("slack", false), account("gmail", false)]
-
-    it("names the connected accounts", () => {
-        const text = buildSetupPreamble(selection({accounts, connectedSlugs: ["github", "slack"]}))
-        expect(text).toContain("I've connected Github and Slack.")
-        expect(text).toContain("Ask me before you write or send anything.")
-    })
-
-    it("says nothing about unconnected accounts — the builder asks when it needs them", () => {
-        const text = buildSetupPreamble(selection({accounts, connectedSlugs: ["github"]}))
-        expect(text).toContain("I've connected Github.")
-        expect(text).not.toContain("skipped")
-    })
-
-    it("keeps the order of the account list, not the slug list", () => {
-        const text = buildSetupPreamble(selection({accounts, connectedSlugs: ["slack", "github"]}))
-        expect(text).toContain("I've connected Github and Slack.")
-    })
-
-    // The default posture is a CONSTANT, not an answer the step collects: the platform's
-    // approval card asks before a write, and the user is offered no control to contradict.
-    it("always states the ask-first posture, even with nothing resolved", () => {
-        expect(buildSetupPreamble(selection({accounts}))).toBe(
-            "Ask me before you write or send anything.",
-        )
-    })
-
-    it("states the posture after the connections, not instead of them", () => {
-        expect(buildSetupPreamble(selection({accounts, connectedSlugs: ["github"]}))).toBe(
-            "I've connected Github. Ask me before you write or send anything.",
-        )
-    })
-
-    it("states a non-primary choice as an instruction, so the builder can't drift back", () => {
-        // "I've connected GitLab." alone loses to a prompt soaked in GitHub vocabulary — and
-        // says nothing at all when BOTH providers hold live connections.
-        const sel = selection({
-            accounts: [{...account("github", true), alternatives: ["gitlab"]}],
-            connectedSlugs: ["gitlab"],
-        })
-        expect(buildSetupPreamble(sel)).toContain("Use GitLab, not Github.")
-    })
-
-    it("adds no instruction when the primary itself was chosen", () => {
-        const sel = selection({
-            accounts: [{...account("github", true), alternatives: ["gitlab"]}],
-            connectedSlugs: ["github"],
-        })
-        expect(buildSetupPreamble(sel)).not.toContain("Use ")
-    })
-
-    it("names the alternative that satisfied the slot, not the slot's own provider", () => {
-        // A GitHub|GitLab slot connected via GitLab must say GitLab — the preamble is the only
-        // channel telling the builder WHICH provider's tools this agent uses.
-        const sel = selection({
-            accounts: [{...account("github", true), alternatives: ["gitlab"]}],
-            connectedSlugs: ["gitlab"],
-        })
-        expect(buildSetupPreamble(sel)).toContain("I've connected GitLab.")
-        expect(buildSetupPreamble(sel)).not.toContain("I've connected Github")
-    })
-
-    it("ignores a connected slug that is not on the card", () => {
-        expect(buildSetupPreamble(selection({accounts, connectedSlugs: ["notion"]}))).toBe(
-            "Ask me before you write or send anything.",
-        )
-    })
-})
-
-describe("appendSetupPreamble", () => {
-    const accounts = [account("slack", false)]
-
-    it("appends the preamble below the seed", () => {
-        const seed = "Build an agent that posts a digest."
-        const out = appendSetupPreamble(seed, selection({accounts, connectedSlugs: ["slack"]}))
-        expect(out.startsWith(seed)).toBe(true)
-        expect(out).toContain("\n\nI've connected Slack.")
-    })
-
-    it("still adds the posture when no account was resolved", () => {
-        const seed = "Build an agent that writes poems."
-        expect(appendSetupPreamble(seed, selection())).toBe(
-            `${seed}\n\nAsk me before you write or send anything.`,
-        )
-    })
-
-    it("returns the preamble alone for an empty seed", () => {
-        const out = appendSetupPreamble("  ", selection({accounts, connectedSlugs: ["slack"]}))
-        expect(out.startsWith("I've connected Slack.")).toBe(true)
     })
 })
 

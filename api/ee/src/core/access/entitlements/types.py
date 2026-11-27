@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Optional
 from enum import Enum
 from pydantic import BaseModel, ConfigDict, field_validator
@@ -23,6 +24,10 @@ class DefaultPlan(str, Enum):
     CLOUD_V0_AGENTA_AI = "cloud_v0_agenta_ai"
     #
     SELF_HOSTED_ENTERPRISE = "self_hosted_enterprise"
+    # Without Stripe: the plan with no valid license key, and the plan of a free
+    # registration key. Neither has an enterprise flag.
+    SELF_HOSTED_COMMUNITY = "self_hosted_community"
+    SELF_HOSTED_REGISTERED = "self_hosted_registered"
 
 
 # Permission slugs that the OWNER role always implies. `"*"` is the wildcard
@@ -696,6 +701,82 @@ DEFAULT_ENTITLEMENTS = {
             ),
         },
     },
+    DefaultPlan.SELF_HOSTED_COMMUNITY: {
+        Tracker.FLAGS: {
+            Flag.RBAC: False,
+            Flag.AUDIT: False,
+            Flag.ACCESS: False,
+            Flag.DOMAINS: False,
+            Flag.SSO: False,
+        },
+        Tracker.COUNTERS: {
+            Counter.EVALUATIONS_RUN: Quota(
+                strict=True,
+                period=Period.MONTHLY,
+            ),
+            Counter.TRACES_INGESTED: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.TRACES_RETRIEVED: Quota(
+                strict=True,
+                scope=Scope.USER,
+                period=Period.DAILY,
+            ),
+            Counter.CREDITS_CONSUMED: Quota(
+                strict=True,
+                period=Period.MONTHLY,
+            ),
+            Counter.EVENTS_INGESTED: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.RECORDS_INGESTED: Quota(
+                period=Period.MONTHLY,
+            ),
+        },
+        Tracker.GAUGES: {
+            Gauge.USERS: Quota(
+                strict=True,
+            ),
+        },
+    },
+    DefaultPlan.SELF_HOSTED_REGISTERED: {
+        Tracker.FLAGS: {
+            Flag.RBAC: False,
+            Flag.AUDIT: False,
+            Flag.ACCESS: False,
+            Flag.DOMAINS: False,
+            Flag.SSO: False,
+        },
+        Tracker.COUNTERS: {
+            Counter.EVALUATIONS_RUN: Quota(
+                strict=True,
+                period=Period.MONTHLY,
+            ),
+            Counter.TRACES_INGESTED: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.TRACES_RETRIEVED: Quota(
+                strict=True,
+                scope=Scope.USER,
+                period=Period.DAILY,
+            ),
+            Counter.CREDITS_CONSUMED: Quota(
+                strict=True,
+                period=Period.MONTHLY,
+            ),
+            Counter.EVENTS_INGESTED: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.RECORDS_INGESTED: Quota(
+                period=Period.MONTHLY,
+            ),
+        },
+        Tracker.GAUGES: {
+            Gauge.USERS: Quota(
+                strict=True,
+            ),
+        },
+    },
 }
 
 
@@ -730,10 +811,59 @@ AGENT_TURN_CAPS: dict[str, AgentTurnCaps] = {
 # organization already above it keeps its projects and cannot create more.
 PROJECT_LIMITS: dict[str, int] = {
     DefaultPlan.CLOUD_V0_HOBBY.value: 1,
+    DefaultPlan.SELF_HOSTED_COMMUNITY.value: 1,
 }
 PROJECT_LIMIT_MESSAGE = (
     "The Hobby plan includes 1 project. Upgrade to Starter for unlimited projects."
 )
+SELF_HOSTED_PROJECT_LIMIT_MESSAGE = (
+    "This organization has reached its limit of {limit} project(s). "
+    "A free key gives more projects."
+)
+
+# The most organizations an instance that is not cloud can hold, by instance plan. A
+# plan not listed here has no limit. Never read on cloud.
+ORGANIZATION_LIMITS: dict[str, int] = {
+    DefaultPlan.SELF_HOSTED_COMMUNITY.value: 1,
+    DefaultPlan.SELF_HOSTED_REGISTERED.value: 1,
+}
+
+
+@dataclass(frozen=True)
+class LimitUsage:
+    """A count against its plan limit; `limit` None is no limit."""
+
+    count: int
+    limit: Optional[int]
+
+    @property
+    def reached(self) -> bool:
+        return self.limit is not None and self.count >= self.limit
+
+
+class ProjectLimitReachedError(Exception):
+    code = "project_limit_reached"
+
+    def __init__(self, *, limit: int, message: str):
+        self.limit = limit
+        self.message = message
+        super().__init__(message)
+
+
+class InstanceOrganizationLimitReachedError(Exception):
+    """The instance holds as many organizations as its plan allows. Not an
+    `OrganizationCreationNotAllowedError`: that one means the person may not create
+    organizations."""
+
+    code = "instance_organization_limit_reached"
+
+    def __init__(self, *, limit: int):
+        self.limit = limit
+        self.message = (
+            f"This instance allows {limit} organization(s). Ask for an invitation to an "
+            "existing organization, or add a paid license key."
+        )
+        super().__init__(self.message)
 
 
 # Internal Counter/Gauge slug -> Stripe-side meter slot name. Membership in

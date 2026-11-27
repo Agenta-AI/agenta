@@ -1,0 +1,95 @@
+/* Touch rules every control gets for free: bottom sheets (COMPACT-04 in src/design/rules.json).
+   Nothing here changes a control's size: small screens and touch never get bigger UI.
+   Fields keep their own text size on touch: the app's viewport stops the iOS focus zoom (TOUCH-01). */
+
+/* Compact window on touch: menus, selects and the combobox are BottomSheet-shaped sheets that slide up (COMPACT-04, MICRO-02). */
+@media (max-width: 639px) and (pointer: coarse) {
+    [data-radix-popper-content-wrapper]:has(> [data-slot="dropdown-menu-content"]),
+    [data-radix-popper-content-wrapper]:has(> [data-slot="dropdown-menu-sub-content"]),
+    [data-radix-popper-content-wrapper]:has(> [data-slot="select-content"]),
+    [data-radix-popper-content-wrapper]:has(> [data-slot="combobox-content"]) {
+        position: fixed !important;
+        inset: auto 0 0 0 !important;
+        transform: none !important;
+        min-width: 0 !important;
+    }
+    [data-slot="dropdown-menu-content"],
+    [data-slot="dropdown-menu-sub-content"],
+    [data-slot="select-content"],
+    [data-slot="combobox-content"] {
+        width: 100% !important;
+        max-width: none !important;
+        max-height: 70svh !important;
+        /* The trigger offset (`translate-y-1`) pushed the sheet past the viewport. */
+        translate: none !important;
+        border-radius: var(--radius-xl) var(--radius-xl) 0 0 !important;
+        padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px)) !important;
+        box-shadow: 0 0 0 100vmax var(--overlay) !important;
+    }
+    [data-slot="dropdown-menu-content"][data-state="open"],
+    [data-slot="dropdown-menu-sub-content"][data-state="open"],
+    [data-slot="select-content"][data-state="open"],
+    [data-slot="combobox-content"][data-state="open"] {
+        animation: ag-touch-sheet-in var(--duration-slow) var(--ease-out) !important;
+    }
+    [data-slot="dropdown-menu-content"][data-state="closed"],
+    [data-slot="dropdown-menu-sub-content"][data-state="closed"],
+    [data-slot="combobox-content"][data-state="closed"] {
+        animation: ag-touch-sheet-out var(--duration-base) var(--ease-in-out) !important;
+    }
+    /* The BottomSheet's grab bar, kept in view while the list scrolls. */
+    [data-slot="dropdown-menu-content"]::before,
+    [data-slot="dropdown-menu-sub-content"]::before,
+    [data-slot="select-content"]::before,
+    [data-slot="combobox-content"]::before {
+        content: "";
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        display: block;
+        flex-shrink: 0;
+        width: 36px;
+        height: 5px;
+        margin: 0 auto 10px;
+        border-radius: var(--radius-sm);
+        background: var(--border);
+    }
+}
+
+@keyframes ag-touch-sheet-in {
+    from {
+        transform: translateY(100%);
+    }
+}
+
+@keyframes ag-touch-sheet-out {
+    to {
+        transform: translateY(100%);
+    }
+}
+
+/* Not `animation: none`: Radix waits for an `animationend` on close (see `ag-overlay-motion`). */
+@media (max-width: 639px) and (pointer: coarse) and (prefers-reduced-motion: reduce) {
+    [data-slot="dropdown-menu-content"][data-state],
+    [data-slot="dropdown-menu-sub-content"][data-state],
+    [data-slot="select-content"][data-state],
+    [data-slot="combobox-content"][data-state] {
+        animation-duration: 1ms !important;
+    }
+}
+
+/* Compact window: dialogs dock to the bottom edge, full width, clear of the home indicator. */
+@media (max-width: 639px) {
+    [data-slot="dialog-positioner"] {
+        align-items: flex-end !important;
+        padding: 0 !important;
+    }
+    [data-slot="dialog-content"] {
+        width: 100% !important;
+        max-width: none !important;
+        max-height: 90svh;
+        overflow-y: auto;
+        border-radius: 12px 12px 0 0 !important;
+        padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    }
+}

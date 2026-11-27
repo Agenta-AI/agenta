@@ -2,10 +2,11 @@ import * as React from "react"
 
 import {useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+import {CheckIcon, MagnifyingGlassIcon} from "@phosphor-icons/react"
 import {Command as CommandPrimitive} from "cmdk"
-import {CheckIcon, SearchIcon} from "lucide-react"
 
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from "./dialog"
+import {MENU_ITEM} from "./menu-item"
 import {cn} from "./utils"
 
 /**
@@ -31,6 +32,10 @@ function Command({className, ...props}: React.ComponentProps<typeof CommandPrimi
     )
 }
 
+// 1ms, not `animation: none`: Radix still gets the animationend it waits for on close.
+const INSTANT =
+    "data-[state=open]:![animation-duration:1ms] data-[state=closed]:![animation-duration:1ms]"
+
 function CommandDialog({
     title: titleProp,
     description: descriptionProp,
@@ -38,6 +43,7 @@ function CommandDialog({
     className,
     showCloseButton = false,
     shouldFilter,
+    instant = false,
     ...props
 }: React.ComponentProps<typeof Dialog> & {
     /** Screen-reader name for the dialog. */
@@ -48,6 +54,8 @@ function CommandDialog({
     showCloseButton?: boolean
     /** cmdk's own fuzzy filter; off when the host already matched (server search). */
     shouldFilter?: boolean
+    /** Opens and closes at once, for a palette used many times an hour (MICRO-04). */
+    instant?: boolean
 }) {
     const t = useT(uiControlsCatalog)
     const title = titleProp ?? t("ui.controls.commandPalette")
@@ -59,7 +67,8 @@ function CommandDialog({
                 <DialogDescription>{description}</DialogDescription>
             </DialogHeader>
             <DialogContent
-                className={cn("overflow-hidden rounded-xl p-0", className)}
+                className={cn("overflow-hidden rounded-xl p-0", instant && INSTANT, className)}
+                overlayClassName={instant ? INSTANT : undefined}
                 showCloseButton={showCloseButton}
                 // The search field takes focus on open, whatever else is focusable in the list.
                 onOpenAutoFocus={(event) => {
@@ -81,12 +90,12 @@ function CommandInput({className, ...props}: React.ComponentProps<typeof Command
     // Nova's field: a low, filled input group sitting in the panel's own gutter.
     return (
         <div data-slot="command-input-wrapper" className="p-1 pb-0">
-            <div className="flex h-8 items-center gap-2 rounded-lg bg-colorFillQuaternary pl-2 pr-3 ring-1 ring-inset ring-border transition-[box-shadow] focus-within:ring-ring focus-within:shadow-[0_0_0_3px_var(--ag-controlOutline)]">
-                <SearchIcon className="size-4 shrink-0 opacity-50" />
+            <div className="flex h-8 items-center gap-2 rounded-control bg-secondary pl-2 pr-3 ring-1 ring-inset ring-border transition-[box-shadow] focus-ring-field">
+                <MagnifyingGlassIcon className="size-4 shrink-0 opacity-50" />
                 <CommandPrimitive.Input
                     data-slot="command-input"
                     className={cn(
-                        "box-border h-full w-full min-w-0 border-0 bg-transparent p-0 font-[inherit] text-sm text-foreground outline-none placeholder:text-placeholder disabled:cursor-not-allowed disabled:opacity-50",
+                        "box-border h-full w-full min-w-0 border-0 bg-transparent p-0 font-[inherit] text-body text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50",
                         className,
                     )}
                     {...props}
@@ -113,7 +122,7 @@ function CommandEmpty({className, ...props}: React.ComponentProps<typeof Command
     return (
         <CommandPrimitive.Empty
             data-slot="command-empty"
-            className={cn("py-6 text-center text-sm", className)}
+            className={cn("py-6 text-center text-body", className)}
             {...props}
         />
     )
@@ -124,7 +133,7 @@ function CommandGroup({className, ...props}: React.ComponentProps<typeof Command
         <CommandPrimitive.Group
             data-slot="command-group"
             className={cn(
-                "overflow-hidden p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground",
+                "overflow-hidden p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-meta [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground",
                 className,
             )}
             {...props}
@@ -154,11 +163,10 @@ function CommandItem({
         <CommandPrimitive.Item
             data-slot="command-item"
             className={cn(
-                "group/command-item relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none",
-                "[[data-slot=dialog-content]_&]:rounded-lg",
-                "data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground",
+                MENU_ITEM,
+                // cmdk marks rows with data-selected / data-disabled="true", not Radix's attributes.
+                "group/command-item data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground",
                 "data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50",
-                "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
                 className,
             )}
             {...props}
@@ -175,7 +183,7 @@ function CommandShortcut({className, ...props}: React.ComponentProps<"span">) {
         <span
             data-slot="command-shortcut"
             className={cn(
-                "ml-auto text-xs tracking-widest text-muted-foreground group-data-[selected=true]/command-item:text-accent-foreground",
+                "ml-auto text-caption tracking-widest text-muted-foreground group-data-[selected=true]/command-item:text-accent-foreground",
                 className,
             )}
             {...props}

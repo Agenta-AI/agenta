@@ -58,8 +58,8 @@ export function matchesCategory(
 
 export interface ConnectedGroupLike {
     integrationKey: string
-    /** A search also finds an app by the name or slug of one of its connections. */
-    connections?: readonly {name?: string | null; slug?: string | null}[]
+    /** A search also finds a row by the name or slug of its connection. */
+    connection?: {name?: string | null; slug?: string | null}
 }
 
 export interface ConnectedFilterOptions<T extends ConnectedGroupLike> {
@@ -91,10 +91,7 @@ export function filterConnectedGroups<T extends ConnectedGroupLike>({
     return groups.filter((group) => {
         if (needle) {
             const name = namesByIntegration?.get(group.integrationKey) ?? ""
-            const connectionTexts = (group.connections ?? []).flatMap((connection) => [
-                connection.name ?? "",
-                connection.slug ?? "",
-            ])
+            const connectionTexts = [group.connection?.name ?? "", group.connection?.slug ?? ""]
             const haystack = [group.integrationKey, name, ...connectionTexts]
                 .join(" ")
                 .toLowerCase()

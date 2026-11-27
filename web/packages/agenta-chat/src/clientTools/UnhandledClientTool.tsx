@@ -21,8 +21,8 @@ const UnhandledClientTool = ({meta, settle}: ClientToolHandlerProps) => {
 
     return (
         <div className="flex min-w-0 items-center gap-2 py-1" title={meta.toolName}>
-            <Info size={13} className="shrink-0 text-colorTextTertiary" />
-            <span className="truncate text-xs text-colorTextTertiary">
+            <Info size={13} className="shrink-0 text-muted-foreground" />
+            <span className="truncate text-meta text-muted-foreground">
                 {t("chat.unhandledClientTool.notHandled")}
             </span>
         </div>

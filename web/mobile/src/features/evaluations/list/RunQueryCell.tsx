@@ -32,15 +32,15 @@ export const RunQueryCell = ({
     )
     const rate = revision?.data?.windowing?.rate
 
-    if (!queryRevisionId) return <span className="text-[13px] text-muted-foreground">—</span>
+    if (!queryRevisionId) return <span className="text-label text-muted-foreground">—</span>
     if (!inView || query.isPending) {
         return <SkeletonBlock active className="h-4 w-3/4 rounded" />
     }
     if (query.isError || !revision) {
-        return <span className="text-[13px] text-muted-foreground">—</span>
+        return <span className="text-label text-muted-foreground">—</span>
     }
     return (
-        <span className="flex min-w-0 flex-col gap-0.5 text-[12px] text-muted-foreground">
+        <span className="flex min-w-0 flex-col gap-0.5 text-meta text-muted-foreground">
             {lines.length === 0 ? <span>No filters</span> : null}
             {lines.map((line, index) => (
                 <span key={index} className="truncate">

@@ -15,6 +15,7 @@
     "grantViewOnlyByRole": "Can only view: their role in this project cannot send.",
     "invalidGrantee": "{{name}} is no longer a member of this project. Remove this person to share with the others.",
     "inviteButton": "Invite",
+    "inviteRoleLabel": "Access for the people you invite",
     "inviteViewOnly": "{{names}} can only view: their role in this project cannot send.",
     "linkCopied": "Link copied. Only people with access can open it.",
     "linkCopiedNobodyYet": "Link copied. Nobody else can open it yet.",

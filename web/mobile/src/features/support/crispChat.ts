@@ -1,4 +1,4 @@
-import {isEE} from "@agenta/shared/api"
+import {isCloud} from "@agenta/shared/api"
 import {atom, getDefaultStore} from "jotai"
 
 import {getEnv} from "@/lib/env"
@@ -12,7 +12,7 @@ declare global {
 const websiteId = () => getEnv("NEXT_PUBLIC_CRISP_WEBSITE_ID")
 
 /** Cloud only, like the desktop rail, and only where a Crisp website is configured. */
-export const isLiveChatEnabled = (): boolean => isEE() && Boolean(websiteId())
+export const isLiveChatEnabled = (): boolean => isCloud() && Boolean(websiteId())
 
 export const liveChatOpenAtom = atom(false)
 export const liveChatUnreadAtom = atom(0)

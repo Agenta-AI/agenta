@@ -11,8 +11,8 @@ export const Field = ({
     children: ReactNode
 }) => (
     <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium text-foreground">{label}</span>
+        <span className="text-label text-foreground">{label}</span>
         {children}
-        {hint ? <span className="text-xs text-muted-foreground">{hint}</span> : null}
+        {hint ? <span className="text-meta text-muted-foreground">{hint}</span> : null}
     </label>
 )

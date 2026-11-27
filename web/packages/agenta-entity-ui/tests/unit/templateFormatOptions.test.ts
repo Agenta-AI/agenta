@@ -11,10 +11,7 @@
 
 import {describe, it, expect} from "vitest"
 
-import {
-    buildTemplateFormatOptions,
-    OFFERED_TEMPLATE_FORMATS,
-} from "../../src/DrillInView/SchemaControls/templateFormatOptions"
+import {buildTemplateFormatOptions} from "../../src/DrillInView/SchemaControls/templateFormatOptions"
 
 describe("buildTemplateFormatOptions", () => {
     it("offers only mustache and jinja2 to a new (mustache) prompt", () => {
@@ -55,10 +52,6 @@ describe("buildTemplateFormatOptions", () => {
         for (const o of buildTemplateFormatOptions("curly")) {
             expect(o.label).toMatch(/Prompt Syntax:/)
         }
-    })
-
-    it("exposes the offered set as exactly mustache + jinja2", () => {
-        expect(OFFERED_TEMPLATE_FORMATS).toEqual(["mustache", "jinja2"])
     })
 
     describe("original-format escape hatch", () => {

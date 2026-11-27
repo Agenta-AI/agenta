@@ -4,7 +4,7 @@ import {SkeletonBlock} from "@agenta/ui/ui"
 export const FeatureTemplateGridSkeleton = ({count}: {count: number}) => (
     <div aria-busy className="grid gap-3 @2xl:grid-cols-3">
         {Array.from({length: count}, (_, index) => (
-            <SkeletonBlock key={index} active className="h-[180px] w-full rounded-xl" />
+            <SkeletonBlock key={index} active className="h-45 w-full rounded-xl" />
         ))}
     </div>
 )

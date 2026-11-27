@@ -320,6 +320,15 @@ const TurnRowInner = ({
                 streamedHere={streamedHereRef.current}
                 runStartedAt={runStartedAt}
                 renderClientTool={renderClientTool}
+                // The builder signs its answer on the timeline's row (S03, M05).
+                leading={
+                    builderChat ? (
+                        <>
+                            <BuilderIcon size={12} aria-hidden />
+                            {t("builder.page.builder")}
+                        </>
+                    ) : undefined
+                }
                 failure={
                     runFailure
                         ? describeRunFailure({...runFailure, can: NO_WAYS_OUT}).failure
@@ -330,9 +339,9 @@ const TurnRowInner = ({
             <ChangeResults parts={turn.message.parts} finished={!runOpen} latest={turn.isLast} />
             {answered ? (
                 <div {...quoteProps} className="flex min-w-0 flex-col gap-3">
-                    {/* The builder signs its answers (S03, M05): 12 px, secondary, above the text. */}
-                    {builderChat ? (
-                        <div className="-mb-2 flex items-center gap-1.5 text-[12px] leading-4 text-colorTextSecondary">
+                    {/* No timeline row (no step, run settled, no failure): sign the answer here. */}
+                    {builderChat && !activity.steps.length && !runOpen && !runFailure ? (
+                        <div className="-mb-2 flex items-center gap-1.5 text-meta text-muted-foreground">
                             <BuilderIcon size={12} aria-hidden />
                             {t("builder.page.builder")}
                         </div>
@@ -359,13 +368,13 @@ const TurnRowInner = ({
             {runFailure ? (
                 <TurnRunFailure failure={runFailure} renderFooter={renderMetaLine} />
             ) : answerless && !traceSummary.isPending ? (
-                <span className="text-xs italic text-colorTextSecondary">
+                <span className="text-meta italic text-muted-foreground">
                     {t("chat.mobileTurn.noResponse")}
                 </span>
             ) : turn.status.stopped && !answered && !live ? (
                 // Keyed on the answer the row shows, not on `hasAnswer`: a stop interrupts the
                 // running call, the fold hides that failed call, and the turn would read empty.
-                <span className="text-xs italic text-colorTextSecondary">
+                <span className="text-meta italic text-muted-foreground">
                     {t("chat.mobileTurn.stopped")}
                 </span>
             ) : null}
@@ -394,13 +403,7 @@ const TurnRowInner = ({
     const attachmentStrip = files.length ? (
         <AttachmentStrip files={files} align={turn.isUser ? "end" : "start"} />
     ) : null
-    const header =
-        accessory || attachmentStrip ? (
-            <>
-                {accessory}
-                {attachmentStrip}
-            </>
-        ) : null
+    const header = attachmentStrip
     // Attachments with no words paint no bubble; an assistant turn always paints its fold line.
     const hasBubbleContent =
         !turn.isUser ||
@@ -422,11 +425,7 @@ const TurnRowInner = ({
     // A send the server refused after the composer had already cleared. The row keeps the text so
     // it is not lost; this says why it is sitting there with no answer coming.
     const failureNote = isPendingSendFailed(turn.message) ? (
-        <div
-            data-pending-send-failed="true"
-            role="status"
-            className="mt-1 text-[11px] leading-4 opacity-80"
-        >
+        <div data-pending-send-failed="true" role="status" className="mt-1 text-meta opacity-80">
             {PENDING_SEND_FAILED_NOTE}
         </div>
     ) : null
@@ -452,7 +451,7 @@ const TurnRowInner = ({
         )
     }
 
-    return (
+    const row = (
         <div
             className={`${mobileTurnRowClass} ${turn.isUser ? "justify-end" : "justify-start"}`}
             {...rowMarkers}
@@ -460,23 +459,16 @@ const TurnRowInner = ({
             <ChatBubble
                 placement={turn.isUser ? "end" : "start"}
                 variant={turn.isUser && hasBubbleContent ? "filled" : "borderless"}
-                // No avatar column; the 85% inset is what reads as a user bubble. The builder's
-                // answers take the whole column (S03, B03).
-                className={
-                    turn.isUser
-                        ? "min-w-0 max-w-[85%]"
-                        : builderChat
-                          ? "min-w-0 max-w-full"
-                          : "min-w-0 max-w-full sm:max-w-[85%]"
-                }
+                // No avatar column; the 85% inset is what reads as a user bubble. The agent's
+                // answers take the whole column, as wide as the composer (KIT-11, LAYOUT-02).
+                className={turn.isUser ? "min-w-0 max-w-[85%]" : "min-w-0 max-w-full"}
                 classNames={{
                     content: turn.isUser
                         ? cn(
                               userBubbleContentClass,
-                              // The canvas bubble: radius 12 with a 2 px corner, 10 / 14 padding (M01, X-8).
-                              "rounded-[12px] rounded-br-[2px] bg-muted px-3.5 py-2.5 text-xs",
+                              "rounded-lg rounded-br-xs bg-secondary px-3.5 py-2.5 text-body",
                           )
-                        : cn("min-w-0 max-w-full overflow-hidden text-xs", ASSISTANT_CLIP_ROOM),
+                        : cn("min-w-0 max-w-full overflow-hidden text-body", ASSISTANT_CLIP_ROOM),
                     body: cn(
                         "min-w-0 max-w-full overflow-hidden",
                         !turn.isUser && ASSISTANT_CLIP_ROOM,
@@ -502,6 +494,15 @@ const TurnRowInner = ({
                 </div>
             ) : null}
         </div>
+    )
+    // The host's accessory (the builder's context divider) sits in the transcript column, above the turn.
+    return accessory ? (
+        <>
+            {accessory}
+            {row}
+        </>
+    ) : (
+        row
     )
 }
 

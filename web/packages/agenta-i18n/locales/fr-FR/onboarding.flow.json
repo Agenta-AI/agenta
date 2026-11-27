@@ -5,6 +5,7 @@
     "stepCounter": "Étape {{current}} sur {{total}}",
     "skip": "Passer pour l'instant",
     "dotCredits": "Crédits",
+    "dotRegister": "S'inscrire",
     "dotTemplates": "Premier Agent",
     "keyHint": "Appuyez sur {{key}}",
     "continue": "Continuer",

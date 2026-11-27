@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import {act} from "react"
 
+import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {DeleteFolderDialog} from "@/features/prompts/dialogs/DeleteFolderDialog"
 import {FolderNameDialog} from "@/features/prompts/dialogs/FolderNameDialog"
 import {MoveToFolderDialog} from "@/features/prompts/dialogs/MoveToFolderDialog"
+import {PromptsDialogs} from "@/features/prompts/PromptsDialogs"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
@@ -140,20 +141,34 @@ describe("prompt dialogs", () => {
         expect(onConfirm).toHaveBeenCalledWith(null)
     })
 
-    it("Delete names the folder or says this folder", () => {
+    const deleteDialog = (folder: {id: string; name: string | null}, deleteFolder = vi.fn()) =>
         act(() =>
             root.render(
-                <DeleteFolderDialog
-                    open
-                    folderName="Alpha"
-                    onConfirm={vi.fn()}
-                    onClose={vi.fn()}
-                />,
+                <QueryClientProvider client={new QueryClient()}>
+                    <PromptsDialogs
+                        dialog={{kind: "deleteFolder", folder: folder as never}}
+                        projectId="p1"
+                        folderId={null}
+                        foldersById={new Map()}
+                        actions={{pending: false, deleteFolder} as never}
+                        onClose={vi.fn()}
+                    />
+                </QueryClientProvider>,
             ),
         )
+
+    it("Delete names the folder or says this folder", () => {
+        deleteDialog({id: "f1", name: "Alpha"})
         expect(document.body.textContent).toContain("You are about to delete:")
         expect(document.body.textContent).toContain("Alpha")
-        act(() => root.render(<DeleteFolderDialog open onConfirm={vi.fn()} onClose={vi.fn()} />))
+        deleteDialog({id: "f1", name: null})
         expect(document.body.textContent).toContain("this folder")
+    })
+
+    it("Delete runs the folder's delete", async () => {
+        const deleteFolder = vi.fn(async () => ({ok: true}))
+        deleteDialog({id: "f1", name: "Alpha"}, deleteFolder)
+        await act(async () => byText("Delete")?.click())
+        expect(deleteFolder).toHaveBeenCalledWith({id: "f1", name: "Alpha"})
     })
 })

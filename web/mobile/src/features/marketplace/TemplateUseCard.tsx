@@ -25,7 +25,7 @@ export const TemplateUseCard = ({
                     <LoadingButton loading={busy} onClick={onUse} className="w-full">
                         {t("marketplace.page.useTemplate")}
                     </LoadingButton>
-                    <span className="text-muted-foreground text-center text-xs">
+                    <span className="text-muted-foreground text-center text-meta">
                         {t("marketplace.page.createsAgentNote")}
                     </span>
                 </TemplateUseCardGroup>
@@ -36,7 +36,7 @@ export const TemplateUseCard = ({
                 </TemplateUseCardGroup>
             ) : null}
             <TemplateUseCardGroup label={t("marketplace.page.startsWith")}>
-                <p className="m-0 rounded-md bg-colorFillQuaternary px-3 py-2 text-[13px] leading-5 text-foreground">
+                <p className="m-0 rounded-md bg-secondary px-3 py-2 text-label leading-5 text-foreground">
                     {templateBuilderMessage(template)}
                 </p>
             </TemplateUseCardGroup>

@@ -56,7 +56,7 @@ export const FocusScenarioPicker = ({
                 onValueChange={(next) => navigateToIndex(Number(next))}
                 disabled={focusIds.length === 0}
             >
-                <SelectTrigger size="sm" aria-label="Go to item" className="min-w-[72px]">
+                <SelectTrigger size="sm" aria-label="Go to item" className="min-w-18">
                     <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

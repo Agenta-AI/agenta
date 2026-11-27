@@ -1,5 +1,5 @@
 import {setUserAtoms} from "@agenta/entities/shared/user"
-import {ListTableToolbar} from "@agenta/ui/list-table"
+import {PageToolbar} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {atom} from "jotai"
 import {expect, userEvent, within} from "storybook/test"
@@ -52,7 +52,14 @@ const makeActions = (canEdit: boolean): RunRowActions => ({
     viewTestset: noop,
     remove: noop,
     isBusy: () => false,
-    modal: <></>,
+    confirmDialog: {
+        request: null,
+        pending: false,
+        error: null,
+        confirm: noop,
+        close: noop,
+        runConfirm: async () => undefined,
+    },
 })
 
 type StepKind = "auto" | "human" | "custom"
@@ -240,7 +247,7 @@ const Demo = ({
             <div className="mb-3">
                 <EvaluationKindTabs value={tab} appScoped={appScoped} onChange={noop} />
             </div>
-            <ListTableToolbar
+            <PageToolbar
                 search=""
                 onSearchChange={noop}
                 searchPlaceholder="Search evaluations"

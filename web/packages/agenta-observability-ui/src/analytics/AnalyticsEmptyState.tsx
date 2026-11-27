@@ -1,6 +1,6 @@
 import {useT} from "@agenta/i18n"
 import analyticsCatalog from "@agenta/i18n/catalogs/observabilityUi.analytics"
-import {Button} from "@agenta/ui/ui"
+import {Button, IconTile} from "@agenta/ui/ui"
 import {ChartBar, Plus} from "@phosphor-icons/react"
 
 const GHOST = Array.from(
@@ -39,14 +39,12 @@ export const AnalyticsEmptyState = ({
                 <GhostCard height={150} />
             </div>
             <div className="absolute inset-0 flex items-start justify-center pt-20">
-                <div className="flex w-[400px] max-w-[calc(100%-32px)] flex-col items-center gap-3 rounded-2xl border border-solid border-border bg-background px-8 py-7 text-center shadow-lg">
-                    <span className="grid size-11 place-items-center rounded-xl bg-muted">
-                        <ChartBar size={20} />
-                    </span>
-                    <span className="text-lg font-semibold">
-                        {t("observabilityUi.analytics.emptyTitle")}
-                    </span>
-                    <p className="m-0 text-sm text-muted-foreground">
+                <div className="flex w-[400px] max-w-[calc(100%-32px)] flex-col items-center gap-3 rounded-xl border border-solid border-border bg-popover px-8 py-7 text-center shadow-overlay">
+                    <IconTile size={40}>
+                        <ChartBar />
+                    </IconTile>
+                    <span className="text-title">{t("observabilityUi.analytics.emptyTitle")}</span>
+                    <p className="m-0 text-body text-muted-foreground">
                         {t("observabilityUi.analytics.emptyBody")}
                     </p>
                     {onCreateAgent ? (
@@ -56,11 +54,11 @@ export const AnalyticsEmptyState = ({
                         </Button>
                     ) : null}
                     {error ? (
-                        <span role="alert" className="text-xs text-destructive">
+                        <span role="alert" className="text-meta text-destructive">
                             {error}
                         </span>
                     ) : null}
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-meta text-muted-foreground">
                         {t("observabilityUi.analytics.emptyHint")}
                     </span>
                 </div>

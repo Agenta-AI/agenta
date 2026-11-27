@@ -94,7 +94,7 @@ export const SessionDrawerBody = ({
     return (
         <div className="flex min-h-0 flex-1">
             {narrow ? null : (
-                <div className="w-[320px] shrink-0 border-0 border-r border-solid border-border">
+                <div className="w-80 shrink-0 border-0 border-r border-solid border-border">
                     <SessionTurnsTree
                         traces={traces}
                         stats={stats}

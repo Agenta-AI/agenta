@@ -154,7 +154,7 @@ export const EmailPasswordForm = ({
     const invalid = message.type === "error" || undefined
 
     return (
-        <form className="flex w-full flex-col gap-[10px]" onSubmit={submit} noValidate>
+        <form className="flex w-full flex-col gap-2" onSubmit={submit} noValidate>
             {/* A locked address is shown by the host; the field stays for password managers. */}
             <Input
                 type="email"
@@ -169,7 +169,7 @@ export const EmailPasswordForm = ({
                 className={lockEmail ? "sr-only" : FIELD_CLASS}
                 onChange={(event) => setEmail(event.target.value)}
             />
-            <InputGroup className={cn("h-11 rounded-lg", shakeClass)}>
+            <InputGroup className={cn("h-control-lg rounded-md", shakeClass)}>
                 <InputGroupInput
                     type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
@@ -178,7 +178,7 @@ export const EmailPasswordForm = ({
                     placeholder={t("auth.emailPasswordForm.password")}
                     value={password}
                     autoFocus={lockEmail}
-                    className="h-full px-3 text-base md:text-sm"
+                    className="h-full px-3"
                     onChange={(event) => setPassword(event.target.value)}
                 />
                 <InputGroupAddon align="inline-end">

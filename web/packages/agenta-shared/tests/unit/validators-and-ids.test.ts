@@ -2,7 +2,7 @@ import {describe, expect, it} from "vitest"
 
 import {uuidToSpanId, uuidToTraceId} from "../../src/utils/traceIds"
 import {removeTrailingSlash} from "../../src/utils/uriUtils"
-import {isValidHttpUrl, isValidRegex, isValidUUID, validateUUID} from "../../src/utils/validators"
+import {isValidUUID, validateUUID} from "../../src/utils/validators"
 
 // ---------------------------------------------------------------------------
 // isValidUUID
@@ -41,35 +41,6 @@ describe("validateUUID", () => {
         expect(() => validateUUID("not-valid", "userId")).toThrow(
             "Invalid userId: must be a valid UUID",
         )
-    })
-})
-
-// ---------------------------------------------------------------------------
-// isValidHttpUrl
-// ---------------------------------------------------------------------------
-
-describe("isValidHttpUrl", () => {
-    it.each(["http://example.com", "https://example.com/path?q=1"])("returns true for %s", (url) =>
-        expect(isValidHttpUrl(url)).toBe(true),
-    )
-
-    it.each(["ftp://example.com", "not-a-url", "", "javascript:alert(1)"])(
-        "returns false for %s",
-        (url) => expect(isValidHttpUrl(url)).toBe(false),
-    )
-})
-
-// ---------------------------------------------------------------------------
-// isValidRegex
-// ---------------------------------------------------------------------------
-
-describe("isValidRegex", () => {
-    it.each(["^[a-z]+$", "\\d+", "(foo|bar)", ".*"])("returns true for valid regex %s", (re) =>
-        expect(isValidRegex(re)).toBe(true),
-    )
-
-    it.each(["[invalid", "(unclosed", "*bad"])("returns false for invalid regex %s", (re) => {
-        expect(isValidRegex(re)).toBe(false)
     })
 })
 

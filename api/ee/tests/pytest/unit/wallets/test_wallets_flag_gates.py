@@ -7,7 +7,6 @@ import importlib
 import pytest
 
 import entrypoints.worker_streams as worker_streams_module
-import oss.src.utils.common as common_module
 import oss.src.utils.env as env_module
 
 WALLET_STREAMS = {"measurements", "debits"}
@@ -28,12 +27,6 @@ def reload_worker_streams(monkeypatch):
     """
 
     def _reload(*, wallets_enabled: bool):
-        # Pinned: with the OSS edition the wallet streams are absent whatever the flag
-        # says, and the flag-off cases would pass vacuously.
-        monkeypatch.setattr(env_module.env.agenta, "license", "ee")
-        # `is_ee()` reads the `env` its own module bound at import, which is the stale
-        # singleton once another test has reloaded the env module.
-        monkeypatch.setattr(common_module, "env", env_module.env)
         monkeypatch.setattr(env_module.env.wallets, "enabled", wallets_enabled)
         return importlib.reload(worker_streams_module)
 

@@ -5,10 +5,11 @@ import publishCatalog from "@agenta/i18n/catalogs/publish"
 import {createApiKey} from "@agenta/settings"
 import {message} from "@agenta/ui/app-message"
 import {CopyButton} from "@agenta/ui/components/presentational"
-import {Input, LoadingButton, Segmented, Switch} from "@agenta/ui/ui"
+import {LoadingButton, PasswordInput, Segmented, Switch} from "@agenta/ui/ui"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 
 import {CodeBlock} from "../channels/CodeBlock"
+import {BLOCK_TITLE} from "../channels/helpers"
 
 import {AGENT_INVOKE_DOCS_URL, agentInvokeUrl} from "./snippets/request"
 import {buildAgentSnippets, type AgentSnippetLang} from "./snippets/snippets"
@@ -37,7 +38,7 @@ const SNIPPET_FILE: Record<AgentSnippetLang, string> = {
 }
 
 const FieldLabel = ({children, htmlFor}: {children: React.ReactNode; htmlFor?: string}) => (
-    <label htmlFor={htmlFor} className="text-[13px] font-semibold text-foreground">
+    <label htmlFor={htmlFor} className={BLOCK_TITLE}>
         {children}
     </label>
 )
@@ -80,15 +81,15 @@ export const AgentApiPanel = ({agentId, projectId, host, workspaceId}: AgentApiP
     }
 
     return (
-        <div className="flex min-w-0 flex-col gap-[18px]" data-testid="agent-api-panel">
+        <div className="flex min-w-0 flex-col gap-4" data-testid="agent-api-panel">
             <div className="flex flex-col gap-1.5">
                 <FieldLabel>{t("publish.endpoint")}</FieldLabel>
                 <div className="flex min-w-0 items-center gap-2 rounded-lg border border-solid border-border bg-muted py-1 pl-2 pr-1">
-                    <span className="shrink-0 rounded bg-background px-1.5 py-0.5 font-mono text-[11px] font-semibold text-foreground">
+                    <span className="shrink-0 rounded bg-background px-1.5 py-0.5 font-mono text-caption font-semibold text-foreground">
                         POST
                     </span>
                     <span
-                        className="min-w-0 flex-1 truncate font-mono text-[12.5px] text-foreground"
+                        className="min-w-0 flex-1 truncate text-code text-foreground"
                         title={endpoint}
                         data-testid="agent-api-endpoint"
                     >
@@ -96,7 +97,7 @@ export const AgentApiPanel = ({agentId, projectId, host, workspaceId}: AgentApiP
                     </span>
                     <CopyButton buttonText={null} text={endpoint} icon={true} />
                 </div>
-                <span className="text-[12.5px] text-muted-foreground">
+                <span className="text-label text-muted-foreground">
                     {t("publish.authenticateHint")}
                 </span>
             </div>
@@ -104,8 +105,9 @@ export const AgentApiPanel = ({agentId, projectId, host, workspaceId}: AgentApiP
             <div className="flex flex-col gap-1.5">
                 <FieldLabel htmlFor={keyInputId}>{t("publish.apiKey")}</FieldLabel>
                 <div className="flex min-w-0 items-center gap-2">
-                    <Input
+                    <PasswordInput
                         id={keyInputId}
+                        autoComplete="off"
                         className="min-w-0 flex-1"
                         placeholder={t("publish.apiKeyPlaceholder")}
                         value={apiKeyValue}
@@ -126,7 +128,7 @@ export const AgentApiPanel = ({agentId, projectId, host, workspaceId}: AgentApiP
                         onChange={(value) => setLang(value as AgentSnippetLang)}
                         data-testid="agent-api-lang"
                     />
-                    <label className="flex cursor-pointer items-center gap-2 text-[13px] text-foreground">
+                    <label className="flex cursor-pointer items-center gap-2 text-label text-foreground">
                         <Switch
                             size="sm"
                             checked={stream}
@@ -139,7 +141,8 @@ export const AgentApiPanel = ({agentId, projectId, host, workspaceId}: AgentApiP
                 <CodeBlock
                     label={SNIPPET_FILE[lang]}
                     code={code}
-                    maxHeightClass="max-h-[420px]"
+                    // Compact window: the page scrolls, not the code too (LAYOUT-01).
+                    maxHeightClass="max-h-105 max-sm:max-h-none"
                     data-testid="agent-api-snippet"
                 />
             </div>
@@ -148,7 +151,7 @@ export const AgentApiPanel = ({agentId, projectId, host, workspaceId}: AgentApiP
                 href={AGENT_INVOKE_DOCS_URL}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex w-fit items-center gap-1 text-[13px] font-medium text-foreground underline-offset-2 hover:underline"
+                className="inline-flex w-fit items-center gap-1 text-label font-medium text-foreground underline-offset-2 hover:underline"
             >
                 {t("publish.readDocs")}
                 <ArrowSquareOut size={14} />

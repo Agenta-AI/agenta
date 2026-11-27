@@ -2,8 +2,8 @@
  * The subscription views (F11 f8 to f10), with the target `project`. The add view opens them with
  * `nav.replace`, the list with `nav.push`, a host without a stack in its own drawer.
  *
- * - `subscriptionSignInView`: the device sign-in (ChatGPT). Opening it starts the sign-in;
- *   closing it cancels the sign-in and stops the poll. It goes back by itself when the sign-in
+ * - `subscriptionSignInView`: the device sign-in (ChatGPT). Opening it with `start` starts the
+ *   sign-in; closing it cancels the sign-in and stops the poll. It goes back by itself when the sign-in
  *   arrives.
  * - `subscriptionTokenView`: the pasted token (Claude). Save ("Connect") stores the token.
  *
@@ -23,6 +23,8 @@ export interface SubscriptionViewParams {
     provider: string
     /** The saved connection. Absent: the owner's connection for the product, if it has one. */
     connectionId?: string
+    /** Opened by a Connect action: the sign-in starts at once. Absent (an Edit), it waits for a click. */
+    start?: boolean
 }
 
 /** Whose subscriptions the views sign in, when they are not the project's own. */

@@ -85,8 +85,8 @@ export const AgentChannelsCard = ({
                             label={title}
                             detail={
                                 connection.status === "revoked" ? (
-                                    <span className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
-                                        <span className="size-1.5 shrink-0 rounded-full bg-colorError" />
+                                    <span className="flex items-center gap-1.5 text-label text-muted-foreground">
+                                        <span className="size-1.5 shrink-0 rounded-round bg-destructive" />
                                         {t("agents.overview.needsAttention")}
                                     </span>
                                 ) : (

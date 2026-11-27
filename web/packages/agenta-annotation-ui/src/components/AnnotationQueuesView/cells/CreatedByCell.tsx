@@ -16,7 +16,7 @@ const CreatedByCell = memo(function CreatedByCell({createdById}: CreatedByCellPr
     }
 
     return (
-        <Typography.Text type="secondary" className="text-xs truncate block">
+        <Typography.Text type="secondary" className="text-label font-normal truncate block">
             <UserAuthorLabel userId={createdById} showPrefix={false} showAvatar />
         </Typography.Text>
     )

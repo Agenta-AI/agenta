@@ -34,7 +34,5 @@
     "or": "ou",
     "expandEditor": "Expandir o editor",
     "shrinkEditor": "Reduzir o editor",
-    "removedState": "Esta habilidade não está mais no agente.",
-    "registryLeaveDescription": "Salvar suas alterações nesta habilidade no registro de habilidades ou descartá-las?",
-    "back": "Voltar"
+    "removedState": "Esta habilidade não está mais no agente."
 }

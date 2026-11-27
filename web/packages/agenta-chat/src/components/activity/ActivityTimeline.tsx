@@ -3,8 +3,7 @@ import {useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode} f
 import {createT} from "@agenta/i18n"
 import chatActivityCatalog from "@agenta/i18n/catalogs/chat.activity"
 import {AgentActivityDots, HeightCollapse, type AgentActivityFormat} from "@agenta/ui"
-import {PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
-import {CaretRight, FileText} from "@phosphor-icons/react"
+import {FileText} from "@phosphor-icons/react"
 import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useReducedMotion} from "motion/react"
@@ -31,7 +30,13 @@ import {turnSpanAtomFamily, useTurnStage, useTurnStageSince} from "../../state/t
 import RevealCollapse from "../RevealCollapse"
 
 import {ActivityClientStep} from "./ActivityClientStep"
-import {ActivityNode, LIVE_TEXT_CLASS, WaitingGlyph, type WaitingKind} from "./activityIcons"
+import {
+    ActivityNode,
+    LIVE_TEXT_CLASS,
+    StepCaret,
+    WaitingGlyph,
+    type WaitingKind,
+} from "./activityIcons"
 import {ActivityThoughtStep} from "./ActivityThoughtStep"
 import {ActivityToolStep} from "./ActivityToolStep"
 
@@ -156,7 +161,7 @@ const SwapLabel = ({
                 {shown}
             </span>
             {/* `pre`: the leading space would otherwise collapse at the flex item's start. */}
-            <span className="shrink-0 whitespace-pre text-colorTextTertiary tabular-nums">
+            <span className="shrink-0 whitespace-pre text-muted-foreground tabular-nums">
                 {suffix}
             </span>
         </span>
@@ -311,6 +316,8 @@ export interface ActivityTimelineProps {
     renderClientTool?: (part: ToolUIPart) => ReactNode
     /** The run failed: the header names it and the server's raw text is the fold's last step. */
     failure?: ActivityFailure
+    /** Who answered, on the header's row before the line ("Builder · Worked for 10 s"). */
+    leading?: ReactNode
 }
 
 export interface ActivityFailure {
@@ -338,6 +345,7 @@ export const ActivityTimeline = ({
     runStartedAt,
     renderClientTool,
     failure,
+    leading,
 }: ActivityTimelineProps) => {
     // Any turn can cold start: a parked environment outlives an idle gap by minutes at most.
     const stage = useTurnStage(streaming && sessionId ? sessionId : "")
@@ -453,7 +461,7 @@ export const ActivityTimeline = ({
         title = <SwapLabel shimmer suffix={clock} text={line.text} />
     } else if (failed && !count) {
         // Failed before any step: there is no work to name, only the failure.
-        title = <span className="text-colorError">{failed.label}</span>
+        title = <span className="text-destructive">{failed.label}</span>
     } else {
         title =
             elapsed === null
@@ -463,8 +471,8 @@ export const ActivityTimeline = ({
             title = (
                 <>
                     {title}
-                    <span className="whitespace-pre text-colorTextTertiary"> · </span>
-                    <span className="text-colorError">{failed.label}</span>
+                    <span className="whitespace-pre text-muted-foreground"> · </span>
+                    <span className="text-destructive">{failed.label}</span>
                 </>
             )
         }
@@ -472,47 +480,55 @@ export const ActivityTimeline = ({
 
     return (
         <div className="flex min-w-0 flex-col">
-            <button
-                type="button"
-                onClick={() => setExpanded({key, value: !open})}
-                // Nothing to open yet (no step, no raw failure): a plain line, not a toggle.
-                disabled={!nodes}
-                aria-expanded={nodes ? open : undefined}
-                className={`-ml-1.5 flex w-fit max-w-full cursor-pointer disabled:cursor-default items-center gap-2.5 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-[13px] text-colorTextSecondary max-md:leading-5 group/row ${PHONE_TOUCH_TARGET_CLASS}`}
-            >
-                {awaiting ? (
-                    <WaitingGlyph kind={waitingKind(steps)} />
-                ) : line ? (
-                    <AgentActivityDots format={line.format} />
+            <div className="flex min-w-0 items-center gap-1.5">
+                {leading ? (
+                    <>
+                        <span className="flex shrink-0 items-center gap-1.5 text-label text-muted-foreground">
+                            {leading}
+                        </span>
+                        <span aria-hidden className="shrink-0 text-label text-muted-foreground">
+                            ·
+                        </span>
+                    </>
                 ) : null}
-                <span className="flex min-w-0 items-center whitespace-nowrap transition-colors group-hover/row:text-colorText">
-                    {title}
-                </span>
-                {!live && files.length ? (
-                    <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-colorTextTertiary">
-                        <span>·</span>
-                        <FileText size={13} />
-                        {tNow("chat.activity.fileCount", {count: files.length})}
+                <button
+                    type="button"
+                    onClick={() => setExpanded({key, value: !open})}
+                    // Nothing to open yet (no step, no raw failure): a plain line, not a toggle.
+                    disabled={!nodes}
+                    aria-expanded={nodes ? open : undefined}
+                    className={`-ml-1.5 flex w-fit max-w-full min-w-0 cursor-pointer disabled:cursor-default items-center gap-2 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-label text-muted-foreground group/row`}
+                >
+                    {awaiting ? (
+                        <WaitingGlyph kind={waitingKind(steps)} />
+                    ) : line ? (
+                        <AgentActivityDots format={line.format} />
+                    ) : null}
+                    <span className="flex min-w-0 items-center whitespace-nowrap transition-colors group-hover/row:text-foreground">
+                        {title}
                     </span>
-                ) : null}
-                {/* Nothing to open before the first step. */}
-                {nodes ? (
-                    <CaretRight
-                        size={10}
-                        weight="bold"
-                        className={`shrink-0 text-colorTextSecondary transition-transform ${
-                            open ? "rotate-90" : ""
-                        }`}
-                    />
-                ) : null}
-            </button>
+                    {!live && files.length ? (
+                        <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-muted-foreground">
+                            <span>·</span>
+                            <FileText size={12} />
+                            {tNow("chat.activity.fileCount", {count: files.length})}
+                        </span>
+                    ) : null}
+                    {/* Nothing to open before the first step. */}
+                    {nodes ? (
+                        <span className="flex shrink-0 text-muted-foreground">
+                            <StepCaret open={open} />
+                        </span>
+                    ) : null}
+                </button>
+            </div>
             <RevealCollapse open={open}>
                 <div className="relative mt-3 mb-1.5 flex flex-col">
                     {/* The wire behind the nodes; one node has nothing to join. */}
                     {nodes > 1 ? (
                         <div
                             aria-hidden
-                            className={`absolute bottom-3.5 top-3.5 w-px bg-colorBorderSecondary ${
+                            className={`absolute bottom-3.5 top-3.5 w-px bg-border-muted ${
                                 live ? "ag-activity-wire-live" : ""
                             }`}
                             style={{left: 11.5}}
@@ -543,11 +559,9 @@ export const ActivityTimeline = ({
                         </StepReveal>
                     ))}
                     {detail ? (
-                        <div
-                            className={`flex min-w-0 items-start gap-3.5 ${count ? "pt-4.5" : ""}`}
-                        >
+                        <div className={`flex min-w-0 items-start gap-2 ${count ? "pt-4.5" : ""}`}>
                             <ActivityNode icon="platform" state="failed" />
-                            <pre className="m-0 max-h-60 min-w-0 flex-1 overflow-auto whitespace-pre-wrap break-words ag-surface-inset rounded-md px-3 py-2 font-mono text-xs leading-relaxed text-colorTextSecondary">
+                            <pre className="m-0 max-h-60 min-w-0 flex-1 overflow-auto whitespace-pre-wrap break-words ag-surface-inset rounded-md px-3 py-2 font-mono text-code text-muted-foreground">
                                 {detail}
                             </pre>
                         </div>

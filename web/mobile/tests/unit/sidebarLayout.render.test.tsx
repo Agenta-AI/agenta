@@ -8,24 +8,22 @@ afterEach(cleanup)
 const items = [{key: "configuration", title: "Configuration", link: "/configuration"}]
 
 // The row is the element with the 6 px rail radius.
-const rowOf = (text: string) => screen.getByText(text).closest("div[class*='rounded-sm']")
+const rowOf = (text: string) => screen.getByText(text).closest("div[class*='rounded-md']")
 
 describe("sidebar layout", () => {
     it("keeps the rail's 28 px rows by default", () => {
         render(<NavMenu items={items} collapsed={false} />)
-        expect(rowOf("Configuration")?.className).toContain("h-7")
+        expect(rowOf("Configuration")?.className).toContain("h-row-dense")
     })
 
-    it("draws 44 px rows in the phone sheet", () => {
+    it("draws the rail's 28 px rows in the phone sheet: small screens never get bigger rows", () => {
         render(
             <SidebarLayoutContext.Provider value="phone">
                 <NavMenu items={items} collapsed={false} />
             </SidebarLayoutContext.Provider>,
         )
         const row = rowOf("Configuration")
-        expect(row?.className).toContain("h-11")
-        expect(row?.className).not.toContain("h-7")
-        // Edge to edge, as the phone design draws the sheet's rows.
-        expect(row?.className).toContain("mb-0")
+        expect(row?.className).toContain("h-row-dense")
+        expect(row?.className).not.toContain("h-11")
     })
 })

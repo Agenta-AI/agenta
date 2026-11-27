@@ -3,6 +3,7 @@
 
 const DOCS_ORIGIN = "https://agenta.ai/docs"
 const VERSION_TAG = /^v\d+\.\d+\.\d+$/
+const SECURITY_TAG = "security"
 /** The covers the What's new dialog can draw. A demo video wins over a cover. */
 export const RELEASE_COVERS = ["builder", "models", "channels"]
 
@@ -56,8 +57,15 @@ const parseItems = (value, key, file) => {
     return value.map((entry) => {
         if (typeof entry?.area !== "string" || typeof entry?.text !== "string")
             throw new Error(`${file}: every ${key} item needs an area and a text`)
-        return {area: entry.area, text: entry.text}
+        return {area: entry.area, text: checkHttpsOnly(entry.text, `${file}: ${key}`)}
     })
+}
+
+// Instances show only https links and images; fail here so the feed never carries another one.
+const HTTP_LINK = /\bhttp:/i
+const checkHttpsOnly = (markdown, where) => {
+    if (HTTP_LINK.test(markdown)) throw new Error(`${where}: links and images must use https`)
+    return markdown
 }
 
 const absolutizeLinks = (markdown) => markdown.replace(/\]\(\/(?!\/)/g, `](${DOCS_ORIGIN}/`)
@@ -86,10 +94,21 @@ const parseCover = (value, file) => {
     return value
 }
 
+// `upgrade_notes`: where the release's extra upgrade steps are, a docs path or an https link.
+const parseUpgradeNotes = (value, file) => {
+    if (value === undefined) return undefined
+    const link =
+        typeof value === "string" && value.startsWith("/") ? `${DOCS_ORIGIN}${value}` : value
+    if (typeof link !== "string" || !/^https:\/\/[^\s]+$/.test(link))
+        throw new Error(`${file}: upgrade_notes must be a docs path or an https link`)
+    return link
+}
+
 /** Returns null for an entry without a version tag. */
 export const parseEntry = (source, name) => {
     const data = parseFrontmatter(source, name)
-    const version = (Array.isArray(data.tags) ? data.tags : []).find((tag) => VERSION_TAG.test(tag))
+    const tags = Array.isArray(data.tags) ? data.tags : []
+    const version = tags.find((tag) => VERSION_TAG.test(tag))
     if (!version) return null
     for (const key of ["title", "slug", "date"])
         if (typeof data[key] !== "string" || !data[key]) throw new Error(`${name}: missing ${key}`)
@@ -100,13 +119,16 @@ export const parseEntry = (source, name) => {
         /<Stream\b[^>]*?\bsrc="([^"]+)"/.exec(source) ??
         /cloudflarestream\.com\/([0-9a-f]{32})\//.exec(source)
     const cover = parseCover(data.cover, name)
+    const upgradeNotesLink = parseUpgradeNotes(data.upgrade_notes, name)
     return {
         version,
+        securityFix: tags.includes(SECURITY_TAG),
+        ...(upgradeNotesLink ? {upgradeNotesLink} : {}),
         date: data.date,
         feature: {
             id: data.slug,
             title: data.title,
-            body: absolutizeLinks(stripMdx(summary[1])),
+            body: checkHttpsOnly(absolutizeLinks(stripMdx(summary[1])), `${name}: <Summary>`),
             link: `${DOCS_ORIGIN}/changelog/${data.slug}`,
             ...(stream ? {streamVideoId: stream[1]} : cover ? {cover} : {}),
         },

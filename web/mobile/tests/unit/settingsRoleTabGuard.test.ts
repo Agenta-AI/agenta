@@ -6,16 +6,18 @@ const env = vi.hoisted(() => ({
     pending: false,
     owner: true,
     profilePending: false,
+    billing: true,
+    wallets: false,
+    walletSummary: undefined as {mode: string} | undefined,
 }))
 
 vi.mock("react", () => ({useMemo: (fn: () => unknown) => fn()}))
 vi.mock("next/router", () => ({useRouter: () => ({query: {}, asPath: env.path})}))
 vi.mock("@agenta/shared/api", () => ({
-    isBillingEnabled: () => true,
-    isEE: () => true,
+    isBillingEnabled: () => env.billing,
     isMcpGatewayEnabled: () => true,
     isToolsEnabled: () => true,
-    isWalletsEnabled: () => false,
+    isWalletsEnabled: () => env.wallets,
 }))
 vi.mock("../../src/features/context/useProjectPermission", () => ({
     useProjectPermission: () => env.allowed,
@@ -37,8 +39,11 @@ vi.mock("../../src/features/settings/useSettingsOrg", () => ({
         retry: () => undefined,
     }),
 }))
+vi.mock("../../src/features/settings/useInstanceLicense", () => ({
+    useInstanceLicense: () => ({isInstanceAdmin: false}),
+}))
 vi.mock("../../src/features/wallet/useWalletSummary", () => ({
-    useWalletSummary: () => ({data: undefined}),
+    useWalletSummary: () => ({data: env.walletSummary}),
 }))
 
 import {
@@ -53,6 +58,9 @@ beforeEach(() => {
     env.pending = false
     env.owner = true
     env.profilePending = false
+    env.billing = true
+    env.wallets = false
+    env.walletSummary = undefined
 })
 
 describe("tabs a role cannot open", () => {
@@ -96,4 +104,33 @@ describe("tabs a role cannot open", () => {
         expect(useActiveSettingsTab()).toBe("billing")
         expect(useMobileSettingsAccess().canViewBilling).toBe(true)
     })
+})
+
+describe("billing settings tab behind a deep link", () => {
+    it("opens the usage page on a self-hosted install (billing off)", () => {
+        env.path = "/settings?tab=billing"
+        env.billing = false
+        expect(useActiveSettingsTab()).toBe("billing")
+    })
+})
+
+describe("wallet settings tabs behind a deep link", () => {
+    beforeEach(() => {
+        env.wallets = true
+        env.walletSummary = {mode: "enforce"}
+    })
+
+    it.each(["credits", "walletUsage"])("open Credits for %s with the wallet flag on", (tab) => {
+        env.path = `/settings?tab=${tab}`
+        expect(useActiveSettingsTab()).toBe("credits")
+    })
+
+    it.each(["credits", "walletUsage"])(
+        "fall back to the default tab for %s with the wallet flag off",
+        (tab) => {
+            env.wallets = false
+            env.path = `/settings?tab=${tab}`
+            expect(useActiveSettingsTab()).toBe(DEFAULT_MOBILE_SETTINGS_TAB)
+        },
+    )
 })

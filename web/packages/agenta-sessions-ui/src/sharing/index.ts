@@ -4,11 +4,7 @@ export {SessionAccessChip, type SessionAccessChipProps} from "./SessionAccessChi
 export {SessionGrantRoleMenu, type SessionGrantRoleMenuProps} from "./SessionGrantRoleMenu"
 export {useSharingPerson} from "./useSharingPerson"
 export {MemberPicker, type MemberPickerProps} from "./MemberPicker"
-export {
-    ShareDisclosureNotice,
-    type ShareDisclosureNoticeProps,
-    type ShareDisclosureTarget,
-} from "./ShareDisclosureNotice"
+export {useShareDisclosureText, type ShareDisclosureTarget} from "./useShareDisclosureText"
 export {SharingSurface, type SharingSurfaceProps} from "./SharingSurface"
 export {PersonAvatar, personName, type SharingPerson} from "./people"
 export {

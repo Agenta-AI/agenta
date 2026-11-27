@@ -315,7 +315,8 @@ describe("SessionShareDialog", () => {
     it("hides Stop sharing when the chat is private with nobody added", () => {
         render()
         expect(buttonNamed(sessionSharingCopy.stopSharing)).toBeUndefined()
-        expect(text()).toContain(sessionSharingCopy.emptyGrants)
+        // General access says who can open it; the list adds no "no one else" line.
+        expect(text()).toContain(sessionSharingCopy.generalPrivateDescription)
     })
 })
 
@@ -325,10 +326,11 @@ describe("the copied link while nobody else has access", () => {
         await flush()
     }
 
-    it("warns next to the copy button and in the toast when the chat is private with nobody added", async () => {
+    it("warns in the toast when the chat is private with nobody added", async () => {
         const onNotify = vi.fn()
         render({onCopyLink: () => true, onNotify})
-        expect(text()).toContain(sessionSharingCopy.linkNobodyYet)
+        // The Private choice already says who can open it, so no note repeats it by the button.
+        expect(text()).toContain(sessionSharingCopy.generalPrivateDescription)
         await copyLink()
         expect(onNotify).toHaveBeenCalledWith(sessionSharingCopy.linkCopiedNobodyYet)
     })
@@ -342,14 +344,14 @@ describe("the copied link while nobody else has access", () => {
     ])("says nothing more once %s", async (_, state) => {
         const onNotify = vi.fn()
         render({sharing: state, onCopyLink: () => true, onNotify})
-        expect(text()).not.toContain(sessionSharingCopy.linkNobodyYet)
         await copyLink()
         expect(onNotify).toHaveBeenCalledWith(sessionSharingCopy.linkCopied)
     })
 
     it("does not warn when the dialog offers no link", () => {
         render()
-        expect(text()).not.toContain(sessionSharingCopy.linkNobodyYet)
+        expect(buttonNamed(sessionSharingCopy.copyLink)).toBeUndefined()
+        expect(text()).not.toContain(sessionSharingCopy.linkCopiedNobodyYet)
     })
 })
 

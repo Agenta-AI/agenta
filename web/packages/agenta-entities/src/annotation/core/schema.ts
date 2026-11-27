@@ -54,7 +54,13 @@ export const annotationLinkSchema = z.object({
  * A reference to another entity (evaluator, testset, testcase, etc.).
  */
 export const annotationReferenceSchema = z.object({
-    id: z.string().optional(),
+    // The API reference (`Reference`) may carry only a slug, so `id` may be absent or null.
+    // A null id reads as absent, so consumers keep one "no id" value.
+    id: z
+        .string()
+        .nullish()
+        .transform((id) => id ?? undefined)
+        .optional(),
     slug: z.string().optional(),
     version: z.coerce.number().optional(),
     attributes: z.record(z.string(), z.unknown()).optional(),
@@ -86,6 +92,8 @@ export const annotationReferencesSchema = z.object({
 export const annotationMetaSchema = z.object({
     name: z.string().optional(),
     description: z.string().optional(),
+    // Strict on purpose: an edit sends `meta` back whole, so an annotation whose tags this
+    // schema dropped would lose them on the first score change.
     tags: z.array(z.string()).optional(),
 })
 

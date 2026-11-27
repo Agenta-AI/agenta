@@ -64,27 +64,32 @@ const render = async (connections: ChannelConnections, extra = {}) => {
 
 const row = (platform: string) =>
     container.querySelector<HTMLElement>(`[data-testid="agent-channels-${platform}"]`)!
-const groups = () => [...container.querySelectorAll("h3")].map((h) => h.textContent)
+const groups = () => [...container.querySelectorAll("h2, h3")].map((h) => h.textContent)
+// A desktop row names its problem beside the platform name.
+const problem = (platform: string) => row(platform).querySelector(".text-warning")?.textContent
+// A desktop row to add draws a "+" that says what it does.
+const connectMark = (platform: string) =>
+    row(platform).querySelector('[role="img"]')?.getAttribute("aria-label")
 
 describe("AgentChannelsView", () => {
     it("lists the connected channel first and the others under Add a channel", async () => {
         await render({...EMPTY_CONNECTIONS, slack: slackHere})
         expect(container.textContent).toContain(
-            `A channel lets people talk to ${AGENT_NAME} in the chat app they already use.`,
+            `Let people chat with ${AGENT_NAME} in the apps they use.`,
         )
         expect(groups()).toEqual(["Connected", "Add a channel"])
-        expect(row("slack").textContent).toContain("Manage")
-        expect(row("slack").textContent).not.toContain("Needs attention")
-        expect(row("telegram").textContent).toContain("Connect")
-        // A connected channel is one button; a channel to add has its own Connect button (A07).
-        expect(row("slack").tagName).toBe("BUTTON")
-        expect(row("telegram").querySelector("button")?.textContent).toBe("Connect")
+        expect(problem("slack")).toBeUndefined()
+        // Every desktop row is one button; a channel to add draws a "+" named Connect.
+        expect(row("slack").getAttribute("role")).toBe("button")
+        expect(connectMark("slack")).toBeUndefined()
+        expect(row("telegram").getAttribute("role")).toBe("button")
+        expect(connectMark("telegram")).toBe("Connect")
     })
 
     it("says your agent while the agent name is not known", async () => {
         await render(EMPTY_CONNECTIONS, {agentName: undefined})
         expect(container.textContent).toContain(
-            "A channel lets people talk to your agent in the chat app they already use.",
+            "Let people chat with your agent in the apps they use.",
         )
     })
 
@@ -93,17 +98,17 @@ describe("AgentChannelsView", () => {
         expect(groups()).toEqual(["Add a channel"])
     })
 
-    it("marks a broken channel with Needs attention and Reconnect", async () => {
+    it("names the problem of a broken channel and says to reconnect", async () => {
         await render({...EMPTY_CONNECTIONS, slack: slackRevoked})
-        expect(row("slack").textContent).toContain("Needs attention")
-        expect(row("slack").textContent).toContain("Reconnect")
+        expect(problem("slack")).toContain("reconnect")
     })
 
-    it("marks a channel whose bot was removed from a chat, with Manage", async () => {
+    it("marks a channel whose bot was removed from a chat, and opens its manage view", async () => {
         await render({...EMPTY_CONNECTIONS, telegram: telegramBotRemoved})
-        expect(row("telegram").textContent).toContain("Needs attention")
-        expect(row("telegram").textContent).toContain("Manage")
-        expect(row("telegram").textContent).not.toContain("Reconnect")
+        expect(problem("telegram")).toContain("Bot removed")
+        expect(problem("telegram")).not.toContain("reconnect")
+        await act(async () => row("telegram").click())
+        expect(container.querySelector('[data-testid="inner-view"]')?.textContent).toBe("telegram")
     })
 
     it("marks the platform when a second connection of the agent is broken", async () => {
@@ -118,8 +123,7 @@ describe("AgentChannelsView", () => {
                 teams: [],
             },
         })
-        expect(row("slack").textContent).toContain("Needs attention")
-        expect(row("slack").textContent).toContain("Reconnect")
+        expect(problem("slack")).toContain("reconnect")
     })
 
     it("lists a platform with a working connection as connected even when a link is pending", async () => {
@@ -135,7 +139,7 @@ describe("AgentChannelsView", () => {
             },
         })
         expect(groups()).toEqual(["Connected", "Add a channel"])
-        expect(row("telegram").textContent).toContain("Needs attention")
+        expect(problem("telegram")).toBeTruthy()
         await act(async () => row("telegram").click())
         // The existing connection's manage view, not the hosted setup.
         expect(container.querySelector('[data-testid="inner-view"]')?.textContent).toBe("telegram")
@@ -184,7 +188,7 @@ describe("AgentChannelsView", () => {
             el.getAttribute("data-testid"),
         )
         expect(rows.slice(-2)).toEqual(["agent-channels-api", "agent-channels-embed"])
-        expect(row("api").tagName).toBe("BUTTON")
+        expect(row("api").getAttribute("role")).toBe("button")
         expect(row("api").textContent).toContain("Always on for saved versions")
         expect(row("embed").textContent).toContain("A chat on your website")
 
@@ -233,7 +237,9 @@ describe("AgentChannelsView", () => {
 
     it("shows skeleton rows while loading and Try again on a load error", async () => {
         await render(EMPTY_CONNECTIONS, {loading: true})
-        expect(groups()).toEqual([])
+        // The heading of the rows to add stays; its rows are skeletons, no platform yet.
+        expect(groups()).toEqual(["Add a channel"])
+        expect(container.querySelector('[data-testid="agent-channels-slack"]')).toBeNull()
         await render(EMPTY_CONNECTIONS, {loadError: "Could not load channels"})
         expect(container.textContent).toContain("Could not load channels")
         expect(container.textContent).toContain("Try again")

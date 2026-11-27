@@ -1,4 +1,13 @@
-import {useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode} from "react"
+import {
+    useCallback,
+    useEffect,
+    useRef,
+    useState,
+    type KeyboardEvent,
+    type MouseEvent,
+    type PointerEvent,
+    type ReactNode,
+} from "react"
 
 import {Popover, PopoverAnchor, PopoverContent} from "@agenta/ui/ui"
 
@@ -6,6 +15,8 @@ import {Popover, PopoverAnchor, PopoverContent} from "@agenta/ui/ui"
 const OPEN_DELAY_MS = 150
 /** Covers the gap between the icon and the flyout. */
 const CLOSE_DELAY_MS = 200
+/** How long a finger rests on a rail icon before its flyout opens. */
+const LONG_PRESS_MS = 450
 
 /**
  * A collapsed-rail icon whose flyout opens on hover, or on ArrowRight from the focused icon. The
@@ -38,11 +49,15 @@ export const HoverFlyout = ({
     const hold = useCallback((next: boolean) => {
         held.current = next
     }, [])
-    const show = () => {
+    const show = (event: PointerEvent<HTMLDivElement>) => {
+        // A tap fires pointerenter too; touch opens the flyout by long-press instead.
+        if (event.pointerType === "touch") return
         clear()
         timer.current = setTimeout(() => setOpen(true), OPEN_DELAY_MS)
     }
-    const hide = () => {
+    const hide = (event: PointerEvent<HTMLElement>) => {
+        // A lifted finger leaves too; a touch flyout closes on an outside tap instead.
+        if (event.pointerType === "touch") return
         clear()
         timer.current = setTimeout(() => {
             // Typing in the flyout's search must not lose the panel when the pointer drifts off.
@@ -59,7 +74,38 @@ export const HoverFlyout = ({
         setOpen(true)
     }
 
-    useEffect(() => clear, [])
+    // Touch has no hover: a long-press opens the flyout (TOUCH-02); a mouse keeps its right-click menu.
+    const lastPointer = useRef<string>("mouse")
+    const press = useRef<ReturnType<typeof setTimeout> | null>(null)
+    // The click a finger lifts after a long-press opened the flyout: it must not follow the link.
+    const pressed = useRef(false)
+    const cancelPress = () => {
+        if (press.current) clearTimeout(press.current)
+        press.current = null
+    }
+    const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+        lastPointer.current = event.pointerType
+        if (event.pointerType !== "touch") return
+        cancelPress()
+        pressed.current = false
+        press.current = setTimeout(() => {
+            pressed.current = true
+            clear()
+            setOpen(true)
+        }, LONG_PRESS_MS)
+    }
+    const onContextMenu = (event: MouseEvent<HTMLDivElement>) => {
+        if (lastPointer.current !== "touch") return
+        event.preventDefault()
+    }
+
+    useEffect(
+        () => () => {
+            clear()
+            cancelPress()
+        },
+        [],
+    )
 
     return (
         <Popover
@@ -74,8 +120,21 @@ export const HoverFlyout = ({
                     ref={anchorRef}
                     onPointerEnter={show}
                     onPointerLeave={hide}
+                    onClickCapture={(event) => {
+                        if (!pressed.current) return
+                        pressed.current = false
+                        event.preventDefault()
+                        event.stopPropagation()
+                    }}
                     onClick={close}
                     onKeyDown={onKeyDown}
+                    onPointerDown={onPointerDown}
+                    onPointerUp={cancelPress}
+                    onPointerCancel={cancelPress}
+                    onPointerMove={(event) => {
+                        if (event.pointerType === "touch") cancelPress()
+                    }}
+                    onContextMenu={onContextMenu}
                 >
                     {children}
                 </div>
@@ -84,8 +143,7 @@ export const HoverFlyout = ({
                 ref={contentRef}
                 side="right"
                 align="start"
-                sideOffset={8}
-                className="flex w-[280px] flex-col gap-0 p-0"
+                className="flex w-popover-md flex-col gap-0 p-0"
                 // Hover must not steal the caret; a keyboard open moves it into the flyout.
                 onOpenAutoFocus={(event) => {
                     if (!byKeyboard.current) event.preventDefault()

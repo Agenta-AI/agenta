@@ -22,7 +22,7 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import providerListCatalog from "@agenta/i18n/catalogs/entityUi.providerList"
 import settingsProvidersCatalog from "@agenta/i18n/catalogs/settings.providers"
 import {PhonePrimaryAction, useIsPhone} from "@agenta/ui/phone"
-import {Button, PHONE_TOUCH_TARGET_CLASS, SkeletonRows} from "@agenta/ui/ui"
+import {Button, SkeletonRows} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
@@ -42,7 +42,7 @@ export interface ProviderListBodyProps {
 
 /** A provider's bare 20 px logo, as the rows draw it (F09, M12). */
 export const ProviderLogo = ({kind}: {kind: string}) => (
-    <span className="flex size-5 shrink-0 items-center justify-center text-colorText">
+    <span className="flex size-5 shrink-0 items-center justify-center text-foreground">
         {createElement(providerIconFor(kind), {className: "size-5"})}
     </span>
 )
@@ -52,8 +52,8 @@ const RowTag = ({children, warn = false}: {children: ReactNode; warn?: boolean})
     <span
         className={
             warn
-                ? "inline-flex h-5 shrink-0 items-center whitespace-nowrap rounded px-[7px] text-[12px] leading-4 bg-colorWarningBg text-colorWarningText"
-                : "inline-flex h-5 shrink-0 items-center whitespace-nowrap rounded px-[7px] text-[12px] leading-4 bg-colorBgContainer text-colorTextSecondary ring-1 ring-inset ring-colorBorderSecondary"
+                ? "inline-flex h-5 shrink-0 items-center whitespace-nowrap rounded-sm px-1.5 text-caption bg-warning/10 text-warning"
+                : "inline-flex h-5 shrink-0 items-center whitespace-nowrap rounded-sm px-1.5 text-caption bg-background text-muted-foreground ring-1 ring-inset ring-border-muted"
         }
     >
         {children}
@@ -61,7 +61,7 @@ const RowTag = ({children, warn = false}: {children: ReactNode; warn?: boolean})
 )
 
 const GroupLabel = ({children}: {children: ReactNode}) => (
-    <div className="px-4 pb-1 pt-3.5 text-[12px] font-medium leading-5 text-colorTextTertiary max-md:pb-1.5 max-md:pt-4">
+    <div className="px-4 pb-1 pt-3.5 text-meta font-medium leading-5 text-muted-foreground max-md:pb-1.5 max-md:pt-4">
         {children}
     </div>
 )
@@ -85,14 +85,12 @@ const Row = ({
     action: {label: string; onClick: () => void}
     menu?: ReactNode
 }) => (
-    <li className="flex items-center gap-3 px-4 py-[9px] max-md:min-h-14 max-md:border-0 max-md:border-b max-md:border-solid max-md:border-colorBorderSecondary max-md:py-1.5 max-md:pr-2">
+    <li className="flex items-center gap-3 px-4 py-2 max-md:border-0 max-md:border-b max-md:border-solid max-md:border-border-muted max-md:py-1.5 max-md:pr-2">
         <ProviderLogo kind={kind} />
         {/* A phone has no width for a tag beside the name and the action, so the tag drops to
             a second line under the name. */}
         <span className="flex min-w-0 flex-1 items-center gap-3 max-md:flex-col max-md:items-start max-md:gap-0.5">
-            <span className="max-w-full truncate text-[13px] leading-5 text-colorText max-md:text-[15px]">
-                {name}
-            </span>
+            <span className="max-w-full truncate text-label leading-5 text-foreground">{name}</span>
             <span className="flex min-w-0 flex-1 items-center gap-1.5 max-md:flex-none max-md:empty:hidden">
                 {tag ? <RowTag>{tag}</RowTag> : null}
                 {state ? <RowTag warn>{state}</RowTag> : null}
@@ -101,18 +99,32 @@ const Row = ({
         <Button
             variant="outline"
             size="compact"
-            className={`shrink-0 max-md:mr-2 max-md:h-9 max-md:rounded-[8px] max-md:text-sm ${PHONE_TOUCH_TARGET_CLASS}`}
+            className={`shrink-0 max-md:mr-2`}
             onClick={action.onClick}
         >
             {action.label}
         </Button>
-        {menu ? (
-            <span className="flex shrink-0 max-md:[&_button]:min-h-11 max-md:[&_button]:min-w-11">
-                {menu}
-            </span>
-        ) : null}
+        {menu ? <span className="flex shrink-0">{menu}</span> : null}
     </li>
 )
+
+/** "Add a provider or subscription", fixed at the bottom of the view; the phone draws its own. */
+export const ProviderAddBar = ({onAdd}: {onAdd: () => void}) => {
+    const t = useT(providerListCatalog)
+    const phone = useIsPhone()
+    return phone ? (
+        <PhonePrimaryAction icon={<Plus size={14} />} onClick={onAdd}>
+            {t("entityUi.providerList.addProviderOrSubscription")}
+        </PhonePrimaryAction>
+    ) : (
+        <div className="shrink-0 border-0 border-t border-solid border-border-muted p-3">
+            <Button className="h-control w-full rounded-md text-label" onClick={onAdd}>
+                <Plus size={14} />
+                {t("entityUi.providerList.addProviderOrSubscription")}
+            </Button>
+        </div>
+    )
+}
 
 export const ProviderListBody = ({
     onAdd,
@@ -122,8 +134,6 @@ export const ProviderListBody = ({
     rowMenu,
 }: ProviderListBodyProps) => {
     const t = useT(providerListCatalog, settingsProvidersCatalog, commonCatalog)
-    // The phone draws its own primary action at the bottom of the screen.
-    const phone = useIsPhone()
     const connections = useAtomValue(providerConnectionsAtom)
     const vault = useAtomValue(vaultSecretsQueryAtom)
     const builtinEndpoints = useAtomValue(builtinModelEndpointsQueryAtom).data
@@ -142,13 +152,12 @@ export const ProviderListBody = ({
                     <SkeletonRows count={4} className="px-4 pt-4" />
                 ) : failed ? (
                     <div role="alert" className="flex flex-col items-start gap-2 px-4 pt-4">
-                        <span className="text-sm text-colorText">
+                        <span className="text-label text-foreground">
                             {t("entityUi.providerList.loadFailed")}
                         </span>
                         <Button
                             variant="outline"
                             size="compact"
-                            className={PHONE_TOUCH_TARGET_CLASS}
                             onClick={() => void vault.refetch()}
                         >
                             {t("common.tryAgain")}
@@ -216,18 +225,7 @@ export const ProviderListBody = ({
                     </div>
                 )}
             </div>
-            {phone ? (
-                <PhonePrimaryAction icon={<Plus size={14} />} onClick={onAdd}>
-                    {t("entityUi.providerList.addProviderOrSubscription")}
-                </PhonePrimaryAction>
-            ) : (
-                <div className="shrink-0 border-0 border-t border-solid border-colorBorderSecondary p-3">
-                    <Button className="h-8 w-full rounded-[6px] text-[13px]" onClick={onAdd}>
-                        <Plus size={14} />
-                        {t("entityUi.providerList.addProviderOrSubscription")}
-                    </Button>
-                </div>
-            )}
+            <ProviderAddBar onAdd={onAdd} />
         </div>
     )
 }

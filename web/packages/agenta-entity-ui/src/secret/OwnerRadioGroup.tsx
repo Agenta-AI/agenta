@@ -1,7 +1,6 @@
 import {useT} from "@agenta/i18n"
 import secretFormCatalog from "@agenta/i18n/catalogs/entityUi.secretForm"
-
-import {AccountSwitch} from "../accounts/AccountSwitch"
+import {ChoiceSwitch} from "@agenta/ui/ui"
 
 export interface OwnerOption<Owner extends string> {
     value: Owner
@@ -31,7 +30,7 @@ export function OwnerRadioGroup<Owner extends string>({
 }: OwnerRadioGroupProps<Owner>) {
     const t = useT(secretFormCatalog)
     return (
-        <AccountSwitch<Owner>
+        <ChoiceSwitch<Owner>
             aria-label={ariaLabel ?? t("entityUi.secretForm.whoCanUseIt")}
             value={value}
             choices={options}

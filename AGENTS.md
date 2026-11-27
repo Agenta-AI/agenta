@@ -82,13 +82,9 @@ basics.
 - API or SDK changes: run `ruff format` then `ruff check --fix` within the SDK or API
   folder (from the repo root: `ruff format` then `ruff check`). Fix all errors before
   committing. Details: `api/AGENTS.md`.
-- Theme color changes: edit the source of truth `web/oss/src/styles/theme/palette.ts`
-  (`web/oss/src/styles/theme/` is the one part of `web/oss` still in use), then run
-  `pnpm generate:tailwind-tokens` in the `web` folder and commit the regenerated files
-  (`web/packages/agenta-ui/src/styles/theme-variables.css`,
-  `web/mobile/src/styles/theme.generated.css`,
-  `web/oss/src/styles/theme/antd-overrides.generated.ts`). Do not hand-edit the generated
-  files.
+- Theme changes: every value comes from `web/packages/agenta-ui/src/design/theme.config.ts`. See
+  `web/DESIGN.md`, "Working with the system". `web/oss/src/styles/theme/palette.ts`
+  feeds only legacy generated files (`pnpm generate:tailwind-tokens` in `web`).
 
 ## Local dev loop (deploy + test)
 
@@ -147,7 +143,7 @@ Codex, Cursor) read this structure.
 
 - **Root `AGENTS.md`** (this file): cross-cutting facts only. `CLAUDE.md` re-imports it so
   Claude Code reads the same content.
-- **Nested `<dir>/AGENTS.md`** (`web/`, `web/mobile/`, `web/website/`, `api/`, `hosting/`):
+- **Nested `<dir>/AGENTS.md`** (`web/`, `web/mobile/`, `web/website/`, `api/`, `hosting/`, `docs/`):
   area conventions, loaded only when working in that directory. Each has a `CLAUDE.md`
   symlink so Claude loads it too.
 - **Skills** (`.agents/skills/`, symlinked into `.claude/skills/`): procedures and heavy

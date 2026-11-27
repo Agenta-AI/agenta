@@ -67,7 +67,7 @@ export const RunFilterChips = ({
         })
     }
     if (chips.length === 0) {
-        return <span className="text-xs text-muted-foreground">No filters applied</span>
+        return <span className="text-meta text-muted-foreground">No filters applied</span>
     }
     return (
         <ul
@@ -77,7 +77,7 @@ export const RunFilterChips = ({
             {chips.map((chip) => (
                 <li
                     key={chip.key}
-                    className="flex min-w-0 max-w-[280px] items-center gap-1 rounded-md border border-solid border-border bg-muted/40 py-0.5 pl-2 pr-0.5 text-xs"
+                    className="flex min-w-0 max-w-70 items-center gap-1 rounded-md border border-solid border-border bg-secondary py-0.5 pl-2 pr-0.5 text-meta"
                 >
                     <span className="truncate">
                         <span className="text-muted-foreground">{chip.label}: </span>

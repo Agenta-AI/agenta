@@ -273,7 +273,8 @@ describe("when the tool list cannot be read", () => {
         )
         const onChange = await render({tool_permissions: {echo: "allow"}})
 
-        expect(text()).toContain("The tool list could not be read.")
+        expect(text()).toContain("Couldn't read this server's tools")
+        expect(text()).toContain("The server did not answer. Try again in a moment.")
         expect(text()).not.toContain("tools/list")
         expect(button("Retry tools")).toBeDefined()
         expect(onChange).not.toHaveBeenCalled()
@@ -285,7 +286,7 @@ describe("when the tool list cannot be read", () => {
             "policy_denied",
             403,
         )
-        const logged = vi.spyOn(console, "error").mockImplementation(() => undefined)
+        const logged = vi.spyOn(console, "warn").mockImplementation(() => undefined)
         listMcpTools.mockRejectedValue(refusal)
         await render({tool_permissions: {echo: "allow"}})
 
@@ -305,11 +306,11 @@ describe("when the tool list cannot be read", () => {
         ["a missing secret", new McpProtocolError("no KEY", "secret_missing", 409), false],
         ["a deleted connection", new McpProtocolError("gone", "endpoint_not_found", 404), false],
     ])("reads plainly on %s, and offers Retry only where it can help", async (_, error, retry) => {
-        const logged = vi.spyOn(console, "error").mockImplementation(() => undefined)
+        const logged = vi.spyOn(console, "warn").mockImplementation(() => undefined)
         listMcpTools.mockRejectedValue(error)
         await render({tool_permissions: {echo: "allow"}})
 
-        expect(text()).toContain("The tool list could not be read.")
+        expect(text()).toContain("Couldn't read this server's tools")
         expect(text()).not.toContain(error.message)
         expect(Boolean(button("Retry tools"))).toBe(retry)
         logged.mockRestore()
@@ -321,7 +322,7 @@ describe("when the tool list cannot be read", () => {
         listMcpTools.mockRejectedValue(new Error("Request failed with status code 424"))
         await render({tool_permissions: {echo: "allow"}})
 
-        expect(text()).toContain("The tool list could not be read.")
+        expect(text()).toContain("The server did not answer. Try again in a moment.")
         expect(text()).not.toContain("status code 424")
     })
 })

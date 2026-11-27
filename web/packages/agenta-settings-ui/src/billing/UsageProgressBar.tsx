@@ -58,19 +58,19 @@ const UsageProgressBar = ({
 
     return (
         <div className="flex w-full flex-col gap-1">
-            <span className="inline-flex items-center gap-1 font-medium capitalize text-colorTextSecondary">
+            <span className="inline-flex items-center gap-1 font-medium capitalize text-muted-foreground">
                 {prettifyLabel(label)}
                 {suffix}
                 {/* A limit of 0 (or one the API did not send) is "unknown", not "exhausted" —
                     `value >= limit` warned on every metric before the plan resolved. */}
                 {!isUnlimited && limit > 0 && value >= limit ? (
-                    <WarningIcon weight="fill" className="text-colorWarning" />
+                    <WarningIcon weight="fill" className="text-warning" />
                 ) : null}
             </span>
 
             <span className="flex items-center gap-2">
-                <span className="text-xs font-medium text-colorText">{`${value} / ${limit ? limit : "-"}`}</span>
-                <span className="font-medium text-colorTextSecondary">
+                <span className="text-label text-foreground">{`${value} / ${limit ? limit : "-"}`}</span>
+                <span className="font-medium text-muted-foreground">
                     {free
                         ? t("billing.page.freeUsage", {used: value > free ? free : value, free})
                         : ""}

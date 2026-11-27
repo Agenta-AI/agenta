@@ -41,7 +41,7 @@ import mcpPermissionsCatalog from "@agenta/i18n/catalogs/entityUi.mcpPermissions
 import {projectIdAtom} from "@agenta/shared/state"
 import {McpServerMark} from "@agenta/ui/agent-icon"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
-import {Alert, Button, InlineConfirm} from "@agenta/ui/ui"
+import {Alert, Button, InlineConfirm, SimpleTooltip} from "@agenta/ui/ui"
 import {ArrowClockwise, CaretLeft, Trash, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
@@ -184,7 +184,7 @@ function LoginExpiredBanner({
         <Alert
             type="warning"
             showIcon
-            className="shrink-0 border-colorWarningBorder bg-colorWarningBg"
+            className="shrink-0 border-warning/30 bg-warning/10"
             // `mcpServerNoticeCopy` in @agenta/chat carries these two sentences for the
             // transcript, minus the third: entity-ui cannot import chat, so the copy is shared by
             // convention. Change one and change the other. It drops "Permissions below are kept"
@@ -222,27 +222,29 @@ function DrawerTitle({
         // w-full + min-w-0: the title slot will not shrink alone, pushing the health past the edge.
         <div className="flex w-full min-w-0 items-center gap-3">
             {onBack ? (
-                <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={t("entityUi.mcpPermissions.backToServers")}
-                    onClick={onBack}
-                    className="-ml-1 -mr-1 shrink-0"
-                >
-                    <CaretLeft />
-                </Button>
+                <SimpleTooltip title={t("entityUi.mcpPermissions.backToServers")}>
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={t("entityUi.mcpPermissions.backToServers")}
+                        onClick={onBack}
+                        className="-ml-1 -mr-1 shrink-0"
+                    >
+                        <CaretLeft />
+                    </Button>
+                </SimpleTooltip>
             ) : null}
             {/* One generic glyph for every server (decision 3); the tile color follows the name. */}
             <McpServerMark size={24} name={connectionName} />
             <div className="flex min-w-0 flex-1 items-baseline gap-2">
-                <span className="truncate text-[15px] font-semibold">{connectionName}</span>
+                <span className="truncate text-title">{connectionName}</span>
                 {toolPrefix ? (
-                    <span className="shrink-0 text-xs font-normal text-colorTextTertiary">
+                    <span className="shrink-0 text-meta font-normal text-muted-foreground">
                         {toolPrefix}
                     </span>
                 ) : null}
                 {toolCount != null ? (
-                    <span className="shrink-0 text-xs font-normal text-colorTextTertiary">
+                    <span className="shrink-0 text-meta font-normal text-muted-foreground">
                         {t("entityUi.mcpPermissions.toolsCount", {count: toolCount})}
                     </span>
                 ) : null}
@@ -250,7 +252,7 @@ function DrawerTitle({
             <StatusIndicator
                 tone={status === "connected" ? "success" : "warning"}
                 label={getMcpConnectionStatusLabel(status)}
-                className="shrink-0 text-[13px] font-normal"
+                className="shrink-0 text-label font-normal"
             />
         </div>
     )
@@ -284,7 +286,7 @@ function RemoveFromAgent({
         <Button
             variant="ghost"
             onClick={() => setConfirming(true)}
-            className="-ml-2 px-2 font-normal !text-[var(--ag-danger-text)] hover:bg-[color-mix(in_srgb,var(--ag-danger-text)_10%,transparent)]"
+            className="-ml-2 px-2 font-normal !text-destructive hover:bg-destructive/10"
         >
             <Trash data-icon="inline-start" />
             {t("entityUi.mcpPermissions.removeFromAgent")}
@@ -415,7 +417,7 @@ export function useMcpPermissionSource({
             setTools({status: "ready", tools: listed})
         } catch (error) {
             if (latestRead.current !== read) return
-            console.error("[mcp] the tool list could not be read", error)
+            console.warn("[mcp] the tool list could not be read", error)
             setTools({status: "failed", ...toolListFailure(error)})
         }
     }, [accountSource, loadToolsFrom, projectId, slug])
@@ -563,7 +565,7 @@ export function useMcpPermissionSource({
     const errorNode = useMemo<ReactNode>(() => {
         if (!slug) {
             return (
-                <p className="m-0 px-1 py-4 text-xs text-colorTextSecondary">
+                <p className="m-0 px-1 py-4 text-meta text-muted-foreground">
                     {tNow("entityUi.mcpPermissions.selectConnection")}
                 </p>
             )
@@ -618,7 +620,7 @@ export function useMcpPermissionSource({
     const footNote =
         strandedByFilter.length && !readOnly ? (
             <div className="flex flex-col gap-1">
-                <span className="text-xs text-colorError">
+                <span className="text-meta text-destructive">
                     {t("entityUi.mcpPermissions.strandedRules")}
                 </span>
                 {strandedByFilter.map((toolName) => (
