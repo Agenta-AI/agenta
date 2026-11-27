@@ -14,8 +14,8 @@ import {chatProseClassName, markdownIcons} from "@/features/chat/AssistantMarkdo
 
 import type {ScenarioRow} from "../scenarios/scenarioColumns"
 import {ScenariosLoadMoreError} from "../scenarios/states/ScenariosLoadMoreError"
-import {ScenarioValuesError} from "../scenarios/states/ScenarioValuesError"
 import {ScenariosRefreshError} from "../scenarios/states/ScenariosRefreshError"
+import {ScenarioValuesError} from "../scenarios/states/ScenarioValuesError"
 import {useRunScenarios} from "../scenarios/useRunScenarios"
 import {useScenarioGroupLabels} from "../scenarios/useScenarioGroupLabels"
 
@@ -81,7 +81,10 @@ const ScenarioFocusContent = ({
         return (
             <div className="flex flex-col gap-6">
                 {row.valuesFailed ? <ScenarioValuesError onRetry={onRetry} /> : null}
-                <ScenarioFocusResultsTab results={results} />
+                <ScenarioFocusResultsTab
+                    results={results}
+                    hasEvaluators={groups.some(({group}) => group.kind === "evaluator")}
+                />
             </div>
         )
     }

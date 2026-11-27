@@ -26,6 +26,7 @@
     "evaluatorCount_other": "{{count}} 件の評価者",
     "failedFirst": "失敗を先に表示",
     "noEvaluators": "この実行には評価者がありません",
+    "noResults": "このテストケースに結果を返した評価者はいません",
     "openStepTrace": "{{name}} のトレースを開く",
     "metrics": "メトリクス",
     "references": "参照",

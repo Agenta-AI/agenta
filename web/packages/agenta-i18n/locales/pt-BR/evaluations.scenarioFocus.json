@@ -30,6 +30,7 @@
     "evaluatorCount_other": "{{count}} avaliadores",
     "failedFirst": "Falhas primeiro",
     "noEvaluators": "Esta execução não tem avaliadores",
+    "noResults": "Nenhum avaliador deu um resultado para este caso de teste",
     "openStepTrace": "Abrir o trace de {{name}}",
     "metrics": "Métricas",
     "references": "Referências",

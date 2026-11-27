@@ -28,6 +28,7 @@
     "evaluatorCount_other": "{{count}} evaluators",
     "failedFirst": "Failed first",
     "noEvaluators": "This run has no evaluators",
+    "noResults": "No evaluator gave a result for this test case",
     "openStepTrace": "Open {{name}} trace",
     "metrics": "Metrics",
     "references": "References",

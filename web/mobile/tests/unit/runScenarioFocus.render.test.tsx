@@ -327,7 +327,6 @@ const withRevision = withAppTrace((answer, url) => {
     }
 })
 
-/** A second evaluator, "Aaa check", that passes, listed before Exact Match. */
 /** A second evaluator in the run that has no result on any test case. */
 const withEvaluatorWithoutResult: typeof answerRequest = (runId, serverState, url, body) => {
     const answer = answerRequest(runId, serverState, url, body)
@@ -347,6 +346,7 @@ const withEvaluatorWithoutResult: typeof answerRequest = (runId, serverState, ur
     return answer
 }
 
+/** A second evaluator, "Aaa check", that passes, listed before Exact Match. */
 const withTwoEvaluators: typeof answerRequest = (runId, serverState, url, body) => {
     const answer = answerRequest(runId, serverState, url, body)
     if (url.endsWith("/evaluations/runs/query")) {
@@ -781,6 +781,13 @@ describe("scenario focus drawer", () => {
         expect(rows).not.toContain("Not run")
         expect(rows.toLowerCase()).not.toContain("aaa")
         expect(rows).toContain("1 evaluator")
+    })
+
+    it("A finished test case with no evaluator result says so, not that the run has none", async () => {
+        await mount("sc-1", {scored: false})
+        await openTab("Results")
+        expect(text()).toContain("No evaluator gave a result for this test case")
+        expect(text()).not.toContain("This run has no evaluators")
     })
 
     it("Next on the last loaded row loads the next page", async () => {

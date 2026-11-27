@@ -61,14 +61,16 @@ const toolStep = (span: TraceSpan): ActivityStep => {
 /**
  * The work of each user turn of a trace, for `ValueField`'s `turnActivity`: the turn's tool
  * calls in the order they started, and the turn's time. One entry per turn of
- * `groupTraceTurns`, so the entries line up with the chat's user exchanges.
+ * `groupTraceTurns`, so the entries line up with the chat's user exchanges. A trace with no tool
+ * span gives none, so the chat keeps the tool calls it stored.
  */
 export function toolStepsFromTrace(trace: TracesResponse | null | undefined): TurnActivity[] {
-    return groupTraceTurns(rootSpans(trace)).map((turn) => ({
+    const turns = groupTraceTurns(rootSpans(trace)).map((turn) => ({
         steps: turn.spans.filter((span) => span.span_type === "tool").map(toolStep),
         durationMs:
             turn.startTime !== null && turn.endTime !== null
                 ? turn.endTime - turn.startTime
                 : undefined,
     }))
+    return turns.some((turn) => turn.steps.length > 0) ? turns : []
 }

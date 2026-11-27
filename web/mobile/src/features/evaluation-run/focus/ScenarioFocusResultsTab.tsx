@@ -115,7 +115,14 @@ export function scenarioEvaluatorResults(
  * evaluators in their own group with True / False. Each row has its trace button and, on expand,
  * the evaluator call's duration, tokens and cost.
  */
-export const ScenarioFocusResultsTab = ({results}: {results: ScenarioEvaluatorResult[]}) => {
+export const ScenarioFocusResultsTab = ({
+    results,
+    hasEvaluators,
+}: {
+    results: ScenarioEvaluatorResult[]
+    /** The run has evaluators, though none may have a result on this test case. */
+    hasEvaluators: boolean
+}) => {
     const t = useT(focusCatalog, traceSpanCatalog)
     const openTrace = useSetAtom(openTraceDrawerAtom)
     const {human, notHuman} = splitByOrigin(results)
@@ -123,7 +130,11 @@ export const ScenarioFocusResultsTab = ({results}: {results: ScenarioEvaluatorRe
     if (results.length === 0) {
         return (
             <p className="m-0 text-body text-muted-foreground">
-                {t("evaluations.scenarioFocus.noEvaluators")}
+                {t(
+                    hasEvaluators
+                        ? "evaluations.scenarioFocus.noResults"
+                        : "evaluations.scenarioFocus.noEvaluators",
+                )}
             </p>
         )
     }

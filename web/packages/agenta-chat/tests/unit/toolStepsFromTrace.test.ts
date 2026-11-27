@@ -122,6 +122,26 @@ describe("toolStepsFromTrace", () => {
         expect(toolStepsFromTrace({count: 0, traces: {}} as TracesResponse)).toEqual([])
     })
 
+    it("gives no turn for a trace with no tool span, so the chat keeps its stored calls", () => {
+        const noTools = {
+            count: 1,
+            traces: {
+                tr3: {
+                    spans: {
+                        root: {
+                            trace_id: "tr-3",
+                            span_id: "root",
+                            span_type: "agent",
+                            start_time: at(0),
+                            end_time: at(5),
+                        },
+                    },
+                },
+            },
+        } as unknown as TracesResponse
+        expect(toolStepsFromTrace(noTools)).toEqual([])
+    })
+
     it("gives each user turn its own tool calls and time", () => {
         const turn = (id: string, start: number, seconds: number, text: string) => ({
             trace_id: "tr-2",
