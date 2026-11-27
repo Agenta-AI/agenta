@@ -66,6 +66,11 @@ describe("ValueField shapes", () => {
         )
     })
 
+    it("folds short text of 9 lines", () => {
+        render(<ValueField value={lines(9)} />)
+        expect(screen.getByRole("button", {name: "Show all 9 lines"})).toBeTruthy()
+    })
+
     it("does not fold text of 8 lines or fewer", () => {
         render(<ValueField value={lines(8)} />)
         expect(screen.queryByRole("button", {name: /Show all/})).toBeNull()

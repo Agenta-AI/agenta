@@ -244,6 +244,14 @@ const partText = (part: unknown): string => {
     return part.type === "text" && typeof part.text === "string" ? part.text : ""
 }
 
+/** An image with a URL or a file: stored parts can be null or cut short. */
+const isAttachmentPart = (part: unknown): boolean =>
+    isRecord(part) &&
+    ((part.type === "image_url" &&
+        isRecord(part.image_url) &&
+        typeof part.image_url.url === "string") ||
+        (part.type === "file" && isRecord(part.file)))
+
 /** Read one chat message, in any of the shapes `isChatMessageObject` accepts. */
 export function readValueMessage(message: unknown): ValueMessage {
     const record = isRecord(message) ? message : {}
@@ -275,6 +283,8 @@ export function readValueMessage(message: unknown): ValueMessage {
         }),
         toolCallId: typeof record.tool_call_id === "string" ? record.tool_call_id : null,
         toolName: typeof record.name === "string" ? record.name : null,
-        attachments: Array.isArray(content) ? getAttachments(content as MessageContent) : [],
+        attachments: Array.isArray(content)
+            ? getAttachments(content.filter(isAttachmentPart) as MessageContent)
+            : [],
     }
 }

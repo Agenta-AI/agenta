@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {detectValueShape, formatShapeNumber} from "../../src/utils/valueShape"
+import {detectValueShape, formatShapeNumber, readValueMessage} from "../../src/utils/valueShape"
 
 const lines = (count: number) =>
     Array.from({length: count}, (_, index) => `line ${index + 1}`).join("\n")
@@ -126,5 +126,21 @@ describe("formatShapeNumber", () => {
         expect(formatShapeNumber(0.000123456)).toBe("0.000123")
         expect(formatShapeNumber(4218.4)).toBe("4218.4")
         expect(formatShapeNumber(1.23456)).toBe("1.235")
+    })
+})
+
+describe("readValueMessage", () => {
+    it("skips null and cut-short parts", () => {
+        const message = readValueMessage({
+            role: "user",
+            content: [
+                null,
+                {type: "text", text: "Hello"},
+                {type: "image_url"},
+                {type: "image_url", image_url: {url: "https://example.com/a.png"}},
+            ],
+        })
+        expect(message.text).toBe("Hello")
+        expect(message.attachments).toHaveLength(1)
     })
 })

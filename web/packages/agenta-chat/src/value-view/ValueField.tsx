@@ -220,7 +220,16 @@ export const ValueBody = ({
                     </span>
                 )
             case "text-short":
-                return <div className="whitespace-pre-wrap break-words">{drawn as string}</div>
+                // Up to 12 lines is short text, but a field folds over 8.
+                return (
+                    <FieldFold
+                        text={drawn as string}
+                        unfolded={unfolded}
+                        onOpenFullView={onOpenFullView}
+                    >
+                        <div className="whitespace-pre-wrap break-words">{drawn as string}</div>
+                    </FieldFold>
+                )
             case "text-long": {
                 const text = drawn as string
                 const mono = hasAlignedColumns(text)
