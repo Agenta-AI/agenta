@@ -33,6 +33,5 @@
     "modelCount_other": "{{count}} 个模型",
     "savedUntested": "此提供商没有免费的凭据检查，因此密钥将在未测试的情况下保存。",
     "testBeforeSaving": "请先测试此凭据，再保存。",
-    "searchModels_one": "搜索 {{count}} 个模型或添加 ID",
     "searchModels_other": "搜索 {{count}} 个模型或添加 ID"
 }

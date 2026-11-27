@@ -38,5 +38,6 @@
     "savedUntested": "Este proveedor no ofrece una comprobación gratuita de credenciales, así que la clave se guarda sin probar.",
     "testBeforeSaving": "Prueba esta credencial antes de guardarla.",
     "searchModels_one": "Busca entre {{count}} modelo o añade un ID",
-    "searchModels_other": "Busca entre {{count}} modelos o añade un ID"
+    "searchModels_other": "Busca entre {{count}} modelos o añade un ID",
+    "searchModels_many": "Busca entre {{count}} modelos o añade un ID"
 }

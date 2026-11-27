@@ -14,5 +14,6 @@
     "firesOn": "Se déclenche sur {{eventKey}}",
     "firesWhenEventArrives": "Se déclenche à l’arrivée de son événement",
     "mcpCount_one": "{{count}} serveur MCP",
-    "mcpCount_other": "{{count}} serveurs MCP"
+    "mcpCount_other": "{{count}} serveurs MCP",
+    "mcpCount_many": "{{count}} serveurs MCP"
 }

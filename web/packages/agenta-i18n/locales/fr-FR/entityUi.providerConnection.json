@@ -38,5 +38,6 @@
     "savedUntested": "Ce fournisseur ne propose pas de vérification gratuite des identifiants : la clé est donc enregistrée sans test.",
     "testBeforeSaving": "Testez cet identifiant avant de l’enregistrer.",
     "searchModels_one": "Rechercher parmi {{count}} modèle ou ajouter un ID",
-    "searchModels_other": "Rechercher parmi {{count}} modèles ou ajouter un ID"
+    "searchModels_other": "Rechercher parmi {{count}} modèles ou ajouter un ID",
+    "searchModels_many": "Rechercher parmi {{count}} modèles ou ajouter un ID"
 }

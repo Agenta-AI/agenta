@@ -15,6 +15,5 @@
     "importHint": "公開リポジトリから 1 つ以上のスキルをコピーします。",
     "createAndAdd": "作成して追加",
     "creating": "作成中…",
-    "addSkills_one": "{{count}} 件のスキルを追加",
     "addSkills_other": "{{count}} 件のスキルを追加"
 }

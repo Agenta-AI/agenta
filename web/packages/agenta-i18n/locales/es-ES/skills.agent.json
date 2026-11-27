@@ -16,5 +16,6 @@
     "createAndAdd": "Crear y añadir",
     "creating": "Creando…",
     "addSkills_one": "Añadir {{count}} skill",
-    "addSkills_other": "Añadir {{count}} skills"
+    "addSkills_other": "Añadir {{count}} skills",
+    "addSkills_many": "Añadir {{count}} skills"
 }
