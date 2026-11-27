@@ -28,7 +28,8 @@ environment (`POSTGRES_URI_CORE`, or `AGENTA_LICENSE` for the default database n
             EE only, after `ee0000000002` on an OSS to EE switch. Writes the
             effective OSS membership as project rows: a row for every (member,
             project of the organization) pair without one, and every existing row
-            set to the member's organization role. Pages by 1,000 members per
+            set to the member's organization role (`owner` for the organization's
+            `owner_id`, whatever its row says). Pages by 1,000 members per
             statement. Needs the unique index from `oss000000045`.
 
 Every step is idempotent: a second run changes nothing.
@@ -302,11 +303,15 @@ WHERE id IN (
 RETURNING id, project_id, user_id, role
 """
 
+# The organization owner is always `owner`, whatever its organization row says: an
+# owner row left at `viewer` must not demote the owner on every project.
 _MEMBER_PAGE_SQL = """
-SELECT DISTINCT ON (user_id) user_id, role
-FROM organization_members
-WHERE organization_id = :org AND user_id IS NOT NULL AND user_id > :cursor
-ORDER BY user_id, created_at ASC NULLS LAST, id ASC
+SELECT DISTINCT ON (om.user_id) om.user_id,
+       CASE WHEN om.user_id = o.owner_id THEN 'owner' ELSE om.role END AS role
+FROM organization_members om
+JOIN organizations o ON o.id = om.organization_id
+WHERE om.organization_id = :org AND om.user_id IS NOT NULL AND om.user_id > :cursor
+ORDER BY om.user_id, om.created_at ASC NULLS LAST, om.id ASC
 LIMIT :page
 """
 

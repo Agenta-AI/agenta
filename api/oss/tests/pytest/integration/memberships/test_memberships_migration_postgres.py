@@ -33,6 +33,7 @@ pytestmark = [
 
 _REPAIR = "oss000000044_repair_memberships_for_resolver.py"
 _INDEX = "oss000000045_add_project_members_unique_index.py"
+_OWNER_ROLES = "oss000000070_repair_organization_owner_roles.py"
 
 _REPAIR_CONSTANTS = (
     "_DELETE_DEMO_ONLY_MEMBERSHIPS_SQL",
@@ -462,6 +463,71 @@ def test_revisions_chain_after_the_current_head():
     assert (index.revision, index.down_revision) == ("oss000000045", "oss000000044")
 
 
+# -- oss000000070 ---------------------------------------------------------------------
+
+
+async def test_owner_roles_revision_makes_the_organization_owner_owner():
+    seeded = await seed_organization(
+        members={"m": "editor", "w": "viewer"}, projects_per_workspace=2
+    )
+    owner = seeded.owner_id
+    member = seeded.user_ids["m"]
+    statements = load_revision_module(_OWNER_ROLES).REPAIR_STATEMENTS
+    try:
+        # The oss stage state after v0.131.1: the owner's organization row and every
+        # project row of the owner say `viewer`.
+        await execute(
+            "UPDATE organization_members SET role = 'viewer' WHERE user_id = :u",
+            {"u": owner},
+        )
+        await execute(
+            "UPDATE project_members SET role = 'viewer' WHERE user_id = :u",
+            {"u": owner},
+        )
+        # A workspace owner who is not the organization owner keeps its rows.
+        await execute(
+            "UPDATE workspace_members SET role = 'owner' WHERE user_id = :u",
+            {"u": seeded.user_ids["w"]},
+        )
+
+        async with rolled_back_connection(organizations=[seeded]) as conn:
+            first = [
+                (await conn.execute(text(statement))).rowcount
+                for statement in statements
+            ]
+            assert first == [1, 2]
+
+            roles = await _organization_roles(conn, seeded.organization_id)
+            assert roles[owner] == ["owner"]
+            assert roles[member] == ["editor"]
+            assert roles[seeded.user_ids["w"]] == ["viewer"]
+            assert await _project_rows(conn, seeded.project_ids, owner) == {
+                p: ["owner"] for p in seeded.project_ids
+            }
+            assert await _project_rows(conn, seeded.project_ids, member) == {
+                p: ["editor"] for p in seeded.project_ids
+            }
+            assert await _project_rows(
+                conn, seeded.project_ids, seeded.user_ids["w"]
+            ) == {p: ["viewer"] for p in seeded.project_ids}
+
+            second = [
+                (await conn.execute(text(statement))).rowcount
+                for statement in statements
+            ]
+            assert second == [0, 0]
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+def test_owner_roles_revision_follows_the_head():
+    revision = load_revision_module(_OWNER_ROLES)
+    assert (revision.revision, revision.down_revision) == (
+        "oss000000070",
+        "oss000000069",
+    )
+
+
 # -- entrypoints/memberships_check.py --------------------------------------------------
 
 
@@ -844,6 +910,46 @@ async def test_materialize_corrects_a_stale_row(check_module, monkeypatch):
             organization_ids=[seeded.organization_id]
         )
         assert first == {"inserted": 1, "updated": 1}
+        assert await _project_rows(None, seeded.project_ids, member) == {
+            p: ["editor"] for p in seeded.project_ids
+        }
+
+        second = await check_module.run_materialize(
+            organization_ids=[seeded.organization_id]
+        )
+        assert second == {"inserted": 0, "updated": 0}
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+async def test_materialize_keeps_the_organization_owner_owner(
+    check_module, monkeypatch
+):
+    """An owner whose organization row says `viewer` stays `owner` on every project;
+    an editor stays `editor`."""
+
+    monkeypatch.setattr(check_module, "is_ee", lambda: True)
+    seeded = await seed_organization(members={"m": "editor"}, projects_per_workspace=2)
+    owner = seeded.owner_id
+    member = seeded.user_ids["m"]
+    try:
+        await execute(
+            "UPDATE organization_members SET role = 'viewer' WHERE user_id = :u",
+            {"u": owner},
+        )
+        await execute(
+            "DELETE FROM project_members WHERE user_id = ANY(CAST(:u AS uuid[])) "
+            "AND project_id = :p",
+            {"u": [owner, member], "p": seeded.project_ids[1]},
+        )
+
+        first = await check_module.run_materialize(
+            organization_ids=[seeded.organization_id]
+        )
+        assert first == {"inserted": 2, "updated": 0}
+        assert await _project_rows(None, seeded.project_ids, owner) == {
+            p: ["owner"] for p in seeded.project_ids
+        }
         assert await _project_rows(None, seeded.project_ids, member) == {
             p: ["editor"] for p in seeded.project_ids
         }
