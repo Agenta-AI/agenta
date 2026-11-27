@@ -531,7 +531,8 @@ export const ViewStackHost = ({
                             </span>
                         ) : null}
                     </AlertDialogHeader>
-                    <AlertDialogFooter>
+                    {/* In a narrow pane the three answers wrap rather than overflow. */}
+                    <AlertDialogFooter className="sm:flex-wrap">
                         <Button variant="ghost" onClick={() => question?.resolve("keep")}>
                             {t("ui.viewStack.keepEditing")}
                         </Button>
