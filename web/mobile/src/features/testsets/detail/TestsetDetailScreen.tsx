@@ -168,18 +168,24 @@ export const TestsetDetailScreen = ({
     // A link with `?testcase_id=` opens the editor on that test case once, when it is in the
     // revision. The rows load 100 per page, so pages load until the test case or the end.
     const linkedTestcaseId = router.query[TESTCASE_QUERY_PARAM]
-    const linkHandled = useRef(false)
+    // The linked id handled last: a link to another test case opens it too.
+    const linkHandled = useRef<string | null>(null)
     useEffect(() => {
-        if (linkHandled.current || typeof linkedTestcaseId !== "string" || rows.length === 0) return
+        if (
+            typeof linkedTestcaseId !== "string" ||
+            linkHandled.current === linkedTestcaseId ||
+            rows.length === 0
+        )
+            return
         if (rows.some((row) => row.id === linkedTestcaseId)) {
-            linkHandled.current = true
+            linkHandled.current = linkedTestcaseId
             openRow(linkedTestcaseId)
         } else if (loadingRows) {
             // A page is on the way; `hasMore` is false until it arrives.
         } else if (hasMoreRows) {
             loadMoreRows(editor.tableConfig)
         } else {
-            linkHandled.current = true
+            linkHandled.current = linkedTestcaseId
         }
     }, [
         editor.tableConfig,
