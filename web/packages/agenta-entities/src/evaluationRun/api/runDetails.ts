@@ -7,6 +7,7 @@
  * @packageDocumentation
  */
 
+import {getEvaluationsClient} from "@agenta/sdk/resources"
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 import {z} from "zod"
 
@@ -89,4 +90,24 @@ export async function queryRunLevelMetrics({
         {params: {project_id: projectId}},
     )
     return parseOrThrow(evaluationMetricsResponseSchema, response?.data, "metrics").metrics
+}
+
+/**
+ * `POST /evaluations/metrics/query` for every per-test-case row of one run (`scenario_ids: true`),
+ * at most `limit` rows. The overview counts the test cases that passed from them.
+ */
+export async function queryRunScenarioMetrics({
+    projectId,
+    runId,
+    limit,
+}: {
+    projectId: string
+    runId: string
+    limit: number
+}): Promise<EvaluationMetric[]> {
+    const response = await getEvaluationsClient().queryMetrics(
+        {metrics: {run_ids: [runId], scenario_ids: true}, windowing: {limit}},
+        {queryParams: {project_id: projectId}},
+    )
+    return parseOrThrow(evaluationMetricsResponseSchema, response, "scenario metrics").metrics
 }

@@ -38,6 +38,7 @@ export {
     evaluationRunScenarioSchema,
     queryEvaluationScenariosPage,
     queryRunLevelMetrics,
+    queryRunScenarioMetrics,
     type EvaluationRunScenario,
     type EvaluationScenariosPage,
     type EvaluationScenariosPageParams,

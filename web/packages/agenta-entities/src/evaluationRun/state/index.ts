@@ -42,4 +42,5 @@ export {
     type RunMetricEntry,
     type TemporalMetricPoint,
 } from "./runMetrics"
+export {runScenarioMetricsQueryAtomFamily, runScenarioMetricsQueryKey} from "./runScenarioMetrics"
 export {liveQueryRevisionQueryAtomFamily, liveQueryRevisionQueryKey} from "./liveQueryRevision"
