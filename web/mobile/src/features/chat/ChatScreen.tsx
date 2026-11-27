@@ -178,7 +178,7 @@ export const ChatScreen = ({
     // This tab's run state knows of a send or an approval wait before liveness does.
     const runStatus = useAtomValue(sessionStatusAtomFamily(sessionId))
     const turnActive = running || runStatus === "running" || runStatus === "awaiting"
-    // An open view form with edits holds the move too; the header then offers "Update to vN".
+    // An open view form with edits holds the move too, until it is saved or closed.
     const viewFormDirty = useAtomValue(viewFormDirtyAtom)
     // Across a switch the bar still holds the last session's revision and agent, and an active
     // turn keeps the revision it started on, so neither may move this session's pin.

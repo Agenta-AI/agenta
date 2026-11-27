@@ -121,7 +121,7 @@ export const SessionHeader = ({
                 phone={panel.phone}
             />
         ) : null
-    // On a phone the Configuration tab row shows the version; row 2 shows it only on a failed save.
+    // Mounted for session follow; shown only on a failed save.
     const saveFailed = useAtomValue(agentAutoCommitStatusAtomFamily(entityId ?? "")) === "error"
     const sessionTitle = session.data?.name || t("agentLayout.header.untitledSession")
     const sharing = (

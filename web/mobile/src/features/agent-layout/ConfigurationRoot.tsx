@@ -19,9 +19,8 @@ import {shownConfigTab} from "./shownConfigTab"
 
 /**
  * The root of the Configuration content: the four tabs and the open tab's body. On a phone (M07)
- * it is a full screen: the back arrow to the session, three tabs with the version status at the
- * end of the tab row, and on the Agent tab a row per section; a section opened from its row shows
- * as its own screen.
+ * it is a full screen: the back arrow to the session, three tabs, and on the Agent tab a row per
+ * section; a section opened from its row shows as its own screen.
  */
 export const ConfigurationRoot = ({
     agentId,
