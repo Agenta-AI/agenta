@@ -171,11 +171,12 @@ Creating and renaming a project needs the owner or admin role. Deleting a projec
 
 ### Enterprise: run the preflight before the upgrade
 
-The upgrade adds a unique index on project memberships. It stops when the database holds two membership rows for the same user and project. Before you upgrade, run the preflight from a checkout of the new release, with `POSTGRES_URI_CORE` set to your core database:
+The upgrade adds a unique index on project memberships. It stops when the database holds two membership rows for the same user and project. Before you upgrade, run the preflight from a checkout of the new release, with `POSTGRES_URI_CORE` set to your core database. In 0.124.0 the preflight reads `AGENTA_LICENSE` to run the Enterprise steps, so keep `AGENTA_LICENSE=ee` in this command:
 
 ```bash
 cd api
-uv run --no-sync python -m entrypoints.memberships_check --apply
+export POSTGRES_URI_CORE=postgresql+asyncpg://username:password@localhost:5432/agenta_ee_core
+AGENTA_LICENSE=ee uv run --no-sync python -m entrypoints.memberships_check --apply
 ```
 
 It deletes the newer row of each duplicate pair, keeps the oldest, and prints each deleted row with its role. Demo rows (`is_demo`) are not part of this step; the upgrade deletes them. It also adds the project rows that members of an organization without the RBAC entitlement need. It adds these rows only before the upgrade: after the upgrade has run, `--apply` skips this step and says so. To see what it would change first, run it with `--report` instead of `--apply`; that writes a `report.json` and changes nothing.
@@ -188,6 +189,7 @@ The same unique index is added on open source. If the upgrade stops with `projec
 
 ```bash
 cd api
+export POSTGRES_URI_CORE=postgresql+asyncpg://username:password@localhost:5432/agenta_oss_core
 uv run --no-sync python -m entrypoints.memberships_check --apply
 ```
 

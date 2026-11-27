@@ -49,8 +49,9 @@ A new install does not set `AGENTA_LICENSE` for the API. The env file examples s
 
 Existing installs that set AGENTA_LICENSE keep working; new installs do not need it.
 
-On such an install, the API reads `AGENTA_LICENSE` only for the default database names, and only
-when `POSTGRES_DB_PREFIX` and the `POSTGRES_URI_*` variables are not set. `ee` gives `agenta_ee_core`,
+On such an install, the API reads `AGENTA_LICENSE` only for the default database names. Each of
+the three databases gets its name on its own: from its `POSTGRES_URI_*` variable, else from
+`POSTGRES_DB_PREFIX`, else from `AGENTA_LICENSE`. `ee` gives `agenta_ee_core`,
 `agenta_ee_tracing` and `agenta_ee_supertokens`. Any other value, or no value, gives `agenta_oss_*`.
 The web container still reads it to pick the classic web (`/w`) build, and the services container
 reads it for [provider keys from the environment](#llm-provider-api-keys). For this reason, the
@@ -58,8 +59,8 @@ Enterprise env file examples and the Helm value `agenta.license` keep it. It doe
 plan or the features: a [license key](#license) does.
 
 :::warning Do not change or remove `AGENTA_LICENSE` on an install that has data
-If the install does not set `POSTGRES_DB_PREFIX` or `POSTGRES_URI_*`, it then opens other database
-names, which are empty, and looks as if its data is gone. To move to a paid plan, add a
+A database that has neither its `POSTGRES_URI_*` variable nor `POSTGRES_DB_PREFIX` set then opens
+another database name, which is empty, and the install looks as if its data is gone. To move to a paid plan, add a
 [license key](/self-host/license-keys) instead.
 :::
 
