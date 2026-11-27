@@ -1,22 +1,22 @@
 import {useState} from "react"
 
 import {FilterMenu, type FilterMenuItem} from "@agenta/ui/filter-menu"
-import type {Meta, StoryObj} from "@storybook/nextjs"
 import {
-    Archive,
-    Bot,
-    CalendarClock,
-    Clock,
-    Layers,
-    LayoutList,
-    Minus,
-    Rows3,
-    Type,
-    Zap,
-} from "lucide-react"
+    ArchiveIcon,
+    CalendarDotsIcon,
+    ClockIcon,
+    LightningIcon,
+    ListDashesIcon,
+    MinusIcon,
+    RobotIcon,
+    RowsIcon,
+    StackIcon,
+    TextTIcon,
+} from "@phosphor-icons/react"
+import type {Meta, StoryObj} from "@storybook/nextjs"
 
 /**
- * `@agenta/ui/filter-menu` is antd-free and entity-free, so it renders identically in `/m` and
+ * `@agenta/ui/filter-menu` is entity-free, so it renders identically in `/m` and
  * the desktop app. Nothing type-checks the storybook package in CI — these stories are the only
  * place the component's prop shape is exercised outside its two call-sites.
  */
@@ -65,39 +65,43 @@ const buildSections = (
         {
             key: "type",
             label: "Type",
-            icon: <Zap size={ICON} />,
+            icon: <LightningIcon size={ICON} />,
             value: view.type,
             options: [
-                {value: "all", label: "All", icon: <Layers size={ICON} />},
-                {value: "chat", label: "Chat", icon: <Type size={ICON} />},
-                {value: "automation", label: "Automation", icon: <Zap size={ICON} />},
+                {value: "all", label: "All", icon: <StackIcon size={ICON} />},
+                {value: "chat", label: "Chat", icon: <TextTIcon size={ICON} />},
+                {value: "automation", label: "Automation", icon: <LightningIcon size={ICON} />},
             ],
             onChange: (type) => set({type}),
         },
         {
             key: "agent",
             label: "Agent",
-            icon: <Bot size={ICON} />,
+            icon: <RobotIcon size={ICON} />,
             value: view.agent,
             emptyText: "No agents yet",
             options: emptyAgents
                 ? []
                 : [
-                      {value: "all", label: "All agents", icon: <Bot size={ICON} />},
-                      {value: "triage", label: "Issue triager", icon: <Bot size={ICON} />},
-                      {value: "changelog", label: "Changelog writer", icon: <Bot size={ICON} />},
+                      {value: "all", label: "All agents", icon: <RobotIcon size={ICON} />},
+                      {value: "triage", label: "Issue triager", icon: <RobotIcon size={ICON} />},
+                      {
+                          value: "changelog",
+                          label: "Changelog writer",
+                          icon: <RobotIcon size={ICON} />,
+                      },
                   ],
             onChange: (agent) => set({agent}),
         },
         {
             key: "status",
             label: "Status",
-            icon: <LayoutList size={ICON} />,
+            icon: <ListDashesIcon size={ICON} />,
             value: view.status,
             options: [
-                {value: "all", label: "All", icon: <Layers size={ICON} />},
-                {value: "working", label: "Working", icon: <Clock size={ICON} />},
-                {value: "paused", label: "Paused", icon: <Minus size={ICON} />},
+                {value: "all", label: "All", icon: <StackIcon size={ICON} />},
+                {value: "working", label: "Working", icon: <ClockIcon size={ICON} />},
+                {value: "paused", label: "Paused", icon: <MinusIcon size={ICON} />},
             ],
             onChange: (status) => set({status}),
         },
@@ -105,19 +109,19 @@ const buildSections = (
             kind: "toggle",
             key: "archived",
             label: "Only archived",
-            icon: <Archive size={ICON} />,
+            icon: <ArchiveIcon size={ICON} />,
             checked: view.archived,
             onChange: (archived) => set({archived}),
         },
         {
             key: "sort",
             label: "Sort by",
-            icon: <CalendarClock size={ICON} />,
+            icon: <CalendarDotsIcon size={ICON} />,
             block: "sort",
             value: view.sort,
             options: [
-                {value: "activity", label: "Last activity", icon: <Clock size={ICON} />},
-                {value: "name", label: "Name", icon: <Type size={ICON} />},
+                {value: "activity", label: "Last activity", icon: <ClockIcon size={ICON} />},
+                {value: "name", label: "Name", icon: <TextTIcon size={ICON} />},
             ],
             onChange: (sort) => set({sort}),
         },
@@ -127,13 +131,13 @@ const buildSections = (
         sections.push({
             key: "group",
             label: "Group by",
-            icon: <Rows3 size={ICON} />,
+            icon: <RowsIcon size={ICON} />,
             block: "sort",
             value: view.group,
             options: [
-                {value: "none", label: "None", icon: <Minus size={ICON} />},
-                {value: "type", label: "Type", icon: <Zap size={ICON} />},
-                {value: "agent", label: "Agent", icon: <Bot size={ICON} />},
+                {value: "none", label: "None", icon: <MinusIcon size={ICON} />},
+                {value: "type", label: "Type", icon: <LightningIcon size={ICON} />},
+                {value: "agent", label: "Agent", icon: <RobotIcon size={ICON} />},
             ],
             onChange: (group) => set({group}),
         })

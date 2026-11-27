@@ -5,6 +5,8 @@ from uuid import UUID
 # policy is enforced twice against the same rows — as a SQL predicate in the Postgres DAO
 # and in Python in `MountsService` — and the two must not be able to drift apart.
 RESERVED_SLUG_PREFIX = "__ag__"
+# The reserved slug of an agent's own drive: `__ag__agent__<artifact id>__default`.
+RESERVED_AGENT_SLUG_PREFIX = f"{RESERVED_SLUG_PREFIX}agent__"
 SESSION_SLUG_PREFIX = f"{RESERVED_SLUG_PREFIX}session__"
 ATTACHMENTS_MOUNT_NAME = "attachments"
 ATTACHMENTS_MOUNT_PURPOSE = "session_attachment_originals"
@@ -13,6 +15,18 @@ ATTACHMENTS_MOUNT_PURPOSE = "session_attachment_originals"
 # the store namespace. Mounts created by 0.125.0 or later store the organization layout (the
 # Postgres DAO builds it in the insert statement); older mounts keep the project layout.
 MOUNTS_KEY_ROOT = "mounts"
+
+
+def is_static_agent_drive_slug(slug: str, *, agent_slug: str) -> bool:
+    """The slug of a static catalog agent's own drive: the agent's reserved slug, `__`,
+    and a label (`__ag__builder__learning`). A user never creates an `__ag__` slug, so
+    nobody can take it first. Never one of the minted forms above (an agent's drive by
+    its id, a session drive), whatever the agent's slug."""
+    return (
+        agent_slug.startswith(RESERVED_SLUG_PREFIX)
+        and slug.startswith(f"{agent_slug}__")
+        and not slug.startswith((RESERVED_AGENT_SLUG_PREFIX, SESSION_SLUG_PREFIX))
+    )
 
 
 def project_storage_prefix(

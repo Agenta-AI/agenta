@@ -6,6 +6,11 @@
  */
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiChatActionsCatalog from "@agenta/i18n/catalogs/ui.chatActions"
+import uiEditorCatalog from "@agenta/i18n/catalogs/ui.editor"
+import uiStatusCatalog from "@agenta/i18n/catalogs/ui.status"
 import {FileArchive, FilePdf, FileText, Image as ImageIcon} from "@phosphor-icons/react"
 import {
     DecoratorNode,
@@ -20,6 +25,8 @@ import {Button} from "../../../../components/ui/button"
 import {Popover, PopoverAnchor, PopoverContent} from "../../../../components/ui/popover"
 import {message} from "../../../../utils/appMessageContext"
 import {copyToClipboard} from "../../../../utils/copyToClipboard"
+
+const tNow = createT(uiEditorCatalog, commonCatalog, uiChatActionsCatalog)
 
 /** Regex to detect base64 data URLs */
 const BASE64_DATA_URL_REGEX = /^"?data:([^;]+);base64,([A-Za-z0-9+/=]{50,})"?$/
@@ -84,19 +91,19 @@ export function parseBase64String(value: string): {
  * Get file type label from mime type
  */
 function getFileTypeLabel(mimeType: string | null): string {
-    if (!mimeType) return "Base64 Data"
+    if (!mimeType) return tNow("ui.editor.base64Data")
 
     if (mimeType.startsWith("image/")) {
-        return `Image (${mimeType.split("/")[1].toUpperCase()})`
+        return tNow("ui.editor.imageType", {type: mimeType.split("/")[1].toUpperCase()})
     }
     if (mimeType.startsWith("application/pdf")) {
-        return "PDF Document"
+        return tNow("ui.editor.pdfDocument")
     }
     if (mimeType.startsWith("application/")) {
         return mimeType.split("/")[1].toUpperCase()
     }
     if (mimeType.startsWith("text/")) {
-        return `Text (${mimeType.split("/")[1]})`
+        return tNow("ui.editor.textType", {type: mimeType.split("/")[1]})
     }
     return mimeType
 }
@@ -117,18 +124,18 @@ export type SerializedBase64Node = Spread<
  * Get the appropriate icon for a mime type
  */
 function FileTypeIcon({mimeType, size = 48}: {mimeType: string | null; size?: number}) {
-    if (!mimeType) return <FileArchive size={size} className="text-gray-400" />
+    if (!mimeType) return <FileArchive size={size} className="text-muted-foreground" />
 
     if (mimeType.startsWith("image/")) {
-        return <ImageIcon size={size} className="text-blue-500" />
+        return <ImageIcon size={size} className="text-muted-foreground" />
     }
     if (mimeType === "application/pdf") {
-        return <FilePdf size={size} className="text-red-500" />
+        return <FilePdf size={size} className="text-muted-foreground" />
     }
     if (mimeType.startsWith("text/")) {
-        return <FileText size={size} className="text-green-500" />
+        return <FileText size={size} className="text-muted-foreground" />
     }
-    return <FileArchive size={size} className="text-gray-400" />
+    return <FileArchive size={size} className="text-muted-foreground" />
 }
 
 /**
@@ -184,6 +191,7 @@ function Base64Component({
     mimeType: string | null
     nodeKey: string
 }) {
+    const t = useT(uiStatusCatalog, commonCatalog)
     const [copied, setCopied] = useState(false)
     // antd `trigger="hover"` defaults: mouseEnterDelay/mouseLeaveDelay 0.1s.
     const {open, setOpen, hoverProps} = useHoverOpen(100, 100)
@@ -204,10 +212,10 @@ function Base64Component({
         const success = await copyToClipboard(parsed.fullValue)
         if (success) {
             setCopied(true)
-            message.success("Copied to clipboard")
+            message.success(tNow("common.copiedToClipboard"))
             setTimeout(() => setCopied(false), 2000)
         } else {
-            message.error("Failed to copy")
+            message.error(tNow("common.failedToCopy"))
         }
     }, [parsed.fullValue])
 
@@ -218,28 +226,28 @@ function Base64Component({
             <div className="flex items-center justify-between gap-4 mb-3">
                 <span className="font-semibold">{fileTypeLabel}</span>
                 <Button variant="outline" size="sm" onClick={handleCopy}>
-                    {copied ? "Copied!" : "Copy"}
+                    {copied ? t("ui.status.copiedBang") : t("common.copy")}
                 </Button>
             </div>
 
             {/* File Preview */}
-            <div className="flex items-center justify-center bg-gray-50 rounded-lg overflow-hidden">
+            <div className="flex items-center justify-center bg-muted rounded-lg overflow-hidden">
                 {isImage && dataUrl ? (
                     <img
                         src={dataUrl}
-                        alt="Preview"
+                        alt={tNow("ui.chatActions.preview")}
                         className="max-w-full max-h-[250px] rounded object-contain"
                     />
                 ) : isPdf && dataUrl ? (
                     <iframe
                         src={dataUrl}
-                        title="PDF Preview"
-                        className="w-full h-[300px] border-0"
+                        title={tNow("ui.editor.pdfPreview")}
+                        className="w-full h-75 border-0"
                     />
                 ) : (
                     <div className="flex flex-col items-center gap-2 p-6">
                         <FileTypeIcon mimeType={mimeType} size={48} />
-                        <span className="text-xs text-colorTextDescription">{fileTypeLabel}</span>
+                        <span className="text-meta text-muted-foreground">{fileTypeLabel}</span>
                     </div>
                 )}
             </div>
@@ -252,7 +260,7 @@ function Base64Component({
                 click semantics instead of Radix's click-to-toggle. */}
             <PopoverAnchor asChild>
                 <span
-                    className="token token-string cursor-help border-b border-dashed border-gray-400"
+                    className="token token-string cursor-help border-b border-dashed border-border"
                     data-lexical-base64="true"
                     data-node-key={nodeKey}
                     {...hoverProps}

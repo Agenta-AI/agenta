@@ -9,6 +9,8 @@ import {
     useState,
 } from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import uiChatInputCatalog from "@agenta/i18n/catalogs/ui.chatInput"
 import {useDebounceInput} from "@agenta/shared/hooks"
 import clsx from "clsx"
 import {v4 as uuidv4} from "uuid"
@@ -20,6 +22,8 @@ import {Editor, isLargeRichTextDocument} from "../Editor"
 
 import {isSharedAntdTextareaProps, type SharedAntdTextareaProps} from "./types"
 import type {SharedEditorProps} from "./types"
+
+const tNow = createT(uiChatInputCatalog)
 
 const LARGE_INPUT_EXTERNAL_COMMIT_DELAY_MS = 180
 const DEFAULT_MAX_TEXT_PASTE_CHARS = 50_000
@@ -95,7 +99,11 @@ function formatCharacterCount(value: number): string {
 function buildPasteLimitErrorMessage(nextLength: number, maxPasteChars: number): string {
     const overBy = nextLength - maxPasteChars
 
-    return `Paste blocked. This would exceed the ${formatCharacterCount(maxPasteChars)}-character limit by ${formatCharacterCount(overBy)} characters (${formatCharacterCount(nextLength)} total). Reduce the pasted content and try again.`
+    return tNow("ui.chatInput.pasteBlocked", {
+        max: formatCharacterCount(maxPasteChars),
+        over: formatCharacterCount(overBy),
+        total: formatCharacterCount(nextLength),
+    })
 }
 
 function applyPasteToValue(
@@ -174,6 +182,7 @@ const SharedEditor = ({
     onFocusChange,
     ...props
 }: SharedEditorProps) => {
+    const t = useT(uiChatInputCatalog)
     const normalizedInitialValue = initialValue ?? ""
     const controlledValue = value !== undefined ? value : normalizedInitialValue
     const shouldOptimizeLargeInput = optimizeLargeInput && !editorProps?.codeOnly
@@ -389,7 +398,9 @@ const SharedEditor = ({
             clsx(
                 "agenta-shared-editor",
                 "w-auto flex flex-col items-start relative group/item border border-solid rounded-lg",
-                {"transition-all duration-300 ease-in-out": !disableContainerTransition},
+                // Theme duration and easing (MOTION-01); the collapse height below overrides the property.
+                {"transition-colors": !disableContainerTransition},
+                "motion-reduce:!transition-none",
                 "[&_.agenta-rich-text-editor]:w-full",
                 "[&_.agenta-editor-wrapper]:w-full",
                 // This container is the single source of truth for the border (incl. its
@@ -406,10 +417,10 @@ const SharedEditor = ({
                     // typing happens in a descendant <ContentEditable>, so
                     // the `isEditorFocused` rule below carries the styling
                     // through to descendant-focus.
-                    "border-[var(--ag-c-BDC7D1)]": editorType === "border",
-                    "hover:border-[var(--ag-c-394857)] focus:border-[var(--ag-c-394857)]":
+                    "border-border": editorType === "border",
+                    "hover:border-border-strong focus:border-border-strong":
                         editorType === "border",
-                    "cursor-not-allowed bg-[var(--ag-rgba-051729-04)] border-none":
+                    "cursor-not-allowed bg-secondary border-none":
                         ["readOnly", "disabled"].includes(state) && editorType === "border",
                     // Removed: `"hover:border-[394857] focus:border-[394857]"`
                     // override for `state === "filled" && editorType === "border"`.
@@ -420,9 +431,9 @@ const SharedEditor = ({
                     // var, so this branch is redundant.
                 },
                 {
-                    "border-[transparent] hover:!border-[var(--ag-c-BDC7D1)] focus:border-[var(--ag-c-BDC7D1)]":
+                    "border-[transparent] hover:!border-border focus:border-border":
                         editorType === "borderless",
-                    "cursor-not-allowed bg-[var(--ag-rgba-051729-04)] border-none":
+                    "cursor-not-allowed bg-secondary border-none":
                         ["readOnly", "disabled"].includes(state) && editorType === "borderless",
                     "hover:border-[transparent] focus:border-[transparent]":
                         state === "filled" && editorType === "borderless",
@@ -438,7 +449,7 @@ const SharedEditor = ({
                 // focused. Previously this reverted the border to the
                 // default light colour with `!important` — the visible
                 // bug Kaosiso reported.
-                isEditorFocused && "!border-[var(--ag-c-394857)]",
+                isEditorFocused && "!border-border-strong",
                 className,
             ),
         [
@@ -474,8 +485,8 @@ const SharedEditor = ({
                         : {
                               interpolateSize: "allow-keywords",
                               transitionProperty: "height",
-                              transitionDuration: "300ms",
-                              transitionTimingFunction: "cubic-bezier(0.4, 0, 0.2, 1)",
+                              transitionDuration: "var(--duration-base)",
+                              transitionTimingFunction: "var(--ease-in-out)",
                           }),
                 } as React.CSSProperties
             }
@@ -492,10 +503,10 @@ const SharedEditor = ({
             {header}
 
             {isHandlingLargePaste ? (
-                <div className="absolute inset-0 z-10 flex items-center justify-center gap-3 bg-[var(--ag-rgba-fff-78)] backdrop-blur-[1px]">
+                <div className="absolute inset-0 z-10 flex items-center justify-center gap-3 bg-background/80">
                     <Spinner size="small" />
-                    <span className="text-[13px] text-[var(--ag-rgba-051729-72)]">
-                        Pasting large content…
+                    <span className="text-label text-muted-foreground">
+                        {t("ui.chatInput.pastingLarge")}
                     </span>
                 </div>
             ) : null}
@@ -569,9 +580,7 @@ const SharedEditor = ({
             )}
 
             {pasteLimitError ? (
-                <div className="mt-2 text-[13px] leading-5 text-[var(--ag-c-D61010)]">
-                    {pasteLimitError}
-                </div>
+                <div className="mt-2 text-label leading-5 text-destructive">{pasteLimitError}</div>
             ) : null}
 
             {footer}

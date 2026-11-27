@@ -1,12 +1,13 @@
 import {useConfigDrive} from "@agenta/entities/drive"
+import {useT} from "@agenta/i18n"
+import driveRailCatalog from "@agenta/i18n/catalogs/entityUi.driveRail"
 import {ConfigRowTrailing} from "@agenta/ui/components/presentational"
-import {SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
-import {CircleNotch} from "@phosphor-icons/react"
+import {SimpleTooltip, SkeletonBlock, Spinner} from "@agenta/ui/ui"
 
 import {FilesPaneToggle} from "./FilesPaneToggle"
 import {useSessionFilesPane} from "./SessionFilesPane"
 
-const MUTED = "text-xs text-[var(--ag-colorTextTertiary)]"
+const MUTED = "text-meta text-muted-foreground"
 
 function StorageFilesToggle({scope, sessionId}: {scope: string; sessionId: string}) {
     const {open, toggle} = useSessionFilesPane(scope, sessionId)
@@ -23,28 +24,31 @@ export default function StorageFilesHeader({
     /** Only playground hosts opt in to a toggle, with their authoritative pane scope. */
     scope?: string
 }) {
+    const t = useT(driveRailCatalog)
     const {drive} = useConfigDrive(revisionId, sessionId)
     const count = drive.fileCount
-    const shown = `${count}${drive.fileCountCapped ? "+" : ""}`
     const label =
         count === 0
-            ? "No files"
-            : count === 1 && !drive.fileCountCapped
-              ? "1 file"
-              : `${shown} files`
+            ? t("entityUi.driveRail.noFiles")
+            : drive.fileCountCapped
+              ? t("entityUi.driveRail.filesCountCapped", {count})
+              : t("entityUi.driveRail.filesCount", {count})
 
     return (
         <div className="flex items-center gap-1.5">
             {drive.isLoading ? (
                 <ConfigRowTrailing reserve={false}>
-                    <SkeletonBlock className="h-[14px] w-[44px]" />
+                    <SkeletonBlock className="h-3.5 w-11" />
                 </ConfigRowTrailing>
             ) : drive.errored ? null : (
                 <ConfigRowTrailing reserve={false}>
                     {drive.isFetching ? (
-                        <CircleNotch size={11} className="animate-spin" aria-label="Refreshing" />
+                        <Spinner
+                            className="size-3"
+                            aria-label={t("entityUi.driveRail.refreshing")}
+                        />
                     ) : null}
-                    <SimpleTooltip title="Total files">
+                    <SimpleTooltip title={t("entityUi.driveRail.totalFiles")}>
                         <span className={MUTED}>{label}</span>
                     </SimpleTooltip>
                 </ConfigRowTrailing>

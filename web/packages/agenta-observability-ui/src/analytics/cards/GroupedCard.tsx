@@ -1,5 +1,7 @@
 import {useMemo, useState, type ReactNode} from "react"
 
+import {createT} from "@agenta/i18n"
+import analyticsCatalog from "@agenta/i18n/catalogs/observabilityUi.analytics"
 import {
     formatCount,
     formatMetric,
@@ -47,6 +49,8 @@ export interface GroupedCardProps {
     onExplore: (bucket: number | null) => void
 }
 
+const tNow = createT(analyticsCatalog)
+
 const TOP = 4
 const OTHER_LISTED = 2
 
@@ -62,7 +66,11 @@ export const stackSeries = (
     const restCount = Math.max(0, (keyCount ?? order.length) - Math.min(TOP, order.length))
     return topSeries(series, order, TOP, total).map((s) => ({
         key: s.key,
-        label: s.other ? (restCount ? `Other (${restCount})` : "Unattributed") : keyLabel(s.key),
+        label: s.other
+            ? restCount
+                ? tNow("observabilityUi.analytics.otherN", {count: restCount})
+                : tNow("observabilityUi.analytics.unattributed")
+            : keyLabel(s.key),
         color: s.other ? analyticsColor("other") : keyColor(s.key),
         values: s.values,
     }))
@@ -71,8 +79,12 @@ export const stackSeries = (
 const formatValue = (metric: GroupedMetric, value: number) =>
     metric === "runs" ? formatCount(value) : formatMetric(metric, value)
 
-const unitWord = (metric: GroupedMetric) =>
-    metric === "runs" ? " runs" : metric === "tokens" ? " tokens" : ""
+const withUnit = (metric: GroupedMetric, value: string) =>
+    metric === "runs"
+        ? tNow("observabilityUi.analytics.runsCount", {value})
+        : metric === "tokens"
+          ? tNow("observabilityUi.analytics.tokensCount", {value})
+          : value
 
 /** A main card split by the page's group: the top four keys stacked, then "Other". */
 export const GroupedCard = ({
@@ -108,7 +120,10 @@ export const GroupedCard = ({
             .slice(0, OTHER_LISTED)
             .map((key) => `${keyLabel(key)} ${formatValue(metric, source.series[key][i])}`)
         const rest = members.length - listed.length
-        return [...listed, ...(rest > 0 ? [`+${rest} more`] : [])].join(" · ")
+        return [
+            ...listed,
+            ...(rest > 0 ? [tNow("observabilityUi.analytics.moreN", {count: rest})] : []),
+        ].join(" · ")
     }
 
     const bucketTotal = (i: number) =>
@@ -156,7 +171,7 @@ export const GroupedCard = ({
                 tooltip={(i) => (
                     <ChartTooltipPanel
                         title={fullLabels[i]}
-                        value={`${formatValue(metric, bucketTotal(i))}${unitWord(metric)}`}
+                        value={withUnit(metric, formatValue(metric, bucketTotal(i)))}
                         rows={series
                             .filter((s) => !s.hidden && (s.values[i] ?? 0) > 0)
                             .sort((a, b) => (b.values[i] ?? 0) - (a.values[i] ?? 0))

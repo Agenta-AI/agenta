@@ -611,6 +611,9 @@ _AGENT_TEMPLATE_KEYS = frozenset(
         "harness",
         "runner",
         "sandbox",
+        "has_session_drive",
+        "drives",
+        "home_drive",
     }
 )
 

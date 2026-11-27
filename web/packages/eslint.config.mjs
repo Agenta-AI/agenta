@@ -13,6 +13,8 @@ import importPlugin from "eslint-plugin-import"
 import eslintPluginPrettier from "eslint-plugin-prettier/recommended"
 import tseslint from "typescript-eslint"
 
+import {i18nGuardConfigs} from "./eslint-i18n-guard.mjs"
+
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
@@ -35,6 +37,11 @@ const includePrettierRule = process.env.DISABLE_PRETTIER !== "true"
  * `no-restricted-imports` must spread this into its own `paths`, or it drops the bans.
  */
 export const restrictedImportPaths = [
+    {
+        name: "lucide-react",
+        message:
+            "Use @phosphor-icons/react. One icon library (ICON-01 in @agenta/ui/design/rules.json).",
+    },
     // Root barrel statically imports the monolithic AgentaApiClient (all 27 resource
     // clients, ~300KB parsed) into any eager import graph. Regressed once (June fix, July relapse).
     {
@@ -208,6 +215,8 @@ const config = [
             ],
         },
     },
+    // Lint runs from each package folder, which is where ESLint resolves `files` from.
+    ...i18nGuardConfigs(process.cwd()),
     {
         ignores: ["**/dist/**", "**/node_modules/**", "**/*.d.ts"],
     },

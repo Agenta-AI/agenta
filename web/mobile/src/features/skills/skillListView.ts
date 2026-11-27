@@ -1,16 +1,9 @@
+import {createT} from "@agenta/i18n"
+import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {skillTitle, type SkillListItem} from "@agenta/skills-ui"
 import type {ListTableGroup, ListTableView} from "@agenta/ui/list-table"
 
-/**
- * How the skills registry is CUT and NARROWED — the half of the view the filter menu owns, kept
- * out of the screen so the screen renders what these return rather than deriving it mid-render.
- * The same split `agentListView.ts` makes next door.
- *
- * Search is the one narrowing that is NOT here: the registry query takes it server-side, so by
- * the time rows reach these predicates they already match it. `archived` is half and half — it
- * decides whether the query fetches archived skills at all, and the predicate then keeps only
- * the ones that are.
- */
+// Grouping and filtering for the skills list; search runs server-side in the query.
 
 /** `all` is every source, `project` the unsourced skills; anything else is a repository. */
 export type SkillSourceFilter = string
@@ -53,10 +46,10 @@ export interface SkillListRow {
     origin: SkillListItem["origin"]
     /** The repository an import came from; empty for a project-authored skill. */
     repository: string
-    /** What the Source cell and the group heading read: the repository, or "This project". */
-    sourceLabel: string
     /** Already humanized by the shared mapping ("3d ago"); empty when the item carries no date. */
     age: string | null
+    /** Last change in epoch ms (0 when unknown): the list's sort key. */
+    updatedAt: number
     /** The author's display name, resolved once by the screen; empty when unknown. */
     creatorName: string
     usedByCount: number
@@ -67,32 +60,31 @@ export interface SkillListRow {
 
 export type SkillListGroup = ListTableGroup<SkillListRow>
 
+const tNow = createT(skillsListCatalog)
+
 /** The heading over the skills nobody imported. */
-export const PROJECT_LABEL = "This project"
+export const projectLabel = (): string => tNow("skills.list.projectLabel")
 
 /** What a row and a card both say where a skill has never been described. */
-export const NO_DESCRIPTION = "No description"
+export const noDescriptionLabel = (): string => tNow("skills.list.noDescription")
 
-/**
- * What the row's second column and the card's footer read. Grouped by source the heading
- * already says where a skill came from, so the row answers the next question — who made it.
- */
+/** Grouped by source, the creator; otherwise the source. */
 export const provenanceLabel = (row: SkillListRow, group: SkillGrouping): string =>
-    group === "source" ? row.creatorName || "—" : row.sourceLabel
+    group === "source" ? row.creatorName || "—" : row.repository || projectLabel()
 
-/** The "Used by" cell: how many agents run it, or an em dash for none. */
+/** The "Used by" cell: how many agents run it, or "No agents". */
 export const usedByLabel = (count: number): string =>
-    count === 0 ? "—" : `${count} ${count === 1 ? "agent" : "agents"}`
+    count === 0 ? tNow("skills.list.usedByNone") : tNow("skills.list.usedByCount", {count})
 
-/** The "Last updated" cell. Empty rows read as an em dash, not as "just now". */
+/** The "Last updated" cell; no date reads as an em dash. */
 export const lastUpdatedLabel = (age: string | null): string => age || "—"
 
-/**
- * The one place a list item becomes a row. The item is what `buildRegistrySections` already
- * resolved — the same mapping the desktop registry reads — so a detached import is
- * project-owned here for exactly the reason it is there, and the drawer gets the item it knows.
- */
-export const toSkillListRow = (item: SkillListItem, creatorName = ""): SkillListRow => {
+/** The one place a list item becomes a row. */
+export const toSkillListRow = (
+    item: SkillListItem,
+    creatorName = "",
+    updatedAt = 0,
+): SkillListRow => {
     const repository = item.origin === "imported" ? (item.source?.label ?? "") : ""
     return {
         id: item.id,
@@ -100,8 +92,8 @@ export const toSkillListRow = (item: SkillListItem, creatorName = ""): SkillList
         description: item.description ?? null,
         origin: item.origin,
         repository,
-        sourceLabel: repository || PROJECT_LABEL,
         age: item.age ?? null,
+        updatedAt,
         creatorName,
         usedByCount: item.usedByCount ?? 0,
         archived: Boolean(item.archived),
@@ -129,14 +121,20 @@ export const listRepositories = (rows: SkillListRow[]): string[] =>
         a.localeCompare(b),
     )
 
+/** Newest change first, then title, then id: the same order after every refetch. */
+const byRecency = (a: SkillListRow, b: SkillListRow): number =>
+    b.updatedAt - a.updatedAt || a.title.localeCompare(b.title) || a.id.localeCompare(b.id)
+
 /** The filtered rows, cut into groups: the project's own first, then one per repository. */
 export const deriveSkillList = (rows: SkillListRow[], view: SkillListView): SkillListGroup[] => {
-    const kept = rows.filter(
-        (row) =>
-            matchesSource(row, view.source) &&
-            matchesArchived(row, view.archived) &&
-            matchesUsedBy(row, view.usedBy),
-    )
+    const kept = rows
+        .filter(
+            (row) =>
+                matchesSource(row, view.source) &&
+                matchesArchived(row, view.archived) &&
+                matchesUsedBy(row, view.usedBy),
+        )
+        .sort(byRecency)
 
     if (view.group === "none") return [{key: "all", label: null, rows: kept}]
 
@@ -152,7 +150,7 @@ export const deriveSkillList = (rows: SkillListRow[], view: SkillListView): Skil
         .sort((a, b) => (a === "" ? -1 : b === "" ? 1 : a.localeCompare(b)))
         .map((repository) => ({
             key: repository || PROJECT_SOURCE,
-            label: repository || PROJECT_LABEL,
+            label: repository || projectLabel(),
             rows: buckets.get(repository) ?? [],
         }))
 }

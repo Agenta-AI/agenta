@@ -33,6 +33,7 @@ from oss.src.tasks.taskiq.shared.broker import (
 
 from entrypoints.access import bootstrap_access
 from entrypoints.channel_adapters import build_channel_adapter_registry
+from entrypoints.session_child_updates import build_session_child_updates_service
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.events.service import EventsService
 from oss.src.core.secrets.services import VaultService
@@ -67,7 +68,12 @@ from oss.src.tasks.asyncio.channels.outbox import (
     ChannelsOutboxWorker,
 )
 from oss.src.tasks.asyncio.events.worker import EventsWorker
+from oss.src.tasks.asyncio.sessions.child_updates_worker import ChildUpdatesWorker
 from oss.src.tasks.asyncio.sessions.records_worker import RecordsWorker
+from oss.src.tasks.asyncio.sessions.streaming import (
+    SESSION_TURN_ENDS_STREAM_NAME,
+    SESSIONS_STREAM_NAME,
+)
 from oss.src.tasks.asyncio.shared.consumer import (
     StreamConsumer,
     run_consumers_until_shutdown,
@@ -136,6 +142,8 @@ async def _build_records_worker(redis_client: Redis) -> StreamConsumer:
         service=RecordsService(
             records_dao=RecordsDAO(),
             executions_dao=SessionExecutionsDAO(),
+            # The structured part of a child update, read from its input row.
+            inputs_dao=SessionInputsDAO(),
         ),
         redis_client=redis_client,
         stream_name=RECORD_STREAM_NAME,
@@ -243,8 +251,16 @@ async def _build_sessions_worker(redis_client: Redis) -> StreamConsumer:
     return ChannelsOutboxStreamWorker(
         outbox=outbox,
         redis_client=redis_client,
-        stream_name="streams:sessions",
+        stream_name=SESSIONS_STREAM_NAME,
         consumer_group="worker-sessions-channels-outbox",
+    )
+
+
+async def _build_child_updates_worker(redis_client: Redis) -> StreamConsumer:
+    return ChildUpdatesWorker(
+        service=build_session_child_updates_service(),
+        redis_client=redis_client,
+        stream_name=SESSION_TURN_ENDS_STREAM_NAME,
     )
 
 
@@ -276,6 +292,11 @@ async def main_async() -> int:
         validate_required_env_vars()
 
         if is_ee():
+            from ee.src.core.licenses.cloud import (  # noqa: PLC0415
+                validate_cloud_license,
+            )
+
+            validate_cloud_license()
             bootstrap_entitlements_services()
 
         bootstrap_access()
@@ -300,6 +321,11 @@ async def main_async() -> int:
         consumers: List[StreamConsumer] = [
             await builders[name](redis_client) for name in streams
         ]
+        # The `sessions` loop also runs the producer of child updates, beside the
+        # channels outbox, on its own stream: an explicit selector that names
+        # `sessions` gets both, so no deployment needs a new selector name.
+        if "sessions" in streams:
+            consumers.append(await _build_child_updates_worker(redis_client))
 
         for consumer in consumers:
             await _initialize_consumer(consumer)

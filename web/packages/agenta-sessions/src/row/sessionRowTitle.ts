@@ -13,5 +13,9 @@ export function sessionRowTitle(
     if (named) return {title: named, subtitle: preview}
     if (automationTitle) return {title: automationTitle, subtitle: preview}
     if (preview) return {title: preview, subtitle: null}
-    return {title: "Untitled session", subtitle: null}
+    return {title: tNow("sessions.status.untitledSession"), subtitle: null}
 }
+import {createT} from "@agenta/i18n"
+import sessionsStatusCatalog from "@agenta/i18n/catalogs/sessions.status"
+
+const tNow = createT(sessionsStatusCatalog)

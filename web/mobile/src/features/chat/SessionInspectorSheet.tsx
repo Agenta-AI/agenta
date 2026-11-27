@@ -5,6 +5,8 @@ import {
     sessionRecordsQueryFamily,
     type SessionRecord,
 } from "@agenta/entities/session"
+import {useT} from "@agenta/i18n"
+import chatMobileSessionsCatalog from "@agenta/i18n/catalogs/chat.mobileSessions"
 import {
     Button,
     Sheet,
@@ -44,6 +46,7 @@ export const SessionInspectorSheet = ({
     open: boolean
     onOpenChange: (open: boolean) => void
 }) => {
+    const t = useT(chatMobileSessionsCatalog)
     const recordsQuery = useAtomValue(sessionRecordsQueryFamily(open ? sessionId : ""))
     const revalidate = useSetAtom(revalidateSessionRecordsAtom)
     const records = recordsQuery.data ?? EMPTY_RECORDS
@@ -57,33 +60,36 @@ export const SessionInspectorSheet = ({
             {/* Right edge on every screen, like the playground's drawers; clamped on a phone. */}
             <SheetContent
                 side="right"
-                className="w-[480px] max-w-[calc(100%-1rem)] gap-0 overflow-hidden p-0 sm:max-w-[calc(100%-1rem)]"
+                className="w-120 max-w-[calc(100%-1rem)] gap-0 overflow-hidden p-0 sm:max-w-[calc(100%-1rem)]"
             >
                 <SheetHeader>
-                    <SheetTitle>Session inspector</SheetTitle>
-                    <SheetDescription className="break-all font-mono text-xs">
+                    <SheetTitle>{t("chat.mobileSessions.inspectorTitle")}</SheetTitle>
+                    <SheetDescription className="break-all text-code-sm">
                         {sessionId}
                     </SheetDescription>
                     <div className="flex items-center gap-2 pt-1">
-                        <span className="text-xs text-muted-foreground">
-                            {records.length} records · {turnCount} turns
+                        <span className="text-meta text-muted-foreground">
+                            {t("chat.mobileSessions.recordsAndTurns", {
+                                records: records.length,
+                                turns: turnCount,
+                            })}
                         </span>
                         <div className="ml-auto flex items-center gap-1">
-                            <SimpleTooltip title="Refresh">
+                            <SimpleTooltip title={t("chat.mobileSessions.refresh")}>
                                 <Button
                                     variant="ghost"
                                     size="icon-sm"
-                                    aria-label="Refresh session inspector"
+                                    aria-label={t("chat.mobileSessions.refreshInspector")}
                                     onClick={() => revalidate(sessionId)}
                                 >
                                     <ArrowClockwise size={14} />
                                 </Button>
                             </SimpleTooltip>
-                            <SimpleTooltip title="Export JSON">
+                            <SimpleTooltip title={t("chat.mobileSessions.exportJson")}>
                                 <Button
                                     variant="ghost"
                                     size="icon-sm"
-                                    aria-label="Export session records"
+                                    aria-label={t("chat.mobileSessions.exportRecords")}
                                     disabled={records.length === 0}
                                     onClick={() => downloadRecords(sessionId, records)}
                                 >
@@ -96,20 +102,22 @@ export const SessionInspectorSheet = ({
 
                 <div className="min-h-0 flex-1 overflow-y-auto p-4">
                     {recordsQuery.isLoading ? (
-                        <p className="m-0 text-sm text-muted-foreground">Loading records…</p>
+                        <p className="m-0 text-body text-muted-foreground">
+                            {t("chat.mobileSessions.loadingRecords")}
+                        </p>
                     ) : recordsQuery.isError ? (
-                        <p className="text-destructive m-0 text-sm">
-                            Session records could not be loaded.
+                        <p className="text-destructive m-0 text-body">
+                            {t("chat.mobileSessions.recordsFailed")}
                         </p>
                     ) : records.length === 0 ? (
-                        <p className="m-0 text-sm text-muted-foreground">
-                            This session has no records yet.
+                        <p className="m-0 text-body text-muted-foreground">
+                            {t("chat.mobileSessions.noRecords")}
                         </p>
                     ) : (
                         <div className="flex flex-col gap-2">
                             {records.map((record) => (
                                 <details key={record.id} className="rounded-lg border px-3 py-2">
-                                    <summary className="cursor-pointer text-xs font-medium">
+                                    <summary className="cursor-pointer text-label">
                                         <span>{recordTitle(record)}</span>
                                         {record.sequence != null ? (
                                             <span className="ml-2 font-mono text-muted-foreground">
@@ -117,7 +125,7 @@ export const SessionInspectorSheet = ({
                                             </span>
                                         ) : null}
                                     </summary>
-                                    <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all rounded bg-muted p-2 text-[11px]">
+                                    <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-sm bg-muted p-2 text-code-sm">
                                         {JSON.stringify(record, null, 2)}
                                     </pre>
                                 </details>

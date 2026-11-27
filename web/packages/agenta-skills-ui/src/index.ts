@@ -16,11 +16,6 @@ export {
     type SkillGallerySectionsProps,
     type SkillGallerySection,
 } from "./SkillGallerySections"
-export {
-    SkillPickerDrawer,
-    type SkillPickerDrawerProps,
-    type SkillAddChoice,
-} from "./SkillPickerDrawer"
 export {buildRegistrySections, toSkillListItem, type RegistrySections} from "./registrySections"
 export {SkillImportDrawer, type SkillImportDrawerProps} from "./SkillImportDrawer"
 export {SkillCreateDrawer, type SkillCreateDrawerProps} from "./SkillCreateDrawer"
@@ -30,8 +25,39 @@ export {
     skillRevisionsQueryKey,
     type SkillDetailDrawerProps,
 } from "./SkillDetailDrawer"
-export {SkillAgentPicker} from "./SkillAgentPicker"
-export {SkillPickerHost} from "./SkillPickerHost"
-export {SkillDetailHost} from "./SkillDetailHost"
+export {SkillAgentPicker, skillUsageQueryKey} from "./SkillAgentPicker"
+export {AddSkillsBody} from "./AddSkillsBody"
+export {
+    NewSkillBody,
+    type NewSkillBodyProps,
+    type NewSkillStart,
+    type NewSkillStep,
+} from "./NewSkillBody"
+export {registryNewSkillView, type RegistryNewSkillParams} from "./registryNewSkillView"
+export {registrySkillView, RegistrySkillBody} from "./registrySkillView"
 export {SourceRefreshButton} from "./SourceRefreshButton"
 export {useSkillsBridge} from "./bridge"
+export {SkillEditor, type SkillEditorProps} from "./SkillEditor"
+export {SkillFilesPanel, type SkillFilesPanelProps} from "./SkillFilesPanel"
+export {SkillFileNameRow} from "./SkillFileNameRow"
+export {SkillNameTitle} from "./SkillNameTitle"
+export {SkillCandidateList, type SkillCandidate, type UnavailableSkill} from "./SkillCandidateList"
+export {SkillGithubImport, type ImportedSkill} from "./SkillGithubImport"
+export {
+    useSkillCreateFlow,
+    type CreatedSkill,
+    type SkillCreateFlow,
+    type SkillCreateStep,
+} from "./useSkillCreateFlow"
+export {
+    EMPTY_SKILL_DRAFT,
+    descriptionTooLong,
+    draftSkillName,
+    isSkillDraftEmpty,
+    sameSkillDraft,
+    toSkillContent,
+    toSkillDraft,
+    type SkillDraft,
+} from "./skillDraft"
+export {useRegistrySkill} from "./useRegistrySkill"
+export {SkillCreateWays} from "./SkillCreateWays"

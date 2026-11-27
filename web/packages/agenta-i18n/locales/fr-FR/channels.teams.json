@@ -1,0 +1,22 @@
+{
+    "appSection": "Application Teams",
+    "connected": "Connecté. Il reste deux étapes dans Teams.",
+    "download": "Télécharger l’application Teams",
+    "endpointBody": "Dans le Developer Portal, ouvrez votre bot, puis Configure, et collez ceci comme adresse du point de terminaison.",
+    "endpointLabel": "Point de terminaison de messagerie",
+    "endpointTitle": "Collez le point de terminaison de messagerie",
+    "installTitle": "Installez l’application dans Teams",
+    "loadError": "Impossible de charger l’application Teams.",
+    "noUpload": "Pas d’option Upload an app ? Demandez à votre administrateur Teams d’autoriser les applications personnalisées.",
+    "pasteBody": "Nous les vérifions auprès de Microsoft, puis gardons le secret masqué.",
+    "pasteTitle": "Collez les trois valeurs",
+    "registerBody": "Dans le Teams Developer Portal, ouvrez Tools, puis Bot management, et sélectionnez New bot.",
+    "registerLink": "Ouvrir le Developer Portal",
+    "registerTitle": "Enregistrez un bot",
+    "secretBody": "Sur la page Client secrets du bot, ajoutez un secret client et copiez sa valeur. L’ID de l’application se trouve sur la page du bot.",
+    "secretTitle": "Ajoutez un secret client",
+    "tenantBody": "Il se trouve sur la page Overview du centre d’administration Microsoft Entra.",
+    "tenantLink": "Ouvrir Microsoft Entra",
+    "tenantTitle": "Copiez l’ID de votre locataire",
+    "upload": "Dans Teams, ouvrez Apps, puis Manage your apps, puis Upload an app, et choisissez le fichier téléchargé."
+}

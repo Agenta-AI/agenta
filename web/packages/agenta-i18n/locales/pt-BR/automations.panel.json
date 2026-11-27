@@ -1,0 +1,12 @@
+{
+    "scheduledTriggers": "Gatilhos agendados",
+    "appTriggers": "Gatilhos de app",
+    "automations": "Automações",
+    "automationsHint": "Execute este agente em um agendamento ou quando algo acontecer em um app.",
+    "deleteFailed": "Não foi possível excluir esta automação. Tente novamente.",
+    "runs": "Execuções",
+    "settings": "Configurações",
+    "history": "Histórico",
+    "seeAllRuns": "Ver todas as execuções",
+    "lastRun": "Última execução"
+}

@@ -1,0 +1,15 @@
+{
+    "connectionDeleted": "Connection deleted",
+    "connectionRevoked": "Connection revoked",
+    "default": "Default",
+    "deleteConnectionFailed": "Failed to delete connection",
+    "deleteConnectionMessage": "Agents that use this connection stop working. This cannot be undone.",
+    "deleteConnectionTitle": "Delete {{name}}?",
+    "loadConnectionsFailed": "Couldn't load your connections.",
+    "makeDefault": "Make default",
+    "makeDefaultFailed": "Could not make it your default. Try again.",
+    "revokeConnectionFailed": "Failed to revoke connection",
+    "revokeConnectionMessage": "This will mark the connection as invalid. You can refresh it later to reactivate.",
+    "revokeConnectionTitle": "Revoke {{name}}?",
+    "searchTools": "Search tools"
+}

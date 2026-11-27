@@ -1,6 +1,8 @@
 import {memo, useCallback, useMemo} from "react"
 
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
+import {useT} from "@agenta/i18n"
+import generationResultCatalog from "@agenta/i18n/catalogs/entityUi.generationResult"
 import {
     getStatusLabel,
     getStatusSeverity,
@@ -11,6 +13,7 @@ import {ExecutionMetricsDisplay} from "@agenta/ui/components/presentational"
 import {
     Badge,
     LoadingButton,
+    statusBadgeVariant,
     SkeletonBlock,
     Tooltip,
     TooltipContent,
@@ -41,6 +44,7 @@ const SharedGenerationResultUtils = ({
     actionsOnly = false,
     onViewTrace,
 }: SharedGenerationResultUtilsProps) => {
+    const t = useT(generationResultCatalog)
     const summary = useAtomValue(
         useMemo(() => traceDataSummaryAtomFamily(traceId ?? null), [traceId]),
     )
@@ -78,11 +82,11 @@ const SharedGenerationResultUtils = ({
                                 size="icon-sm"
                                 loading
                                 disabled
-                                aria-label="Open trace"
+                                aria-label={t("entityUi.generationResult.openTrace")}
                                 data-ivt-stop-row-click
                             />
                         </TooltipTrigger>
-                        <TooltipContent>Open trace</TooltipContent>
+                        <TooltipContent>{t("entityUi.generationResult.openTrace")}</TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
                 {showStatus ? (
@@ -110,17 +114,17 @@ const SharedGenerationResultUtils = ({
                             loading={summary.isPending}
                             disabled={!onViewTrace}
                             onClick={onOpenTrace}
-                            aria-label="Open trace"
+                            aria-label={t("entityUi.generationResult.openTrace")}
                             data-ivt-stop-row-click
                         >
                             {summary.isPending ? null : <TreeView size={14} />}
                         </LoadingButton>
                     </TooltipTrigger>
-                    <TooltipContent>Open trace</TooltipContent>
+                    <TooltipContent>{t("entityUi.generationResult.openTrace")}</TooltipContent>
                 </Tooltip>
             </TooltipProvider>
             {showStatus && status ? (
-                <Badge variant={getStatusSeverity(status)}>{status}</Badge>
+                <Badge variant={statusBadgeVariant(getStatusSeverity(status))}>{status}</Badge>
             ) : null}
             {!actionsOnly ? (
                 <ExecutionMetricsDisplay metrics={summary.metrics} isLoading={summary.isPending} />

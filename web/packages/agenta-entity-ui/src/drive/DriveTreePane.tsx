@@ -7,6 +7,8 @@ import {type KeyboardEvent, type ReactNode} from "react"
 
 import {type DriveDrop} from "@agenta/entities/drive"
 import {type DriveTreePaneState} from "@agenta/entities/drive"
+import {useT} from "@agenta/i18n"
+import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
 import {motion} from "motion/react"
 
 export function DriveTreePane({
@@ -37,6 +39,7 @@ export function DriveTreePane({
      * tree first). Pair with `useDriveTreePane({mirrored})` so the resize drag direction matches. */
     mirrored?: boolean
 }) {
+    const t = useT(driveBrowserCatalog)
     const {
         paneW,
         innerW,
@@ -56,7 +59,7 @@ export function DriveTreePane({
                     a drag writes it per pointer move — either way motion updates the DOM directly,
                     no React render per frame. */}
             <motion.div
-                className={`min-h-0 shrink-0 overflow-hidden border-0 border-solid border-colorBorderSecondary ${
+                className={`min-h-0 shrink-0 overflow-hidden border-0 border-solid border-border-muted ${
                     mirrored ? "border-l" : "border-r"
                 }`}
                 style={{width: paneW}}
@@ -66,11 +69,11 @@ export function DriveTreePane({
                     reflowing as the pane narrows. `box-border` keeps `h-full`+padding inside the box
                     (preflight is off → content-box by default). */}
                 <motion.div
-                    className="box-border flex h-full min-h-0 flex-col overflow-hidden bg-colorBgLayout"
+                    className="box-border flex h-full min-h-0 flex-col overflow-hidden bg-muted"
                     style={{width: innerW}}
                 >
                     {railHeader ? (
-                        <div className="flex h-9 shrink-0 items-center border-0 border-b border-solid border-colorBorderSecondary px-2">
+                        <div className="flex h-9 shrink-0 items-center border-0 border-b border-solid border-border-muted px-2">
                             {railHeader}
                         </div>
                     ) : null}
@@ -94,14 +97,14 @@ export function DriveTreePane({
                 <div
                     role="separator"
                     aria-orientation="vertical"
-                    aria-label="Resize file tree"
+                    aria-label={t("entityUi.driveBrowser.resizeFileTree")}
                     onPointerDown={onTreeHandleDown}
                     onPointerMove={onTreeHandleMove}
                     onPointerUp={onTreeHandleUp}
                     className="group relative z-10 -mx-1 w-2 shrink-0 cursor-col-resize touch-none"
                 >
                     <div
-                        className={`absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${treeDragging ? "bg-colorPrimary" : "bg-transparent group-hover:bg-colorPrimary"}`}
+                        className={`absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${treeDragging ? "bg-border-strong" : "bg-transparent group-hover:bg-border-strong"}`}
                     />
                 </div>
             ) : null}

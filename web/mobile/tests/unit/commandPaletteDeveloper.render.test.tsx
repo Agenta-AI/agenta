@@ -111,16 +111,16 @@ describe("the command palette in beta developer mode", () => {
             ["Capital judge", `${P}/evaluators?tab=automatic`],
         ])
         const pages = render(true, true, "evaluation").byKey.pages.map((entry) => entry.label)
-        expect(pages).toEqual(["Evaluation runs"])
+        expect(pages).toEqual(["Go to Evaluation runs"])
         const all = render(true, true, "").byKey.pages.map((entry) => entry.label)
         expect(all).toEqual(
             expect.arrayContaining([
-                "Prompts",
-                "Test sets",
-                "Evaluators",
-                "Evaluation runs",
-                "Annotation Queues",
-                "Observability",
+                "Go to Prompts",
+                "Go to Test sets",
+                "Go to Evaluators",
+                "Go to Evaluation runs",
+                "Go to Annotation queues",
+                "Go to Observability",
             ]),
         )
     })
@@ -135,13 +135,13 @@ describe("the command palette in beta developer mode", () => {
         const {keys, byKey} = render(false, true, "")
         expect(keys).toEqual(["sessions", "agents", "pages", "settings", "actions"])
         expect(byKey.pages.map((entry) => entry.label)).toEqual([
-            "Home",
-            "Agents",
-            "Automations",
-            "Skills",
-            "Sessions",
-            "Templates",
-            "Settings",
+            "Go to Home",
+            "Go to Agents",
+            "Go to Automations",
+            "Go to Skills",
+            "Go to Sessions",
+            "Go to Templates",
+            "Go to Settings",
         ])
         render(false, true, "capital")
         expect(reads).toEqual({prompts: 0, evaluators: 0})

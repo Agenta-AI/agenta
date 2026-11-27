@@ -1,5 +1,7 @@
 import {type FC, Fragment, useCallback} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiEditorCatalog from "@agenta/i18n/catalogs/ui.editor"
 import {Plus, Trash} from "@phosphor-icons/react"
 import clsx from "clsx"
 
@@ -22,6 +24,7 @@ interface ObjectNodeProps extends BaseNodeProps {
 }
 
 const ObjectNodeComponent: FC<ObjectNodeProps> = (props) => {
+    const t = useT(uiEditorCatalog)
     const {customRender, path, k, value, depth, collapsed, toggleFold, onChange, handleRename} =
         props
     const pathKey = path.join(".")
@@ -103,10 +106,10 @@ const ObjectNodeComponent: FC<ObjectNodeProps> = (props) => {
                             <DropdownMenuTrigger asChild>
                                 <button
                                     type="button"
-                                    aria-label="Add key"
+                                    aria-label={t("ui.editor.addKey")}
                                     className={clsx(
                                         styles["add-inline-btn"],
-                                        "box-border border-0 bg-transparent p-0 cursor-pointer text-colorText",
+                                        "box-border border-0 bg-transparent p-0 cursor-pointer text-foreground",
                                     )}
                                 >
                                     <Plus size={14} />
@@ -114,13 +117,13 @@ const ObjectNodeComponent: FC<ObjectNodeProps> = (props) => {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="start">
                                 <DropdownMenuItem onSelect={() => addKeyWithType("primitive")}>
-                                    Primitive
+                                    {t("ui.editor.primitive")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onSelect={() => addKeyWithType("object")}>
-                                    Object {"{ }"}
+                                    {t("ui.editor.objectBraces")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onSelect={() => addKeyWithType("array")}>
-                                    Array [ ]
+                                    {t("ui.editor.arrayBrackets")}
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
@@ -155,8 +158,8 @@ const ObjectNodeComponent: FC<ObjectNodeProps> = (props) => {
                                         <div className={styles["add-between"]}>
                                             <button
                                                 type="button"
-                                                aria-label="Insert key before"
-                                                className="box-border border-0 bg-transparent p-0 cursor-pointer text-colorText !mx-0"
+                                                aria-label={t("ui.editor.insertKeyBefore")}
+                                                className="box-border border-0 bg-transparent p-0 cursor-pointer text-foreground !mx-0"
                                                 onClick={() => insertKeyBefore(childKey)}
                                             >
                                                 <Plus size={14} />
@@ -169,8 +172,8 @@ const ObjectNodeComponent: FC<ObjectNodeProps> = (props) => {
                                     <div className={styles["add-between"]}>
                                         <button
                                             type="button"
-                                            aria-label="Remove key"
-                                            className="box-border border-0 bg-transparent p-0 cursor-pointer text-colorText"
+                                            aria-label={t("ui.editor.removeKey")}
+                                            className="box-border border-0 bg-transparent p-0 cursor-pointer text-foreground"
                                             onClick={() => removeKey(childKey as string)}
                                         >
                                             <Trash size={14} />

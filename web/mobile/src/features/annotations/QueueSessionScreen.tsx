@@ -1,5 +1,7 @@
 import {annotationSessionController} from "@agenta/annotation"
 import {simpleQueueMolecule} from "@agenta/entities/simpleQueue"
+import {useT} from "@agenta/i18n"
+import queueScreensCatalog from "@agenta/i18n/catalogs/annotation.queueScreens"
 import {Button, SkeletonBlock} from "@agenta/ui/ui"
 import {ArrowLeft} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -34,6 +36,7 @@ export const QueueSessionScreen = ({
     projectId: string
     queueId: string
 }) => {
+    const t = useT(queueScreensCatalog)
     useBindProjectContext(projectId)
     const base = `/w/${workspaceId}/p/${projectId}`
     const {view, setView} = useQueueSessionRoute(queueId)
@@ -46,7 +49,7 @@ export const QueueSessionScreen = ({
     const title = queueName || "Untitled Queue"
     return (
         <>
-            <PageTitle title={queueQuery.data ? title : "Annotation Queues"} />
+            <PageTitle title={queueQuery.data ? title : t("annotation.queueScreens.listTitle")} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     fill
@@ -65,7 +68,7 @@ export const QueueSessionScreen = ({
                                 {queueQuery.isPending ? (
                                     <SkeletonBlock className="h-5 w-48" />
                                 ) : queueQuery.data ? (
-                                    <h1 className="m-0 min-w-0 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[20px]">
+                                    <h1 className="m-0 min-w-0 truncate text-heading text-foreground">
                                         {title}
                                     </h1>
                                 ) : null}

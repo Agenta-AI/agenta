@@ -1,24 +1,21 @@
+import {useT} from "@agenta/i18n"
+import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {SkillMark} from "@agenta/ui/agent-icon"
+import {ListTableSelectMark} from "@agenta/ui/list-table"
 
 import {SkillActionsMenu} from "./SkillActionsMenu"
 import {SkillArchivedTag} from "./SkillArchivedTag"
 import {
     lastUpdatedLabel,
-    NO_DESCRIPTION,
+    noDescriptionLabel,
     provenanceLabel,
-    usedByLabel,
     type SkillGrouping,
     type SkillListRow,
 } from "./skillListView"
 import {SkillUpdateCell} from "./SkillUpdateCell"
+import {SkillUsedByCell} from "./SkillUsedByCell"
 
-/**
- * One skill's cells, in column order.
- *
- * The name is the readable title from the SKILL.md name, the same one the drawer and the picker
- * show, and the whole row opens the drawer, so the actions cell holds only the kebab and,
- * once a check found one, the Update mark.
- */
+/** One skill's cells, in column order. */
 export const SkillRowCells = ({
     row,
     narrow,
@@ -30,67 +27,58 @@ export const SkillRowCells = ({
     narrow: boolean
     group: SkillGrouping
     onOpen: (row: SkillListRow) => void
-}) => (
-    <>
-        <span className={`flex min-w-0 items-center gap-2 ${row.archived ? "opacity-60" : ""}`}>
-            <SkillMark />
-            {/* Tight leading and a hairline gap: the frame's own row padding is fixed and
-                shared, so the two lines are where a row can give height back. */}
-            <span className="flex min-w-0 flex-1 flex-col gap-px">
-                <span className="flex min-w-0 items-center gap-1.5">
-                    <span
-                        className="truncate text-[13px] leading-[18px] text-foreground"
-                        title={row.title}
-                    >
-                        {row.title}
-                    </span>
-                    {row.archived ? <SkillArchivedTag /> : null}
-                </span>
-                {/* A described skill and an undescribed one have to be the same shape, or a
-                    column of rows jumps height by height as you read down it. */}
+}) => {
+    useT(skillsListCatalog)
+    return (
+        <>
+            <span className="flex min-w-0 items-center gap-3">
+                <ListTableSelectMark dim={row.archived}>
+                    <SkillMark size={32} />
+                </ListTableSelectMark>
                 <span
-                    className={`truncate text-[13px] leading-[16px] ${
-                        row.description ? "text-muted-foreground" : "text-placeholder"
-                    }`}
-                    title={row.description || undefined}
+                    className={`flex min-w-0 flex-1 flex-col gap-px ${row.archived ? "opacity-60" : ""}`}
                 >
-                    {row.description || NO_DESCRIPTION}
+                    <span className="flex min-w-0 items-center gap-1.5">
+                        <span
+                            className="truncate text-body font-medium text-foreground"
+                            title={row.title}
+                        >
+                            {row.title}
+                        </span>
+                        {row.archived ? <SkillArchivedTag /> : null}
+                    </span>
+                    <span
+                        className="truncate text-meta text-muted-foreground"
+                        title={row.description || undefined}
+                    >
+                        {row.description || noDescriptionLabel()}
+                    </span>
                 </span>
             </span>
-        </span>
 
-        {narrow ? null : (
-            <span
-                className="block truncate text-[13px] text-muted-foreground"
-                title={provenanceLabel(row, group)}
-            >
-                {provenanceLabel(row, group)}
+            {narrow ? null : <SkillUsedByCell workflowId={row.id} count={row.usedByCount} />}
+
+            {narrow ? null : (
+                <span
+                    className="block truncate text-body-sm text-muted-foreground"
+                    title={provenanceLabel(row, group)}
+                >
+                    {provenanceLabel(row, group)}
+                </span>
+            )}
+
+            <span className="block truncate text-meta tabular-nums text-muted-foreground max-sm:text-right">
+                {lastUpdatedLabel(row.age)}
             </span>
-        )}
 
-        {narrow ? null : (
             <span
-                className={`block truncate text-[13px] ${
-                    row.usedByCount ? "text-muted-foreground" : "text-placeholder"
-                }`}
+                className="flex items-center justify-end gap-1"
+                onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => event.stopPropagation()}
             >
-                {usedByLabel(row.usedByCount)}
+                {narrow ? null : <SkillUpdateCell workflowId={row.id} compact />}
+                <SkillActionsMenu row={row} onOpen={onOpen} />
             </span>
-        )}
-
-        <span className="block truncate text-[13px] text-placeholder">
-            {lastUpdatedLabel(row.age)}
-        </span>
-
-        {/* The menu's own clicks are not the row's: without this every menu press would also
-            open the drawer. */}
-        <span
-            className="flex items-center justify-end gap-1"
-            onClick={(event) => event.stopPropagation()}
-            onKeyDown={(event) => event.stopPropagation()}
-        >
-            <SkillUpdateCell workflowId={row.id} compact />
-            <SkillActionsMenu row={row} onOpen={onOpen} />
-        </span>
-    </>
-)
+        </>
+    )
+}

@@ -1,0 +1,19 @@
+{
+    "daysAgo": "hace {{count}} d",
+    "elapsed": "{{seconds}} s",
+    "hoursAgo": "hace {{count}} h",
+    "minutesAgo": "hace {{count}} min",
+    "navAgents": "Agentes",
+    "navAutomations": "Automatizaciones",
+    "navHome": "Inicio",
+    "navSessions": "Sesiones",
+    "navSettings": "Ajustes",
+    "navSkills": "Skills",
+    "navTemplates": "Plantillas",
+    "newAutomation": "Nueva automatización",
+    "now": "ahora",
+    "starting": "Iniciando",
+    "subtitle": "Agentes que se ejecutan según un horario o cuando ocurre algo en tus aplicaciones.",
+    "title": "Automatizaciones",
+    "workedFor": "Trabajó durante {{seconds}} s"
+}

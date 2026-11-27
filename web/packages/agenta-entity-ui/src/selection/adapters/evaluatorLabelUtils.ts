@@ -14,6 +14,8 @@ import React from "react"
 import {getWorkflowTypeColor} from "@agenta/entities/workflow"
 import {EntityListItemLabel} from "@agenta/ui/components/presentational"
 
+import {tSelection} from "../text"
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -60,10 +62,10 @@ export function renderEvaluatorTypeTag(
     let colorSource: string | null = null
 
     if (isHumanEvaluator) {
-        tagLabel = "Human"
+        tagLabel = tSelection("entityUi.selection.tagHuman")
         colorSource = "human"
     } else if (w.flags?.is_custom) {
-        tagLabel = "Custom Code"
+        tagLabel = tSelection("entityUi.selection.tagCustomCode")
         colorSource = "custom"
     } else {
         if (evaluatorKey) {
@@ -73,13 +75,14 @@ export function renderEvaluatorTypeTag(
     }
 
     if (!tagLabel) return undefined
+    if (tagLabel.trim().toLowerCase() === (w.name ?? "").trim().toLowerCase()) return undefined
 
     const color = colorSource ? getWorkflowTypeColor(colorSource) : null
 
     return React.createElement(
         "span",
         {
-            className: "text-[12px] px-1.5 py-0.5 rounded",
+            className: "text-meta px-1.5 py-0.5 rounded",
             style: color
                 ? {
                       backgroundColor: color.bg,
@@ -101,7 +104,9 @@ export function renderEvaluatorTypeTag(
  */
 export function renderEvaluatorPickerNameNode(entity: unknown): React.ReactNode {
     const w = entity as EvaluatorWorkflowLike
-    return React.createElement(EntityListItemLabel, {label: w.name ?? "Unnamed"})
+    return React.createElement(EntityListItemLabel, {
+        label: w.name ?? tSelection("entityUi.selection.unnamed"),
+    })
 }
 
 /**
@@ -120,7 +125,7 @@ export function renderEvaluatorPickerLabelNode(
     evaluatorDefsByKey: Map<string, string>,
 ): React.ReactNode {
     const w = entity as EvaluatorWorkflowLike
-    const name = w.name ?? "Unnamed"
+    const name = w.name ?? tSelection("entityUi.selection.unnamed")
     const tag = renderEvaluatorTypeTag(entity, evaluatorKeyMap, evaluatorDefsByKey)
 
     if (!tag) {

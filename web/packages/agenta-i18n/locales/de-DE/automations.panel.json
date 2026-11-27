@@ -1,0 +1,12 @@
+{
+    "scheduledTriggers": "Geplante Auslöser",
+    "appTriggers": "App-Auslöser",
+    "automations": "Automatisierungen",
+    "automationsHint": "Führe diesen Agenten nach Zeitplan aus oder wenn in einer App etwas passiert.",
+    "deleteFailed": "Diese Automatisierung konnte nicht gelöscht werden. Versuche es erneut.",
+    "runs": "Ausführungen",
+    "settings": "Einstellungen",
+    "history": "Verlauf",
+    "seeAllRuns": "Alle Ausführungen ansehen",
+    "lastRun": "Letzte Ausführung"
+}

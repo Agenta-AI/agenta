@@ -1,0 +1,6 @@
+{
+    "audienceNote": "Alle in diesem Projekt können die {{platform}}-Chats eines geteilten Agenten lesen, auch Direktnachrichten. Neue Chats mit einem privaten Agenten sieht nur sein Eigentümer.",
+    "off": "Aus",
+    "offIn": "Aus · in {{places}}",
+    "turnOn": "Einschalten"
+}

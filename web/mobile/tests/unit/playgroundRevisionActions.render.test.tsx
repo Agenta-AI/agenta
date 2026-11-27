@@ -73,7 +73,15 @@ vi.mock("@/features/playground/PlaygroundSplit", () => ({
     PlaygroundSplit: ({config}: {config: React.ReactNode}) => <div>{config}</div>,
 }))
 vi.mock("@/features/playground/usePlaygroundLeaveGuard", () => ({
-    usePlaygroundLeaveGuard: () => null,
+    // No leave question is open: the guard's idle confirm state.
+    usePlaygroundLeaveGuard: () => ({
+        request: null,
+        pending: false,
+        error: null,
+        confirm: () => undefined,
+        close: () => undefined,
+        runConfirm: async () => undefined,
+    }),
 }))
 vi.mock("@/components/PageTitle", () => ({PageTitle: () => null}))
 vi.mock("@/components/PageNotFound", () => ({PageNotFound: () => <div>not found</div>}))
@@ -434,17 +442,17 @@ describe("Discard and revert", () => {
         expect(calls).toHaveLength(0)
     })
 
-    it("Revert Changes is disabled without edits and discards with them", async () => {
+    it("Revert changes is disabled without edits and discards with them", async () => {
         await mount()
         await openMenu("Revision actions")
-        expect(find("Revert Changes")!.getAttribute("aria-disabled")).toBe("true")
+        expect(find("Revert changes")!.getAttribute("aria-disabled")).toBe("true")
         document.body.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape", bubbles: true}))
         await settle()
 
         await edit("Changed")
         await openMenu("Revision actions")
-        expect(find("Revert Changes")!.getAttribute("aria-disabled")).not.toBe("true")
-        await click("Revert Changes")
+        expect(find("Revert changes")!.getAttribute("aria-disabled")).not.toBe("true")
+        await click("Revert changes")
 
         expect(isDirty("rev-2")).toBe(false)
     })

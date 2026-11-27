@@ -1,4 +1,6 @@
-import {Columns3} from "lucide-react"
+import {useT} from "@agenta/i18n"
+import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
+import {ColumnsIcon} from "@phosphor-icons/react"
 
 import {Button} from "../components/ui/button"
 import {
@@ -37,6 +39,7 @@ export const ListTableColumnsMenu = ({
     label?: string
     className?: string
 }) => {
+    const t = useT(listControlsCatalog)
     const hideable = columns.filter(isColumnHideable)
     if (hideable.length < minColumns) return null
     const visibleCount = hideable.filter((column) => !hiddenKeys.has(column.key)).length
@@ -49,12 +52,12 @@ export const ListTableColumnsMenu = ({
                     size="sm"
                     className={cn("hidden md:inline-flex", className)}
                 >
-                    <Columns3 aria-hidden data-icon="inline-start" />
+                    <ColumnsIcon aria-hidden data-icon="inline-start" />
                     {label}
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Show columns</DropdownMenuLabel>
+                <DropdownMenuLabel>{t("ui.listControls.showColumns")}</DropdownMenuLabel>
                 {hideable.map((column) => {
                     const visible = !hiddenKeys.has(column.key)
                     return (

@@ -3,6 +3,10 @@
  * separate so the section components and the orchestrator can reuse them (and so they're testable).
  */
 import type {SchemaProperty} from "@agenta/entities/shared"
+import {createT, type CatalogKey} from "@agenta/i18n"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
+
+const t = createT(configItemsCatalog)
 
 /**
  * Best-effort display label for an enum value, used in collapsed section summaries.
@@ -21,9 +25,20 @@ export function enumLabel(schema: SchemaProperty | undefined, value: unknown): s
     return v
 }
 
+type CountNoun = "automation" | "integration" | "subagent" | "server" | "skill" | "tool"
+
+const COUNT_KEYS: Record<CountNoun, CatalogKey<typeof configItemsCatalog>> = {
+    automation: "entityUi.configItems.countAutomation",
+    integration: "entityUi.configItems.countIntegration",
+    subagent: "entityUi.configItems.countSubagent",
+    server: "entityUi.configItems.countServer",
+    skill: "entityUi.configItems.countSkill",
+    tool: "entityUi.configItems.countTool",
+}
+
 /** "3 tools" / "1 server" — the count line in a section header; empty when there are none. */
-export const countSummary = (n: number, noun: string): string =>
-    n > 0 ? `${n} ${noun}${n === 1 ? "" : "s"}` : ""
+export const countSummary = (n: number, noun: CountNoun): string =>
+    n > 0 ? t(COUNT_KEYS[noun], {count: n}) : ""
 
 /** Deep-clone a config item so drawer edits don't alias the committed config object. */
 export function cloneItem(item: unknown): Record<string, unknown> {

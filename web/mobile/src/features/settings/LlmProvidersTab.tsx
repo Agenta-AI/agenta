@@ -1,16 +1,28 @@
 import {useMemo} from "react"
 
 import {organizationConnectionsAccessAtom} from "@agenta/entities/secret"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsLlmProvidersTabCatalog from "@agenta/i18n/catalogs/settings.llmProvidersTab"
 import {AIProvidersPage, useEntitlements, type AIProvidersOrganization} from "@agenta/settings-ui"
-import {isEE} from "@agenta/shared/api"
+import {isBillingEnabled} from "@agenta/shared/api"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {useOrganizationProjects} from "../nav/useOrganizationProjects"
 
-import {ConfirmModal} from "./ConfirmModal"
 import type {SettingsTabProps} from "./settingsTabProps"
-import {useSettingsProjectGroup} from "./useSettingsProjectGroup"
 
 /**
  * The organization the page names, from the project list the nav already holds (the root
@@ -25,28 +37,28 @@ const useProvidersOrganization = (
         workspaceId,
         projectId,
     )
-    const enterprise = isEE()
     const {basePath} = useRouter()
     const manage = useAtomValue(organizationConnectionsAccessAtom) === "manage"
     // Only an owner or admin chooses projects, so only they read the plan.
-    const entitlements = useEntitlements({projectId, enabled: enterprise && manage})
+    const entitlements = useEntitlements({projectId, enabled: manage})
 
     return useMemo(() => {
         if (!group?.organizationId || !current) return null
         return {
             projectName: current.project_name,
             name: group.organizationName,
-            projectChoice: !enterprise
-                ? "all"
-                : entitlements.hasRBAC
-                  ? "choose"
-                  : entitlements.isLoading || !manage
-                    ? "pending"
-                    : "plan",
-            // A plain link, so it carries this app's base path itself.
-            plansHref: `${basePath}/w/${workspaceId}/p/${projectId}/settings?tab=billing`,
+            projectChoice: entitlements.hasRBAC
+                ? "choose"
+                : entitlements.isLoading || !manage
+                  ? "pending"
+                  : "plan",
+            // A plain link, so it carries this app's base path itself. Self-hosted, the plan
+            // comes from a license key, so the link opens the License tab.
+            plansHref: `${basePath}/w/${workspaceId}/p/${projectId}/settings?tab=${
+                isBillingEnabled() ? "billing" : "license"
+            }`,
         }
-    }, [group, current, workspaceId, projectId, enterprise, entitlements, manage, basePath])
+    }, [group, current, workspaceId, projectId, entitlements, manage, basePath])
 }
 
 /**
@@ -55,33 +67,53 @@ const useProvidersOrganization = (
  * organization's group.
  */
 export const LlmProvidersTab = ({workspaceId, projectId}: SettingsTabProps) => {
+    const t = useT(commonCatalog, settingsLlmProvidersTabCatalog)
     const organization = useProvidersOrganization(workspaceId, projectId)
-    const {projectSwitch} = useSettingsProjectGroup(workspaceId, projectId)
     return (
         <AIProvidersPage
             organization={organization ?? undefined}
-            projectSwitch={projectSwitch}
             renderRemoveDialog={({connection, open, pending, error, onConfirm, onClose}) => (
-                <ConfirmModal
+                <AlertDialog
                     open={open}
-                    title="Are you sure you want to delete?"
-                    description={
-                        connection?.scope === "organization"
-                            ? "Agents that use this connection will need configuration, in every project that uses it."
-                            : "This action is not reversible. Agents and prompts using this connection stop working."
-                    }
-                    body={
-                        <div className="flex flex-col gap-1">
-                            <span>You are about to delete:</span>
-                            <span className="font-medium">{connection?.name}</span>
-                        </div>
-                    }
-                    confirmLabel="Delete"
-                    pending={pending}
-                    error={error}
-                    onConfirm={onConfirm}
-                    onClose={onClose}
-                />
+                    onOpenChange={(next) => {
+                        if (!next && !pending) onClose()
+                    }}
+                >
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>
+                                {t("settings.llmProvidersTab.deleteTitle", {
+                                    name: connection?.name ?? "",
+                                })}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {connection?.scope === "organization"
+                                    ? t("settings.llmProvidersTab.deleteOrganizationDescription")
+                                    : t("settings.llmProvidersTab.deleteProjectDescription")}
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        {error ? <p className="m-0 text-body text-destructive">{error}</p> : null}
+                        <AlertDialogFooter>
+                            <AlertDialogCancel asChild>
+                                <Button variant="outline" onClick={onClose} disabled={pending}>
+                                    {t("common.cancel")}
+                                </Button>
+                            </AlertDialogCancel>
+                            <AlertDialogAction asChild>
+                                <Button
+                                    variant="destructive"
+                                    disabled={pending}
+                                    onClick={(event) => {
+                                        event.preventDefault()
+                                        onConfirm()
+                                    }}
+                                >
+                                    {pending ? t("common.working") : t("common.delete")}
+                                </Button>
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             )}
         />
     )

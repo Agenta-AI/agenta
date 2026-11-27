@@ -2,6 +2,8 @@ import {useMemo, useState} from "react"
 
 import {AGENT_FILES_DIR, agentMountQueryFamily, useSessionDrive} from "@agenta/entities/drive"
 import {latestMountFilesQueryFamily, type MountFile} from "@agenta/entities/session"
+import {useT} from "@agenta/i18n"
+import agentOverviewCatalog from "@agenta/i18n/catalogs/entityUi.agentOverview"
 import {timeAgo} from "@agenta/shared/utils"
 import {PANEL_ACTION_CLASS, PanelSection} from "@agenta/ui/components/presentational"
 import {
@@ -37,6 +39,7 @@ const formatSize = (bytes: number | null | undefined): string | null => {
  * changed; the drive itself is browsed and edited where drives are browsed and edited.
  */
 export const AgentFilesCard = ({appId}: {appId: string}) => {
+    const t = useT(agentOverviewCatalog)
     const [openPath, setOpenPath] = useState<string | null>(null)
     const [open, setOpen] = useState(false)
 
@@ -63,12 +66,13 @@ export const AgentFilesCard = ({appId}: {appId: string}) => {
 
     return (
         <PanelSection
-            title="Files"
+            title={t("entityUi.agentOverview.files")}
             titleExtra={
                 total ? (
-                    <span className="shrink-0 text-xs text-colorTextTertiary">
-                        {total}
-                        {files.data?.totalCapped ? "+" : ""} file{total === 1 ? "" : "s"}
+                    <span className="shrink-0 text-meta text-muted-foreground">
+                        {files.data?.totalCapped
+                            ? t("entityUi.agentOverview.filesCountCapped", {count: total})
+                            : t("entityUi.agentOverview.filesCount", {count: total})}
                     </span>
                 ) : null
             }
@@ -83,7 +87,7 @@ export const AgentFilesCard = ({appId}: {appId: string}) => {
                         }}
                         className={PANEL_ACTION_CLASS}
                     >
-                        View all
+                        {t("entityUi.agentOverview.viewAll")}
                     </button>
                 ) : null
             }
@@ -95,17 +99,17 @@ export const AgentFilesCard = ({appId}: {appId: string}) => {
                     <SkeletonBlock active className="h-4 w-2/3" />
                 </div>
             ) : rows.length === 0 ? (
-                <p className="m-0 px-2 py-3 text-xs text-colorTextTertiary">
+                <p className="m-0 px-2 py-3 text-meta text-muted-foreground">
                     {mountId
-                        ? "This agent isn't carrying any files yet."
-                        : "This agent has no drive yet."}
+                        ? t("entityUi.agentOverview.noFilesYet")
+                        : t("entityUi.agentOverview.noDriveYet")}
                 </p>
             ) : (
                 rows.map((file) => {
                     const name = file.path.split("/").filter(Boolean).pop() || file.path
                     const detail = file.is_folder
                         ? file.item_count != null
-                            ? `${file.item_count} item${file.item_count === 1 ? "" : "s"}`
+                            ? t("entityUi.agentOverview.itemsCount", {count: file.item_count})
                             : null
                         : formatSize(file.size)
 
@@ -119,17 +123,17 @@ export const AgentFilesCard = ({appId}: {appId: string}) => {
                                 setOpenPath(`${AGENT_FILES_DIR}/${file.path}`)
                                 setOpen(true)
                             }}
-                            className="group box-border flex w-full cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-2 py-2.5 text-left hover:bg-colorFillQuaternary"
+                            className="group box-border flex w-full cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-2 py-2.5 text-left hover:bg-accent"
                         >
                             {file.is_folder ? (
-                                <FolderIcon size={14} className="shrink-0 text-colorTextTertiary" />
+                                <FolderIcon size={14} className="shrink-0 text-muted-foreground" />
                             ) : (
-                                <FileIcon size={14} className="shrink-0 text-colorTextTertiary" />
+                                <FileIcon size={14} className="shrink-0 text-muted-foreground" />
                             )}
                             <TooltipProvider delayDuration={600}>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <span className="min-w-0 flex-1 truncate text-sm text-colorText">
+                                        <span className="min-w-0 flex-1 truncate text-label text-foreground">
                                             {name}
                                         </span>
                                     </TooltipTrigger>
@@ -137,12 +141,12 @@ export const AgentFilesCard = ({appId}: {appId: string}) => {
                                 </Tooltip>
                             </TooltipProvider>
                             {/* Fixed column: shrink-to-fit left "1.3 KB" and "293 B" without a shared edge. */}
-                            <span className="w-16 shrink-0 text-right text-xs text-colorTextTertiary">
+                            <span className="w-16 shrink-0 text-right text-meta text-muted-foreground">
                                 {detail}
                             </span>
                             {/* Hidden below `sm`: it left the filename ~11 characters. */}
                             {file.mtime ? (
-                                <span className="hidden w-14 shrink-0 text-right text-xs text-colorTextTertiary sm:block">
+                                <span className="hidden w-14 shrink-0 text-right text-meta text-muted-foreground sm:block">
                                     {timeAgo(file.mtime)}
                                 </span>
                             ) : null}
@@ -164,7 +168,15 @@ export const AgentFilesCard = ({appId}: {appId: string}) => {
                     scope="app"
                     initialPath={openPath}
                     driveIds={
-                        mountId ? [{key: "mount", label: "Drive ID", value: mountId}] : undefined
+                        mountId
+                            ? [
+                                  {
+                                      key: "mount",
+                                      label: t("entityUi.agentOverview.driveId"),
+                                      value: mountId,
+                                  },
+                              ]
+                            : undefined
                     }
                 />
             ) : null}

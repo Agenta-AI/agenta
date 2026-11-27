@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import chatMobileScreenCatalog from "@agenta/i18n/catalogs/chat.mobileScreen"
 import {SkeletonBlock} from "@agenta/ui/ui"
 
 import {ContentRail} from "@/components/ContentRail"
@@ -16,9 +18,9 @@ import {mobileTurnRowClass} from "../turnRowClass"
  * loads the way every other list in the app does.
  */
 
-/** A 13px/18px text line: a 12px bar in an 18px box, so N lines stack at the real line pitch. */
+/** A text-body line: a 12px bar in a 22px box, so N lines stack at the real line pitch. */
 const Line = ({className}: {className: string}) => (
-    <span className="flex h-[18px] items-center">
+    <span className="flex h-5.5 items-center">
         <SkeletonBlock active className={cn("h-3", className)} />
     </span>
 )
@@ -37,21 +39,21 @@ const UserTurn = ({width}: {width: string}) => (
     <div className={cn(mobileTurnRowClass, "justify-end")}>
         {/* Width on the bubble itself: the real wrapper is content-sized, and a percentage
             inside it would resolve to nothing. */}
-        <SkeletonBlock active shape="round" className={cn("h-[34px] max-w-[85%]", width)} />
+        <SkeletonBlock active shape="soft" className={cn("h-10.5 max-w-[85%]", width)} />
     </div>
 )
 
 /** The "Worked for 27s ›" row: a 30px button band with a short label. */
 const WorkedRow = () => (
-    <div className="flex h-[30px] items-center">
-        <SkeletonBlock active className="h-3 w-[114px]" />
+    <div className="flex h-7.5 items-center">
+        <SkeletonBlock active className="h-3 w-28" />
     </div>
 )
 
 /** One tool step: the 28px row, a 13px glyph and its command. */
 const ToolRow = ({width}: {width: string}) => (
     <div className="flex h-7 items-center gap-3.5 px-1.5">
-        <SkeletonBlock active shape="circle" className="size-[13px] shrink-0" />
+        <SkeletonBlock active className="size-3.5 shrink-0 rounded-sm" />
         <SkeletonBlock active className={cn("h-3", width)} />
     </div>
 )
@@ -79,28 +81,34 @@ const AssistantTurn = ({steps = [], paragraphs}: {steps?: string[]; paragraphs: 
     </div>
 )
 
-export const ChatLoading = () => (
-    <ContentRail
-        className="flex grow flex-col justify-end gap-3 p-4 pt-6 pb-[calc(1rem+env(safe-area-inset-bottom))]"
-        aria-busy
-        aria-label="Loading conversation"
-    >
-        <UserTurn width="w-[420px]" />
-        <AssistantTurn
-            steps={["w-[440px] max-w-[70%]", "w-[400px] max-w-[64%]"]}
-            paragraphs={[
-                ["w-full", "w-[92%]", "w-[58%]"],
-                ["w-[96%]", "w-[40%]"],
-            ]}
-        />
-        <UserTurn width="w-[260px]" />
-        <AssistantTurn paragraphs={[["w-full", "w-[88%]", "w-[71%]", "w-[33%]"]]} />
-    </ContentRail>
-)
+export const ChatLoading = () => {
+    const t = useT(chatMobileScreenCatalog)
+    return (
+        <ContentRail
+            className="flex grow flex-col justify-end gap-3 p-4 pt-6 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+            aria-busy
+            aria-label={t("chat.mobileScreen.loadingConversation")}
+        >
+            <UserTurn width="w-105" />
+            <AssistantTurn
+                steps={["w-110 max-w-[70%]", "w-100 max-w-[64%]"]}
+                paragraphs={[
+                    ["w-full", "w-[92%]", "w-[58%]"],
+                    ["w-[96%]", "w-[40%]"],
+                ]}
+            />
+            <UserTurn width="w-65" />
+            <AssistantTurn paragraphs={[["w-full", "w-[88%]", "w-[71%]", "w-[33%]"]]} />
+        </ContentRail>
+    )
+}
 
 /** No durable history; a read that failed is `ChatUnreachable` instead. */
-export const ChatEmpty = () => (
-    <p className="text-muted-foreground grow p-6 text-xs">
-        No messages here — this session has no replayable history.
-    </p>
-)
+export const ChatEmpty = () => {
+    const t = useT(chatMobileScreenCatalog)
+    return (
+        <p className="text-muted-foreground grow p-6 text-body">
+            {t("chat.mobileScreen.noMessages")}
+        </p>
+    )
+}

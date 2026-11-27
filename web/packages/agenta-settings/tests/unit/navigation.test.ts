@@ -1,8 +1,9 @@
+import {createT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {describe, expect, it} from "vitest"
 
 import {
     getSettingsSidebarTabs,
-    getSettingsTabDescription,
     getSettingsTabLabel,
     isSettingsTabVisible,
     resolveSettingsTab,
@@ -10,6 +11,9 @@ import {
     SETTINGS_TABS,
     type SettingsAccess,
 } from "../../src/navigation"
+import {getSettingsTabDescription} from "../../src/tabDetails"
+
+const t = createT(navigationCatalog)
 
 const baseAccess: SettingsAccess = {
     billingEnabled: true,
@@ -36,6 +40,12 @@ describe("resolveSettingsTab", () => {
         expect(resolveSettingsTab("organization", {...baseAccess, isOwner: false})).toBe(
             "workspace",
         )
+    })
+
+    it("lists Access & Security and Audit Log on OSS, where they show a locked state", () => {
+        const oss = {...baseAccess, isEE: false}
+        expect(resolveSettingsTab("organization", oss)).toBe("organization")
+        expect(resolveSettingsTab("auditLog", oss)).toBe("auditLog")
     })
 
     it("keeps the projects tab reachable", () => {
@@ -121,7 +131,7 @@ describe("settings sidebar scopes", () => {
             "organization",
             "personal",
         ])
-        expect(SETTINGS_SCOPES[0].title).toBe("Connections")
+        expect(t(SETTINGS_SCOPES[0].titleKey)).toBe("Connections")
 
         const tabs = getSettingsSidebarTabs(baseAccess)
         const keysForScope = (scope: (typeof SETTINGS_SCOPES)[number]["key"]) =>
@@ -143,6 +153,7 @@ describe("settings sidebar scopes", () => {
             "projects",
             "organization",
             "auditLog",
+            "license",
         ])
         expect(keysForScope("personal")).toEqual(["account", "preferences"])
     })
@@ -191,5 +202,16 @@ describe("tabs a role cannot read", () => {
 
     it("falls back to the owner check for a host that says nothing about billing", () => {
         expect(isSettingsTabVisible("billing", {...baseAccess, isOwner: false})).toBe(false)
+    })
+})
+
+describe("license tab", () => {
+    it("shows only to an instance admin of a deployment without billing", () => {
+        const selfHosted = {...baseAccess, billingEnabled: false}
+        expect(isSettingsTabVisible("license", {...selfHosted, isInstanceAdmin: true})).toBe(true)
+        expect(isSettingsTabVisible("license", {...selfHosted, isInstanceAdmin: false})).toBe(false)
+        expect(isSettingsTabVisible("license", selfHosted)).toBe(false)
+        expect(isSettingsTabVisible("license", {...baseAccess, isInstanceAdmin: true})).toBe(false)
+        expect(getSettingsTabLabel("license", baseAccess)).toBe("License")
     })
 })

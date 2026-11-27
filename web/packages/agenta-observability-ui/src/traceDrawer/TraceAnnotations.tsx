@@ -4,9 +4,10 @@ import {groupAnnotationsByReferenceId} from "@agenta/entities/annotation/dto"
 import {AnnotationDto} from "@agenta/entities/annotation/dto"
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {evaluatorsListDataAtom, type Workflow} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import spanCatalog from "@agenta/i18n/catalogs/observabilityUi.traceSpan"
 import {getStringOrJson} from "@agenta/shared/utils"
-import {EnhancedButton} from "@agenta/ui/components/presentational"
-import {Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
+import {Button, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {X} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
@@ -18,7 +19,7 @@ import EvaluatorDetailsPopover from "./EvaluatorDetailsPopover"
 import NoTraceAnnotations from "./NoTraceAnnotations"
 
 const annotationPopoverClass =
-    "w-[300px] [&_.ant-popover-container]:!p-0 [&_.ant-popover-title]:p-2 [&_.ant-popover-title]:border-b [&_.ant-popover-title]:border-solid [&_.ant-popover-title]:border-[var(--ag-colorSplit)] [&_.ant-popover-content]:p-2 [&_.ant-popover-content]:max-h-[200px] [&_.ant-popover-content]:overflow-y-auto"
+    "w-[300px] [&_.ant-popover-container]:!p-0 [&_.ant-popover-title]:p-2 [&_.ant-popover-title]:border-b [&_.ant-popover-title]:border-solid [&_.ant-popover-title]:border-border-muted [&_.ant-popover-content]:p-2 [&_.ant-popover-content]:max-h-50 [&_.ant-popover-content]:overflow-y-auto"
 
 interface TraceAnnotationsProps {
     annotations: AnnotationDto[]
@@ -40,6 +41,7 @@ interface AnnotationGroup {
 }
 
 const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
+    const t = useT(spanCatalog)
     const [isAnnotationsPopoverOpen, setIsAnnotationsPopoverOpen] = useState<string | null>(null)
     const getPopoverKey = (refId: string, key: string) => `${refId}-${key}`
     const evaluators = useAtomValue(evaluatorsListDataAtom)
@@ -139,7 +141,9 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
     const getSummaryValue = (metric: AnnotationChipEntry) => {
         if (metric.category === "metric") {
             if (metric.latest !== undefined) {
-                return metric.latest ? "True" : "False"
+                return metric.latest
+                    ? t("observabilityUi.traceSpan.true")
+                    : t("observabilityUi.traceSpan.false")
             }
             if (metric.average !== undefined) {
                 return `μ ${metric.average}`
@@ -174,13 +178,13 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                 if (filteredMetrics.length === 0) return null
 
                 return (
-                    <div key={group.refId} className="flex flex-col gap-[6px]">
+                    <div key={group.refId} className="flex flex-col gap-1.5">
                         <div className="flex items-center gap-2">
                             <EvaluatorDetailsPopover
                                 evaluator={group.evaluator}
                                 fallbackLabel={group.refId}
                             >
-                                <span className="text-colorTextSecondary text-[12px]">
+                                <span className="text-muted-foreground text-meta">
                                     {group?.evaluator?.name || group.refId}
                                 </span>
                             </EvaluatorDetailsPopover>
@@ -199,38 +203,40 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                                         <div className="flex items-center gap-2 truncate overflow-hidden">
                                             <span>
                                                 {metric.latest !== undefined
-                                                    ? "Value:"
-                                                    : "Total mean:"}
+                                                    ? t("observabilityUi.traceSpan.valueLabel")
+                                                    : t("observabilityUi.traceSpan.totalMean")}
                                             </span>
                                             <ValueTag
                                                 value={
                                                     metric.latest !== undefined
                                                         ? metric.latest
-                                                            ? "True"
-                                                            : "False"
+                                                            ? t("observabilityUi.traceSpan.true")
+                                                            : t("observabilityUi.traceSpan.false")
                                                         : `μ ${metric.average}`
                                                 }
                                                 className={booleanColorClass}
                                             />
                                         </div>
-                                        <EnhancedButton
-                                            type="text"
-                                            icon={<X />}
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
                                             onClick={() => setIsAnnotationsPopoverOpen(null)}
-                                            size="small"
-                                        />
+                                        >
+                                            <X />
+                                        </Button>
                                     </div>
                                 ) : (
                                     <div className="flex items-center justify-between gap-2">
                                         <div className="flex flex-col overflow-hidden">
                                             <span className="truncate">{key}</span>
                                         </div>
-                                        <EnhancedButton
-                                            type="text"
-                                            icon={<X />}
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
                                             onClick={() => setIsAnnotationsPopoverOpen(null)}
-                                            size="small"
-                                        />
+                                        >
+                                            <X />
+                                        </Button>
                                     </div>
                                 )
 
@@ -254,7 +260,7 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                                                 className={clsx(
                                                     "flex items-center flex-wrap gap-1 justify-between",
                                                     "py-1 px-3 cursor-pointer",
-                                                    "rounded-lg border border-[var(--ag-c-BDC7D1)] border-solid",
+                                                    "rounded-lg border border-border border-solid",
                                                 )}
                                             >
                                                 <span className="truncate overflow-hidden text-ellipsis flex-1">
@@ -265,7 +271,7 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                                                         className={clsx(
                                                             "truncate overflow-hidden text-ellipsis",
                                                             booleanColorClass ||
-                                                                "text-colorTextSecondary",
+                                                                "text-muted-foreground",
                                                         )}
                                                     >
                                                         {summaryValue}
@@ -295,7 +301,7 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                                                                 name={annotation.user || ""}
                                                                 showAvatar
                                                             />
-                                                            <span className="text-colorTextSecondary px-1">
+                                                            <span className="text-muted-foreground px-1">
                                                                 {getStringOrJson(
                                                                     annotation.value as string,
                                                                 )}

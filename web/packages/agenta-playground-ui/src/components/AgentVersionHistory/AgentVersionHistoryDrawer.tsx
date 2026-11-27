@@ -17,14 +17,31 @@ import {
     workflowRevisionsByWorkflowQueryAtomFamily,
 } from "@agenta/entities/workflow"
 import {classifyAgentChanges, stableStringify} from "@agenta/entities/workflow/commitDiff"
+import {commitDiffTextNow} from "@agenta/entity-ui/changes"
+import {textVersionAtom, useT} from "@agenta/i18n"
+import versionCatalog from "@agenta/i18n/catalogs/playground.versionHistory"
 import {buildVersionRows, revertAgentRevisionAtom} from "@agenta/playground/state"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
+import {PhoneScreenHeader} from "@agenta/ui/phone"
 import {cn, textColors} from "@agenta/ui/styles"
+import {
+    AlertDialog,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+    Sheet,
+    SheetContent,
+    SheetFooter,
+    SheetHeader,
+    SheetTitle,
+} from "@agenta/ui/ui"
 import {ArrowLeft} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {ChangesPane} from "./ChangesPane"
-import {RevertConfirmDialog} from "./RevertConfirmDialog"
 import {RevertFooter} from "./RevertFooter"
 import type {RevertPhase} from "./RevertFooter"
 import {
@@ -44,6 +61,13 @@ export interface AgentVersionHistoryDrawerProps {
     currentVersion?: number | null
     /** Switch this view to a newer version. */
     onUpdate?: (revisionId: string) => void
+    /**
+     * Lay out for a phone: the history covers the screen, with a back arrow instead of the close
+     * button, and 44 px buttons.
+     */
+    phone?: boolean
+    /** On a phone, the name of the screen the back arrow returns to. */
+    backTitle?: string
 }
 
 export const AgentVersionHistoryDrawer = ({
@@ -51,7 +75,10 @@ export const AgentVersionHistoryDrawer = ({
     revisionId,
     currentVersion,
     onUpdate,
+    phone = false,
+    backTitle,
 }: AgentVersionHistoryDrawerProps) => {
+    const t = useT(versionCatalog)
     const open = useAtomValue(versionHistoryOpenAtomFamily(workflowId))
     const selectedId = useAtomValue(versionHistorySelectedAtomFamily(workflowId))
     const selectVersion = useSetAtom(selectAgentVersionAtom)
@@ -110,8 +137,6 @@ export const AgentVersionHistoryDrawer = ({
 
     // Drawer-local: nothing outside reads either.
     const [phase, setPhase] = useState<RevertPhase>("idle")
-    // The panel element, so the revert confirmation can mask the drawer and not the page.
-    const [panel, setPanel] = useState<HTMLDivElement | null>(null)
     // Phone: one pane at a time. Picking a version pushes the diff; a back link returns.
     const [mobileView, setMobileView] = useState<"list" | "diff">("list")
 
@@ -150,12 +175,13 @@ export const AgentVersionHistoryDrawer = ({
 
     // `local` is the selected version and `remote` its predecessor, so "added" reads as what this
     // version added — the same tense as the commit message on its row.
+    const textVersion = useAtomValue(textVersionAtom)
     const sections = useMemo(
         () =>
             selectedParams && previousParams
-                ? classifyAgentChanges(selectedParams, previousParams)
+                ? classifyAgentChanges(selectedParams, previousParams, commitDiffTextNow())
                 : [],
-        [selectedParams, previousParams],
+        [selectedParams, previousParams, textVersion],
     )
 
     // Restoring a version whose configuration already matches the head does nothing, so the
@@ -169,8 +195,8 @@ export const AgentVersionHistoryDrawer = ({
         [selectedParams, latestParams, selectedSchemas, latestSchemas],
     )
     const emptyText = !previousRow
-        ? "The first version — there is nothing before it to compare."
-        : "No configuration changes recorded in this version."
+        ? t("playground.versionHistory.firstVersion")
+        : t("playground.versionHistory.noChanges")
 
     const listLoading = query.isPending && revisions.length === 0
     const isError = query.isError && revisions.length === 0
@@ -179,98 +205,179 @@ export const AgentVersionHistoryDrawer = ({
     const diffLoading =
         listLoading || (!!selectedId && !selectedParams) || (!!previousRow && !previousParams)
     const placeholder = isError
-        ? "The version history could not be loaded. Retry from the list."
+        ? t("playground.versionHistory.loadFailed")
         : !selectedId
-          ? "Pick a version to see what changed in it."
+          ? t("playground.versionHistory.pickVersion")
           : undefined
 
     return (
-        <EnhancedDrawer
+        <Sheet
             open={open}
-            onClose={handleClose}
-            title={<span className="text-sm font-normal">Version history</span>}
-            width={780}
-            panelRef={setPanel}
-            // px-3 so the buttons' outer edge lands on the same line as the section bands.
-            classNames={{body: "!p-0", footer: "px-3"}}
-            footer={
-                <RevertFooter
-                    phase={phase}
-                    selectedVersion={selectedRow?.version ?? null}
-                    latestVersion={latestRow?.version ?? null}
-                    disabled={!selectedRow || diffLoading || matchesLatest}
-                    onRequestConfirm={() => setPhase("confirm")}
-                    onCancel={() => setPhase("idle")}
-                    onConfirm={handleConfirm}
-                    onClose={handleClose}
-                    onUpdate={
-                        onUpdate &&
-                        selectedRow &&
-                        currentVersion != null &&
-                        Number(selectedRow.version) > Number(currentVersion)
-                            ? () => {
-                                  onUpdate(selectedRow.id)
-                                  handleClose()
-                              }
-                            : undefined
-                    }
-                />
-            }
+            onOpenChange={(next) => {
+                if (!next) handleClose()
+            }}
         >
-            <RevertConfirmDialog
-                open={phase === "confirm"}
-                container={panel}
-                selectedVersion={selectedRow?.version ?? null}
-                latestVersion={latestRow?.version ?? null}
-                onCancel={() => setPhase("idle")}
-                onConfirm={handleConfirm}
-            />
-            <div className="flex h-full min-h-0">
-                <div
-                    className={cn(
-                        "flex min-h-0 flex-col py-3 pl-3 pr-2 sm:w-[250px] sm:shrink-0",
-                        mobileView === "list" ? "w-full" : "hidden sm:flex",
-                    )}
-                >
-                    <VersionList
-                        rows={rows}
-                        selectedId={selectedId}
-                        isLoading={listLoading}
-                        isError={isError}
-                        onRetry={() => void query.refetch()}
-                        onSelect={handleSelect}
-                        disabled={phase === "reverting"}
-                    />
-                </div>
-
-                <div
-                    className={cn(
-                        "flex min-w-0 flex-1 flex-col sm:border-0 sm:border-l sm:border-solid sm:border-[var(--ag-colorBorderSecondary)]",
-                        mobileView === "diff" ? "flex" : "hidden sm:flex",
-                    )}
-                >
-                    <button
-                        type="button"
-                        onClick={() => setMobileView("list")}
-                        className={cn(
-                            "flex cursor-pointer items-center gap-1.5 border-0 bg-transparent px-5 pt-3.5 text-xs sm:hidden",
-                            textColors.secondary,
-                        )}
+            <SheetContent
+                side="right"
+                // Phone: the whole screen. Desktop: flush to the right edge (canvas S06).
+                style={
+                    phone
+                        ? {
+                              inset: 0,
+                              width: "100%",
+                              maxWidth: "100%",
+                              borderRadius: 0,
+                              // Clear of the notch and the home bar, as the Channels connect layer.
+                              paddingTop: "env(safe-area-inset-top)",
+                              paddingBottom: "env(safe-area-inset-bottom)",
+                          }
+                        : {
+                              width: 780,
+                              maxWidth: "calc(100% - 1rem)",
+                              top: 0,
+                              right: 0,
+                              bottom: 0,
+                              height: "100%",
+                              borderRadius: 0,
+                              boxShadow: "var(--shadow-drawer-right)",
+                          }
+                }
+            >
+                {phone ? null : (
+                    // Title and Close 1 px higher, Close radius 6 (canvas S06).
+                    <SheetHeader
+                        className="pt-[15px] pb-[17px] [&_[data-slot=sheet-close]]:rounded-md"
+                        style={{paddingLeft: 24}}
                     >
-                        <ArrowLeft />
-                        Versions
-                    </button>
-                    <ChangesPane
-                        sections={sections}
-                        version={selectedRow?.version ?? null}
-                        message={selectedRow?.message}
-                        isLoading={diffLoading}
-                        placeholder={placeholder}
-                        emptyText={emptyText}
-                    />
+                        <SheetTitle className="min-w-0">
+                            <span className="text-label font-normal">
+                                {t("playground.versionHistory.title")}
+                            </span>
+                        </SheetTitle>
+                    </SheetHeader>
+                )}
+                <div
+                    className={cn(
+                        "min-h-0 flex-1 overflow-y-auto p-0 text-field-md text-foreground",
+                        phone && "flex flex-col rounded-t-[inherit]",
+                    )}
+                >
+                    <AlertDialog
+                        open={phase === "confirm"}
+                        onOpenChange={(next) => !next && setPhase("idle")}
+                    >
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>
+                                    {t("playground.versionHistory.revertTitle", {
+                                        version: selectedRow?.version ?? "",
+                                    })}
+                                </AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    {t("playground.versionHistory.revertDescription", {
+                                        next: (latestRow?.version ?? 0) + 1,
+                                        version: selectedRow?.version ?? "",
+                                        latest: latestRow?.version ?? "",
+                                    })}
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                {/* Cancel closes through onOpenChange: back to idle. */}
+                                <AlertDialogCancel>
+                                    {t("playground.versionHistory.cancel")}
+                                </AlertDialogCancel>
+                                <Button onClick={handleConfirm}>
+                                    {t("playground.versionHistory.revert")}
+                                </Button>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                    {phone ? (
+                        <>
+                            {/* The drawer has no header on a phone; this names the dialog. */}
+                            <SheetTitle className="sr-only">
+                                {t("playground.versionHistory.title")}
+                            </SheetTitle>
+                            <PhoneScreenHeader
+                                title={t("playground.versionHistory.title")}
+                                backTitle={backTitle}
+                                onBack={handleClose}
+                            />
+                        </>
+                    ) : null}
+                    <div className={cn("flex min-h-0", phone ? "flex-1" : "h-full")}>
+                        <div
+                            className={cn(
+                                "flex min-h-0 flex-col py-3 pl-3 pr-2 sm:w-[250px] sm:shrink-0",
+                                mobileView === "list" ? "w-full" : "hidden sm:flex",
+                            )}
+                        >
+                            <VersionList
+                                rows={rows}
+                                selectedId={selectedId}
+                                isLoading={listLoading}
+                                isError={isError}
+                                onRetry={() => void query.refetch()}
+                                onSelect={handleSelect}
+                                disabled={phase === "reverting"}
+                            />
+                        </div>
+
+                        <div
+                            className={cn(
+                                "flex min-w-0 flex-1 flex-col sm:border-0 sm:border-l sm:border-solid sm:border-border-muted",
+                                mobileView === "diff" ? "flex" : "hidden sm:flex",
+                            )}
+                        >
+                            <button
+                                type="button"
+                                onClick={() => setMobileView("list")}
+                                className={cn(
+                                    "flex cursor-pointer items-center gap-1.5 border-0 bg-transparent px-5 text-label font-normal sm:hidden",
+                                    "pt-3.5",
+                                    textColors.secondary,
+                                )}
+                            >
+                                <ArrowLeft />
+                                {t("playground.versionHistory.versions")}
+                            </button>
+                            <ChangesPane
+                                sections={sections}
+                                version={selectedRow?.version ?? null}
+                                message={selectedRow?.message}
+                                isLoading={diffLoading}
+                                placeholder={placeholder}
+                                emptyText={emptyText}
+                            />
+                        </div>
+                    </div>
                 </div>
-            </div>
-        </EnhancedDrawer>
+                {/* px-3 so the buttons' outer edge lands on the same line as the section bands. */}
+                <SheetFooter className="px-3">
+                    <RevertFooter
+                        phase={phase}
+                        selectedVersion={selectedRow?.version ?? null}
+                        latestVersion={latestRow?.version ?? null}
+                        disabled={!selectedRow || diffLoading || matchesLatest}
+                        onRequestConfirm={() => setPhase("confirm")}
+                        onCancel={() => setPhase("idle")}
+                        onConfirm={handleConfirm}
+                        onClose={handleClose}
+                        onUpdate={
+                            onUpdate &&
+                            selectedRow &&
+                            currentVersion != null &&
+                            Number(selectedRow.version) > Number(currentVersion)
+                                ? () => {
+                                      onUpdate(selectedRow.id)
+                                      handleClose()
+                                  }
+                                : undefined
+                        }
+                    />
+                </SheetFooter>
+            </SheetContent>
+        </Sheet>
     )
 }
 

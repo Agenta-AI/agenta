@@ -18,7 +18,7 @@ export const InitialsAvatar = memo(({name, style, ...props}: InitialsAvatarProps
     }, [name])
 
     return (
-        <AvatarBox shape="square" style={{...colorStyle, ...style}} {...props}>
+        <AvatarBox style={{...colorStyle, ...style}} {...props}>
             {getInitials(name)}
         </AvatarBox>
     )

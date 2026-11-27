@@ -9,6 +9,8 @@ import {
     type HtmlAppHostError,
     type PickedPayload,
 } from "@agenta/entities/drive"
+import {createT, useT} from "@agenta/i18n"
+import driveAppCatalog from "@agenta/i18n/catalogs/entityUi.driveApp"
 import type {PickerRect} from "@agenta/shared/previewPicker"
 import {
     frameRectToRoot,
@@ -102,8 +104,14 @@ export interface RunViewProps {
     className?: string
 }
 
+// Errors are described when the app reports them, from callbacks outside render.
+const tNow = createT(driveAppCatalog)
+
 const describeError = (e: HtmlAppHostError): string => {
-    if (e.kind === "script") return `Script error${e.line ? ` (line ${e.line})` : ""}: ${e.message}`
+    if (e.kind === "script")
+        return e.line
+            ? tNow("entityUi.driveApp.scriptErrorLine", {line: e.line, message: e.message})
+            : tNow("entityUi.driveApp.scriptError", {message: e.message})
     const where = [e.method, e.path].filter(Boolean).join(" ")
     return `${where ? `${where}: ` : ""}${e.message}`
 }
@@ -141,6 +149,7 @@ export function RunView({
     onAllowEditing,
     className,
 }: RunViewProps) {
+    const t = useT(driveAppCatalog)
     const frameRef = useRef<HTMLIFrameElement>(null)
     const rootRef = useRef<HTMLDivElement>(null)
     const [currentPath, setCurrentPath] = useState(entryPath)
@@ -175,7 +184,7 @@ export function RunView({
         void load().then(async (html) => {
             if (!alive) return
             if (html == null) {
-                pushError(`Page not found in the app folder: ${currentPath}`)
+                pushError(tNow("entityUi.driveApp.pageNotFound", {path: currentPath}))
                 setDocVersion((v) => v + 1)
                 setDoc("")
                 return
@@ -215,7 +224,7 @@ export function RunView({
     const stopApp = useCallback(() => {
         host.detach()
         setStopped(true)
-        pushError("The app tried to load another page and was stopped. Refresh to restart it.")
+        pushError(tNow("entityUi.driveApp.navigationStopped"))
     }, [host, pushError])
 
     // Attach on the frame's FIRST load only; detach when the view goes away. The hello goes to
@@ -360,25 +369,25 @@ export function RunView({
             {backStack.length > 0 ? (
                 <Button
                     variant="ghost"
-                    size="sm"
+                    size="xs"
                     onClick={goBack}
-                    aria-label="Back to the previous page"
-                    className="h-6 gap-0.5 px-1.5 text-xs"
+                    aria-label={t("entityUi.driveApp.backToPreviousPage")}
+                    className="px-1.5"
                 >
                     <CaretLeft weight="bold" className="size-3" />
-                    back
+                    {t("entityUi.driveApp.back")}
                 </Button>
             ) : null}
 
             {onAllowEditing ? (
-                <Tooltip title="The app can read its files but not save changes">
+                <Tooltip title={t("entityUi.driveApp.readOnlyTip")}>
                     <button
                         type="button"
                         onClick={onAllowEditing}
-                        className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border border-solid border-colorBorder bg-colorFillTertiary px-2 text-[11px] text-colorTextSecondary hover:text-colorText"
+                        className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-md border border-solid border-border bg-secondary px-2 text-caption text-muted-foreground hover:text-foreground"
                     >
                         <LockSimple weight="bold" className="size-3" />
-                        Read only · Allow editing
+                        {t("entityUi.driveApp.readOnlyAllowEditing")}
                     </button>
                 </Tooltip>
             ) : null}
@@ -388,9 +397,9 @@ export function RunView({
                     type="button"
                     onClick={reload}
                     title={changedPaths.join("\n")}
-                    className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border border-solid border-colorWarning/40 bg-colorWarningBg px-2 text-[11px] text-colorWarning"
+                    className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-md border border-solid border-warning/40 bg-warning/10 px-2 text-caption text-warning"
                 >
-                    Files changed · Reload
+                    {t("entityUi.driveApp.filesChangedReload")}
                 </button>
             ) : null}
 
@@ -399,20 +408,20 @@ export function RunView({
                     type="button"
                     onClick={() => setErrorsOpen((v) => !v)}
                     aria-expanded={errorsOpen}
-                    aria-label={`${errors.length} error${errors.length === 1 ? "" : "s"}`}
-                    className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border border-solid border-colorError/40 bg-colorErrorBg px-2 text-[11px] text-colorError"
+                    aria-label={t("entityUi.driveApp.errorsCount", {count: errors.length})}
+                    className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-md border border-solid border-destructive/40 bg-destructive/10 px-2 text-caption text-destructive"
                 >
                     <Warning weight="fill" className="size-3" />
                     {errors.length}
                 </button>
             ) : null}
 
-            <Tooltip title="Refresh">
+            <Tooltip title={t("entityUi.driveApp.refresh")}>
                 <Button
                     variant="ghost"
                     size="icon-sm"
                     onClick={reload}
-                    aria-label="Refresh"
+                    aria-label={t("entityUi.driveApp.refresh")}
                     className={ROW_ICON_BTN}
                 >
                     <ArrowsClockwise size={14} />
@@ -422,13 +431,13 @@ export function RunView({
     )
 
     return (
-        <div className={cn("flex min-h-0 flex-1 flex-col text-xs", className)}>
+        <div className={cn("flex min-h-0 flex-1 flex-col text-meta", className)}>
             {controlsContainer ? (
                 createPortal(controls, controlsContainer)
             ) : (
                 <div
                     data-slot="run-controls"
-                    className="flex shrink-0 items-center justify-end gap-1 border-0 border-b border-solid border-colorBorderSecondary px-2 py-1"
+                    className="flex shrink-0 items-center justify-end gap-1 border-0 border-b border-solid border-border-muted px-2 py-1"
                 >
                     {controls}
                 </div>
@@ -437,23 +446,23 @@ export function RunView({
             {errorsOpen && errors.length > 0 ? (
                 <div
                     data-slot="run-errors"
-                    className="flex max-h-40 shrink-0 flex-col gap-1 overflow-auto border-0 border-b border-solid border-colorBorderSecondary bg-colorErrorBg px-2 py-1.5 text-colorError"
+                    className="flex max-h-40 shrink-0 flex-col gap-1 overflow-auto border-0 border-b border-solid border-border-muted bg-destructive/10 px-2 py-1.5 text-destructive"
                 >
                     <div className="flex items-center justify-between gap-2">
                         <span className="font-medium">
-                            {errors.length} error{errors.length === 1 ? "" : "s"}
+                            {t("entityUi.driveApp.errorsCount", {count: errors.length})}
                         </span>
                         <Button
                             variant="ghost"
-                            size="sm"
+                            size="xs"
                             onClick={copyErrors}
-                            className="h-6 gap-1 px-1.5 text-xs text-colorError"
+                            className="px-1.5 text-destructive"
                         >
                             <Copy className="size-3" />
-                            {copied ? "Copied" : "Copy"}
+                            {copied ? t("entityUi.driveApp.copied") : t("entityUi.driveApp.copy")}
                         </Button>
                     </div>
-                    <ul className="m-0 list-disc pl-4 font-mono text-[11px] leading-4">
+                    <ul className="m-0 list-disc pl-4 font-mono text-caption">
                         {errors.map((e, i) => (
                             <li key={`${i}-${e}`} className="break-words">
                                 {e}
@@ -472,9 +481,8 @@ export function RunView({
                     </div>
                 </div>
             ) : stopped ? (
-                <div data-slot="run-stopped" className="min-h-0 flex-1 p-3 text-colorTextSecondary">
-                    The app tried to load another page and was stopped. Use Refresh to start it
-                    again.
+                <div data-slot="run-stopped" className="min-h-0 flex-1 p-3 text-muted-foreground">
+                    {t("entityUi.driveApp.navigationStoppedBody")}
                 </div>
             ) : (
                 // No allow-same-origin: the app is an opaque origin and reaches the drive only over
@@ -487,8 +495,8 @@ export function RunView({
                         srcDoc={frameDoc}
                         sandbox={SANDBOX_FLAGS}
                         onLoad={onFrameLoad}
-                        title="App"
-                        className="min-h-0 w-full flex-1 border-0 bg-colorBgContainer"
+                        title={t("entityUi.driveApp.app")}
+                        className="min-h-0 w-full flex-1 border-0 bg-background"
                     />
                     <PreviewCommentLayer
                         rootRef={rootRef}

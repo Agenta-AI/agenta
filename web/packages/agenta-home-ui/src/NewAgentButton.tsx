@@ -1,6 +1,8 @@
+import {useT} from "@agenta/i18n"
+import newAgentCatalog from "@agenta/i18n/catalogs/home.newAgent"
 import {CreateMenuButton, type CreateMenuOption} from "@agenta/ui/create-menu"
 import {DropdownMenuItem} from "@agenta/ui/ui"
-import {ArrowRightIcon} from "@phosphor-icons/react"
+import {ListBulletsIcon} from "@phosphor-icons/react"
 import Link from "next/link"
 
 export interface NewAgentButtonProps {
@@ -26,44 +28,45 @@ export const NewAgentButton = ({
     onUpload,
     onImport,
     browseHref,
-    label = "New agent",
+    label,
     ...button
 }: NewAgentButtonProps) => {
+    const t = useT(newAgentCatalog)
     const options: CreateMenuOption[] = [
         {
             kind: "write",
-            title: "Start from scratch",
-            hint: "Start with an empty agent and shape it in chat",
+            title: t("home.newAgent.scratchTitle"),
+            hint: t("home.newAgent.scratchHint"),
             onSelect: onCreateBlank,
         },
     ]
     if (onUpload)
         options.push({
             kind: "upload",
-            title: "Upload",
-            hint: "An agent template .zip",
+            title: t("home.newAgent.uploadTitle"),
+            hint: t("home.newAgent.uploadHint"),
             accept: ".zip,application/zip",
             onFiles: (files) => onUpload(files[0]),
         })
     if (onImport)
         options.push({
             kind: "import",
-            title: "Import from a repo",
-            hint: "Scan a public GitHub repository for agent templates",
+            title: t("home.newAgent.importTitle"),
+            hint: t("home.newAgent.importHint"),
             onSelect: onImport,
         })
     return (
         <CreateMenuButton
-            label={label}
+            label={label ?? t("home.newAgent.label")}
             options={options}
             footer={
                 <DropdownMenuItem asChild>
-                    <Link
-                        href={browseHref}
-                        className="inline-flex items-center gap-1 !text-colorPrimary"
-                    >
-                        Browse all templates
-                        <ArrowRightIcon size={12} />
+                    {/* A leading icon, so its label starts on the other labels' edge (ALIGN-01). */}
+                    <Link href={browseHref}>
+                        <span className="flex size-6 shrink-0 items-center justify-center">
+                            <ListBulletsIcon aria-hidden className="text-muted-foreground" />
+                        </span>
+                        {t("home.newAgent.browseAll")}
                     </Link>
                 </DropdownMenuItem>
             }

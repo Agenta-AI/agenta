@@ -5,6 +5,7 @@
  * in one, a filter drop asserted in another) is talking about the same world. `github` and
  * `slack` deliberately share the `GET_ISSUE` key: that collision is what R17 tests.
  */
+import type { SeededDecision } from "../../src/sessions/interactions.ts";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -363,6 +364,7 @@ export interface ProductionWiredRelay {
  */
 export async function startRelayFromProductionWiring(
   request: AgentRunRequest,
+  seededDecisions?: readonly SeededDecision[],
 ): Promise<ProductionWiredRelay> {
   const harness = fakeHarness();
   delete (harness.deps as { responderFactory?: unknown }).responderFactory;
@@ -372,6 +374,7 @@ export async function startRelayFromProductionWiring(
     undefined,
     undefined,
     harness.deps,
+    seededDecisions ? { seededDecisions } : {},
   );
   assert.equal(
     result.ok,

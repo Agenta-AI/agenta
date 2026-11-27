@@ -1,0 +1,6 @@
+{
+    "audienceNote": "此项目中的所有人都可以查看共享 Agent 的 {{platform}} 聊天，包括私信。与私有 Agent 的新聊天仅其所有者可见。",
+    "off": "已关闭",
+    "offIn": "已关闭 · 在 {{places}} 中",
+    "turnOn": "开启"
+}

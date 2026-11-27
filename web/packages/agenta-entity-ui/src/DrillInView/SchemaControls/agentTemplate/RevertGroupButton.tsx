@@ -12,6 +12,8 @@
  */
 import {useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {Button, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {ArrowCounterClockwise, WarningCircle} from "@phosphor-icons/react"
 
@@ -32,14 +34,19 @@ export interface RevertGroupButtonProps {
 export function RevertGroupButton({
     onConfirm,
     disabled,
-    title = "Revert this group?",
-    description = "Every unsaved change in it goes back to the committed value.",
-    okText = "Revert",
-    cancelText = "Cancel",
+    title: titleProp,
+    description: descriptionProp,
+    okText: okTextProp,
+    cancelText: cancelTextProp,
     open,
     onOpenChange,
     container,
 }: RevertGroupButtonProps) {
+    const t = useT(configItemsCatalog)
+    const title = titleProp ?? t("entityUi.configItems.revertGroupTitle")
+    const description = descriptionProp ?? t("entityUi.configItems.revertGroupDescription")
+    const okText = okTextProp ?? t("entityUi.configItems.revert")
+    const cancelText = cancelTextProp ?? t("entityUi.configItems.cancel")
     const [internalOpen, setInternalOpen] = useState(false)
     const isOpen = open ?? internalOpen
     const setOpen = (next: boolean) => {
@@ -59,24 +66,26 @@ export function RevertGroupButton({
                     // colour comes from the named token, not an arbitrary var() text class.
                     // (Tailwind scans comments too: a bracketed class token written out here
                     // would be emitted into globals.css as invalid CSS and break the build.)
-                    className="!h-auto !px-1 !py-0.5 !text-xs !text-colorTextSecondary"
+                    className="!h-auto !px-1 !py-0.5 !text-meta !text-muted-foreground"
                 >
-                    <ArrowCounterClockwise size={13} />
-                    Revert
+                    <ArrowCounterClockwise size={12} />
+                    {t("entityUi.configItems.revert")}
                 </Button>
             </PopoverTrigger>
             <PopoverContent
                 align="end"
                 container={container}
                 // Radix gives the content role="dialog"; axe requires it to be named.
-                aria-label={typeof title === "string" ? title : "Revert this group?"}
+                aria-label={
+                    typeof title === "string" ? title : t("entityUi.configItems.revertGroupTitle")
+                }
                 className="w-auto p-3"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="mb-2 flex flex-nowrap items-start text-colorText">
+                <div className="mb-2 flex flex-nowrap items-start text-foreground">
                     {/* antd's `.ant-popconfirm-message-icon` column measures 20px wide and 20px
                         tall (14px glyph + 6px trailing gap, centred on the title's line box). */}
-                    <span className="mr-1.5 inline-flex h-5 shrink-0 items-center text-colorWarning">
+                    <span className="mr-1.5 inline-flex h-5 shrink-0 items-center text-warning">
                         <WarningCircle size={14} weight="fill" />
                     </span>
                     <div className="min-w-0">

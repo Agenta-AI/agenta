@@ -1,4 +1,9 @@
-/** A connection row's kebab: Refresh, Revoke and Delete, the same verbs Settings offers. */
+/** A connection row's kebab: the host's verbs, Refresh, Revoke, then the destructive ones (ACT-03). */
+import type {ReactNode} from "react"
+
+import {useT} from "@agenta/i18n"
+import integrationDrawerCatalog from "@agenta/i18n/catalogs/entityUi.integrationDrawer"
+import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
 import {
     Button,
     DropdownMenu,
@@ -6,47 +11,81 @@ import {
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
+    SimpleTooltip,
 } from "@agenta/ui/ui"
-import {ArrowClockwise, DotsThreeVertical, Trash, XCircle} from "@phosphor-icons/react"
+import {ArrowClockwise, DotsThreeVertical, MinusCircle, Trash, XCircle} from "@phosphor-icons/react"
+
+/** An item a host adds to the menu, such as Run or Make default. */
+export interface ConnectionMenuItem {
+    key: string
+    label: string
+    icon: ReactNode
+    onSelect: () => void
+}
 
 export function ConnectionRowMenu({
+    items = [],
     onRefresh,
     onRevoke,
+    onRemoveFromAgent,
     onDelete,
 }: {
+    items?: ConnectionMenuItem[]
     onRefresh: () => void
-    onRevoke: () => void
-    onDelete: () => void
+    /** Absent for someone who may not change the connection (read-only on the project). */
+    onRevoke?: () => void
+    /** The connection is on the agent: takes it off the agent, after the host's question. */
+    onRemoveFromAgent?: () => void
+    /** Deletes the project's connection, after the host's question. */
+    onDelete?: () => void
 }) {
+    const t = useT(integrationDrawerCatalog, integrationViewsCatalog)
     return (
         <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <Button
-                    type="button"
-                    size="icon-sm"
-                    variant="ghost"
-                    aria-label="Connection actions"
-                    // Shown on row hover where there is hover; always on touch. The row already
-                    // hovers to accent, so the button's own hover is a foreground wash.
-                    className="hover:bg-foreground/10 focus-visible:opacity-100 group-hover/row:opacity-100 group-focus-within/row:opacity-100 data-[state=open]:opacity-100 dark:hover:bg-foreground/15 [@media(hover:hover)]:opacity-0"
-                >
-                    <DotsThreeVertical aria-hidden weight="bold" />
-                </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[160px]">
+            <SimpleTooltip title={t("entityUi.integrationDrawer.connectionActions")}>
+                <DropdownMenuTrigger asChild>
+                    <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label={t("entityUi.integrationDrawer.connectionActions")}
+                        // Always shown; `secondary` stacks on the row's hover fill (SURF-06).
+                        className="text-muted-foreground hover:bg-secondary hover:text-foreground aria-expanded:bg-secondary"
+                    >
+                        <DotsThreeVertical aria-hidden />
+                    </Button>
+                </DropdownMenuTrigger>
+            </SimpleTooltip>
+            <DropdownMenuContent align="end">
+                {items.map((item) => (
+                    <DropdownMenuItem key={item.key} onSelect={item.onSelect}>
+                        {item.icon}
+                        {item.label}
+                    </DropdownMenuItem>
+                ))}
                 <DropdownMenuItem onSelect={onRefresh}>
-                    <ArrowClockwise size={14} />
-                    Refresh
+                    <ArrowClockwise />
+                    {t("entityUi.integrationDrawer.refresh")}
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={onRevoke}>
-                    <XCircle size={14} />
-                    Revoke
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive" onSelect={onDelete}>
-                    <Trash size={14} />
-                    Delete
-                </DropdownMenuItem>
+                {onRevoke ? (
+                    <DropdownMenuItem onSelect={onRevoke}>
+                        <XCircle />
+                        {t("entityUi.integrationDrawer.revoke")}
+                    </DropdownMenuItem>
+                ) : null}
+                {onRemoveFromAgent || onDelete ? <DropdownMenuSeparator /> : null}
+                {onRemoveFromAgent ? (
+                    <DropdownMenuItem variant="destructive" onSelect={onRemoveFromAgent}>
+                        <MinusCircle />
+                        {t("entityUi.integrationViews.removeFromAgent")}
+                    </DropdownMenuItem>
+                ) : null}
+                {onDelete ? (
+                    <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+                        <Trash />
+                        {t("entityUi.integrationDrawer.delete")}
+                    </DropdownMenuItem>
+                ) : null}
             </DropdownMenuContent>
         </DropdownMenu>
     )

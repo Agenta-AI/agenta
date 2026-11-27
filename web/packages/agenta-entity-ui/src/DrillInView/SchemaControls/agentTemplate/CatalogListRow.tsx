@@ -26,6 +26,8 @@ export interface CatalogListRowProps {
      * for a row whose text can grow (an expandable description) so they do not drift with it.
      */
     align?: "center" | "start"
+    /** `canvas`: the agent panel's row (canvas F02 f4). Absent, the Settings page row. */
+    variant?: "default" | "canvas"
 }
 
 // A click on a control inside the row belongs to that control, not to the row.
@@ -43,7 +45,9 @@ export function CatalogListRow({
     onClick,
     actionLabel,
     align = "center",
+    variant = "default",
 }: CatalogListRowProps) {
+    const canvas = variant === "canvas"
     const handleClick = onClick
         ? (event: MouseEvent<HTMLDivElement>) => {
               // React bubbles a click out of a portal (a menu, a dialog) into this row too.
@@ -71,23 +75,22 @@ export function CatalogListRow({
                       }
                     : undefined
             }
-            // Borderless; the -mx/px pair keeps the logo on the search field's edge while the
-            // hover fill reaches past it.
-            className={`group/row -mx-2 rounded-lg px-2 py-2 outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-solid focus-visible:outline-ring ${
-                highlighted ? "bg-[var(--ag-colorFillQuaternary)]" : ""
-            } ${onClick ? "cursor-pointer hover:bg-accent/60" : ""} ${className ?? ""}`}
+            // -mx/px hangs the hover fill outside the alignment line; always 48 px tall (ROW-01).
+            className={`group/row -mx-2 flex min-h-row-double flex-col justify-center rounded-md px-2 py-1.5 outline-none transition-colors focus-ring ${
+                highlighted ? "bg-secondary" : ""
+            } ${onClick ? "cursor-pointer hover:bg-accent" : ""} ${className ?? ""}`}
         >
-            <div className={`flex gap-2.5 ${align === "start" ? "items-start" : "items-center"}`}>
-                {/* A 32px box centres the logo on the title and meta lines together. */}
+            {/* 12 px from the 32 px Mark to its text (SPACE-04). */}
+            <div className={`flex gap-3 ${align === "start" ? "items-start" : "items-center"}`}>
+                {/* The two-line row's 32 px Mark (`mark-lg`), on the panel and on the page. */}
                 {leading ? (
                     <span className="flex size-8 shrink-0 items-center justify-center">
                         {leading}
                     </span>
                 ) : null}
                 <div className="flex min-w-0 flex-1 flex-col">
-                    {/* min-h matches a small Button, so the title line stays level with the action. */}
-                    <div className="flex min-h-6 items-center gap-1.5">
-                        <span className="truncate text-[13px] font-medium">{title}</span>
+                    <div className={`flex items-center ${canvas ? "gap-1" : "gap-1.5"}`}>
+                        <span className="truncate text-label text-foreground">{title}</span>
                         {titleSuffix}
                     </div>
                     {children}

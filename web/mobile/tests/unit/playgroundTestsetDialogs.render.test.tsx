@@ -1,17 +1,28 @@
 // @vitest-environment jsdom
 /**
- * The test set menu button and its two confirm dialogs, rendered from plain props: which items
- * each mode offers, the wording for one or many drafts, the chat variant, and the saving state.
+ * The test set menu button and the run pane's two confirm dialogs, rendered from a plain model:
+ * which items each mode offers, the wording for one or many drafts, the chat variant, and the
+ * saving state.
  */
 import {act} from "react"
 
 import type {TestsetMenuModel} from "@agenta/playground-ui/hooks"
 import {TestsetMenu} from "@agenta/playground-ui/panels/runs"
-import {KeepDraftRowsDialog, UnsavedTestsetDialog} from "@agenta/playground-ui/panels/testsets"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
+import {PlaygroundTestsetMenu} from "@/features/playground/PlaygroundTestsetMenu"
+
 import {button, click, settle, stubResizeObserver} from "../support/playgroundHarness"
+
+// The run pane's menu draws its dialogs from the model; the cases hand it one.
+const current = vi.hoisted(() => ({model: null as unknown}))
+vi.mock("@agenta/playground-ui/hooks", async (original) => ({
+    ...(await original<object>()),
+    useTestsetMenuModel: () => current.model,
+}))
+vi.mock("next/router", () => ({useRouter: () => ({query: {}})}))
+vi.mock("@/features/context/useProjectPermission", () => ({useProjectPermission: () => false}))
 
 let root: Root
 let host: HTMLDivElement
@@ -82,14 +93,14 @@ describe("The test set menu", () => {
         expect(host.textContent).toBe("")
     })
 
-    it("Local mode offers Connect test set", async () => {
+    it("Local mode offers Load test set", async () => {
         const local = model()
         await render(<TestsetMenu model={local} />)
         expect(host.textContent).toContain("Test set")
 
         await openMenu()
 
-        expect(items()).toEqual([{label: "Connect test set", disabled: false}])
+        expect(items()).toEqual([{label: "Load test set", disabled: false}])
         await act(async () => document.querySelector<HTMLElement>('[role="menuitem"]')!.click())
         expect(local.connect).toHaveBeenCalled()
     })
@@ -126,54 +137,55 @@ describe("The test set menu", () => {
         await openMenu()
 
         expect(items()).toEqual([
-            {label: "Connect test set", disabled: false},
+            {label: "Load test set", disabled: false},
             {label: "Add to test set", disabled: true},
         ])
     })
 })
 
-describe("The keep-draft dialog", () => {
-    const keepDraft = (props: Partial<Parameters<typeof KeepDraftRowsDialog>[0]> = {}) => {
-        const handlers = {onKeep: vi.fn(), onDiscard: vi.fn(), onCancel: vi.fn()}
-        return {
-            handlers,
-            node: (
-                <KeepDraftRowsDialog
-                    draftCount={1}
-                    testsetName="Capitals"
-                    chat={false}
-                    {...handlers}
-                    {...props}
-                />
-            ),
-        }
-    }
+type Dialog = NonNullable<TestsetMenuModel["dialog"]>
+const withDialog = (dialog: Dialog, overrides: Partial<TestsetMenuModel> = {}) => {
+    const menu = model({dialog, ...overrides})
+    current.model = menu
+    return menu
+}
+const keepDrafts = (overrides: Partial<Extract<Dialog, {kind: "keep-drafts"}>> = {}): Dialog => ({
+    kind: "keep-drafts",
+    draftCount: 1,
+    testsetName: "Capitals",
+    chat: false,
+    payload: {} as never,
+    ...overrides,
+})
 
+describe("The keep-draft dialog", () => {
     it("The keep-draft dialog counts one or many drafts", async () => {
-        await render(keepDraft().node)
+        withDialog(keepDrafts())
+        await render(<PlaygroundTestsetMenu />)
         expect(alert().textContent).toContain("Keep your draft test cases?")
         expect(alert().textContent).toContain("You have 1 draft test case in the playground.")
         expect(alert().textContent).toContain("You can keep it and load Capitals alongside.")
 
-        await render(keepDraft({draftCount: 3, testsetName: null}).node)
+        withDialog(keepDrafts({draftCount: 3, testsetName: null}))
+        await render(<PlaygroundTestsetMenu />)
         expect(alert().textContent).toContain("You have 3 draft test cases in the playground.")
         expect(alert().textContent).toContain("You can keep them and load the test set alongside.")
     })
 
     it("Keep and load and Discard drafts answer the dialog", async () => {
-        const {node, handlers} = keepDraft()
-        await render(node)
+        const menu = withDialog(keepDrafts())
+        await render(<PlaygroundTestsetMenu />)
 
         await click(alert(), "Keep and load")
         await click(alert(), "Discard drafts")
 
-        expect(handlers.onKeep).toHaveBeenCalledTimes(1)
-        expect(handlers.onDiscard).toHaveBeenCalledTimes(1)
+        expect(menu.confirmKeepDrafts).toHaveBeenNthCalledWith(1, true)
+        expect(menu.confirmKeepDrafts).toHaveBeenNthCalledWith(2, false)
     })
 
     it("The chat variant offers only Load and replace", async () => {
-        const {node, handlers} = keepDraft({chat: true})
-        await render(node)
+        const menu = withDialog(keepDrafts({chat: true}))
+        await render(<PlaygroundTestsetMenu />)
 
         expect(alert().textContent).toContain("Replace the current conversation?")
         expect(alert().textContent).toContain(
@@ -181,36 +193,28 @@ describe("The keep-draft dialog", () => {
         )
         expect(button(alert(), "Keep and load")).toBeUndefined()
         await click(alert(), "Load and replace")
-        expect(handlers.onDiscard).toHaveBeenCalled()
+        expect(menu.confirmKeepDrafts).toHaveBeenCalledWith(false)
     })
 })
 
 describe("The unsaved test set dialog", () => {
-    const unsaved = (props: Partial<Parameters<typeof UnsavedTestsetDialog>[0]> = {}) => {
-        const handlers = {onSave: vi.fn(), onDiscard: vi.fn(), onCancel: vi.fn()}
-        return {
-            handlers,
-            node: (
-                <UnsavedTestsetDialog intent="disconnect" saving={false} {...handlers} {...props} />
-            ),
-        }
-    }
-
     it("Disconnect and change name their own actions", async () => {
-        await render(unsaved().node)
+        withDialog({kind: "unsaved", intent: "disconnect"})
+        await render(<PlaygroundTestsetMenu />)
         expect(alert().textContent).toContain("Save changes?")
         expect(button(alert(), "Save & disconnect")).toBeDefined()
         expect(button(alert(), "Discard & disconnect")).toBeDefined()
 
-        await render(unsaved({intent: "change"}).node)
+        withDialog({kind: "unsaved", intent: "change"})
+        await render(<PlaygroundTestsetMenu />)
         expect(alert().textContent).toContain("Load different test set?")
         expect(button(alert(), "Save & load")).toBeDefined()
         expect(button(alert(), "Discard & Load")).toBeDefined()
     })
 
     it("Saving disables every button and Escape", async () => {
-        const {node, handlers} = unsaved({saving: true})
-        await render(node)
+        const menu = withDialog({kind: "unsaved", intent: "disconnect"}, {saving: true})
+        await render(<PlaygroundTestsetMenu />)
 
         for (const label of ["Cancel", "Discard & disconnect", "Save & disconnect"]) {
             expect(button(alert(), label)?.disabled, label).toBe(true)
@@ -221,7 +225,7 @@ describe("The unsaved test set dialog", () => {
             )
         })
         await settle()
-        expect(handlers.onCancel).not.toHaveBeenCalled()
+        expect(menu.close).not.toHaveBeenCalled()
         expect(alert()).not.toBeNull()
     })
 })

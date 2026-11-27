@@ -1,6 +1,9 @@
-import type {ReactNode} from "react"
+import {useMemo, type ReactNode} from "react"
 
 import type {OrganizationProvider} from "@agenta/entities/organization"
+import {useT, type CatalogKey} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsAccessCatalog from "@agenta/i18n/catalogs/settings.access"
 import {getSettingsSidebarIcon} from "@agenta/settings"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
@@ -13,12 +16,14 @@ import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 import {SettingsToolbar} from "../shared/SettingsToolbar"
 import {usePhoneColumns} from "../shared/usePhoneColumns"
 
-const COLUMNS: ListTableColumn[] = [
-    {key: "slug", label: "Provider", width: "minmax(0,1.2fr)"},
-    {key: "callback_url", label: "Callback URL", width: "minmax(0,2.4fr)"},
-    {key: "status", label: "Status", width: "minmax(0,1fr)"},
-    {key: "enable", label: "Enable", srOnly: true, width: "72px"},
-    {key: "actions", label: "Actions", srOnly: true, width: "32px"},
+const COLUMNS: (ListTableColumn & {
+    label: CatalogKey<typeof commonCatalog | typeof settingsAccessCatalog>
+})[] = [
+    {key: "slug", label: "settings.access.provider", width: "minmax(0,1.2fr)"},
+    {key: "callback_url", label: "settings.access.callbackUrl", width: "minmax(0,2.4fr)"},
+    {key: "status", label: "common.status", width: "minmax(0,1fr)"},
+    {key: "enable", label: "common.enable", srOnly: true, width: "72px"},
+    {key: "actions", label: "common.actions", srOnly: true, width: "32px"},
 ]
 const PHONE_KEYS = ["slug", "status", "enable", "actions"]
 
@@ -57,7 +62,7 @@ export const SsoProvidersSection = ({
     loading = false,
     callbackUrlFor,
     onAdd,
-    addLabel = "Add provider",
+    addLabel,
     onEdit,
     onEnable,
     onDelete,
@@ -66,23 +71,28 @@ export const SsoProvidersSection = ({
     renderInstructions,
     children,
 }: SsoProvidersSectionProps) => {
-    const {columns, shows} = usePhoneColumns(COLUMNS, PHONE_KEYS)
+    const t = useT(commonCatalog, settingsAccessCatalog)
+    const translatedColumns = useMemo(
+        () => COLUMNS.map((column) => ({...column, label: t(column.label)})),
+        [t],
+    )
+    const {columns, shows} = usePhoneColumns(translatedColumns, PHONE_KEYS)
     const addButton = (variant?: "outline") =>
         onAdd ? (
             <Button variant={variant} onClick={onAdd} disabled={loading}>
                 <Plus size={14} />
-                {addLabel}
+                {addLabel ?? t("settings.access.addProvider")}
             </Button>
         ) : null
 
     return (
         <section className="flex flex-col">
             <div className="mb-3">
-                <h2 className="m-0 text-[13px] font-medium leading-[18px] text-muted-foreground">
-                    SSO Providers
+                <h2 className="m-0 text-label font-medium text-muted-foreground">
+                    {t("settings.access.ssoProviders")}
                 </h2>
-                <p className="m-0 mt-1 text-xs text-muted-foreground">
-                    Configure identity providers for single sign-on
+                <p className="m-0 mt-1 text-meta text-muted-foreground">
+                    {t("settings.access.ssoProvidersDescription")}
                 </p>
             </div>
 
@@ -101,8 +111,8 @@ export const SsoProvidersSection = ({
                 empty={
                     <SettingsEmpty
                         icon={getSettingsSidebarIcon("organization")}
-                        title="No SSO providers yet"
-                        description="Add an OIDC provider to let members sign in with your identity provider."
+                        title={t("settings.access.noSsoProvidersTitle")}
+                        description={t("settings.access.noSsoProvidersDescription")}
                         action={addButton("outline")}
                     />
                 }
@@ -117,20 +127,22 @@ export const SsoProvidersSection = ({
                             </span>
                             {!shows("callback_url") ? null : url ? (
                                 <span
-                                    className="truncate font-mono text-[13px] text-muted-foreground"
+                                    className="truncate text-code text-muted-foreground"
                                     title={url}
                                 >
                                     {url}
                                 </span>
                             ) : (
-                                <span className="truncate text-muted-foreground">Set org slug</span>
+                                <span className="truncate text-muted-foreground">
+                                    {t("settings.access.setOrgSlug")}
+                                </span>
                             )}
                             {!isEnabled(record) ? (
-                                <StatusIndicator label="Disabled" />
+                                <StatusIndicator label={t("common.disabled")} />
                             ) : isValid(record) ? (
-                                <StatusIndicator tone="success" label="Active" />
+                                <StatusIndicator tone="success" label={t("common.active")} />
                             ) : (
-                                <StatusIndicator tone="warning" label="Pending" />
+                                <StatusIndicator tone="warning" label={t("common.pending")} />
                             )}
                             {/* The row opens the edit drawer on click. A disabled button lets
                                 the click through, so the cell stops it, not the button. */}
@@ -140,23 +152,23 @@ export const SsoProvidersSection = ({
                             >
                                 {(!isEnabled(record) || !isValid(record)) && onEnable ? (
                                     <Button disabled={enabling} onClick={() => onEnable(record)}>
-                                        Enable
+                                        {t("common.enable")}
                                     </Button>
                                 ) : null}
                             </span>
                             <SettingsRowMenu
-                                label="Provider actions"
+                                label={t("settings.access.providerActions")}
                                 items={[
                                     {
                                         key: "edit",
-                                        label: "Edit provider",
+                                        label: t("settings.access.editProvider"),
                                         icon: <PencilSimpleLine size={14} />,
                                         hidden: !onEdit,
                                         onClick: () => onEdit?.(record),
                                     },
                                     {
                                         key: "delete",
-                                        label: "Delete provider",
+                                        label: t("settings.access.deleteProvider"),
                                         icon: <Trash size={14} />,
                                         danger: true,
                                         hidden: !onDelete,

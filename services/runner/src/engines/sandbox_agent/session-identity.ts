@@ -11,7 +11,12 @@ import {
   resolvePromptText,
   userTurnCarriesContent,
 } from "../../protocol.ts";
-import { approvalDecisionOf } from "../../responder.ts";
+import {
+  approvalDecisionOf,
+  approvalEnvelopeOf,
+} from "../../responder.ts";
+import type { TurnApprovalRows } from "../../sessions/interactions.ts";
+import type { ParkedApproval } from "./runtime-contracts.ts";
 import { normalizedHarnessMode } from "../../harness-kind.ts";
 import type { TeardownReason } from "./teardown.ts";
 import { loadRunnerConfig } from "../../config/runner-config.ts";
@@ -282,6 +287,15 @@ export function changedConfigFields(
   );
 }
 
+/** The drive settings a sandbox is set up with; a parked sandbox is reused only for the same ones. */
+export function driveIdentity(request: AgentRunRequest): string {
+  return JSON.stringify([
+    request.drives ?? null,
+    request.homeDrive ?? null,
+    request.hasSessionDrive ?? null,
+  ]);
+}
+
 function configShape(request: AgentRunRequest) {
   const shape = {
     harness: request.harness ?? null,
@@ -293,6 +307,13 @@ function configShape(request: AgentRunRequest) {
     // wrong (or no) agent mount attached. The REST of `runContext` stays out: revision ids,
     // variant identity, and trace identity are per-turn metadata (the step-1 rule).
     agentArtifactId: request.runContext?.workflow?.artifact?.id?.trim() || null,
+    // The drives are mounted at acquire, so a changed list or session setting needs a new
+    // environment. Only when present, so a request without them keeps the identity it had.
+    ...(request.drives !== undefined ? { drives: request.drives } : {}),
+    ...(request.homeDrive !== undefined ? { homeDrive: request.homeDrive } : {}),
+    ...(request.hasSessionDrive !== undefined
+      ? { hasSessionDrive: request.hasSessionDrive }
+      : {}),
     model: request.model ?? null,
     // Harness mode is applied once, at session acquire (codex-mode.ts). The SHARED normalizer
     // (audit findings 3 and 6) resolves Codex defaults and ignores the field elsewhere, and the
@@ -548,17 +569,23 @@ export function historyTailFromLastUserTurn(
 }
 
 /**
- * The approval decision (allow/deny) the incoming request carries for a specific parked gate's
- * tool-call id, or undefined when the request has no approval envelope for that id. Reuses the
- * cold path's `approvalDecisionOf` (responder.ts) to parse the `{approved}` envelope, and matches
- * strictly by toolCallId (the parked gate's id) — never by name+args — so a live resume answers
- * exactly the gate that parked. An incoming reply for a different id, or a plain user message,
- * yields undefined and the dispatch degrades to cold.
+ * The approval decision (allow/deny) for a specific parked gate, or undefined when the request
+ * carries no verified answer for it. The request must carry an approval envelope for the parked
+ * gate's tool-call id (matched strictly by toolCallId, never by name+args, so a live resume
+ * answers exactly the gate that parked), and the session's interaction row must agree with that
+ * envelope (`TurnApprovalRows.verifiedDecision`): the row is the source of the decision, the
+ * envelope only says that this request answers it. An incoming reply for a different id, a plain
+ * user message, or an envelope no row backs yields undefined and the dispatch degrades to cold.
  */
 export function approvalDecisionForToolCall(
   request: AgentRunRequest,
-  toolCallId: string,
+  gate: Pick<
+    ParkedApproval,
+    "toolCallId" | "interactionToken" | "toolName" | "args"
+  >,
+  rows: TurnApprovalRows,
 ): "allow" | "deny" | undefined {
+  const toolCallId = gate.toolCallId;
   if (!toolCallId) return undefined;
   const messages = request.messages ?? [];
   if (messages.length === 0) return undefined;
@@ -585,8 +612,8 @@ export function approvalDecisionForToolCall(
         if (block?.type !== "tool_result" || block.toolCallId !== toolCallId) {
           continue;
         }
-        const decision = approvalDecisionOf(block);
-        if (decision !== undefined) return decision;
+        const envelope = approvalEnvelopeOf(block);
+        if (envelope !== undefined) return rows.verifiedDecision(envelope, gate);
       }
     }
   }
@@ -777,16 +804,21 @@ export function sandboxCredentialsRotated(
  */
 export interface InstalledMountExpiries {
   cwd?: number;
-  agent?: number;
+  /** Per attached drive, by its mount path. */
+  drives?: Record<string, number | undefined>;
+  /** The harness transcript folders, when no session drive bounds them (their earliest expiry). */
+  transcripts?: number;
 }
 
 /** The environment's credential lease: the earliest expiry among its installed mounts. */
 export function installedMountLease(
   expiries: InstalledMountExpiries,
 ): number | undefined {
-  const values = Object.values(expiries).filter(
-    (v): v is number => typeof v === "number",
-  );
+  const values = [
+    expiries.cwd,
+    expiries.transcripts,
+    ...Object.values(expiries.drives ?? {}),
+  ].filter((v): v is number => typeof v === "number");
   return values.length ? Math.min(...values) : undefined;
 }
 

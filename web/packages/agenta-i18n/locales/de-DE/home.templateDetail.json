@@ -1,0 +1,16 @@
+{
+    "loadError": "Diese Vorlage konnte nicht geladen werden",
+    "notFound": "Vorlage nicht gefunden",
+    "allTemplates": "Alle Vorlagen",
+    "use": "Diese Vorlage verwenden",
+    "slotOr": "{{first}} oder {{second}}",
+    "connectionsUsed": "Verwendete Verbindungen",
+    "optionalConnections": "Optionale Verbindungen",
+    "alsoIncluded": "Außerdem enthalten",
+    "trigger": "Auslöser",
+    "exampleSession": "Beispielsitzung",
+    "exampleSteps": "{{name}} · {{total}} Schritte",
+    "exampleNote": "Ein Beispiel dafür, wie diese Vorlage abläuft – keine aufgezeichnete Sitzung.",
+    "instructions": "Anweisungen · AGENTS.md",
+    "tools": "Werkzeuge, die er aufrufen kann"
+}

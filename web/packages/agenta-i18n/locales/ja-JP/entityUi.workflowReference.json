@@ -1,0 +1,12 @@
+{
+    "messages": "メッセージ",
+    "model": "モデル",
+    "modelSettings": "モデル設定",
+    "responseFormat": "レスポンス形式",
+    "templateFormat": "テンプレート形式",
+    "instructions": "指示",
+    "tools": "ツール",
+    "skills": "スキル",
+    "handler": "ハンドラー",
+    "config": "設定"
+}

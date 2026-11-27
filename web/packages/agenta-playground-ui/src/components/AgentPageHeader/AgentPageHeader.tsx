@@ -1,6 +1,8 @@
 import type {ReactNode} from "react"
 
 import {AGENT_CHIP_BOX, AGENT_CHIP_FALLBACK} from "@agenta/entity-ui/agent"
+import {useT} from "@agenta/i18n"
+import headerCatalog from "@agenta/i18n/catalogs/playground.agentHeader"
 import {SimpleTooltip} from "@agenta/ui/ui"
 import {Robot} from "@phosphor-icons/react"
 
@@ -56,13 +58,10 @@ export const AgentPageHeader = ({
     className,
     icon,
 }: AgentPageHeaderProps) => {
+    const t = useT(headerCatalog)
     return (
         <div
-            // 48px is a phone touch target, not a desktop height: fixing it there made this bar
-            // 48px against the desktop app's 41 (py-2 + a 24px row + the border) and pushed the
-            // ENTIRE config pane 7px down — every ink band below it, uniformly. From `sm` up it
-            // sizes to its content, as it always did.
-            className={`flex min-h-[48px] shrink-0 items-center justify-between gap-2 border-x-0 border-t-0 border-b border-solid border-[var(--ag-shell-line)] bg-[var(--ag-surface-raised)] px-2.5 py-2 sm:min-h-0 sm:gap-4 ${
+            className={`flex shrink-0 items-center justify-between gap-2 border-x-0 border-t-0 border-b border-solid border-border-muted bg-muted px-2.5 py-2 sm:gap-4 ${
                 className ?? ""
             }`}
         >
@@ -75,7 +74,7 @@ export const AgentPageHeader = ({
                         {identity ?? (
                             <>
                                 {icon ?? (
-                                    <SimpleTooltip title="Agent">
+                                    <SimpleTooltip title={t("playground.agentHeader.agent")}>
                                         <span
                                             className={`${AGENT_CHIP_BOX} ${AGENT_CHIP_FALLBACK}`}
                                         >
@@ -84,7 +83,7 @@ export const AgentPageHeader = ({
                                     </SimpleTooltip>
                                 )}
                                 {typeof name === "string" ? (
-                                    <span className="truncate whitespace-nowrap text-sm font-[600] leading-[18px] text-colorText sm:text-[16px]">
+                                    <span className="truncate whitespace-nowrap text-title font-[600] text-foreground">
                                         {name}
                                     </span>
                                 ) : (
@@ -96,14 +95,14 @@ export const AgentPageHeader = ({
                             <>
                                 <span
                                     aria-hidden
-                                    className="mx-0.5 h-5 w-px shrink-0 bg-colorBorderSecondary sm:mx-1"
+                                    className="mx-0.5 h-5 w-px shrink-0 bg-border-muted sm:mx-1"
                                 />
                                 {revision}
                             </>
                         ) : null}
                     </div>
                 ) : (
-                    <span className="whitespace-nowrap text-sm font-[600] leading-[18px] text-colorText sm:text-[16px]">
+                    <span className="whitespace-nowrap text-title font-[600] text-foreground">
                         {title}
                     </span>
                 )}

@@ -1,5 +1,7 @@
 import {useEffect, useRef, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import chatMessagesCatalog from "@agenta/i18n/catalogs/chat.messages"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
 import {isViewable} from "../assets/attachmentRules"
@@ -81,6 +83,7 @@ const ComposerAttachments = ({
         }
     }, [])
 
+    const t = useT(chatMessagesCatalog)
     // A new card lands at the end of the grid, which may sit below the fold once the tray scrolls.
     const scrollRef = useRef<HTMLDivElement>(null)
     const previousCount = useRef(files.length)
@@ -133,7 +136,9 @@ const ComposerAttachments = ({
                                         }
                                         progress={f.percent ?? 0}
                                         errorReason={
-                                            typeof f.error === "string" ? f.error : "upload failed"
+                                            typeof f.error === "string"
+                                                ? f.error
+                                                : t("chat.messages.uploadFailedReason")
                                         }
                                         action="remove"
                                         onRemove={() => onRemove(f.uid)}

@@ -1,0 +1,12 @@
+{
+    "chooseWhose": "エージェントが使う{{name}}のサインインを選択",
+    "eachPersonsOwnNote": "全員が自分の{{name}}のサインインを使います。",
+    "oneSharedNote": "全員がプロジェクトのサインインを使います。",
+    "yourSignIn": "あなたのサインイン",
+    "yourSignInNote": "あなた自身の実行で使う{{name}}のサインイン",
+    "notSignedInYet": "まだサインインしていません",
+    "signInTo": "{{name}}にサインイン",
+    "signedInAs": "あなたのサインイン：{{account}}",
+    "signedIn": "サインイン済み",
+    "noPersonWarning": "チャネルからの実行や、APIキーで作成されたオートメーションからの実行には人がいません。各ユーザー自身のサインインを使えないため、このサーバーはそれらでは使えません。"
+}

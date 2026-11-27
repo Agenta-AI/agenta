@@ -4,25 +4,31 @@
  * The probe only suggests a mode. A server that publishes OAuth metadata may also take a
  * personal token, and one that answered without a key may give higher limits with one, so the
  * probe's answer is marked "Detected" and the person can pick another.
+
  */
 import type {MCPAuthMode} from "@agenta/entities/mcpEndpoint"
-import {Badge, Segmented} from "@agenta/ui/ui"
+import {useT, type CatalogKey} from "@agenta/i18n"
+import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
+import {ChoiceSwitch, Field} from "@agenta/ui/ui"
 
-export const MCP_AUTH_MODE_LABEL: Record<MCPAuthMode, string> = {
-    none: "None",
-    api_key: "API key",
-    oauth: "OAuth",
+type McpConnectKey = CatalogKey<typeof mcpConnectCatalog>
+
+/** Catalog keys; translate with the `entityUi.mcpConnect` catalog where the label renders. */
+export const MCP_AUTH_MODE_LABEL: Record<MCPAuthMode, McpConnectKey> = {
+    none: "entityUi.mcpConnect.authNone",
+    api_key: "entityUi.mcpConnect.authApiKey",
+    oauth: "entityUi.mcpConnect.authOauth",
 }
 
-const ORDER: MCPAuthMode[] = ["none", "api_key", "oauth"]
+const ORDER: MCPAuthMode[] = ["oauth", "api_key", "none"]
 
 /** Said when the choice moves away from what the probe found, to say why one might. */
-const AWAY_FROM_DETECTED: Partial<Record<MCPAuthMode, string>> = {
-    oauth: "The probe found OAuth. Pick API key if this server also accepts a key you already have.",
-    none: "The server answered without a key. Add one if your plan gives you a key for higher limits.",
+const AWAY_FROM_DETECTED: Partial<Record<MCPAuthMode, McpConnectKey>> = {
+    oauth: "entityUi.mcpConnect.awayFromOauth",
+    none: "entityUi.mcpConnect.awayFromNone",
 }
 
-const OAUTH_UNAVAILABLE = "OAuth is available when the server offers OAuth sign-in."
+const OAUTH_UNAVAILABLE: McpConnectKey = "entityUi.mcpConnect.oauthUnavailable"
 
 export interface AuthModeSelectorProps {
     value: MCPAuthMode
@@ -41,34 +47,32 @@ export const AuthModeSelector = ({
     disabled,
     onChange,
 }: AuthModeSelectorProps) => {
+    const t = useT(mcpConnectCatalog)
     const hints = [
         detected && value !== detected ? AWAY_FROM_DETECTED[detected] : null,
         oauthSelectable ? null : OAUTH_UNAVAILABLE,
-    ].filter(Boolean)
+    ].filter((key): key is McpConnectKey => Boolean(key))
 
+    // The Owner field's ChoiceSwitch, so the two choices on this form are drawn the same way.
     return (
         <div className="flex flex-col gap-1.5" data-testid="mcp-auth-mode">
-            <span className="text-xs font-medium text-colorText">Authentication</span>
-            <Segmented
-                block
-                aria-label="Authentication"
-                value={value}
-                disabled={disabled}
-                onChange={(mode) => onChange(mode as MCPAuthMode)}
-                options={ORDER.map((mode) => ({
-                    value: mode,
-                    disabled: mode === "oauth" && !oauthSelectable,
-                    label: (
-                        <>
-                            {MCP_AUTH_MODE_LABEL[mode]}
-                            {mode === detected ? <Badge>Detected</Badge> : null}
-                        </>
-                    ),
-                }))}
-            />
+            <Field label={t("entityUi.mcpConnect.authentication")}>
+                <ChoiceSwitch<MCPAuthMode>
+                    aria-label={t("entityUi.mcpConnect.authentication")}
+                    value={value}
+                    disabled={disabled}
+                    onChange={onChange}
+                    choices={ORDER.map((mode) => ({
+                        value: mode,
+                        label: t(MCP_AUTH_MODE_LABEL[mode]),
+                        tag: mode === detected ? t("entityUi.mcpConnect.detected") : undefined,
+                        disabled: mode === "oauth" && !oauthSelectable,
+                    }))}
+                />
+            </Field>
             {hints.length ? (
-                <p className="m-0 text-xs leading-normal text-colorTextTertiary">
-                    {hints.join(" ")}
+                <p className="m-0 text-meta text-muted-foreground">
+                    {hints.map((key) => t(key)).join(" ")}
                 </p>
             ) : null}
         </div>

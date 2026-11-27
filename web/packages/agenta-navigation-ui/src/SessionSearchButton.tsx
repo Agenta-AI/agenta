@@ -1,5 +1,7 @@
 import {memo} from "react"
 
+import {useT} from "@agenta/i18n"
+import sessionFilterCatalog from "@agenta/i18n/catalogs/shell.sessionFilter"
 import {sidebarSessionSearchOpenAtom} from "@agenta/navigation"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {MagnifyingGlass} from "@phosphor-icons/react"
@@ -10,10 +12,10 @@ import {useSetAtom} from "jotai"
  *
  * It sits beside the filter menu because the two answer the same question at different scales:
  * the filter narrows what the rail lists, this reaches past it. Same control as the filter's
- * trigger — a 22px ghost square — so the pair reads as one set of buttons.
+ * trigger (the kit's icon-xs ghost button), so the pair reads as one set of buttons.
  */
 const SessionSearchButton = ({
-    label = "Search sessions",
+    label,
     shortcut,
 }: {
     /** What the button is called — the tooltip and the accessible name. A host whose search
@@ -23,16 +25,18 @@ const SessionSearchButton = ({
      * its `aria-keyshortcuts` form. Absent when the host binds none. */
     shortcut?: {faces: string[]; aria?: string}
 }) => {
+    const t = useT(sessionFilterCatalog)
     const setOpen = useSetAtom(sidebarSessionSearchOpenAtom)
+    const name = label ?? t("shell.sessionFilter.searchSessions")
     return (
-        <SimpleTooltip title={label} shortcut={shortcut?.faces}>
+        <SimpleTooltip title={name} shortcut={shortcut?.faces}>
             <Button
                 type="button"
                 variant="ghost"
-                size="icon-sm"
-                aria-label={label}
+                size="icon-xs"
+                aria-label={name}
                 aria-keyshortcuts={shortcut?.aria}
-                className="size-[22px] p-0 text-colorTextTertiary hover:text-colorText"
+                className="text-muted-foreground hover:text-foreground"
                 onClick={(event) => {
                     // Off the group row's stretched link anchor, as the filter trigger keeps its own.
                     event.preventDefault()
@@ -40,7 +44,7 @@ const SessionSearchButton = ({
                     setOpen(true)
                 }}
             >
-                <MagnifyingGlass size={12} />
+                <MagnifyingGlass />
             </Button>
         </SimpleTooltip>
     )

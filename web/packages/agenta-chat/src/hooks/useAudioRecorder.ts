@@ -1,5 +1,8 @@
 import {useCallback, useEffect, useRef, useState, type RefObject} from "react"
 
+import {createT} from "@agenta/i18n"
+import chatMessagesCatalog from "@agenta/i18n/catalogs/chat.messages"
+
 import {getAudioContextCtor} from "./audioContext"
 
 /**
@@ -20,8 +23,7 @@ export const MAX_RECORDING_MS = 5 * 60 * 1000
 /** Takes shorter than this are discarded — a mis-tap, not a message. */
 const MIN_RECORDING_MS = 700
 
-const BLOCKED_MESSAGE = "Microphone access is blocked — enable it in your browser settings."
-const DISMISSED_MESSAGE = "Microphone access is needed to record a voice message."
+const tNow = createT(chatMessagesCatalog)
 
 /** The browser's stored decision, or null where the Permissions API can't answer (e.g. Firefox). */
 const micPermissionState = async (): Promise<PermissionState | null> => {
@@ -161,7 +163,7 @@ export function useAudioRecorder(onComplete: (file: File) => void): AudioRecorde
                     erroredRef.current = true
                     teardown()
                     setStatus("error")
-                    setError("Recording error")
+                    setError(tNow("chat.messages.recordingError"))
                 }
                 rec.onstop = () => {
                     // Errored take: onerror already tore down and set the error status. Leave both as-is
@@ -194,16 +196,16 @@ export function useAudioRecorder(onComplete: (file: File) => void): AudioRecorde
                 const denied = e instanceof DOMException && e.name === "NotAllowedError"
                 if (!denied) {
                     setStatus("error")
-                    setError("Could not start recording.")
+                    setError(tNow("chat.messages.couldNotStartRecording"))
                     return
                 }
                 // Chrome rejects identically whether the prompt was BLOCKED or merely dismissed,
                 // so ask the permission store which it was — telling someone to go change browser
                 // settings when they could simply try again is a dead end.
                 setStatus("denied")
-                setError(BLOCKED_MESSAGE)
+                setError(tNow("chat.messages.micBlocked"))
                 micPermissionState().then((state) => {
-                    if (state === "prompt") setError(DISMISSED_MESSAGE)
+                    if (state === "prompt") setError(tNow("chat.messages.micNeeded"))
                 })
             })
     }, [supported, teardown, meter])

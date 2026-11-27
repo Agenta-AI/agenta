@@ -1,6 +1,8 @@
 import {useState} from "react"
 
 import type {Workflow} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import annotateCatalog from "@agenta/i18n/catalogs/observability.annotate"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {Alert, Button, Checkbox, SearchInput, SimpleTooltip} from "@agenta/ui/ui"
 import {PlusIcon} from "@phosphor-icons/react"
@@ -44,6 +46,7 @@ export const SelectEvaluatorsStep = ({
     onChange: (slugs: string[]) => void
     evaluatorsHref: string | null
 }) => {
+    const t = useT(annotateCatalog)
     const [search, setSearch] = useState("")
     const canCreate = useAtomValue(betaDeveloperModeActiveAtom)
     const [creating, setCreating] = useState(false)
@@ -73,6 +76,7 @@ export const SelectEvaluatorsStep = ({
         (evaluator) => !term || (evaluator.name ?? "").toLowerCase().includes(term),
     )
 
+    const metricLabel = t("observability.annotate.metric")
     const toggle = (slug: string, checked: boolean) =>
         onChange(checked ? [...selected, slug] : selected.filter((item) => item !== slug))
 
@@ -82,10 +86,10 @@ export const SelectEvaluatorsStep = ({
                 <Alert
                     type="warning"
                     showIcon
-                    message="Some evaluators could not be loaded"
+                    message={t("observability.annotate.someEvaluatorsFailed")}
                     action={
                         <Button variant="outline" size="sm" onClick={onRetry}>
-                            Try again
+                            {t("observability.annotate.tryAgain")}
                         </Button>
                     }
                 />
@@ -93,21 +97,21 @@ export const SelectEvaluatorsStep = ({
             <div className="flex items-center gap-2">
                 <SearchInput
                     className="min-w-0 flex-1"
-                    placeholder="Search"
-                    aria-label="Search evaluators"
+                    placeholder={t("observability.annotate.search")}
+                    aria-label={t("observability.annotate.searchEvaluators")}
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                 />
                 {onCreate ? (
                     <Button variant="outline" size="sm" onClick={onCreate}>
                         <PlusIcon aria-hidden />
-                        Create evaluator
+                        {t("observability.annotate.createEvaluator")}
                     </Button>
                 ) : null}
             </div>
             {shown.length === 0 ? (
-                <p className="m-0 py-6 text-center text-sm text-muted-foreground">
-                    No results found
+                <p className="m-0 py-6 text-center text-body text-muted-foreground">
+                    {t("observability.annotate.noResults")}
                 </p>
             ) : (
                 <ul className="m-0 flex list-none flex-col p-0">
@@ -118,18 +122,18 @@ export const SelectEvaluatorsStep = ({
                         return (
                             <li key={evaluator.id} data-testid="evaluator-row">
                                 <SimpleTooltip title={evaluator.description} side="left">
-                                    <label className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 hover:bg-muted has-[:disabled]:cursor-not-allowed">
+                                    <label className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 hover:bg-accent has-[:disabled]:cursor-not-allowed">
                                         <Checkbox
                                             aria-label={name}
                                             checked={locked || selected.includes(slug)}
                                             disabled={locked || !slug}
                                             onCheckedChange={(next) => toggle(slug, next === true)}
                                         />
-                                        <span className="min-w-0 flex-1 truncate text-sm">
+                                        <span className="min-w-0 flex-1 truncate text-label">
                                             {name}
                                         </span>
-                                        <span className="shrink-0 text-xs text-muted-foreground">
-                                            Metric
+                                        <span className="shrink-0 text-meta text-muted-foreground">
+                                            {metricLabel}
                                         </span>
                                     </label>
                                 </SimpleTooltip>

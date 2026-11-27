@@ -1,0 +1,9 @@
+{
+    "addError": "Não foi possível adicionar o domínio",
+    "adding": "Adicionando…",
+    "description": "Adicione um domínio e publique o registro DNS TXT dele para comprovar a propriedade.",
+    "domainHint": "Por exemplo, empresa.com",
+    "domainLabel": "Domínio",
+    "enterDomain": "Digite um nome de domínio",
+    "title": "Adicionar domínio"
+}

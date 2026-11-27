@@ -1,16 +1,19 @@
-import type {RefObject} from "react"
+import {useMemo, type ReactNode, type RefObject} from "react"
 
+import type {ChildUpdate} from "@agenta/chat/assets"
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import type {TurnViewModel} from "@agenta/chat/model"
 
 import {PendingTurn} from "./PendingTurn"
 import {TurnRow} from "./TurnRow"
 import {runIdFor, runStartedAtFor} from "./turnStatus"
+import {UserMessageAccessoryContext} from "./userMessageAccessory"
 import {useTranscriptWindow} from "./useTranscriptWindow"
 
 /** The transcript's turns, and the placeholder turn while a run has nothing to show yet. */
 export const TranscriptTurns = ({
     turns,
+    readUserMessageAccessory = null,
     scrollerRef,
     sessionId,
     remoteRunning,
@@ -19,8 +22,13 @@ export const TranscriptTurns = ({
     pending,
     onClientToolOutput,
     onRewind,
+    renderChildSession,
 }: {
     turns: TurnViewModel[]
+    /** What a host shows with a user message, given the first rendered turn's message id. */
+    readUserMessageAccessory?:
+        | ((messageId: string, firstShownId: string | undefined) => ReactNode)
+        | null
     /** The element these turns scroll in; scrolling it up is what renders older turns. */
     scrollerRef: RefObject<HTMLDivElement | null>
     sessionId: string
@@ -32,10 +40,21 @@ export const TranscriptTurns = ({
     pending: boolean
     onClientToolOutput?: ClientToolOutputHandler
     onRewind?: (turn: TurnViewModel) => void
+    /** Names and links the child session of a child update row. */
+    renderChildSession?: (update: ChildUpdate) => ReactNode
 }) => {
-    const start = useTranscriptWindow(turns.length, scrollerRef)
+    const start = useTranscriptWindow(turns.length, scrollerRef, sessionId)
+    const firstShownId = turns[start]?.message.id
+    // Bounded by the window: the first rendered turn gets its accessory when older turns hide.
+    const readAccessory = useMemo(
+        () =>
+            readUserMessageAccessory
+                ? (messageId: string) => readUserMessageAccessory(messageId, firstShownId)
+                : null,
+        [readUserMessageAccessory, firstShownId],
+    )
     return (
-        <>
+        <UserMessageAccessoryContext.Provider value={readAccessory}>
             {turns.slice(start).map((turn, offset) => (
                 <TurnRow
                     key={turn.message.id}
@@ -48,11 +67,12 @@ export const TranscriptTurns = ({
                     resuming={resuming}
                     runId={runIdFor(turns, start + offset)}
                     runStartedAt={runStartedAtFor(turns, start + offset)}
+                    renderChildSession={renderChildSession}
                 />
             ))}
             {pending ? (
                 <PendingTurn sessionId={sessionId} runId={runIdFor(turns, turns.length)} />
             ) : null}
-        </>
+        </UserMessageAccessoryContext.Provider>
     )
 }

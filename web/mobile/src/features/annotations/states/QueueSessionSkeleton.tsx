@@ -14,13 +14,13 @@ export const QueueSessionSkeleton = () => (
                 <SkeletonBlock className="h-4 w-24" />
                 <SkeletonBlock className="h-32" />
             </div>
-            <div className="flex w-full shrink-0 flex-col gap-3 rounded-lg border border-solid border-border p-4 md:w-[300px] lg:w-[400px] xl:w-[450px]">
+            <div className="flex w-full shrink-0 flex-col gap-3 rounded-lg border border-solid border-border p-4 md:w-75 lg:w-100 xl:w-112.5">
                 <SkeletonBlock className="h-5 w-28" />
                 <SkeletonBlock className="h-8" />
                 <SkeletonBlock className="h-8" />
             </div>
         </div>
-        <div className="flex h-[55px] shrink-0 items-center gap-3 border-0 border-t border-solid border-border px-4">
+        <div className="flex h-14 shrink-0 items-center gap-3 border-0 border-t border-solid border-border px-4">
             <SkeletonBlock className="h-6 w-20" />
             <SkeletonBlock className="ml-auto h-7 w-36" />
         </div>

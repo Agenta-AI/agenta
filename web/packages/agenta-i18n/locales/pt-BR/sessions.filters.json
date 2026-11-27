@@ -1,0 +1,19 @@
+{
+    "agent": "Agente",
+    "all": "Todas",
+    "allAgents": "Todos os agentes",
+    "allSessions": "Todas as sessões",
+    "archived": "Arquivadas",
+    "archivedTooltip": "Sessões arquivadas ficam ocultas, mas podem ser recuperadas",
+    "automationRuns": "Execuções de automação",
+    "automationRunsTooltip": "Execuções iniciadas por uma automação, em vez das sessões que você iniciou",
+    "filterByStatus": "Filtrar sessões por status",
+    "filters": "Filtros",
+    "include": "Incluir",
+    "live": "Ao vivo",
+    "searchSessions": "Pesquisar sessões",
+    "show": "Mostrar",
+    "waiting": "Em espera",
+    "waitingCount": "Em espera {{count}}",
+    "waitingOnYou": "Aguardando você"
+}

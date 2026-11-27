@@ -3,12 +3,16 @@
  * instructions file) to an {@link ItemDescriptor} (avatar, name, description, tags). Kept beside the
  * predicates they rely on (`isFunctionTool`, `isStaticSkill`) so registry, rows, and drawers agree.
  */
-import {humanizeActionKey, skillDisplayName, stripStaticSkillPrefix} from "@agenta/shared/utils"
+import {createT} from "@agenta/i18n"
+import itemDescriptorsCatalog from "@agenta/i18n/catalogs/entityUi.itemDescriptors"
+import {humanizeActionKey, stripStaticSkillPrefix} from "@agenta/shared/utils"
 import {McpServerMark, SkillMark} from "@agenta/ui/agent-icon"
 import {FileText, GraphIcon, Plugs, Robot} from "@phosphor-icons/react"
 
 import {SKILL_NAME_PATTERN} from "../skillName"
 import {parseGatewayEntry, type ToolObj} from "../toolUtils"
+
+const tNow = createT(itemDescriptorsCatalog)
 
 /** How a config-item row presents itself: avatar, name + description, and type tags. */
 export interface ItemDescriptor {
@@ -20,8 +24,6 @@ export interface ItemDescriptor {
     description?: string
     /** Avatar monogram, used when no `icon` is given. */
     mono: string
-    /** Avatar background colour. */
-    color: string
     /** Avatar icon (overrides the monogram). */
     icon?: React.ReactNode
     /** Avatar chip classes, for an item that paints its own chip. Set with `avatarStyle`. */
@@ -112,23 +114,22 @@ export function describeSubagent(
     const stored = typeof t.name === "string" && t.name ? t.name : undefined
     const name = currentName || stored || slug
     return {
-        name: name ?? "Subagent",
+        name: name ?? tNow("entityUi.itemDescriptors.subagent"),
         // Prose, never monospace: this is an agent's name, not an identifier.
         monoName: false,
         description: typeof t.description === "string" ? t.description : undefined,
         mono: "",
-        color: "transparent",
-        icon: chrome?.glyph ?? <Robot size={15} weight="fill" />,
+        icon: chrome?.glyph ?? <Robot />,
         // Always chipped: an unchipped avatar paints white on transparent and the glyph vanishes.
-        avatarClassName:
-            chrome?.className ??
-            "bg-[var(--ag-colorFillSecondary)] text-[var(--ag-colorTextSecondary)]",
+        avatarClassName: chrome?.className ?? "bg-secondary text-muted-foreground",
         avatarStyle: chrome?.style,
         // No type tag. "workflow" is an internal type and nothing user-meaningful replaces it.
         tags: [],
-        typeLabel: "subagent",
+        typeLabel: tNow("entityUi.itemDescriptors.subagentType"),
         typeColor: "geekblue",
-        subtitle: slug ? `Subagent · ${slug}` : "Subagent",
+        subtitle: slug
+            ? tNow("entityUi.itemDescriptors.subagentWithSlug", {slug})
+            : tNow("entityUi.itemDescriptors.subagent"),
     }
 }
 
@@ -152,15 +153,16 @@ export function describeTool(tool: unknown): ItemDescriptor {
                   ? `${slug ?? ""} v${t.version as string}`
                   : slug
         return {
-            name: refName ?? slug ?? "Workflow tool",
+            name: refName ?? slug ?? tNow("entityUi.itemDescriptors.workflowTool"),
             description: typeof t.description === "string" ? (t.description as string) : undefined,
             mono: "",
-            color: "#0d9488",
-            icon: <GraphIcon size={15} weight="fill" />,
-            tags: ["workflow"],
-            typeLabel: "workflow",
+            icon: <GraphIcon />,
+            tags: [tNow("entityUi.itemDescriptors.workflowTag")],
+            typeLabel: tNow("entityUi.itemDescriptors.workflowTag"),
             typeColor: "geekblue",
-            subtitle: target ? `Referenced workflow · ${target}` : "Referenced workflow",
+            subtitle: target
+                ? tNow("entityUi.itemDescriptors.referencedWorkflowWithTarget", {target})
+                : tNow("entityUi.itemDescriptors.referencedWorkflow"),
         }
     }
 
@@ -172,11 +174,13 @@ export function describeTool(tool: unknown): ItemDescriptor {
             name: capitalizeFirst(connection.integration),
             monoName: false,
             mono: monogram(connection.integration),
-            color: "#1c2c3d",
-            icon: <Plugs size={15} weight="fill" />,
+            icon: <Plugs />,
             tags: [connection.integration],
-            typeLabel: "integration",
-            subtitle: `Integration · ${connection.integration} · ${connection.connection} connection`,
+            typeLabel: tNow("entityUi.itemDescriptors.integrationType"),
+            subtitle: tNow("entityUi.itemDescriptors.integrationSubtitle", {
+                integration: connection.integration,
+                connection: connection.connection,
+            }),
         }
     }
     if (entry) {
@@ -188,10 +192,11 @@ export function describeTool(tool: unknown): ItemDescriptor {
             monoName: false,
             description: description ? capitalizeFirst(description) : undefined,
             mono: monogram(gateway.integration),
-            color: "#1c2c3d",
             tags: [gateway.integration],
-            typeLabel: "third-party",
-            subtitle: `Connected app tool · ${gateway.integration}`,
+            typeLabel: tNow("entityUi.itemDescriptors.thirdPartyType"),
+            subtitle: tNow("entityUi.itemDescriptors.connectedAppTool", {
+                integration: gateway.integration,
+            }),
         }
     }
 
@@ -205,26 +210,24 @@ export function describeTool(tool: unknown): ItemDescriptor {
                 ? (t.type as string)
                 : Object.keys(t).find((k) => k !== "type" && k !== "function")
         return {
-            name: builtinName ?? typeValue ?? "Built-in tool",
+            name: builtinName ?? typeValue ?? tNow("entityUi.itemDescriptors.builtInTool"),
             mono: "io",
-            color: "#0d9488",
-            tags: ["built-in"],
-            typeLabel: "built-in",
+            tags: [tNow("entityUi.itemDescriptors.builtInTag")],
+            typeLabel: tNow("entityUi.itemDescriptors.builtInTag"),
             typeColor: "cyan",
-            subtitle: "Provider built-in tool",
+            subtitle: tNow("entityUi.itemDescriptors.providerBuiltInTool"),
         }
     }
 
     // Function definition (custom inline tool).
     return {
-        name: fnName ?? "Tool",
+        name: fnName ?? tNow("entityUi.itemDescriptors.tool"),
         description,
         mono: "{}",
-        color: "#7c3aed",
-        tags: ["definition"],
-        typeLabel: "definition",
+        tags: [tNow("entityUi.itemDescriptors.definitionTag")],
+        typeLabel: tNow("entityUi.itemDescriptors.definitionTag"),
         typeColor: "purple",
-        subtitle: "Schema-only · executed by your app",
+        subtitle: tNow("entityUi.itemDescriptors.schemaOnly"),
     }
 }
 
@@ -235,24 +238,26 @@ export function describeMcp(server: unknown): ItemDescriptor {
         s.connection && typeof s.connection === "object"
             ? (s.connection as Record<string, unknown>)
             : {}
-    const name = typeof s.name === "string" && s.name ? (s.name as string) : "MCP server"
+    const name =
+        typeof s.name === "string" && s.name
+            ? (s.name as string)
+            : tNow("entityUi.itemDescriptors.mcpServer")
     return {
         name,
         // A server name is prose, not an identifier.
         monoName: false,
         description: typeof connection.url === "string" ? connection.url : undefined,
         mono: "",
-        color: "transparent",
-        icon: <McpServerMark size={28} />,
+        icon: <McpServerMark size={24} name={name} />,
         // The mark paints itself; a chip class keeps ItemAvatar from adding its white text.
         avatarClassName: "bg-transparent",
         // No type tag. Every MCP row carried "HTTP", which said the same thing on every
         // row and is not even true of a gateway-referenced connection: the transport is
         // the connection's business, not the agent item's.
         tags: [],
-        typeLabel: "MCP server",
+        typeLabel: tNow("entityUi.itemDescriptors.mcpServer"),
         typeColor: "cyan",
-        subtitle: "Model Context Protocol server",
+        subtitle: tNow("entityUi.itemDescriptors.mcpServerSubtitle"),
     }
 }
 
@@ -335,51 +340,56 @@ export function isStaticSkill(skill: unknown): boolean {
 /** Every skill row's avatar: the one `SkillMark`, whatever the skill's origin. */
 const SKILL_MARK = {
     mono: "",
-    color: "transparent",
-    icon: <SkillMark size={28} />,
+    icon: <SkillMark size={24} />,
     // The mark paints itself; a chip class keeps ItemAvatar from adding its white text.
     avatarClassName: "bg-transparent",
     // A skill title is prose; only the slash command a person types stays monospace.
     monoName: false,
 }
 
-/** A skill title from a name or slug, without the reserved `__ag__` prefix a built-in carries. */
-const titleOf = (value: string | undefined) =>
-    value ? skillDisplayName(stripStaticSkillPrefix(value)) : undefined
+/** A skill's one name (its slug, as written), without the reserved `__ag__` prefix a built-in carries. */
+const titleOf = (value: string | undefined) => (value ? stripStaticSkillPrefix(value) : undefined)
 
 /** Classify a skill into its row avatar / name / description / type tags. */
 export function describeSkill(skill: unknown): ItemDescriptor {
     const s = (skill ?? {}) as Record<string, unknown>
     const embedName = staticEmbedName(s)
     if (isStaticSkill(s)) {
-        const name = titleOf(embedName) || titleOf(staticEmbedSlug(s)) || "Agenta skill"
+        const name =
+            titleOf(embedName) ||
+            titleOf(staticEmbedSlug(s)) ||
+            tNow("entityUi.itemDescriptors.agentaSkill")
         return {
             name,
             ...SKILL_MARK,
             // "Agenta", the word the skill picker uses for a built-in skill.
             tags: ["Agenta"],
-            typeLabel: "static skill",
-            subtitle: "Provided by Agenta — read-only",
+            typeLabel: tNow("entityUi.itemDescriptors.staticSkillType"),
+            subtitle: tNow("entityUi.itemDescriptors.staticSkillSubtitle"),
         }
     }
     if (isEmbedRefSkill(s)) {
         // Registry-by-default: the raw "@ag.embed" marker is plumbing, not information.
         // Following the head is the default and says nothing; only a pin is worth a tag.
         const pinned = embedRevisionVersion(s)
-        const name = titleOf(embedName) || titleOf(staticEmbedSlug(s)) || "Skill reference"
+        const name =
+            titleOf(embedName) ||
+            titleOf(staticEmbedSlug(s)) ||
+            tNow("entityUi.itemDescriptors.skillReference")
         return {
             name,
             description: typeof s.description === "string" ? (s.description as string) : undefined,
             ...SKILL_MARK,
-            tags: pinned ? [{label: "Pinned"}] : [],
-            typeLabel: "registry skill",
+            tags: pinned ? [{label: tNow("entityUi.itemDescriptors.pinned")}] : [],
+            typeLabel: tNow("entityUi.itemDescriptors.registrySkillType"),
             typeColor: "gold",
             subtitle: pinned
-                ? "Registry skill — pinned to the version it was added at"
-                : "Registry skill — follows the latest version",
+                ? tNow("entityUi.itemDescriptors.registrySkillPinned")
+                : tNow("entityUi.itemDescriptors.registrySkillLatest"),
         }
     }
-    const name = (typeof s.name === "string" && titleOf(s.name)) || "Skill"
+    const name =
+        (typeof s.name === "string" && titleOf(s.name)) || tNow("entityUi.itemDescriptors.skill")
     return {
         name,
         description: typeof s.description === "string" ? (s.description as string) : undefined,
@@ -387,14 +397,14 @@ export function describeSkill(skill: unknown): ItemDescriptor {
         // No "skill" tag: the section it sits in is already Skills. The other branches tag what a
         // reader cannot otherwise tell — that it is built in, or pinned.
         tags: [],
-        typeLabel: "skill",
+        typeLabel: tNow("entityUi.itemDescriptors.skillType"),
         typeColor: "gold",
-        subtitle: "Inline SKILL.md package",
+        subtitle: tNow("entityUi.itemDescriptors.inlineSkill"),
     }
 }
 
-/** Strip Markdown syntax to a short single-line preview for an instructions file row. */
-export function mdPreview(md: string): string {
+/** Strip Markdown syntax to a short plain-text preview for an instructions file row. */
+export function mdPreview(md: string, maxLength = 140): string {
     return (md ?? "")
         .replace(/```[\s\S]*?```/g, " ") // fenced code blocks
         .replace(/^#{1,6}\s+/gm, "") // heading markers
@@ -404,19 +414,18 @@ export function mdPreview(md: string): string {
         .replace(/[*_`>#]/g, "") // inline emphasis / quote chars
         .replace(/\s+/g, " ") // collapse newlines + runs of whitespace
         .trim()
-        .slice(0, 140)
+        .slice(0, maxLength)
 }
 
 /** Row descriptor for an instructions markdown file (e.g. AGENTS.md). */
 export function describeInstruction(filename: string, content: string): ItemDescriptor {
     return {
         name: filename,
-        description: mdPreview(content) || "Empty file",
+        description: mdPreview(content) || tNow("entityUi.itemDescriptors.emptyFile"),
         mono: "md",
-        color: "#0f766e",
         icon: <FileText size={14} />,
         tags: [],
-        typeLabel: "instructions",
-        subtitle: "Markdown instructions for the agent",
+        typeLabel: tNow("entityUi.itemDescriptors.instructionsType"),
+        subtitle: tNow("entityUi.itemDescriptors.instructionsSubtitle"),
     }
 }

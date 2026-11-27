@@ -1,7 +1,12 @@
 import {useCallback, useEffect, useState} from "react"
 
+import {createT, useT, type CatalogKey} from "@agenta/i18n"
+import channelsActionsCatalog from "@agenta/i18n/catalogs/channels.actions"
+import channelsAdvancedCatalog from "@agenta/i18n/catalogs/channels.advanced"
+import channelsLabelsCatalog from "@agenta/i18n/catalogs/channels.labels"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Alert, Button, Checkbox, RadioGroup, RadioGroupItem, Spinner, Switch} from "@agenta/ui/ui"
-import {CaretDown, CaretRight} from "@phosphor-icons/react"
+import {CaretRight} from "@phosphor-icons/react"
 
 import {errorMessage} from "./helpers"
 import type {
@@ -12,6 +17,100 @@ import type {
     ChannelToolSettings,
     ChannelsActions,
 } from "./types"
+
+// For callbacks and effects: a language change must not refetch or reset what is shown.
+const tNow = createT(
+    channelsActionsCatalog,
+    channelsAdvancedCatalog,
+    channelsLabelsCatalog,
+    commonCatalog,
+)
+
+type AdvancedKey = CatalogKey<typeof channelsAdvancedCatalog>
+
+/** The words for a platform's shared places: channels on Slack, groups on Telegram and
+ *  WhatsApp, chats (team channels and group chats) on Teams. */
+interface PlaceKeys {
+    answersIn: AdvancedKey
+    answersInHelp: AdvancedKey
+    switchedOff: AdvancedKey
+    all: AdvancedKey
+    only: AdvancedKey
+    noneYet: AdvancedKey
+    noneCheckedAnswers: AdvancedKey
+    joinsLater: AdvancedKey
+    canPostHelp: AdvancedKey
+    readTitle: AdvancedKey
+    readAll: AdvancedKey
+    readOnly: AdvancedKey
+    noneCheckedRead: AdvancedKey
+}
+
+const GROUP_KEYS: PlaceKeys = {
+    answersIn: "channels.advanced.groupsAnswersIn",
+    answersInHelp: "channels.advanced.answersInHelp",
+    switchedOff: "channels.advanced.groupsSwitchedOff",
+    all: "channels.advanced.allGroups",
+    only: "channels.advanced.onlyTheseGroups",
+    noneYet: "channels.advanced.noGroupYet",
+    noneCheckedAnswers: "channels.advanced.noGroupCheckedAnswers",
+    joinsLater: "channels.advanced.groupJoinsLater",
+    canPostHelp: "channels.advanced.canPostHelpGroup",
+    readTitle: "channels.advanced.canSearchRead",
+    readAll: "channels.advanced.allChannels",
+    readOnly: "channels.advanced.onlyTheseChannels",
+    noneCheckedRead: "channels.advanced.noGroupCheckedRead",
+}
+
+const PLACE_KEYS: Record<ChannelPlatform, PlaceKeys> = {
+    slack: {
+        answersIn: "channels.advanced.channelsAnswersIn",
+        answersInHelp: "channels.advanced.answersInHelpSlack",
+        switchedOff: "channels.advanced.channelsSwitchedOff",
+        all: "channels.advanced.allChannels",
+        only: "channels.advanced.onlyTheseChannels",
+        noneYet: "channels.advanced.noChannelYet",
+        noneCheckedAnswers: "channels.advanced.noChannelCheckedAnswers",
+        joinsLater: "channels.advanced.channelJoinsLater",
+        canPostHelp: "channels.advanced.canPostHelpChannel",
+        readTitle: "channels.advanced.canSearchRead",
+        readAll: "channels.advanced.allChannels",
+        readOnly: "channels.advanced.onlyTheseChannels",
+        noneCheckedRead: "channels.advanced.noChannelCheckedRead",
+    },
+    telegram: GROUP_KEYS,
+    whatsapp: GROUP_KEYS,
+    discord: {
+        answersIn: "channels.advanced.channelsAnswersIn",
+        answersInHelp: "channels.advanced.answersInHelpChannels",
+        switchedOff: "channels.advanced.channelsSwitchedOff",
+        all: "channels.advanced.allChannels",
+        only: "channels.advanced.onlyTheseChannels",
+        noneYet: "channels.advanced.noChannelYet",
+        noneCheckedAnswers: "channels.advanced.noChannelCheckedAnswers",
+        joinsLater: "channels.advanced.channelJoinsLater",
+        canPostHelp: "channels.advanced.canPostHelpChannel",
+        readTitle: "channels.advanced.canSearchRead",
+        readAll: "channels.advanced.allChannels",
+        readOnly: "channels.advanced.onlyTheseChannels",
+        noneCheckedRead: "channels.advanced.noChannelCheckedRead",
+    },
+    teams: {
+        answersIn: "channels.advanced.chatsAnswersIn",
+        answersInHelp: "channels.advanced.answersInHelpTeams",
+        switchedOff: "channels.advanced.chatsSwitchedOff",
+        all: "channels.advanced.allChats",
+        only: "channels.advanced.onlyTheseChats",
+        noneYet: "channels.advanced.noChatYet",
+        noneCheckedAnswers: "channels.advanced.noChatCheckedAnswers",
+        joinsLater: "channels.advanced.chatJoinsLater",
+        canPostHelp: "channels.advanced.canPostHelpChat",
+        readTitle: "channels.advanced.chatsCanSearchRead",
+        readAll: "channels.advanced.allChats",
+        readOnly: "channels.advanced.onlyTheseChats",
+        noneCheckedRead: "channels.advanced.noChatCheckedRead",
+    },
+}
 
 /**
  * What the agent's channel tools may do through this bot: post outside the conversation that
@@ -41,9 +140,9 @@ export interface ChannelAdvancedSectionProps {
 
 type Choice = "all" | "only"
 
-const CARD = "overflow-hidden rounded-lg border border-solid border-colorBorderSecondary"
-const DIVIDED = "border-0 border-t border-solid border-colorBorderSecondary"
-const HELP = "text-xs leading-normal text-colorTextSecondary"
+const CARD = "flex flex-col"
+const DIVIDED = "border-0 border-t border-solid border-border-muted"
+const HELP = "text-meta leading-normal text-muted-foreground"
 
 /**
  * "Channels it answers in" ("Groups it answers in" on Telegram): every channel the bot is in, or
@@ -51,14 +150,20 @@ const HELP = "text-xs leading-normal text-colorTextSecondary"
  * channel the bot joins later stays off until it is checked.
  */
 const AnswersInRow = ({
-    isSlack,
+    platform,
     answersIn,
 }: {
-    isSlack: boolean
+    platform: ChannelPlatform
     answersIn: ChannelAnswersInProps
 }) => {
+    const t = useT(
+        channelsActionsCatalog,
+        channelsAdvancedCatalog,
+        channelsLabelsCatalog,
+        commonCatalog,
+    )
     const {behavior, channels, onSave, busy = false} = answersIn
-    const noun = isSlack ? "channel" : "group"
+    const keys = PLACE_KEYS[platform]
     const stored = behavior?.spaceIds ?? null
     const [choice, setChoice] = useState<Choice>(stored === null ? "all" : "only")
     const [draft, setDraft] = useState<string[]>(stored ?? [])
@@ -83,7 +188,7 @@ const AnswersInRow = ({
             // Show what the backend still holds, not what the refused save asked for.
             setChoice(stored === null ? "all" : "only")
             setDraft(stored ?? [])
-            setError(errorMessage(e, "Could not save this setting."))
+            setError(errorMessage(e, t("channels.actions.saveSettingFailed")))
         } finally {
             setOwnSave(false)
         }
@@ -99,30 +204,24 @@ const AnswersInRow = ({
         setDraft(stored ?? [])
     }
 
-    const title = isSlack ? "Channels it answers in" : "Groups it answers in"
+    const title = t(keys.answersIn)
 
     return (
         <div
-            className={`flex flex-col gap-2.5 px-3 py-3 ${DIVIDED}`}
+            className={`flex flex-col gap-2.5 py-3 ${DIVIDED}`}
             data-testid="channels-advanced-answers"
         >
             <span className="flex flex-col gap-0.5">
-                <span className="text-[13px] font-medium text-colorText">{title}</span>
-                <span className={HELP}>
-                    Where it answers when mentioned. {isSlack ? "Direct messages" : "Private chats"}{" "}
-                    follow the switch above.{isSlack ? " Channels include group DMs." : ""}
-                </span>
+                <span className="text-label font-medium text-foreground">{title}</span>
+                <span className={HELP}>{t(keys.answersInHelp)}</span>
             </span>
             {error ? <Alert type="error" showIcon message={error} /> : null}
             {behavior === null ? (
-                <div className="flex items-center gap-2 text-xs text-colorTextSecondary">
-                    <Spinner size="small" /> Loading…
+                <div className="flex items-center gap-2 text-meta text-muted-foreground">
+                    <Spinner size="small" /> {t("channels.labels.loading")}
                 </div>
             ) : !behavior.group ? (
-                <span className={HELP}>
-                    {isSlack ? "Channels" : "Group chats"} are switched off above, so it answers in
-                    none.
-                </span>
+                <span className={HELP}>{t(keys.switchedOff)}</span>
             ) : (
                 <>
                     <RadioGroup
@@ -133,13 +232,13 @@ const AnswersInRow = ({
                     >
                         {(
                             [
-                                ["all", `All ${noun}s the bot is in`],
-                                ["only", `Only these ${noun}s`],
+                                ["all", t(keys.all)],
+                                ["only", t(keys.only)],
                             ] as const
                         ).map(([value, label]) => (
                             <label
                                 key={value}
-                                className="flex cursor-pointer items-center gap-2 text-[13px] text-colorText"
+                                className="flex cursor-pointer items-center gap-2 text-label text-foreground"
                             >
                                 <RadioGroupItem
                                     value={value}
@@ -151,18 +250,18 @@ const AnswersInRow = ({
                     </RadioGroup>
                     {choice === "only" ? (
                         <div
-                            className="flex flex-col gap-2 rounded-md bg-colorFillQuaternary p-2.5"
+                            className="flex flex-col gap-2 rounded-md bg-secondary p-2.5"
                             data-testid="channels-advanced-answers-checklist"
                         >
                             {channels.length === 0 ? (
-                                <span className="text-xs text-colorTextTertiary">
-                                    The bot is in no {noun} yet.
+                                <span className="text-meta text-muted-foreground">
+                                    {t(keys.noneYet)}
                                 </span>
                             ) : (
                                 channels.map((channel) => (
                                     <label
                                         key={channel.id}
-                                        className="flex min-w-0 cursor-pointer items-center gap-2 text-[13px] text-colorText"
+                                        className="flex min-w-0 cursor-pointer items-center gap-2 text-label text-foreground"
                                     >
                                         <Checkbox
                                             checked={draft.includes(channel.id)}
@@ -182,8 +281,8 @@ const AnswersInRow = ({
                             )}
                             <span className={HELP}>
                                 {draft.length === 0
-                                    ? `With no ${noun} checked, the agent answers in no ${noun}.`
-                                    : `A ${noun} the bot joins later stays off until you check it.`}
+                                    ? t(keys.noneCheckedAnswers)
+                                    : t(keys.joinsLater)}
                             </span>
                             <div className="flex justify-end">
                                 <Button
@@ -193,7 +292,7 @@ const AnswersInRow = ({
                                     data-testid="channels-advanced-answers-save"
                                 >
                                     {ownSave ? <Spinner size="small" /> : null}
-                                    Save
+                                    {t("common.save")}
                                 </Button>
                             </div>
                         </div>
@@ -210,7 +309,13 @@ export const ChannelAdvancedSection = ({
     actions,
     answersIn,
 }: ChannelAdvancedSectionProps) => {
-    const isSlack = platform === "slack"
+    const t = useT(
+        channelsActionsCatalog,
+        channelsAdvancedCatalog,
+        channelsLabelsCatalog,
+        commonCatalog,
+    )
+    const keys = PLACE_KEYS[platform]
     const [open, setOpen] = useState(false)
     const [settings, setSettings] = useState<ChannelToolSettings | null>(null)
     const [choice, setChoice] = useState<Choice>("all")
@@ -232,7 +337,7 @@ export const ChannelAdvancedSection = ({
             show(await actions.readToolSettings(connectionId))
         } catch (e) {
             setSettings(null)
-            setError(errorMessage(e, "Could not read this bot's settings."))
+            setError(errorMessage(e, tNow("channels.actions.readBotSettingsFailed")))
         }
     }, [actions, connectionId])
 
@@ -245,7 +350,7 @@ export const ChannelAdvancedSection = ({
             .then(setChannels)
             .catch((e) => {
                 setChannels([])
-                setChannelsError(errorMessage(e, "Could not list the channels the bot is in."))
+                setChannelsError(errorMessage(e, tNow("channels.advanced.listChannelsFailed")))
             })
     }, [open, load, actions, platform, connectionId])
 
@@ -258,7 +363,7 @@ export const ChannelAdvancedSection = ({
             if (settings && next.readableSpaceKeys === settings.readableSpaceKeys) setSettings(next)
             else show(next)
         } catch (e) {
-            const message = errorMessage(e, "Could not save this setting.")
+            const message = errorMessage(e, t("channels.actions.saveSettingFailed"))
             // Show what the backend still holds, not what the refused save asked for.
             await load()
             setError(message)
@@ -282,42 +387,43 @@ export const ChannelAdvancedSection = ({
     const toggleChannel = (key: string, checked: boolean) =>
         setDraft((keys) => (checked ? [...keys, key] : keys.filter((k) => k !== key)))
 
-    const noun = isSlack ? "channel" : "group"
-
     return (
         <div className="flex flex-col gap-2" data-testid="channels-advanced">
-            <button
+            <Button
                 type="button"
-                className="flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left text-[13px] font-semibold text-colorText"
+                variant="ghost"
+                size="sm"
+                className="-mx-2 w-fit gap-1.5 px-2 text-foreground"
                 onClick={() => setOpen((value) => !value)}
                 aria-expanded={open}
                 data-testid="channels-advanced-toggle"
             >
-                {open ? <CaretDown size={12} /> : <CaretRight size={12} />}
-                Advanced
-            </button>
+                <CaretRight
+                    size={12}
+                    className={`transition-transform duration-[var(--duration-fast)] motion-reduce:transition-none ${
+                        open ? "rotate-90" : ""
+                    }`}
+                />
+                {t("channels.advanced.advanced")}
+            </Button>
 
             {open ? (
-                <div className="flex flex-col gap-2">
+                <div className="ag-view-enter flex flex-col gap-2">
                     {error ? <Alert type="error" showIcon message={error} /> : null}
                     {settings === null ? (
                         error ? null : (
-                            <div className="flex items-center gap-2 text-xs text-colorTextSecondary">
-                                <Spinner size="small" /> Loading…
+                            <div className="flex items-center gap-2 text-meta text-muted-foreground">
+                                <Spinner size="small" /> {t("channels.labels.loading")}
                             </div>
                         )
                     ) : (
                         <div className={CARD}>
-                            <div className="flex items-center gap-3 px-3 py-3">
+                            <div className="flex items-center gap-3 py-3">
                                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                    <span className="text-[13px] font-medium text-colorText">
-                                        Can post outside the conversation
+                                    <span className="text-label font-medium text-foreground">
+                                        {t("channels.advanced.canPostOutside")}
                                     </span>
-                                    <span className={HELP}>
-                                        Whether the agent may post to a {noun} other than the
-                                        conversation it answers in. Its replies there are not
-                                        affected.
-                                    </span>
+                                    <span className={HELP}>{t(keys.canPostHelp)}</span>
                                 </span>
                                 <Switch
                                     size="sm"
@@ -326,41 +432,40 @@ export const ChannelAdvancedSection = ({
                                     onCheckedChange={(value) =>
                                         void save({...settings, canPostOutsideConversation: value})
                                     }
-                                    aria-label="Can post outside the conversation"
+                                    aria-label={t("channels.advanced.canPostOutside")}
                                     data-testid="channels-advanced-post"
                                 />
                             </div>
 
-                            <div className={`flex flex-col gap-2.5 px-3 py-3 ${DIVIDED}`}>
+                            <div className={`flex flex-col gap-2.5 py-3 ${DIVIDED}`}>
                                 <span className="flex flex-col gap-0.5">
-                                    <span className="text-[13px] font-medium text-colorText">
-                                        Channels it can search and read
+                                    <span className="text-label font-medium text-foreground">
+                                        {t(keys.readTitle)}
                                     </span>
-                                    {isSlack ? null : (
+                                    {platform === "telegram" ? (
                                         <span
                                             className={HELP}
                                             data-testid="channels-advanced-telegram-help"
                                         >
-                                            Telegram does not let bots read chat history, so the bot
-                                            can read only messages it received.
+                                            {t("channels.advanced.telegramReadHelp")}
                                         </span>
-                                    )}
+                                    ) : null}
                                 </span>
                                 <RadioGroup
                                     value={choice}
                                     onValueChange={choose}
                                     disabled={saving}
-                                    aria-label="Channels it can search and read"
+                                    aria-label={t(keys.readTitle)}
                                 >
                                     {(
                                         [
-                                            ["all", "All channels the bot is in"],
-                                            ["only", "Only these channels"],
+                                            ["all", t(keys.readAll)],
+                                            ["only", t(keys.readOnly)],
                                         ] as const
                                     ).map(([value, label]) => (
                                         <label
                                             key={value}
-                                            className="flex cursor-pointer items-center gap-2 text-[13px] text-colorText"
+                                            className="flex cursor-pointer items-center gap-2 text-label text-foreground"
                                         >
                                             <RadioGroupItem
                                                 value={value}
@@ -373,27 +478,28 @@ export const ChannelAdvancedSection = ({
 
                                 {choice === "only" ? (
                                     <div
-                                        className="flex flex-col gap-2 rounded-md bg-colorFillQuaternary p-2.5"
+                                        className="flex flex-col gap-2 rounded-md bg-secondary p-2.5"
                                         data-testid="channels-advanced-checklist"
                                     >
                                         {channelsError ? (
                                             <Alert type="error" showIcon message={channelsError} />
                                         ) : null}
                                         {channels === null ? (
-                                            <div className="flex items-center gap-2 text-xs text-colorTextSecondary">
-                                                <Spinner size="small" /> Loading…
+                                            <div className="flex items-center gap-2 text-meta text-muted-foreground">
+                                                <Spinner size="small" />{" "}
+                                                {t("channels.labels.loading")}
                                             </div>
                                         ) : channels.length === 0 ? (
                                             channelsError ? null : (
-                                                <span className="text-xs text-colorTextTertiary">
-                                                    The bot is in no {noun} yet.
+                                                <span className="text-meta text-muted-foreground">
+                                                    {t(keys.noneYet)}
                                                 </span>
                                             )
                                         ) : (
                                             channels.map((channel) => (
                                                 <label
                                                     key={channel.key}
-                                                    className="flex min-w-0 cursor-pointer items-center gap-2 text-[13px] text-colorText"
+                                                    className="flex min-w-0 cursor-pointer items-center gap-2 text-label text-foreground"
                                                 >
                                                     <Checkbox
                                                         checked={draft.includes(channel.key)}
@@ -411,10 +517,7 @@ export const ChannelAdvancedSection = ({
                                             ))
                                         )}
                                         {draft.length === 0 ? (
-                                            <span className={HELP}>
-                                                With no {noun} checked, the agent cannot search or
-                                                read any.
-                                            </span>
+                                            <span className={HELP}>{t(keys.noneCheckedRead)}</span>
                                         ) : null}
                                         <div className="flex justify-end">
                                             <Button
@@ -429,14 +532,14 @@ export const ChannelAdvancedSection = ({
                                                 data-testid="channels-advanced-save"
                                             >
                                                 {saving ? <Spinner size="small" /> : null}
-                                                Save
+                                                {t("common.save")}
                                             </Button>
                                         </div>
                                     </div>
                                 ) : null}
                             </div>
                             {answersIn ? (
-                                <AnswersInRow isSlack={isSlack} answersIn={answersIn} />
+                                <AnswersInRow platform={platform} answersIn={answersIn} />
                             ) : null}
                         </div>
                     )}

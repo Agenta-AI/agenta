@@ -363,7 +363,7 @@ async def test_watch_endpoint_streams_the_configured_retry_preamble():
         ) as streams_engine,
         patch.object(env.sessions, "watch_retry_milliseconds", 9000),
     ):
-        streams_engine.return_value.get_redis.return_value.pubsub.return_value = pubsub
+        streams_engine.return_value.get_subscriber_redis.return_value.pubsub.return_value = pubsub
         response = await router.watch_session_stream(request=request, session_id="s-1")
         first = await response.body_iterator.__anext__()
         await response.body_iterator.aclose()
@@ -428,7 +428,7 @@ async def test_project_watch_endpoint_streams_known_events_and_skips_unknown():
             "oss.src.apis.fastapi.sessions.router.get_streams_engine"
         ) as streams_engine,
     ):
-        streams_engine.return_value.get_redis.return_value.pubsub.return_value = pubsub
+        streams_engine.return_value.get_subscriber_redis.return_value.pubsub.return_value = pubsub
         response = await router.watch_project(request=request, project_id=project_id)
 
         frames = [await response.body_iterator.__anext__() for _ in range(5)]
@@ -521,7 +521,7 @@ async def _project_frames(user: str, messages: list, calls: list) -> list:
             "oss.src.apis.fastapi.sessions.router.get_streams_engine"
         ) as streams_engine,
     ):
-        streams_engine.return_value.get_redis.return_value.pubsub.return_value = pubsub
+        streams_engine.return_value.get_subscriber_redis.return_value.pubsub.return_value = pubsub
         response = await router.watch_project(request=request, project_id=project_id)
         frames = []
         while True:

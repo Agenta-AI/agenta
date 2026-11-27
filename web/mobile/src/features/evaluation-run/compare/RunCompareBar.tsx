@@ -3,6 +3,7 @@ import {PushPin} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {compareChipStyle} from "./compareChipStyle"
+import {compareColor} from "./compareColor"
 import {CompareRunChip} from "./CompareRunChip"
 import {CompareRunsButton} from "./CompareRunsButton"
 import {useCompareRunIds} from "./useCompareRunIds"
@@ -26,14 +27,20 @@ export const RunCompareBar = ({
 
     return (
         <div className="flex min-w-0 items-start justify-between gap-3">
-            <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
+            <div className="flex min-w-0 flex-wrap items-center gap-2 text-body">
                 <span className="shrink-0 text-foreground">Evaluations:</span>
                 <span
                     data-testid="run-chip"
-                    className="inline-flex min-w-0 items-center gap-1 rounded-md border border-solid px-2 py-0.5 text-xs"
+                    className="inline-flex min-w-0 items-center gap-1 rounded-md border border-solid px-2 py-0.5 text-label text-foreground"
                     style={compareChipStyle(0)}
                 >
-                    <PushPin aria-hidden size={12} weight="fill" className="shrink-0" />
+                    <PushPin
+                        aria-hidden
+                        size={12}
+                        weight="fill"
+                        className="shrink-0"
+                        style={{color: compareColor(0)}}
+                    />
                     <span className="truncate">{runName}</span>
                 </span>
                 {compareIds.map((id, index) => (

@@ -32,8 +32,7 @@ const run = (
 ): PlatformGuidanceInput => ({
   acpAgent: "codex",
   isPi: false,
-  agentMountedPath: undefined,
-  agentMountSkipped: false,
+  homeDrive: undefined,
   // A config-editing agent by default, since that is what the codex rebuttal addresses. The
   // gate's other arm is exercised explicitly below.
   toolNames: ["commit_revision"],
@@ -50,8 +49,9 @@ describe("what every harness is told", () => {
       run({ acpAgent: "pi", isPi: true }),
     ]) {
       const guidance = platformGuidanceAppendix(input);
+      // Without a home drive the sentence leaves out `agent-files/`.
       assert.ok(
-        guidance?.includes(fileCitationAppendix().text),
+        guidance?.includes(fileCitationAppendix(false).text),
         input.acpAgent,
       );
     }
@@ -92,7 +92,7 @@ describe("what every harness is told", () => {
   });
 
   it("ends on the mount paragraph, which is long and describes where things go", () => {
-    const guidance = platformGuidanceAppendix(run({ agentMountedPath: MOUNT }));
+    const guidance = platformGuidanceAppendix(run({ homeDrive: { path: MOUNT } }));
     assert.ok(guidance?.endsWith(agentMountGuidance(MOUNT)));
   });
 });
@@ -102,7 +102,7 @@ describe("the mount paragraph is delivered exactly once", () => {
     // The whole reason this channel was built. Pi has its append prompt and Claude has the ACP
     // session `_meta`; Codex had neither, so before this it received no platform guidance at all.
     const guidance = platformGuidanceAppendix(
-      run({ acpAgent: "codex", agentMountedPath: MOUNT }),
+      run({ acpAgent: "codex", homeDrive: { path: MOUNT } }),
     );
     assert.ok(guidance?.includes(agentMountGuidance(MOUNT)));
   });
@@ -113,8 +113,8 @@ describe("the mount paragraph is delivered exactly once", () => {
     // second copy in the instructions file would spend context twice and invite the model to look
     // for a difference between two paragraphs that have none.
     for (const input of [
-      run({ acpAgent: "pi", isPi: true, agentMountedPath: MOUNT }),
-      run({ acpAgent: "claude", agentMountedPath: MOUNT }),
+      run({ acpAgent: "pi", isPi: true, homeDrive: { path: MOUNT } }),
+      run({ acpAgent: "claude", homeDrive: { path: MOUNT } }),
     ]) {
       const guidance = platformGuidanceAppendix(input);
       assert.ok(guidance, input.acpAgent);
@@ -133,7 +133,7 @@ describe("the mount paragraph is delivered exactly once", () => {
     // The three-state arm, matching Claude's. Silence here is not neutral: the conversation's
     // history may show an earlier session that read files from the folder, and only a statement in
     // this turn can stop the model reporting the user's saved work as lost.
-    const guidance = platformGuidanceAppendix(run({ agentMountSkipped: true }));
+    const guidance = platformGuidanceAppendix(run({ homeDrive: "unavailable" }));
     assert.ok(guidance?.includes(agentMountUnavailableGuidance()));
   });
 
@@ -146,20 +146,11 @@ describe("the mount paragraph is delivered exactly once", () => {
     assert.ok(!guidance.includes(agentMountUnavailableGuidance()));
   });
 
-  it("prefers the live path over the skipped sentence when both are set", () => {
-    // A mount that came up after a refusal is live. Reporting both would contradict itself.
-    const guidance = platformGuidanceAppendix(
-      run({ agentMountedPath: MOUNT, agentMountSkipped: true }),
-    );
-    assert.ok(guidance?.includes(agentMountGuidance(MOUNT)));
-    assert.ok(!guidance?.includes(agentMountUnavailableGuidance()));
-  });
-
   it("serves an unrecognized harness rather than skipping it", () => {
     // Fails toward one extra paragraph. The cost of a duplicate is context; the cost of a miss is
     // the model telling a user their saved work is gone.
     const guidance = platformGuidanceAppendix(
-      run({ acpAgent: "some-future-harness", agentMountedPath: MOUNT }),
+      run({ acpAgent: "some-future-harness", homeDrive: { path: MOUNT } }),
     );
     assert.ok(guidance?.includes(agentMountGuidance(MOUNT)));
   });
@@ -238,7 +229,7 @@ describe("the codex bundled-skills rebuttal", () => {
       run({ acpAgent: "codex", toolNames: ["bash"] }),
     );
     assert.ok(!guidance?.includes("skill-installer"));
-    assert.ok(guidance?.includes(fileCitationAppendix().text));
+    assert.ok(guidance?.includes(fileCitationAppendix(false).text));
   });
 
   it("keys on the tool name", () => {
@@ -258,7 +249,7 @@ describe("the codex bundled-skills rebuttal", () => {
   it("does NOT gate the mount paragraph, which has no tool dependency", () => {
     // A Codex run with no config tools still needs to be told where its durable folder is.
     const guidance = platformGuidanceAppendix(
-      run({ toolNames: [], agentMountedPath: MOUNT }),
+      run({ toolNames: [], homeDrive: { path: MOUNT } }),
     );
     assert.ok(guidance?.includes(agentMountGuidance(MOUNT)));
     assert.ok(!guidance?.includes("skill-installer"));

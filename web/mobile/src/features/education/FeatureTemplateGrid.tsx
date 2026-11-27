@@ -7,6 +7,8 @@ import {
     refetchAgentTemplatesAtom,
     type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import educationGuidesCatalog from "@agenta/i18n/catalogs/education.guides"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -27,6 +29,7 @@ export const FeatureTemplateGrid = ({
     disabled?: boolean
     onSelect: (template: AgentStarterTemplate) => void
 }) => {
+    const t = useT(educationGuidesCatalog)
     const catalog = useAtomValue(agentTemplatesAtom)
     const status = useAtomValue(agentTemplatesStatusAtom)
     const refetch = useSetAtom(refetchAgentTemplatesAtom)
@@ -44,13 +47,13 @@ export const FeatureTemplateGrid = ({
 
     return (
         <FeatureSection
-            title="Start from a template"
-            link={{href: browseHref, label: "View all templates"}}
+            title={t("education.guides.startFromTemplate")}
+            link={{href: browseHref, label: t("education.guides.viewAllTemplates")}}
         >
             {status === "pending" ? (
                 <FeatureTemplateGridSkeleton count={templateKeys.length} />
             ) : status === "error" ? (
-                <LoadError title="Could not load templates" onRetry={refetch} />
+                <LoadError title={t("education.guides.loadTemplatesError")} onRetry={refetch} />
             ) : (
                 <div className="grid gap-3 @2xl:grid-cols-3">
                     {templates.map((template) => (

@@ -1,0 +1,11 @@
+{
+    "couldNotStart": "Could not start the export.",
+    "preparing": "Preparing export",
+    "rateLimited": "Rate limited — pausing for {{seconds}}s (exported {{rows}} rows so far)",
+    "exporting": "Exporting {{rows}} rows",
+    "nothingToExport": "No traces to export",
+    "limitReached": "Export limit reached. Downloaded first {{rows}} rows.",
+    "exported": "Exported {{rows}} rows",
+    "cancelled": "Export cancelled",
+    "failed": "Export failed"
+}

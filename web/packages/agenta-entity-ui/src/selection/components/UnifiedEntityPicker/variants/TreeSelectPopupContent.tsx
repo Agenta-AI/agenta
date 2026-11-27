@@ -10,11 +10,14 @@
 
 import React, {useCallback, useEffect, useId, useMemo, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import selectionCatalog from "@agenta/i18n/catalogs/entityUi.selection"
 import {cn} from "@agenta/ui/styles"
 import {InputAffix, Spinner} from "@agenta/ui/ui"
 import {CaretDown, CaretRight} from "@phosphor-icons/react"
 
 import {useTreeSelectMode, type TreeSelectNode} from "../../../hooks"
+import {adapterText} from "../../../text"
 import type {EntitySelectionResult} from "../../../types"
 import type {TreeSelectVariantProps} from "../types"
 
@@ -92,6 +95,7 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
     showDate = false,
     initialExpandedKeys,
 }: TreeSelectPopupContentProps<TSelection>) {
+    const t = useT(selectionCatalog)
     const generatedId = useId()
     const instanceId = providedInstanceId ?? generatedId
 
@@ -165,8 +169,16 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
     }, [selectedValueProp, treeData])
 
     // Get display messages
-    const displayEmptyMessage = emptyMessage ?? resolvedAdapter.emptyMessage ?? "No items found"
-    const displayLoadingMessage = loadingMessage ?? resolvedAdapter.loadingMessage ?? "Loading..."
+    const displayEmptyMessage =
+        emptyMessage ??
+        (resolvedAdapter.emptyMessage
+            ? adapterText(resolvedAdapter.emptyMessage)
+            : t("entityUi.selection.noItemsFound"))
+    const displayLoadingMessage =
+        loadingMessage ??
+        (resolvedAdapter.loadingMessage
+            ? adapterText(resolvedAdapter.loadingMessage)
+            : t("entityUi.selection.loading"))
 
     const expandedSet = useMemo(() => new Set(expandedKeys), [expandedKeys])
 
@@ -311,13 +323,13 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
         <div className={cn("flex flex-col", className)} style={{width}}>
             {/* Search input row with optional action */}
             {(showSearch || popupHeaderAction) && (
-                <div className="flex items-center gap-2 px-2 py-1 box-border border-0 border-b border-solid border-colorBorderSecondary mb-2">
+                <div className="flex items-center gap-2 px-2 py-1 box-border border-0 border-b border-solid border-border-muted mb-2">
                     {showSearch && (
                         <InputAffix
                             ref={searchInputRef}
                             className="flex-1"
                             variant="ghost"
-                            placeholder="Search"
+                            placeholder={t("entityUi.selection.search")}
                             value={searchTerm}
                             onValueChange={setSearchTerm}
                             allowClear
@@ -334,7 +346,7 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
             {(isLoadingParents || isLoadingChildren) && treeData.length === 0 && (
                 <div className="flex items-center justify-center py-4">
                     <Spinner size="small" />
-                    <span className="ml-2 text-xs text-colorTextSecondary">
+                    <span className="ml-2 text-meta text-muted-foreground">
                         {displayLoadingMessage}
                     </span>
                 </div>
@@ -342,14 +354,14 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
 
             {/* Error state */}
             {parentsError && (
-                <div className="px-3 py-4 text-xs text-colorError">
+                <div className="px-3 py-4 text-meta text-destructive">
                     Error: {parentsError.message}
                 </div>
             )}
 
-            {/* Empty state */}
-            {!isLoadingParents && !parentsError && treeData.length === 0 && (
-                <div className="px-3 py-4 text-xs text-colorTextSecondary text-center">
+            {/* Empty state: not while anything still loads, or it shows beside the loading line */}
+            {!isLoadingParents && !isLoadingChildren && !parentsError && treeData.length === 0 && (
+                <div className="px-3 py-4 text-meta text-muted-foreground text-center">
                     {displayEmptyMessage}
                 </div>
             )}
@@ -363,7 +375,7 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
                 >
                     <ul
                         role="tree"
-                        className="m-0 list-none p-0 text-xs text-colorText"
+                        className="m-0 list-none p-0 text-meta text-foreground"
                         onKeyDown={handleKeyDown}
                     >
                         {treeData.map((parent) => {
@@ -383,11 +395,11 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
                                     <div
                                         data-row
                                         onClick={() => toggleParent(parent)}
-                                        className="sticky top-0 z-[1] flex items-center bg-colorBgElevated pb-1"
+                                        className="sticky top-0 z-[1] flex items-center bg-popover pb-1"
                                     >
                                         <span
                                             aria-hidden="true"
-                                            className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center text-colorTextSecondary"
+                                            className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center text-muted-foreground"
                                         >
                                             {isExpanded ? (
                                                 <CaretDown size={12} />
@@ -400,7 +412,7 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
                                                 "flex min-h-6 min-w-0 flex-1 cursor-pointer items-center justify-between rounded-md pl-1",
                                                 parent.disabled
                                                     ? "cursor-not-allowed opacity-80"
-                                                    : "hover:bg-muted",
+                                                    : "hover:bg-accent",
                                             )}
                                         >
                                             {parent.title}
@@ -426,7 +438,7 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
                                                         }
                                                         onClick={() => handleTreeSelect(child)}
                                                         className={cn(
-                                                            "m-0 flex list-none bg-colorBgElevated pb-1 pl-6",
+                                                            "m-0 flex list-none bg-popover pb-1 pl-6",
                                                             ROW_FOCUS_RING,
                                                         )}
                                                     >
@@ -437,12 +449,12 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
                                                                 child.disabled
                                                                     ? "cursor-not-allowed opacity-80"
                                                                     : "cursor-pointer",
+                                                                // The current one stays marked even when it cannot be picked again.
                                                                 isSelected &&
-                                                                    !child.disabled &&
-                                                                    "bg-controlItemBgActive",
+                                                                    "bg-controlItemBgActive opacity-100",
                                                                 !isSelected &&
                                                                     !child.disabled &&
-                                                                    "hover:bg-muted",
+                                                                    "hover:bg-accent",
                                                             )}
                                                         >
                                                             {child.title}

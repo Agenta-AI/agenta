@@ -23,6 +23,9 @@
  * ```
  */
 
+import {useT} from "@agenta/i18n"
+import uiChatCatalog from "@agenta/i18n/catalogs/ui.chat"
+
 import {cn} from "../../../utils/styles"
 
 import ImagePreview from "./ImagePreview"
@@ -74,10 +77,11 @@ export function ImageAttachment({
     size = 64,
     className,
 }: ImageAttachmentProps) {
+    const t = useT(uiChatCatalog)
     return (
         <div
             className={cn(
-                "relative group rounded-md overflow-hidden border border-solid border-gray-200",
+                "relative group rounded-md overflow-hidden border border-solid border-border-muted",
                 className,
             )}
         >
@@ -86,8 +90,8 @@ export function ImageAttachment({
                 <button
                     type="button"
                     onClick={onRemove}
-                    className="absolute top-0 right-0 bg-red-500 text-white rounded-bl-md p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="Remove image"
+                    className="absolute top-0 right-0 bg-destructive text-background rounded-bl-md p-0.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-coarse:opacity-100"
+                    title={t("ui.chat.removeImage")}
                 >
                     <svg
                         width="12"

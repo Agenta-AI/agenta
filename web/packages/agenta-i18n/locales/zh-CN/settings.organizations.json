@@ -1,0 +1,18 @@
+{
+    "copyId": "复制组织 ID",
+    "copyIdFailed": "无法复制 ID",
+    "current": "当前",
+    "delete": "删除组织",
+    "emptyDescription": "组织将你的工作区、项目以及在其中工作的人员归集在一起。",
+    "emptyTitle": "还没有组织",
+    "idCopied": "已复制组织 ID",
+    "leave": "退出组织",
+    "member": "成员",
+    "newOrganization": "新建组织",
+    "organization": "组织",
+    "organizationActions": "组织操作",
+    "organizationName": "组织名称",
+    "owner": "所有者",
+    "switchTo": "切换到此组织",
+    "transferOwnership": "转让所有权"
+}

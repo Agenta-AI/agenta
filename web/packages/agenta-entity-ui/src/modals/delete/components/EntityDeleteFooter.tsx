@@ -6,11 +6,16 @@
 
 import {useCallback} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import deleteModalCatalog from "@agenta/i18n/catalogs/entityUi.deleteModal"
 import {message} from "@agenta/ui/app-message"
-import {ModalFooter} from "@agenta/ui/components/modal"
+import {Button, LoadingButton} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {deleteModalLoadingAtom, deleteModalCanProceedAtom, executeDeleteAtom} from "../state"
+
+const tNow = createT(deleteModalCatalog)
 
 interface EntityDeleteFooterProps {
     /** Callback when modal is closed/cancelled */
@@ -28,6 +33,8 @@ interface EntityDeleteFooterProps {
  * - Loading state during delete
  */
 export function EntityDeleteFooter({onClose, onSuccess}: EntityDeleteFooterProps) {
+    const t = useT(deleteModalCatalog)
+    const tCommon = useT(commonCatalog)
     const isLoading = useAtomValue(deleteModalLoadingAtom)
     const canProceed = useAtomValue(deleteModalCanProceedAtom)
     const executeDelete = useSetAtom(executeDeleteAtom)
@@ -35,19 +42,24 @@ export function EntityDeleteFooter({onClose, onSuccess}: EntityDeleteFooterProps
     const handleDelete = useCallback(async () => {
         const success = await executeDelete()
         if (success) {
-            message.success("Deleted successfully")
+            message.success(tNow("entityUi.deleteModal.deleted"))
             onSuccess?.()
         }
     }, [executeDelete, onSuccess])
 
     return (
-        <ModalFooter
-            onCancel={onClose}
-            onConfirm={handleDelete}
-            confirmLabel="Delete"
-            isLoading={isLoading}
-            canConfirm={canProceed}
-            danger
-        />
+        <div className="flex w-full items-center justify-end gap-2">
+            <Button variant="outline" onClick={onClose} disabled={isLoading}>
+                {tCommon("common.cancel")}
+            </Button>
+            <LoadingButton
+                variant="destructive"
+                loading={isLoading}
+                disabled={!canProceed}
+                onClick={handleDelete}
+            >
+                {t("entityUi.deleteModal.delete")}
+            </LoadingButton>
+        </div>
     )
 }

@@ -1,4 +1,6 @@
-import {RadioGroup, RadioGroupItem} from "@agenta/ui/ui"
+import {useT} from "@agenta/i18n"
+import secretFormCatalog from "@agenta/i18n/catalogs/entityUi.secretForm"
+import {ChoiceSwitch} from "@agenta/ui/ui"
 
 export interface OwnerOption<Owner extends string> {
     value: Owner
@@ -16,31 +18,23 @@ export interface OwnerRadioGroupProps<Owner extends string> {
 }
 
 /**
- * The "Who can use it" choice of an add dialog: one radio per owner, each with a note. The host
- * draws the field label in its own form's style.
+ * The "Who can use it" choice of an add dialog (and Bedrock's "Sign in with"): the shared
+ * two-choice switch, each choice with a note. The host draws the field label in its own form's
+ * style.
  */
 export function OwnerRadioGroup<Owner extends string>({
     value,
     options,
     onChange,
-    "aria-label": ariaLabel = "Who can use it",
+    "aria-label": ariaLabel,
 }: OwnerRadioGroupProps<Owner>) {
+    const t = useT(secretFormCatalog)
     return (
-        <RadioGroup
-            aria-label={ariaLabel}
+        <ChoiceSwitch<Owner>
+            aria-label={ariaLabel ?? t("entityUi.secretForm.whoCanUseIt")}
             value={value}
-            onValueChange={(next) => onChange(next as Owner)}
-            className="flex flex-col gap-2"
-        >
-            {options.map((option) => (
-                <label key={option.value} className="flex cursor-pointer items-start gap-2.5">
-                    <RadioGroupItem value={option.value} className="mt-0.5" />
-                    <span className="flex flex-col gap-0.5">
-                        <span className="text-colorText">{option.label}</span>
-                        <span className="text-[11px] text-colorTextTertiary">{option.note}</span>
-                    </span>
-                </label>
-            ))}
-        </RadioGroup>
+            choices={options}
+            onChange={onChange}
+        />
     )
 }

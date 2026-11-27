@@ -1,0 +1,9 @@
+{
+    "accountsStay": "每个人自己的账号仍保持连接。",
+    "appLoadError": "无法加载此应用。",
+    "connectionStays": "连接仍保留在项目中。",
+    "removeFromAgent": "从 Agent 中移除",
+    "removeTitle": "要从此 Agent 中移除 {{name}} 吗？",
+    "removedState": "此集成已不在 Agent 中。",
+    "tryAgain": "重试"
+}

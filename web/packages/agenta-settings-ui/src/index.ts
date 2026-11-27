@@ -2,6 +2,12 @@ export type {ConfirmDestructive} from "./confirm"
 export {
     default as SettingsPageShell,
     SettingsPageActions,
+    SettingsHeaderActionsProvider,
+    SettingsPageToolbar,
+    SettingsToolbarSlotProvider,
+    type SettingsToolbarSlot,
+    SettingsPageDescription,
+    SettingsVideoButton,
     type SettingsPageShellProps,
 } from "./SettingsPageShell"
 export {ThemePicker, type ThemePickerProps, type ThemeChoice} from "./ThemePicker"
@@ -10,7 +16,6 @@ export {
     PREFERENCE_SECTIONS,
     usePreferenceBindings,
     type PreferencesPageProps,
-    type HostPreferenceItem,
     type PreferenceBinding,
     type PreferenceBindings,
     type PreferenceItem,
@@ -20,7 +25,13 @@ export {
 export {AccountPage, type AccountPageProps} from "./AccountPage"
 export {ApiKeysPage, type ApiKeysPageProps} from "./ApiKeysPage"
 export {NamedSecretTable, type NamedSecretTableProps} from "./secrets/NamedSecretTable"
-export {addAccountOwners, showsYours} from "./shared/accountOwners"
+export {
+    addAccountOwners,
+    ownersWithDefault,
+    PAGE_OWNERS,
+    showsYours,
+    type OwnerFilter,
+} from "./shared/accountOwners"
 export {
     AIProvidersPage,
     SUBSCRIPTION_DOCS_URL,
@@ -130,6 +141,8 @@ export {useToolsConnections, type CreateConnectionInput} from "@agenta/entities/
 // hosts (web/oss, /m) wire to the generated channels client.
 export {
     ChannelsPage,
+    AgentChannelsView,
+    type AgentChannelsViewProps,
     ChannelsPanelSheet,
     useChannelPanel,
     ChannelsHubView,

@@ -10,9 +10,20 @@ import {
     type WorkspaceMember,
 } from "@agenta/entities/organization"
 import {useProfile} from "@agenta/entities/profile"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsOrganizationsTabCatalog from "@agenta/i18n/catalogs/settings.organizationsTab"
 import {OrganizationsPage} from "@agenta/settings-ui"
 import {message} from "@agenta/ui/app-message"
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
     Button,
     Dialog,
     DialogContent,
@@ -32,20 +43,30 @@ import {useRouter} from "next/router"
 import {fetchProjects} from "@/lib/context"
 
 import {groupByOrganization} from "../context/workspaceGroups"
+import {readLimitRefusal} from "../limits/limitRefusal"
+import {LimitRefusalNotice} from "../limits/LimitRefusalNotice"
+import {OrganizationLimitNotice} from "../limits/OrganizationLimitNotice"
+import {useLimitRefusal} from "../limits/useLimitRefusal"
 
-import {ConfirmModal} from "./ConfirmModal"
+import {isAtLimit} from "./licenseApi"
 import {NameDialog} from "./NameDialog"
 import type {SettingsTabProps} from "./settingsTabProps"
 import {switchSettingsContext} from "./switchContext"
+import {invalidateLicenseUsage, useLicenseUsage} from "./useLicenseUsage"
 import {useSettingsOrg} from "./useSettingsOrg"
 
 const errorText = (error: unknown, fallback: string): string => {
-    const axiosLike = error as {response?: {data?: {detail?: string}}; message?: string}
-    return axiosLike?.response?.data?.detail || axiosLike?.message || fallback
+    const axiosLike = error as {
+        response?: {data?: {detail?: string | {message?: string}}}
+        message?: string
+    }
+    const detail = axiosLike?.response?.data?.detail
+    return (typeof detail === "object" ? detail?.message : detail) || axiosLike?.message || fallback
 }
 
 /** Mobile binding: create, rename in place, transfer ownership and delete for organizations. */
-export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
+export const OrganizationsTab = ({workspaceId, projectId}: SettingsTabProps) => {
+    const t = useT(commonCatalog, settingsOrganizationsTabCatalog)
     const router = useRouter()
     const queryClient = useQueryClient()
     const {user} = useProfile()
@@ -59,8 +80,14 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
         void org.refetch()
         // The nav switcher and org switching read org names and projects from this list.
         void queryClient.invalidateQueries({queryKey: ["mobile", "projects"]})
+        // A new or deleted organization changes the count against the instance limit.
+        void invalidateLicenseUsage(queryClient)
     }
     const [creating, setCreating] = useState(false)
+    // The limit shows when the dialog opens, before the reader types a name.
+    const usage = useLicenseUsage(projectId, creating)
+    const organizationsAtLimit = isAtLimit(usage.data?.organizations)
+    const {refusal, refuse, clear: clearRefusal} = useLimitRefusal(usage, usage.data?.organizations)
     const [transferring, setTransferring] = useState<Org | null>(null)
     const [deleting, setDeleting] = useState<Org | null>(null)
     const [pending, setPending] = useState(false)
@@ -69,12 +96,15 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
     const run = async (action: () => Promise<unknown>, fallback: string) => {
         setPending(true)
         setError(null)
+        clearRefusal()
         try {
             await action()
             onChanged()
             return true
         } catch (cause) {
-            setError(errorText(cause, fallback))
+            const limitRefusal = readLimitRefusal(cause)
+            if (limitRefusal) refuse(limitRefusal)
+            else setError(errorText(cause, fallback))
             return false
         } finally {
             setPending(false)
@@ -98,7 +128,12 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
                 const group = groups.find((entry) => entry.organizationId === org.id)
                 const first = group?.projects[0]
                 if (!group || !first) {
-                    message.info(`${org.name ?? "This organization"} has no project to open yet`)
+                    message.info(
+                        t("settings.organizationsTab.noProjectYet", {
+                            name:
+                                org.name ?? t("settings.organizationsTab.thisOrganizationCapital"),
+                        }),
+                    )
                     return
                 }
                 switchSettingsContext(router, {
@@ -108,13 +143,14 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
             }}
             onCreate={() => {
                 setError(null)
+                clearRefusal()
                 setCreating(true)
             }}
             onRename={async (org, name) => {
                 try {
                     await updateOrganization(org.id, {name})
                 } catch (cause) {
-                    throw new Error(errorText(cause, "Couldn't rename this organization"))
+                    throw new Error(errorText(cause, t("settings.organizationsTab.renameFailed")))
                 }
                 onChanged()
             }}
@@ -129,15 +165,38 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
         >
             <NameDialog
                 open={creating}
-                title="New organization"
-                description="An organization groups your workspaces, projects and the people in them."
-                placeholder="Organization name"
-                submitLabel="Create"
+                title={t("settings.organizationsTab.newTitle")}
+                description={t("settings.organizationsTab.newDescription")}
+                placeholder={t("settings.organizationsTab.namePlaceholder")}
+                submitLabel={t("common.create")}
                 pending={pending}
                 error={error}
+                submitDisabled={organizationsAtLimit || Boolean(refusal)}
+                notice={
+                    organizationsAtLimit && usage.data?.organizations ? (
+                        <OrganizationLimitNotice
+                            usage={usage.data.organizations}
+                            workspaceId={workspaceId}
+                            projectId={projectId}
+                            onNavigate={() => setCreating(false)}
+                        />
+                    ) : refusal ? (
+                        <LimitRefusalNotice
+                            refusal={refusal}
+                            workspaceId={workspaceId}
+                            projectId={projectId}
+                            onNavigate={() => setCreating(false)}
+                        />
+                    ) : null
+                }
                 onClose={() => setCreating(false)}
                 onSubmit={async (name) => {
-                    if (await run(() => createOrganization({name}), "Couldn't create it"))
+                    if (
+                        await run(
+                            () => createOrganization({name}),
+                            t("settings.organizationsTab.createFailed"),
+                        )
+                    )
                         setCreating(false)
                 }}
             />
@@ -154,34 +213,69 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
                     const org = transferring
                     const done = await run(
                         () => transferOrganizationOwnership(org.id, userId),
-                        "Couldn't transfer ownership",
+                        t("settings.organizationsTab.transferFailed"),
                     )
                     if (done) setTransferring(null)
                 }}
             />
 
-            <ConfirmModal
+            <AlertDialog
                 open={Boolean(deleting)}
-                title="Delete organization"
-                description="This cannot be undone."
-                body={`Permanently deletes ${deleting?.name ?? "this organization"}, with every workspace, project and agent in it.`}
-                confirmLabel="Delete organization"
-                pending={pending}
-                error={error ?? undefined}
-                onClose={() => setDeleting(null)}
-                onConfirm={async () => {
-                    if (!deleting) return
-                    const org = deleting
-                    const done = await run(
-                        () => deleteOrganization(org.id),
-                        "Couldn't delete this organization",
-                    )
-                    if (!done) return
-                    setDeleting(null)
-                    // The app is scoped to the organization that just went away.
-                    if (org.id === selectedOrgId) void router.replace("/")
+                onOpenChange={(next) => {
+                    if (!next && !pending) setDeleting(null)
                 }}
-            />
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {t("settings.organizationsTab.deleteTitle")}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t("common.thisCannotBeUndone")}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="text-body">
+                        {t("settings.organizationsTab.deleteBody", {
+                            name: deleting?.name ?? t("settings.organizationsTab.thisOrganization"),
+                        })}
+                    </div>
+                    {error ? <p className="m-0 text-body text-destructive">{error}</p> : null}
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                variant="outline"
+                                onClick={() => setDeleting(null)}
+                                disabled={pending}
+                            >
+                                {t("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant="destructive"
+                                disabled={pending}
+                                onClick={async (event) => {
+                                    event.preventDefault()
+                                    if (!deleting) return
+                                    const org = deleting
+                                    const done = await run(
+                                        () => deleteOrganization(org.id),
+                                        t("settings.organizationsTab.deleteFailed"),
+                                    )
+                                    if (!done) return
+                                    setDeleting(null)
+                                    // The app is scoped to the organization that just went away.
+                                    if (org.id === selectedOrgId) void router.replace("/")
+                                }}
+                            >
+                                {pending
+                                    ? t("common.working")
+                                    : t("settings.organizationsTab.deleteTitle")}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </OrganizationsPage>
     )
 }
@@ -203,6 +297,7 @@ const TransferDialog = ({
     onClose: () => void
     onTransfer: (userId: string) => void
 }) => {
+    const t = useT(commonCatalog, settingsOrganizationsTabCatalog)
     const [userId, setUserId] = useState("")
     // Each opening starts with no member chosen.
     useEffect(() => setUserId(""), [org])
@@ -220,16 +315,19 @@ const TransferDialog = ({
         >
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Transfer ownership</DialogTitle>
+                    <DialogTitle>{t("settings.organizationsTab.transferTitle")}</DialogTitle>
                     <DialogDescription>
-                        The new owner gets full control of {org?.name ?? "this organization"}. You
-                        stay a member.
+                        {t("settings.organizationsTab.transferDescription", {
+                            name: org?.name ?? t("settings.organizationsTab.thisOrganization"),
+                        })}
                     </DialogDescription>
                 </DialogHeader>
                 {candidates.length ? (
                     <Select value={userId} onValueChange={setUserId}>
                         <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Choose a member" />
+                            <SelectValue
+                                placeholder={t("settings.organizationsTab.chooseMember")}
+                            />
                         </SelectTrigger>
                         <SelectContent>
                             {candidates.map((member) => (
@@ -240,22 +338,21 @@ const TransferDialog = ({
                         </SelectContent>
                     </Select>
                 ) : (
-                    <p className="m-0 text-sm text-muted-foreground">
-                        Invite someone to this organization first; ownership can only pass to a
-                        member.
+                    <p className="m-0 text-body text-muted-foreground">
+                        {t("settings.organizationsTab.inviteFirst")}
                     </p>
                 )}
                 {error ? (
-                    <p role="alert" className="text-destructive m-0 text-xs">
+                    <p role="alert" className="text-destructive m-0 text-meta">
                         {error}
                     </p>
                 ) : null}
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose} disabled={pending}>
-                        Cancel
+                        {t("common.cancel")}
                     </Button>
                     <Button disabled={!userId || pending} onClick={() => onTransfer(userId)}>
-                        Transfer
+                        {t("settings.organizationsTab.transfer")}
                     </Button>
                 </DialogFooter>
             </DialogContent>

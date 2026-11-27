@@ -1,0 +1,21 @@
+{
+    "acrossDrive": "im gesamten Laufwerk",
+    "agent": "Agent",
+    "back": "zurück",
+    "dismiss": "schließen",
+    "enterSends": "Mit Enter wird die Nachricht wie geschrieben gesendet.",
+    "files": "Dateien",
+    "items": "{{count}} Elemente",
+    "listing": "wird aufgelistet …",
+    "navigate": "navigieren",
+    "noFiles": "Auf diesem Laufwerk gibt es noch keine Dateien",
+    "noMatch": "Keine Datei und kein Ordner passt zu „{{query}}“",
+    "open": "öffnen",
+    "openFolder": "Ordner öffnen",
+    "recentlyTouched": "Zuletzt verwendet",
+    "reference": "referenzieren",
+    "referenceFolder": "Ordner referenzieren",
+    "searchingInside": "Suche in <path>{{cwd}}/</path>",
+    "send": "senden",
+    "session": "Sitzung"
+}

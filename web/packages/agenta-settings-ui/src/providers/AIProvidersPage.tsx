@@ -1,27 +1,36 @@
-import {type ReactNode, useCallback, useMemo} from "react"
+import {type ReactNode, useCallback, useMemo, useState} from "react"
 
 import {
     activeModelsSummary,
-    credentialSummary,
-    deleteSecretAtom,
     isSubscriptionConnection,
+    deleteSecretAtom,
     SecretManagementPolicy,
     providerConnectionsAtom,
     useVaultSecret,
     type ProviderConnection,
 } from "@agenta/entities/secret"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
+import {useConnectionsHeading} from "@agenta/entity-ui/secret"
 import {
+    credentialSummaryText,
+    subscriptionStatusLine,
     type OrganizationProjectChoice,
     type ProviderOwnerChoice,
 } from "@agenta/entity-ui/secretProvider"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsProvidersCatalog from "@agenta/i18n/catalogs/settings.providers"
 import {useAtomValue, useSetAtom} from "jotai"
+
+import {ownerShown, ownersWithDefault, PAGE_OWNERS, type OwnerFilter} from "../shared/accountOwners"
+import {ConnectionsToolbar} from "../shared/ConnectionsToolbar"
 
 import {
     ProvidersPanel,
     type ProviderRemovalState,
     type ProvidersGroup,
     type ProvidersSource,
+    providerTitle,
 } from "./ProvidersPanel"
 import {useOrganizationProvidersGroup} from "./useOrganizationProvidersGroup"
 
@@ -30,14 +39,16 @@ export type {ProviderRemovalState}
 /** The capability map is global; the key only records which surface asked for it. */
 const HARNESS_CATALOG_KEY = "agenta:settings:ai-providers"
 
+const NO_OWNERS: readonly never[] = []
+
 export const SUBSCRIPTION_DOCS_URL = "https://docs.agenta.ai/self-host/quick-start"
 
 /** The deployment kinds the LLM gateway does not serve, so they cannot belong to the organization. */
 const NOT_SHAREABLE_KINDS = new Set(["bedrock"])
 
-/** What the organization's group and the drawer's "Who can use it" need from the host. */
+/** What the organization's group and the drawer's Owner field need from the host. */
 export interface AIProvidersOrganization {
-    /** The current project's name, for "Everyone in {project}". */
+    /** The current project's name, for the Project owner's sentence. */
     projectName: string
     /** The organization's name, for "{org} organization" and the drawer's copy. */
     name: string
@@ -54,60 +65,63 @@ export interface AIProvidersPageProps {
     subscriptionDocsUrl?: string
     /** Adds the organization's group. Absent keeps the project's connections alone. */
     organization?: AIProvidersOrganization
-    /** The project group's heading: the project switch. Absent, it reads "Connected". */
-    projectSwitch?: ReactNode
 }
 
-/** The project's own connections: one row per connection, every provider stays connectable. */
+/** The project's own connections: one row per key or subscription. */
 const useProjectProvidersSource = (): ProvidersSource => {
+    const t = useT(settingsProvidersCatalog, commonCatalog)
     const {loading, mutate} = useVaultSecret()
     const connections = useAtomValue(providerConnectionsAtom)
     const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(HARNESS_CATALOG_KEY))
     const deleteSecret = useSetAtom(deleteSecretAtom)
 
     return useMemo(() => {
-        // Manager-only rows 409 on edit; the drawer still gets every connection so none look
-        // keyless.
+        // Manager-only rows 409 on edit; the drawer still gets every connection.
         const rows = connections.filter(
-            (connection) =>
-                connection.managementPolicy !== SecretManagementPolicy.ManagerOnly &&
-                !isSubscriptionConnection(connection),
+            (connection) => connection.managementPolicy !== SecretManagementPolicy.ManagerOnly,
         )
         return {
             connections,
             rows,
             loading: loading && rows.length === 0,
+            // A subscription has no key and no model list worth a line: its sign-in status only.
             describe: (connection: ProviderConnection) =>
-                [
-                    connection.title !== connection.name ? connection.title : null,
-                    credentialSummary(connection),
-                    activeModelsSummary(connection, capabilities),
-                ]
-                    .filter(Boolean)
-                    .join(" · "),
+                isSubscriptionConnection(connection)
+                    ? subscriptionStatusLine(connection.subscription) || t("common.notConnected")
+                    : [
+                          connection.title !== connection.name
+                              ? providerTitle(connection.kind, connection.title, t)
+                              : null,
+                          credentialSummaryText(connection),
+                          activeModelsSummary(connection, capabilities, {
+                              // No saved list: the row says nothing about models.
+                              defaults: "",
+                              active: (active, total) =>
+                                  t("settings.providers.modelsActive", {active, total}),
+                          }),
+                      ]
+                          .filter(Boolean)
+                          .join(" · "),
             manage: true,
+            offersSubscriptions: true,
             remove: async (connection: ProviderConnection) => {
                 await deleteSecret(connection.source)
                 mutate()
             },
             removeFailed: (_failure: unknown, connection: ProviderConnection) =>
-                `Agenta could not remove ${connection.name}. Try again.`,
+                t("settings.providers.removeFailed", {name: connection.name}),
             onSaved: mutate,
         }
-    }, [connections, loading, capabilities, deleteSecret, mutate])
+    }, [connections, loading, capabilities, deleteSecret, mutate, t])
 }
 
-/**
- * Settings → AI providers: the subscription cards, the project's connections under the project
- * switch, the organization's connections, then the catalog. A new connection belongs to the
- * project; someone who may manage the organization's connections chooses in the drawer.
- */
+/** Settings → AI providers: one Connected list, the sign-ins to start, then the catalog. */
 export const AIProvidersPage = ({
     renderRemoveDialog,
     subscriptionDocsUrl = SUBSCRIPTION_DOCS_URL,
     organization,
-    projectSwitch,
 }: AIProvidersPageProps) => {
+    const t = useT(settingsProvidersCatalog, commonCatalog)
     const project = useProjectProvidersSource()
     const scope = useMemo(
         () =>
@@ -121,13 +135,23 @@ export const AIProvidersPage = ({
         [organization],
     )
     const {group: organizationGroup, manageScope} = useOrganizationProvidersGroup(scope)
+    const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>("all")
+    const connectionsHeading = useConnectionsHeading()
+    const [search, setSearch] = useState("")
 
-    const groups = useMemo<ProvidersGroup[]>(
-        () => [
-            {key: "project", label: projectSwitch ?? "Connected", source: project},
-            ...(organizationGroup ? [organizationGroup] : []),
-        ],
-        [projectSwitch, project, organizationGroup],
+    const projectGroup = useMemo<ProvidersGroup>(
+        () => ({key: "project", owner: "project" as const, source: project}),
+        [project],
+    )
+    const shownGroups = useMemo(
+        () =>
+            [
+                ownerShown(ownerFilter, "project") ? projectGroup : null,
+                organizationGroup && ownerShown(ownerFilter, "organization")
+                    ? organizationGroup
+                    : null,
+            ].filter((group): group is ProvidersGroup => group !== null),
+        [organizationGroup, ownerFilter, projectGroup],
     )
 
     const ownerChoiceFor = useCallback(
@@ -137,19 +161,33 @@ export const AIProvidersPage = ({
                       projectName: organization.projectName,
                       organization: manageScope,
                       connections: organizationGroup?.source.connections ?? [],
+                      defaultOwner: ownersWithDefault(PAGE_OWNERS.providers, ownerFilter)[0],
                   }
                 : undefined,
-        [organization, manageScope, organizationGroup],
+        [organization, manageScope, organizationGroup, ownerFilter],
     )
 
     return (
-        <ProvidersPanel
-            groups={groups}
-            subscriptions={project.connections}
-            ownerChoiceFor={ownerChoiceFor}
-            loading={project.loading}
-            renderRemoveDialog={renderRemoveDialog}
-            subscriptionDocsUrl={subscriptionDocsUrl}
-        />
+        <>
+            <ConnectionsToolbar
+                search={search}
+                onSearchChange={setSearch}
+                searchPlaceholder={t("settings.providers.searchProviders")}
+                owners={organizationGroup ? PAGE_OWNERS.providers : NO_OWNERS}
+                owner={ownerFilter}
+                onOwnerChange={setOwnerFilter}
+            />
+            <ProvidersPanel
+                groups={shownGroups}
+                query={search}
+                projectGroup={projectGroup}
+                ownerChoiceFor={ownerChoiceFor}
+                loading={project.loading}
+                ownerChips={ownerFilter === "all" && Boolean(organizationGroup)}
+                connectedLabel={organizationGroup ? connectionsHeading(ownerFilter) : undefined}
+                renderRemoveDialog={renderRemoveDialog}
+                subscriptionDocsUrl={subscriptionDocsUrl}
+            />
+        </>
     )
 }

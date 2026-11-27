@@ -29,12 +29,14 @@
  * hover colour/underline), the "Click to edit" tooltip, the italic placeholder, and the
  * fixed `w-32` edit input are all carried over unchanged.
  * Two deliberate deviations from the pre-migration render:
- *  - text is `text-xs` (12px), was `text-sm` — the app-wide default UI size.
- *  - `hover:text-blue-600` / `text-gray-400` → the semantic `colorPrimary` /
- *    `colorTextTertiary` tokens, so both themes are covered.
+ *  - text is `text-label` (13px), the default for single-line UI.
+ *  - hover goes from `muted-foreground` to `foreground`, so both themes are covered.
  */
 
 import {useState, useEffect, useCallback} from "react"
+
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 
 import {Input} from "../../ui/input"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
@@ -72,14 +74,17 @@ export interface EditableTextProps {
 export function EditableText({
     value,
     onChange,
-    placeholder = "Enter value...",
+    placeholder: placeholderProp,
     className = "",
-    tooltip = "Click to edit",
+    tooltip: tooltipProp,
     onEditingChange,
     allowEmpty = false,
     inputWidth = "w-32",
     monospace = true,
 }: EditableTextProps) {
+    const t = useT(uiControlsCatalog)
+    const placeholder = placeholderProp ?? t("ui.controls.enterValue")
+    const tooltip = tooltipProp ?? t("ui.controls.clickToEdit")
     const [isEditing, setIsEditing] = useState(false)
     const [editValue, setEditValue] = useState(value)
 
@@ -139,7 +144,7 @@ export function EditableText({
                 onKeyDown={handleKeyDown}
                 placeholder={placeholder}
                 autoFocus
-                className={`${inputWidth} ${monospace ? "font-mono" : ""} text-xs`}
+                className={`${inputWidth} ${monospace ? "text-code-sm" : "text-label"}`}
             />
         )
     }
@@ -149,13 +154,13 @@ export function EditableText({
             <Tooltip>
                 <TooltipTrigger asChild>
                     <span
-                        className={`text-xs cursor-pointer hover:text-colorPrimary hover:underline ${
+                        className={`text-label cursor-pointer hover:text-foreground hover:underline ${
                             monospace ? "font-mono" : ""
                         } ${className}`}
                         onClick={handleStartEdit}
                     >
                         {value || (
-                            <span className="text-colorTextTertiary italic">{placeholder}</span>
+                            <span className="text-muted-foreground italic">{placeholder}</span>
                         )}
                     </span>
                 </TooltipTrigger>

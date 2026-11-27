@@ -1,11 +1,13 @@
 from hmac import compare_digest
-from typing import Any, List, Optional, Union
+from typing import TYPE_CHECKING, Any, List, Optional, Union
 from uuid import UUID
 
 from fastapi import APIRouter, Query, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from oss.src.middlewares.auth import (
+    run_agent_id_of_request,
+    run_session_id_of_request,
     SECRET_RESOLVE_GRANT,
     request_run_envelope,
     sign_secret_token,
@@ -16,21 +18,20 @@ from oss.src.utils.context import get_auth_context, get_auth_scope
 from oss.src.utils.common import is_ee
 from oss.src.utils.exceptions import intercept_exceptions
 
-from agenta.sdk.agents.accounts import user_item_from_key
-
 from oss.src.core.access.dtos import RequestCredentialKind, RunEnvelope
 from oss.src.core.access.permissions.types import Permission
-from oss.src.core.account_choices.claims import sign_run_accounts
-from oss.src.core.account_choices.dtos import MAX_RUN_ITEM_KEYS
-from oss.src.core.account_choices.policy import personal_accounts_enabled
-from oss.src.core.gateways.run_claims import run_accounts
+from oss.src.core.account_choices.claims import exchange_run_accounts
 from oss.src.core.access.context import get_request_access
 from oss.src.core.access.principals import access_denied_error
 from oss.src.core.access.service import get_access_service
 from oss.src.core.access.types import RbacEntitlementUnavailable
 from oss.src.core.access.permissions.controls import SCOPES
 from oss.src.core.access.controls import get_roles
+from oss.src.core.sharing.admission import bind_run_session
 from oss.src.apis.fastapi.access.models import AccessRolesResponse
+
+if TYPE_CHECKING:
+    from oss.src.core.workflows.service import WorkflowsService
 
 if is_ee():
     from ee.src.core.access.entitlements.service import check_entitlements, Counter
@@ -159,44 +160,12 @@ def _run_credential_grants(request: Request, *, action: Optional[str]) -> List[s
     ]
 
 
-async def _run_accounts_of_exchange(
-    request: Request,
-    *,
-    envelope: RunEnvelope,
-    workflow_id: Optional[UUID],
-    item_keys: Optional[List[str]],
-) -> Optional[List[dict]]:
-    """The `run_accounts` claim of the credential this exchange returns.
-
-    A run credential carries its own claim on, unchanged. Otherwise this is the first
-    mint of a playground or chat turn: the agent service names the turn's agent and the
-    item keys of its "user" items, read from the configuration it runs, and the accounts
-    resolve here in one statement for the run person. The keys only select which of the
-    caller's own accounts to look up, so a caller can never reach another person's
-    account. No keys: no read, as for every agent without "user" items."""
-    access = get_request_access()
-    if (
-        access is not None
-        and access.credential_kind == RequestCredentialKind.RUN_CREDENTIAL
-    ):
-        # A renewed credential drops the claim once the switch is off.
-        if not personal_accounts_enabled():
-            return None
-        return run_accounts(request) or None
-    items = [
-        item
-        for item in (
-            user_item_from_key(key) for key in (item_keys or ())[:MAX_RUN_ITEM_KEYS]
-        )
-        if item is not None
-    ]
-    return await sign_run_accounts(
-        envelope=envelope, items=items, artifact_id=workflow_id
-    )
-
-
 class AccessRouter:
-    def __init__(self) -> None:
+    def __init__(
+        self, *, workflows_service: Optional["WorkflowsService"] = None
+    ) -> None:
+        # Resolves the agent a first mint names, for the `run_agent_id` claim.
+        self.workflows_service = workflows_service
         self.router = APIRouter()
 
         self.router.add_api_route(
@@ -213,6 +182,55 @@ class AccessRouter:
             operation_id="fetch_access_roles",
             response_model=AccessRolesResponse,
         )
+
+    async def _run_agent_id_of_exchange(
+        self, request: Request, *, envelope: RunEnvelope, workflow_id: Optional[UUID]
+    ) -> Optional[UUID]:
+        """The `run_agent_id` claim of the credential this exchange returns. A run
+        credential carries its own claim on, unchanged. A first mint (a turn the agent
+        service runs for an API key or a browser session) gets the agent the service
+        names, only after the API resolves it in the caller's project and the caller
+        may run it."""
+
+        access = get_request_access()
+        if (
+            access is not None
+            and access.credential_kind == RequestCredentialKind.RUN_CREDENTIAL
+        ):
+            return run_agent_id_of_request(request)
+        if workflow_id is None or self.workflows_service is None:
+            return None
+        run_agent_id = await self.workflows_service.resolve_run_agent_id(
+            project_id=envelope.authority.project_id,
+            envelope=envelope,
+            references={"workflow": {"id": str(workflow_id)}},
+        )
+        if run_agent_id is not None:
+            # A first mint starts a run: its static agent's drive exists before the
+            # runner signs the run's drives.
+            await self.workflows_service.ensure_static_agent_drive(
+                project_id=envelope.authority.project_id,
+                envelope=envelope,
+                artifact_id=run_agent_id,
+            )
+        return run_agent_id
+
+    async def _run_session_id_of_exchange(
+        self, request: Request, *, envelope: RunEnvelope, session_id: Optional[str]
+    ) -> Optional[str]:
+        """The `run_session_id` claim of the credential this exchange returns. A run
+        credential carries its own claim on, unchanged, and never takes the named
+        session. A first mint (a turn the agent service runs for an API key or a
+        browser session) names the turn's session only when `bind_run_session` allows
+        it."""
+
+        access = get_request_access()
+        if (
+            access is not None
+            and access.credential_kind == RequestCredentialKind.RUN_CREDENTIAL
+        ):
+            return run_session_id_of_request(request)
+        return await bind_run_session(envelope=envelope, session_id=session_id)
 
     @intercept_exceptions()
     async def fetch_roles(self) -> AccessRolesResponse:
@@ -244,6 +262,7 @@ class AccessRouter:
         without_grants: bool = Query(False),
         workflow_id: Optional[UUID] = Query(None),
         item_keys: Optional[List[str]] = Query(None),
+        session_id: Optional[str] = Query(None),
     ):
         """Evaluate a permission against the AUTHENTICATED scope.
 
@@ -252,6 +271,10 @@ class AccessRouter:
         `project_id` query param the auth middleware reads — a session with no explicit
         `project_id` is scoped to the default project, and any other `scope_id` is denied
         regardless of the caller's role there.
+
+        `session_id` is the session of the turn the agent service starts. A first mint
+        writes it as the `run_session_id` claim only when `bind_run_session` allows; a
+        renewal ignores it and carries its own claim.
         """
         ctx = get_auth_context()
         project_id = str(ctx.scope.project_id)
@@ -338,7 +361,7 @@ class AccessRouter:
         if envelope is None:
             raise Deny()
         secret_token = await sign_secret_token(
-            run_accounts=await _run_accounts_of_exchange(
+            run_accounts=await exchange_run_accounts(
                 request,
                 envelope=envelope,
                 workflow_id=workflow_id,
@@ -351,5 +374,11 @@ class AccessRouter:
             organization_name=getattr(request.state, "organization_name", None),
             grants=grants or None,
             envelope=envelope,
+            run_agent_id=await self._run_agent_id_of_exchange(
+                request, envelope=envelope, workflow_id=workflow_id
+            ),
+            run_session_id=await self._run_session_id_of_exchange(
+                request, envelope=envelope, session_id=session_id
+            ),
         )
         return Allow(f"Secret {secret_token}")

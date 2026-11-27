@@ -2,7 +2,7 @@
 import {act, type ReactNode} from "react"
 
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
-import {QueryClient} from "@tanstack/react-query"
+import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {createRoot, type Root} from "react-dom/client"
@@ -28,9 +28,6 @@ vi.mock("@/features/skills/SkillListTable", () => ({SkillListTable: () => null})
 vi.mock("@agenta/skills-ui", async (original) => ({
     ...(await original<object>()),
     NewSkillMenuButton: () => null,
-    SkillCreateDrawer: () => null,
-    SkillDetailDrawer: () => null,
-    SkillImportDrawer: () => null,
 }))
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
@@ -38,6 +35,7 @@ vi.mock("@agenta/skills-ui", async (original) => ({
 import {SkillListScreen} from "@/features/skills/SkillListScreen"
 
 const store = getDefaultStore()
+let queryClient: QueryClient
 
 let root: Root | undefined
 let host: HTMLDivElement | undefined
@@ -50,7 +48,8 @@ const typeInto = (input: HTMLInputElement, value: string) => {
 
 beforeEach(() => {
     vi.useFakeTimers()
-    store.set(queryClientAtom, new QueryClient({defaultOptions: {queries: {retry: false}}}))
+    queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}})
+    store.set(queryClientAtom, queryClient)
     store.set(projectIdAtom, "proj-1")
     store.set(sessionAtom, true)
     api.queryRegistrySkills.mockResolvedValue({
@@ -73,7 +72,12 @@ describe("SkillListScreen search", () => {
         document.body.appendChild(host)
         root = createRoot(host)
         await act(async () => {
-            root!.render(<SkillListScreen workspaceId="ws-1" projectId="proj-1" />)
+            // The row and bulk actions read the query client from the provider.
+            root!.render(
+                <QueryClientProvider client={queryClient}>
+                    <SkillListScreen workspaceId="ws-1" projectId="proj-1" />
+                </QueryClientProvider>,
+            )
         })
         await act(async () => {
             await vi.advanceTimersByTimeAsync(10)

@@ -1,0 +1,21 @@
+{
+    "maxCharacters": "Máximo {{count}} caracteres.",
+    "filledFromPaste": "Rellenado a partir del skill pegado",
+    "download": "Descargar",
+    "addAFile": "Añadir un archivo",
+    "untitled": "sin título",
+    "name": "Nombre",
+    "nameTooltip": "Solo letras minúsculas, números y guiones.",
+    "useSuggestion": "Usar «{{name}}»",
+    "description": "Descripción",
+    "descriptionTooltip": "Indica al agente cuándo usar este skill.",
+    "descriptionPlaceholder": "Cuándo debe recurrir el agente a este skill",
+    "bodyPlaceholder": "# Mi skill\n\nInstrucciones paso a paso que sigue el agente…",
+    "markExecutable": "Marcar como ejecutable",
+    "fileContent": "Contenido del archivo",
+    "advanced": "Avanzado",
+    "hideFromPrompt": "Ocultar del prompt",
+    "hideFromPromptHint": "El agente no elegirá este skill por su cuenta. Lo ejecutas tú con /skill:{{name}}.",
+    "allowExecutable": "Permitir archivos ejecutables",
+    "allowExecutableHint": "Permite que los archivos de este skill se ejecuten como programas. La configuración de tu sandbox también debe permitirlo."
+}

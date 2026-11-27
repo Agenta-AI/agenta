@@ -1,17 +1,13 @@
 import {
     providerIconFor,
-    SubscriptionConnectionCard,
-    SubscriptionSignInDialog,
+    subscriptionSignInView,
+    subscriptionTokenView,
 } from "@agenta/entity-ui/secretProvider"
+import {useT} from "@agenta/i18n"
+import creditsCatalog from "@agenta/i18n/catalogs/onboarding.credits"
 import {LoadError} from "@agenta/ui/components/presentational"
-import {
-    Button,
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
+import {useViewOpener} from "@agenta/ui/view-stack"
 import {ArrowRight, Check, Coins, OpenAiLogo} from "@phosphor-icons/react"
 
 import {cn} from "@/lib/utils"
@@ -19,17 +15,16 @@ import {cn} from "@/lib/utils"
 import {WalletCard} from "../wallet/WalletCard"
 import {formatUsd, MUSD_PER_CREDIT} from "../wallet/walletFormat"
 
-import {ONBOARDING_COPY} from "./onboardingCopy"
 import {OnboardingKeyRow} from "./OnboardingKeyRow"
 import {onboardingHeadingId} from "./onboardingRoute"
+import {ONBOARDING_STYLE} from "./onboardingStyle"
 import {OnboardingWayRow} from "./OnboardingWayRow"
 import {OnboardingCreditsSkeleton} from "./states/OnboardingCreditsSkeleton"
 import type {OnboardingModel} from "./useOnboardingModel"
 
-const copy = ONBOARDING_COPY.model
 const PILL =
-    "bg-success-bg text-success inline-flex h-[22px] items-center gap-1 rounded-md px-2 text-xs font-medium leading-4"
-const ACTION = "h-7 rounded-md px-2.5 text-xs font-medium"
+    "bg-success/10 text-success inline-flex h-5 items-center gap-1 rounded-sm px-1.5 text-caption"
+const ACTION = "h-control-sm px-2 text-label"
 const ClaudeLogo = providerIconFor("anthropic")
 
 /** The wallet step: the organization's real credits, and the other ways to pay for runs. */
@@ -40,24 +35,46 @@ export const OnboardingCreditsStep = ({
     model: OnboardingModel
     onContinue: () => void
 }) => {
+    const t = useT(creditsCatalog)
     const {credits, chatgpt, claude, keys} = model
+    // The subscription views, in a drawer. The Claude token view's Save goes back, and the
+    // ChatGPT sign-in view goes back by itself when the sign-in arrives; both close the drawer.
+    const views = useViewOpener()
+    const connectChatgpt = () => {
+        chatgpt.setDialogOpen(true)
+        void views.open(
+            subscriptionSignInView,
+            {provider: "chatgpt", connectionId: chatgpt.connection?.id, start: true},
+            {kind: "project"},
+        )
+    }
+    const connectClaude = () => {
+        claude.setDialogOpen(true)
+        void views.open(
+            subscriptionTokenView,
+            {provider: "claude", connectionId: claude.connection?.id},
+            {kind: "project"},
+        )
+    }
     const balance = credits?.balanceMusd ?? null
     const heading = credits
         ? balance !== null
             ? {
-                  kicker: copy.kicker,
-                  title: copy.title(Math.round(balance / MUSD_PER_CREDIT).toLocaleString()),
-                  subtitle: copy.subtitle(formatUsd(balance)),
+                  kicker: t("onboarding.credits.kicker"),
+                  title: t("onboarding.credits.title", {
+                      credits: Math.round(balance / MUSD_PER_CREDIT).toLocaleString(),
+                  }),
+                  subtitle: t("onboarding.credits.subtitle", {usd: formatUsd(balance)}),
               }
             : {
-                  kicker: copy.kicker,
-                  title: copy.creditsOnlyTitle,
-                  subtitle: copy.creditsOnlySubtitle,
+                  kicker: t("onboarding.credits.kicker"),
+                  title: t("onboarding.credits.creditsOnlyTitle"),
+                  subtitle: t("onboarding.credits.creditsOnlySubtitle"),
               }
         : {
-              kicker: copy.noCreditsKicker,
-              title: copy.noCreditsTitle,
-              subtitle: copy.noCreditsSubtitle,
+              kicker: t("onboarding.credits.noCreditsKicker"),
+              title: t("onboarding.credits.noCreditsTitle"),
+              subtitle: t("onboarding.credits.noCreditsSubtitle"),
           }
 
     const ways = (
@@ -67,13 +84,13 @@ export const OnboardingCreditsStep = ({
                     delay={0.2}
                     highlight
                     icon={<Coins size={15} />}
-                    title={copy.creditsTitle}
-                    hint={copy.creditsHint}
+                    title={t("onboarding.credits.creditsTitle")}
+                    hint={t("onboarding.credits.creditsHint")}
                     action={
                         credits.inUse ? (
                             <span className={PILL}>
-                                <Check size={11} weight="bold" />
-                                {copy.inUse}
+                                <Check size={11} />
+                                {t("onboarding.credits.inUse")}
                             </span>
                         ) : null
                     }
@@ -83,21 +100,23 @@ export const OnboardingCreditsStep = ({
                 <OnboardingWayRow
                     delay={0.32}
                     icon={<OpenAiLogo size={15} />}
-                    title={copy.chatgpt}
-                    hint={chatgpt.ready ? copy.chatgptReadyHint : copy.chatgptHint}
+                    title={t("onboarding.credits.chatgpt")}
+                    hint={
+                        chatgpt.ready
+                            ? t("onboarding.credits.chatgptReadyHint")
+                            : t("onboarding.credits.chatgptHint")
+                    }
                     action={
                         chatgpt.ready ? (
                             <span className={PILL}>
-                                <Check size={11} weight="bold" />
-                                {chatgpt.inUse ? copy.inUse : copy.connected}
+                                <Check size={11} />
+                                {chatgpt.inUse
+                                    ? t("onboarding.credits.inUse")
+                                    : t("onboarding.credits.connected")}
                             </span>
                         ) : (
-                            <Button
-                                variant="outline"
-                                className={ACTION}
-                                onClick={() => chatgpt.setDialogOpen(true)}
-                            >
-                                {copy.connect}
+                            <Button variant="outline" className={ACTION} onClick={connectChatgpt}>
+                                {t("onboarding.credits.connect")}
                             </Button>
                         )
                     }
@@ -106,22 +125,24 @@ export const OnboardingCreditsStep = ({
             {claude.available ? (
                 <OnboardingWayRow
                     delay={0.38}
-                    icon={<ClaudeLogo className="size-[15px]" />}
-                    title={copy.claude}
-                    hint={claude.ready ? copy.claudeReadyHint : copy.claudeHint}
+                    icon={<ClaudeLogo className="size-4" />}
+                    title={t("onboarding.credits.claude")}
+                    hint={
+                        claude.ready
+                            ? t("onboarding.credits.claudeReadyHint")
+                            : t("onboarding.credits.claudeHint")
+                    }
                     action={
                         claude.ready ? (
                             <span className={PILL}>
-                                <Check size={11} weight="bold" />
-                                {claude.inUse ? copy.inUse : copy.connected}
+                                <Check size={11} />
+                                {claude.inUse
+                                    ? t("onboarding.credits.inUse")
+                                    : t("onboarding.credits.connected")}
                             </span>
                         ) : (
-                            <Button
-                                variant="outline"
-                                className={ACTION}
-                                onClick={() => claude.setDialogOpen(true)}
-                            >
-                                {copy.connect}
+                            <Button variant="outline" className={ACTION} onClick={connectClaude}>
+                                {t("onboarding.credits.connect")}
                             </Button>
                         )
                     }
@@ -134,22 +155,22 @@ export const OnboardingCreditsStep = ({
     return (
         <div className="flex flex-col gap-8">
             <div className="flex flex-col gap-1.5">
-                <span className={ONBOARDING_COPY.kickerClass}>{heading.kicker}</span>
+                <span className={ONBOARDING_STYLE.kickerClass}>{heading.kicker}</span>
                 <h1
                     id={onboardingHeadingId("credits")}
                     tabIndex={-1}
-                    className="m-0 text-[32px] font-semibold leading-[38px] tracking-[-0.02em] text-balance outline-none"
+                    className="m-0 text-heading text-balance outline-none"
                 >
                     {heading.title}
                 </h1>
-                <p className="text-muted-foreground m-0 text-sm leading-[21px] text-pretty">
+                <p className="text-muted-foreground m-0 text-body text-pretty">
                     {heading.subtitle}
                 </p>
             </div>
             {model.status === "loading" ? (
                 <OnboardingCreditsSkeleton />
             ) : model.status === "error" ? (
-                <LoadError title={copy.loadError} onRetry={model.retry} />
+                <LoadError title={t("onboarding.credits.loadError")} onRetry={model.retry} />
             ) : (
                 <div className="flex flex-col gap-2">
                     <div
@@ -160,29 +181,30 @@ export const OnboardingCreditsStep = ({
                     >
                         {credits ? (
                             <div className="flex flex-col gap-2 max-sm:mb-6">
-                                <span className={ONBOARDING_COPY.kickerClass}>{copy.wallet}</span>
+                                <span className={ONBOARDING_STYLE.kickerClass}>
+                                    {t("onboarding.credits.wallet")}
+                                </span>
                                 <WalletCard
                                     balanceMusd={balance}
-                                    emptyHint={copy.creditsHint}
+                                    emptyHint={t("onboarding.credits.creditsHint")}
                                     countUp
                                     entrance
-                                    interactive
-                                    glow
-                                    // Fills the column, so the glow lands under the row as in the design.
                                     className="sm:flex-1"
                                 />
                             </div>
                         ) : null}
                         <div className="flex flex-col gap-2">
                             {credits ? (
-                                <span className={ONBOARDING_COPY.kickerClass}>{copy.ways}</span>
+                                <span className={ONBOARDING_STYLE.kickerClass}>
+                                    {t("onboarding.credits.ways")}
+                                </span>
                             ) : null}
                             {ways}
                         </div>
                     </div>
                     {!model.ready ? (
-                        <p role="status" className="text-muted-foreground m-0 pt-2 text-sm">
-                            {copy.noneRunnable}
+                        <p role="status" className="text-muted-foreground m-0 pt-2 text-body">
+                            {t("onboarding.credits.noneRunnable")}
                         </p>
                     ) : null}
                 </div>
@@ -191,34 +213,13 @@ export const OnboardingCreditsStep = ({
                 <Button
                     onClick={onContinue}
                     disabled={model.status === "loading"}
-                    className="max-sm:h-11 max-sm:w-full"
+                    className="max-sm:w-full"
                 >
-                    {ONBOARDING_COPY.continue}
+                    {t("onboarding.credits.continue")}
                     <ArrowRight data-icon="inline-end" />
                 </Button>
             </div>
-            <Dialog open={chatgpt.dialogOpen} onOpenChange={chatgpt.setDialogOpen}>
-                <DialogContent className="sm:max-w-[480px]">
-                    <DialogHeader>
-                        <DialogTitle>{copy.chatgptDialogTitle}</DialogTitle>
-                        <DialogDescription>{copy.chatgptDialogBody}</DialogDescription>
-                    </DialogHeader>
-                    {chatgpt.dialogOpen ? (
-                        <SubscriptionConnectionCard
-                            provider="chatgpt"
-                            connection={chatgpt.connection}
-                            autoStart
-                        />
-                    ) : null}
-                </DialogContent>
-            </Dialog>
-            <SubscriptionSignInDialog
-                open={claude.dialogOpen}
-                onClose={() => claude.setDialogOpen(false)}
-                provider="claude"
-                connection={claude.connection}
-                logo={<ClaudeLogo />}
-            />
+            {views.drawer}
         </div>
     )
 }

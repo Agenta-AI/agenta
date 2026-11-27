@@ -1,6 +1,8 @@
 // Note box under a quoted span. Enter stages, ⌘/Ctrl+Enter sends, Esc or an outside press cancels.
 import {useEffect, useLayoutEffect, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiQuoteSelectionCatalog from "@agenta/i18n/catalogs/ui.quoteSelection"
 import {truncateQuoteText, type Quote} from "@agenta/shared/quotes"
 import {ArrowUp, Quotes} from "@phosphor-icons/react"
 
@@ -39,6 +41,7 @@ export const QuoteNote = ({
     onCancel,
     initialNote,
 }: QuoteNoteProps) => {
+    const t = useT(uiQuoteSelectionCatalog)
     const ref = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
     const [note, setNote] = useState(initialNote ?? "")
@@ -87,8 +90,8 @@ export const QuoteNote = ({
             ref={ref}
             data-quote-ignore="true"
             role="dialog"
-            aria-label="Reply to the selected part"
-            className="absolute z-30 flex flex-col overflow-hidden rounded-lg bg-popover shadow-lg"
+            aria-label={t("ui.quoteSelection.replyToSelection")}
+            className="absolute z-30 flex flex-col overflow-hidden rounded-lg bg-popover shadow-overlay"
             style={{top, left, width, opacity: height ? 1 : 0}}
             onKeyDown={(e) => {
                 if (e.key === "Escape") {
@@ -105,7 +108,7 @@ export const QuoteNote = ({
                     weight="fill"
                     className="mt-[3px] shrink-0 text-muted-foreground"
                 />
-                <p className="m-0 line-clamp-2 text-[13px] leading-5 text-muted-foreground">
+                <p className="m-0 line-clamp-2 text-label leading-5 text-muted-foreground">
                     {truncateQuoteText(quote.text, 220)}
                 </p>
             </div>
@@ -121,8 +124,8 @@ export const QuoteNote = ({
                         else onStage(note)
                     }}
                     rows={2}
-                    placeholder="Ask about this…"
-                    className="max-h-32 min-h-10 resize-none border-0 bg-transparent p-0 font-[inherit] text-[13px] leading-5 text-popover-foreground outline-none [field-sizing:content] placeholder:text-muted-foreground"
+                    placeholder={t("ui.quoteSelection.askAboutThis")}
+                    className="max-h-32 min-h-10 resize-none border-0 bg-transparent p-0 font-[inherit] text-label leading-5 text-popover-foreground outline-none [field-sizing:content] placeholder:text-muted-foreground"
                 />
                 <TooltipProvider delayDuration={TOOLTIP_DELAY_MS}>
                     <Tooltip>
@@ -130,7 +133,7 @@ export const QuoteNote = ({
                             <Button
                                 size="icon-sm"
                                 className="self-end"
-                                aria-label="Add to message"
+                                aria-label={t("ui.quoteSelection.addToMessage")}
                                 aria-keyshortcuts="Enter"
                                 onClick={() => onStage(note)}
                             >
@@ -139,9 +142,9 @@ export const QuoteNote = ({
                         </TooltipTrigger>
                         <TooltipContent>
                             <span className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1">
-                                Add to message
+                                {t("ui.quoteSelection.addToMessage")}
                                 <ShortcutKeys chord={{key: "↵"}} tone="inverse" aria-hidden />
-                                Send now
+                                {t("ui.quoteSelection.sendNow")}
                                 <ShortcutKeys
                                     chord={{modifiers: ["mod"], key: "↵"}}
                                     tone="inverse"

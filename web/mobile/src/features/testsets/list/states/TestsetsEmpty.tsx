@@ -7,14 +7,14 @@ import {
     EmptyMedia,
     EmptyTitle,
 } from "@agenta/ui/ui"
-import {Table2} from "lucide-react"
+import {TableIcon} from "@phosphor-icons/react"
 
 /** The project has no testsets at all. Offers the way to make one, to a reader who may. */
 export const TestsetsEmpty = ({onCreate}: {onCreate?: () => void}) => (
     <Empty className="py-14">
         <EmptyHeader>
             <EmptyMedia variant="icon">
-                <Table2 />
+                <TableIcon />
             </EmptyMedia>
             <EmptyTitle className="text-foreground">No test sets yet</EmptyTitle>
             <EmptyDescription>
@@ -24,7 +24,7 @@ export const TestsetsEmpty = ({onCreate}: {onCreate?: () => void}) => (
         {onCreate ? (
             <EmptyContent>
                 <Button size="sm" onClick={onCreate}>
-                    Create new testset
+                    Create test set
                 </Button>
             </EmptyContent>
         ) : null}

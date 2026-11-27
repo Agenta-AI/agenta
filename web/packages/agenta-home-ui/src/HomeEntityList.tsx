@@ -2,6 +2,8 @@ import {useCallback, useEffect, useRef, useState, type ReactNode} from "react"
 
 import {templateProviderSlugs, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {AgentChip} from "@agenta/entity-ui/agent"
+import {useT} from "@agenta/i18n"
+import entityListCatalog from "@agenta/i18n/catalogs/home.entityList"
 import {ArrowRightIcon, CheckIcon, ListBulletsIcon} from "@phosphor-icons/react"
 import Link from "next/link"
 
@@ -48,19 +50,20 @@ export interface HomeEntityListProps {
 }
 
 /** The mobile theme's focus recipe. No `ring-offset`: this theme provides none. */
-const FOCUS_RING = "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+const FOCUS_RING = "focus-visible:border-ring focus-ring"
 
 const TAB_BASE =
-    "box-border cursor-pointer appearance-none border-0 border-b-2 border-solid bg-transparent px-0.5 pb-[7px] font-[inherit] text-sm leading-[1.4] outline-none transition-colors " +
+    "box-border cursor-pointer appearance-none whitespace-nowrap border-0 border-b-2 border-solid bg-transparent px-0.5 pb-2 font-[inherit] text-label outline-none transition-colors " +
     FOCUS_RING
-const TAB_ON = "border-b-foreground font-medium text-foreground"
-const TAB_OFF = "border-b-transparent font-normal text-muted-foreground hover:text-foreground"
+const TAB_ON = "border-b-foreground text-foreground"
+const TAB_OFF = "border-b-transparent text-muted-foreground hover:text-foreground"
 
 /** How many templates the tab shows before handing off to the gallery. */
 const TEMPLATE_SHORTLIST = 5
 
+// row-double (48px), 12px padding that hangs outside the column's edge (ROW-01, ALIGN-01).
 const ROW =
-    "box-border flex w-full cursor-pointer appearance-none items-center gap-3.5 rounded-[10px] border-0 bg-transparent px-3.5 py-2 text-left font-[inherit] outline-none transition-colors hover:bg-accent " +
+    "box-border flex h-row-double w-full shrink-0 cursor-pointer appearance-none items-center gap-3 rounded-md border-0 bg-transparent px-3 py-0 text-left font-[inherit] outline-none transition-colors hover:bg-accent " +
     FOCUS_RING
 
 /** One row: a tile, the name over its description, and whatever marks the source carries. */
@@ -78,25 +81,32 @@ const Row = ({
     marks?: ReactNode
     selected?: boolean
     onClick: () => void
-}) => (
-    <button type="button" onClick={onClick} className={`${ROW} ${selected ? "bg-accent" : ""}`}>
-        {tile}
-        {/* The description line renders even when empty, so rows keep one height and the column
+}) => {
+    const t = useT(entityListCatalog)
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className={`${ROW} ${selected ? "bg-selected" : ""}`}
+        >
+            {tile}
+            {/* The description line renders even when empty, so rows keep one height and the column
             does not comb. */}
-        <span className="flex min-w-0 flex-1 flex-col gap-px">
-            <span className="truncate text-sm leading-[1.45] text-foreground">{name}</span>
-            <span className="truncate text-[13px] leading-[1.45] text-muted-foreground">
-                {description?.trim() || "No description"}
+            <span className="flex min-w-0 flex-1 flex-col gap-px">
+                <span className="truncate text-body font-medium text-foreground">{name}</span>
+                <span className="truncate text-meta text-muted-foreground">
+                    {description?.trim() || t("home.entityList.noDescription")}
+                </span>
             </span>
-        </span>
-        {marks ? <span className="flex shrink-0 items-center pl-2">{marks}</span> : null}
-        {/* The same check the agent picker marks its bound row with — a tinted row alone reads as
+            {marks ? <span className="flex shrink-0 items-center pl-2">{marks}</span> : null}
+            {/* The same check the agent picker marks its bound row with — a tinted row alone reads as
             hover on the one you happen to be pointing at. */}
-        {selected ? (
-            <CheckIcon aria-hidden size={14} className="ml-2 shrink-0 text-foreground" />
-        ) : null}
-    </button>
-)
+            {selected ? (
+                <CheckIcon aria-hidden size={14} className="ml-2 shrink-0 text-foreground" />
+            ) : null}
+        </button>
+    )
+}
 
 /**
  * Home's one list region, switched between the agents you have and the templates you could start
@@ -124,6 +134,7 @@ export const HomeEntityList = ({
     templatesLoading,
     templatesErrorSlot,
 }: HomeEntityListProps) => {
+    const t = useT(entityListCatalog)
     const scrollerRef = useRef<HTMLDivElement>(null)
     const [mask, setMask] = useState<string>("none")
 
@@ -173,23 +184,21 @@ export const HomeEntityList = ({
         // `-mt-1` closes 4px of the column's 26px gap: the tabs read as the composer's own
         // footer rail, not as the next section down.
         //
-        // The list bleeds 8px past the column on each side and hands it straight back as row
-        // padding: the hover fill needs room around the tile, and the tile cannot move — it is
-        // what the tab above it lines up with. The bleed is on this wrapper, not on the rows, so
-        // nothing overflows the scroller and no horizontal scrollbar appears.
-        <div className="-mx-2 -mt-1 flex flex-col gap-2">
+        // The list bleeds 12px past the column on each side and hands it straight back as row
+        // padding, so the Marks sit on the column's edge with the tabs (ALIGN-01). The bleed is on
+        // this wrapper, not on the rows, so no horizontal scrollbar appears.
+        <div className="-mx-3 -mt-1 flex flex-col gap-2">
             {/* `colorSplit`, the divider step — the active tab's underline is the mark that
                 matters here, and a rule at full border weight competed with it. */}
-            {/* `mx-2` gives back the wrapper's bleed: the rows may run wide, but a rule that did
-                would sit proud of the composer above it. */}
-            <div className="mb-1 mx-2 flex items-center gap-5 border-0 border-b border-solid border-b-[var(--ag-colorSplit)] px-1.5">
+            {/* `mx-3` gives back the wrapper's bleed: the rule stays on the column's edge. */}
+            <div className="mx-3 mb-1 flex items-center gap-5 border-0 border-b border-solid border-b-border-muted max-sm:gap-3">
                 {hasAgentsTab ? (
                     <button
                         type="button"
                         onClick={() => switchTab("agents")}
                         className={`${TAB_BASE} ${showAgents ? TAB_ON : TAB_OFF}`}
                     >
-                        Your agents
+                        {t("home.entityList.agentsTab")}
                     </button>
                 ) : null}
                 <button
@@ -197,16 +206,16 @@ export const HomeEntityList = ({
                     onClick={() => switchTab("templates")}
                     className={`${TAB_BASE} ${showAgents ? TAB_OFF : TAB_ON}`}
                 >
-                    Templates
+                    {t("home.entityList.templatesTab")}
                 </button>
-                <span className="flex-1" />
-                {newAction ? <span className="pb-[7px]">{newAction}</span> : null}
+                {/* ml-auto, not a spacer: a spacer adds two more gaps, which overflow a 320px phone. */}
+                {newAction ? <span className="ml-auto pb-2">{newAction}</span> : null}
             </div>
 
             <div
                 ref={scrollerRef}
                 onScroll={readScroll}
-                className="flex max-h-[330px] flex-col gap-0.5 overflow-y-auto"
+                className="flex max-h-[330px] flex-col gap-2 overflow-y-auto"
                 style={{maskImage: mask, WebkitMaskImage: mask}}
             >
                 {showAgents ? (
@@ -215,10 +224,8 @@ export const HomeEntityList = ({
                         <Row
                             key={agent.id}
                             tile={
-                                // The glyph, not the tile, carries the breathing room: the
-                                // box has to stay 34px or the row's left edge stops lining up
-                                // with the tab above it.
-                                <AgentChip workflowId={agent.id} box="size-[34px]" glyph={16} />
+                                // A 32px Mark in a two-line row.
+                                <AgentChip workflowId={agent.id} box="size-8" glyph={16} />
                             }
                             name={agent.name}
                             description={agent.description}
@@ -234,13 +241,8 @@ export const HomeEntityList = ({
                             <Row
                                 key={template.key}
                                 tile={
-                                    // Solid fill, white monogram — the template palette is the
-                                    // white-safe deep steps, so the colour is only legible AS a
-                                    // fill. Same tile the strip cards and the New agent menu draw.
-                                    <span
-                                        className="flex size-[34px] shrink-0 items-center justify-center rounded-[10px] text-[13px] font-medium text-white"
-                                        style={{background: template.color}}
-                                    >
+                                    // A neutral 32px Mark with the monogram (LOUD-01).
+                                    <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-label text-muted-foreground">
                                         {template.initials}
                                     </span>
                                 }
@@ -250,7 +252,7 @@ export const HomeEntityList = ({
                                 marks={
                                     <TemplateProviderMarks
                                         stacked
-                                        size={13}
+                                        size={14}
                                         providers={templateProviderSlugs(template)}
                                     />
                                 }
@@ -261,15 +263,15 @@ export const HomeEntityList = ({
                         {/* `Link`, not a bare anchor: mobile is served under a basePath, which Link applies and
                             a raw href does not — this 404'd there. */}
                         <Link href={templatesHref} className={`${ROW} no-underline`}>
-                            <span className="flex size-[34px] shrink-0 items-center justify-center rounded-[10px] border border-dashed border-border text-muted-foreground">
-                                <ListBulletsIcon aria-hidden size={17} />
+                            <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground">
+                                <ListBulletsIcon aria-hidden size={16} />
                             </span>
-                            <span className="flex-1 text-sm leading-[1.45] text-foreground">
-                                Browse all {templates.length} templates
+                            <span className="flex-1 text-label text-foreground">
+                                {t("home.entityList.browseAll", {total: templates.length})}
                             </span>
                             <ArrowRightIcon
                                 aria-hidden
-                                size={13}
+                                size={14}
                                 className="text-muted-foreground"
                             />
                         </Link>

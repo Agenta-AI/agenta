@@ -1,0 +1,10 @@
+{
+    "allowAll": "Permitir todo",
+    "allowAllHelp": "Todas las herramientas se ejecutan sin preguntar",
+    "allowReads": "Permitir lecturas",
+    "allowReadsHelp": "Las lecturas se ejecutan; las escrituras preguntan",
+    "ask": "Preguntar",
+    "askHelp": "Una persona aprueba cada llamada a herramienta",
+    "denyAll": "Denegar todo",
+    "denyAllHelp": "Se rechaza cada llamada a herramienta"
+}

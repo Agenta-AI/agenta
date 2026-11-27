@@ -1,5 +1,8 @@
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import chatCatalog from "@agenta/i18n/catalogs/playground.chat"
+
 import {RunsPanelHeader} from "../runs/RunsPanelHeader"
 
 import {ChatInputsBlock} from "./ChatInputsBlock"
@@ -15,10 +18,17 @@ export interface ChatPanelProps {
 }
 
 /** The run pane of a chat app: the header bar, the prompt's variables and messages, the turns. */
-export const ChatPanel = ({revisionId, renderTraceFooter, testsetMenu}: ChatPanelProps) => (
-    <section className="flex flex-col">
-        <RunsPanelHeader entityId={revisionId} label="Chat" testsetMenu={testsetMenu} />
-        <ChatInputsBlock entityId={revisionId} />
-        <ChatTurns entityId={revisionId} renderTraceFooter={renderTraceFooter} />
-    </section>
-)
+export const ChatPanel = ({revisionId, renderTraceFooter, testsetMenu}: ChatPanelProps) => {
+    const t = useT(chatCatalog)
+    return (
+        <section className="flex flex-col">
+            <RunsPanelHeader
+                entityId={revisionId}
+                label={t("playground.chat.chat")}
+                testsetMenu={testsetMenu}
+            />
+            <ChatInputsBlock entityId={revisionId} />
+            <ChatTurns entityId={revisionId} renderTraceFooter={renderTraceFooter} />
+        </section>
+    )
+}

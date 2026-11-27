@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import addToTestsetCatalog from "@agenta/i18n/catalogs/observability.addToTestset"
 import {projectIdAtom} from "@agenta/shared/state"
 import {Button} from "@agenta/ui/ui"
 import {DatabaseIcon} from "@phosphor-icons/react"
@@ -16,6 +18,7 @@ const spanIdsOf = (value: unknown): string[] =>
  * the view is off or the user may not edit test sets.
  */
 export const AddToTestsetDrawerButton = (props: Record<string, unknown>) => {
+    const t = useT(addToTestsetCatalog)
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const {testsetAction, sheet} = useAddToTestsetAction(projectId, spanIdsOf(props.spanIds))
     if (!testsetAction) return null
@@ -29,7 +32,9 @@ export const AddToTestsetDrawerButton = (props: Record<string, unknown>) => {
                 onClick={testsetAction.onSelect}
             >
                 <DatabaseIcon size={14} />
-                {typeof props.label === "string" ? props.label : "Add to testset"}
+                {typeof props.label === "string"
+                    ? props.label
+                    : t("observability.addToTestset.addToTestset")}
             </Button>
             {sheet}
         </>

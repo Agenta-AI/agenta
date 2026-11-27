@@ -69,6 +69,16 @@ describe("filterConnectedGroups", () => {
         ])
     })
 
+    it("finds a connection by its own name", () => {
+        const named = [
+            {integrationKey: "gmail", connection: {name: "Finance", slug: "gmail-1"}},
+            {integrationKey: "slack", connection: {name: "Ops", slug: "slack-ops"}},
+        ]
+        expect(
+            keys(filterConnectedGroups({...base, groups: named, query: "finance", category: null})),
+        ).toEqual(["gmail"])
+    })
+
     it("applies the search and the category together", () => {
         expect(keys(filterConnectedGroups({...base, query: "git", category: COMMS}))).toEqual([])
         expect(keys(filterConnectedGroups({...base, query: "git", category: DEV}))).toEqual([

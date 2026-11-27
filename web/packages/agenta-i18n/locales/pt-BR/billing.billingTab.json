@@ -1,0 +1,7 @@
+{
+    "dailyCredits": "Créditos grátis diários",
+    "dailyCreditsNote": "Redefine à meia-noite UTC",
+    "loadLimitsError": "Não foi possível carregar os limites do seu plano.",
+    "loadPlanAndLimitsError": "Não foi possível carregar seu plano e os limites dele.",
+    "loadPlanError": "Não foi possível carregar seu plano."
+}

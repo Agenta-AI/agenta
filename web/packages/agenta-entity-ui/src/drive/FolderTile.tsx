@@ -14,11 +14,29 @@ import {DriveFolderGlyph, DriveTypeMark} from "./DriveTypeMark"
 import {DriveTileThumb} from "./FileThumb"
 
 const TILE =
-    "flex h-auto w-full min-w-0 flex-col items-center gap-1 whitespace-normal rounded-lg px-1.5 pb-2 pt-1.5 text-center font-normal"
+    "flex h-auto w-full min-w-0 flex-col items-center gap-1 whitespace-normal rounded-lg px-1.5 pb-2 pt-1.5 text-center font-normal max-md:px-1 max-md:pb-3 max-md:pt-2.5"
+
+/** A phone draws the folder light and outlined (M03); the desktop the solid one (S05). */
+const PhoneFolder = () => (
+    <svg
+        width={48}
+        height={40}
+        viewBox="0 0 48 40"
+        fill="none"
+        aria-hidden
+        className="!size-auto md:hidden"
+    >
+        <path
+            d="M2 6a4 4 0 0 1 4-4h12l5 5h19a4 4 0 0 1 4 4v23a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V6z"
+            className="fill-muted-foreground/10 stroke-muted-foreground/30"
+        />
+    </svg>
+)
 
 const FolderGlyphBox = () => (
-    <span className="flex h-14 w-14 items-center justify-center max-md:h-11 max-md:w-11">
-        <DriveFolderGlyph size={52} className="!size-[52px] max-md:!size-[42px]" />
+    <span className="flex h-14 w-14 items-center justify-center">
+        <DriveFolderGlyph drawing size={52} className="!size-13 max-md:hidden" />
+        <PhoneFolder />
     </span>
 )
 
@@ -40,16 +58,16 @@ const Tile = ({
         variant="ghost"
         onClick={onOpen}
         aria-current={selected || undefined}
-        className={`${TILE} ${selected ? "bg-accent" : ""} ${isHiddenPath(node.path) ? "opacity-60" : ""}`}
+        className={`${TILE} ${selected ? "bg-selected" : ""} ${isHiddenPath(node.path) ? "opacity-60" : ""}`}
     >
         {glyph}
         <span
-            className="line-clamp-2 w-full break-words text-xs leading-[1.35] text-colorText"
+            className="line-clamp-2 w-full break-words text-meta leading-[1.35] text-foreground"
             title={node.path}
         >
             {node.name}
         </span>
-        <span className="text-[11px] leading-[1.3] text-colorTextTertiary">{meta}</span>
+        <span className="text-caption leading-[1.3] text-muted-foreground">{meta}</span>
     </Button>
 )
 
@@ -118,7 +136,7 @@ export const DraftTile = ({edit, path}: {edit: DriveNameEdit; path: string}) => 
             validate={edit.validate}
             onCommit={edit.onCommit}
             onCancel={edit.onCancel}
-            className="h-6 w-full px-1 text-center text-xs"
+            className="h-control-xs w-full px-1 text-center text-label"
         />
     </div>
 )

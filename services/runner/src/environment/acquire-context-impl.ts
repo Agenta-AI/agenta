@@ -18,7 +18,7 @@ import {
   type AcquireContext,
   type AcquireContextHandle,
   type EnvironmentView,
-  type MountKind,
+  type RemountBudgetKey,
 } from "./acquire-context.ts";
 import type { Log, TimingLog } from "./timing.ts";
 
@@ -55,7 +55,7 @@ export function createAcquireContext(
 
   let envFrozen = false;
   let guidanceActive = false;
-  const remountsTaken: Record<MountKind, number> = { cwd: 0, agent: 0 };
+  const remountsTaken = new Map<RemountBudgetKey, number>();
 
   // The read-only projection. Getters, not a snapshot: a unit that reads `mountedCwd` after
   // another unit committed a mount must see the new value, exactly as the closure did.
@@ -72,14 +72,11 @@ export function createAcquireContext(
     get mountCreds() {
       return environment.mountCreds;
     },
-    get agentMountCreds() {
-      return environment.agentMountCreds;
-    },
     get mountedCwd() {
       return environment.mountedCwd;
     },
-    get agentMountedPath() {
-      return environment.agentMountedPath;
+    get drives() {
+      return environment.drives;
     },
     get runAgentDir() {
       return environment.runAgentDir;
@@ -140,35 +137,39 @@ export function createAcquireContext(
     },
 
     // --- mount state, INVARIANTS 2 and 3 ---------------------------------------------- //
-    recordResignedCredential(kind, credential) {
-      if (kind === "cwd") environment.mountCreds = credential;
-      else environment.agentMountCreds = credential;
+    recordResignedCredential(credential) {
+      environment.mountCreds = credential;
     },
-    commitLocalMount(kind, path, credential) {
+    commitLocalMount(path, credential) {
       // Path and expiry together, from ONE credential, so the recorded lease provably belongs to
       // the mount the daemon received.
-      if (kind === "cwd") {
-        environment.mountedCwd = path;
-        environment.installedMountExpiries.cwd = mountExpiryMs(
-          credential.expiresAt,
-        );
-      } else {
-        environment.agentMountedPath = path;
-        environment.installedMountExpiries.agent = mountExpiryMs(
-          credential.expiresAt,
-        );
-      }
+      environment.mountedCwd = path;
+      environment.installedMountExpiries.cwd = mountExpiryMs(credential.expiresAt);
     },
-    commitRemoteMountExpiry(kind, credential) {
+    commitRemoteMountExpiry(credential) {
       // Expiry with NO path. A Daytona mount lives inside the sandbox and dies with it, so there
       // is no host mountpoint for teardown to unmount.
-      const expiry = mountExpiryMs(credential.expiresAt);
-      if (kind === "cwd") environment.installedMountExpiries.cwd = expiry;
-      else environment.installedMountExpiries.agent = expiry;
+      environment.installedMountExpiries.cwd = mountExpiryMs(credential.expiresAt);
     },
-    clearMountPath(kind) {
-      if (kind === "cwd") environment.mountedCwd = undefined;
-      else environment.agentMountedPath = undefined;
+    commitDriveMount(drive, path, credential) {
+      drive.mountedPath = path;
+      environment.installedMountExpiries.drives = {
+        ...environment.installedMountExpiries.drives,
+        [path]: mountExpiryMs(credential.expiresAt),
+      };
+    },
+    recordDriveLink(drive, linked) {
+      drive.linked = linked;
+    },
+    recordResignedDriveCredential(drive, credential) {
+      drive.credentials = credential;
+    },
+    releaseDriveMount(drive) {
+      if (drive.mountedPath && environment.installedMountExpiries.drives) {
+        const { [drive.mountedPath]: _released, ...rest } = environment.installedMountExpiries.drives;
+        environment.installedMountExpiries.drives = rest;
+      }
+      drive.mountedPath = undefined;
     },
 
     // --- durableCwdSafeToDelete: three named transitions ------------------------------ //
@@ -198,8 +199,9 @@ export function createAcquireContext(
 
     // --- retry budgets and one-shot flags --------------------------------------------- //
     takeRemountBudget(kind) {
-      if (remountsTaken[kind] >= input.remountLimit) return false;
-      remountsTaken[kind] += 1;
+      const taken = remountsTaken.get(kind) ?? 0;
+      if (taken >= input.remountLimit) return false;
+      remountsTaken.set(kind, taken + 1);
       return true;
     },
     get guidanceActive() {

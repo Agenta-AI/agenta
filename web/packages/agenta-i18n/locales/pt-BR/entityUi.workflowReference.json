@@ -1,0 +1,12 @@
+{
+    "messages": "Mensagens",
+    "model": "Modelo",
+    "modelSettings": "Configurações do modelo",
+    "responseFormat": "Formato da resposta",
+    "templateFormat": "Formato do modelo",
+    "instructions": "Instruções",
+    "tools": "Ferramentas",
+    "skills": "Habilidades",
+    "handler": "Handler",
+    "config": "Configuração"
+}

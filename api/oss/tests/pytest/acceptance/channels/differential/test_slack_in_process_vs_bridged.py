@@ -277,7 +277,7 @@ async def arms(differential_scope, monkeypatch):
     core_app = FastAPI()
     core_app.include_router(
         ChannelsIngressRouter(
-            channels_service=service, adapter_registry=registry, dispatch_task=None
+            channels_service=service, adapter_registry=registry
         ).router,
         prefix="/channels",
     )

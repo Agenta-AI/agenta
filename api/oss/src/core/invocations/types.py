@@ -13,7 +13,7 @@ from oss.src.core.tracing.dtos import (
     SimpleTraceLinks,
     #
     SimpleTrace,
-    SimpleTraceCreate,
+    SimpleTraceCreateBase,
     SimpleTraceEdit,
     SimpleTraceQuery,
 )
@@ -45,7 +45,7 @@ class Invocation(SimpleTrace):
     links: Optional[InvocationLinks]
 
 
-class InvocationCreate(SimpleTraceCreate):
+class InvocationCreate(SimpleTraceCreateBase):
     links: Optional[InvocationLinks]
 
 

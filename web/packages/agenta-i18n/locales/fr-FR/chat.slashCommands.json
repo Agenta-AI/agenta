@@ -1,0 +1,15 @@
+{
+    "allowReads": "Autoriser les lectures",
+    "alwaysAllowMany": "Toujours autoriser {{count}} outils",
+    "alwaysAllowOne": "Toujours autoriser {{name}}",
+    "commands": "Commandes",
+    "modelDescription": "Changer le modèle de cet agent",
+    "modelSetTo": "Modèle défini sur {{label}}",
+    "modelSetToHarness": "Modèle défini sur {{label}} · {{harness}}",
+    "newDescription": "Démarrer une nouvelle session avec cet agent",
+    "permissionsDescription": "Définissez ce que l’agent peut faire avant de devoir demander",
+    "permissionsSetTo": "Autorisations définies sur {{label}}",
+    "skills": "Skills",
+    "tools": "Outils",
+    "toolsCount": "{{count}} outils"
+}

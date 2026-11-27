@@ -108,6 +108,8 @@
 
 import React, {useState, useEffect, useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiEditorCatalog from "@agenta/i18n/catalogs/ui.editor"
 import {getContentLanguage} from "@agenta/shared/utils"
 import yaml from "js-yaml"
 
@@ -254,6 +256,7 @@ const DiffView: React.FC<DiffViewProps> = ({
     showFoldedLineCount = true,
     computeOnMountOnly = false,
 }) => {
+    const t = useT(uiEditorCatalog)
     const [diffKey, setDiffKey] = useState(0)
     const [error, setError] = useState<string | null>(null)
     const [processedContent, setProcessedContent] = useState<{
@@ -326,7 +329,7 @@ const DiffView: React.FC<DiffViewProps> = ({
     return (
         <div className={className}>
             {error && showErrors && (
-                <div className="mb-2 p-2 bg-red-50 border border-solid border-red-200 rounded text-red-700 text-sm">
+                <div className="mb-2 p-2 bg-destructive/10 border border-solid border-destructive/30 rounded text-destructive text-body">
                     {error}
                 </div>
             )}
@@ -339,7 +342,7 @@ const DiffView: React.FC<DiffViewProps> = ({
                 disabled={true}
                 codeOnly={true}
                 showToolbar={false}
-                ariaLabel="Diff view"
+                ariaLabel={t("ui.editor.diffView")}
             />
         </div>
     )

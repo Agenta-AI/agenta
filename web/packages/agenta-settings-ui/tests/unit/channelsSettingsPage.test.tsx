@@ -7,6 +7,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 vi.mock("@agenta/ui/ui", () => {
     const Wrap = ({children}: {children?: React.ReactNode}) => <div>{children}</div>
     return {
+        SimpleTooltip: ({children}: {children?: React.ReactNode}) => <>{children}</>,
         Alert: ({message}: {message: string}) => <div role="alert">{message}</div>,
         cn: (...classes: unknown[]) => classes.filter(Boolean).join(" "),
         SheetFooter: ({children}: {children?: React.ReactNode}) => <div>{children}</div>,
@@ -45,9 +46,6 @@ vi.mock("@agenta/ui/ui", () => {
 vi.mock("../../src/channels/icons", () => ({AgentaMark: () => null, platformLogo: () => null}))
 vi.mock("../../src/channels/qr", () => ({QrCode: () => null}))
 vi.mock("../../src/channels/AgentMark", () => ({AgentMark: () => null}))
-vi.mock("../../src/channels/ViewTransition", () => ({
-    ViewTransition: ({children}: {children: React.ReactNode}) => <>{children}</>,
-}))
 vi.mock("../../src/channels/ChannelManagePanel", () => ({
     ChannelManagePanel: ({connection}: {connection: {connectionId?: string}}) => (
         <div data-testid={`manage-${connection.connectionId}`} />

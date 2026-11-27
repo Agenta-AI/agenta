@@ -1,0 +1,20 @@
+{
+    "testset_one": "Conjunto de prueba",
+    "testset_many": "Conjuntos de prueba",
+    "testset_other": "Conjuntos de prueba",
+    "revision_one": "Revisión",
+    "revision_many": "Revisiones",
+    "revision_other": "Revisiones",
+    "variant_one": "Variante",
+    "variant_many": "Variantes",
+    "variant_other": "Variantes",
+    "evaluator_one": "Evaluador",
+    "evaluator_many": "Evaluadores",
+    "evaluator_other": "Evaluadores",
+    "application_one": "Aplicación",
+    "application_many": "Aplicaciones",
+    "application_other": "Aplicaciones",
+    "simpleQueue_one": "Cola de anotación",
+    "simpleQueue_many": "Colas de anotación",
+    "simpleQueue_other": "Colas de anotación"
+}

@@ -1,11 +1,14 @@
 import {type ElementType, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import agentActionsCatalog from "@agenta/i18n/catalogs/entityUi.agentActions"
 import {RobotIcon} from "@phosphor-icons/react"
 
 import {agentAvatar} from "./AgentCard"
 import {useAgentIconChrome} from "./agentIcon"
 import {AgentIconPopover} from "./AgentIconPopover"
 import {AgentNameInline, agentNameLabelClass, type AgentNameSize} from "./AgentNameInline"
+import {AgentChip} from "./AgentPicker"
 import {AGENT_CHIP_BOX, AGENT_CHIP_FALLBACK} from "./chrome"
 
 export type AgentIdentitySize = AgentNameSize
@@ -16,17 +19,16 @@ const IDENTITY_SIZE: Record<
 > = {
     // The gaps AgentPageHeader puts between its own icon and name slots.
     bar: {
-        row: "flex min-w-0 items-center gap-1.5 sm:gap-2",
+        row: "flex min-w-0 items-center gap-2",
         chip: AGENT_CHIP_BOX,
         glyph: 13,
         initialsFallback: false,
         label: "span",
     },
     title: {
-        row: "flex min-w-0 items-center gap-2",
-        // ::after hit extender — 28px is under the touch guideline. Below `sm` the chip drops to
-        // 24px to fit a phone header.
-        chip: "relative flex size-6 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold after:absolute after:-inset-1.5 after:content-[''] sm:size-7 sm:rounded-lg",
+        row: "flex min-w-0 items-center gap-3",
+        // A 32 px header Mark (CONS-01); the ::after box extends the hit area to 44 px.
+        chip: "relative flex size-8 shrink-0 items-center justify-center rounded-md text-caption font-semibold after:absolute after:-inset-1.5 after:content-['']",
         glyph: 16,
         initialsFallback: true,
         label: "h1",
@@ -70,6 +72,7 @@ export const AgentIdentity = ({
     isDuplicateName,
     className,
 }: AgentIdentityProps) => {
+    const t = useT(agentActionsCatalog)
     const spec = IDENTITY_SIZE[size]
     const Label = spec.label
     const avatar = agentAvatar(name, workflowId ?? "")
@@ -111,8 +114,41 @@ export const AgentIdentity = ({
                         isDuplicateName={isDuplicateName}
                     />
                 ) : (
-                    <Label className={agentNameLabelClass(size)}>{name || "Agent"}</Label>
+                    <Label className={agentNameLabelClass(size)}>
+                        {name || t("entityUi.agentActions.agent")}
+                    </Label>
                 ))}
         </div>
+    )
+}
+
+/**
+ * The agent's Mark in a session header: the 24 px `AgentChip` with its 14 px glyph, so the header
+ * draws the agent as every list does (CONS-02): its own colour when it has an icon, the neutral
+ * fill when not. Editable: a click opens the icon picker, as on `AgentIdentity`.
+ */
+export const AgentKindBadge = ({
+    workflowId,
+    editable = true,
+}: {
+    workflowId: string | null | undefined
+    editable?: boolean
+}) => {
+    const badge = (
+        <span data-testid="agent-kind-badge" className="flex shrink-0">
+            <AgentChip workflowId={workflowId ?? null} box="size-6" glyph={14} />
+        </span>
+    )
+    return editable && workflowId ? (
+        // The trigger is a control-height box (28 px) around the 24 px Mark, so the bar keeps one
+        // height (SIZE-01); the hover fill shows it is a button.
+        <AgentIconPopover
+            workflowId={workflowId}
+            triggerClassName="size-control-sm justify-center hover:bg-accent"
+        >
+            {badge}
+        </AgentIconPopover>
+    ) : (
+        badge
     )
 }

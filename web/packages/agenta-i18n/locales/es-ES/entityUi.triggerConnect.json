@@ -1,0 +1,17 @@
+{
+    "chooseAnEvent": "Elige un evento",
+    "addAppTrigger": "Añadir un disparador de aplicación",
+    "searchIntegrations": "Buscar integraciones…",
+    "searchEvents": "Buscar eventos…",
+    "connectionsHint": "Elige un evento para crear un disparador; no hace falta configurar nada.",
+    "noTriggers": "Esta aplicación no tiene disparadores",
+    "popupBlocked": "Ventana emergente bloqueada. Redirigiendo en esta pestaña.",
+    "connectTo": "Conectar con {{name}}",
+    "name": "Nombre",
+    "nameTip": "Nombre visible de esta conexión",
+    "required": "Obligatorio",
+    "namePlaceholder": "p. ej., Mi cuenta de {{name}}",
+    "authMethod": "Método de autenticación",
+    "apiKey": "Clave de API",
+    "connect": "Conectar"
+}

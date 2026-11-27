@@ -1,0 +1,15 @@
+{
+    "noProject": "Não é possível excluir: nenhum projeto selecionado.",
+    "failedMany": "Falha ao excluir os rastreamentos.",
+    "failedOne": "Falha ao excluir o rastreamento.",
+    "confirmOne": "Tem certeza de que deseja excluir?",
+    "confirmMany": "Tem certeza de que deseja excluir {{count}} rastreamentos?",
+    "notReversible": "Esta ação não pode ser desfeita.",
+    "cancel": "Cancelar",
+    "delete": "Excluir",
+    "descriptionOne": "Este trace e todos os seus spans são excluídos permanentemente. Não é possível desfazer.",
+    "descriptionMany": "Estes traces e todos os seus spans são excluídos permanentemente. Não é possível desfazer.",
+    "deleting": "Excluindo…",
+    "deletedOne": "Trace excluído",
+    "deletedMany": "{{count}} traces excluídos"
+}

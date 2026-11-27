@@ -5,12 +5,16 @@
  * Uses atomWithReset for clean reset on modal close.
  */
 
+import {createT} from "@agenta/i18n"
+import deleteModalCatalog from "@agenta/i18n/catalogs/entityUi.deleteModalState"
 import {atom} from "jotai"
 import {atomWithReset, RESET} from "jotai/utils"
 
 import {getEntityAdapter} from "../adapters"
 import {groupEntitiesByType} from "../types"
 import type {EntityReference, EntityGroup} from "../types"
+
+const t = createT(deleteModalCatalog)
 
 // ============================================================================
 // CORE STATE ATOMS
@@ -185,7 +189,7 @@ export const executeDeleteAtom = atom(null, async (get, set) => {
     const onSuccess = get(deleteModalOnSuccessAtom)
 
     if (!canProceed) {
-        set(deleteModalErrorAtom, new Error("Some entities cannot be deleted"))
+        set(deleteModalErrorAtom, new Error(t("entityUi.deleteModalState.someBlocked")))
         return false
     }
 

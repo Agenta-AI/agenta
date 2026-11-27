@@ -65,7 +65,7 @@ export function DriveCodeEditor({
         <div
             ref={quoteRootRef}
             className={[
-                "relative flex min-h-0 flex-1 flex-col overflow-hidden text-xs",
+                "relative flex min-h-0 flex-1 flex-col overflow-hidden text-code",
                 "[&_.agenta-rich-text-editor]:h-full [&_.agenta-shared-editor]:h-full [&_.agenta-shared-editor]:!min-h-0 [&_.agenta-shared-editor]:!border-0 [&_.agenta-shared-editor]:!rounded-none [&_.agenta-shared-editor]:!p-0",
                 "[&_.agenta-editor-wrapper]:h-full [&_.editor-container]:h-full [&_.editor-container]:!overflow-visible",
                 "[&_.editor-inner]:h-full [&_.editor-input]:h-full [&_.editor-code]:h-full [&_.editor-code]:!overflow-auto [&_.editor-code]:!p-2",

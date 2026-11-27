@@ -1,0 +1,19 @@
+{
+    "agent": "Agent",
+    "all": "全部",
+    "allAgents": "所有 Agent",
+    "allSessions": "全部会话",
+    "archived": "已归档",
+    "archivedTooltip": "已归档的会话会被隐藏，但可以恢复",
+    "automationRuns": "自动化运行",
+    "automationRunsTooltip": "由自动化启动的运行，而不是你启动的会话",
+    "filterByStatus": "按状态筛选会话",
+    "filters": "筛选",
+    "include": "包含",
+    "live": "进行中",
+    "searchSessions": "搜索会话",
+    "show": "显示",
+    "waiting": "等待中",
+    "waitingCount": "等待中 {{count}}",
+    "waitingOnYou": "等待你"
+}

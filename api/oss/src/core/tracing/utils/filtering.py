@@ -718,6 +718,8 @@ def parse_condition(
         _parse_fts_field_condition(condition)
     elif condition.field == Fields.SESSION_ID:
         _parse_string_field_condition(condition)
+    elif condition.field == Fields.TURN_ID:
+        _parse_string_field_condition(condition)
     elif condition.field == Fields.USER_ID:
         _parse_string_field_condition(condition)
     elif condition.field == Fields.AGENT_ID:

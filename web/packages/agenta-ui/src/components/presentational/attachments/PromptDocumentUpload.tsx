@@ -20,6 +20,8 @@
 
 import {useEffect, useMemo, useState} from "react"
 
+import {richText, useT} from "@agenta/i18n"
+import uiChatCatalog from "@agenta/i18n/catalogs/ui.chat"
 import {dataUriToObjectUrl, isBase64} from "@agenta/shared/utils"
 import {FileArchive, MinusCircle} from "@phosphor-icons/react"
 import clsx from "clsx"
@@ -67,6 +69,7 @@ const PromptDocumentUpload = ({
     onFileChange,
     onRemove,
 }: PromptDocumentUploadProps) => {
+    const t = useT(uiChatCatalog)
     const [rawValue, setRawValue] = useState("")
 
     const {
@@ -79,10 +82,10 @@ const PromptDocumentUpload = ({
         isDragging,
     } = usePromptFileUpload({
         maxSize: MAX_FILE_SIZE,
-        sizeError: "File too large. Please upload a PDF smaller than 8 MB.",
+        sizeError: t("ui.chat.pdfTooLarge"),
         isTypeAllowed: (file) =>
             file.type === "application/pdf" || file.name?.toLowerCase().endsWith(".pdf"),
-        typeError: "Unsupported format. Please upload a PDF file.",
+        typeError: t("ui.chat.unsupportedPdf"),
         disabled,
         onAccepted: (file, dataUrl) => {
             setRawValue(dataUrl)
@@ -133,8 +136,8 @@ const PromptDocumentUpload = ({
                     // and border add to `w-full` and the row overflows its container by 14px
                     // (antd's own reset gave the Dragger border-box for free).
                     "w-full box-border flex items-center gap-4 py-2 pr-1 pl-2 rounded-md border border-solid",
-                    error ? "border-colorError" : "border-colorBorder",
-                    isDragging && !disabled && "border-colorPrimary",
+                    error ? "border-destructive" : "border-border",
+                    isDragging && !disabled && "border-primary",
                     disabled ? "cursor-not-allowed" : "cursor-pointer",
                 )}
             >
@@ -144,26 +147,29 @@ const PromptDocumentUpload = ({
                             size={48}
                             className={clsx(
                                 displayValue
-                                    ? "text-colorSuccess"
+                                    ? "text-success"
                                     : error
-                                      ? "text-colorError"
-                                      : "text-colorTextTertiary",
+                                      ? "text-destructive"
+                                      : "text-muted-foreground",
                             )}
                         />
                         <div className="flex flex-col items-start gap-1 w-full">
-                            <span className="text-xs">
-                                Drag a PDF here or{" "}
-                                <Button
-                                    variant="link"
-                                    className="p-0 underline"
-                                    onClick={triggerUpload}
-                                >
-                                    upload a file
-                                </Button>
+                            <span className="text-meta">
+                                {richText(t("ui.chat.dragPdf"), {
+                                    link: (text) => (
+                                        <Button
+                                            variant="link"
+                                            className="p-0 underline"
+                                            onClick={triggerUpload}
+                                        >
+                                            {text}
+                                        </Button>
+                                    ),
+                                })}
                             </span>
                             <InputAffix
                                 disabled={disabled}
-                                placeholder="(Optionally) Enter a valid URL."
+                                placeholder={t("ui.chat.optionalUrlDot")}
                                 value={displayValue}
                                 onChange={(e) => {
                                     const val = e.target.value.trim()
@@ -185,12 +191,12 @@ const PromptDocumentUpload = ({
                                     href={safeHref}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="text-start text-xs text-colorTextDescription"
+                                    className="text-start text-meta text-muted-foreground"
                                 >
-                                    Preview: document
+                                    {t("ui.chat.previewDocument")}
                                 </a>
                             )}
-                            {error && <span className="text-xs text-colorError">{error}</span>}
+                            {error && <span className="text-meta text-destructive">{error}</span>}
                         </div>
                     </div>
                     {/* `size="icon"` reproduces antd's implicit `.ant-btn-icon-only` sizing —

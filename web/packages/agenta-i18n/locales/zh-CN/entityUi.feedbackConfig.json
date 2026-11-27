@@ -1,0 +1,23 @@
+{
+    "formatBoolean": "布尔值（真/假）",
+    "formatContinuous": "连续（数值范围）",
+    "formatCategorical": "分类（预定义选项）",
+    "enterJsonSchema": "输入 JSON Schema...",
+    "responseFormat": "响应格式",
+    "responseFormatTooltip": "选择评测结果的格式",
+    "booleanInfo": "评测器将根据反馈标准给出 true (1) 或 false (0) 的结果。",
+    "minimum": "最小值",
+    "minimumTooltip": "数值分数范围的最小值",
+    "maximum": "最大值",
+    "maximumTooltip": "数值分数范围的最大值",
+    "categories": "类别",
+    "categoriesTooltip": "定义评测可能的类别值",
+    "add": "添加",
+    "name": "名称",
+    "categoryName": "类别 {{number}} 的名称",
+    "description": "描述",
+    "categoryDescription": "类别 {{number}} 的描述",
+    "removeCategory": "移除类别 {{number}}",
+    "includeReasoning": "包含推理说明",
+    "includeReasoningTooltip": "启用后，评测器还会提供一条解释分数的说明"
+}

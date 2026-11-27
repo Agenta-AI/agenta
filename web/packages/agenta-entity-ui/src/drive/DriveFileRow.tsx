@@ -18,8 +18,10 @@ import {type CSSProperties, type ReactNode} from "react"
 import {isHiddenPath} from "@agenta/entities/drive"
 import {AGENT_FILES_DIR, fileOrigin, type DriveRecentFile} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
-import {SimpleTooltip as Tooltip} from "@agenta/ui/ui"
-import {ArrowClockwise, CircleNotch, FolderSimple} from "@phosphor-icons/react"
+import {useT} from "@agenta/i18n"
+import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
+import {SimpleTooltip as Tooltip, Spinner} from "@agenta/ui/ui"
+import {ArrowClockwise, FolderSimple} from "@phosphor-icons/react"
 
 import {driveFileIcon} from "./driveIcons"
 import {DriveFolderGlyph, DriveTypeMark} from "./DriveTypeMark"
@@ -31,8 +33,7 @@ export type DriveFileVariant = "row" | "card"
 // Themed keyboard-focus ring (replaces the browser's default blue outline, which ignores the row's
 // radius and reads harsh). Inset so it stays within the row bounds. Matches the PrettyJsonView rows.
 // Exported so the non-DriveFileRow drive surfaces (tree rows, folder tiles) share one focus look.
-export const FOCUS_RING =
-    "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--ant-color-primary)]"
+export const FOCUS_RING = "focus-ring"
 
 /**
  * DriveRetryButton — the retry affordance for a drive's errored state. Reads inline in the flow of the
@@ -47,23 +48,26 @@ export const FOCUS_RING =
  * a competing link; hover underlines. Busy swaps the glyph for a spinner and reads "Loading…",
  * disabled so it can't double-fire.
  */
-export const DriveRetryButton = ({onRetry, busy}: {onRetry: () => void; busy?: boolean}) => (
-    <button
-        type="button"
-        onClick={onRetry}
-        disabled={busy}
-        aria-busy={busy || undefined}
-        aria-label="Try loading files again"
-        className={`inline cursor-pointer whitespace-nowrap rounded-sm border-0 bg-transparent p-0 [font:inherit] text-current transition-colors hover:underline disabled:cursor-default disabled:no-underline disabled:opacity-70 ${FOCUS_RING}`}
-    >
-        {busy ? (
-            <CircleNotch size={13} className="mr-1 inline animate-spin align-[-0.15em]" />
-        ) : (
-            <ArrowClockwise size={13} className="mr-1 inline align-[-0.15em]" />
-        )}
-        {busy ? "Loading…" : "Try again"}
-    </button>
-)
+export const DriveRetryButton = ({onRetry, busy}: {onRetry: () => void; busy?: boolean}) => {
+    const t = useT(driveExplorerCatalog)
+    return (
+        <button
+            type="button"
+            onClick={onRetry}
+            disabled={busy}
+            aria-busy={busy || undefined}
+            aria-label={t("entityUi.driveExplorer.tryLoadingAgain")}
+            className={`inline cursor-pointer whitespace-nowrap rounded-sm border-0 bg-transparent p-0 [font:inherit] text-current transition-colors hover:underline disabled:cursor-default disabled:no-underline disabled:opacity-70 ${FOCUS_RING}`}
+        >
+            {busy ? (
+                <Spinner aria-hidden className="mr-1 inline size-3.5 align-[-0.15em]" />
+            ) : (
+                <ArrowClockwise size={14} className="mr-1 inline align-[-0.15em]" />
+            )}
+            {busy ? t("entityUi.driveExplorer.loading") : t("entityUi.driveExplorer.tryAgain")}
+        </button>
+    )
+}
 
 /**
  * DriveWarningBadge — overlays a small amber dot on the drive-drawer TRIGGER's folder icon when a
@@ -86,6 +90,7 @@ export const DriveWarningBadge = ({
     tooltip?: boolean
     children: ReactNode
 }): ReactNode => {
+    const t = useT(driveExplorerCatalog)
     // Return the child verbatim when healthy — NOT a fragment, so an outer <Tooltip> still gets a
     // single ref-able element to wrap.
     if (!show) return children
@@ -95,13 +100,13 @@ export const DriveWarningBadge = ({
             {children}
             <span
                 role="img"
-                aria-label="Some files couldn’t be loaded"
-                className={`absolute ${pos} h-2 w-2 rounded-full bg-colorWarning ring-1 ring-[var(--ag-colorBgContainer)]`}
+                aria-label={t("entityUi.driveExplorer.someFilesFailed")}
+                className={`absolute ${pos} h-2 w-2 rounded-round bg-warning ring-1 ring-background`}
             />
         </span>
     )
     return tooltip ? (
-        <Tooltip title="Some files couldn’t be loaded — open to retry">{badged}</Tooltip>
+        <Tooltip title={t("entityUi.driveExplorer.someFilesFailedRetry")}>{badged}</Tooltip>
     ) : (
         badged
     )
@@ -116,8 +121,8 @@ const RECENT_BORDER = AGENT_ACCENT_SOFT
 // skeleton lower so the resolve (skeletons → real rows) never has to shrink far.
 export const SKELETON_ROW_COUNT = 3
 
-// Shimmer placeholder. `bg-colorFillSecondary` reads as a quiet loading block on every surface tone.
-const BAR = "animate-pulse rounded bg-colorFillSecondary"
+// Shimmer placeholder. `bg-secondary` reads as a quiet loading block on every surface tone.
+const BAR = "animate-pulse rounded-sm bg-secondary"
 // Varied name-bar widths so a skeleton list reads as real files, not a barcode. Indexed by row.
 const SKELETON_NAME_WIDTHS = ["62%", "44%", "72%"]
 
@@ -130,6 +135,7 @@ export const DriveFileRow = ({
     file,
     mount,
     showOrigin,
+    otherDrives,
     hideFolder,
     isFolder,
     staticThumb,
@@ -152,6 +158,8 @@ export const DriveFileRow = ({
     mount?: Mount | null
     /** Show the agent/session origin tag. Pass true only when the drive holds both kinds. */
     showOrigin?: boolean
+    /** The session's drives other than the home: they tell a drive file from a session file. */
+    otherDrives?: readonly {slug: string}[]
     /** Drop the folder from the card meta — for the folder view, where every file shares the
      * (already-shown) current folder. */
     hideFolder?: boolean
@@ -174,22 +182,22 @@ export const DriveFileRow = ({
     if (loading) {
         const nameW = SKELETON_NAME_WIDTHS[skeletonIndex % SKELETON_NAME_WIDTHS.length]
         // ROW placeholder — reuses the real row's shell classes (minus button/hover/cursor) so the
-        // padding, gap, transparent left-accent slot, and the `font-mono text-xs` line box that drives
+        // padding, gap, transparent left-accent slot, and the `font-mono text-code` line box that drives
         // the row height all match exactly. Bars sit inside those real containers.
         if (variant === "row") {
             return (
                 <div
                     aria-hidden
-                    className="flex w-full items-center gap-2 rounded border-y-0 border-l-2 border-r-0 border-solid border-transparent px-1.5 py-1"
+                    className="flex w-full items-center gap-2 rounded-sm border-y-0 border-l-2 border-r-0 border-solid border-transparent px-1.5 py-1"
                 >
                     <span className={`h-3.5 w-3.5 shrink-0 ${BAR}`} />
-                    <span className="flex min-w-0 flex-1 items-center font-mono text-xs">
+                    <span className="flex min-w-0 flex-1 items-center font-mono text-code">
                         <span
                             className={`inline-block h-2.5 align-middle ${BAR}`}
                             style={{width: nameW}}
                         />
                     </span>
-                    <span className="shrink-0 text-xs">
+                    <span className="shrink-0 text-meta">
                         <span className={`inline-block h-2.5 w-9 align-middle ${BAR}`} />
                     </span>
                 </div>
@@ -199,19 +207,19 @@ export const DriveFileRow = ({
         return (
             <div
                 aria-hidden
-                className="flex w-full items-center gap-2.5 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-1.5"
+                className="flex w-full items-center gap-2.5 rounded-lg border border-solid border-border-muted bg-secondary p-1.5"
             >
                 <div className="w-16 shrink-0">
                     <div className={`aspect-[4/3] w-full ${BAR}`} />
                 </div>
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span className="font-mono text-xs">
+                    <span className="font-mono text-code">
                         <span
                             className={`inline-block h-2.5 align-middle ${BAR}`}
                             style={{width: nameW}}
                         />
                     </span>
-                    <span className="text-xs">
+                    <span className="text-meta">
                         <span className={`inline-block h-2 w-1/3 align-middle ${BAR}`} />
                     </span>
                 </div>
@@ -221,7 +229,7 @@ export const DriveFileRow = ({
     // Always the basename — folders never bloat the visible name (a nested/long path would
     // truncate the important tail). The full relative path is on the `title` tooltip instead.
     const name = path.split("/").pop() ?? path
-    const origin = fileOrigin(path)
+    const origin = fileOrigin(path, otherDrives)
     // Dot-prefixed (hidden) files/folders are surfaced but dimmed, like a file browser greys .git.
     const hidden = isHiddenPath(path)
     const isFolderEntry = isFolder ?? file?.is_folder ?? false
@@ -233,7 +241,7 @@ export const DriveFileRow = ({
                 <DriveTypeMark path={path} size="mini" />
             )
         ) : isFolderEntry ? (
-            <FolderSimple size={size} weight="fill" className="text-colorWarning" />
+            <FolderSimple size={size} className="text-muted-foreground" />
         ) : (
             driveFileIcon(path, size)
         )
@@ -243,20 +251,20 @@ export const DriveFileRow = ({
             <button
                 type="button"
                 onClick={onOpen}
-                className={`flex w-full cursor-pointer items-center gap-2 border-y-0 border-r-0 border-l-2 border-solid border-transparent bg-transparent px-1.5 py-1 text-left transition-colors hover:bg-colorFillTertiary ${FOCUS_RING} ${recent ? "rounded-none" : "rounded"} ${hidden ? "opacity-60" : ""}`}
+                className={`flex w-full cursor-pointer items-center gap-2 border-y-0 border-r-0 border-l-2 border-solid border-transparent bg-transparent px-1.5 py-1 text-left transition-colors hover:bg-accent ${FOCUS_RING} ${recent ? "rounded-none" : "rounded-sm"} ${hidden ? "opacity-60" : ""}`}
                 style={recent ? {borderLeftColor: RECENT_BORDER} : undefined}
             >
                 <span className="shrink-0">{kindIcon(14)}</span>
                 {/* Name + tag are one left-aligned group so the tag hugs the filename and the size
                     stays in its own right-aligned column (tagged and untagged rows line up). */}
                 <span className="flex min-w-0 flex-1 items-center gap-1.5">
-                    <span className="min-w-0 truncate font-mono text-xs" title={path}>
+                    <span className="min-w-0 truncate font-mono text-code" title={path}>
                         {name}
                     </span>
                     {showOrigin ? <OriginTag origin={origin} /> : null}
                 </span>
                 {trailing != null ? (
-                    <span className="shrink-0 text-right text-xs tabular-nums text-colorTextTertiary">
+                    <span className="shrink-0 text-right text-meta tabular-nums text-muted-foreground">
                         {trailing}
                     </span>
                 ) : null}
@@ -271,7 +279,7 @@ export const DriveFileRow = ({
     // it). Without the tag, keep the raw folder so the origin still reads from the path.
     const folder = hideFolder
         ? null
-        : showOrigin && origin === "agent"
+        : showOrigin && origin === "home"
           ? rawFolder === AGENT_FILES_DIR
               ? null
               : (rawFolder?.slice(AGENT_FILES_DIR.length + 1) ?? null)
@@ -280,7 +288,7 @@ export const DriveFileRow = ({
         file && !isFolderEntry ? (
             <FileThumb file={file} mount={mount ?? null} staticThumb={staticThumb} />
         ) : (
-            <div className="flex aspect-[4/3] w-full items-center justify-center rounded bg-colorFillTertiary">
+            <div className="flex aspect-[4/3] w-full items-center justify-center rounded-sm bg-secondary">
                 {kindIcon(22)}
             </div>
         )
@@ -307,16 +315,16 @@ export const DriveFileRow = ({
         <button
             type="button"
             onClick={onOpen}
-            className={`flex w-full cursor-pointer items-center gap-2.5 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-1.5 text-left transition-colors hover:border-colorBorder hover:bg-colorFillTertiary ${FOCUS_RING} ${hidden ? "opacity-60" : ""}`}
+            className={`flex w-full cursor-pointer items-center gap-2.5 rounded-lg border border-solid border-border-muted bg-secondary p-1.5 text-left transition-colors hover:border-border hover:bg-accent ${FOCUS_RING} ${hidden ? "opacity-60" : ""}`}
             style={recentStyle}
         >
             <div className="w-16 shrink-0">{thumb}</div>
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="truncate font-mono text-xs" title={path}>
+                <span className="truncate font-mono text-code" title={path}>
                     {name}
                 </span>
                 {meta ? (
-                    <span className="truncate text-xs text-colorTextTertiary">{meta}</span>
+                    <span className="truncate text-meta text-muted-foreground">{meta}</span>
                 ) : null}
             </div>
         </button>

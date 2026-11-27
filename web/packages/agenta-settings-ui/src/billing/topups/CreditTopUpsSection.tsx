@@ -1,5 +1,8 @@
 import {useEffect, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import billingTopupsCatalog from "@agenta/i18n/catalogs/billing.topups"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Button, cn} from "@agenta/ui/ui"
 
 import {BuyCreditsDialog} from "./BuyCreditsDialog"
@@ -41,6 +44,7 @@ export const CreditTopUpsSection = ({
     framed = false,
     showLoadError = false,
 }: CreditTopUpsSectionProps) => {
+    const t = useT(billingTopupsCatalog, commonCatalog)
     const offer = useTopUpOffer({projectId})
     const entry = topUpEntry(offer.data?.status)
     const [shownReturn, setShownReturn] = useState<TopUpReturn>(null)
@@ -90,11 +94,11 @@ export const CreditTopUpsSection = ({
     if (loadFailed) {
         body = (
             <div className="flex flex-wrap items-center gap-3">
-                <span className="text-xs text-colorTextSecondary">
-                    Could not load credit packs.
+                <span className="text-meta text-muted-foreground">
+                    {t("billing.topups.loadError")}
                 </span>
                 <Button size="sm" variant="outline" onClick={() => void offer.refetch()}>
-                    Retry
+                    {t("common.retry")}
                 </Button>
             </div>
         )
@@ -102,25 +106,23 @@ export const CreditTopUpsSection = ({
         const days = offer.data?.packs[0]?.expiresAfterDays
         body = (
             <div className="flex flex-wrap items-center justify-between gap-3">
-                <span className="text-xs text-colorTextSecondary">
-                    {days
-                        ? `One-time credit packs. Purchased credits expire ${days} days after purchase.`
-                        : "One-time credit packs."}
+                <span className="text-meta text-muted-foreground">
+                    {days ? t("billing.topups.packsExpire", {days}) : t("billing.topups.packs")}
                 </span>
                 <Button size="sm" onClick={() => setPickerOpen(true)}>
-                    Buy credits
+                    {t("billing.topups.buyCredits")}
                 </Button>
             </div>
         )
     } else if (entry === "upgrade") {
         body = (
             <div className="flex flex-wrap items-center justify-between gap-3">
-                <span className="text-xs text-colorTextSecondary">
-                    Credit packs are available on paid plans.
+                <span className="text-meta text-muted-foreground">
+                    {t("billing.topups.paidPlansOnly")}
                 </span>
                 {onUpgrade ? (
                     <Button size="sm" variant="outline" onClick={onUpgrade}>
-                        Upgrade
+                        {t("common.upgrade")}
                     </Button>
                 ) : null}
             </div>
@@ -131,13 +133,13 @@ export const CreditTopUpsSection = ({
         <section
             className={cn(
                 "flex w-full flex-col gap-2",
-                framed && "items-stretch rounded-lg bg-colorFillQuaternary p-4",
+                framed && "items-stretch rounded-lg bg-secondary p-4",
             )}
         >
             {framed ? (
-                <span className="text-xs font-medium text-colorText">Buy credits</span>
+                <span className="text-label text-foreground">{t("billing.topups.buyCredits")}</span>
             ) : (
-                <h3 className="m-0 text-sm font-medium">Buy credits</h3>
+                <h3 className="m-0 text-label">{t("billing.topups.buyCredits")}</h3>
             )}
             {notice}
             {body}

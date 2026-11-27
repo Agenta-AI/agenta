@@ -1,6 +1,8 @@
 import type {CSSProperties} from "react"
 
 import type {AgentStarterTemplate} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import marketplaceCatalog from "@agenta/i18n/catalogs/marketplace.page"
 import {
     Button,
     LoadingButton,
@@ -17,7 +19,7 @@ import Link from "next/link"
 import {AppTileStack} from "./AppTileStack"
 import {ExampleRun} from "./ExampleRun"
 import {HowItWorksSteps} from "./HowItWorksSteps"
-import {howItWorks, templateProviders, templateTools} from "./marketplaceView"
+import {categoryText, howItWorks, templateProviders, templateTools} from "./marketplaceView"
 import {SectionLabel} from "./SectionLabel"
 import {TemplateConnectList} from "./TemplateConnectList"
 import {TemplateToolList} from "./TemplateToolList"
@@ -45,6 +47,7 @@ export const TemplatePreviewSheet = ({
     onClose: () => void
 }) => {
     const tools = template ? templateTools(template) : []
+    const t = useT(marketplaceCatalog)
     return (
         <Sheet open={open && Boolean(template)} onOpenChange={(next) => !next && onClose()}>
             <SheetContent side="responsive" style={SHEET_WIDTH} className="overflow-hidden">
@@ -52,14 +55,16 @@ export const TemplatePreviewSheet = ({
                     <>
                         <SheetHeader className="py-2.5">
                             <div className="flex min-w-0 items-center gap-2">
-                                <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs">
-                                    Agent Marketplace /{" "}
-                                    <span className="text-foreground">{template.category}</span>
+                                <span className="text-muted-foreground min-w-0 flex-1 truncate text-meta">
+                                    {t("marketplace.page.title")} /{" "}
+                                    <span className="text-foreground">
+                                        {categoryText(template.category)}
+                                    </span>
                                 </span>
                                 <Button
                                     variant="ghost"
                                     size="icon-sm"
-                                    aria-label="Previous template"
+                                    aria-label={t("marketplace.page.previousTemplate")}
                                     onClick={() => onStep(-1)}
                                 >
                                     <CaretUpIcon />
@@ -67,7 +72,7 @@ export const TemplatePreviewSheet = ({
                                 <Button
                                     variant="ghost"
                                     size="icon-sm"
-                                    aria-label="Next template"
+                                    aria-label={t("marketplace.page.nextTemplate")}
                                     onClick={() => onStep(1)}
                                 >
                                     <CaretDownIcon />
@@ -78,10 +83,8 @@ export const TemplatePreviewSheet = ({
                         <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-5 py-5 lg:px-6">
                             <div className="flex flex-col gap-3">
                                 <AppTileStack apps={templateProviders(template)} size="lg" />
-                                <SheetTitle className="text-xl font-semibold">
-                                    {template.name}
-                                </SheetTitle>
-                                <SheetDescription className="text-sm leading-relaxed">
+                                <SheetTitle className="text-title">{template.name}</SheetTitle>
+                                <SheetDescription className="text-body">
                                     {template.overview || template.description}
                                 </SheetDescription>
                             </div>
@@ -91,18 +94,24 @@ export const TemplatePreviewSheet = ({
                             ) : null}
 
                             <section className="flex flex-col gap-3">
-                                <SectionLabel as="h3">Connects</SectionLabel>
+                                <SectionLabel as="h3">
+                                    {t("marketplace.page.connects")}
+                                </SectionLabel>
                                 <TemplateConnectList template={template} />
                             </section>
 
                             <section className="flex flex-col gap-3">
-                                <SectionLabel as="h3">How it works</SectionLabel>
+                                <SectionLabel as="h3">
+                                    {t("marketplace.page.howItWorks")}
+                                </SectionLabel>
                                 <HowItWorksSteps steps={howItWorks(template)} />
                             </section>
 
                             {tools.length ? (
                                 <section className="flex flex-col gap-3">
-                                    <SectionLabel as="h3">Tools it can use</SectionLabel>
+                                    <SectionLabel as="h3">
+                                        {t("marketplace.page.toolsItCanUse")}
+                                    </SectionLabel>
                                     <TemplateToolList tools={tools} />
                                 </section>
                             ) : null}
@@ -114,11 +123,11 @@ export const TemplatePreviewSheet = ({
                                 className="flex-1"
                                 onClick={() => onUse(template)}
                             >
-                                Use this template
+                                {t("marketplace.page.useTemplate")}
                             </LoadingButton>
                             <Button variant="outline" asChild>
                                 <Link href={fullPageHref}>
-                                    Open full page
+                                    {t("marketplace.page.openFullPage")}
                                     <ArrowRightIcon data-icon="inline-end" />
                                 </Link>
                             </Button>

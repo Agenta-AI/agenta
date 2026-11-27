@@ -1,0 +1,9 @@
+{
+    "checkAgain": "Erneut prüfen",
+    "noOrganizationBody": "Diese Instanz hat eine Organisation. Bitten Sie deren Administrator um eine Einladung. Die Einladung öffnet sich hier, sobald sie eintrifft.",
+    "noOrganizationTitle": "Sie sind noch in keiner Organisation",
+    "noProjects": "Keine Projekte gefunden.",
+    "retry": "Erneut versuchen",
+    "signedInAs": "Angemeldet als {{email}}",
+    "somethingWrong": "Etwas ist schiefgegangen."
+}

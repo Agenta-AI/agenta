@@ -1,0 +1,9 @@
+# Generated translation files: GitHub collapses them in PR diffs. Only the linguist attribute is set.
+# locales/en is the hand-written source and stays visible.
+web/packages/agenta-i18n/locales/.meta/** linguist-generated=true
+web/packages/agenta-i18n/locales/zh-CN/** linguist-generated=true
+web/packages/agenta-i18n/locales/ja-JP/** linguist-generated=true
+web/packages/agenta-i18n/locales/es-ES/** linguist-generated=true
+web/packages/agenta-i18n/locales/pt-BR/** linguist-generated=true
+web/packages/agenta-i18n/locales/de-DE/** linguist-generated=true
+web/packages/agenta-i18n/locales/fr-FR/** linguist-generated=true

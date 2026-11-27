@@ -74,7 +74,7 @@ export const PromptsScreen = ({
         [projectId, workspaceId],
     )
     const projectBase = `/w/${workspaceId}/p/${projectId}`
-    const createPrompt = useCreatePrompt({projectBase})
+    const createPrompt = useCreatePrompt({projectBase, folderId: browser.folderId})
     // A new prompt opens in the playground, so New prompt needs it: developer mode only.
     const newPrompt = playgroundEnabled && actions.canEditPrompts ? createPrompt.action : null
     const [settingUpWorkflow, setSettingUpWorkflow] = useState(false)
@@ -137,7 +137,7 @@ export const PromptsScreen = ({
                         >
                             <div className="flex min-w-0 items-center gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
+                                <h1 className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
                                     {promptsCopy.pageTitle}
                                 </h1>
                                 <PromptsCreateMenu

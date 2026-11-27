@@ -2,6 +2,9 @@
  *  The rail box belongs to `FilterRailLayout`, not here. */
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import sessionsFiltersCatalog from "@agenta/i18n/catalogs/sessions.filters"
+
 import {
     SessionAgentControl,
     SessionArchivedControl,
@@ -11,9 +14,7 @@ import {
 } from "./controls/SessionFilterControls"
 
 const RailLabel = ({children}: {children: ReactNode}) => (
-    <h2 className="m-0 text-xs font-semibold uppercase tracking-wide text-colorTextTertiary">
-        {children}
-    </h2>
+    <h2 className="m-0 text-label text-muted-foreground">{children}</h2>
 )
 
 export interface SessionFiltersPanelProps {
@@ -39,13 +40,14 @@ export const SessionFiltersPanel = ({
     hideAgentFilter,
     className,
 }: SessionFiltersPanelProps) => {
+    const t = useT(sessionsFiltersCatalog)
     return (
         <div className={`flex min-w-0 flex-col gap-6 ${className ?? ""}`}>
             {title || leading ? (
                 <div className="flex min-w-0 items-center gap-2">
                     {leading}
                     {title ? (
-                        <h1 className="m-0 min-w-0 flex-1 truncate text-[24px] font-semibold leading-tight text-colorText">
+                        <h1 className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
                             {title}
                         </h1>
                     ) : null}
@@ -58,19 +60,19 @@ export const SessionFiltersPanel = ({
 
             {hideAgentFilter || !agents?.length ? null : (
                 <section className="flex flex-col gap-2">
-                    <RailLabel>Agent</RailLabel>
+                    <RailLabel>{t("sessions.filters.agent")}</RailLabel>
                     <SessionAgentControl agents={agents} />
                 </section>
             )}
 
             {/* Two headings: one switch picks WHICH sessions, the other widens the set. */}
             <section className="flex flex-col gap-3">
-                <RailLabel>Show</RailLabel>
+                <RailLabel>{t("sessions.filters.show")}</RailLabel>
                 <SessionModeControl />
             </section>
 
             <section className="flex flex-col gap-3">
-                <RailLabel>Include</RailLabel>
+                <RailLabel>{t("sessions.filters.include")}</RailLabel>
                 <SessionArchivedControl />
             </section>
         </div>

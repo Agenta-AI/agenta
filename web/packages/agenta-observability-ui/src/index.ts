@@ -33,8 +33,6 @@ export {
 // ============================================================================
 // PRIMITIVES
 // ============================================================================
-export {Chip, type ChipTone} from "./primitives/Chip"
-export {SkeletonBlock} from "./primitives/SkeletonBlock"
 export {LabelValuePill} from "./primitives/LabelValuePill"
 
 // ============================================================================
@@ -146,7 +144,7 @@ export {
     ObservabilitySessionsTable,
     type ObservabilitySessionsTableProps,
 } from "./table/ObservabilitySessionsTable"
-export {getSessionColumns, type SessionRow} from "./columns/getSessionColumns"
+export {getSessionColumns, useSessionColumns, type SessionRow} from "./columns/getSessionColumns"
 export {
     ObservabilityTracesTable,
     type ObservabilityTracesTableProps,

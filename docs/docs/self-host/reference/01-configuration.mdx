@@ -45,6 +45,18 @@ This key has no env-var or `env.py` equivalent.
 | `AGENTA_SERVICES_INTERNAL_KEY` | `agenta.services_internal_key` | `agenta.servicesInternalKey` |
 | `AGENTA_RUNNER_TOKEN` | n/a (read by the runner and its caller) | `agenta.runnerToken` |
 
+`AGENTA_LICENSE` picks the default database names: `oss` (the default) gives `agenta_oss_core`,
+`agenta_oss_tracing` and `agenta_oss_supertokens`, and `ee` gives `agenta_ee_*`. The web
+container also reads it for the classic web app, and the services container reads it for
+[provider keys from the environment](#llm-provider-api-keys). It does not decide the plan or the
+features: a [license key](#license) does. `POSTGRES_DB_PREFIX` and the `POSTGRES_URI_*` variables
+override the names it picks. See [postgres](#postgres).
+
+:::warning Do not change `AGENTA_LICENSE` on an install that has data
+The install then opens other database names, which are empty, and looks as if its data is gone.
+To move to a paid plan, add a [license key](/self-host/license-keys) instead.
+:::
+
 `AGENTA_AUTH_KEY`, `AGENTA_CRYPT_KEY`, `AGENTA_SERVICES_INTERNAL_KEY`, and `AGENTA_RUNNER_TOKEN`
 are required secrets: the examples ship them as `replace-me` and you must set a real value for
 each. See [Agent runner](#routing-and-authentication) for the runner token.
@@ -106,6 +118,7 @@ for how they behave. The plan and role variables are Enterprise-only; see
 | `AGENTA_ACCESS_DEFAULT_PLAN` | `agenta.access.default_plan` | `agenta.access.defaultPlan` |
 | `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` | `agenta.access.default_plan_overlay` | `agenta.access.defaultPlanOverlay` |
 | `AGENTA_ACCESS_EMAIL_DISABLED` | `agenta.access.email_disabled` | `agenta.access.emailDisabled` |
+| `AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` | `agenta.access.personal_accounts_enabled` | `agenta.access.personalAccountsEnabled` |
 | `AGENTA_ACCESS_PLANS` | `agenta.access.plans` | `agenta.access.plans` |
 | `AGENTA_ACCESS_ROLES` | `agenta.access.roles` | `agenta.access.roles` |
 | `AGENTA_ACCESS_ROLES_OVERLAY` | `agenta.access.roles_overlay` | `agenta.access.rolesOverlay` |
@@ -117,6 +130,13 @@ client adds itself. The bundled Traefik and nginx setups need `1`. When it is un
 uses the first `X-Forwarded-For` entry, which a client can set. The API reads `CF-Connecting-IP`
 only when `AGENTA_ACCESS_TRUST_CLOUDFLARE_IP` is `true`. Turn it on only when Cloudflare proxies
 every request to the API.
+
+`AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` defaults to `true`. People can then store their own
+accounts (custom secrets, Composio connections, MCP sign-ins), and an agent's `user` items use
+them. Set it to `false` to turn this off. While it is `false`, the API refuses person-owned
+writes and account choices, and a run leaves every `user` item out. During an upgrade, set it to
+`false` until every API pod, services pod and runner runs a release that supports personal accounts.
+On Kubernetes, set `agenta.access.personalAccountsEnabled`. The chart default is `true`, and the chart renders it into the API, worker, cron, services and alembic pods. To keep the old behavior during an upgrade, set it to `false`, and set it back to `true` once every pod runs the release.
 
 ## Agenta AI services
 
@@ -184,7 +204,7 @@ memory: agent run spans can be hundreds of KB each.
 
 The online redaction filter scrubs known credential/secret **values** out of error responses,
 persisted records, spans, and logs on the invoke path (detective control, not preventive; see
-[docs/designs/online-redaction](https://github.com/agenta-ai/agenta/blob/main/docs/designs/online-redaction/specs.md)).
+[docs/design/online-redaction](https://github.com/agenta-ai/agenta/blob/main/docs/design/online-redaction/specs.md)).
 The filter redacts a value only when it is a live secret the platform resolved for the request,
 never by guessing at shape or entropy.
 
@@ -456,14 +476,14 @@ Read by the `runner` service. Required only when `daytona` is enabled.
 | `AGENTA_RUNNER_DAYTONA_API_KEY` | Provisioning credential | Unset | yes | `agentRunner.providers.daytona.apiKeySecretRef` |
 | `AGENTA_RUNNER_DAYTONA_API_URL` | Daytona API locator | Unset | no | `...daytona.apiUrl` |
 | `AGENTA_RUNNER_DAYTONA_TARGET` | Region or target | Unset | no | `...daytona.target` |
-| `AGENTA_RUNNER_DAYTONA_SNAPSHOT` | Snapshot to start from | Runner's pinned `agenta-agent-sandbox-v4` | no | `...daytona.snapshot` |
+| `AGENTA_RUNNER_DAYTONA_SNAPSHOT` | Snapshot to start from | Runner's pinned `agenta-agent-sandbox-v8` | no | `...daytona.snapshot` |
 | `AGENTA_RUNNER_DAYTONA_IMAGE` | Image to start from | Unset | no | `...daytona.image` |
 | `AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES` | Idle minutes before stop | `15` | no | `...daytona.autostopMinutes` |
 | `AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES` | Idle minutes before delete | `30` | no | `...daytona.autodeleteMinutes` |
 | `AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS` | Set to `off` to stop hiding API keys from the sandbox | Unset (hiding is on) | no | `...daytona.opaqueSecrets` |
 
 When neither `AGENTA_RUNNER_DAYTONA_SNAPSHOT` nor `AGENTA_RUNNER_DAYTONA_IMAGE` is set, the runner
-starts from its pinned default snapshot `agenta-agent-sandbox-v4`. The two variables are mutually
+starts from its pinned default snapshot `agenta-agent-sandbox-v8`. The two variables are mutually
 exclusive. The autostop and autodelete values must be positive integers. See
 [Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona) for the setup flow,
 and [Customize the agent runtime](/self-host/agent-execution/customize-the-agent-runtime) for the
@@ -777,15 +797,15 @@ logged.
 
 ```text
 runner providers enabled=[local,daytona,inprocess] default=local
-runner daytona target=eu artifact=snapshot:agenta-agent-sandbox-v4
-runner inprocess sandbox_start=on-first-tool-call artifact=snapshot:agenta-agent-sandbox-v4 max_running_sandboxes=40 max_sessions=200
+runner daytona target=eu artifact=snapshot:agenta-agent-sandbox-v8
+runner inprocess sandbox_start=on-first-tool-call artifact=snapshot:agenta-agent-sandbox-v8 max_running_sandboxes=40 max_sessions=200
 ```
 
 The first line always prints and shows the effective list: `local,daytona` in the variable prints as
 `local,daytona,inprocess`. The second line appears only when `daytona` is enabled. The third
 line appears only when `inprocess` is enabled. `target`
 reads `default` when `AGENTA_RUNNER_DAYTONA_TARGET` is unset, and `artifact` reads
-`snapshot:agenta-agent-sandbox-v4` (the pinned default), `snapshot:<name>`, or `image:<name>`
+`snapshot:agenta-agent-sandbox-v8` (the pinned default), `snapshot:<name>`, or `image:<name>`
 depending on what is set.
 
 ### Troubleshooting
@@ -1026,6 +1046,41 @@ A turn that carries more than `AGENTA_ATTACHMENTS_MAX_PER_TURN` attachments fail
 run starts. The runner also refuses any single attachment body over 16 MB. That ceiling is
 fixed in code, so raising a per-file cap above it stores files the runner cannot fetch.
 
+## Agenta sessions
+
+Bounds what an agent can do with the session tools: starting child sessions, sending them
+messages, and turns that no person sent. A child session is a session that another session
+started with `start_session`. The session that a person started is level 0, its child is
+level 1, and the child of that child is level 2.
+
+The chart has no dedicated values keys for these. Set them through `api.env.<NAME>`.
+
+Read by the `api` service:
+
+| Env var | env.py path | What it bounds | Default |
+|---|---|---|---|
+| `AGENTA_SESSIONS_TURNS_WITHOUT_PERSON_LIMIT` | `agenta.sessions.turns_without_person_limit` | Turns in a row in one session that no person sent. At this count, a new message that no person sent waits in the queue and runs after the next turn that a person sends. | `20` |
+| `AGENTA_SESSIONS_CHILD_SESSIONS_LIMIT` | `agenta.sessions.child_sessions_limit` | Running child sessions of one session. At this count, `start_session` is refused, and so is a send that would start a turn in an idle child. | `5` |
+| `AGENTA_SESSIONS_CHILD_SESSION_DEPTH_LIMIT` | `agenta.sessions.child_session_depth_limit` | Deepest level of a child session. `start_session` is refused when the new child would be deeper. | `3` |
+| `AGENTA_SESSIONS_CHILD_QUEUED_MESSAGES_LIMIT` | `agenta.sessions.child_queued_messages_limit` | Queued messages from one session in one child session. A send that would queue one more is refused. | `3` |
+| `AGENTA_SESSIONS_STILL_RUNNING_UPDATE_MINUTES` | `agenta.sessions.still_running_update_minutes` | Minutes after a start or a send before the calling session gets a "still running" update, when the agent gives no `update_after_minutes`. Values above `360` are treated as `360`. | `30` |
+
+Each value must be a whole number greater than `0`. The API does not start with `0` or a
+negative value.
+
+## Agenta triggers
+
+The chart has no dedicated values key for this. Set it through `api.env.<NAME>`.
+
+Read by the `api` service:
+
+| Env var | env.py path | What it bounds | Default |
+|---|---|---|---|
+| `AGENTA_TRIGGERS_ONE_TIME_SCHEDULES_MAX_PER_TICK` | `triggers.one_time_schedules_max_per_tick` | One-time schedules that one schedule tick fires, over all projects. The earliest are fired first; the rest fire in the next tick. | `2000` |
+
+The value must be a whole number greater than `0`. The API does not start with `0` or a
+negative value.
+
 ## Agenta egress
 
 | Env var | env.py path | values.yaml path |
@@ -1124,7 +1179,8 @@ show the MCP settings tab, so set these in the file every container loads and re
 The LLM gateway can serve models from a Google Cloud Vertex AI account that your deployment
 owns, instead of from a key in the project's vault. An agent then picks them from the
 **Built-in: agenta** group in the model picker, and the call is made with your account's
-credential. Today these are Gemini 3.7 Flash, Gemini 3.8 Flash, and Gemini 4 Argon.
+credential. Today these are Gemini 3.7 Flash, Gemini 3.8 Flash, Gemini 4 Hydrogen, Gemini 4 Argon,
+Gemini 4 Carbon, and Gemini 4 Neon.
 
 To turn this on, set both of these on the API container:
 
@@ -1291,8 +1347,11 @@ The `sessions` loop of `worker-streams` sends channel replies. Run it in exactly
 | Env var | env.py path | values.yaml path |
 |---|---|---|
 | `ALEMBIC_AUTO_MIGRATIONS` | `alembic.auto_migrations` | `alembic.autoMigrations` |
-| `ALEMBIC_CFG_PATH_CORE` | `alembic.cfg_path_core` | `alembic.cfgPathCore` |
-| `ALEMBIC_CFG_PATH_TRACING` | `alembic.cfg_path_tracing` | `alembic.cfgPathTracing` |
+| `ALEMBIC_CFG_PATH_CORE` | `alembic.cfg_path_core` | n/a |
+| `ALEMBIC_CFG_PATH_TRACING` | `alembic.cfg_path_tracing` | n/a |
+
+The migration job picks its migration chains itself and does not read `ALEMBIC_CFG_PATH_CORE` or
+`ALEMBIC_CFG_PATH_TRACING`.
 
 ## cloudflare
 
@@ -1377,6 +1436,35 @@ own `AGENTA_RUNNER_DAYTONA_SNAPSHOT`; see the [runner Daytona section](#daytona)
 | `TWITTER_OAUTH_CLIENT_ID` | `identity.twitter.client_id` | `identity.twitter.clientId` |
 | `TWITTER_OAUTH_CLIENT_SECRET` | `identity.twitter.client_secret` | `identity.twitter.clientSecret` |
 
+## license
+
+How to add a key, and what an instance gets without one, is on the
+[license keys page](/self-host/license-keys).
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_LICENSE_KEY` | `license.key` | n/a |
+
+A license key turns on the plan it names for every organization on a self-hosted instance. The
+key looks like `agenta_license_v1.<payload>.<signature>`. The instance checks it offline, with no
+network call. Every Agenta image reads license keys.
+
+An instance admin can also add a key in the app, under **Settings > License**. An instance admin
+is a user whose email is in `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS`, or, when that list is unset, the
+owner of the oldest organization. A key in `AGENTA_LICENSE_KEY` takes priority over a key added in
+the app, and the License page then shows the key but does not let you change it.
+
+On a self-hosted instance, the plan of every organization comes from the key. With no valid key, or after the
+key expires, the instance runs on `self_hosted_community`, which has no enterprise features and
+allows 1 project per organization and 1 organization per instance. No data is deleted when a key
+expires. See [Limits by plan](/self-host/license-keys#limits-by-plan). `AGENTA_ACCESS_DEFAULT_PLAN`, `AGENTA_ACCESS_PLANS` and
+`AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` cannot turn on enterprise features without a key.
+
+Do not confuse it with [`AGENTA_LICENSE`](#agenta-core), which picks the default database names.
+
+The Helm chart has no value for it. Set it on the `api`, `worker-queues` and `worker-streams`
+containers with `api.extraEnv`, `workerQueues.extraEnv` and `workerStreams.extraEnv`.
+
 ## llm (provider API keys)
 
 | Env var | env.py path | values.yaml path |
@@ -1398,8 +1486,8 @@ own `AGENTA_RUNNER_DAYTONA_SNAPSHOT`; see the [runner Daytona section](#daytona)
 
 A prompt or an evaluator runs on the provider keys saved in its project. The keys above, set on
 the services container, are used only when a project has no key of its own for that provider,
-and only when `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` allows it. It defaults to `true` in the
-OSS edition and to `false` in the EE edition. With it off, a project without a saved key gets the
+and only when `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` allows it. It defaults to `true` when
+`AGENTA_LICENSE` is `oss` or unset, and to `false` when it is `ee`. With it off, a project without a saved key gets the
 error "No API key found for model". A custom provider always uses its own key and never one of
 these.
 
@@ -1427,6 +1515,20 @@ read from the services environment.
 | `POSTGRES_URI_CORE` | `postgres.uri_core` | `postgres.uriCore` |
 | `POSTGRES_URI_SUPERTOKENS` | `postgres.uri_supertokens` | `postgres.uriSupertokens` |
 | `POSTGRES_URI_TRACING` | `postgres.uri_tracing` | `postgres.uriTracing` |
+| `POSTGRES_DB_PREFIX` | `postgres.db_prefix` | n/a |
+
+The API finds its three databases in this order:
+
+1. `POSTGRES_URI_CORE`, `POSTGRES_URI_TRACING` and `POSTGRES_URI_SUPERTOKENS`, when set.
+2. Else `<prefix>_core`, `<prefix>_tracing` and `<prefix>_supertokens`, where the prefix is
+   `POSTGRES_DB_PREFIX`.
+3. Else the prefix is `agenta_` followed by `AGENTA_LICENSE`: `agenta_oss` when it is unset or
+   `oss`, `agenta_ee` when it is `ee`.
+
+The env file examples for new installs set `POSTGRES_DB_PREFIX`. Do not change it on an install
+that has data: the install then opens other, empty databases. The Helm chart has no value for the
+prefix. It names the bundled databases from `agenta.license`, and `postgresql.databases.*` overrides
+them.
 
 ### Connection pool
 
@@ -1482,6 +1584,31 @@ The Helm chart has no values for these. Set them through each component's `extra
 | `REDIS_URI_DURABLE` | `redis.uri_durable` | `redis.uriDurable` |
 | `REDIS_URI_VOLATILE` | `redis.uri_volatile` | `redis.uriVolatile` |
 
+## releases
+
+What users see, and who sees it, is on the [update notices page](/self-host/update-notices).
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_UPDATE_CHECK_ENABLED` | `releases.update_check_enabled` | `releases.updateCheckEnabled` |
+| `AGENTA_RELEASE_FEED_URL` | `releases.feed_url` | Not mapped; set it in the API's environment |
+
+The update check is on by default. The API downloads the public release feed at
+`https://agenta.ai/releases.json` when someone uses Agenta, and keeps it for 12 hours (each API
+process keeps its own copy). The request sends the version the API runs and the kind of
+instance (`?version=v0.131.0&kind=production`) and no other data about your instance. The kind
+is `production` unless `AGENTA_TELEMETRY_INSTANCE_KIND` sets `development`, `ci` or `test`. Agenta uses the feed to
+show newer releases in "What's new", an "Update available" mark in the help menu, and a
+warning to organization owners and admins when a newer release fixes a security issue.
+
+Set `AGENTA_UPDATE_CHECK_ENABLED=false` to stop the download. Agenta then shows only the
+releases that shipped with the version you run. This setting does not follow
+`AGENTA_TELEMETRY_ENABLED`.
+
+`AGENTA_RELEASE_FEED_URL` is the address of the release feed. The default is
+`https://agenta.ai/releases.json`. An empty value uses the default. Change it only to test a
+different feed.
+
 ## smtp
 
 SMTP is preferred for email delivery. It is enabled only when host, port, and
@@ -1520,6 +1647,10 @@ SendGrid is used only when SMTP is not fully configured.
 | `STRIPE_WEBHOOK_SECRET` | `stripe.webhook_secret` | `stripe.webhookSecret` |
 | `STRIPE_WEBHOOK_TARGET` | `stripe.webhook_target` | `stripe.webhookTarget` |
 
+Stripe is for Agenta cloud billing. Do not set `STRIPE_API_KEY` on a self-hosted instance: the API
+and the workers refuse to start when `STRIPE_API_KEY` is set and `AGENTA_LICENSE_KEY` is not a
+cloud license key.
+
 ## supertokens
 
 | Env var | env.py path | values.yaml path |
@@ -1532,6 +1663,27 @@ SendGrid is used only when SMTP is not fully configured.
 | `SUPERTOKENS_PASSWORD_REGEX` | `supertokens.password_regex` | `supertokens.passwordRegex` |
 | `SUPERTOKENS_TENANT` | `supertokens.tenant` | `supertokens.tenant` |
 | `SUPERTOKENS_URI_CORE` | `supertokens.uri_core` | `supertokens.uriCore` |
+
+## telemetry
+
+What a self-hosted instance sends to Agenta, and what each setting stops, is on the
+[telemetry page](/self-host/telemetry).
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_TELEMETRY_ENABLED` | `telemetry.enabled` | `telemetry.enabled` |
+| `AGENTA_DEPLOYMENT_METHOD` | `telemetry.deployment_method` | _(set to `helm` by the chart)_ |
+| `AGENTA_TELEMETRY_INSTANCE_KIND` | `telemetry.instance_kind` | `telemetry.instanceKind` |
+
+`AGENTA_TELEMETRY_ENABLED` defaults to `true`. Set it to `false` to stop every event
+except the one-time install ping. `AGENTA_DEPLOYMENT_METHOD` is `compose`, `helm`,
+`railway`, `kubernetes` or `docker`. The Helm chart, the compose files and the Railway
+template set it for you. When it is unset, the API reports `kubernetes` if
+`KUBERNETES_SERVICE_HOST` is set, `docker` if `/.dockerenv` exists, and nothing otherwise.
+`AGENTA_TELEMETRY_INSTANCE_KIND` is `production`, `development`, `ci` or `test`. When it
+is unset, the API reports `ci` if `CI` is set, `development` if the web URL is
+`localhost` or a private address, and `production` otherwise. The install ping, the
+startup event, the heartbeat and every product event carry it as `instance_kind`.
 
 ## Deprecated environment variables
 

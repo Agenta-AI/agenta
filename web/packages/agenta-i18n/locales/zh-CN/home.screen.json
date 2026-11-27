@@ -1,0 +1,8 @@
+{
+    "title": "首页",
+    "loading": "正在加载首页",
+    "untitledAgent": "未命名 Agent",
+    "templatesError": "无法加载模板",
+    "agentsEmpty": "你创建的 Agent 会显示在这里。",
+    "agentsError": "无法加载你的 Agent"
+}

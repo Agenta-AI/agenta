@@ -1,7 +1,10 @@
 import {useEffect, useRef, useState} from "react"
 
-import {message} from "@agenta/ui/app-message"
+import {createT} from "@agenta/i18n"
+import settingsSharedCatalog from "@agenta/i18n/catalogs/settings.shared"
 import {Input, cn} from "@agenta/ui/ui"
+
+const t = createT(settingsSharedCatalog)
 
 /** A row name that becomes an input while renaming: Enter or blur saves, Escape cancels. */
 export const InlineName = ({
@@ -29,6 +32,7 @@ export const InlineName = ({
     testId?: string
 }) => {
     const [draft, setDraft] = useState(value)
+    const [problem, setProblem] = useState<string | null>(null)
     // Blur fires before a keydown's commit lands; one save per edit.
     const doneRef = useRef(false)
 
@@ -36,6 +40,7 @@ export const InlineName = ({
         if (!editing) return
         doneRef.current = false
         setDraft(value)
+        setProblem(null)
     }, [editing, value])
 
     const commit = async () => {
@@ -43,15 +48,19 @@ export const InlineName = ({
         doneRef.current = true
         const name = draft.trim()
         if (!name || name === value) return onDone()
-        const problem = validate?.(name)
-        if (problem) {
-            message.error(problem)
-            return onDone()
+        // A refused name keeps the field open with the text, so the person can fix it.
+        const refused = validate?.(name)
+        if (refused) {
+            setProblem(refused)
+            doneRef.current = false
+            return
         }
         try {
             await onSave(name)
         } catch (error) {
-            message.error((error as Error)?.message || "Couldn't rename this")
+            setProblem((error as Error)?.message || t("settings.shared.renameFailed"))
+            doneRef.current = false
+            return
         }
         onDone()
     }
@@ -59,7 +68,7 @@ export const InlineName = ({
     if (editing)
         return (
             <span
-                className="min-w-0 flex-1"
+                className="flex min-w-0 flex-1 flex-col gap-0.5"
                 onClick={(event) => event.stopPropagation()}
                 onKeyDown={(event) => event.stopPropagation()}
             >
@@ -67,7 +76,11 @@ export const InlineName = ({
                     autoFocus
                     aria-label={ariaLabel}
                     value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
+                    aria-invalid={problem ? true : undefined}
+                    onChange={(event) => {
+                        setDraft(event.target.value)
+                        setProblem(null)
+                    }}
                     onBlur={() => void commit()}
                     onKeyDown={(event) => {
                         if (event.key === "Enter") void commit()
@@ -78,6 +91,11 @@ export const InlineName = ({
                     }}
                     className="h-7"
                 />
+                {problem ? (
+                    <span role="alert" className="text-meta text-destructive">
+                        {problem}
+                    </span>
+                ) : null}
             </span>
         )
 

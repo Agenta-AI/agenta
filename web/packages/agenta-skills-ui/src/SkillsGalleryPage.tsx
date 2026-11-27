@@ -8,6 +8,8 @@
  * desktop). `"rail"` is the `FilterRailLayout` variant, where the title, search and facets live
  * in the rail and cannot scroll away from the results.
  */
+import {useT} from "@agenta/i18n"
+import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {FilterRailLayout} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
 import {SearchInput} from "@agenta/ui/ui"
@@ -62,17 +64,15 @@ function SourceNavRow({
             onClick={onSelect}
             aria-current={active}
             className={cn(
-                "flex cursor-pointer items-center justify-between gap-2 rounded-md border-0 px-2.5 py-1.5 text-left text-xs",
+                "flex cursor-pointer items-center justify-between gap-2 rounded-md border-0 px-2.5 py-1.5 text-left text-label font-normal",
                 chip ? "shrink-0" : "w-full",
                 active
-                    ? "bg-[var(--ag-colorBgContainer)] font-medium shadow-sm"
-                    : "bg-transparent text-[var(--ag-colorTextSecondary)] hover:bg-[var(--ag-colorFillTertiary)]",
+                    ? "bg-selected font-medium"
+                    : "bg-transparent text-muted-foreground hover:bg-accent",
             )}
         >
             <span className="min-w-0 truncate">{entry.label}</span>
-            <span className="shrink-0 tabular-nums text-[var(--ag-colorTextTertiary)]">
-                {entry.count}
-            </span>
+            <span className="shrink-0 tabular-nums text-muted-foreground">{entry.count}</span>
         </button>
     )
 }
@@ -91,6 +91,7 @@ export function SkillsGalleryPage({
     onShowArchivedChange,
     layout = "toolbar",
 }: SkillsGalleryPageProps) {
+    const t = useT(skillsGalleryCatalog)
     const gallery = (
         <SkillGallerySections
             sections={sections}
@@ -110,8 +111,8 @@ export function SkillsGalleryPage({
                     <NewSkillMenuButton {...createActions} />
 
                     <SearchInput
-                        placeholder="Search skills..."
-                        aria-label="Search skills"
+                        placeholder={t("skills.gallery.searchPlaceholder")}
+                        aria-label={t("skills.gallery.searchAria")}
                         value={search}
                         onValueChange={onSearchChange}
                         className="max-w-80"
@@ -123,9 +124,11 @@ export function SkillsGalleryPage({
                         <button
                             type="button"
                             onClick={() => onShowArchivedChange(!showArchived)}
-                            className="ml-auto shrink-0 cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--ag-colorTextSecondary)] hover:underline"
+                            className="ml-auto shrink-0 cursor-pointer border-0 bg-transparent p-0 text-meta text-muted-foreground hover:underline"
                         >
-                            {showArchived ? "Hide archived" : "Archived skills"}
+                            {showArchived
+                                ? t("skills.gallery.hideArchived")
+                                : t("skills.gallery.archivedSkills")}
                         </button>
                     ) : null}
                 </div>
@@ -133,7 +136,7 @@ export function SkillsGalleryPage({
                 {hasSourceFacets ? (
                     <nav
                         className="flex flex-row gap-1.5 overflow-x-auto"
-                        aria-label="Skill sources"
+                        aria-label={t("skills.gallery.sourcesAria")}
                     >
                         {sources.map((entry) => (
                             <SourceNavRow
@@ -156,14 +159,17 @@ export function SkillsGalleryPage({
         <FilterRailLayout
             rail={
                 <>
-                    <h1 className="m-0 text-lg font-semibold">Skills</h1>
+                    <h1 className="m-0 text-title">{t("skills.gallery.skillsHeading")}</h1>
                     <SearchInput
-                        placeholder="Search skills..."
-                        aria-label="Search skills"
+                        placeholder={t("skills.gallery.searchPlaceholder")}
+                        aria-label={t("skills.gallery.searchAria")}
                         value={search}
                         onValueChange={onSearchChange}
                     />
-                    <nav className="flex flex-col gap-0.5" aria-label="Skill sources">
+                    <nav
+                        className="flex flex-col gap-0.5"
+                        aria-label={t("skills.gallery.sourcesAria")}
+                    >
                         {sources.map((entry) => (
                             <SourceNavRow
                                 key={entry.key}
@@ -174,13 +180,13 @@ export function SkillsGalleryPage({
                         ))}
                     </nav>
                     {onShowArchivedChange ? (
-                        <label className="flex cursor-pointer items-center gap-2 px-2.5 text-xs text-[var(--ag-colorTextSecondary)]">
+                        <label className="flex cursor-pointer items-center gap-2 px-2.5 text-meta text-muted-foreground">
                             <Checkbox
                                 checked={Boolean(showArchived)}
                                 onCheckedChange={(next) => onShowArchivedChange(next === true)}
-                                aria-label="Show archived skills"
+                                aria-label={t("skills.gallery.showArchivedAria")}
                             />
-                            Show archived
+                            {t("skills.gallery.showArchived")}
                         </label>
                     ) : null}
                 </>

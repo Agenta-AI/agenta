@@ -60,22 +60,36 @@ vi.mock("@agenta/entities/gatewayTrigger", async () => {
         ...(await import("../../../packages/agenta-entities/src/gatewayTrigger/core/cron")),
         ...(await import("../../../packages/agenta-entities/src/gatewayTrigger/core/messageInputs")),
         ...(await import("../../../packages/agenta-entities/src/gatewayTrigger/core/scheduleBuilder")),
+        ...(await import("../../../packages/agenta-entities/src/gatewayTrigger/core/scheduleText")),
+        ...(await import("../../../packages/agenta-entities/src/gatewayTrigger/core/scheduleText")),
         triggerScheduleDrawerAtom: mocks.scheduleDrawer,
         triggerSubscriptionDrawerAtom: mocks.subscriptionDrawer,
         useTriggerSchedule: () => ({schedule: null, create: mocks.createSchedule}),
         useTriggerSubscription: () => ({subscription: null, create: vi.fn()}),
+        // The new automation's default name reads the picked event's catalog entry.
+        useTriggerConnectionsQuery: () => ({connections: []}),
+        useTriggerEvent: () => ({event: null, isLoading: false, error: null}),
     }
 })
-vi.mock("@agenta/entity-ui/gatewayTrigger", () => ({buildTriggerReferences: () => ({})}))
-vi.mock("@agenta/ui/app-message", () => ({message: {success: vi.fn(), error: vi.fn()}}))
-vi.mock("@agenta/ui/drawer", () => ({
-    EnhancedDrawer: ({children, footer}: {children: ReactNode; footer?: ReactNode}) =>
-        createElement("div", null, children, footer),
+vi.mock("@agenta/entity-ui/gatewayTrigger", async () => ({
+    ...(await import("../../../packages/agenta-entity-ui/src/gatewayTrigger/scheduleText")),
+    buildTriggerReferences: () => ({}),
 }))
+vi.mock("@agenta/ui/app-message", () => ({message: {success: vi.fn(), error: vi.fn()}}))
 vi.mock("@agenta/ui/ui", () => {
     const button = ({children, onClick}: {children: ReactNode; onClick?: () => void}) =>
         createElement("button", {type: "button", onClick}, children)
-    return {Button: button, LoadingButton: button}
+    const part = ({children}: {children?: ReactNode}) => createElement("div", null, children)
+    return {
+        Button: button,
+        LoadingButton: button,
+        Sheet: part,
+        SheetContent: part,
+        SheetHeader: part,
+        SheetTitle: part,
+        SheetFooter: part,
+        cn: (...classes: unknown[]) => classes.filter(Boolean).join(" "),
+    }
 })
 // The form and the edit side are not this file's subject.
 vi.mock("../../../packages/agenta-automation-ui/src/AutomationCreateBody", () => ({

@@ -1,0 +1,16 @@
+{
+    "loadError": "No se ha podido cargar esta plantilla",
+    "notFound": "Plantilla no encontrada",
+    "allTemplates": "Todas las plantillas",
+    "use": "Usar esta plantilla",
+    "slotOr": "{{first}} o {{second}}",
+    "connectionsUsed": "Conexiones que usa",
+    "optionalConnections": "Conexiones opcionales",
+    "alsoIncluded": "También incluye",
+    "trigger": "Disparador",
+    "exampleSession": "Sesión de ejemplo",
+    "exampleSteps": "{{name}} · {{total}} pasos",
+    "exampleNote": "Un ejemplo de cómo se ejecuta esta plantilla; no es una sesión grabada.",
+    "instructions": "Instrucciones · AGENTS.md",
+    "tools": "Herramientas que puede llamar"
+}

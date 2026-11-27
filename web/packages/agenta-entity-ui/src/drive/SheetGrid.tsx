@@ -1,5 +1,8 @@
 import {memo, useState, type MouseEvent, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import drivePreviewCatalog from "@agenta/i18n/catalogs/entityUi.drivePreview"
+
 import {columnName, encodeCell, tableWidth, type CellBox, type CellOrigin} from "./cellAddress"
 import type {CellSelection} from "./spreadsheetComments"
 import type {Sheet, SheetCell, Truncation} from "./workbook"
@@ -15,21 +18,26 @@ const capText = (text: string): string =>
 
 const range = (n: number) => Array.from({length: n}, (_, i) => i)
 
-const PreviewCell = ({cell}: {cell: SheetCell}) =>
-    "value" in cell ? (
+const PreviewCell = ({cell}: {cell: SheetCell}) => {
+    const t = useT(drivePreviewCatalog)
+    return "value" in cell ? (
         <>{capText(cell.value)}</>
     ) : (
-        <span className="italic text-colorTextTertiary" title="Formula with no stored value">
+        <span
+            className="italic text-muted-foreground"
+            title={t("entityUi.drivePreview.formulaNoValue")}
+        >
             {capText(cell.formula)}
         </span>
     )
+}
 
 const FormulaBar = ({address, cell}: {address: string; cell: SheetCell | undefined}) => (
-    <div className="flex h-8 shrink-0 items-stretch border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer font-mono text-xs">
-        <div className="flex w-20 shrink-0 items-center border-0 border-r border-solid border-colorBorderSecondary px-2">
+    <div className="flex h-8 shrink-0 items-stretch border-0 border-b border-solid border-border-muted bg-background font-mono text-code">
+        <div className="flex w-20 shrink-0 items-center border-0 border-r border-solid border-border-muted px-2">
             {address}
         </div>
-        <div className="flex w-8 shrink-0 items-center justify-center border-0 border-r border-solid border-colorBorderSecondary font-serif italic text-colorTextTertiary">
+        <div className="flex w-8 shrink-0 items-center justify-center border-0 border-r border-solid border-border-muted font-serif italic text-muted-foreground">
             fx
         </div>
         <div className="flex min-w-0 flex-1 items-center truncate px-2">
@@ -40,10 +48,10 @@ const FormulaBar = ({address, cell}: {address: string; cell: SheetCell | undefin
 
 // Sticky cells sit over scrolled rows, so each tint is painted over a solid container color.
 const HEADER =
-    "bg-colorBgContainer bg-[image:linear-gradient(var(--ag-colorFillTertiary),var(--ag-colorFillTertiary))] font-normal text-colorTextTertiary"
-const LINE = "border-0 border-b border-r border-solid border-colorBorderSecondary"
+    "bg-background bg-[image:linear-gradient(var(--secondary),var(--secondary))] font-normal text-muted-foreground"
+const LINE = "border-0 border-b border-r border-solid border-border-muted"
 const ACTIVE_HEADER =
-    "!bg-[image:linear-gradient(var(--ag-colorFillSecondary),var(--ag-colorFillSecondary))] !text-colorText"
+    "!bg-[image:linear-gradient(var(--secondary),var(--secondary))] !text-foreground"
 
 /** One grid row; memoized so a selection change redraws only the rows it touches. */
 const GridRow = memo(function GridRow({
@@ -73,13 +81,11 @@ const GridRow = memo(function GridRow({
     sticky: boolean
 }) {
     // Under the letter row, which is h-7 tall.
-    const pin = sticky ? "sticky top-7 bg-colorBgContainer" : ""
+    const pin = sticky ? "sticky top-7 bg-background" : ""
     const hover = hovering
-        ? "hover:bg-colorSelectionBg hover:outline hover:outline-2 hover:-outline-offset-2 hover:outline-colorSelection"
+        ? "hover:bg-info/10 hover:outline hover:outline-2 hover:-outline-offset-2 hover:outline-info"
         : ""
-    const picked = commenting
-        ? "bg-colorSelectionBg"
-        : "outline outline-2 -outline-offset-2 outline-colorSelection"
+    const picked = commenting ? "bg-info/10" : "outline outline-2 -outline-offset-2 outline-info"
     return (
         <tr>
             <th
@@ -140,9 +146,9 @@ export function SheetGrid({
                 address={box ? encodeCell(origin.r + box.top, origin.c + box.left) : ""}
                 cell={box ? rows[box.top]?.[box.left] : undefined}
             />
-            <div className="min-h-0 flex-1 overflow-auto bg-colorBgContainer">
+            <div className="min-h-0 flex-1 overflow-auto bg-background">
                 <table
-                    className={`min-w-full border-separate border-spacing-0 text-[13px] ${comments ? "select-none" : ""} ${comments && !comments.held ? "cursor-cell" : ""}`}
+                    className={`min-w-full border-separate border-spacing-0 text-label ${comments ? "select-none" : ""} ${comments && !comments.held ? "cursor-cell" : ""}`}
                     onPointerDown={comments?.onPointerDown}
                     onPointerOver={comments?.onPointerOver}
                     onClick={comments ? undefined : onClick}
@@ -189,25 +195,35 @@ export function SheetGrid({
     )
 }
 
-function truncationNote(truncated: Truncation, shownRows: number, shownColumns: number) {
-    const parts = [
-        truncated.rows ? `the first ${shownRows} rows` : null,
-        truncated.totalColumns !== null
-            ? `${shownColumns} of ${truncated.totalColumns} columns`
-            : null,
-    ].filter(Boolean)
-    return parts.length ? `Showing ${parts.join(" and ")}; download for the full file.` : null
+function truncationNote(
+    t: ReturnType<typeof useT<[typeof drivePreviewCatalog]>>,
+    truncated: Truncation,
+    shownRows: number,
+    shownColumns: number,
+) {
+    const rowsCut = Boolean(truncated.rows)
+    const columnsCut = truncated.totalColumns !== null
+    const values = {
+        rows: shownRows,
+        columns: shownColumns,
+        totalColumns: truncated.totalColumns ?? 0,
+    }
+    if (rowsCut && columnsCut) return t("entityUi.drivePreview.showingRowsAndColumns", values)
+    if (rowsCut) return t("entityUi.drivePreview.showingRows", values)
+    if (columnsCut) return t("entityUi.drivePreview.showingColumns", values)
+    return null
 }
 
 /** The bar under a sheet: its tabs, if any, and its size or what the caps cut. */
 export function SheetFooter({sheet, children}: {sheet: Sheet; children?: ReactNode}) {
+    const t = useT(drivePreviewCatalog)
     const columns = tableWidth(sheet.rows)
-    const note = truncationNote(sheet.truncated, sheet.rows.length, columns)
+    const note = truncationNote(t, sheet.truncated, sheet.rows.length, columns)
     return (
-        <div className="flex shrink-0 items-center gap-3 border-0 border-t border-solid border-colorBorderSecondary bg-colorFillQuaternary pr-3">
+        <div className="flex shrink-0 items-center gap-3 border-0 border-t border-solid border-border-muted bg-secondary pr-3">
             <div className="min-w-0 flex-1">{children}</div>
-            <span className="shrink-0 text-xs text-colorTextTertiary">
-                {note ?? `${sheet.rows.length} rows · ${columns} columns`}
+            <span className="shrink-0 text-meta text-muted-foreground">
+                {note ?? t("entityUi.drivePreview.rowsColumns", {rows: sheet.rows.length, columns})}
             </span>
         </div>
     )

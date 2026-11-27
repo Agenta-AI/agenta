@@ -36,10 +36,10 @@ export const EvaluatorPlaygroundHeader = ({
 }) => (
     <header className="flex min-h-12 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border px-4 py-2">
         <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-        <h1 className="m-0 min-w-0 truncate text-sm font-semibold text-foreground">
+        <h1 className="m-0 min-w-0 truncate text-title text-foreground">
             {evaluatorName ?? "Evaluator"}
         </h1>
-        <span className="shrink-0 text-sm text-muted-foreground">Playground</span>
+        <span className="shrink-0 text-title font-normal text-muted-foreground">Playground</span>
         {typeTag}
         <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1">
             <RunOnSelector mode={runOn} onPick={onRunOnChange} />

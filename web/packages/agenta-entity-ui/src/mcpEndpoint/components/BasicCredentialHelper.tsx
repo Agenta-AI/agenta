@@ -9,6 +9,8 @@
 import {useState} from "react"
 
 import {basicCredentialValue} from "@agenta/entities/mcpEndpoint"
+import {useT} from "@agenta/i18n"
+import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
 import {Button, Field, Input} from "@agenta/ui/ui"
 
 export interface BasicCredentialHelperProps {
@@ -17,37 +19,37 @@ export interface BasicCredentialHelperProps {
     onCreateSecret: (value: string) => void
 }
 
-const USERNAME_COLON_ERROR = "A username cannot contain a colon."
-
 export const BasicCredentialHelper = ({disabled, onCreateSecret}: BasicCredentialHelperProps) => {
+    const t = useT(mcpConnectCatalog)
     const [username, setUsername] = useState("")
     const [password, setPassword] = useState("")
     // Basic splits `username:password` at the first colon, so a colon in the username would
     // move part of it into the password. A password may hold one.
-    const usernameError = username.includes(":") ? USERNAME_COLON_ERROR : undefined
+    const usernameHasColon = username.includes(":")
 
     return (
-        <div
-            className="flex flex-col gap-3 rounded-control border border-solid border-colorBorderSecondary p-3"
-            data-testid="mcp-basic-helper"
-        >
-            <span className="text-xs font-medium text-colorText">
-                Basic (username and password)
+        <div className="flex flex-col gap-3 rounded-lg bg-muted p-3" data-testid="mcp-basic-helper">
+            <span className="text-label font-medium text-foreground">
+                {t("entityUi.mcpConnect.basicTitle")}
             </span>
             <div className="grid grid-cols-2 gap-2">
-                <Field label="Username" className="gap-1.5" error={usernameError}>
+                <Field
+                    label={t("entityUi.mcpConnect.username")}
+                    className="gap-1.5"
+                    error={usernameHasColon ? t("entityUi.mcpConnect.usernameColon") : undefined}
+                >
                     <Input
-                        placeholder="API login"
+                        placeholder={t("entityUi.mcpConnect.apiLogin")}
                         value={username}
                         disabled={disabled}
                         autoComplete="off"
                         onChange={(event) => setUsername(event.target.value)}
                     />
                 </Field>
-                <Field label="Password" className="gap-1.5">
+                <Field label={t("entityUi.mcpConnect.password")} className="gap-1.5">
                     <Input
                         type="password"
-                        placeholder="API password"
+                        placeholder={t("entityUi.mcpConnect.apiPassword")}
                         value={password}
                         disabled={disabled}
                         autoComplete="new-password"
@@ -55,22 +57,21 @@ export const BasicCredentialHelper = ({disabled, onCreateSecret}: BasicCredentia
                     />
                 </Field>
             </div>
-            <p className="m-0 text-xs leading-normal text-colorTextTertiary">
-                Encoded once and stored as one project secret. The username and password are not
-                kept.
+            <p className="m-0 text-meta leading-normal text-muted-foreground">
+                {t("entityUi.mcpConnect.basicHint")}
             </p>
             <div>
                 <Button
                     variant="outline"
                     size="sm"
-                    disabled={disabled || !username || !password || !!usernameError}
+                    disabled={disabled || !username || !password || usernameHasColon}
                     onClick={() => {
                         onCreateSecret(basicCredentialValue(username, password))
                         setUsername("")
                         setPassword("")
                     }}
                 >
-                    Create secret
+                    {t("entityUi.mcpConnect.createSecret")}
                 </Button>
             </div>
         </div>

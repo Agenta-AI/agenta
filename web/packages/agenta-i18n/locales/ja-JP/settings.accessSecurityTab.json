@@ -1,0 +1,23 @@
+{
+    "addProvider": "プロバイダーを追加",
+    "addProviderSetSlug": "プロバイダーを追加（先にスラッグを設定）",
+    "deleteDomain": "ドメインを削除",
+    "deleteDomainBody": "{{name}}をこの組織から削除します。",
+    "deleteDomainError": "ドメインを削除できませんでした",
+    "deleteProvider": "プロバイダーを削除",
+    "deleteProviderBody": "{{name}}と保存されているシークレットを削除します。",
+    "deleteProviderError": "プロバイダーを削除できませんでした",
+    "deleteProviderTitle": "SSO プロバイダーを削除",
+    "enableProviderError": "プロバイダーを有効にできませんでした",
+    "loadError": "この組織の設定を読み込めませんでした",
+    "providerAddedNotice": "プロバイダーを追加しました。有効にすると検証され、使用できるようになります。",
+    "providerConnectError": "プロバイダーに接続できませんでした。発行者 URL とクライアントの詳細を確認して、もう一度お試しください。",
+    "providerSavedNotice": "プロバイダーを保存しました。設定を編集すると検証が解除されるため、もう一度有効にしてください。",
+    "refreshTokenError": "トークンを更新できませんでした",
+    "saveFlagError": "設定を保存できませんでした。もう一度お試しください",
+    "setSlugFirst": "先に組織のスラッグを設定してください",
+    "setSlugHint": "プロバイダーを追加する前に、組織のスラッグを設定してください。スラッグがないとコールバック URL を作成できません。",
+    "thisDomain": "このドメイン",
+    "thisProvider": "このプロバイダー",
+    "verifyDomainError": "ドメインを検証できませんでした"
+}

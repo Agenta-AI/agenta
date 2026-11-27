@@ -1,5 +1,7 @@
 import {useMemo, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import filtersCatalog from "@agenta/i18n/catalogs/observabilityUi.filters"
 import type {FilterConditions, FilterValue} from "@agenta/observability"
 import {
     buildFieldMenuItems,
@@ -15,8 +17,8 @@ import {
     type FilterMenuNode,
     type RowValidation,
 } from "@agenta/observability/filters"
-import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {
+    Button,
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
@@ -202,6 +204,7 @@ export function FilterRow({
     container,
     annotationRow,
 }: FilterRowProps) {
+    const t = useT(filtersCatalog)
     const disabled = Boolean(item.isPermanent)
 
     const menuEntries = useMemo(
@@ -219,8 +222,8 @@ export function FilterRow({
     const plan = field && operatorValue ? planInputs(field, operatorValue) : undefined
     const showKey = Boolean(plan?.needsKey)
     const showValue = Boolean(plan?.showValue)
-    const keyPlaceholder = plan?.placeholders?.key ?? "Key"
-    const valuePlaceholder = plan?.placeholders?.value ?? "Value"
+    const keyPlaceholder = plan?.placeholders?.key ?? t("observabilityUi.filters.key")
+    const valuePlaceholder = plan?.placeholders?.value ?? t("observabilityUi.filters.value")
     const valueOptions = plan?.valueOptions ?? EMPTY_VALUE_OPTIONS
     const valueHasError = Boolean(validation.valueInvalid)
 
@@ -277,7 +280,7 @@ export function FilterRow({
             return (
                 <Input
                     className="w-full min-w-[120px] flex-1"
-                    placeholder="Value"
+                    placeholder={t("observabilityUi.filters.value")}
                     value={
                         field?.valueDisplayText ||
                         (Array.isArray(item.value) ? "" : asText(item.value))
@@ -346,25 +349,31 @@ export function FilterRow({
 
     return (
         <div className="flex flex-col overflow-x-auto [&::-webkit-scrollbar]:!h-0 [&::-webkit-scrollbar]:!w-0">
-            <span className="text-field-md text-colorTextSecondary">
-                {index === 0 ? "Where" : "And"}
+            <span className="text-field-md text-muted-foreground">
+                {index === 0
+                    ? t("observabilityUi.filters.where")
+                    : t("observabilityUi.filters.and")}
             </span>
 
             <div className="flex w-full flex-col gap-2">
                 <div className="flex w-full items-center gap-2">
                     <DropdownMenu open={fieldMenuOpen} onOpenChange={onFieldMenuOpenChange}>
                         <DropdownMenuTrigger asChild>
-                            <EnhancedButton
+                            <Button
+                                variant="outline"
+                                size="default"
                                 className="flex w-[180px] items-center justify-between"
                                 disabled={disabled}
                             >
                                 <span className="truncate">
                                     {item.isCustomField
-                                        ? "Custom"
-                                        : (item.selectedLabel ?? field?.label ?? "Field")}
+                                        ? t("observabilityUi.filters.custom")
+                                        : (item.selectedLabel ??
+                                          field?.label ??
+                                          t("observabilityUi.filters.field"))}
                                 </span>
                                 <CaretDownIcon size={14} />
-                            </EnhancedButton>
+                            </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent
                             container={container}
@@ -406,8 +415,8 @@ export function FilterRow({
                         ))}
 
                     {isAnnotationField && (
-                        <span className="whitespace-nowrap text-field-md text-colorTextSecondary">
-                            That
+                        <span className="whitespace-nowrap text-field-md text-muted-foreground">
+                            {t("observabilityUi.filters.that")}
                         </span>
                     )}
 
@@ -417,8 +426,11 @@ export function FilterRow({
                             onValueChange={(next) => onChange("operator", next as FilterConditions)}
                             disabled={disabled}
                         >
-                            <SelectTrigger className="w-[140px]" aria-label="Operator">
-                                <SelectValue placeholder="Condition" />
+                            <SelectTrigger
+                                className="w-[140px]"
+                                aria-label={t("observabilityUi.filters.operator")}
+                            >
+                                <SelectValue placeholder={t("observabilityUi.filters.condition")} />
                             </SelectTrigger>
                             <SelectContent container={container} className="max-h-[60vh]">
                                 {operatorOptions.map((option) => (
@@ -440,24 +452,35 @@ export function FilterRow({
                             onValueChange={(next) => onChange("customValueType", next)}
                             disabled={disabled}
                         >
-                            <SelectTrigger className="w-[130px]" aria-label="Value type">
+                            <SelectTrigger
+                                className="w-[130px]"
+                                aria-label={t("observabilityUi.filters.valueType")}
+                            >
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent container={container}>
-                                <SelectItem value="string">String</SelectItem>
-                                <SelectItem value="number">Number</SelectItem>
-                                <SelectItem value="boolean">Boolean</SelectItem>
+                                <SelectItem value="string">
+                                    {t("observabilityUi.filters.typeString")}
+                                </SelectItem>
+                                <SelectItem value="number">
+                                    {t("observabilityUi.filters.typeNumber")}
+                                </SelectItem>
+                                <SelectItem value="boolean">
+                                    {t("observabilityUi.filters.typeBoolean")}
+                                </SelectItem>
                             </SelectContent>
                         </Select>
                     )}
 
                     {!disabled && showRemove && !annotationActive && (
-                        <EnhancedButton
-                            type="link"
-                            icon={<TrashIcon size={14} />}
-                            aria-label="Remove filter"
+                        <Button
+                            variant="link"
+                            size="default"
+                            aria-label={t("observabilityUi.filters.removeFilter")}
                             onClick={onRemove}
-                        />
+                        >
+                            <TrashIcon size={14} />
+                        </Button>
                     )}
                 </div>
 

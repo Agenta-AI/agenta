@@ -71,6 +71,7 @@ export const probeProvider = async ({
     provider,
     secretId,
     secretScope,
+    signal,
 }: {
     projectId: string
     /** Omitted when `secretId` is given: the stored row names its own kind. */
@@ -79,6 +80,8 @@ export const probeProvider = async ({
     secretId?: string
     /** `organization` tests a stored organization connection this project may use. */
     secretScope?: SecretOwnerScope
+    /** Aborts the request, for the form's "Stop". The server finishes its one read anyway. */
+    signal?: AbortSignal
 }): Promise<ProbeProviderResponse | null> => {
     const response = await getSecretsClient().probeProvider(
         {
@@ -87,7 +90,7 @@ export const probeProvider = async ({
             ...(secretId ? {secret_id: secretId} : {}),
             ...(secretId && secretScope ? {secret_scope: secretScope} : {}),
         },
-        projectScopedRequest(projectId),
+        {...projectScopedRequest(projectId), ...(signal ? {abortSignal: signal} : {})},
     )
 
     return safeParseWithLogging(probeResponseSchema, response, "[probeProvider]")

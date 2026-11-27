@@ -1,22 +1,26 @@
 import type {ReactNode} from "react"
 
 import {triggerApplicationArtifactId, type TriggerDelivery} from "@agenta/entities/gatewayTrigger"
+import {formatLocale, useT} from "@agenta/i18n"
+import triggerDeliveriesCatalog from "@agenta/i18n/catalogs/entityUi.triggerDeliveries"
 import {CopyButton} from "@agenta/ui"
 import {Badge, Button} from "@agenta/ui/ui"
 
-export function deliveryStatusColor(type?: string | null): "green" | "red" | "blue" | "default" {
+export function deliveryStatusColor(
+    type?: string | null,
+): "success" | "destructive" | "info" | "default" {
     switch ((type ?? "").toLowerCase()) {
         case "success":
         case "delivered":
         case "ok":
-            return "green"
+            return "success"
         case "error":
         case "failed":
         case "failure":
-            return "red"
+            return "destructive"
         case "pending":
         case "running":
-            return "blue"
+            return "info"
         default:
             return "default"
     }
@@ -46,14 +50,15 @@ export function isStuckDelivery(
 
 function DetailRow({label, children}: {label: string; children: ReactNode}) {
     return (
-        <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-4 border-0 border-b border-solid border-colorBorderSecondary py-3 last:border-b-0">
-            <span className="text-xs font-medium text-colorTextSecondary">{label}</span>
-            <div className="min-w-0 text-xs text-colorText">{children}</div>
+        <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-4 border-0 border-b border-solid border-border-muted py-3 last:border-b-0">
+            <span className="text-label font-medium text-muted-foreground">{label}</span>
+            <div className="min-w-0 text-meta text-foreground">{children}</div>
         </div>
     )
 }
 
 function Identifier({value}: {value: string}) {
+    const t = useT(triggerDeliveriesCatalog)
     return (
         <span className="flex min-w-0 items-center gap-1">
             <span className="min-w-0 truncate font-mono">{value}</span>
@@ -63,7 +68,7 @@ function Identifier({value}: {value: string}) {
                 buttonText=""
                 variant="ghost"
                 size="icon-sm"
-                successMessage="ID copied"
+                successMessage={t("entityUi.triggerDeliveries.idCopied")}
                 stopPropagation
             />
         </span>
@@ -71,18 +76,18 @@ function Identifier({value}: {value: string}) {
 }
 
 function JsonValue({value}: {value: unknown}) {
-    if (value == null) return <span className="text-colorTextTertiary">-</span>
+    if (value == null) return <span className="text-muted-foreground">-</span>
     if (typeof value === "object" && Object.keys(value).length === 0)
-        return <span className="text-colorTextTertiary">-</span>
+        return <span className="text-muted-foreground">-</span>
     return (
-        <pre className="m-0 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded bg-colorFillQuaternary p-3 font-mono text-xs leading-snug">
+        <pre className="m-0 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded bg-secondary p-3 text-code-sm leading-snug">
             {JSON.stringify(value, null, 2)}
         </pre>
     )
 }
 
 function Timestamp({value}: {value?: string | null}) {
-    return value ? <span>{new Date(value).toLocaleString()}</span> : <span>-</span>
+    return value ? <span>{new Date(value).toLocaleString(formatLocale())}</span> : <span>-</span>
 }
 
 export function DeliveryDetails({
@@ -94,21 +99,23 @@ export function DeliveryDetails({
     deliveryIdFallback?: string
     onOpenSession?: (sessionId: string, applicationId: string) => void
 }) {
+    const t = useT(triggerDeliveriesCatalog)
     const deliveryId = delivery.id ?? deliveryIdFallback ?? "-"
-    const status = delivery.status?.type ?? delivery.status?.code ?? "unknown"
+    const status =
+        delivery.status?.type ?? delivery.status?.code ?? t("entityUi.triggerDeliveries.unknown")
     const stuck = isStuckDelivery(delivery)
     const sessionId = delivery.data?.session_id ?? null
     const applicationId = triggerApplicationArtifactId(delivery.data?.references)
 
     return (
-        <div className="flex flex-col rounded border border-solid border-colorBorderSecondary bg-colorBgContainer px-4">
-            <DetailRow label="Delivery ID">
+        <div className="flex flex-col rounded border border-solid border-border-muted bg-background px-4">
+            <DetailRow label={t("entityUi.triggerDeliveries.deliveryId")}>
                 {deliveryId === "-" ? deliveryId : <Identifier value={deliveryId} />}
             </DetailRow>
-            <DetailRow label="Event ID">
+            <DetailRow label={t("entityUi.triggerDeliveries.eventId")}>
                 <Identifier value={delivery.event_id} />
             </DetailRow>
-            <DetailRow label="Status">
+            <DetailRow label={t("entityUi.triggerDeliveries.status")}>
                 <span className="flex flex-wrap items-center gap-2">
                     <Badge
                         variant={deliveryStatusColor(
@@ -117,35 +124,37 @@ export function DeliveryDetails({
                     >
                         {status}
                     </Badge>
-                    {stuck ? <Badge variant="red">Stuck</Badge> : null}
+                    {stuck ? (
+                        <Badge variant="destructive">{t("entityUi.triggerDeliveries.stuck")}</Badge>
+                    ) : null}
                     {delivery.status?.message ? (
-                        <span className="text-colorTextSecondary">{delivery.status.message}</span>
+                        <span className="text-muted-foreground">{delivery.status.message}</span>
                     ) : null}
                 </span>
             </DetailRow>
-            <DetailRow label="Inputs">
+            <DetailRow label={t("entityUi.triggerDeliveries.inputs")}>
                 <JsonValue value={delivery.data?.inputs} />
             </DetailRow>
-            <DetailRow label="Result">
+            <DetailRow label={t("entityUi.triggerDeliveries.result")}>
                 <JsonValue value={delivery.data?.result} />
             </DetailRow>
-            <DetailRow label="Error">
+            <DetailRow label={t("entityUi.triggerDeliveries.error")}>
                 {delivery.data?.error ? (
-                    <span className="whitespace-pre-wrap break-words text-colorErrorText">
+                    <span className="whitespace-pre-wrap break-words text-destructive">
                         {delivery.data.error}
                     </span>
                 ) : (
-                    <span className="text-colorTextTertiary">-</span>
+                    <span className="text-muted-foreground">-</span>
                 )}
             </DetailRow>
-            <DetailRow label="Created">
+            <DetailRow label={t("entityUi.triggerDeliveries.created")}>
                 <Timestamp value={delivery.created_at} />
             </DetailRow>
-            <DetailRow label="Updated">
+            <DetailRow label={t("entityUi.triggerDeliveries.updated")}>
                 <Timestamp value={delivery.updated_at} />
             </DetailRow>
             {sessionId ? (
-                <DetailRow label="Session">
+                <DetailRow label={t("entityUi.triggerDeliveries.session")}>
                     <span className="flex min-w-0 items-center justify-between gap-3">
                         <Identifier value={sessionId} />
                         {onOpenSession && applicationId ? (
@@ -154,7 +163,7 @@ export function DeliveryDetails({
                                 size="sm"
                                 onClick={() => onOpenSession(sessionId, applicationId)}
                             >
-                                Open session
+                                {t("entityUi.triggerDeliveries.openSession")}
                             </Button>
                         ) : null}
                     </span>

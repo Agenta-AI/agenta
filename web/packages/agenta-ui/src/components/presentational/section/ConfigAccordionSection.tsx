@@ -37,13 +37,18 @@ import {
 } from "react"
 
 import {Lock} from "@phosphor-icons/react"
-import {motion} from "motion/react"
 
 import {cn} from "../../../utils/styles"
 import {HeightCollapse} from "../../HeightCollapse"
+import {IconTile} from "../../ui/icon-tile"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
 
-import {ConfigRowCaret, ConfigRowDrawerCaret, ConfigRowTrailing} from "./ConfigRowTrailing"
+import {
+    ConfigRowCaret,
+    ConfigRowDrawerCaret,
+    ConfigRowTrailing,
+    ConfigRowTriangle,
+} from "./ConfigRowTrailing"
 
 /**
  * Whether the enclosing accordion section is currently expanded. Because the body stays MOUNTED while
@@ -69,12 +74,12 @@ export type SectionIndicatorTone = "draft" | "invalid" | "incomplete" | "agent"
  */
 export function sectionIndicatorColor(tone: SectionIndicatorTone): string {
     return tone === "invalid"
-        ? "var(--ag-colorError)"
+        ? "var(--destructive)"
         : tone === "incomplete"
-          ? "var(--ag-colorWarning)"
+          ? "var(--warning)"
           : tone === "agent"
             ? "light-dark(#113955, #8CCFFF)"
-            : "var(--ag-colorInfo)"
+            : "var(--info)"
 }
 
 export interface ConfigAccordionSectionProps {
@@ -128,9 +133,9 @@ export interface ConfigAccordionSectionProps {
      * Change/validation indicator for the leading icon: tints the icon, adds a status dot,
      * and (with `tooltip`) explains it on hover. Takes precedence over `status`. Used by the
      * agent config panel to flag sections with unsaved edits (`"draft"`), a blocking problem
-     * (`"invalid"`), or an optional gap (`"incomplete"`). `pulse` plays a one-shot attention
-     * ring behind the dot (e.g. a change made from another pane); the caller owns how long it
-     * stays true (see `useRecentFlag`).
+     * (`"invalid"`), or an optional gap (`"incomplete"`). `pulse` (a change made from another
+     * pane) draws nothing extra: the dot fading in shows the change, with no ping or shimmer
+     * (MOTION-02).
      */
     indicator?: {tone: SectionIndicatorTone; tooltip?: ReactNode; pulse?: boolean}
     /** Only show `summary` while the section is collapsed. @default false (always). */
@@ -177,6 +182,26 @@ export interface ConfigAccordionSectionProps {
      * transition.
      */
     bodyClassName?: string
+    /**
+     * Draw the row at a canvas scale. `"panel"`: the agent Configuration panel (canvas F01), a
+     * 40 px row with a 4 px inset, 13 px title, 12 px summary, a light divider and triangle carets.
+     * Off keeps today's rows.
+     */
+    canvas?: "panel"
+    /**
+     * A row that opens a view (`onOpen`) ends with a chevron; `"triangle"` gives it the canvas
+     * caret of the rows around it (the Advanced row, canvas F01).
+     */
+    drawerAffordance?: "chevron" | "triangle"
+    /** Tint the header row (the builder page's "Changed by the builder", canvas B03). */
+    highlight?: boolean
+    /** Draw the icon on a 24 px {@link IconTile}, the same Mark the section's item rows use. */
+    iconTile?: boolean
+    /**
+     * With `onOpen`: content under the title, inside the row's card. The whole card then opens
+     * the view, with one hover fill (the panel's Instructions card).
+     */
+    preview?: ReactNode
     /** Section body. */
     children?: ReactNode
 }
@@ -209,8 +234,16 @@ export function ConfigAccordionSection({
     revealDelayMs = 0,
     animateInitialOpen = false,
     bodyClassName = "flex flex-col gap-3 pb-4 pt-3",
+    canvas,
+    drawerAffordance = "chevron",
+    highlight = false,
+    iconTile = false,
+    preview,
     children,
 }: ConfigAccordionSectionProps) {
+    const divider = "border-border-muted"
+    const titleSize =
+        size === "compact" ? "text-label" : canvas ? "text-label leading-5" : "text-body"
     // Height (0→auto via the grid `0fr`→`1fr` trick) + opacity reveal on mount (opt-in). `revealed`
     // flips one tick after mount (staggered by `revealDelayMs`) to play the transition; `done` fires
     // after it settles and drops the grid/overflow wrapper so nothing (e.g. an indicator dot) can clip.
@@ -234,12 +267,12 @@ export function ConfigAccordionSection({
     const dotColor = indicatorColor ?? lastIndicatorColorRef.current
     // The glyph gets a soft, desaturated tint; the full accent lives on the dot so it still reads.
     const iconColor = indicatorColor
-        ? `color-mix(in srgb, ${indicatorColor} 45%, var(--ag-colorTextTertiary))`
+        ? `color-mix(in srgb, ${indicatorColor} 45%, var(--muted-foreground))`
         : status === "complete"
-          ? "var(--ag-colorSuccess)"
+          ? "var(--success)"
           : status === "warning"
-            ? "var(--ag-colorWarning)"
-            : "var(--ag-c-586673)"
+            ? "var(--warning)"
+            : "var(--muted-foreground)"
     const isControlled = open !== undefined
     // With `animateInitialOpen`, a default-open section still MOUNTS closed and expands via the
     // effect below, so its first paint is the collapsed row (matching skeletons), not the content.
@@ -257,6 +290,8 @@ export function ConfigAccordionSection({
         !opensDrawer && !locked && (collapsible ? (isControlled ? open : internalOpen) : true)
     const canToggle = !opensDrawer && collapsible && !locked
     const headerActs = canToggle || opensDrawer
+    // One card that opens a view: the card is the click target, not its title row.
+    const previewCard = opensDrawer && preview != null
     // Whether the expanded-header band (fill + bottom divider) is currently shown. `isOpen` is already
     // false when the section opens a drawer or is locked.
     const banded = isOpen && !!headerBand
@@ -274,28 +309,31 @@ export function ConfigAccordionSection({
 
     const iconNode = icon ? (
         <span
-            className="relative flex shrink-0 items-center motion-safe:transition-colors motion-safe:duration-300"
+            className={cn(
+                "relative flex shrink-0 items-center motion-safe:transition-colors motion-safe:duration-[var(--duration-base)] motion-safe:ease-[var(--ease-out)]",
+                // A list row's icon is `icon-lg` (16px), whatever size the section passes (ICON-04).
+                canvas && !iconTile && "[&>svg]:size-4",
+            )}
             style={{color: iconColor}}
         >
-            {icon}
-            {/* Attention ripple: expands + fades out from behind the dot, repeating while the
-                caller holds `pulse` true (e.g. a change from another pane). */}
-            {indicator?.pulse ? (
-                <motion.span
-                    className="absolute -right-1 -top-0.5 h-2 w-2 rounded-full"
-                    style={{background: dotColor ?? undefined}}
-                    initial={{opacity: 0, scale: 1}}
-                    animate={{opacity: [0, 0.5, 0], scale: [1, 2, 3]}}
-                    transition={{duration: 1.8, ease: "easeOut", repeat: 1, times: [0, 0.25, 1]}}
-                />
-            ) : null}
+            {iconTile ? (
+                // A 28 px tile with a 16 px glyph: one step up from the item rows' Mark.
+                <IconTile size={24} className="size-7 [&_svg]:size-4" style={{color: iconColor}}>
+                    {icon}
+                </IconTile>
+            ) : (
+                icon
+            )}
             {/* Always mounted: state changes play as scale/opacity/color
                 transitions instead of the dot popping in and out. */}
             <span
                 className={cn(
-                    "absolute -right-1 -top-0.5 box-border h-2 w-2 rounded-full border-[1.5px] border-solid border-[var(--ag-colorBgContainer)]",
-                    "motion-safe:transition-[transform,opacity,background-color] motion-safe:duration-300 motion-safe:ease-out",
-                    indicator ? "scale-100 opacity-100" : "scale-0 opacity-0",
+                    "absolute -right-1 -top-0.5 size-2 rounded-full ring-2",
+                    // The ring takes the tone of the ground the dot sits on.
+                    iconTile ? "ring-muted" : "ring-background",
+                    // The dot fades in and out; it never scales (MOTION-02).
+                    "motion-safe:transition-[opacity,background-color] motion-safe:duration-[var(--duration-base)] motion-safe:ease-[var(--ease-out)]",
+                    indicator ? "opacity-100" : "opacity-0",
                 )}
                 style={{background: dotColor ?? undefined}}
             />
@@ -316,8 +354,13 @@ export function ConfigAccordionSection({
 
     const sectionInner = (
         <div
+            data-section-card={iconTile || undefined}
+            onClick={previewCard ? activate : undefined}
             className={cn(
                 "flex flex-col",
+                // The hover fill sits under the card's content, so the white Mark stays white.
+                previewCard &&
+                    "relative isolate cursor-pointer before:absolute before:inset-0 before:-z-10 before:rounded-lg before:transition-colors before:duration-[var(--duration-fast)] before:ease-[var(--ease-out)] before:content-[''] hover:before:bg-accent",
                 // Expanded-section band (opt-in via `headerBand`): the whole expanded section shares a
                 // subtle bleeding fill so it reads as one grouped, active region set apart from the flat
                 // collapsed headers, using fill rather than a border. This `bg` is the BODY/content
@@ -332,26 +375,39 @@ export function ConfigAccordionSection({
                 headerBand
                     ? cn(
                           headerBand,
-                          "border-0 border-b border-solid transition-colors duration-300 ease-out",
+                          "border-0 border-b border-solid transition-colors duration-[var(--duration-base)] ease-[var(--ease-in-out)]",
                           banded
-                              ? "border-transparent bg-[var(--ag-colorFillQuaternary)]"
-                              : cn(
-                                    "bg-transparent",
-                                    noDivider
-                                        ? "border-transparent"
-                                        : "border-[var(--ag-c-EAEFF5)]",
-                                ),
+                              ? "border-transparent bg-secondary"
+                              : cn("bg-transparent", noDivider ? "border-transparent" : divider),
                       )
-                    : !noDivider && "border-0 border-b border-solid border-[var(--ag-c-EAEFF5)]",
+                    : !noDivider && cn("border-0 border-b border-solid", divider),
+                // A tiled section is one grouped block, open or closed: a muted card (SURF-01).
+                iconTile && "-mx-2.5 rounded-lg bg-muted",
                 className,
             )}
         >
             {/* Row stays clickable but is not the role=button node — it holds `extra`'s controls
                 (nested-interactive). The button role lives on the title group below. */}
             <div
-                onClick={headerActs ? activate : undefined}
+                onClick={headerActs && !previewCard ? activate : undefined}
                 className={cn(
-                    "flex items-center justify-between gap-2 py-3 select-none",
+                    "flex items-center justify-between gap-2 select-none",
+                    // The panel row is a one-line row (ROW-01) that hangs its hover fill 8 px out,
+                    // so its icon stays on the content line (ALIGN-01).
+                    canvas
+                        ? iconTile
+                            ? // The tiled panel row: 40 px tall, a 10 px inset each side.
+                              "h-10 rounded-lg px-2.5"
+                            : "-mx-2 h-row-single rounded-md px-2"
+                        : "py-3",
+                    canvas === "panel" &&
+                        headerActs &&
+                        !previewCard &&
+                        !locked &&
+                        "transition-colors duration-[var(--duration-fast)] ease-[var(--ease-out)] hover:bg-accent",
+                    highlight && "bg-info/10",
+                    // The header's Mark is white on the card; the item Marks keep their quiet fill.
+                    iconTile && "[&_[data-slot=icon-tile]]:bg-background",
                     locked && "cursor-not-allowed opacity-60",
                     headerActs && "cursor-pointer",
                     // Header fill: bled to the section edges and layered over the section's body fill so
@@ -359,8 +415,8 @@ export function ConfigAccordionSection({
                     headerBand &&
                         cn(
                             headerBand,
-                            "transition-colors duration-300 ease-out",
-                            banded ? "bg-[var(--ag-colorFillQuaternary)]" : "bg-transparent",
+                            "transition-colors duration-[var(--duration-base)] ease-[var(--ease-in-out)]",
+                            banded ? "bg-secondary" : "bg-transparent",
                         ),
                 )}
             >
@@ -377,45 +433,16 @@ export function ConfigAccordionSection({
                         }
                     }}
                     className={cn(
-                        "flex items-center gap-2",
+                        "flex items-center gap-2 rounded-sm outline-none",
+                        headerActs && "focus-ring",
                         preserveTitle ? "shrink-0 max-w-full" : "min-w-0",
                     )}
                 >
                     {iconAffordance}
-                    {/* Title. Base text stays crisp; while `pulse` holds, an accent DUPLICATE laid
-                        on top is revealed through a moving mask (config-shimmer keyframe), so a
-                        glint sweeps the letters without fading the real text. */}
                     <span className="relative flex min-w-0">
-                        <span
-                            className={cn(
-                                "min-w-0 truncate font-medium",
-                                size === "compact" ? "text-xs" : "text-sm",
-                            )}
-                        >
+                        <span className={cn("min-w-0 truncate font-medium", titleSize)}>
                             {title}
                         </span>
-                        {indicator?.pulse ? (
-                            <span
-                                aria-hidden
-                                className={cn(
-                                    "animate-config-shimmer pointer-events-none absolute inset-0 truncate font-medium",
-                                    size === "compact" ? "text-xs" : "text-sm",
-                                )}
-                                style={{
-                                    color: dotColor ?? undefined,
-                                    WebkitMaskImage:
-                                        "linear-gradient(100deg, transparent 8%, #000 50%, transparent 92%)",
-                                    maskImage:
-                                        "linear-gradient(100deg, transparent 8%, #000 50%, transparent 92%)",
-                                    WebkitMaskSize: "220% 100%",
-                                    maskSize: "220% 100%",
-                                    WebkitMaskRepeat: "no-repeat",
-                                    maskRepeat: "no-repeat",
-                                }}
-                            >
-                                {title}
-                            </span>
-                        ) : null}
                     </span>
                     {titleBadge ? <span className="shrink-0">{titleBadge}</span> : null}
                 </div>
@@ -439,9 +466,17 @@ export function ConfigAccordionSection({
                                 <Lock size={14} className="text-[var(--ag-zinc-5)]" />
                             )
                         ) : opensDrawer ? (
-                            <ConfigRowDrawerCaret />
+                            canvas && drawerAffordance === "triangle" ? (
+                                <ConfigRowTriangle />
+                            ) : (
+                                <ConfigRowDrawerCaret />
+                            )
                         ) : collapsible ? (
-                            <ConfigRowCaret open={isOpen} />
+                            canvas ? (
+                                <ConfigRowTriangle open={isOpen} />
+                            ) : (
+                                <ConfigRowCaret open={isOpen} />
+                            )
                         ) : null
                     }
                 >
@@ -452,7 +487,8 @@ export function ConfigAccordionSection({
                         // clipped even "1 file" to "1 f…". `preserveTitle` swaps which half yields.
                         <span
                             className={cn(
-                                "text-right text-xs text-colorTextDescription",
+                                "text-right",
+                                "text-meta text-muted-foreground",
                                 preserveTitle ? "min-w-0 truncate" : "shrink-0 whitespace-nowrap",
                             )}
                         >
@@ -475,9 +511,19 @@ export function ConfigAccordionSection({
                 </ConfigRowTrailing>
             </div>
 
-            {opensDrawer ? null : (
+            {opensDrawer ? (
+                previewCard ? (
+                    // On the title's text line: 10 px inset, the 28 px Mark, the 8 px gap.
+                    <div className="-mt-0.5 pb-2.5 pl-11.5 pr-2.5">{preview}</div>
+                ) : null
+            ) : (
                 // The 4px bleed keeps a focused control's 3px ring inside the collapse's clip.
-                <HeightCollapse open={isOpen} className="-mx-1" contentClassName="px-1">
+                <HeightCollapse
+                    open={isOpen}
+                    // In the tiled card the rows' 1 px border puts their Marks on the header's line.
+                    className={iconTile ? "-mx-0.75" : "-mx-1"}
+                    contentClassName="px-1"
+                >
                     {/* Top padding gives the body room below the header band (which carries the
                         fill + bottom divider), so it reads as content, not a header continuation. */}
                     <div className={bodyClassName}>
@@ -500,7 +546,7 @@ export function ConfigAccordionSection({
     return (
         <div
             className={cn(
-                "grid motion-safe:transition-[grid-template-rows,opacity] motion-safe:duration-300 motion-safe:ease-out",
+                "grid motion-safe:transition-[grid-template-rows,opacity] motion-safe:duration-[var(--duration-base)] motion-safe:ease-[var(--ease-out)]",
                 revealed ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
             )}
         >

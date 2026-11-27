@@ -1,0 +1,21 @@
+{
+    "acrossDrive": "across the drive",
+    "agent": "Agent",
+    "back": "back",
+    "dismiss": "dismiss",
+    "enterSends": "Enter sends the message as written.",
+    "files": "Files",
+    "items": "{{count}} items",
+    "listing": "listing…",
+    "navigate": "navigate",
+    "noFiles": "No files in this drive yet",
+    "noMatch": "No file or folder matches “{{query}}”",
+    "open": "open",
+    "openFolder": "open folder",
+    "recentlyTouched": "Recently touched",
+    "reference": "reference",
+    "referenceFolder": "reference folder",
+    "searchingInside": "searching inside <path>{{cwd}}/</path>",
+    "send": "send",
+    "session": "Session"
+}

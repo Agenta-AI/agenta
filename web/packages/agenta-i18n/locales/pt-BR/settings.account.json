@@ -1,0 +1,14 @@
+{
+    "cannotBeUndone": "Esta ação não pode ser desfeita.",
+    "dangerZone": "Zona de perigo",
+    "deleteAccount": "Excluir conta",
+    "deleteAccountDescription": "Exclui sua conta, todas as organizações das quais você é proprietário e todos os espaços de trabalho, projetos, aplicações e dados delas. Você será desconectado imediatamente.",
+    "deleteCallout": "Exclui permanentemente sua conta e todas as organizações das quais você é proprietário, incluindo todos os espaços de trabalho, projetos, aplicações e dados.",
+    "email": "E-mail",
+    "emailHint": "Usado para fazer login e para convites de organizações.",
+    "profile": "Perfil",
+    "typeToConfirm": "Digite <code>{{email}}</code> para confirmar:",
+    "username": "Nome de usuário",
+    "usernameHint": "Como você aparece nas listas de membros e nos registros de auditoria.",
+    "yourEmail": "Seu e-mail"
+}

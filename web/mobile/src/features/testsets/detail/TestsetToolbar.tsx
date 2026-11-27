@@ -1,12 +1,25 @@
 import {useCallback, useEffect, useState} from "react"
 
 import {commitPreviewAtom} from "@agenta/entities/testset"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import testsetScreensCatalog from "@agenta/i18n/catalogs/testsets.screens"
 import {message} from "@agenta/ui/app-message"
-import {Button, SimpleTooltip, Spinner} from "@agenta/ui/ui"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+    SimpleTooltip,
+    Spinner,
+} from "@agenta/ui/ui"
 import {ArrowCounterClockwise, Plus, UploadSimple} from "@phosphor-icons/react"
 import {atom, useAtomValue} from "jotai"
-
-import {ConfirmModal} from "../../settings/ConfirmModal"
 
 import {CommitTestsetDialog} from "./CommitTestsetDialog"
 import {TestcaseQueueButton} from "./TestcaseQueuePicker"
@@ -59,19 +72,19 @@ export const TestsetToolbar = ({
     onImport?: () => void
     onRowAdded?: (rowId: string) => void
     /**
-     * The saved test cases "Add annotation queue" sends: the selected ones, or every one the
+     * The saved test cases "Add to queue" sends: the selected ones, or every one the
      * grid shows. Empty turns the button off.
      */
     queueItemIds?: string[]
     commitOpen: boolean
     onCommitOpenChange: (open: boolean) => void
 }) => {
+    const t = useT(testsetScreensCatalog, commonCatalog)
     const {isNew, hasUnsavedChanges, isSaving} = editor
     const [discardOpen, setDiscardOpen] = useState(false)
 
     const guard = useTestsetLeaveGuard({
         dirty: canEdit && hasUnsavedChanges,
-        isNew,
         onSave: () => setCommitOpen(true),
         onDiscard: editor.discard,
     })
@@ -139,7 +152,7 @@ export const TestsetToolbar = ({
                         Add row
                     </Button>
                     <TestcaseQueueButton
-                        label="Add annotation queue"
+                        label={t("testsets.screens.addToQueue")}
                         itemIds={queueItemIds}
                         disabled={isNew || isSaving}
                     />
@@ -167,15 +180,62 @@ export const TestsetToolbar = ({
                 onClose={() => setCommitOpen(false)}
                 onCommit={(commitMessage) => void handleCommit(commitMessage)}
             />
-            <ConfirmModal
+            <AlertDialog
                 open={discardOpen}
-                title="Discard changes?"
-                description="Are you sure you want to discard all unsaved changes?"
-                confirmLabel="Discard"
-                onClose={() => setDiscardOpen(false)}
-                onConfirm={confirmDiscard}
-            />
-            {guard.prompt}
+                onOpenChange={(next) => {
+                    if (!next) setDiscardOpen(false)
+                }}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Discard changes?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to discard all unsaved changes?
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button variant="outline" onClick={() => setDiscardOpen(false)}>
+                                {t("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant="destructive"
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    confirmDiscard()
+                                }}
+                            >
+                                Discard
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+            <AlertDialog
+                open={guard.promptOpen}
+                onOpenChange={(next) => (next ? undefined : guard.cancelLeave())}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Unsaved changes</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            You have unsaved changes in your test set. Do you want to save these
+                            changes before leaving the page?
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <Button variant="outline" onClick={guard.cancelLeave}>
+                            Cancel
+                        </Button>
+                        <Button variant="destructive" onClick={guard.discardAndLeave}>
+                            {isNew ? "Leave without saving" : "Discard changes"}
+                        </Button>
+                        <Button onClick={guard.saveInstead}>Save</Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     )
 }

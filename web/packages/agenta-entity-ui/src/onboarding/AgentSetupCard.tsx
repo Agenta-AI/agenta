@@ -19,6 +19,8 @@ import {
     type AgentSetupSelection,
     type DetectedAccount,
 } from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import onboardingCatalog from "@agenta/i18n/catalogs/entityUi.onboarding"
 import {Button, Spinner} from "@agenta/ui/ui"
 import {MagnifyingGlass, Plus} from "@phosphor-icons/react"
 import Image from "next/image"
@@ -82,6 +84,8 @@ const AgentSetupCard = ({
     creating = false,
     className,
 }: AgentSetupCardProps) => {
+    // `copy` translates when read: this re-renders the card when its text loads.
+    useT(onboardingCatalog)
     // Each row reports its live connection state; the card aggregates. Keyed by slug so a row
     // remounting (or the list reordering) can't strand a stale entry.
     const [connectedMap, setConnectedMap] = useState<Record<string, boolean>>({})
@@ -186,7 +190,7 @@ const AgentSetupCard = ({
                     of crowding. Described-agent and empty cards keep their lead — there the
                     words ARE the explanation of where the rows came from. */}
                 {fromTemplate ? null : (
-                    <p className="m-0 text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
+                    <p className="m-0 text-meta leading-snug text-muted-foreground">
                         {setupLead(status, fromTemplate)}
                     </p>
                 )}
@@ -215,7 +219,7 @@ const AgentSetupCard = ({
                 {suggestions.length > 0 || onBrowseAll ? (
                     <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                         {suggestions.length > 0 ? (
-                            <span className="text-xs text-[var(--ag-colorTextTertiary)]">
+                            <span className="text-meta text-muted-foreground">
                                 {SETUP_COPY.suggestionsLabel}
                             </span>
                         ) : null}
@@ -224,7 +228,7 @@ const AgentSetupCard = ({
                                 key={suggestion.slug}
                                 variant="outline"
                                 size="sm"
-                                className="rounded-full"
+                                className="rounded-md"
                                 onClick={() => onAddAccount(suggestion)}
                             >
                                 {suggestion.logo ? (
@@ -246,7 +250,7 @@ const AgentSetupCard = ({
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                className="rounded-full"
+                                className="rounded-md"
                                 onClick={onBrowseAll}
                             >
                                 <MagnifyingGlass size={12} />

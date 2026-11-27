@@ -1,0 +1,15 @@
+{
+    "connectionDeleted": "接続を削除しました",
+    "connectionRevoked": "接続を取り消しました",
+    "default": "デフォルト",
+    "deleteConnectionFailed": "接続を削除できませんでした",
+    "deleteConnectionMessage": "この接続を使うエージェントは動かなくなります。元に戻せません。",
+    "deleteConnectionTitle": "{{name}} を削除しますか？",
+    "loadConnectionsFailed": "接続を読み込めませんでした。",
+    "makeDefault": "デフォルトにする",
+    "makeDefaultFailed": "デフォルトに設定できませんでした。もう一度お試しください。",
+    "revokeConnectionFailed": "接続を取り消せませんでした",
+    "revokeConnectionMessage": "この接続を無効としてマークします。後で更新すると再び有効にできます。",
+    "revokeConnectionTitle": "{{name}} を取り消しますか？",
+    "searchTools": "ツールを検索"
+}

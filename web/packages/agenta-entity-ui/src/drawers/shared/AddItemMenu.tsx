@@ -9,6 +9,8 @@
  */
 import {memo, useCallback, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import drawerSharedCatalog from "@agenta/i18n/catalogs/entityUi.drawerShared"
 import {
     Button,
     Popover,
@@ -42,7 +44,7 @@ export interface AddItemGroup {
 
 function GroupLabel({children}: {children: ReactNode}) {
     return (
-        <span className="block px-2 pb-1 pt-2 text-xs font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+        <span className="block px-2 pb-1 pt-2 text-meta font-medium text-muted-foreground">
             {children}
         </span>
     )
@@ -55,24 +57,22 @@ function Row({item, onPick}: {item: AddItemMenuItem; onPick: (item: AddItemMenuI
             disabled={item.disabled}
             onClick={() => !item.disabled && onPick(item)}
             className={`flex w-full items-center gap-2.5 rounded-md border-none bg-transparent px-2 py-1.5 text-left [font:inherit] ${
-                item.disabled
-                    ? "cursor-not-allowed opacity-50"
-                    : "cursor-pointer hover:bg-[var(--ag-colorFillTertiary)]"
+                item.disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-accent"
             }`}
         >
-            <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center text-[var(--ag-colorTextSecondary)]">
+            <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center text-muted-foreground">
                 {item.icon}
             </span>
             <span className="flex min-w-0 flex-1 flex-col leading-tight">
-                <span className="truncate text-xs text-[var(--ag-colorText)]">{item.title}</span>
+                <span className="truncate text-meta text-foreground">{item.title}</span>
                 {item.subtitle ? (
-                    <span className="truncate text-xs text-[var(--ag-colorTextTertiary)]">
+                    <span className="truncate text-meta text-muted-foreground">
                         {item.subtitle}
                     </span>
                 ) : null}
             </span>
             {item.opensDrawer ? (
-                <CaretRight size={13} className="shrink-0 text-[var(--ag-colorTextTertiary)]" />
+                <CaretRight size={13} className="shrink-0 text-muted-foreground" />
             ) : null}
         </button>
     )
@@ -95,7 +95,7 @@ export const AddItemMenu = memo(function AddItemMenu({
     groups,
     trigger,
     disabled = false,
-    ariaLabel = "Add",
+    ariaLabel,
     minWidth = 288,
 }: {
     groups: AddItemGroup[]
@@ -105,6 +105,7 @@ export const AddItemMenu = memo(function AddItemMenu({
     ariaLabel?: string
     minWidth?: number
 }) {
+    const t = useT(drawerSharedCatalog)
     const [open, setOpen] = useState(false)
 
     const handlePick = useCallback((item: AddItemMenuItem) => {
@@ -125,7 +126,7 @@ export const AddItemMenu = memo(function AddItemMenu({
                     <Button
                         variant="ghost"
                         size="icon"
-                        aria-label={ariaLabel}
+                        aria-label={ariaLabel ?? t("entityUi.drawerShared.add")}
                         disabled={disabled}
                         onClick={(e) => e.stopPropagation()}
                     >
@@ -137,14 +138,12 @@ export const AddItemMenu = memo(function AddItemMenu({
             <PopoverContent
                 side="bottom"
                 align="start"
-                className="rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgElevated)] p-1.5 shadow-sm"
+                className="rounded-lg border border-solid border-border-muted bg-popover p-1.5 shadow-overlay"
                 style={{minWidth}}
             >
                 {groups.map((group, gi) => (
                     <div key={group.label ?? `group-${gi}`}>
-                        {gi > 0 && (
-                            <div className="mx-2 my-1.5 h-px bg-[var(--ag-colorBorderSecondary)]" />
-                        )}
+                        {gi > 0 && <div className="mx-2 my-1.5 h-px bg-border-muted" />}
                         {group.label ? <GroupLabel>{group.label}</GroupLabel> : null}
                         {group.items.map((item) => (
                             <Row key={item.key} item={item} onPick={handlePick} />

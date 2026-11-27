@@ -132,7 +132,10 @@ async def test_create_with_scope_user_passes_the_person_owner(switch_on, person)
     )
 
 
-async def test_scope_user_is_off_with_the_switch(person):
+async def test_scope_user_is_off_with_the_switch(person, monkeypatch):
+    monkeypatch.setattr(
+        policy_module.env.agenta.access, "personal_accounts_enabled", False
+    )
     with pytest.raises(HTTPException) as error:
         await _router(_Service()).query_connections(person.request, scope="user")
     assert error.value.status_code == 403

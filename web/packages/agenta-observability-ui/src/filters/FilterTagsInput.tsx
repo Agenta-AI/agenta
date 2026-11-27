@@ -1,5 +1,7 @@
 import {useMemo, useRef, useState, type KeyboardEvent} from "react"
 
+import {useT} from "@agenta/i18n"
+import filtersCatalog from "@agenta/i18n/catalogs/observabilityUi.filters"
 import {Badge, Popover, PopoverAnchor, PopoverContent, selectTriggerVariants} from "@agenta/ui/ui"
 import {XIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
@@ -48,6 +50,7 @@ export function FilterTagsInput({
     container,
     "aria-label": ariaLabel,
 }: FilterTagsInputProps) {
+    const t = useT(filtersCatalog)
     const [query, setQuery] = useState("")
     const [open, setOpen] = useState(false)
     const inputRef = useRef<HTMLInputElement>(null)
@@ -123,7 +126,7 @@ export function FilterTagsInput({
                 <div
                     className={clsx(
                         selectTriggerVariants({size: "default"}),
-                        "h-auto min-h-control flex-wrap justify-start gap-1 py-[3px]",
+                        "h-auto min-h-control flex-wrap justify-start gap-1 py-0.5",
                         disabled && "cursor-not-allowed bg-disabled-bg",
                         className,
                     )}
@@ -135,14 +138,16 @@ export function FilterTagsInput({
                     {value.map((entry, index) => (
                         <Badge
                             key={`${String(entry)}-${index}`}
-                            variant="outlined"
+                            variant="default"
                             className="max-w-full gap-1"
                         >
                             <span className="truncate">{String(entry)}</span>
                             {!disabled && (
                                 <button
                                     type="button"
-                                    aria-label={`Remove ${String(entry)}`}
+                                    aria-label={t("observabilityUi.filters.removeItem", {
+                                        name: String(entry),
+                                    })}
                                     className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-placeholder hover:text-foreground"
                                     onClick={(event) => {
                                         event.stopPropagation()
@@ -186,7 +191,7 @@ export function FilterTagsInput({
                             key={String(option.value)}
                             role="option"
                             aria-selected={false}
-                            className="box-border flex min-h-control cursor-pointer items-center rounded-control-sm px-3 py-1 text-field-md hover:bg-muted"
+                            className="box-border flex min-h-8 cursor-pointer items-center rounded-sm px-2 py-1 text-label hover:bg-accent"
                             onMouseDown={(event) => {
                                 // Commit before the input's blur handler eats the click.
                                 event.preventDefault()

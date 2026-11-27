@@ -62,7 +62,7 @@ spec:
           command: ["python", "-m", "entrypoints.worker_streams"]
           env:
             {{- include "agenta.commonEnv" . | nindent 12 }}
-            # empty ⇒ all stream loops; see docs/designs/workers-sprawl/specs.md
+            # empty ⇒ all stream loops; see docs/design/workers-sprawl/specs.md
             - name: AGENTA_WORKER_STREAMS
               value: {{ default "" $workerStreams.streams | quote }}
             {{- range $key, $val := $workerStreams.env }}

@@ -35,7 +35,7 @@ export const DeveloperAppPicker = ({
             placeholder="Pick an app"
             emptyText="No apps"
             loading={loading}
-            className="w-full min-w-0 sm:w-[240px]"
+            className="w-full min-w-0 sm:w-60"
         />
     )
 }

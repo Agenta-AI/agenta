@@ -9,6 +9,8 @@ import {
     type AgentSecretBinding,
 } from "@agenta/entities/secret"
 import {commitAgentCredentialsAtom, workflowMolecule} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import clientToolsCatalog from "@agenta/i18n/catalogs/entityUi.clientTools"
 import type {ClientToolMeta} from "@agenta/shared/clientTools"
 import {
     Button,
@@ -63,7 +65,6 @@ type Retry =
     | {kind: "attach"; secret: Secret}
     | {kind: "settle"; secret: Secret; envName: string; revisionId: string}
 
-const VALUE_FIELD_LABEL = "Secret value"
 const READ_TIMEOUT_MS = 3000
 const PERSONAL_SECRET: Secret = {account_source: "user"} as Secret
 
@@ -85,6 +86,7 @@ export const SecretRequestDock = ({
     onAdoptRevision,
     onOutput,
 }: SecretRequestDockProps) => {
+    const t = useT(clientToolsCatalog)
     const [targetId, setTargetId] = useState(revisionId)
     const [typing, setTyping] = useState(false)
     // The dock outlives a revision switch on both hosts, so it follows the prop when it moves.
@@ -121,7 +123,7 @@ export const SecretRequestDock = ({
         | undefined
     const bindings = agent?.sandbox?.credentials ?? []
     const request = parseSecretRequest(meta.input)
-    const label = artifactName || "This agent"
+    const label = artifactName || t("entityUi.clientTools.thisAgent")
 
     // The vault query never refetches itself; `refetchVault` changes identity, so it is not a dep.
     useEffect(() => {
@@ -398,13 +400,13 @@ export const SecretRequestDock = ({
     return (
         <>
             <div
-                className="rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer p-3 text-colorText"
+                className="rounded-lg border border-solid border-border-muted bg-background p-3 text-foreground"
                 role="region"
-                aria-label="Secret request"
+                aria-label={t("entityUi.clientTools.secretRequestAria")}
             >
-                <p className="m-0 truncate text-sm font-medium">{title}</p>
+                <p className="m-0 truncate text-body font-medium">{title}</p>
                 <p
-                    className={`m-0 mt-0.5 line-clamp-2 text-xs ${alert ? "text-error" : "text-colorTextSecondary"}`}
+                    className={`m-0 mt-0.5 line-clamp-2 text-meta ${alert ? "text-destructive" : "text-muted-foreground"}`}
                     title={detail}
                 >
                     {detail}
@@ -415,10 +417,14 @@ export const SecretRequestDock = ({
                         <Textarea
                             ref={valueRef}
                             {...PASSWORD_MANAGER_OPT_OUT}
-                            aria-label={VALUE_FIELD_LABEL}
+                            aria-label={t("entityUi.clientTools.secretValue")}
                             rows={1}
                             className="max-h-24 min-h-8 flex-1 resize-none font-mono [-webkit-text-security:disc] [field-sizing:content]"
-                            placeholder={replacing ? "Paste a new value" : "Paste the value"}
+                            placeholder={
+                                replacing
+                                    ? t("entityUi.clientTools.pasteNewValue")
+                                    : t("entityUi.clientTools.pasteValue")
+                            }
                             value={form.textValue}
                             onChange={(event) => changeValue(event.target.value)}
                             onKeyDown={submitOnEnter}
@@ -434,20 +440,20 @@ export const SecretRequestDock = ({
                             disabled={!canSubmit}
                             onClick={() => void form.submit()}
                         >
-                            Save
+                            {t("entityUi.clientTools.save")}
                         </LoadingButton>
                     </div>
                 ) : null}
 
                 <div className="mt-2 flex items-center justify-between gap-3">
-                    <div className="flex min-w-0 flex-1 items-center gap-1.5 text-xs text-colorTextSecondary">
+                    <div className="flex min-w-0 flex-1 items-center gap-1.5 text-meta text-muted-foreground">
                         {request ? (
                             editingEnv ? (
                                 <Input
-                                    aria-label="Environment variable"
+                                    aria-label={t("entityUi.clientTools.environmentVariable")}
                                     autoFocus
                                     size="sm"
-                                    className="h-6 w-full max-w-72 font-mono text-xs"
+                                    className="h-6 w-full max-w-72 text-code-sm"
                                     value={envVar}
                                     onChange={(event) => changeEnv(event.target.value)}
                                     onBlur={() => {
@@ -472,7 +478,7 @@ export const SecretRequestDock = ({
                             ) : (
                                 <button
                                     type="button"
-                                    className="group inline-flex min-w-0 items-center gap-1.5 border-0 bg-transparent p-0 font-mono text-xs text-colorTextSecondary enabled:cursor-pointer enabled:hover:text-colorText"
+                                    className="group inline-flex min-w-0 items-center gap-1.5 border-0 bg-transparent p-0 text-code-sm text-muted-foreground enabled:cursor-pointer enabled:hover:text-foreground"
                                     aria-label={`Change environment variable ${envName}`}
                                     title={envName}
                                     disabled={!canRename || busy}
@@ -489,13 +495,13 @@ export const SecretRequestDock = ({
                             )
                         ) : null}
                         {entry && !replacing && savesPersonal && !editingEnv ? (
-                            <span className="shrink-0">· only you</span>
+                            <span className="shrink-0">{t("entityUi.clientTools.onlyYou")}</span>
                         ) : null}
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
                         {!ready && request ? (
-                            <span className="px-2 text-xs text-colorTextSecondary">
-                                Checking...
+                            <span className="px-2 text-meta text-muted-foreground">
+                                {t("entityUi.clientTools.checking")}
                             </span>
                         ) : null}
                         {canToggleEntry || hasOptions ? (
@@ -504,7 +510,7 @@ export const SecretRequestDock = ({
                                     <Button
                                         variant="ghost"
                                         size="icon-sm"
-                                        aria-label="Secret options"
+                                        aria-label={t("entityUi.clientTools.secretOptions")}
                                         disabled={busy}
                                     >
                                         <DotsThree size={16} />
@@ -513,7 +519,9 @@ export const SecretRequestDock = ({
                                 <DropdownMenuContent align="end">
                                     {canToggleEntry ? (
                                         <DropdownMenuItem onSelect={toggleEntry}>
-                                            {entry ? "Keep saved value" : "Change value"}
+                                            {entry
+                                                ? t("entityUi.clientTools.keepSavedValue")
+                                                : t("entityUi.clientTools.changeValue")}
                                         </DropdownMenuItem>
                                     ) : null}
                                     {hasOptions ? (
@@ -521,7 +529,9 @@ export const SecretRequestDock = ({
                                             disabled={dirty}
                                             onSelect={() => setModalOpen(true)}
                                         >
-                                            {changeInDialog ? "Change value" : "More options"}
+                                            {changeInDialog
+                                                ? t("entityUi.clientTools.changeValue")
+                                                : t("entityUi.clientTools.moreOptions")}
                                         </DropdownMenuItem>
                                     ) : null}
                                 </DropdownMenuContent>
@@ -533,7 +543,7 @@ export const SecretRequestDock = ({
                             disabled={busy}
                             onClick={() => settle({status: "cancelled"})}
                         >
-                            Not now
+                            {t("entityUi.clientTools.notNow")}
                         </Button>
                         {showContinue ? (
                             <LoadingButton
@@ -542,7 +552,7 @@ export const SecretRequestDock = ({
                                 disabled={blocked}
                                 onClick={continueWithSaved}
                             >
-                                Continue
+                                {t("entityUi.clientTools.continue")}
                             </LoadingButton>
                         ) : rejected && changeInDialog && !retry ? (
                             <Button
@@ -550,7 +560,7 @@ export const SecretRequestDock = ({
                                 disabled={busy || dirty}
                                 onClick={() => setModalOpen(true)}
                             >
-                                Change value
+                                {t("entityUi.clientTools.changeValue")}
                             </Button>
                         ) : null}
                     </div>

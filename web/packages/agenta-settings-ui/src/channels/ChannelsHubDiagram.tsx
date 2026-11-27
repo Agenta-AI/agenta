@@ -1,3 +1,6 @@
+import {useT} from "@agenta/i18n"
+import channelsHubCatalog from "@agenta/i18n/catalogs/channels.hub"
+
 import {AgentMark} from "./AgentMark"
 
 export interface ChannelsHubDiagramTarget {
@@ -21,17 +24,18 @@ export const ChannelsHubDiagram = ({
     agentId?: string
     targets: ChannelsHubDiagramTarget[]
 }) => {
+    const t = useT(channelsHubCatalog)
     const H = Math.max(ROW, targets.length * ROW + (targets.length - 1) * GAP)
     const ys = targets.map((_, i) => ROW / 2 + i * (ROW + GAP))
     return (
         <div
-            className="flex items-center justify-center rounded-lg border border-solid border-border bg-muted bg-[radial-gradient(var(--ag-colorBorder)_1px,transparent_1px)] bg-[size:14px_14px] px-5 py-3.5"
+            className="flex items-center justify-center rounded-lg border border-solid border-border bg-muted bg-[radial-gradient(var(--border)_1px,transparent_1px)] bg-[size:14px_14px] px-5 py-3.5"
             data-testid="channels-hub-diagram"
         >
             <div className="relative flex w-[76px] flex-none justify-center">
-                <AgentMark agentId={agentId} size={30} className="shadow-sm" />
-                <span className="absolute inset-x-0 top-[35px] whitespace-nowrap text-center text-[10.5px] font-medium text-muted-foreground">
-                    This agent
+                <AgentMark agentId={agentId} />
+                <span className="absolute inset-x-0 top-9 whitespace-nowrap text-center text-caption font-medium text-muted-foreground">
+                    {t("channels.hub.thisAgent")}
                 </span>
             </div>
             {/* The lines give way first on a narrow panel (a phone), so the labels keep their
@@ -90,12 +94,10 @@ export const ChannelsHubDiagram = ({
             <div className="flex w-24 flex-none flex-col gap-1">
                 {targets.map((target) => (
                     <div key={target.key} className="flex h-5 items-center gap-2">
-                        <span className="flex size-5 items-center justify-center rounded-[5px] bg-background shadow-sm">
+                        <span className="flex size-5 items-center justify-center rounded-sm bg-background">
                             {target.icon}
                         </span>
-                        <span className="text-xs font-medium text-muted-foreground">
-                            {target.name}
-                        </span>
+                        <span className="text-label text-muted-foreground">{target.name}</span>
                     </div>
                 ))}
             </div>

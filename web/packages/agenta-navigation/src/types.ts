@@ -2,6 +2,8 @@ import type {ComponentType, MouseEvent, ReactElement, ReactNode} from "react"
 
 import type {PrimitiveAtom, WritableAtom} from "jotai"
 
+import type {SidebarGroupEnter} from "./dynamic/types"
+
 /**
  * Identity of a hand-arrangeable row or heading. Items sharing a `zone` reorder against each
  * other and nothing else — which is what makes a cross-heading drop impossible by construction.
@@ -28,6 +30,8 @@ export interface SidebarConfig {
     tag?: string
     /** Right-aligned content (e.g. a version label); hidden when the rail is collapsed. */
     suffix?: ReactNode
+    /** A second, smaller line under the title. Drawn by flyout menus (the help menu) only. */
+    subtitle?: string
     isCloudFeature?: boolean
     cloudFeatureTooltip?: string
     divider?: boolean
@@ -43,6 +47,9 @@ export interface SidebarConfig {
     isCollapsed?: boolean
     /** Collapsible heading only: a trailing "+" that links somewhere (an agent's new session). */
     groupAdd?: {link: string; label: string; onClick?: (event: MouseEvent) => void}
+    /** Collapsible heading only: a trailing open button beside the "+" that runs `onClick` (an
+     * agent heading opens that agent's sidebar). */
+    groupEnter?: SidebarGroupEnter
     /** Render the item normally but suppress its navigation — clicking it is a no-op (current location). */
     inert?: boolean
     /** Route prefixes that select this row; empty opts it out of matching. Defaults to `[link]`. */
@@ -63,6 +70,8 @@ export interface SidebarConfig {
     groupAction?: ReactNode
     /** A leaf row's trailing control, revealed on hover or focus. Hidden when the rail is collapsed. */
     rowAction?: ReactNode
+    /** A leaf row's trailing controls, always shown. Hidden when the rail is collapsed. */
+    trailing?: ReactNode
     /** Collapsed rail: a leaf's hover flyout in place of its tooltip. The icon still navigates.
      * `close` always closes; `hold(true)` keeps it open against hover-out and outside clicks. */
     hoverFlyout?: (close: () => void, hold: (held: boolean) => void) => ReactNode
@@ -96,9 +105,18 @@ export interface SidebarSlotContext {
 
 export type SidebarSlot = ComponentType<SidebarSlotContext>
 
+/** A section the user arranges: drag rows to reorder, drop one on "More" to hide it there. */
+export interface SidebarArrange {
+    /** The pages in "More", in order. */
+    hidden: SidebarConfig[]
+    onArrange: (visible: string[], hidden: string[]) => void
+    onReset: () => void
+}
+
 export interface SidebarSection {
     key: string
     items: SidebarConfig[]
+    arrange?: SidebarArrange
     before?: SidebarSlot
     dividerBefore?: boolean
     placement?: "top" | "bottom"
@@ -130,4 +148,7 @@ export interface SidebarShellProps {
     /** Dismisses the rail. Passed ONLY by an overlay mount (the drawer), so the header slot can
      * offer a close instead of a collapse toggle without testing a viewport width. */
     onDismiss?: () => void
+    /** The side the rail's content slides in from when it mounts (a focus change between two
+     * sidebars). Unset: no slide. Reduced motion: no slide. */
+    enterFrom?: "start" | "end"
 }

@@ -1,0 +1,9 @@
+{
+    "dataResidency": "数据驻留",
+    "dataResidencyRegion": "数据驻留区域",
+    "learnMore": "了解更多",
+    "multipleRegions": "你可以在多个区域拥有账户，每个区域都需要单独注册。",
+    "regionLabel": "{{region}} 区域",
+    "regionsIntro": "Agenta Cloud 提供两个区域：",
+    "regionsIsolated": "各区域完全隔离，区域之间不共享任何数据。请根据数据驻留要求和延迟需求选择区域。"
+}

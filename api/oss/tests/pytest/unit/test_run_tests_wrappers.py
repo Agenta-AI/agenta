@@ -52,7 +52,6 @@ def wrapper(request, monkeypatch):
         return subprocess.CompletedProcess(cmd, 0)
 
     monkeypatch.setattr(module.subprocess, "run", _capture)
-    monkeypatch.setenv("AGENTA_LICENSE", "oss")
     monkeypatch.chdir(_WRAPPERS[name].parent)
 
     def _run(*argv) -> list:
@@ -122,7 +121,7 @@ _LAYER_DIR = "oss/tests/pytest/unit"
 
 def test_an_option_value_does_not_replace_the_resolved_directories(wrapper):
     """`--basetemp /tmp/x` ends in a token with a slash in it. The wrapper read that as
-    the caller naming what to run, dropped the license and layer directories, and pytest
+    the caller naming what to run, dropped the resolved test directories, and pytest
     fell back to the `testpaths` in its own config: a different suite, reported green."""
     cmd = wrapper("--layer", "unit", "--", "--basetemp", "/tmp/agenta-wrapper-case")
 
@@ -160,6 +159,27 @@ def test_an_option_with_its_value_attached_is_not_a_target(wrapper):
     cmd = wrapper("--layer", "unit", "--", "--basetemp=/tmp/agenta-wrapper-case")
 
     assert _LAYER_DIR in cmd, cmd
+
+
+@pytest.mark.parametrize("license_", ["oss", "ee", None])
+def test_the_oss_and_ee_tests_both_run_whatever_agenta_license_says(
+    wrapper, monkeypatch, license_
+):
+    if license_ is None:
+        monkeypatch.delenv("AGENTA_LICENSE", raising=False)
+    else:
+        monkeypatch.setenv("AGENTA_LICENSE", license_)
+
+    cmd = wrapper("--layer", "unit")
+
+    selected = [arg for arg in cmd if arg.endswith("/tests/pytest/unit")]
+    expected = [
+        tree + "/tests/pytest/unit"
+        for tree in ("oss", "ee")
+        if wrapper.module._has_test_files(tree + "/tests/pytest/unit")
+    ]
+    assert selected == expected and expected, cmd
+    assert "--junit-xml=ee/tests/results/junit.xml" in cmd, cmd
 
 
 # ---------------------------------------------------------------------------

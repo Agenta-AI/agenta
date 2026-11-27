@@ -92,6 +92,8 @@ vi.mock("../../src/features/settings/useSettingsOrg", () => ({
 }))
 vi.mock("../../src/features/variants/useAppDeploymentHistory", () => ({
     useAppDeploymentHistory: () => fixture.history,
+    // The cards' last-deploy lookup; off here, so a card shows its own date.
+    appDeploymentHistoryQuery: () => ({queryKey: ["off"], queryFn: async () => [], enabled: false}),
 }))
 vi.mock("../../src/features/variants/useAppRevisions", () => ({
     useAppRevisions: () => ({
@@ -307,7 +309,8 @@ describe("RevertDeploymentDialog", () => {
             }),
         )
         expect(text()).toContain("Revert development")
-        expect(text()).toContain("Are you sure you want to revert?")
+        // It names the revision that goes back in.
+        expect(text()).toContain("This deploys v1 to development again.")
         await act(async () => {
             button("Revert")?.click()
         })
@@ -356,7 +359,10 @@ describe("DeployToEnvironmentDialog", () => {
                 onClose: vi.fn(),
             }),
         )
-        expect(text()).toContain("Select a revision from the table to deploy to development.")
+        expect(text()).toContain("Select a revision from the list to deploy to development.")
+        // The summary holds its place before a pick, so the message box does not move.
+        expect(text()).toContain("First v2 → no revision selected")
+        const message = document.querySelector("textarea")
         const deploy = [...document.querySelectorAll("button")].filter(
             (el) => el.textContent === "Deploy",
         )[0] as HTMLButtonElement
@@ -368,6 +374,7 @@ describe("DeployToEnvironmentDialog", () => {
         act(() => (radios[1] as HTMLElement).click())
         expect(text()).toContain("This will deploy the following revision to development.")
         expect(deploy.disabled).toBe(false)
+        expect(document.querySelector("textarea")).toBe(message)
     })
 })
 
@@ -384,7 +391,7 @@ describe("DeploymentsTab in beta developer mode", () => {
             {...environment("production", null, null), updatedAt: "2026-03-04T10:15:00Z"},
         ]
         mountTab()
-        expect(productionCard()?.textContent).toContain("Last modified-")
+        expect(productionCard()?.textContent).toContain("Last modified—")
         expect(productionCard()?.textContent).not.toContain("2026")
     })
 

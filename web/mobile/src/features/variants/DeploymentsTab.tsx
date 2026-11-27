@@ -7,8 +7,7 @@ import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {downloadCsv} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {LoadError} from "@agenta/ui/components/presentational"
-import {ListTableToolbar} from "@agenta/ui/list-table"
-import {Button} from "@agenta/ui/ui"
+import {Button, PageToolbar} from "@agenta/ui/ui"
 import {copyToClipboard} from "@agenta/ui/utils"
 import {CloudArrowUp, Code, DownloadSimple, Lightning} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -199,6 +198,7 @@ export const DeploymentsTab = ({
         <div className="flex flex-col gap-4">
             <EnvironmentCards
                 environments={environments.data}
+                history={{projectId, appId: app.id, appSlug: app.slug ?? null}}
                 selectedSlug={selected?.slug ?? null}
                 onSelect={(slug) => {
                     setSelectedRows(new Set())
@@ -206,7 +206,7 @@ export const DeploymentsTab = ({
                 }}
             />
             <div>
-                <ListTableToolbar
+                <PageToolbar
                     search={search}
                     onSearchChange={(next) => {
                         setSearch(next)

@@ -1,6 +1,8 @@
 import {useEffect, useRef, useState} from "react"
 
 import type {AgentStarterTemplate} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import marketplaceCatalog from "@agenta/i18n/catalogs/marketplace.page"
 import {Button, CarouselDots, LoadingButton} from "@agenta/ui/ui"
 import {motion, useInView} from "motion/react"
 
@@ -9,7 +11,7 @@ import {cn} from "@/lib/utils"
 
 import {AppTileStack} from "./AppTileStack"
 import {ExampleRun} from "./ExampleRun"
-import {templateProviders} from "./marketplaceView"
+import {categoryText, templateProviders} from "./marketplaceView"
 import {SectionLabel} from "./SectionLabel"
 
 /** Templates with an authored run, one at a time above the catalog; it advances on the dots' fill. */
@@ -28,6 +30,7 @@ export const FeaturedTemplate = ({
     onPreview: (template: AgentStarterTemplate) => void
 }) => {
     const presets = useMotionPresets()
+    const t = useT(marketplaceCatalog)
     const ref = useRef<HTMLElement>(null)
     const inView = useInView(ref)
     const [index, setIndex] = useState(0)
@@ -54,14 +57,14 @@ export const FeaturedTemplate = ({
     return (
         <section
             ref={ref}
-            aria-label="Featured template"
+            aria-label={t("marketplace.page.featuredTemplate")}
             onPointerEnter={() => setHovered(true)}
             onPointerLeave={() => setHovered(false)}
             onFocus={() => setFocused(true)}
             onBlur={(event) => {
                 if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false)
             }}
-            className="box-border hidden rounded-xl border border-solid border-border bg-colorFillQuaternary p-5 md:block lg:p-6"
+            className="box-border hidden rounded-lg bg-secondary p-5 md:block lg:p-6"
         >
             {/* Every slide shares one cell and its rows, so a page change never moves anything. */}
             <div className="grid grid-cols-2 grid-rows-[repeat(5,auto)] gap-x-8 gap-y-3">
@@ -84,25 +87,27 @@ export const FeaturedTemplate = ({
                             )}
                         >
                             <SectionLabel className="col-start-1 row-start-1">
-                                Featured · {template.category}
+                                {t("marketplace.page.featuredLabel", {
+                                    category: categoryText(template.category),
+                                })}
                             </SectionLabel>
                             <AppTileStack
                                 apps={templateProviders(template)}
                                 size="md"
                                 className="col-start-1 row-start-2"
                             />
-                            <h2 className="col-start-1 row-start-3 m-0 text-xl font-semibold text-foreground">
+                            <h2 className="col-start-1 row-start-3 m-0 text-title text-foreground">
                                 {template.name}
                             </h2>
-                            <p className="text-muted-foreground col-start-1 row-start-4 m-0 max-w-[460px] text-sm leading-relaxed">
+                            <p className="text-muted-foreground col-start-1 row-start-4 m-0 max-w-115 text-body">
                                 {template.overview || template.description}
                             </p>
                             <div className="col-start-1 row-start-5 mt-1 flex flex-wrap gap-2">
                                 <LoadingButton loading={busy} onClick={() => onUse(template)}>
-                                    Use this template
+                                    {t("marketplace.page.useTemplate")}
                                 </LoadingButton>
                                 <Button variant="outline" onClick={() => onPreview(template)}>
-                                    Preview
+                                    {t("marketplace.page.preview")}
                                 </Button>
                             </div>
                             {template.example ? (
@@ -112,7 +117,8 @@ export const FeaturedTemplate = ({
                                     active={active && !holding}
                                     loop={false}
                                     compact
-                                    className="col-start-2 row-span-5 row-start-1 min-h-[190px]"
+                                    // The featured box is the one edge; the run inside it separates by tone.
+                                    className="col-start-2 row-span-5 row-start-1 min-h-48 border-0 bg-background"
                                 />
                             ) : null}
                         </motion.div>
@@ -122,7 +128,7 @@ export const FeaturedTemplate = ({
             {templates.length > 1 ? (
                 <CarouselDots
                     className="mt-3 -ml-[3px]"
-                    label="Featured templates"
+                    label={t("marketplace.page.featuredTemplates")}
                     count={templates.length}
                     index={current}
                     onSelect={show}

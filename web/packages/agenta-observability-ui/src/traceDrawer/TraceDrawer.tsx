@@ -1,10 +1,18 @@
 import {useCallback, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import drawerCatalog from "@agenta/i18n/catalogs/observabilityUi.traceDrawer"
 import {traceDrawerClearParams} from "@agenta/observability/traceDrawer"
-import {closeTraceDrawerAtom, isDrawerOpenAtom} from "@agenta/observability/traceDrawer"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
+import {
+    closeTraceDrawerAtom,
+    isDrawerOpenAtom,
+    traceDrawerTraceIdAtom,
+} from "@agenta/observability/traceDrawer"
+import {Sheet, SheetContent, SheetTitle} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
+
+import {deleteTraceModalAtom} from "../delete/store/atom"
 
 import type {TraceDrawerLayout} from "./TraceDrawerContent"
 import TraceDrawerContentSkeleton from "./TraceDrawerContentSkeleton"
@@ -16,6 +24,9 @@ const TraceDrawerContent = dynamic(() => import("./TraceDrawerContent"), {
     loading: TraceDrawerContentSkeleton,
 })
 
+// The one trace-delete confirmation for the app; it loads on the first delete.
+const DeleteTraceModal = dynamic(() => import("../delete"), {ssr: false})
+
 interface TraceDrawerProps {
     /**
      * `split` (default): the span tree beside the span content, sized for a desktop drawer.
@@ -26,8 +37,14 @@ interface TraceDrawerProps {
 }
 
 const TraceDrawer = ({layout = "split"}: TraceDrawerProps) => {
+    const t = useT(drawerCatalog)
     const open = useAtomValue(isDrawerOpenAtom)
     const closeDrawer = useSetAtom(closeTraceDrawerAtom)
+    const traceId = useAtomValue(traceDrawerTraceIdAtom)
+    const deleteOpen = useAtomValue(deleteTraceModalAtom).isOpen
+    // Stays mounted after the first open so the dialog can animate closed.
+    const [deleteLoaded, setDeleteLoaded] = useState(false)
+    if (deleteOpen && !deleteLoaded) setDeleteLoaded(true)
 
     const initialWidth = 1200
     const [drawerWidth, setDrawerWidth] = useState(initialWidth)
@@ -41,10 +58,9 @@ const TraceDrawer = ({layout = "split"}: TraceDrawerProps) => {
         closeDrawer()
     }, [closeDrawer])
 
-    // Backstop for the paths that close the drawer without going through `handleClose` (Escape,
-    // outside click). Idempotent: clearing params that are already gone is a no-op push.
-    const handleAfterOpenChange = useCallback((isOpen: boolean) => {
-        if (!isOpen) traceDrawerClearParams()
+    // Backstop for closes that skip `handleClose`; runs once the panel has slid out.
+    const handleAfterClose = useCallback(() => {
+        traceDrawerClearParams()
     }, [])
 
     const toggleWidth = useCallback(() => {
@@ -52,25 +68,37 @@ const TraceDrawer = ({layout = "split"}: TraceDrawerProps) => {
     }, [initialWidth])
 
     return (
-        <EnhancedDrawer
-            closable={false}
-            title={null}
-            open={open}
-            onClose={handleClose}
-            width={drawerWidth}
-            afterOpenChange={handleAfterOpenChange}
-            styles={{body: {padding: 0}}}
-            destroyOnHidden
-        >
-            {open && (
-                <TraceDrawerContent
-                    onClose={handleClose}
-                    onToggleWidth={toggleWidth}
-                    isExpanded={drawerWidth !== initialWidth}
-                    layout={layout}
-                />
-            )}
-        </EnhancedDrawer>
+        <>
+            <Sheet
+                open={open}
+                onOpenChange={(next) => {
+                    if (!next) handleClose()
+                }}
+            >
+                <SheetContent
+                    side="right"
+                    style={{width: drawerWidth, maxWidth: "calc(100% - 1rem)"}}
+                    onCloseAutoFocus={handleAfterClose}
+                >
+                    <SheetTitle className="sr-only">
+                        {t("observabilityUi.traceDrawer.trace")}
+                    </SheetTitle>
+                    <div className="min-h-0 flex-1 overflow-y-auto rounded-[inherit] p-0 text-field-md text-foreground">
+                        {open && (
+                            <TraceDrawerContent
+                                onClose={handleClose}
+                                onToggleWidth={toggleWidth}
+                                isExpanded={drawerWidth !== initialWidth}
+                                layout={layout}
+                            />
+                        )}
+                    </div>
+                </SheetContent>
+            </Sheet>
+            {deleteLoaded ? (
+                <DeleteTraceModal openTraceId={open ? traceId : null} onDrawerClose={handleClose} />
+            ) : null}
+        </>
     )
 }
 

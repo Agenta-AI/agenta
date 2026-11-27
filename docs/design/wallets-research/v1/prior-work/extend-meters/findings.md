@@ -2,7 +2,7 @@
 
 - **Sources**: deep scan of code + docs at 2026-05-18; sync against [PR #4347](https://github.com/Agenta-AI/agenta/pull/4347) review comments
 - **Branch**: `feat/clean-up-meters`
-- **Path**: `docs/designs/extend-meters`
+- **Path**: `docs/design/extend-meters`
 - **Depth**: `deep`
 
 ## Summary
@@ -21,7 +21,7 @@ A tenth Copilot pass on 2026-05-18 16:35Z surfaced 1 doc-only finding (PR-47): t
 
 An eleventh Copilot pass on 2026-05-19 07:08Z surfaced 1 new finding (PR-48): `MetersDAO.fetch` treated `None` dimensions on a supplied `MeterScope`/`MeterPeriod` as wildcards, so an org-scoped monthly read could also match finer-scoped or DAILY rows for the same `(org, key, year, month)`. Today the bug was masked because no quota mixed "org-grain + DAILY" or "workspace-grain + MONTHLY", but the contract was broken. Closed: `fetch` now binds `workspace_id`, `project_id`, `user_id`, `year`, `month`, `day` unconditionally (SQLAlchemy compiles `filter_by(col=None)` to `col IS NULL`); `organization_id` stays conditional to preserve the `MeterScope()` admin escape hatch; `scope=None` / `period=None` still skip the respective family. 10 new unit tests in `test_meters_dao_fetch.py` pin the per-dimension `IS NULL` binding and the escape hatches. 78/78 EE unit tests pass.
 
-A twelfth Copilot pass on 2026-05-19 12:17Z surfaced 2 new in-scope findings (PR-49, PR-50) plus 4 out-of-scope comments against `docs/designs/support-fields/*` (tracked separately). Both new findings are **open / `needs-user-decision`**:
+A twelfth Copilot pass on 2026-05-19 12:17Z surfaced 2 new in-scope findings (PR-49, PR-50) plus 4 out-of-scope comments against `docs/design/support-fields/*` (tracked separately). Both new findings are **open / `needs-user-decision`**:
 - **PR-49** (P1, high) — PR-48 shipped a contract mismatch. `MetersDAO.fetch` binds `organization_id` unconditionally (line 324), so `fetch(scope=MeterScope())` now returns only globally-unscoped rows (`organization_id IS NULL AND workspace_id IS NULL AND …`), not "every row" as the audit warning at lines 308-316 suggests. The PR-48 changelog explicitly claimed "`organization_id` stays conditional to preserve the `MeterScope()` admin escape hatch" — that text is stale w.r.t. shipped code. Either the code or the contract needs to move; see open finding below.
 - **PR-50** (P3, high) — docstring typo `roWRK` → `rows` at three lines in `api/ee/tests/pytest/unit/test_meters_dao_fetch.py` (lines 121, 175, 205). Trivial.
 
@@ -57,7 +57,7 @@ A twelfth Copilot pass on 2026-05-19 12:17Z surfaced 2 new in-scope findings (PR
 - **Fix shipped**: All three docstrings now read `rows` (verified by grep on 2026-05-19). Line 6 was already correct (Copilot mis-listed it).
 - **Action**: GitHub thread replied to ([discussion_r3266279318](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3266279318)) and resolved.
 
-> The same 12th Copilot pass surfaced 4 more findings against `docs/designs/support-fields/*` files (also touched by this PR). They are saved under `docs/designs/support-fields/findings.md` as F-011..F-014.
+> The same 12th Copilot pass surfaced 4 more findings against `docs/design/support-fields/*` files (also touched by this PR). They are saved under `docs/design/support-fields/findings.md` as F-011..F-014.
 
 ## Closed Findings
 
@@ -73,7 +73,7 @@ A twelfth Copilot pass on 2026-05-19 12:17Z surfaced 2 new in-scope findings (PR
 ### [CLOSED] PR-47 — `tasks.md` Usage-exposure checklist item updated to reflect per-caller read (P3, medium)
 
 - **Category**: Documentation drift
-- **Files**: `docs/designs/extend-meters/tasks.md:109`
+- **Files**: `docs/design/extend-meters/tasks.md:109`
 - **PR comment**: [discussion_r3260514845](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3260514845)
 - **Background**: The pass-7 PR-41 fix rewrote `/billing/usage` to per-caller scoped read and propagated the change to `proposal.md` and `summary.md`, but the corresponding `tasks.md` checklist item still described the old "DAILY branch sums across rows" behavior.
 - **Fix shipped**: Replaced the checklist line with "Per-caller read: for each quota the response returns the single meter row matching the caller's ambient `AuthScope` projected to `quota.scope`'s granularity ... No org-wide aggregation. No `organization_id` path/query/wrapper param — identity comes from the ambient `AuthContext`." Matches the shipped code and the rest of the design docs.
@@ -201,7 +201,7 @@ A twelfth Copilot pass on 2026-05-19 12:17Z surfaced 2 new in-scope findings (PR
 ### [CLOSED] PR-37 — `proposal.md` "Limit semantics" item 6 rewritten to match the catalog and the user-defined predicate table (P2, high)
 
 - **Category**: Documentation drift
-- **Files**: `docs/designs/extend-meters/proposal.md` item 6 in "Locked decisions"
+- **Files**: `docs/design/extend-meters/proposal.md` item 6 in "Locked decisions"
 - **PR comment**: [discussion_r3258523640](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3258523640)
 - **Fix shipped**: Item 6 retitled "Limit semantics" and rewritten to spell out `TRACES_RETRIEVED` is `strict=True` on every plan; describes the strict-vs-non-strict predicate split per the PR-35 user-defined table. Removes the stale `strict=False` / "overshoot is allowed" claim.
 - **Action**: Reply on the GitHub thread and resolve.
@@ -209,7 +209,7 @@ A twelfth Copilot pass on 2026-05-19 12:17Z surfaced 2 new in-scope findings (PR
 ### [CLOSED] PR-38 — `proposal.md` "Write-side enforcement" paragraph aligned with the broad-refund implementation (P3, high)
 
 - **Category**: Documentation drift
-- **Files**: `docs/designs/extend-meters/proposal.md` — "Write-side enforcement" pattern paragraph
+- **Files**: `docs/design/extend-meters/proposal.md` — "Write-side enforcement" pattern paragraph
 - **PR comment**: [discussion_r3258523682](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3258523682)
 - **Fix shipped**: Pattern paragraph rewritten — "on **any** exception, refund with `delta=-N` and re-raise. Domain exceptions therefore also refund (broad-safety trade-off — the conservative choice for an in-flight quota write, so a failed create never leaves a counted-but-not-created row)." Matches the PR description and the actual handler code.
 - **Action**: Reply on the GitHub thread and resolve.
@@ -217,7 +217,7 @@ A twelfth Copilot pass on 2026-05-19 12:17Z surfaced 2 new in-scope findings (PR
 ### [CLOSED] PR-39 — `summary.md` `TRACES_RETRIEVED` wording aligned with hard-adjust + strict=True semantics (P3, medium)
 
 - **Category**: Documentation drift
-- **Files**: `docs/designs/extend-meters/summary.md:13`
+- **Files**: `docs/design/extend-meters/summary.md:13`
 - **PR comment**: [discussion_r3258523719](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3258523719)
 - **Fix shipped**: "soft-check fires after every span/trace fetch or query" replaced with "hard-check fires after every span/trace fetch or query (...); declared `strict=True` everywhere, so the request that would cross a real limit is itself rejected." Also rephrased the evaluation-run refund clause to "broad refund on any exception" to align with the PR-38 fix.
 - **Action**: Reply on the GitHub thread and resolve.
@@ -225,7 +225,7 @@ A twelfth Copilot pass on 2026-05-19 12:17Z surfaced 2 new in-scope findings (PR
 ### [CLOSED] PR-40 — `proposal.md` "Read-side enforcement" trailing paragraph rewritten to match the strict-everywhere catalog (P3, high)
 
 - **Category**: Documentation drift / Contract clarity
-- **Files**: `docs/designs/extend-meters/proposal.md` — last paragraph of "Read-side enforcement"
+- **Files**: `docs/design/extend-meters/proposal.md` — last paragraph of "Read-side enforcement"
 - **PR comment**: [discussion_r3258523892](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3258523892)
 - **Fix shipped**: Last paragraph replaced — the stale "`strict=False` (default) lets the row commit but `allowed` still flips to `False` on overshoot" sentence is gone. Replacement: "`TRACES_RETRIEVED` is declared `strict=True` on every plan, so the DAO predicate is `greatest(value + delta, 0) <= limit` — the request that crosses the line is itself rejected (no 'one free overshoot'). See locked-decision item 6 above for the strict/non-strict predicate split." Coherent with PR-35 / PR-37 / PR-39.
 - **Action**: Reply on the GitHub thread and resolve.
@@ -313,7 +313,7 @@ A twelfth Copilot pass on 2026-05-19 12:17Z surfaced 2 new in-scope findings (PR
 ### [CLOSED] PR-31 — `findings.md` PR-02 status text reconciled (P3, high)
 
 - **Category**: Documentation
-- **Files**: `docs/designs/extend-meters/findings.md`
+- **Files**: `docs/design/extend-meters/findings.md`
 - **PR comment**: [discussion_r3257956311](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3257956311)
 - **Fix shipped**: Rewrote the PR-09 entry to say both halves (ordering + key-case) are closed under PR-01 and PR-02 respectively, and replaced the stale "F-00..F-16" summary at the bottom to reflect the current state (PR-01 through PR-21 closed, PR-22..PR-31 in flight).
 - **Action**: Reply on the GitHub thread and resolve.
@@ -353,7 +353,7 @@ A twelfth Copilot pass on 2026-05-19 12:17Z surfaced 2 new in-scope findings (PR
 ### [CLOSED] PR-20 — `proposal.md` "Read-side enforcement" section now matches shipped behavior (P3, high)
 
 - **Category**: Documentation
-- **Files**: `docs/designs/extend-meters/proposal.md` — Read-side enforcement section
+- **Files**: `docs/design/extend-meters/proposal.md` — Read-side enforcement section
 - **PR comment**: [discussion_r3257948745](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3257948745)
 - **Fix shipped**: Rewrote the section: hard adjust at every read site (no `cache=`), legacy `TracingRouter.query_spans` + `fetch_trace` covered, eight call sites total. Documents that the handler captures `allowed` and raises 429 on denial, that `strict` is a separate per-plan dial for the meter row (not the handler's 429 contract), and that usage is persisted even with `limit=None`.
 - **Action**: Reply on the GitHub thread and resolve.
@@ -361,7 +361,7 @@ A twelfth Copilot pass on 2026-05-19 12:17Z surfaced 2 new in-scope findings (PR
 ### [CLOSED] PR-21 — `tasks.md` checklist item now matches shipped behavior (P3, high)
 
 - **Category**: Documentation
-- **Files**: `docs/designs/extend-meters/tasks.md` — Read-side enforcement checklist
+- **Files**: `docs/design/extend-meters/tasks.md` — Read-side enforcement checklist
 - **PR comment**: [discussion_r3257948810](https://github.com/Agenta-AI/agenta/pull/4347#discussion_r3257948810)
 - **Fix shipped**: Rewrote the checklist bullets to describe hard-adjust mode (no `cache=` kwarg), eight call sites including the deprecated `TracingRouter`, capture-and-429 contract independent of `strict`, and persistent usage at `limit=None`.
 - **Action**: Reply on the GitHub thread and resolve.

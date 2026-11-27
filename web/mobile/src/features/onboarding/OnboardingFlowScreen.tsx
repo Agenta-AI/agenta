@@ -1,4 +1,6 @@
 import {useProfile} from "@agenta/entities/profile"
+import {useT} from "@agenta/i18n"
+import flowCatalog from "@agenta/i18n/catalogs/onboarding.flow"
 
 import {PageTitle} from "@/components/PageTitle"
 import {projectHomeUrl} from "@/lib/context"
@@ -6,7 +8,6 @@ import {projectHomeUrl} from "@/lib/context"
 import {useEphemeralAgent} from "../agents/useEphemeralAgent"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 
-import {ONBOARDING_COPY} from "./onboardingCopy"
 import {OnboardingFlowHost} from "./OnboardingFlowHost"
 import {isOnboardingInvited} from "./onboardingPending"
 import {OnboardingFlowError} from "./states/OnboardingFlowError"
@@ -20,6 +21,7 @@ export const OnboardingFlowScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    const t = useT(flowCatalog)
     useBindProjectContext(projectId)
     const profile = useProfile()
     // The questions need no agent, so a failed mint must not block an invited person.
@@ -28,7 +30,7 @@ export const OnboardingFlowScreen = ({
 
     return (
         <>
-            <PageTitle title={ONBOARDING_COPY.pageTitle} />
+            <PageTitle title={t("onboarding.flow.pageTitle")} />
             {error ? (
                 <OnboardingFlowError onRetry={retry} />
             ) : !profile.isPending ? (

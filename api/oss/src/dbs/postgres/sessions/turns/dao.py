@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 import uuid_utils.compat as uuid_compat
@@ -283,8 +283,9 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
         #
         query: Optional[SessionTurnQuery] = None,
         windowing: Optional[Windowing] = None,
+        transaction: Optional[Any] = None,
     ) -> List[SessionTurn]:
-        async with self.engine.session() as session:
+        async def execute(session: Any) -> List[SessionTurn]:
             stmt = select(SessionTurnDBE).where(
                 SessionTurnDBE.project_id == project_id,
             )
@@ -386,6 +387,11 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
             result = await session.execute(stmt)
             return [map_turn_dbe_to_dto(turn_dbe=dbe) for dbe in result.scalars().all()]
 
+        if transaction is not None:
+            return await execute(transaction)
+        async with self.engine.session() as session:
+            return await execute(session)
+
     async def latest_turn(
         self,
         *,
@@ -404,6 +410,36 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
             )
             result = await session.execute(stmt)
             dbe = result.scalar_one_or_none()
+        if dbe is None:
+            return None
+        return map_turn_dbe_to_dto(turn_dbe=dbe)
+
+    async def find_turn(
+        self,
+        *,
+        project_id: UUID,
+        session_id: Optional[str] = None,
+        turn_id: Optional[UUID] = None,
+        trace_id: Optional[UUID] = None,
+        transaction: Optional[Any] = None,
+    ) -> Optional[SessionTurn]:
+        if session_id is None and turn_id is None and trace_id is None:
+            return None
+        stmt = select(SessionTurnDBE).where(
+            SessionTurnDBE.project_id == project_id,
+        )
+        if session_id is not None:
+            stmt = stmt.where(SessionTurnDBE.session_id == session_id)
+        if turn_id is not None:
+            stmt = stmt.where(SessionTurnDBE.turn_id == turn_id)
+        if trace_id is not None:
+            stmt = stmt.where(SessionTurnDBE.trace_id == trace_id)
+        stmt = stmt.order_by(SessionTurnDBE.turn_index.desc()).limit(1)
+        if transaction is not None:
+            dbe = (await transaction.execute(stmt)).scalar_one_or_none()
+        else:
+            async with self.engine.session() as session:
+                dbe = (await session.execute(stmt)).scalar_one_or_none()
         if dbe is None:
             return None
         return map_turn_dbe_to_dto(turn_dbe=dbe)

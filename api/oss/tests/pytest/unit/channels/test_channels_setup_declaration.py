@@ -15,7 +15,11 @@ from oss.src.core.channels.adapters.mock.adapter import MockAdapter
 from oss.src.core.channels.adapters.mock.capabilities import full as mock_full
 from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
 from oss.src.core.channels.adapters.slack.adapter import SlackAdapter
-from oss.src.core.channels.dtos import ChannelConnection, ChannelSetupField
+from oss.src.core.channels.dtos import (
+    ChannelConnection,
+    ChannelSetupField,
+    ChannelSetupIdentity,
+)
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.types import ChannelConnectionNotFound
 
@@ -70,6 +74,22 @@ async def test_slack_renders_all_three_slots_through_the_same_code_path():
     }
     assert setup.document is not None
     assert "https://example.com/channels/slack/events/" in setup.document.content
+
+
+async def test_connection_setup_passes_the_identity_to_the_adapter():
+    connection = ChannelConnection(
+        id=uuid4(), slug="s", channel="slack", external_key=uuid4()
+    )
+    service = _service(channel="slack", adapter=SlackAdapter(), connection=connection)
+
+    setup = await service.get_connection_setup(
+        project_id=uuid4(),
+        connection_id=connection.id,
+        request_url="https://example.com/channels/slack/events/",
+        identity=ChannelSetupIdentity(name="Support bot"),
+    )
+
+    assert '"name": "Support bot"' in setup.document.content
 
 
 async def test_channel_setup_declares_all_three_slots_with_no_connection_in_existence():

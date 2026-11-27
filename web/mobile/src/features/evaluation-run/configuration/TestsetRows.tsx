@@ -79,7 +79,7 @@ export const TestsetRows = ({
                     <ul className="m-0 flex list-none flex-wrap gap-1 p-0">
                         {columns.map((column) => (
                             <li key={column}>
-                                <Badge variant="outlined" className="font-mono">
+                                <Badge variant="default" className="font-mono">
                                     {column}
                                 </Badge>
                             </li>

@@ -17,7 +17,7 @@
 > Define-once-use-both migrations (most schema changes) go in `core_oss` (or
 > `tracing_oss`) — author them **once**, never copy into the EE tree. Only genuinely
 > EE-divergent schema goes in `core_ee`/`tracing_ee`. Full rules and the OSS→EE edition
-> switch: `docs/designs/oss-ee-convergence/migration-chains-and-edition-switch.md`.
+> switch: `docs/design/oss-ee-convergence/migration-chains-and-edition-switch.md`.
 >
 > The commands below still describe the alembic mechanics, but swap the `-w .../core`
 > working directory for `.../core_oss` (or the right active chain) when running `revision`,

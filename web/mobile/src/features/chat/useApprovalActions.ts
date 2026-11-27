@@ -5,16 +5,22 @@ import {
     queryInteractions,
     respondInteraction,
 } from "@agenta/entities/session"
+import {createT} from "@agenta/i18n"
+import chatMobileApprovalCatalog from "@agenta/i18n/catalogs/chat.mobileApproval"
 
 import {hasSettledResume, selectApprovalTargets, type ApprovalTarget} from "./approvalTargets"
 import {buildApprovalAnswer} from "./steer"
+
+const tNow = createT(chatMobileApprovalCatalog)
 
 export type ResumePhase = "idle" | "resuming" | "answered" | "recoverable" | "error"
 
 /** Fern's `AgentaApiError` message is transport jargon — show the status instead. */
 const respondErrorText = (error: unknown): string => {
     const status = (error as {statusCode?: number} | null)?.statusCode
-    return status ? `Approval failed (HTTP ${status}).` : "Approval failed."
+    return status
+        ? tNow("chat.mobileApproval.failedStatus", {status})
+        : tNow("chat.mobileApproval.failed")
 }
 
 export interface ApprovalActions {
@@ -47,9 +53,12 @@ export const useApprovalActions = ({
     sessionId,
     projectId,
     pendingApprovalIds,
+    onSettled,
 }: {
     sessionId: string
     projectId: string
+    /** Called when a submit ends, answered or failed. */
+    onSettled?: () => void
     /**
      * Approval ids currently pending in the transcript. The reset watches whether the ids WE
      * answered are still among them, not how many there are: answering the last gate of a turn
@@ -63,6 +72,8 @@ export const useApprovalActions = ({
     const busyRef = useRef(false)
     // The ids of the gates the in-flight submit answered.
     const submittedRef = useRef<string[]>([])
+    const onSettledRef = useRef(onSettled)
+    onSettledRef.current = onSettled
 
     // The records poll caught the interaction_response (or the turn moved on) — settle.
     const pendingKey = pendingApprovalIds.join(" ")
@@ -98,8 +109,8 @@ export const useApprovalActions = ({
                 if (targets.length === 0) {
                     throw new Error(
                         target.all
-                            ? "No pending approval found — the turn may have moved on."
-                            : "This approval is no longer pending — refresh and retry.",
+                            ? tNow("chat.mobileApproval.noneFound")
+                            : tNow("chat.mobileApproval.noLongerPending"),
                     )
                 }
                 // The transcript keys a gate by the row's `token`; that is what the reset above
@@ -147,9 +158,12 @@ export const useApprovalActions = ({
             } catch (err) {
                 submittedRef.current = []
                 setPhase("error")
-                setErrorText(err instanceof Error ? err.message : "Resume failed.")
+                setErrorText(
+                    err instanceof Error ? err.message : tNow("chat.mobileApproval.resumeFailed"),
+                )
             } finally {
                 busyRef.current = false
+                onSettledRef.current?.()
             }
         },
         [sessionId, projectId],

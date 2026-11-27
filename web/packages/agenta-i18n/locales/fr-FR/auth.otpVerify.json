@@ -1,0 +1,19 @@
+{
+    "authenticationFailed": "L’authentification a échoué. Veuillez réessayer.",
+    "characterN": "Caractère {{number}}",
+    "codeExpired": "Ce code a expiré. Demandez-en un nouveau ci-dessous.",
+    "codeVerified": "Code vérifié",
+    "couldNotSendNewCode": "Impossible d’envoyer un nouveau code. Veuillez réessayer.",
+    "enterAllCharacters": "Saisissez les 6 caractères du code.",
+    "incorrectCode_one": "Ce code n’est pas correct. Il reste {{count}} tentative.",
+    "incorrectCode_many": "Ce code n’est pas correct. Il reste {{count}} tentatives.",
+    "incorrectCode_other": "Ce code n’est pas correct. Il reste {{count}} tentatives.",
+    "newCodeSent": "Nouveau code envoyé.",
+    "oneTimeCode": "Code à usage unique",
+    "openInbox": "Ouvrez {{inbox}} pour trouver votre code",
+    "resendCode": "Renvoyer le code",
+    "resendCodeIn": "Renvoyer le code · {{time}}",
+    "sentTo": "Envoyé à {{email}}",
+    "useDifferentEmail": "Utiliser une autre adresse e-mail",
+    "verifying": "Vérification…"
+}

@@ -1,14 +1,23 @@
 /** The drill-in `skills` bridge implementation each host feeds its DrillInUIProvider. */
 import {useMemo} from "react"
 
+import {createT} from "@agenta/i18n"
+import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {projectIdAtom} from "@agenta/shared/state"
 import {buildSkillEmbedEntry, createSkillWorkflow, skillContentSchema} from "@agenta/skills"
-import {invalidateSkillsListCache, skillsListDataAtom} from "@agenta/skills/state"
+import {
+    invalidateSkillsListCache,
+    skillsListDataAtom,
+    skillsResolveDataAtom,
+} from "@agenta/skills/state"
 import type {SkillsBridge} from "@agenta/ui/drill-in"
 import {getDefaultStore, useAtomValue} from "jotai"
 
-import {SkillDetailHost} from "./SkillDetailHost"
-import {SkillPickerHost} from "./SkillPickerHost"
+import {AddSkillsBody} from "./AddSkillsBody"
+import {AgentSkillCreateBody} from "./AgentSkillCreateBody"
+import {RegistrySkillBody} from "./registrySkillView"
+
+const tNow = createT(skillsGalleryCatalog)
 
 /** Registry head versions by workflow slug — feeds the config rows' "vN available" nudge. */
 function useHeadVersions(): Record<string, string> {
@@ -24,6 +33,20 @@ function useHeadVersions(): Record<string, string> {
     }, [skills])
 }
 
+/** Workflow slugs of archived registry skills — the config rows mark them as archived. */
+function useArchivedSlugs(): ReadonlySet<string> {
+    const registry = useAtomValue(skillsResolveDataAtom)
+    return useMemo(
+        () =>
+            new Set(
+                registry
+                    .filter((entry) => entry.archived && entry.workflow_slug)
+                    .map((entry) => entry.workflow_slug as string),
+            ),
+        [registry],
+    )
+}
+
 /** Inline package -> registry skill + the embed entry that replaces it in place. */
 async function publishInlineSkill(
     skill: Record<string, unknown>,
@@ -32,10 +55,14 @@ async function publishInlineSkill(
     if (!parsed.success) {
         const issue = parsed.error.issues[0]
         const path = issue?.path.join(".")
-        return {error: `Fix the skill before publishing${path ? ` (${path})` : ""}.`}
+        return {
+            error: path
+                ? tNow("skills.gallery.publishFixSkillPath", {path})
+                : tNow("skills.gallery.publishFixSkill"),
+        }
     }
     const projectId = getDefaultStore().get(projectIdAtom) ?? ""
-    if (!projectId) return {error: "No project in scope."}
+    if (!projectId) return {error: tNow("skills.gallery.noProject")}
     try {
         const created = await createSkillWorkflow({projectId, skill: parsed.data})
         invalidateSkillsListCache()
@@ -52,8 +79,8 @@ async function publishInlineSkill(
         return {
             error:
                 err instanceof Error && err.message
-                    ? `Publish failed: ${err.message}`
-                    : "Publish failed.",
+                    ? tNow("skills.gallery.publishFailedDetail", {error: err.message})
+                    : tNow("skills.gallery.publishFailed"),
         }
     }
 }
@@ -62,9 +89,11 @@ export function useSkillsBridge(): SkillsBridge {
     return useMemo(
         () => ({
             enabled: true,
-            PickerHost: SkillPickerHost,
-            DetailHost: SkillDetailHost,
+            AddSkillsBody,
+            NewSkillBody: AgentSkillCreateBody,
+            RegistrySkillBody,
             useHeadVersions,
+            useArchivedSlugs,
             publishInlineSkill,
         }),
         [],

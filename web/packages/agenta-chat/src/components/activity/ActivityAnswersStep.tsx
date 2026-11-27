@@ -1,5 +1,7 @@
 import {useMemo, useState, type ReactNode} from "react"
 
+import {richText, useT} from "@agenta/i18n"
+import chatActivityCatalog from "@agenta/i18n/catalogs/chat.activity"
 import {isInteractionEndedOutput} from "@agenta/shared/clientTools"
 import {
     buildElicitationSteps,
@@ -21,6 +23,9 @@ import {
 
 /** A question on the timeline: what the dock below waits on, then what the reader said. */
 export const ActivityAnswersStep = ({part}: {part: ToolUIPart}) => {
+    const t = useT(chatActivityCatalog)
+    const withCount = (text: string) =>
+        richText(text, {count: (children) => <strong className="font-medium">{children}</strong>})
     const [open, setOpen] = useState(false)
     const input = (part as {input?: unknown}).input
     const output = (part as {output?: unknown}).output
@@ -59,37 +64,22 @@ export const ActivityAnswersStep = ({part}: {part: ToolUIPart}) => {
     let sentence: ReactNode
     let state: ActivityState = "idle"
     if (settled === "pending") {
-        sentence = pendingCount ? (
-            <>
-                Needs your answers to{" "}
-                <strong className="font-medium">
-                    {pendingCount} {pendingCount === 1 ? "question" : "questions"}
-                </strong>{" "}
-                below
-            </>
-        ) : (
-            "Needs your answer below"
-        )
+        sentence = pendingCount
+            ? withCount(t("chat.activity.needsAnswersTo", {count: pendingCount}))
+            : t("chat.activity.needsAnswerBelow")
     } else if (ended) {
-        sentence = "The question went unanswered"
+        sentence = t("chat.activity.questionUnanswered")
         state = "responded"
     } else if (settled === "declined" || settled === "cancelled") {
-        sentence = "You declined to answer"
+        sentence = t("chat.activity.youDeclined")
         state = "denied"
     } else if (settled === "degraded") {
-        sentence = "The question could not be shown"
+        sentence = t("chat.activity.questionNotShown")
         state = "not-handled"
     } else {
-        sentence = count ? (
-            <>
-                You answered{" "}
-                <strong className="font-medium">
-                    {count} {count === 1 ? "question" : "questions"}
-                </strong>
-            </>
-        ) : (
-            "You answered"
-        )
+        sentence = count
+            ? withCount(t("chat.activity.youAnsweredQuestions", {count}))
+            : t("chat.activity.youAnsweredPlain")
     }
 
     const expandable = count > 0
@@ -98,7 +88,7 @@ export const ActivityAnswersStep = ({part}: {part: ToolUIPart}) => {
             <StepRow open={open} onToggle={expandable ? () => setOpen((v) => !v) : undefined}>
                 <ActivityNode icon="ask" state={state} yourTurn={settled === "pending"} />
                 <span
-                    className={`min-w-0 truncate text-sm text-colorText transition-colors group-hover/row:text-colorTextSecondary ${
+                    className={`min-w-0 truncate text-label text-foreground transition-colors group-hover/row:text-muted-foreground ${
                         settled === "pending" ? LIVE_TEXT_CLASS : ""
                     }`}
                 >
@@ -107,13 +97,13 @@ export const ActivityAnswersStep = ({part}: {part: ToolUIPart}) => {
                 {expandable ? <StepCaret open={open} /> : null}
             </StepRow>
             <RevealCollapse open={open}>
-                <dl className="ag-surface-inset m-0 flex min-w-0 flex-col gap-2 rounded px-3 py-2 text-xs ml-[38px]">
+                <dl className="ag-surface-inset m-0 flex min-w-0 flex-col gap-2 rounded-md px-3 py-2 text-meta ml-8">
                     {answers.map((answer) => (
                         <div key={answer.key} className="flex min-w-0 flex-col gap-0.5">
-                            <dt className="font-mono text-[12px] text-colorTextTertiary">
+                            <dt className="font-mono text-meta text-muted-foreground">
                                 {answer.label}
                             </dt>
-                            <dd className="m-0 break-words text-colorText">{answer.value}</dd>
+                            <dd className="m-0 break-words text-foreground">{answer.value}</dd>
                         </div>
                     ))}
                 </dl>

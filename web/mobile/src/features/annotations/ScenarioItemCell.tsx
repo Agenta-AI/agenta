@@ -5,7 +5,7 @@ import {useAtomValue} from "jotai"
 import {firstTestcaseInput} from "./useScenarioRows"
 
 const Text = ({value}: {value: string}) => (
-    <span className="block truncate text-[13px] text-foreground" title={value}>
+    <span className="block truncate text-label text-foreground" title={value}>
         {value}
     </span>
 )

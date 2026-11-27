@@ -1,6 +1,8 @@
 import {useEffect, useRef, useState} from "react"
 
-import {Search} from "lucide-react"
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+import {MagnifyingGlassIcon} from "@phosphor-icons/react"
 
 import {cn} from "../components/ui/utils"
 
@@ -24,6 +26,7 @@ export const FilterMenuFlyoutBody = ({
     onSelect: (value: string) => void
     onDismiss?: () => void
 }) => {
+    const t = useT(uiControlsCatalog)
     const [term, setTerm] = useState("")
     const inputRef = useRef<HTMLInputElement | null>(null)
     const listRef = useRef<HTMLDivElement | null>(null)
@@ -45,13 +48,20 @@ export const FilterMenuFlyoutBody = ({
         <>
             {section.searchable ? (
                 <label className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-3 py-2">
-                    <Search size={14} className="shrink-0 text-muted-foreground" aria-hidden />
+                    <MagnifyingGlassIcon
+                        size={14}
+                        className="shrink-0 text-muted-foreground"
+                        aria-hidden
+                    />
                     <input
                         ref={inputRef}
                         value={term}
                         onChange={(event) => setTerm(event.target.value)}
-                        placeholder={section.searchPlaceholder ?? "Search…"}
-                        aria-label={section.searchPlaceholder ?? `Search ${section.label}`}
+                        placeholder={section.searchPlaceholder ?? t("ui.controls.searchEllipsis")}
+                        aria-label={
+                            section.searchPlaceholder ??
+                            t("ui.controls.searchLabel", {label: section.label})
+                        }
                         onKeyDown={(event) => {
                             if (event.key !== "ArrowDown") return
                             event.preventDefault()
@@ -61,7 +71,7 @@ export const FilterMenuFlyoutBody = ({
                         }}
                         className={cn(
                             "box-border w-full appearance-none border-0 bg-transparent p-0 font-[inherit]",
-                            "text-[13px] text-foreground outline-none placeholder:text-placeholder",
+                            "text-label text-foreground outline-none placeholder:text-muted-foreground",
                         )}
                     />
                 </label>
@@ -73,8 +83,9 @@ export const FilterMenuFlyoutBody = ({
                     autoFocus={autoFocus && !section.searchable}
                     emptyText={
                         query
-                            ? `Nothing matches “${term.trim()}”.`
-                            : (section.emptyText ?? `No ${section.label.toLowerCase()} options`)
+                            ? t("ui.controls.nothingMatches", {term: term.trim()})
+                            : (section.emptyText ??
+                              t("ui.controls.noOptions", {label: section.label.toLowerCase()}))
                     }
                     onDismiss={onDismiss}
                     onSelect={onSelect}

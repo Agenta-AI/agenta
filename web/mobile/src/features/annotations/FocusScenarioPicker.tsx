@@ -56,7 +56,7 @@ export const FocusScenarioPicker = ({
                 onValueChange={(next) => navigateToIndex(Number(next))}
                 disabled={focusIds.length === 0}
             >
-                <SelectTrigger size="sm" aria-label="Go to item" className="min-w-[72px]">
+                <SelectTrigger size="sm" aria-label="Go to item" className="min-w-18">
                     <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -68,7 +68,7 @@ export const FocusScenarioPicker = ({
                 </SelectContent>
             </Select>
             {displayId ? (
-                <SimpleTooltip title={traceId ? "Copy trace ID" : "Copy testcase ID"}>
+                <SimpleTooltip title={traceId ? "Copy trace ID" : "Copy test case ID"}>
                     <button
                         type="button"
                         onClick={copy}

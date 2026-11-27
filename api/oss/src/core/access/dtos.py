@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Optional, Tuple, Union
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.account_choices.dtos import RunAccount
@@ -112,6 +112,7 @@ class RunOrigin(str, Enum):
     SUBSCRIPTION = "subscription"
     EVALUATION = "evaluation"
     CHILD = "child"
+    CALLING_SESSION = "calling_session"
 
 
 class RunContext(BaseModel):
@@ -121,7 +122,8 @@ class RunContext(BaseModel):
     parent_run_id: Optional[str] = None
     origin: RunOrigin
     # api: key id; installation: binding id; schedule/subscription: trigger id;
-    # evaluation: evaluation run id; web, child: None
+    # evaluation: evaluation run id; calling_session: the calling session id;
+    # web, child (a blocking workflow call): None
     origin_id: Optional[str] = None
 
 
@@ -144,6 +146,12 @@ class RunApproval(BaseModel):
     principal: PrincipalRef  # the approving principal
     user_id: Optional[UUID] = None  # acting user of the approver
     external_key: Optional[str] = None  # channel answer only
+    # True when the answer came with a run credential, or with no known person or channel
+    # credential: such an answer may not approve anything. Set only by
+    # `approval_from_request`. Serialized only when true, and a missing key
+    # reads as false: an older pod refuses unknown keys, and no stored envelope carries
+    # true, because every path refuses it before it stores anything.
+    is_run_credential: bool = Field(default=False, exclude_if=lambda value: not value)
 
 
 class RunEnvelope(BaseModel):
@@ -164,13 +172,14 @@ class RequestCredentialKind(str, Enum):
 class ResourceKind(str, Enum):
     AGENT = "agent"
     SESSION = "session"
+    MOUNT = "mount"
 
 
 class ResourceRef(BaseModel):
     model_config = _FROZEN
 
     kind: ResourceKind
-    id: str  # agent: artifact id; session: session id
+    id: str  # agent: artifact id; session: session id; mount: mount id
 
 
 class PrincipalRecord(BaseModel):
@@ -199,6 +208,10 @@ class RequestAccess(BaseModel):
     # run_credential only: the ready accounts of the run's "user" items (the
     # `run_accounts` claim). Read through `account_choices.claims.run_account`.
     run_accounts: Tuple[RunAccount, ...] = ()
+    # run_credential only: the agent the run executes (the `run_agent_id` claim).
+    run_agent_id: Optional[UUID] = None
+    # run_credential only: the session the run belongs to (the `run_session_id` claim).
+    run_session_id: Optional[str] = None
 
 
 class UserPrincipals(BaseModel):

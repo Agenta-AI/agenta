@@ -2,12 +2,12 @@
  * EntitySaveModal Component
  *
  * Performance-optimized modal shell for saving entities.
- * Uses EnhancedModal for lazy rendering and consistent styling.
+ * Uses the kit Dialog, which mounts its content only while open.
  */
 
 import {useEffect, useCallback} from "react"
 
-import {EnhancedModal} from "@agenta/ui/components/modal"
+import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import type {EntityReference, EntityType} from "../../types"
@@ -128,14 +128,19 @@ export function EntitySaveModal({
     )
 
     return (
-        <EnhancedModal
-            open={isOpen}
-            onCancel={handleClose}
-            afterClose={handleAfterClose}
-            title={<EntitySaveTitle />}
-            footer={<EntitySaveFooter onClose={handleClose} onSuccess={handleSuccess} />}
-        >
-            <EntitySaveContent />
-        </EnhancedModal>
+        <Dialog open={isOpen} onOpenChange={(next) => !next && handleClose()}>
+            {/* Fires once the close animation has unmounted the content. */}
+            <DialogContent onCloseAutoFocus={handleAfterClose}>
+                <DialogHeader>
+                    <DialogTitle>
+                        <EntitySaveTitle />
+                    </DialogTitle>
+                </DialogHeader>
+                <EntitySaveContent />
+                <DialogFooter>
+                    <EntitySaveFooter onClose={handleClose} onSuccess={handleSuccess} />
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     )
 }

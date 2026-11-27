@@ -23,6 +23,34 @@ export type PlannedFeature = {
 // Recent product highlights, newest first. Match dates and links to the changelog.
 export const shippedFeatures: ShippedFeature[] = [
   {
+    id: "privacy-and-roles",
+    title: "Private agents and chats",
+    description:
+      "New agents and chats start private. Share a chat with chosen people or the whole project, and project actions follow each member's role.",
+    changelogPath: "/docs/changelog/private-agents-and-chats",
+    shippedAt: "2026-10-26",
+    labels: [
+      {
+        name: "Privacy & Access",
+        color: "000000",
+      },
+    ],
+  },
+  {
+    id: "embedded-agents",
+    title: "Embed agents in your website",
+    description:
+      "Paste a snippet to add an agent chat to your website or internal tool. Visitors don't need an Agenta account.",
+    changelogPath: "/docs/guides/embed-an-agent",
+    shippedAt: "2026-10-20",
+    labels: [
+      {
+        name: "Channels",
+        color: "2DD4BF",
+      },
+    ],
+  },
+  {
     id: "agent-setup",
     title: "Set up agents through chat",
     description:
@@ -122,9 +150,31 @@ export const shippedFeatures: ShippedFeature[] = [
   },
 ];
 
-export const inProgressFeatures: PlannedFeature[] = [];
-
-export const plannedFeatures: PlannedFeature[] = [
+export const inProgressFeatures: PlannedFeature[] = [
+  {
+    id: "builder-agent",
+    title: "Builder agent",
+    description:
+      "One agent that creates and manages your other agents for you, and keeps a shared memory of what it learns about them.",
+    labels: [
+      {
+        name: "Agent Builder",
+        color: "BCFF78",
+      },
+    ],
+  },
+  {
+    id: "inbox",
+    title: "Inbox",
+    description:
+      "One place for updates about your agents, automations and workspace, so you see what happened and what needs you.",
+    labels: [
+      {
+        name: "Notifications",
+        color: "F472B6",
+      },
+    ],
+  },
   {
     id: "agent-communication",
     title: "Agent communication and subagents",
@@ -138,36 +188,39 @@ export const plannedFeatures: PlannedFeature[] = [
       },
     ],
   },
-  {
-    id: "privacy-and-roles",
-    title: "Session and agent privacy",
-    description:
-      "Improve control over who can access sessions and agents, with roles that define what each person can see and do.",
-    labels: [
-      {
-        name: "Privacy & Access",
-        color: "000000",
-      },
-    ],
-  },
-  {
-    id: "embedded-agents",
-    title: "Embed agents in your website",
-    description:
-      "Add an agent to your website or app, including through an iframe, so people can use it there.",
-    labels: [
-      {
-        name: "Channels",
-        color: "2DD4BF",
-      },
-    ],
-  },
+];
+
+export const plannedFeatures: PlannedFeature[] = [
   {
     id: "custom-triggers",
     title: "Custom triggers",
     description:
       "Start agents from custom event sources, including direct webhooks and user-defined events beyond the Composio catalog.",
     githubUrl: "https://github.com/Agenta-AI/agenta/issues/5514",
+    labels: [
+      {
+        name: "Tools & Triggers",
+        color: "FFA500",
+      },
+    ],
+  },
+  {
+    id: "mcp-registry",
+    title: "MCP registry",
+    description:
+      "Pick from ready-made MCP servers and connect them to your agents by adding only your API key or token.",
+    labels: [
+      {
+        name: "Tools & Triggers",
+        color: "FFA500",
+      },
+    ],
+  },
+  {
+    id: "cloud-browser",
+    title: "Cloud browser for agents",
+    description:
+      "Each agent gets its own browser in the cloud, so it can visit websites and click, type and fill in forms for you.",
     labels: [
       {
         name: "Tools & Triggers",

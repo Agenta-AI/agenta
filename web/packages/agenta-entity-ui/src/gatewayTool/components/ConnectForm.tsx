@@ -1,0 +1,321 @@
+/**
+ * The connect form of an app: its fields, and the start of the connection. One form for every
+ * place: the connect view (the agent panel and Settings) and the connect dialog of the hosts that
+ * keep a dialog. The connection belongs to the project, or to the person with "Only me".
+ */
+import {useCallback, useEffect, useRef, useState} from "react"
+
+import {
+    createToolConnection,
+    fetchToolConnection,
+    invalidateToolConnections,
+    usePersonalToolConnections,
+    useToolConnectionsQuery,
+} from "@agenta/entities/gatewayTool"
+import {useT} from "@agenta/i18n"
+import connectFormCatalog from "@agenta/i18n/catalogs/entityUi.connectForm"
+import {generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
+import {
+    Field,
+    Input,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/ui/ui"
+import Image from "next/image"
+
+import {CANVAS_FIELD_LABEL, type ConnectionOwner} from "../../accounts/ConnectOwnerField"
+import {OwnerField, useOwnerWord} from "../../accounts/OwnerField"
+import {openToolAuthPopup} from "../utils/openToolAuthPopup"
+
+const DEFAULT_PROVIDER = "composio"
+
+type AuthMode = "oauth" | "api_key"
+
+export interface ConnectFormInput {
+    integrationKey: string
+    integrationName: string
+    authSchemes: string[]
+    /**
+     * Who may own the new connection; the first is the default. Two ask "Who can use it", one
+     * is used without asking. Absent, the connection is the project's.
+     */
+    owners?: ConnectionOwner[]
+    /** The connection exists (its sign-in may still be running): its slug and who owns it. */
+    onCreated?: (created: CreatedConnection) => void
+}
+
+/** The connection a connect form made. */
+export interface CreatedConnection {
+    slug: string
+    owner: ConnectionOwner
+}
+
+function resolveAvailableModes(authSchemes: string[]): AuthMode[] {
+    const modes: AuthMode[] = []
+    if (authSchemes.some((s) => s.toLowerCase().includes("oauth"))) modes.push("oauth")
+    if (
+        authSchemes.some(
+            (s) => s.toLowerCase().includes("api_key") || s.toLowerCase().includes("basic"),
+        )
+    )
+        modes.push("api_key")
+    if (modes.length === 0) modes.push("oauth")
+    return modes
+}
+
+/** The form state and the connect step. `submit` resolves true once the connection is made. */
+export function useConnectForm({
+    integrationKey,
+    integrationName,
+    authSchemes,
+    owners,
+    onCreated,
+}: ConnectFormInput) {
+    const [chosenOwner, setOwner] = useState<ConnectionOwner>(owners?.[0] ?? "project")
+    // The allowed owners can change while the form is open (the switch was still loading):
+    // a choice that is no longer allowed falls back to the first allowed owner.
+    const owner = owners?.includes(chosenOwner) ? chosenOwner : (owners?.[0] ?? "project")
+    const [loading, setLoading] = useState(false)
+    /** The server refused to start the connection; the form stays with its values. */
+    const [submitFailed, setSubmitFailed] = useState(false)
+    // One suffix per form keeps the derived slug stable while the author edits the name.
+    const slugSuffixRef = useRef(randomAlphanumeric(3))
+
+    // The slug is derived, not authored. Still sent: the API 500s on a null one.
+    const {connections: projectConnections} = useToolConnectionsQuery()
+    const {connections: personalConnections} = usePersonalToolConnections()
+    const connections = owner === "user" ? (personalConnections ?? []) : (projectConnections ?? [])
+    const existingCount = connections.filter(
+        (connection) => connection.integration_key === integrationKey,
+    ).length
+    const ownerWord = useOwnerWord()
+    // "Snowflake (Personal)", then "Snowflake (Personal 2)": the owner the form has selected.
+    const seedName = `${integrationName} (${ownerWord(owner)}${
+        existingCount > 0 ? ` ${existingCount + 1}` : ""
+    })`
+
+    const [nameTouched, setNameTouched] = useState(false)
+    // An open auth popup's listener and poll; stopped if the form unmounts first.
+    const popupCleanupRef = useRef<(() => void) | null>(null)
+    useEffect(() => () => popupCleanupRef.current?.(), [])
+    const [typedName, setTypedName] = useState("")
+    // The seed follows the connections count until the author types a name of their own.
+    const name = nameTouched ? typedName : seedName
+    // A flag, not the message: the text is translated where it renders.
+    const [nameMissing, setNameMissing] = useState(false)
+    const slug = generateDefaultSlug(
+        name || integrationName || integrationKey,
+        slugSuffixRef.current,
+    )
+
+    const availableModes = resolveAvailableModes(authSchemes)
+    const [selectedMode, setSelectedMode] = useState<AuthMode>(availableModes[0] || "oauth")
+
+    const setName = useCallback((next: string) => {
+        setNameTouched(true)
+        setTypedName(next)
+        if (next.trim()) setNameMissing(false)
+    }, [])
+
+    const submit = useCallback(async (): Promise<boolean> => {
+        // The name is the only authored field, so it carries the validation the slug used to.
+        if (!name.trim() || !slug.trim()) {
+            setNameMissing(true)
+            return false
+        }
+        setNameMissing(false)
+        setSubmitFailed(false)
+        setLoading(true)
+        try {
+            const result = await createToolConnection(
+                {
+                    connection: {
+                        slug,
+                        name: name || slug,
+                        provider_key: DEFAULT_PROVIDER,
+                        integration_key: integrationKey,
+                        data: {auth_scheme: selectedMode},
+                    },
+                },
+                owner,
+            )
+            invalidateToolConnections()
+            onCreated?.({slug, owner})
+
+            const redirectUrl = (result.connection?.data as Record<string, unknown> | undefined)
+                ?.redirect_url
+            if (typeof redirectUrl !== "string" || !redirectUrl) return true
+            // The provider runs the sign-in (OAuth and API key) in its own window. The form waits
+            // until that window is done, then the connection is read once more.
+            const connectionId = result.connection?.id
+            return await new Promise<boolean>((resolve) => {
+                popupCleanupRef.current = openToolAuthPopup(redirectUrl, () => {
+                    popupCleanupRef.current = null
+                    void (async () => {
+                        if (connectionId) {
+                            try {
+                                await fetchToolConnection(connectionId)
+                            } catch {
+                                /* best-effort */
+                            }
+                        }
+                        invalidateToolConnections()
+                        resolve(true)
+                    })()
+                })
+                // Popup blocked: the sign-in continues in this tab, which leaves the page.
+                if (!popupCleanupRef.current) resolve(true)
+            })
+        } catch (error) {
+            console.error("[ConnectForm] create connection failed", error)
+            setSubmitFailed(true)
+            return false
+        } finally {
+            setLoading(false)
+        }
+    }, [slug, name, selectedMode, integrationKey, owner, onCreated])
+
+    return {
+        name,
+        setName,
+        nameMissing,
+        owner,
+        setOwner,
+        owners,
+        availableModes,
+        selectedMode,
+        setSelectedMode,
+        submitFailed,
+        loading,
+        submit,
+        valid: Boolean(name.trim()),
+    }
+}
+
+export type ConnectFormState = ReturnType<typeof useConnectForm>
+
+/** The app mark (canvas F02 f5): its logo at 32 px with no tile, or its first letter. */
+export function ConnectAppMark({name, logo}: {name: string; logo?: string | null}) {
+    return (
+        <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
+            {logo ? (
+                <Image
+                    src={logo}
+                    alt={name}
+                    width={20}
+                    height={20}
+                    className="size-5 object-contain"
+                    unoptimized
+                />
+            ) : (
+                <span className="text-label font-semibold text-muted-foreground">
+                    {name.charAt(0).toUpperCase()}
+                </span>
+            )}
+        </span>
+    )
+}
+
+/** Inputs and selects: control-md (32, 44 on touch), radius 6, 13 px. */
+const CANVAS_CONTROL = "h-control rounded-md text-label"
+
+/** "Connect {name}", the description, and the fields: Name, Who can use it, Auth Method. */
+export function ConnectFormFields({
+    form,
+    integrationName,
+    integrationDescription,
+    projectName,
+    hideHeading = false,
+}: {
+    form: ConnectFormState
+    integrationName: string
+    integrationDescription?: string | null
+    /** The current project's name, for "Everyone in {project}". */
+    projectName?: string
+    /** The host's own header names the app (a dialog's title): no "Connect {name}" here. */
+    hideHeading?: boolean
+}) {
+    const t = useT(connectFormCatalog)
+    const {owners} = form
+    return (
+        <>
+            {hideHeading ? null : (
+                <div className="flex flex-col gap-1">
+                    <span className="text-body font-medium leading-5 text-foreground">
+                        {t("entityUi.connectForm.connectName", {name: integrationName})}
+                    </span>
+                    {integrationDescription && (
+                        <span
+                            className="truncate text-label leading-5 text-muted-foreground"
+                            title={integrationDescription}
+                        >
+                            {integrationDescription}
+                        </span>
+                    )}
+                </div>
+            )}
+
+            <div className="flex flex-col gap-3">
+                <Field
+                    className={CANVAS_FIELD_LABEL}
+                    label={t("entityUi.connectForm.name")}
+                    error={form.nameMissing ? t("entityUi.connectForm.required") : null}
+                >
+                    <Input
+                        className={CANVAS_CONTROL}
+                        autoFocus
+                        placeholder={t("entityUi.connectForm.namePlaceholder", {
+                            name: integrationName,
+                        })}
+                        value={form.name}
+                        aria-invalid={form.nameMissing ? true : undefined}
+                        onChange={(e) => form.setName(e.target.value)}
+                    />
+                </Field>
+
+                {owners && owners.length > 1 ? (
+                    <OwnerField<ConnectionOwner>
+                        value={form.owner}
+                        owners={owners}
+                        onChange={form.setOwner}
+                        projectName={projectName}
+                    />
+                ) : null}
+
+                {form.availableModes.length > 1 && (
+                    <Field
+                        className={CANVAS_FIELD_LABEL}
+                        label={t("entityUi.connectForm.authMethod")}
+                    >
+                        <Select
+                            value={form.selectedMode}
+                            onValueChange={(v) => form.setSelectedMode(v as AuthMode)}
+                        >
+                            <SelectTrigger className={`w-full ${CANVAS_CONTROL}`}>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {form.availableModes.map((m) => (
+                                    <SelectItem key={m} value={m}>
+                                        {/* "OAuth" is the protocol name, the same in every language. */}
+                                        {/* eslint-disable-next-line agenta-i18n/no-hardcoded-text */}
+                                        {m === "oauth" ? "OAuth" : t("entityUi.connectForm.apiKey")}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </Field>
+                )}
+            </div>
+
+            {form.submitFailed ? (
+                <p className="m-0 text-meta leading-snug text-destructive">
+                    {t("entityUi.connectForm.submitFailed")}
+                </p>
+            ) : null}
+        </>
+    )
+}

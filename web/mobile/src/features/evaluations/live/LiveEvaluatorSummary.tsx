@@ -15,12 +15,12 @@ export const LiveEvaluatorSummary = ({evaluator}: {evaluator: Workflow}) => {
             />
             {metrics.length > 0 ? (
                 <div className="flex flex-col gap-1">
-                    <span className="text-xs text-muted-foreground">Output metrics</span>
+                    <span className="text-meta text-muted-foreground">Output metrics</span>
                     <ul className="m-0 flex list-none flex-wrap gap-1.5 p-0">
                         {metrics.map((metric) => (
                             <li
                                 key={metric}
-                                className="rounded-full bg-muted px-2.5 py-0.5 font-mono text-xs text-foreground"
+                                className="rounded-md bg-muted px-2.5 py-0.5 text-code-sm text-foreground"
                             >
                                 {metric}
                             </li>

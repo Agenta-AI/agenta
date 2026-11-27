@@ -3,7 +3,7 @@
  *
  * Lifted verbatim from the Settings `ConfigureSecretModal` so the Settings modal and the
  * in-flow MCP `CreateSecretDrawer` render the SAME form with zero duplicated logic. The chrome
- * (antd modal / EnhancedDrawer) owns the Save button and wires it to `submit`/`saving`/`okDisabled`.
+ * (antd modal / Sheet) owns the Save button and wires it to `submit`/`saving`/`okDisabled`.
  */
 import {useEffect, useMemo, useState} from "react"
 
@@ -13,6 +13,8 @@ import {
     type CustomSecretFormat as CustomSecretFormatType,
     type NamedSecretRow,
 } from "@agenta/entities/secret"
+import {createT} from "@agenta/i18n"
+import secretFormCatalog from "@agenta/i18n/catalogs/entityUi.secretForm"
 import {extractApiErrorMessage, slugifyBase} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 
@@ -20,6 +22,8 @@ import {ENV_NAME} from "../agentSecretRules"
 
 import {buildSecretContent, parseFlatJson} from "./content"
 import {objectToRows, rowsToObject, type KvRow} from "./primitives"
+
+const t = createT(secretFormCatalog)
 
 export type JsonView = "grid" | "json"
 
@@ -50,6 +54,8 @@ export interface UseSecretFormOptions {
 
 export interface SecretFormController {
     isEditing: boolean
+    /** The secret is the person's own, not the project's. */
+    personal: boolean
     name: string
     slug: string
     format: CustomSecretFormatType
@@ -63,6 +69,8 @@ export interface SecretFormController {
     /** A duplicate key is visible and blocking in the JSON grid. */
     duplicateKeyError: boolean
     defaultEnvError: boolean
+    /** The API refused the slug (taken); shown on the slug field. */
+    slugError: string | null
     /** Editing a write-only secret: nothing is prefilled and blank keeps the stored value. */
     valueHidden: boolean
     /** Masked hint for the stored value, when the backend supplies one. */
@@ -80,7 +88,8 @@ export interface SecretFormController {
     onSwitchToJson: () => void
     onSwitchToGrid: () => void
     setJsonText: (next: string) => void
-    submit: () => Promise<void>
+    /** Saves the secret. Resolves the saved row, or null when nothing was saved. */
+    submit: () => Promise<SavedSecret | null>
 }
 
 export function useSecretForm({
@@ -105,6 +114,7 @@ export function useSecretForm({
     const [jsonView, setJsonView] = useState<JsonView>("grid")
     const [jsonText, setJsonText] = useState("{}")
     const [jsonError, setJsonError] = useState<string | null>(null)
+    const [slugError, setSlugError] = useState<string | null>(null)
     const [replacementSupplied, setReplacementSupplied] = useState(false)
     const [saving, setSaving] = useState(false)
 
@@ -125,6 +135,7 @@ export function useSecretForm({
         setJsonText("{}")
         setReplacementSupplied(false)
         setSlugTouched(false)
+        setSlugError(null)
         if (initialSecret) {
             setName(initialSecret.name ?? "")
             setSlug(initialSecret.slug ?? "")
@@ -158,12 +169,14 @@ export function useSecretForm({
         setName(next)
         if (!isEditing && !slugTouched) {
             setSlug(slugifyBase(next))
+            setSlugError(null)
         }
     }
 
     const onChangeSlug = (next: string) => {
         setSlugTouched(true)
         setSlug(slugifyBase(next))
+        setSlugError(null)
     }
 
     const onChangeFormat = (next: CustomSecretFormatType) => {
@@ -171,7 +184,7 @@ export function useSecretForm({
         const hasText = format === CustomSecretFormat.Text && textValue.trim().length > 0
         const hasKv = format === CustomSecretFormat.Json && kvRows.some((r) => r.key.trim())
         if (hasText || hasKv) {
-            message.warning("Switching format clears the current value — re-enter it below.")
+            message.warning(t("entityUi.secretForm.switchFormatClears"))
         }
         setFormat(next)
         setTextValue("")
@@ -226,11 +239,11 @@ export function useSecretForm({
         setJsonView("grid")
     }
 
-    const submit = async () => {
+    const submit = async (): Promise<SavedSecret | null> => {
         const trimmedName = name.trim()
         if (!trimmedName) {
-            message.error("Name is required.")
-            return
+            message.error(t("entityUi.secretForm.nameRequired"))
+            return null
         }
         const result = buildSecretContent({
             format,
@@ -243,9 +256,13 @@ export function useSecretForm({
             kvRows,
         })
         if ("error" in result) {
-            if (format === CustomSecretFormat.Json) setJsonError(result.error)
-            message.error(result.error)
-            return
+            // The JSON editor shows its error inline; other errors have no inline place.
+            if (format === CustomSecretFormat.Json && jsonView === "json") {
+                setJsonError(result.error)
+            } else {
+                message.error(result.error)
+            }
+            return null
         }
         const content = result.content
         // `undefined` means "keep the stored value" on a write-only secret; only a supplied
@@ -256,8 +273,8 @@ export function useSecretForm({
                 ? !content.trim()
                 : !content || Object.keys(content).length === 0)
         ) {
-            message.error("Content is required.")
-            return
+            message.error(t("entityUi.secretForm.contentRequired"))
+            return null
         }
 
         try {
@@ -281,22 +298,30 @@ export function useSecretForm({
             setKvRows([{key: "", value: ""}])
             setJsonText("{}")
             setReplacementSupplied(false)
-            message.success("The secret is saved")
-            onSaved?.({
+            message.success(t("entityUi.secretForm.saved"))
+            const saved: SavedSecret = {
                 id: savedId,
                 name: trimmedName,
                 slug: isEditing ? (initialSecret?.slug ?? "") : createSlug,
                 format,
                 defaultEnvVar: savedDefaultEnvVar,
-            })
+            }
+            onSaved?.(saved)
+            return saved
         } catch (error) {
             const status = (error as {statusCode?: number})?.statusCode
             console.error("Secret save failed", {status})
-            // A taken slug is the one refusal the person can fix in this form, so the API's
-            // reason is shown rather than a bare failure (#6928).
-            message.error(
-                status === 409 ? extractApiErrorMessage(error) : "Failed to save the secret",
-            )
+            // A taken slug is the one refusal the person can fix here: show it on the slug (#6928).
+            if (status === 409 && !isEditing) {
+                setSlugError(extractApiErrorMessage(error))
+            } else {
+                message.error(
+                    status === 409
+                        ? extractApiErrorMessage(error)
+                        : t("entityUi.secretForm.saveFailed"),
+                )
+            }
+            return null
         } finally {
             setSaving(false)
         }
@@ -323,10 +348,39 @@ export function useSecretForm({
         format === CustomSecretFormat.Text &&
         defaultEnvVar.length > 0 &&
         !ENV_NAME.test(defaultEnvVar)
-    const okDisabled = duplicateKeyError || defaultEnvError
+    // The value as it would be saved: invalid or empty blocks Save before the click.
+    const contentCheck = buildSecretContent({
+        format,
+        originalFormat: initialSecret?.format ?? CustomSecretFormat.Text,
+        valueHidden,
+        replacementSupplied,
+        textValue,
+        jsonView,
+        jsonText,
+        kvRows,
+    })
+    // A kept write-only value is not checked here; submit explains a format switch.
+    const checksContent = !(valueHidden && !replacementSupplied)
+    const contentBlocked =
+        checksContent &&
+        ("error" in contentCheck ||
+            (typeof contentCheck.content === "string"
+                ? !contentCheck.content.trim()
+                : !contentCheck.content || Object.keys(contentCheck.content).length === 0))
+    // The editor names a parse or shape error as it is typed, so a disabled Save has a reason.
+    const liveJsonError =
+        checksContent &&
+        format === CustomSecretFormat.Json &&
+        jsonView === "json" &&
+        jsonText.trim() !== "{}" &&
+        "error" in contentCheck
+            ? contentCheck.error
+            : null
+    const okDisabled = duplicateKeyError || defaultEnvError || contentBlocked || Boolean(slugError)
 
     return {
         isEditing,
+        personal: ownerKind === "user" || initialSecret?.ownerKind === "user",
         name,
         slug,
         format,
@@ -335,10 +389,11 @@ export function useSecretForm({
         kvRows,
         jsonView,
         jsonText,
-        jsonError,
+        jsonError: jsonError ?? liveJsonError,
         duplicateKeys,
         duplicateKeyError,
         defaultEnvError,
+        slugError,
         valueHidden,
         keyPreview: initialSecret?.keyPreview,
         saving,

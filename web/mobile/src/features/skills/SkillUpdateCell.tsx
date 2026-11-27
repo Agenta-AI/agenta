@@ -1,16 +1,11 @@
-import {Button, Spinner} from "@agenta/ui/ui"
+import {useT} from "@agenta/i18n"
+import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
+import {Button, SimpleTooltip, Spinner} from "@agenta/ui/ui"
 import {ArrowCircleUp, CheckCircle} from "@phosphor-icons/react"
 
 import {useSkillUpdates, useSkillUpdateStatus} from "./useSkillUpdates"
 
-/**
- * What a row or a card says beside its kebab once someone checked upstream: an Update control
- * while one is waiting, a mark once it landed, nothing otherwise. Reads the shared answer, so
- * the group heading's count and this control can never disagree.
- *
- * `compact` is the row's form — an icon at the kebab's own size, so the actions column stays one
- * width whether or not a row has something to update. A card has room for the word.
- */
+/** Beside the kebab after a check: Update while one waits, a mark once applied. `compact` is the row's icon form. */
 export const SkillUpdateCell = ({
     workflowId,
     compact = false,
@@ -18,6 +13,7 @@ export const SkillUpdateCell = ({
     workflowId: string
     compact?: boolean
 }) => {
+    const t = useT(skillsListCatalog)
     const status = useSkillUpdateStatus(workflowId)
     const {apply} = useSkillUpdates()
 
@@ -29,36 +25,30 @@ export const SkillUpdateCell = ({
         )
     if (status === "available")
         return compact ? (
-            <Button
-                size="icon-xs"
-                variant="ghost"
-                aria-label="Update to the latest version"
-                title="Update to the latest version"
-                className="text-primary hover:bg-foreground/10 dark:hover:bg-foreground/15"
-                onClick={() => void apply([workflowId])}
-            >
-                <ArrowCircleUp aria-hidden className="size-4" weight="fill" />
-            </Button>
+            <SimpleTooltip title={t("skills.list.updateToLatest")}>
+                <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    aria-label={t("skills.list.updateToLatest")}
+                    onClick={() => void apply([workflowId])}
+                >
+                    <ArrowCircleUp aria-hidden />
+                </Button>
+            </SimpleTooltip>
         ) : (
-            <Button
-                size="sm"
-                variant="outline"
-                className="h-6 px-2 text-[11.5px] font-normal"
-                onClick={() => void apply([workflowId])}
-            >
-                Update
+            <Button size="xs" variant="outline" onClick={() => void apply([workflowId])}>
+                {t("skills.list.update")}
             </Button>
         )
     if (status === "updated")
         return compact ? (
-            <span
-                className="flex size-6 items-center justify-center text-muted-foreground"
-                title="Updated"
-            >
-                <CheckCircle aria-label="Updated" className="size-4" />
-            </span>
+            <SimpleTooltip title={t("skills.list.updated")}>
+                <span className="flex size-6 items-center justify-center text-muted-foreground">
+                    <CheckCircle aria-label={t("skills.list.updated")} className="size-4" />
+                </span>
+            </SimpleTooltip>
         ) : (
-            <span className="text-[12px] text-muted-foreground">Updated</span>
+            <span className="text-meta text-muted-foreground">{t("skills.list.updated")}</span>
         )
     return null
 }

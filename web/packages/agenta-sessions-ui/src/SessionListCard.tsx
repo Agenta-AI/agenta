@@ -1,5 +1,7 @@
 import {useCallback, useMemo, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import sessionsRowsCatalog from "@agenta/i18n/catalogs/sessions.rows"
 import {applySessionScopeAtom, useSessionCardList} from "@agenta/sessions/state"
 import {PANEL_ACTION_CLASS, PanelSection} from "@agenta/ui/components/presentational"
 import {ArrowRightIcon} from "@phosphor-icons/react"
@@ -33,7 +35,7 @@ export interface SessionListCardProps {
 }
 
 const WAITING_BADGE_CLASS =
-    "shrink-0 rounded bg-colorWarningBg px-1.5 py-0.5 text-xs leading-none text-colorWarningText"
+    "shrink-0 rounded bg-warning/10 px-1.5 py-0.5 text-meta leading-none text-warning"
 
 /** The waiting badge, as a link when the host knows where it goes and as plain text until then. */
 const BadgeShell = ({
@@ -74,6 +76,7 @@ export const SessionListCard = ({
     onMenuSelect,
     onRenameRow,
 }: SessionListCardProps) => {
+    const t = useT(sessionsRowsCatalog)
     // Only the header badge reads the list here; the shared card list runs the same hook (one
     // query — the args match, so the fetch is shared through the query cache).
     const list = useSessionCardList({
@@ -105,13 +108,13 @@ export const SessionListCard = ({
             titleExtra={
                 list.waitingTotal > 0 ? (
                     <BadgeShell href={viewAllHref} onClick={handleWaitingClick}>
-                        {list.waitingTotal} waiting
+                        {t("sessions.rows.waitingBadge", {count: list.waitingTotal})}
                     </BadgeShell>
                 ) : null
             }
             extra={
                 <Link href={viewAllHref} onClick={handleViewAll} className={PANEL_ACTION_CLASS}>
-                    View all
+                    {t("sessions.rows.viewAll")}
                     <ArrowRightIcon size={12} />
                 </Link>
             }

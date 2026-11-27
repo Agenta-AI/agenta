@@ -3,7 +3,6 @@ import {useState} from "react"
 import {CollapseCaret} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
-// No antd counterpart: one shared glyph, so this is a one-column showcase rather than a parity grid.
 const meta = {
     title: "@agenta/ui/Primitives/Display/CollapseCaret",
     component: CollapseCaret,
@@ -27,9 +26,7 @@ export const Playground: Story = {}
 const Row = ({label, children}: {label: string; children: React.ReactNode}) => (
     <div className="grid grid-cols-[12rem_1fr] items-center gap-4 border-b border-colorBorderSecondary py-3">
         <div className="text-xs text-colorTextSecondary">{label}</div>
-        <div className="flex items-center gap-6" data-vrt-subject>
-            {children}
-        </div>
+        <div className="flex items-center gap-6">{children}</div>
     </div>
 )
 

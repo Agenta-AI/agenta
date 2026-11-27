@@ -1,14 +1,16 @@
 import {useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {FilterMenu, type FilterMenuItem} from "@agenta/ui/filter-menu"
 import {
     Archive,
-    Folder,
+    Asterisk,
+    FolderSimple,
     GitBranch,
     Minus,
     Robot,
     Rows,
-    SquaresFour,
     Stack,
 } from "@phosphor-icons/react"
 
@@ -16,7 +18,7 @@ import {
     ALL_SOURCES,
     DEFAULT_SKILL_LIST_VIEW,
     isDefaultSkillFilters,
-    PROJECT_LABEL,
+    projectLabel,
     PROJECT_SOURCE,
     type SkillGrouping,
     type SkillListView,
@@ -25,13 +27,7 @@ import {
 
 const ICON = 14
 
-/**
- * The skills registry's single view control: where a skill came from, whether an agent runs
- * it, the agents menu's "Only archived" switch, then how the rows are cut.
- *
- * Everything the shared `FilterMenu` knows about this screen arrives as props, so the package
- * never learns what a skill is and this file never re-implements a row or a check mark.
- */
+/** The skills list's filter menu: source, used by, only archived, and group by. */
 export const SkillFilterMenu = ({
     view,
     onChange,
@@ -42,17 +38,27 @@ export const SkillFilterMenu = ({
     /** The repositories the rows were imported from, in display order. */
     repositories: string[]
 }) => {
+    const t = useT(skillsListCatalog)
     const sections = useMemo<FilterMenuItem[]>(
         () => [
             {
                 key: "source",
-                label: "Source",
+                label: t("skills.list.filterSource"),
                 icon: <Stack size={ICON} />,
                 value: view.source,
+                defaultValue: DEFAULT_SKILL_LIST_VIEW.source,
                 wide: true,
                 options: [
-                    {value: ALL_SOURCES, label: "All sources", icon: <SquaresFour size={ICON} />},
-                    {value: PROJECT_SOURCE, label: PROJECT_LABEL, icon: <Folder size={ICON} />},
+                    {
+                        value: ALL_SOURCES,
+                        label: t("skills.list.filterAllSources"),
+                        icon: <Asterisk size={ICON} />,
+                    },
+                    {
+                        value: PROJECT_SOURCE,
+                        label: projectLabel(),
+                        icon: <FolderSimple size={ICON} />,
+                    },
                     ...repositories.map((repository) => ({
                         value: repository,
                         label: repository,
@@ -63,56 +69,70 @@ export const SkillFilterMenu = ({
             },
             {
                 key: "usedBy",
-                label: "Used by",
+                label: t("skills.list.filterUsedBy"),
                 icon: <Robot size={ICON} />,
                 value: view.usedBy,
+                defaultValue: DEFAULT_SKILL_LIST_VIEW.usedBy,
                 options: [
-                    {value: "any", label: "Any agent", icon: <SquaresFour size={ICON} />},
-                    {value: "used", label: "Used by an agent", icon: <Robot size={ICON} />},
-                    {value: "unused", label: "Not used yet", icon: <Minus size={ICON} />},
+                    {
+                        value: "any",
+                        label: t("skills.list.filterAnyAgent"),
+                        icon: <Asterisk size={ICON} />,
+                    },
+                    {
+                        value: "used",
+                        label: t("skills.list.filterUsedByAgent"),
+                        icon: <Robot size={ICON} />,
+                    },
+                    {
+                        value: "unused",
+                        label: t("skills.list.filterNotUsed"),
+                        icon: <Minus size={ICON} />,
+                    },
                 ],
                 onChange: (value) => onChange({...view, usedBy: value as SkillUsedByFilter}),
             },
             {
                 kind: "toggle",
                 key: "archived",
-                label: "Only archived",
+                label: t("skills.list.filterOnlyArchived"),
                 icon: <Archive size={ICON} />,
                 checked: view.archived,
                 onChange: (checked) => onChange({...view, archived: checked}),
             },
             {
                 key: "group",
-                label: "Group by",
+                label: t("skills.list.filterGroupBy"),
                 icon: <Rows size={ICON} />,
                 block: "sort",
                 value: view.group,
                 options: [
-                    {value: "none", label: "None", icon: <Minus size={ICON} />},
-                    {value: "source", label: "Source", icon: <Stack size={ICON} />},
+                    {
+                        value: "none",
+                        label: t("skills.list.groupNone"),
+                        icon: <Minus size={ICON} />,
+                    },
+                    {
+                        value: "source",
+                        label: t("skills.list.filterSource"),
+                        icon: <Stack size={ICON} />,
+                    },
                 ],
                 onChange: (value) => onChange({...view, group: value as SkillGrouping}),
             },
         ],
-        [onChange, repositories, view],
+        [onChange, repositories, t, view],
     )
 
-    // The grouping and the view mode survive a reset: they are how the reader chose to read the
-    // list, not what they narrowed it to.
     const isDefault = isDefaultSkillFilters(view)
 
     return (
         <FilterMenu
             sections={sections}
             align="start"
-            // Icon alone: the list beside it is already the subject, as on the agents toolbar.
-            label={null}
-            triggerAriaLabel="Filter skills"
             size="default"
-            // The view toggle beside it is 32; a 28px funnel between them read as a mistake.
-            triggerClassName="size-8"
-            active={!isDefaultSkillFilters(view)}
             onReset={() =>
+                // A reset keeps the grouping and the view mode.
                 onChange({...DEFAULT_SKILL_LIST_VIEW, group: view.group, mode: view.mode})
             }
             resetDisabled={isDefault}

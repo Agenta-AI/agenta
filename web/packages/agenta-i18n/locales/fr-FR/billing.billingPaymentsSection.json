@@ -1,0 +1,8 @@
+{
+    "invoices": "Factures et reçus",
+    "invoicesHint": "Chaque paiement d’abonnement et de pack de crédits, avec sa facture PDF.",
+    "opening": "Ouverture…",
+    "portalHint": "Le moyen de paiement, les numéros fiscaux et l’adresse de facturation se gèrent aussi dans le portail de facturation.",
+    "title": "Historique des paiements",
+    "viewPortal": "Afficher dans le portail de facturation"
+}

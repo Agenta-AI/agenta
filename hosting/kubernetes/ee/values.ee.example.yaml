@@ -21,20 +21,23 @@ agenta:
 
 # ================================================================== #
 # Global (Bitnami subchart conventions, image pull secrets)
-# EE images live on a private registry (ghcr.io/agenta-ai). Create
-# a Secret named `ghcr-pull-secret` in this namespace before install:
+# Every default image is public, so no pull secret is needed. To run the private
+# Enterprise build of the classic web (/w), set web.image.repository to
+# ghcr.io/agenta-ai/internal-ee-agenta-web, create a Secret named
+# `ghcr-pull-secret` in this namespace, and uncomment the block below:
 #   kubectl create secret docker-registry ghcr-pull-secret \
 #     --docker-server=ghcr.io \
 #     --docker-username=<gh-user> --docker-password=<gh-token> \
 #     -n <namespace>
 # ================================================================== #
-global:
-  imagePullSecrets:
-    - name: ghcr-pull-secret
+# global:
+#   imagePullSecrets:
+#     - name: ghcr-pull-secret
 
 # ================================================================== #
 # === Images ===
-# Image repository is supplied by the chart's edition-aware helper.
+# Image repository is supplied by the chart. The images are the same for both
+# values of agenta.license.
 # Override tag/pullPolicy here if you need to pin a specific build.
 # ================================================================== #
 # api:
@@ -67,6 +70,7 @@ global:
 #     defaultPlan:
 #     defaultPlanOverlay:
 #     emailDisabled: false
+#     personalAccountsEnabled: true
 #     plans:
 #     roles:
 #     rolesOverlay:
@@ -137,8 +141,6 @@ global:
 # ================================================================== #
 # alembic:
 #   autoMigrations: true
-#   cfgPathCore: /app/ee/databases/postgres/migrations/core/alembic.ini
-#   cfgPathTracing: /app/ee/databases/postgres/migrations/tracing/alembic.ini
 #   # --- k8s-only job knobs ---
 #   activeDeadlineSeconds: 600
 #   backoffLimit: 3

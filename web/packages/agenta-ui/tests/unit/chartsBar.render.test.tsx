@@ -150,7 +150,10 @@ describe("BarChart", () => {
         render(<BarChart title="Scores" height={200} series={twoRuns} data={data} />)
         expect(screen.getByRole("img", {name: "Scores"})).toBeTruthy()
         const table = screen.getByRole("table", {name: "Scores"})
-        expect(table.className).toContain("sr-only")
+        // A table ignores the 1px sr-only width; a hiding div wrapper does not widen the page.
+        expect(table.className).not.toContain("sr-only")
+        expect(table.parentElement?.tagName).toBe("DIV")
+        expect(table.parentElement?.className).toContain("sr-only")
         const rows = within(table).getAllByRole("row")
         expect(rows.map((row) => row.textContent)).toEqual([
             "Run ARun B",
@@ -172,13 +175,13 @@ describe("BarChart", () => {
             <BarChart
                 title="Pass rate"
                 height={200}
-                series={[{key: "pct", name: "Percentage", color: "var(--ag-colorSuccess)"}]}
+                series={[{key: "pct", name: "Percentage", color: "var(--success)"}]}
                 data={[{category: "True", values: {pct: 40}}]}
                 yMax={100}
                 formatValue={(value) => `${value}%`}
             />,
         )
-        expect(bars(container, "pct")[0].getAttribute("fill")).toBe("var(--ag-colorSuccess)")
+        expect(bars(container, "pct")[0].getAttribute("fill")).toBe("var(--success)")
         expect(screen.getByText("100%").tagName).toBe("text")
         fireEvent.focus(screen.getByRole("img"))
         expect(screen.getByRole("tooltip").textContent).toContain("Percentage: 40%")

@@ -62,7 +62,12 @@ vi.mock("@/features/evaluations/list/EvaluationRunsTable", () => ({
     },
 }))
 vi.mock("@/features/evaluations/list/useRunRowActions", () => ({
-    useRunRowActions: () => ({canEdit: true, modal: null, open: vi.fn()}),
+    useRunRowActions: () => ({
+        canEdit: true,
+        open: vi.fn(),
+        // No confirm asked: the section's alert stays closed.
+        confirmDialog: {request: null, pending: false, error: null, close: vi.fn()},
+    }),
 }))
 vi.mock("@/features/app-overview/useLatestAppRuns", () => ({
     useLatestAppRuns: () => ({data: [], isPending: false, isError: false, refetch: vi.fn()}),

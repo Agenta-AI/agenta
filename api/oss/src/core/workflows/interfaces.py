@@ -59,6 +59,19 @@ class StaticWorkflowProvider(ABC):
         """Whether a static workflow reference may be used inside an embed."""
 
     @abstractmethod
+    def editable_paths(
+        self,
+        *,
+        id: Optional[UUID] = None,
+        slug: Optional[str] = None,
+    ) -> List[str]:
+        """The dotted ``data`` paths a project may commit for this static workflow.
+
+        Empty for an unknown reference and for an entry without an ``editable`` list, which
+        stays read-only.
+        """
+
+    @abstractmethod
     def retrieve_revision(
         self,
         *,
@@ -125,6 +138,23 @@ class WorkflowsDAOInterface(GitDAOInterface):
         inserted."""
 
     @abstractmethod
+    async def ensure_static_workflow_rows(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        artifact_id: UUID,
+        variant_id: UUID,
+        slug: str,
+        name: Optional[str] = None,
+    ) -> None:
+        """Create the artifact and variant rows of a static workflow in the project, with
+        its fixed ids and its reserved slug, unless they exist. Two calls at once both
+        succeed (`ON CONFLICT DO NOTHING`). No access row: a static workflow is
+        project-visible and has no owner."""
+
+    @abstractmethod
     async def fetch_agent_artifact_id(
         self,
         *,
@@ -146,6 +176,29 @@ class WorkflowsDAOInterface(GitDAOInterface):
         """True when the artifact exists in the project (archived included) and one of
         its revisions carries `flags.is_agent`, in one indexed read. The rule of the
         agent access backfill and of `ensure_first_agent_access`."""
+
+    @abstractmethod
+    async def has_revision_with_drives(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: UUID,
+    ) -> bool:
+        """True when a stored revision of the artifact states `drives` as a list (a
+        `drives: null` does not count), in one indexed read."""
+
+    @abstractmethod
+    async def fetch_agents_using_drives(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: UUID,
+        slugs: List[str],
+        read_scope: AgentReadScope,
+    ) -> List[str]:
+        """The names of the other agents in `read_scope` that use one of the drives
+        (by slug): a latest revision lists it, or it is their own drive and they state
+        no `drives`."""
 
     @abstractmethod
     async def query_artifacts(  # type: ignore[override]

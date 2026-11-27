@@ -1,14 +1,18 @@
 import {useCallback, useRef, useState} from "react"
 
+import {createT} from "@agenta/i18n"
+import sessionsRowsCatalog from "@agenta/i18n/catalogs/sessions.rows"
 import {message} from "@agenta/ui/app-message"
+
+const tNow = createT(sessionsRowsCatalog)
 
 export interface InlineRenameOptions {
     /** The name as it stands, used to seed the draft and to skip a no-op commit. */
     current: string | null | undefined
     /** Persists the new name. `false` surfaces an error and leaves the row alone. */
     onCommit: (name: string) => Promise<boolean>
-    /** What a failed commit says. Defaults to the session wording this started as. */
-    errorText?: string
+    /** What a failed commit says; null when `onCommit` reports its own failure. */
+    errorText?: string | null
     /** Let a blank draft commit — for a field that can be cleared, like a description. */
     allowEmpty?: boolean
 }
@@ -36,7 +40,7 @@ export interface InlineRename {
 export const useInlineRename = ({
     current,
     onCommit,
-    errorText = "Couldn't rename this session",
+    errorText = tNow("sessions.rows.renameFailed"),
     allowEmpty = false,
 }: InlineRenameOptions): InlineRename => {
     const [renaming, setRenaming] = useState(false)
@@ -60,7 +64,7 @@ export const useInlineRename = ({
         const name = draft.trim()
         setRenaming(false)
         if ((!name && !allowEmpty) || name === (current ?? "")) return
-        if (!(await onCommit(name))) message.error(errorText)
+        if (!(await onCommit(name)) && errorText) message.error(errorText)
     }, [allowEmpty, current, draft, errorText, onCommit])
 
     return {renaming, draft, setDraft, start, commit, cancel}

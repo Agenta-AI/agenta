@@ -14,8 +14,10 @@
  *    loads it into the input; this card only MARKS which row is under edit and offers the way out.
  *    See `useAgentChatQueue.commitEdit` for what the resulting send does.
  */
-import {memo, useEffect, useMemo, useRef, useState} from "react"
+import {memo, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import chatQueuedMessagesDockCatalog from "@agenta/i18n/catalogs/chat.queuedMessagesDock"
 import {splitQuotedMessage, truncateQuoteText, type QuotedExcerpt} from "@agenta/shared/quotes"
 import {getCollapseLabel} from "@agenta/ui/components/presentational"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
@@ -32,19 +34,21 @@ import {
 } from "@phosphor-icons/react"
 import type {FileUIPart} from "ai"
 
+import {isServerInput, type ChildUpdate} from "../assets/childUpdate"
 import {fileKind, filePartName} from "../assets/files"
 import type {QueuedMessage} from "../hooks/useAgentChatQueue"
 
+import {ChildUpdateNotice} from "./ChildUpdateNotice"
+
 /** The dock family's surface — same geometry as the approval and connect cards. */
-const CARD_SURFACE =
-    "rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer shadow-sm"
+const CARD_SURFACE = "rounded-lg border border-solid border-border-muted bg-background"
 
 /** Five rows at the design's 32px row height. Past that the body scrolls; the card does not grow. */
 const BODY_MAX_H = "max-h-40"
 
 /** Shared tile chrome, so the count block and the type icon read as the same object. */
 const TILE_CHROME =
-    "inline-flex h-5 shrink-0 items-center justify-center rounded border border-solid border-colorBorderSecondary"
+    "inline-flex h-5 shrink-0 items-center justify-center rounded border border-solid border-border-muted"
 const TILE = `${TILE_CHROME} w-5`
 
 /** One attachment tile: image thumbnail, else a type icon. Sized to sit inside a 32px row. */
@@ -63,7 +67,7 @@ const Attachment = ({part}: {part: FileUIPart}) => {
             role="img"
             aria-label={name}
             title={name}
-            className={`${TILE} bg-colorFillTertiary text-colorTextSecondary`}
+            className={`${TILE} bg-secondary text-muted-foreground`}
         >
             <Icon size={11} aria-hidden />
         </span>
@@ -76,14 +80,15 @@ const Attachment = ({part}: {part: FileUIPart}) => {
  * matter how many files a message carries.
  */
 const Attachments = ({files}: {files: FileUIPart[]}) => {
+    const t = useT(chatQueuedMessagesDockCatalog)
     if (files.length === 1) return <Attachment part={files[0]} />
-    const label = `${files.length} attachments`
+    const label = t("chat.queuedMessagesDock.attachmentsLabel", {count: files.length})
     return (
         <span
             role="img"
             aria-label={label}
             title={files.map(filePartName).join(", ")}
-            className={`${TILE} bg-colorFillTertiary text-[10px] font-medium tabular-nums text-colorTextSecondary`}
+            className={`${TILE} bg-secondary text-caption font-medium tabular-nums text-muted-foreground`}
         >
             {files.length}
         </span>
@@ -92,14 +97,15 @@ const Attachments = ({files}: {files: FileUIPart[]}) => {
 
 /** A quoted reply's excerpts as one tile, so the row reads as the reply, not as raw markdown. */
 const QuoteTile = ({quotes}: {quotes: QuotedExcerpt[]}) => {
-    const label = quotes.length === 1 ? "1 quote" : `${quotes.length} quotes`
+    const t = useT(chatQueuedMessagesDockCatalog)
+    const label = t("chat.queuedMessagesDock.quotesLabel", {count: quotes.length})
     return (
         <span
             role="img"
             aria-label={label}
             title={quotes.map((q) => `${q.origin}: ${truncateQuoteText(q.text, 80)}`).join("\n")}
             // Widens to fit a count.
-            className={`${TILE_CHROME} min-w-5 gap-0.5 bg-colorFillTertiary px-1 text-[10px] font-medium tabular-nums text-colorTextSecondary`}
+            className={`${TILE_CHROME} min-w-5 gap-0.5 bg-secondary px-1 text-caption font-medium tabular-nums text-muted-foreground`}
         >
             <Quotes size={11} aria-hidden />
             {quotes.length > 1 ? quotes.length : null}
@@ -116,6 +122,7 @@ const Row = ({
     onRemove,
     onSendNow,
     sendNowBlocked,
+    renderChildSession,
 }: {
     message: QueuedMessage
     editing: boolean
@@ -125,7 +132,12 @@ const Row = ({
     onRemove: (id: string) => void
     onSendNow?: (id: string) => void
     sendNowBlocked: boolean
+    renderChildSession?: (update: ChildUpdate) => ReactNode
 }) => {
+    const t = useT(chatQueuedMessagesDockCatalog)
+    // A server input is read-only: remove is its only control (`editable` already hides edit).
+    const sendNow = isServerInput(message) ? undefined : onSendNow
+    const childUpdate = message.kind === "child_update"
     const {quotes, text} = useMemo(() => splitQuotedMessage(message.text.trim()), [message.text])
     // A bare quote with no reply shows its excerpt instead.
     const excerpt = !text && quotes.length ? truncateQuoteText(quotes[0].text) : ""
@@ -136,66 +148,83 @@ const Row = ({
     return (
         <div
             className={`group flex min-h-8 flex-wrap items-center gap-1.5 rounded-lg px-2 transition-colors ${
-                editing ? "bg-colorFillTertiary" : "hover:bg-colorFillTertiary"
+                editing ? "bg-secondary" : "hover:bg-accent"
             }`}
         >
-            {files.length > 0 && <Attachments files={files} />}
-            {quotes.length > 0 && <QuoteTile quotes={quotes} />}
-            {text ? (
-                <span title={text} className="min-w-0 flex-1 truncate text-xs text-colorText">
+            {childUpdate ? (
+                <ChildUpdateNotice
+                    update={message.childUpdate}
+                    renderChildSession={renderChildSession}
+                    className="flex-1"
+                />
+            ) : (
+                <>
+                    {files.length > 0 && <Attachments files={files} />}
+                    {quotes.length > 0 && <QuoteTile quotes={quotes} />}
+                </>
+            )}
+            {childUpdate ? null : text ? (
+                <span
+                    title={text}
+                    className="min-w-0 flex-1 truncate text-label font-normal text-foreground"
+                >
                     {text}
                 </span>
             ) : excerpt ? (
                 <span
                     title={quotes[0].text}
-                    className="min-w-0 flex-1 truncate text-xs text-colorTextSecondary"
+                    className="min-w-0 flex-1 truncate text-label font-normal text-muted-foreground"
                 >
                     {excerpt}
                 </span>
             ) : (
-                <span className="min-w-0 flex-1 truncate text-xs italic text-colorTextTertiary">
-                    {attachmentCount ? "(attachments only)" : "(empty message)"}
+                <span className="min-w-0 flex-1 truncate text-label font-normal italic text-muted-foreground">
+                    {attachmentCount
+                        ? t("chat.queuedMessagesDock.attachmentsOnly")
+                        : t("chat.queuedMessagesDock.emptyMessage")}
                 </span>
             )}
             {/* Keep Send Now visible without hover. */}
             <span
                 className={`flex shrink-0 items-center gap-0.5 transition-opacity ${
-                    editing || touchCls || (onSendNow && message.source === "server")
+                    editing || touchCls || (sendNow && message.source === "server")
                         ? "opacity-100"
                         : "opacity-0 focus-within:opacity-100 group-hover:opacity-100"
                 }`}
             >
-                {onSendNow && message.source === "server" ? (
+                {sendNow && message.source === "server" ? (
                     <Button
-                        size="sm"
+                        size="xs"
                         variant="ghost"
-                        className={`h-6 !text-xs text-colorTextSecondary ${touchCls}`}
+                        className={`text-muted-foreground ${touchCls}`}
                         disabled={editing || sendingThis || sendNowBlocked || !!message.saving}
                         title={
                             !sendingThis && sendNowBlocked
-                                ? "Another message is being sent first"
+                                ? t("chat.queuedMessagesDock.sendBlocked")
                                 : undefined
                         }
-                        onClick={() => onSendNow(message.id)}
+                        onClick={() => sendNow(message.id)}
                     >
-                        {sendingThis ? "Sending" : "Send Now"}
+                        {sendingThis
+                            ? t("chat.queuedMessagesDock.sending")
+                            : t("chat.queuedMessagesDock.sendNow")}
                     </Button>
                 ) : null}
                 {editing ? (
                     <Button
-                        size="sm"
+                        size="xs"
                         variant="ghost"
-                        className={`h-6 !text-xs text-colorTextSecondary ${touchCls}`}
+                        className={`text-muted-foreground ${touchCls}`}
                         onClick={onCancelEdit}
                     >
-                        Cancel
+                        {t("chat.queuedMessagesDock.cancel")}
                     </Button>
                 ) : onEdit && message.editable !== false ? (
                     <Button
                         size="icon-sm"
                         variant="ghost"
-                        aria-label="Edit queued message"
-                        className={`size-6 text-colorTextTertiary hover:text-colorText ${touchCls}`}
+                        aria-label={t("chat.queuedMessagesDock.editQueued")}
+                        className={`size-6 text-muted-foreground hover:text-foreground ${touchCls}`}
                         // A failed edit comes back, not the text it would have replaced.
                         onClick={() =>
                             onEdit(
@@ -218,9 +247,9 @@ const Row = ({
                     <Button
                         size="icon-sm"
                         variant="ghost"
-                        aria-label="Remove queued message"
+                        aria-label={t("chat.queuedMessagesDock.removeQueued")}
                         disabled={!!message.saving}
-                        className={`size-6 text-colorTextTertiary hover:text-colorText ${touchCls}`}
+                        className={`size-6 text-muted-foreground hover:text-foreground ${touchCls}`}
                         onClick={() => onRemove(message.id)}
                     >
                         <Trash size={13} />
@@ -228,7 +257,7 @@ const Row = ({
                 ) : null}
             </span>
             {message.error ? (
-                <span role="alert" className="basis-full pb-1 text-xs text-colorError">
+                <span role="alert" className="basis-full pb-1 text-meta text-destructive">
                     {message.error}
                 </span>
             ) : null}
@@ -253,6 +282,8 @@ export interface QueuedMessagesDockProps {
     editingId?: string | null
     /** Invisibly extended tap area; the chrome stays identical. */
     touch?: boolean
+    /** Names and links the child session of a child update row. Omitted: a plain label shows. */
+    renderChildSession?: (update: ChildUpdate) => ReactNode
     className?: string
 }
 
@@ -266,8 +297,10 @@ const QueuedMessagesDock = ({
     onCancelEdit,
     editingId = null,
     touch = false,
+    renderChildSession,
     className = "",
 }: QueuedMessagesDockProps) => {
+    const t = useT(chatQueuedMessagesDockCatalog)
     const [collapsed, setCollapsed] = useState(false)
     const bodyRef = useRef<HTMLDivElement>(null)
     const countRef = useRef(queued.length)
@@ -294,10 +327,10 @@ const QueuedMessagesDock = ({
             {/* px-3 so the icon starts on the same 13px line as the row text below it and the
                 composer's own text — the card reads as one left edge, not three. */}
             <div className="flex items-center gap-2 px-3 py-1.5">
-                <Stack size={14} className="shrink-0 text-colorTextTertiary" aria-hidden />
-                <span className="min-w-0 truncate text-[13px] text-colorTextSecondary">
-                    {queued.length} queued message{queued.length === 1 ? "" : "s"}
-                    {held ? " · waits for your answer" : ""}
+                <Stack size={14} className="shrink-0 text-muted-foreground" aria-hidden />
+                <span className="min-w-0 truncate text-label text-muted-foreground">
+                    {t("chat.queuedMessagesDock.queuedCount", {count: queued.length})}
+                    {held ? t("chat.queuedMessagesDock.waitsForAnswer") : ""}
                 </span>
                 <span className="flex-1" />
                 {/* Not `CollapseToggleButton`: it carries a tooltip, and a caret in a two-item
@@ -306,7 +339,7 @@ const QueuedMessagesDock = ({
                     size="icon-sm"
                     variant="ghost"
                     aria-label={getCollapseLabel(collapsed)}
-                    className={`text-colorTextTertiary hover:text-colorText ${touchCls}`}
+                    className={`text-muted-foreground hover:text-foreground ${touchCls}`}
                     onClick={() => setCollapsed((c) => !c)}
                 >
                     <CaretUp
@@ -318,10 +351,10 @@ const QueuedMessagesDock = ({
                 </Button>
             </div>
             {editingMissingRow ? (
-                <div className="flex items-center gap-2 px-3 pb-2 text-xs text-colorTextSecondary">
-                    <span className="flex-1">This message is no longer queued.</span>
+                <div className="flex items-center gap-2 px-3 pb-2 text-meta text-muted-foreground">
+                    <span className="flex-1">{t("chat.queuedMessagesDock.noLongerQueued")}</span>
                     <Button size="sm" variant="ghost" onClick={onCancelEdit}>
-                        Cancel editing
+                        {t("chat.queuedMessagesDock.cancelEditing")}
                     </Button>
                 </div>
             ) : null}
@@ -343,6 +376,7 @@ const QueuedMessagesDock = ({
                             onRemove={onRemove}
                             onSendNow={onSendNow}
                             sendNowBlocked={sendNowBlocked}
+                            renderChildSession={renderChildSession}
                         />
                     ))}
                 </div>

@@ -1,0 +1,21 @@
+{
+    "chatMessage": "Mensaje de chat",
+    "commands": "Comandos",
+    "dismiss": "descartar",
+    "enterInsert": "insertar",
+    "enterOpen": "abrir",
+    "enterRun": "ejecutar",
+    "enterSend": "enviar",
+    "navigate": "navegar",
+    "newline": "Salto de línea",
+    "noCommand": "Ningún comando ni skill coincide con «{{query}}»",
+    "noMatchFor": "Sin coincidencias para «{{query}}»",
+    "openItem": "Abrir {{item}}",
+    "pasteBlocked": "Pegado bloqueado. Superaría el límite de {{max}} caracteres en {{over}} caracteres ({{total}} en total). Reduce el contenido pegado e inténtalo de nuevo.",
+    "pastingLarge": "Pegando contenido grande…",
+    "send": "Enviar",
+    "sending": "Enviando",
+    "stop": "Detener",
+    "stopping": "Deteniendo",
+    "typeMessage": "Escribe un mensaje…"
+}

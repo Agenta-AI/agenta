@@ -112,7 +112,7 @@ export function UserAuthorLabel({
         <span
             className={`inline-flex items-center gap-1.5 text-ellipsis overflow-hidden ${className ?? ""}`}
         >
-            {showAvatar && <InitialsAvatar name={displayName} className="w-4 h-4 text-[9px]" />}
+            {showAvatar && <InitialsAvatar name={displayName} className="w-4 h-4 text-caption" />}
             {showPrefix && prefix && `${prefix} `}
             {label}
         </span>

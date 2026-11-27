@@ -1,4 +1,9 @@
 import {PROVIDER_LABELS} from "@agenta/entities/secret"
+import {createT} from "@agenta/i18n"
+import chatMobileRunErrorCatalog from "@agenta/i18n/catalogs/chat.mobileRunError"
+import chatMobileTurnCatalog from "@agenta/i18n/catalogs/chat.mobileTurn"
+
+const tNow = createT(chatMobileRunErrorCatalog, chatMobileTurnCatalog)
 
 // A run error as the reader should meet it: one plain sentence, the provider's raw blob a tap away.
 export interface RunErrorView {
@@ -98,6 +103,14 @@ export const providerOf = (text: string): RunErrorProvider | null => {
     }
 }
 
+/**
+ * The runner's own sentence for a refused model credential ("pi_core: model authentication
+ * failed — add the project's OpenAI key …"). It sends it with the code `runner_error`, so the
+ * text is the only sign of a key failure. It names harness ids and the vault, so it goes to
+ * the fold, not under the headline.
+ */
+const MODEL_AUTH_FAILED = /\bmodel authentication failed\b/i
+
 /** The failures a reader can act on, in the product's words; anything else keeps the provider's sentence. */
 export type RunErrorKind = "credits" | "key" | "rate" | "outage"
 
@@ -107,7 +120,9 @@ const recognise = (
 ): {kind: RunErrorKind; headline: string; remedy: string} | null => {
     const lower = text.toLowerCase()
     const provider = providerOf(text)
-    const key = provider ? `the ${provider.name} key` : "the model key"
+    const key = provider
+        ? tNow("chat.mobileRunError.providerKey", {provider: provider.name})
+        : tNow("chat.mobileRunError.modelKey")
     if (
         status === 402 ||
         /(not enough|insufficient|out of) (credits?|balance|quota)|insufficient_quota|exceeded your current quota|credit balance is too low/.test(
@@ -116,22 +131,27 @@ const recognise = (
     ) {
         return {
             kind: "credits",
-            headline: `The model provider refused the request: not enough credits on ${key}.`,
-            remedy: "Add credits or pick another model, then try again.",
+            headline: tNow("chat.mobileRunError.creditsHeadline", {key}),
+            remedy: tNow("chat.mobileRunError.creditsRemedy"),
         }
     }
-    if (status === 401 || status === 403 || /api key|unauthori[sz]ed|invalid.*key/.test(lower)) {
+    if (
+        status === 401 ||
+        status === 403 ||
+        /api key|unauthori[sz]ed|invalid.*key/.test(lower) ||
+        MODEL_AUTH_FAILED.test(text)
+    ) {
         return {
             kind: "key",
-            headline: `The model provider rejected ${key}.`,
-            remedy: "Check the key in the agent's settings, then try again.",
+            headline: tNow("chat.mobileRunError.keyHeadline", {key}),
+            remedy: tNow("chat.mobileRunError.keyRemedy"),
         }
     }
     if (status === 429 || /rate.?limit|too many requests/.test(lower)) {
         return {
             kind: "rate",
-            headline: "The model provider is rate-limiting requests right now.",
-            remedy: "Wait a moment, then try again.",
+            headline: tNow("chat.mobileRunError.rateHeadline"),
+            remedy: tNow("chat.mobileRunError.rateRemedy"),
         }
     }
     if (
@@ -141,8 +161,8 @@ const recognise = (
     ) {
         return {
             kind: "outage",
-            headline: "The model provider isn't responding.",
-            remedy: "Try again in a moment.",
+            headline: tNow("chat.mobileRunError.outageHeadline"),
+            remedy: tNow("chat.mobileRunError.outageRemedy"),
         }
     }
     return null
@@ -208,7 +228,7 @@ export const describeRunError = (text: string): RunErrorView => {
         .join(" ")
     const headline = firstSentence(said)
     const known = recognise(status, trimmed)
-    const short = known?.headline ?? (headline || "Something went wrong.")
+    const short = known?.headline ?? (headline || tNow("chat.mobileTurn.somethingWentWrong"))
     const raw = trimmed && trimmed !== short ? trimmed : null
     return {
         headline: short,
@@ -261,6 +281,9 @@ export interface FormattedRunError {
     raw: string | null
 }
 
+/** A parenthetical that names fields or paths (`prompt/messages`, `max_tokens`): text for a developer. */
+const SYSTEM_TEXT = /\([^)]*[/_][^)]*\)/
+
 export const formatRunError = (
     text: string,
     {whole = false}: {whole?: boolean} = {},
@@ -272,7 +295,8 @@ export const formatRunError = (
     const told = humanizeNumbers(whole || !isBig(view.message) ? view.message : view.headline)
     if (view.remedy) {
         // Recognised: our sentence and remedy, with the provider's own words between them.
-        const quote = told && told !== view.headline ? told : null
+        const quote =
+            told && told !== view.headline && !MODEL_AUTH_FAILED.test(reason) ? told : null
         return {
             paragraphs: [view.headline, view.remedy],
             quote,
@@ -284,10 +308,20 @@ export const formatRunError = (
     const sentences = splitSentences(told)
     if (!sentences.length) {
         return {
-            paragraphs: ["Something went wrong."],
+            paragraphs: [tNow("chat.mobileTurn.somethingWentWrong")],
             quote: null,
             provider: null,
             raw: reason || null,
+        }
+    }
+    // A system message ("No user message to send (prompt/messages empty).") names internals:
+    // the reader gets a plain sentence, and the text stays in the fold (COPY-03).
+    if (!whole && SYSTEM_TEXT.test(told)) {
+        return {
+            paragraphs: [tNow("chat.mobileTurn.somethingWentWrong")],
+            quote: null,
+            provider: providerOf(reason),
+            raw: reason,
         }
     }
     const cut = sentences.findIndex((sentence, i) => i > 0 && REMEDY_START.test(sentence))

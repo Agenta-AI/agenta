@@ -17,6 +17,7 @@ vi.mock("@agenta/ui/ui", async () => {
         "data-testid"?: string
     }
     return {
+        SimpleTooltip: ({children}: {children?: React.ReactNode}) => <>{children}</>,
         Alert: ({message}: {message: string}) => <div role="alert">{message}</div>,
         SheetFooter: ({children}: {children?: React.ReactNode}) => <div>{children}</div>,
         Button: ({children, onClick, disabled, ...props}: React.ComponentProps<"button">) => (
@@ -166,6 +167,11 @@ it("explains the Telegram limits", async () => {
     )
     await click("channels-advanced-read-only")
     expect(byId("channels-advanced-checklist").textContent).toContain("The bot is in no group yet")
+})
+
+it("shows the Telegram history note only on Telegram", async () => {
+    await open({}, "whatsapp")
+    expect(byId("channels-advanced-telegram-help")).toBeNull()
 })
 
 it("keeps an unsaved channel checklist when the posting switch is saved", async () => {

@@ -1,0 +1,15 @@
+{
+    "invalidEmail": "有効なメールアドレスを入力してください",
+    "inviteDescription": "招待が承諾されると、この組織に参加します。",
+    "inviteError": "招待を送信できませんでした",
+    "inviteTitle": "メンバーを招待",
+    "loadError": "この組織のメンバーを読み込めませんでした",
+    "removeConfirm": "{{name}} を削除しますか？",
+    "removeDescription": "この組織へのアクセス権が失われます。",
+    "removeError": "メンバーを削除できませんでした",
+    "removeTitle": "メンバーを削除",
+    "removing": "削除しています…",
+    "roleError": "ロールを変更できませんでした",
+    "sendInvitation": "招待を送信",
+    "sending": "送信しています…"
+}

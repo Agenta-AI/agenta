@@ -45,7 +45,7 @@ export const ApplicationConfigSection = ({
     if (application.appFailed && !appName) {
         return (
             <ConfigSection id={`config-application${idSuffix}`} title="Application">
-                <p className="m-0 text-sm text-muted-foreground">
+                <p className="m-0 text-body text-muted-foreground">
                     Application metadata unavailable.
                 </p>
             </ConfigSection>
@@ -100,14 +100,13 @@ export const ApplicationConfigSection = ({
         >
             <ConfigRows rows={rows} />
             {application.configFailed ? (
-                <p className="m-0 text-sm text-muted-foreground">
+                <p className="m-0 text-body text-muted-foreground">
                     Variant configuration unavailable.
                 </p>
             ) : customWithoutSchema ? (
                 <ConfigJsonDisclosure value={application.snapshot} defaultOpen />
             ) : (
                 <section aria-label="Prompt Template" className="flex min-w-0 flex-col gap-2">
-                    <h3 className="m-0 text-sm font-semibold text-foreground">Prompt Template</h3>
                     <RevisionConfigView revisionId={application.revisionId} kind="variant" />
                 </section>
             )}

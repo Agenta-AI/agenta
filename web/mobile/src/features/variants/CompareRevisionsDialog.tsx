@@ -1,6 +1,8 @@
 import {UserAuthorLabel} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
+import {useT} from "@agenta/i18n"
+import compareRevisionsCatalog from "@agenta/i18n/catalogs/variants.compareRevisions"
 import {FormattedDate} from "@agenta/ui/components/presentational"
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
@@ -26,8 +28,8 @@ const VersionCard = ({
         <h3
             className={
                 tone === "removed"
-                    ? "m-0 text-sm font-semibold text-destructive"
-                    : "m-0 text-sm font-semibold text-success"
+                    ? "m-0 text-label text-destructive"
+                    : "m-0 text-label text-success"
             }
         >
             {title}
@@ -35,8 +37,8 @@ const VersionCard = ({
         <div
             className={
                 tone === "removed"
-                    ? "flex flex-col gap-2 rounded-lg border border-solid border-destructive/30 bg-destructive/5 p-3 text-[13px]"
-                    : "flex flex-col gap-2 rounded-lg border border-solid border-success/30 bg-success/5 p-3 text-[13px]"
+                    ? "flex flex-col gap-2 rounded-lg border border-solid border-destructive/30 bg-destructive/5 p-3 text-label"
+                    : "flex flex-col gap-2 rounded-lg border border-solid border-success/30 bg-success/5 p-3 text-label"
             }
         >
             <VariantDetailsWithStatus
@@ -66,29 +68,39 @@ export const CompareRevisionsDialog = ({
     revisions: readonly [AppRevisionRow, AppRevisionRow]
     onClose: () => void
 }) => {
+    const t = useT(compareRevisionsCatalog)
     const [original, modified] = [...revisions].sort(
         (a, b) =>
             Date.parse(a.createdAt ?? "") - Date.parse(b.createdAt ?? "") || a.version - b.version,
     )
-    const originalEntity = useAtomValue(workflowMolecule.selectors.data(original.revisionId))
-    const modifiedEntity = useAtomValue(workflowMolecule.selectors.data(modified.revisionId))
+    // Committed configs only: playground drafts must not show as the saved revision.
+    const originalEntity = useAtomValue(workflowMolecule.selectors.serverData(original.revisionId))
+    const modifiedEntity = useAtomValue(workflowMolecule.selectors.serverData(modified.revisionId))
     const loaded = Boolean(originalEntity && modifiedEntity)
 
     return (
         <Dialog open onOpenChange={(next) => (next ? undefined : onClose())}>
             <DialogContent className="flex max-h-[85vh] w-[min(1080px,calc(100vw-32px))] max-w-none flex-col gap-4 sm:max-w-none">
                 <DialogHeader>
-                    <DialogTitle>Variant Comparison</DialogTitle>
+                    <DialogTitle>{t("variants.compareRevisions.title")}</DialogTitle>
                     <DialogDescription className="sr-only">
                         The configuration of two revisions, with the changes highlighted.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="flex min-h-0 flex-1 flex-col gap-4 md:flex-row">
                     <div className="flex shrink-0 flex-col gap-4 md:w-72">
-                        <VersionCard title="Original Version" tone="removed" row={original} />
-                        <VersionCard title="Modified Version" tone="added" row={modified} />
+                        <VersionCard
+                            title={t("variants.compareRevisions.originalVersion")}
+                            tone="removed"
+                            row={original}
+                        />
+                        <VersionCard
+                            title={t("variants.compareRevisions.modifiedVersion")}
+                            tone="added"
+                            row={modified}
+                        />
                     </div>
-                    <div className="min-h-[320px] min-w-0 flex-1 overflow-auto rounded-lg border border-solid border-border">
+                    <div className="min-h-80 min-w-0 flex-1 overflow-auto rounded-lg border border-solid border-border">
                         {loaded ? (
                             <DiffView
                                 language="json"
@@ -97,7 +109,7 @@ export const CompareRevisionsDialog = ({
                                 computeOnMountOnly
                             />
                         ) : (
-                            <p className="m-0 p-4 text-sm text-muted-foreground">Loading…</p>
+                            <p className="m-0 p-4 text-body text-muted-foreground">Loading…</p>
                         )}
                     </div>
                 </div>

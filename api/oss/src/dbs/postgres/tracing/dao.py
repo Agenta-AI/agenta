@@ -42,6 +42,7 @@ from oss.src.core.tracing.dtos import (
     Condition,
     ListOperator,
     AnalyticsQueryTimeoutError,
+    TraceType,
 )
 
 from oss.src.dbs.postgres.shared.utils import apply_windowing
@@ -1163,9 +1164,10 @@ class TracingDAO(TracingDAOInterface):
 
             # BASE QUERY: Use DISTINCT ON pattern (like query() does for traces)
             # DISTINCT ON picks one row per identifier based on ORDER BY
-            # TODO(WP0.7, deferred): SpanDBE.session_id/user_id are now indexed
-            # root-only columns (see migration oss000000003) — this JSONB path
-            # scan can become a column scan. Left as-is; not blocking.
+            # TODO(WP0.7, deferred): SpanDBE.session_id and turn_id are indexed
+            # columns set on every span, and user_id and agent_id are indexed
+            # root-only columns. This JSONB path scan can become a column scan.
+            # Left as-is; not blocking.
             id_column = SpanDBE.attributes["ag"][group]["id"].as_string()
             base = (
                 select(
@@ -1175,6 +1177,10 @@ class TracingDAO(TracingDAOInterface):
                 .distinct(id_column)
                 .filter(SpanDBE.project_id == project_id)
                 .filter(SpanDBE.attributes["ag"][group].has_key("id"))
+                # An annotation copies `ag.session.id` from the span it annotates.
+                # Count only the traced runs as activity, so a new annotation does
+                # not move an old session into a recent window.
+                .filter(SpanDBE.trace_type.is_distinct_from(TraceType.ANNOTATION))
             )
 
             # Apply time-range filters on base query (before deduplication)

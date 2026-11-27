@@ -16,6 +16,56 @@ Agenta follows semantic versioning with new releases every week. Stay updated by
 The multi-organization release flips OSS from invite-only to open signup. If your instance is reachable beyond a trusted network, set `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` (and optionally `AGENTA_ACCESS_ALLOWED_DOMAINS`) before upgrading. See [Migrate to Multi-Organization OSS](/self-host/upgrades/multi-org-migration).
 :::
 
+## Upgrading to 0.131.1: one image for every install {#upgrading-to-0131-1}
+
+From this release, open source and Enterprise installs run the same API, services and runner images, under the public names `ghcr.io/agenta-ai/agenta-api`, `agenta-services` and `agenta-runner`. A [license key](/self-host/license-keys) decides the plan. Without a key, an instance is on the Community plan, with the [limits by plan](/self-host/license-keys#limits-by-plan). See [Editions](/misc/opensource) for what each plan gives.
+
+### Take a database dump first
+
+On an open source database, the first start adds tables and rows, and this cannot be undone in place. Take a dump of your core and tracing databases before you start the upgrade. To go back, restore the dump and deploy the images you ran before the upgrade.
+
+### Upgrade
+
+Pull the new images and restart, as in the [standard upgrade](#standard-upgrade-process) or the [Helm chart upgrade](#helm-chart-upgrade). Keep your compose files, Helm values and Railway template as they are. You do not change images, env files or databases.
+
+Do not change `AGENTA_LICENSE`. It picks the default database names (`agenta_oss_*` or `agenta_ee_*`), not the plan. A different value points the install at other, empty databases.
+
+### What the first start does on an open source database
+
+The migration job:
+
+1. Reads the version of the core database, and stops if it is older than v0.104.0 (see below).
+2. Runs the shared migrations.
+3. Writes a project membership row for every member in every project of their organization. The open source code gave every organization member every project. The full schema checks access per project, so these rows keep every member's access as it was.
+4. Adds the Enterprise tables, and one subscription for each organization.
+5. Runs the tracing migrations.
+
+If the job stops partway, the next start runs the steps that did not finish. You do not run `entrypoints.memberships_check --materialize` yourself.
+
+On an Enterprise database, the job runs the new migrations only, and writes no membership rows.
+
+If your env file sets `ALEMBIC_AUTO_MIGRATIONS=false`, the job skips the membership rows and the Enterprise tables at start. Run the [manual migration command](#manual-migration-process) once before people use the instance.
+
+### Installs older than v0.104.0
+
+The migration job cannot upgrade a database older than v0.104.0. It stops before it changes anything and logs:
+
+```text
+The core database is at legacy revision <revision>, which is older than v0.104.0. This image cannot upgrade it. Upgrade to v0.129.x first, then start this version. If this is a new install whose first start was interrupted, delete its databases and start again.
+```
+
+Upgrade to the latest 0.129.x release, let its migrations finish, then upgrade to 0.131.1.
+
+### The limits apply to new projects and organizations only
+
+Without a key, the instance runs on the Community plan. Projects and organizations that exist before the upgrade stay. The [limits by plan](/self-host/license-keys#limits-by-plan) apply to new projects and organizations. See [Upgrade an open source instance](/self-host/license-keys#upgrade-an-open-source-instance) for the full list of changes.
+
+The first time the instance admin opens the app after the upgrade, the app offers to register the instance for a free key, once. **Skip** hides the offer for the whole instance. You can register later from **Settings > License**.
+
+### Enterprise: images
+
+The Enterprise compose files and Helm chart now pull the public API, services and runner images. The Enterprise compose files still pull the private Enterprise build of the classic web app (`ghcr.io/agenta-ai/internal-ee-agenta-web`). The Helm chart pulls the public `ghcr.io/agenta-ai/agenta-web` for both licenses, so an EE Helm install needs no pull secret. To keep the private build on Helm, set `web.image.repository`. The private `internal-ee-agenta-api`, `internal-ee-agenta-services` and `internal-ee-agenta-runner` names still receive the same images, so older compose files and values keep working.
+
 ## Upgrading to 0.128.2: old workspace ids stop working
 
 This release stops reading the old workspace data. The tables stay in the database until a later release drops them. It adds two data migrations: one for projects, one for usage meters (Enterprise). Both repeat the 0.127.0 migrations for data that 0.126.0 pods wrote during that upgrade.
@@ -341,15 +391,23 @@ Those rows are the stored OAuth registrations and tokens for MCP connections. De
 
 For most upgrades, follow these steps to update your Agenta instance:
 
-### 1. Pull the Latest Images
+### 1. Update the Files in Your Clone
+
+A release can change the compose files, for example 0.121.0 added the mobile app service. In the folder where you cloned Agenta, get the newest files:
+
+```bash
+git pull
+```
+
+### 2. Pull the Latest Images
 
 Download the newest version of all Agenta Docker images:
 
 ```bash
-docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml pull
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh pull
 ```
 
-### 2. Restart Services
+### 3. Restart Services
 
 Restart all services with the updated images:
 
@@ -374,18 +432,18 @@ Install [docker rollout](https://github.com/wowu/docker-rollout) for rolling upd
 **1. Pull Latest Images**
 
 ```bash
-docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml pull
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh pull
 ```
 
 **2. Apply Database Migrations**
 
-Before updating services, apply any database schema changes:
+Before updating services, apply any database schema changes. This runs the `alembic` migration job once, from the image you just pulled:
 
 ```bash
-docker exec -e PYTHONPATH=/app -w /app/oss/databases/postgres/migrations/core <api-container-name> alembic -c alembic.ini upgrade head
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh run --rm -e ALEMBIC_AUTO_MIGRATIONS=true alembic
 ```
 
-Replace `<api-container-name>` with your actual API container name (e.g., `agenta-oss-gh-api-1`).
+Use the compose file and env file of your deployment. On an Enterprise install, they are `hosting/docker-compose/ee/docker-compose.gh.yml` and `hosting/docker-compose/ee/.env.ee.gh`.
 
 **3. Rolling Update Services**
 
@@ -414,9 +472,10 @@ Each command will:
 v0.100.3 relocated the Helm chart (from `hosting/helm/agenta-oss/` to `hosting/kubernetes/helm/`), reshaped the `values.yaml` keys, and renamed many env vars. If you are upgrading **across** that boundary, follow [Migrate to v0.100.3 (Helm chart relocation + config reshape)](/self-host/upgrades/v0.100.3-migration) once, then resume using this section for subsequent upgrades.
 :::
 
-If you deployed Agenta on Kubernetes using the Helm chart, upgrade with:
+If you deployed Agenta on Kubernetes using the Helm chart, the chart is a folder in your clone. Get the newest chart first, then upgrade:
 
 ```bash
+git pull
 helm upgrade agenta hosting/kubernetes/helm \
   --namespace agenta \
   -f hosting/kubernetes/oss/.values.oss.yaml
@@ -514,14 +573,12 @@ docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file ho
   psql -U username -d postgres -c "\l"
 ```
 
-Start the full stack, then run Agenta migrations if your release requires them:
+Start the full stack. The `alembic` job runs the migrations at start. Check its log:
 
 ```bash
 docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh --profile with-web --profile with-traefik up -d
 
-docker ps | grep api
-docker exec -e PYTHONPATH=/app -w /app/oss/databases/postgres/migrations/core <api-container-name> \
-  alembic -c alembic.ini upgrade head
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh logs alembic
 ```
 
 Verify the stack:
@@ -607,28 +664,15 @@ Check the release notes to see if a version requires database migrations. Not al
 
 ### Manual Migration Process
 
-**1. Find Your API Container Name**
-
-List running containers to identify your API container:
+Apply all pending migrations by running the `alembic` migration job once, from the image in your compose file:
 
 ```bash
-docker ps | grep api
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh run --rm -e ALEMBIC_AUTO_MIGRATIONS=true alembic
 ```
 
-**2. Run the Migration Command**
+Use the compose file and env file of your deployment. On an Enterprise install, they are `hosting/docker-compose/ee/docker-compose.gh.yml` and `hosting/docker-compose/ee/.env.ee.gh`.
 
-Apply all pending migrations:
-
-```bash
-docker exec -e PYTHONPATH=/app -w /app/oss/databases/postgres/migrations/core <api-container-name> alembic -c alembic.ini upgrade head
-```
-
-**Command Breakdown:**
-- `docker exec`: Runs commands inside an existing container
-- `-e PYTHONPATH=/app`: Sets the Python path for the application
-- `-w /app/oss/databases/postgres/migrations/core`: Sets the working directory to the migrations folder
-- `<api-container-name>`: Your actual API container name
-- `alembic -c alembic.ini upgrade head`: Runs all migrations to the latest version
+The job is the same one that runs at every start: every core and tracing migration, in order.
 
 ### Verifying Migrations
 

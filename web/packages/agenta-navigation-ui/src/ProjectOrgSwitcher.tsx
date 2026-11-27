@@ -1,12 +1,23 @@
-import {useCallback, useMemo, useState, type ReactNode} from "react"
+import {useCallback, useMemo, useRef, useState, type ReactNode} from "react"
 
-import {InitialsAvatar} from "@agenta/ui/components/presentational"
-import {Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
+import {
+    Button,
+    IconTile,
+    MENU_ITEM,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+    SimpleTooltip,
+    cn,
+} from "@agenta/ui/ui"
 import {
     ArrowLeft,
     ArrowsLeftRight,
+    CaretDown,
     CaretRight,
-    CaretUpDown,
     Check,
     GearSix,
     Plus,
@@ -42,15 +53,17 @@ export interface ProjectOrgSwitcherViewProps {
     orgLabel: string
     projects: SwitcherEntry[]
     orgs: SwitcherEntry[]
-    /** Wording for the second panel — "organization" on desktop, "workspace" on mobile. */
-    orgNoun?: string
     /** Where the panel portals. A drawer passes an element INSIDE its sheet: a modal sheet's
      * scroll lock blocks scrolling in portals outside its subtree. */
     panelContainer?: HTMLElement | null
     /** Theme fly-out row above logout — omit and no theme control renders. */
     theme?: SwitcherThemeControl
-    /** Rendered beside the trigger on the expanded rail — the desktop's help menu button. */
+    /** Rendered beside the trigger on the expanded rail. */
     trailing?: ReactNode
+    /** Where the panel opens: "bottom" when the switcher sits in the rail's header. */
+    side?: "top" | "bottom"
+    /** The header's compact trigger, with the panel as wide as the rail. On by default for "bottom". */
+    compact?: boolean
     /** Quiet text inside the expanded trigger, before the caret (the app version). */
     triggerMeta?: ReactNode
     /** Optional rows — absent handlers render nothing, so a shell offers what it supports. */
@@ -62,13 +75,46 @@ export interface ProjectOrgSwitcherViewProps {
 
 type Panel = "projects" | "orgs"
 
-export const ROW_CLASS =
-    "flex w-full items-center gap-2 h-8 px-2 rounded-md text-sm leading-none text-left cursor-pointer border-0 bg-transparent [font-family:inherit] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-colorPrimary text-colorText hover:bg-colorFillTertiary transition-colors"
+/** A menu row (ROW-02) on a plain button: hover takes the fill a Radix item gets on highlight. */
+export const ROW_CLASS = cn(
+    MENU_ITEM,
+    "border-0 bg-transparent text-left text-foreground [font-family:inherit] transition-colors hover:bg-accent focus-ring-inset",
+)
 
 /** shrink-0 stops the capped scroll list from compressing rows instead of scrolling. */
 export const ITEM_ROW_CLASS = "shrink-0"
 
-export const CAPTION_CLASS = "px-2 pt-1.5 pb-1 text-xs font-medium text-colorTextTertiary truncate"
+export const CAPTION_CLASS = "truncate px-2 py-1.5 text-meta font-medium text-muted-foreground"
+
+/** The switcher panel's surface; the agent switcher wears it too. */
+export const PANEL_CLASS = "w-popover-sm overflow-hidden p-0"
+
+/** The current entry's check: the kit menus' 14px check. */
+const CHECK_CLASS = "size-4 shrink-0 text-foreground"
+
+/** The rule between the lists and the actions, as the kit menus draw it. */
+const Divider = () => <div className="my-1 h-px shrink-0 bg-border-muted" />
+
+/** A one-letter Mark (16px in menus and nav); the current one takes the brand tint. */
+/** One soft data colour per first letter, so a project or an organization keeps its colour. */
+const MARK_TINTS = [
+    "bg-data-1/15 text-data-1",
+    "bg-data-2/15 text-data-2",
+    "bg-data-3/15 text-data-3",
+    "bg-data-4/15 text-data-4",
+    "bg-data-5/15 text-data-5",
+    "bg-data-6/15 text-data-6",
+] as const
+
+const EntryMark = ({name}: {name: string}) => {
+    const letter = name.trim().charAt(0).toUpperCase() || "?"
+    const tint = MARK_TINTS[letter.charCodeAt(0) % MARK_TINTS.length]
+    return (
+        <IconTile size={20} className={clsx("shrink-0", tint)}>
+            {letter}
+        </IconTile>
+    )
+}
 
 const Row = ({
     onClick,
@@ -87,7 +133,14 @@ const Row = ({
 )
 
 /** Theme picker as a hover fly-out row; the Preferences tab offers the same choices. */
-const ThemeFlyout = ({theme}: {theme: SwitcherThemeControl}) => {
+const ThemeFlyout = ({
+    theme,
+    container,
+}: {
+    theme: SwitcherThemeControl
+    container?: HTMLElement | null
+}) => {
+    const t = useT(navigationCatalog)
     const current = theme.options.find(({mode}) => mode === theme.mode) ?? theme.options[0]
     if (!current) return null
     return (
@@ -95,19 +148,24 @@ const ThemeFlyout = ({theme}: {theme: SwitcherThemeControl}) => {
             <PopoverTrigger asChild>
                 <button type="button" className={ROW_CLASS}>
                     {current.icon}
-                    <span className="flex-1">Theme</span>
-                    <span className="text-colorTextSecondary">{current.short}</span>
-                    <CaretRight size={14} className="shrink-0 text-colorTextSecondary" />
+                    <span className="flex-1">{t("navigation.projectMenu.theme")}</span>
+                    <span className="text-muted-foreground">{current.short}</span>
+                    <CaretRight className="shrink-0 text-muted-foreground" />
                 </button>
             </PopoverTrigger>
-            <PopoverContent side="right" align="end" className="w-[190px] p-1">
+            {/* Same portal as the switcher: a body portal sits outside a drawer's focus trap,
+                so the keyboard could not reach the options. */}
+            <PopoverContent
+                container={container}
+                side="right"
+                align="end"
+                className="w-popover-sm p-1"
+            >
                 {theme.options.map(({mode, label, icon}) => (
                     <Row key={mode} className={ITEM_ROW_CLASS} onClick={() => theme.onSelect(mode)}>
                         {icon}
                         <span className="min-w-0 flex-1 truncate">{label}</span>
-                        {theme.mode === mode && (
-                            <Check size={14} className="shrink-0 text-colorText" />
-                        )}
+                        {theme.mode === mode && <Check className={CHECK_CLASS} />}
                     </Row>
                 ))}
             </PopoverContent>
@@ -116,7 +174,7 @@ const ThemeFlyout = ({theme}: {theme: SwitcherThemeControl}) => {
 }
 
 export const EntryList = ({entries, close}: {entries: SwitcherEntry[]; close: () => void}) => (
-    // Cap the list at 7 item rows (h-8 each) so the actions below it stay on screen.
+    // Cap the list at about 7 item rows so the actions below it stay on screen.
     <div className="ag-scroll-quiet flex max-h-56 flex-col overflow-y-auto">
         {entries.map((entry) => (
             <Row
@@ -124,16 +182,17 @@ export const EntryList = ({entries, close}: {entries: SwitcherEntry[]; close: ()
                 className={clsx(
                     ITEM_ROW_CLASS,
                     // scroll-initial-target is Chromium-only; elsewhere the list opens at the top.
-                    entry.isActive && "bg-colorFillSecondary [scroll-initial-target:nearest]",
+                    // The check shows the current entry, as in the kit menus.
+                    entry.isActive && "[scroll-initial-target:nearest]",
                 )}
                 onClick={() => {
                     close()
                     if (!entry.isActive) entry.onSelect()
                 }}
             >
-                <InitialsAvatar size="small" name={entry.name} className="shrink-0" />
+                <EntryMark name={entry.name} />
                 <span className="min-w-0 flex-1 truncate">{entry.name}</span>
-                {entry.isActive && <Check size={14} className="shrink-0 text-colorText" />}
+                {entry.isActive && <Check className={CHECK_CLASS} />}
             </Row>
         ))}
     </div>
@@ -150,40 +209,51 @@ export const ProjectOrgSwitcherView = ({
     orgLabel,
     projects,
     orgs,
-    orgNoun = "organization",
     panelContainer,
     theme,
     trailing,
+    side = "top",
+    compact: compactProp,
     triggerMeta,
     onCreateProject,
     onCreateOrg,
     onOrgSettings,
     onLogout,
 }: ProjectOrgSwitcherViewProps) => {
+    const t = useT(navigationCatalog, commonCatalog)
+    const compact = compactProp ?? side === "bottom"
     const [open, setOpen] = useState(false)
     const [panel, setPanel] = useState<Panel>("projects")
+    const rowRef = useRef<HTMLDivElement>(null)
+    const [headerWidth, setHeaderWidth] = useState<number>()
 
-    const handleOpenChange = useCallback((next: boolean) => {
-        setOpen(next)
-        if (!next) setPanel("projects")
-    }, [])
+    const handleOpenChange = useCallback(
+        (next: boolean) => {
+            // In the header the panel spans the rail, 8px in from each side, as the trigger is.
+            if (next && compact && !collapsed && rowRef.current)
+                setHeaderWidth(rowRef.current.offsetWidth - 16)
+            setOpen(next)
+            if (!next) setPanel("projects")
+        },
+        [collapsed, compact],
+    )
 
     const close = useCallback(() => {
         setOpen(false)
         setPanel("projects")
     }, [])
 
-    const capitalizedNoun = orgNoun.charAt(0).toUpperCase() + orgNoun.slice(1)
-
     const projectPanel = useMemo(
         () => (
             <div className="flex flex-col p-1">
-                <div className={CAPTION_CLASS}>Projects in {orgLabel}</div>
+                <div className={CAPTION_CLASS}>
+                    {t("navigation.projectMenu.projectsIn", {organization: orgLabel})}
+                </div>
                 <EntryList entries={projects} close={close} />
-                <div className="my-1 h-px bg-colorBorderSecondary" />
+                <Divider />
                 <Row onClick={() => setPanel("orgs")}>
-                    <ArrowsLeftRight size={14} className="shrink-0" />
-                    <span className="flex-1">Switch {orgNoun}</span>
+                    <ArrowsLeftRight className="shrink-0" />
+                    <span className="flex-1">{t("navigation.projectMenu.switchOrganization")}</span>
                 </Row>
                 {onCreateProject && (
                     // A row like the rest: accent-yellow and bolder made a create action look
@@ -194,52 +264,54 @@ export const ProjectOrgSwitcherView = ({
                             onCreateProject()
                         }}
                     >
-                        <Plus size={14} className="shrink-0" />
-                        <span className="flex-1">New project</span>
+                        <Plus className="shrink-0" />
+                        <span className="flex-1">{t("navigation.projectMenu.newProject")}</span>
                     </Row>
                 )}
-                {theme && <ThemeFlyout theme={theme} />}
+                {theme && <ThemeFlyout theme={theme} container={panelContainer} />}
                 {onLogout && (
-                    <Row
-                        className="!text-colorError"
-                        onClick={() => {
-                            close()
-                            onLogout()
-                        }}
-                    >
-                        <SignOut size={14} className="shrink-0" />
-                        <span className="flex-1">Logout</span>
-                    </Row>
+                    <>
+                        <Divider />
+                        <Row
+                            onClick={() => {
+                                close()
+                                onLogout()
+                            }}
+                        >
+                            <SignOut className="shrink-0" />
+                            <span className="flex-1">{t("navigation.projectMenu.logout")}</span>
+                        </Row>
+                    </>
                 )}
             </div>
         ),
-        [close, onCreateProject, onLogout, orgLabel, orgNoun, projects, theme],
+        [close, onCreateProject, onLogout, orgLabel, panelContainer, projects, t, theme],
     )
 
     const orgPanel = useMemo(
         () => (
             <div className="flex flex-col p-1">
                 <div className="flex items-center justify-between">
-                    <Row
-                        className="!w-auto flex-1 font-medium"
-                        onClick={() => setPanel("projects")}
-                    >
-                        <ArrowLeft size={14} className="shrink-0" />
-                        <span>Projects</span>
+                    <Row className="!w-auto min-w-0 flex-1" onClick={() => setPanel("projects")}>
+                        <ArrowLeft className="shrink-0" />
+                        <span>{t("navigation.projectMenu.projects")}</span>
                     </Row>
-                    <button
-                        type="button"
-                        aria-label="Close"
-                        title="Close"
-                        onClick={close}
-                        className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextSecondary hover:bg-colorFillTertiary"
-                    >
-                        <X size={14} />
-                    </button>
+                    <SimpleTooltip title={t("common.close")}>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-xs"
+                            aria-label={t("common.close")}
+                            onClick={close}
+                            className="shrink-0 text-muted-foreground"
+                        >
+                            <X />
+                        </Button>
+                    </SimpleTooltip>
                 </div>
-                <div className={CAPTION_CLASS}>{capitalizedNoun}s</div>
+                <div className={CAPTION_CLASS}>{t("navigation.projectMenu.organizations")}</div>
                 <EntryList entries={orgs} close={close} />
-                <div className="my-1 h-px bg-colorBorderSecondary" />
+                <Divider />
                 {onCreateOrg && (
                     <Row
                         onClick={() => {
@@ -247,8 +319,10 @@ export const ProjectOrgSwitcherView = ({
                             onCreateOrg()
                         }}
                     >
-                        <Plus size={14} className="shrink-0" />
-                        <span className="flex-1">Create {orgNoun}</span>
+                        <Plus className="shrink-0" />
+                        <span className="flex-1">
+                            {t("navigation.projectMenu.createOrganization")}
+                        </span>
                     </Row>
                 )}
                 {onOrgSettings && (
@@ -258,36 +332,78 @@ export const ProjectOrgSwitcherView = ({
                             onOrgSettings()
                         }}
                     >
-                        <GearSix size={14} className="shrink-0" />
-                        <span className="flex-1">{capitalizedNoun} settings</span>
+                        <GearSix className="shrink-0" />
+                        <span className="flex-1">
+                            {t("navigation.projectMenu.organizationSettings")}
+                        </span>
                     </Row>
                 )}
-                {theme && <ThemeFlyout theme={theme} />}
+                {theme && <ThemeFlyout theme={theme} container={panelContainer} />}
                 {onLogout && (
-                    <Row
-                        className="!text-colorError"
-                        onClick={() => {
-                            close()
-                            onLogout()
-                        }}
-                    >
-                        <SignOut size={14} className="shrink-0" />
-                        <span className="flex-1">Logout</span>
-                    </Row>
+                    <>
+                        <Divider />
+                        <Row
+                            onClick={() => {
+                                close()
+                                onLogout()
+                            }}
+                        >
+                            <SignOut className="shrink-0" />
+                            <span className="flex-1">{t("navigation.projectMenu.logout")}</span>
+                        </Row>
+                    </>
                 )}
             </div>
         ),
-        [capitalizedNoun, close, onCreateOrg, onLogout, onOrgSettings, orgNoun, orgs, theme],
+        [close, onCreateOrg, onLogout, onOrgSettings, orgs, panelContainer, t, theme],
+    )
+
+    const trigger = (
+        <PopoverTrigger asChild>
+            <button
+                type="button"
+                data-project-org-switcher
+                className={clsx(
+                    // Borderless at rest; the hover fill is the affordance.
+                    "flex h-row-dense cursor-pointer items-center rounded-md border-0 bg-transparent transition-colors hover:bg-accent focus-ring",
+                    // px-2 puts the Mark on the nav icons' column and the name on their text line.
+                    collapsed
+                        ? "w-row-dense justify-center p-0"
+                        : clsx("min-w-0 gap-2 px-2", !compact && "flex-1"),
+                )}
+                title={collapsed ? undefined : `${projectLabel} · ${orgLabel}`}
+            >
+                <EntryMark name={projectLabel} />
+                {/* One line: the org names itself on the panel's caption. */}
+                {!collapsed && (
+                    <>
+                        <span
+                            className={clsx(
+                                "min-w-0 truncate text-left text-body text-foreground",
+                                !compact && "flex-1",
+                            )}
+                        >
+                            {projectLabel}
+                        </span>
+                        {triggerMeta ? (
+                            <span className="shrink-0 text-caption leading-none text-muted-foreground">
+                                {triggerMeta}
+                            </span>
+                        ) : null}
+                        <CaretDown className="ag-caret size-3.5 shrink-0 text-muted-foreground" />
+                    </>
+                )}
+            </button>
+        </PopoverTrigger>
     )
 
     return (
         <div
+            ref={rowRef}
             className={clsx(
-                // Same 300ms the rail itself uses (SidebarShell): without it this box jumps to its
-                // collapsed geometry on the first frame while the rail is still sliding, and the
-                // switcher reads as a separate, badly-timed element rather than part of the rail.
-                "flex gap-1 px-2 pb-1.5 transition-all duration-300",
-                // No top pad: the bottom nav already ends with its own spacing above the switcher.
+                "flex gap-1 px-2",
+                side === "bottom" ? "h-12 shrink-0" : "pb-1.5",
+                compact && "justify-between",
                 collapsed ? "flex-col items-center" : "w-full items-center",
             )}
         >
@@ -295,54 +411,23 @@ export const ProjectOrgSwitcherView = ({
                 switcher instead of sitting beside it. */}
             {collapsed ? trailing : null}
             <Popover open={open} onOpenChange={handleOpenChange} modal={false}>
-                <PopoverTrigger asChild>
-                    <button
-                        type="button"
-                        data-project-org-switcher
-                        className={clsx(
-                            // Borderless at rest; the hover fill is the affordance. `transition-all`
-                            // (not just colors) so the width/padding swap below travels with the
-                            // rail rather than snapping ahead of it.
-                            "flex cursor-pointer items-center rounded-md border-0 bg-transparent transition-all duration-300 hover:bg-colorFillTertiary",
-                            // pl-2.5 tucks the wider avatar 2px left of the nav rows' icon column.
-                            collapsed
-                                ? "size-7 justify-center p-0"
-                                : "h-8 min-w-0 flex-1 gap-[10px] pl-2.5 pr-1",
-                        )}
-                        title={`${projectLabel} · ${orgLabel}`}
-                    >
-                        <InitialsAvatar size="small" name={projectLabel} className="shrink-0" />
-                        {/* One line, not two: the org already names itself on the panel's
-                            caption, and stacking it here made the rail's shortest row its
-                            tallest. */}
-                        {!collapsed && (
-                            <>
-                                <span className="min-w-0 flex-1 truncate text-left text-[13px] leading-none text-colorText">
-                                    {projectLabel}
-                                </span>
-                                {triggerMeta ? (
-                                    <span className="shrink-0 text-[10px] leading-none text-colorTextTertiary">
-                                        {triggerMeta}
-                                    </span>
-                                ) : null}
-                                <CaretUpDown
-                                    size={12}
-                                    className="shrink-0 text-colorTextSecondary"
-                                />
-                            </>
-                        )}
-                    </button>
-                </PopoverTrigger>
-                {/* A popover, not a menu: the panels hold scrollable lists, and a Radix menu's
-                    pointer handling swallows touch scrolling. Docked at the rail's bottom-left
-                    edge: open upward, left-aligned, so the panel never clips the viewport's
-                    left edge. Width matches the expanded trigger. */}
+                {collapsed ? (
+                    // The span takes the tooltip, so two asChild triggers do not share one element.
+                    <SimpleTooltip title={`${projectLabel} · ${orgLabel}`} side="right">
+                        <span className="inline-flex">{trigger}</span>
+                    </SimpleTooltip>
+                ) : (
+                    trigger
+                )}
+                {/* A popover, not a menu: a Radix menu swallows touch scrolling of its lists. */}
                 <PopoverContent
                     container={panelContainer}
                     onOpenAutoFocus={(event) => event.preventDefault()}
-                    side="top"
+                    side={side}
                     align="start"
-                    className="z-[2000] w-[220px] overflow-hidden rounded-lg border border-solid border-colorBorderSecondary bg-colorBgElevated p-0 shadow-md"
+                    sideOffset={side === "bottom" ? 4 : undefined}
+                    style={compact && !collapsed ? {width: headerWidth} : undefined}
+                    className={PANEL_CLASS}
                 >
                     {panel === "projects" ? projectPanel : orgPanel}
                 </PopoverContent>

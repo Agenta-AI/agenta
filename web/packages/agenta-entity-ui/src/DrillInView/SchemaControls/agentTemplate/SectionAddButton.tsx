@@ -33,17 +33,14 @@ export const SectionAddButton = forwardRef<HTMLButtonElement, SectionAddButtonPr
                 ref={ref}
                 type={type}
                 variant="ghost"
-                size="icon"
+                size="icon-xs"
                 aria-label={label}
                 disabled={disabled}
-                // Quieter than the row title at rest; full strength on hover or while open.
-                className={cn(
-                    "!text-colorTextTertiary hover:!text-colorText aria-expanded:!text-colorText",
-                    className,
-                )}
+                // Header controls stay quiet, like the row chevrons beside them.
+                className={cn("text-muted-foreground hover:text-foreground", className)}
                 {...rest}
             >
-                <Plus size={16} />
+                <Plus />
             </Button>
         )
         return (

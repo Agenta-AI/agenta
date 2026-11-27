@@ -1,5 +1,7 @@
 import {useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import sharingCatalog from "@agenta/i18n/catalogs/entityUi.sharing"
 import {personName} from "@agenta/sessions-ui/sharing"
 import {
     Button,
@@ -25,6 +27,8 @@ export type AgentPrivacyControlProps = AgentPrivacyProps & {
  * values so nothing beside it moves. Someone who is not the owner always sees "Shared".
  */
 export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
+    // The texts come from `copy`; this draws the control again when the language's text loads.
+    useT(sharingCatalog)
     const {projectName, sharing, loading = false, loadError = false, onRetry, owner, onOpen} = props
     const [panelOpen, setPanelOpen] = useState(false)
     const [dialogOpen, setDialogOpen] = useState(false)
@@ -47,8 +51,10 @@ export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
                 }}
             >
                 <PopoverTrigger asChild>
-                    <button
+                    <Button
                         type="button"
+                        variant="outline"
+                        size="xs"
                         data-testid="agent-privacy-trigger"
                         aria-label={
                             shownPrivate
@@ -58,7 +64,7 @@ export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
                                   : undefined
                         }
                         disabled={!sharing && loading}
-                        className="box-border flex h-6 w-[92px] shrink-0 cursor-pointer items-center justify-between gap-1 rounded-control-sm border border-solid border-border bg-background pl-2 pr-1.5 text-xs text-foreground [font-family:inherit] hover:bg-accent disabled:cursor-default"
+                        className="w-[92px] shrink-0 justify-between"
                     >
                         {loadError ? (
                             <WarningCircleIcon size={12} aria-hidden />
@@ -74,14 +80,14 @@ export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
                         ) : (
                             <SkeletonBlock className="h-3 w-12" />
                         )}
-                        <CaretDownIcon size={11} aria-hidden />
-                    </button>
+                        <CaretDownIcon aria-hidden />
+                    </Button>
                 </PopoverTrigger>
                 <PopoverContent align="end" className="flex w-[300px] flex-col gap-2.5 p-3.5">
-                    <span className="text-sm font-semibold">{copy.panelTitle}</span>
+                    <span className="text-label font-semibold">{copy.panelTitle}</span>
                     {loadError ? (
                         <>
-                            <p className="m-0 text-sm">{copy.loadError}</p>
+                            <p className="m-0 text-body">{copy.loadError}</p>
                             {onRetry ? (
                                 <Button
                                     size="sm"
@@ -96,26 +102,26 @@ export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
                     ) : !known ? (
                         <SkeletonBlock className="h-4 w-full" />
                     ) : (
-                        <p className="m-0 text-sm">
+                        <p className="m-0 text-body">
                             {shownPrivate ? copy.linePrivate : copy.lineProject(projectName)}
                         </p>
                     )}
                     {known && ownerless && !isOwner ? (
                         // Why the agent has no owner, as the dialog says it (QA D10).
-                        <p className="m-0 text-xs text-muted-foreground">
+                        <p className="m-0 text-meta text-muted-foreground">
                             {!sharing?.policy.owner_user_id
                                 ? copy.noOwner
                                 : sharing?.can_take_ownership
                                   ? copy.ownerLeft(
                                         personName(owner) || sharing.policy.owner_user_id,
                                     )
-                                  : `${copy.ownerLeft(
+                                  : copy.ownerLeftAskAdmin(
                                         personName(owner) || sharing.policy.owner_user_id,
-                                    )} ${copy.ownerLeftNonAdmin}`}
+                                    )}
                         </p>
                     ) : null}
                     {known && owner && !ownerless ? (
-                        <span className="text-xs">
+                        <span className="text-meta">
                             {isOwner ? copy.panelOwnerYou(personName(owner)) : personName(owner)}
                             {isOwner ? null : (
                                 <span className="text-muted-foreground"> · {copy.ownerRole}</span>
@@ -151,7 +157,7 @@ export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
                             >
                                 {copy.takeOwnership}
                             </LoadingButton>
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-meta text-muted-foreground">
                                 {copy.takeOwnershipHelp}
                             </span>
                         </>

@@ -5,8 +5,19 @@ import {
     deleteWebhookAtom,
     webhookToDeleteAtom,
 } from "@agenta/entities/webhook"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsWebhooksTabCatalog from "@agenta/i18n/catalogs/settings.webhooksTab"
 import {WebhooksPage} from "@agenta/settings-ui"
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
     Button,
     Dialog,
     DialogContent,
@@ -17,7 +28,6 @@ import {
 } from "@agenta/ui/ui"
 import {useAtom, useSetAtom} from "jotai"
 
-import {ConfirmModal} from "./ConfirmModal"
 import {WebhookFormSheet} from "./WebhookFormSheet"
 
 /**
@@ -26,6 +36,7 @@ import {WebhookFormSheet} from "./WebhookFormSheet"
  * drawer and modals do.
  */
 export const WebhooksTab = () => {
+    const t = useT(commonCatalog, settingsWebhooksTabCatalog)
     const deleteWebhook = useSetAtom(deleteWebhookAtom)
     const [webhookToDelete, setWebhookToDelete] = useAtom(webhookToDeleteAtom)
     const [createdSecret, setCreatedSecret] = useAtom(createdWebhookSecretAtom)
@@ -33,6 +44,10 @@ export const WebhooksTab = () => {
     const [error, setError] = useState<string | null>(null)
     const [copied, setCopied] = useState(false)
     const [copyError, setCopyError] = useState<string | null>(null)
+    const closeDelete = () => {
+        setError(null)
+        setWebhookToDelete(null)
+    }
     const closeReveal = () => {
         setCreatedSecret(null)
         setCopied(false)
@@ -43,34 +58,61 @@ export const WebhooksTab = () => {
         <WebhooksPage
             renderDrawer={({onSuccess}) => <WebhookFormSheet onSuccess={onSuccess} />}
             renderDeleteDialog={() => (
-                <ConfirmModal
+                <AlertDialog
                     open={Boolean(webhookToDelete)}
-                    title="Delete subscription"
-                    description="This cannot be undone."
-                    body={<>Agenta stops delivering events to {webhookToDelete?.data?.url}.</>}
-                    confirmLabel="Delete"
-                    pending={deleting}
-                    error={error}
-                    onClose={() => {
-                        setError(null)
-                        setWebhookToDelete(null)
+                    onOpenChange={(next) => {
+                        if (!next && !deleting) closeDelete()
                     }}
-                    onConfirm={async () => {
-                        if (!webhookToDelete) return
-                        setDeleting(true)
-                        setError(null)
-                        try {
-                            await deleteWebhook(webhookToDelete.id)
-                            setWebhookToDelete(null)
-                        } catch (cause) {
-                            setError(
-                                (cause as Error)?.message || "Could not delete the subscription",
-                            )
-                        } finally {
-                            setDeleting(false)
-                        }
-                    }}
-                />
+                >
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>
+                                {t("settings.webhooksTab.deleteTitle")}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {t("common.thisCannotBeUndone")}
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <div className="text-body">
+                            {t("settings.webhooksTab.deleteBody", {
+                                url: webhookToDelete?.data?.url ?? "",
+                            })}
+                        </div>
+                        {error ? <p className="m-0 text-body text-destructive">{error}</p> : null}
+                        <AlertDialogFooter>
+                            <AlertDialogCancel asChild>
+                                <Button variant="outline" onClick={closeDelete} disabled={deleting}>
+                                    {t("common.cancel")}
+                                </Button>
+                            </AlertDialogCancel>
+                            <AlertDialogAction asChild>
+                                <Button
+                                    variant="destructive"
+                                    disabled={deleting}
+                                    onClick={async (event) => {
+                                        event.preventDefault()
+                                        if (!webhookToDelete) return
+                                        setDeleting(true)
+                                        setError(null)
+                                        try {
+                                            await deleteWebhook(webhookToDelete.id)
+                                            setWebhookToDelete(null)
+                                        } catch (cause) {
+                                            setError(
+                                                (cause as Error)?.message ||
+                                                    t("settings.webhooksTab.deleteFailed"),
+                                            )
+                                        } finally {
+                                            setDeleting(false)
+                                        }
+                                    }}
+                                >
+                                    {deleting ? t("common.working") : t("common.delete")}
+                                </Button>
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             )}
             renderSecretReveal={() => (
                 <Dialog
@@ -81,23 +123,22 @@ export const WebhooksTab = () => {
                 >
                     <DialogContent>
                         <DialogHeader>
-                            <DialogTitle>Save your webhook secret</DialogTitle>
+                            <DialogTitle>{t("settings.webhooksTab.secretTitle")}</DialogTitle>
                             <DialogDescription>
-                                Shown once. You need it to verify that incoming requests came from
-                                Agenta.
+                                {t("settings.webhooksTab.secretDescription")}
                             </DialogDescription>
                         </DialogHeader>
-                        <p className="m-0 break-all rounded-md border border-solid border-border bg-muted px-3 py-2 font-mono text-xs">
+                        <p className="m-0 break-all rounded-md border border-solid border-border bg-muted px-3 py-2 text-code-sm">
                             {createdSecret}
                         </p>
                         {copyError ? (
-                            <p role="alert" className="text-destructive m-0 text-xs">
+                            <p role="alert" className="text-destructive m-0 text-meta">
                                 {copyError}
                             </p>
                         ) : null}
                         <DialogFooter>
                             <Button variant="outline" onClick={closeReveal}>
-                                Done
+                                {t("common.done")}
                             </Button>
                             <Button
                                 onClick={async () => {
@@ -110,13 +151,11 @@ export const WebhooksTab = () => {
                                         setCopyError(null)
                                         setCopied(true)
                                     } catch {
-                                        setCopyError(
-                                            "Couldn't copy — select the secret above and copy it",
-                                        )
+                                        setCopyError(t("settings.webhooksTab.copyFailed"))
                                     }
                                 }}
                             >
-                                {copied ? "Copied" : "Copy secret"}
+                                {copied ? t("common.copied") : t("settings.webhooksTab.copySecret")}
                             </Button>
                         </DialogFooter>
                     </DialogContent>

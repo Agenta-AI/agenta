@@ -27,14 +27,22 @@ vi.mock("jotai", async (importOriginal) => ({
     useAtomValue: () => "project-1",
 }))
 
-import McpPermissionDrawer from "../../src/mcpEndpoint/McpPermissionDrawer"
+import McpPermissionDrawer, {
+    useMcpPermissionSource,
+} from "../../src/mcpEndpoint/McpPermissionDrawer"
 import {
     getMcpConnectionStatus,
     McpProtocolError,
     readMcpPolicy,
+    toCatalogTools,
+    toGatewayPermissions,
     type McpServerPolicy,
 } from "@agenta/entities/mcpEndpoint"
 import {buildMcpAgentItem} from "../../src/DrillInView/SchemaControls/agentTemplate/mcpRail"
+import {
+    rollupGroupPermission,
+    rollupLabel,
+} from "../../src/DrillInView/SchemaControls/integrationPolicy"
 
 /** The nine tools the spec's own data block supplies, read-only group then write group. */
 const LINEAR_TOOLS = [
@@ -121,6 +129,26 @@ const render = async (extra: Partial<Parameters<typeof McpPermissionDrawer>[0]> 
 
 const text = () => document.body.textContent ?? ""
 
+/** A tool group's heading reads its label then its count, as "Read-only" and "4" ("Read-only4"). */
+const groupHeading = (label: string) =>
+    [...document.querySelectorAll("button[aria-expanded]")].find(
+        (node) => node.firstElementChild?.textContent === label,
+    )?.textContent ?? null
+
+/** What each group's tools are set to, read through the drawer's own adapter; the heading no longer prints it. */
+const groupRollups = (policy: McpServerPolicy) => {
+    const permissions = toGatewayPermissions(policy)
+    const tools = toCatalogTools(LINEAR_TOOLS)
+    return [true, false].map((readOnly) =>
+        rollupLabel(
+            rollupGroupPermission(
+                tools.filter((tool) => Boolean(tool.readOnly) === readOnly),
+                permissions,
+            ),
+        ),
+    )
+}
+
 const labelled = (label: string) => document.querySelector<HTMLElement>(`[aria-label="${label}"]`)
 
 const button = (label: string) =>
@@ -190,10 +218,7 @@ describe("D1 — the drawer at its default", () => {
         expect(text()).toContain("Connected")
     })
 
-    it("leads the header with the generic server tile, since an MCP endpoint has no branding", async () => {
-        // One server glyph on the neutral tile for every server (decision 3). A per-server logo would
-        // have to be guessed from a URL, and a header with nothing in that slot reads as a row
-        // that failed to load an icon.
+    it("leads the header with the neutral server Mark", async () => {
         await render()
 
         const tile = document.querySelector('[data-slot="icon-tile"]')
@@ -241,15 +266,20 @@ describe("D1 — the drawer at its default", () => {
     it("splits the tools into the two groups the server's own annotation decides", async () => {
         await render()
 
-        expect(text()).toContain("Read-only · 4")
-        expect(text()).toContain("Write · 4")
+        expect(groupHeading("Read-only")).toBe("Read-only4")
+        expect(groupHeading("Write")).toBe("Write4")
     })
 
     it("summarises each group by what its tools are set to", async () => {
         await render()
 
         // Every tool follows an `allow` server, so both groups run without asking.
-        expect(text()).toContain("runs automatically")
+        expect(groupRollups({permission: "allow"})).toEqual([
+            "runs automatically",
+            "runs automatically",
+        ])
+        // The heading is the label and count alone (section-row style); no summary word.
+        expect(groupHeading("Read-only")).not.toContain("runs automatically")
     })
 
     it("shows the server's title for a tool rather than its raw name", async () => {
@@ -309,19 +339,16 @@ describe("a server just added to an agent", () => {
         expect(labelled("Default permission")?.textContent).not.toContain("Custom")
     })
 
-    it("says every row follows the agent policy, with no provenance to add", async () => {
-        // There is no governing value to name here, so the row says which value it holds rather
-        // than "Inherits" something the policy does not state.
+    it("says every row follows the agent policy", async () => {
         await render({policy: justAdded})
 
         expect(labelled("Permission for get_issue")?.textContent).toContain("Follow agent policy")
-        expect(labelled("Permission for get_issue")?.textContent).not.toContain("Inherits")
     })
 
     it("summarises both groups as following the agent policy", async () => {
         await render({policy: justAdded})
 
-        expect(text()).toContain("follows agent policy")
+        expect(groupRollups(justAdded)).toEqual(["follows agent policy", "follows agent policy"])
     })
 
     it("writes the permission explicitly when Allow all is picked from there", async () => {
@@ -349,8 +376,8 @@ describe("a search that names none of this server's tools", () => {
         await search("nothing here matches this")
 
         expect(text()).toContain("No tool here matches that.")
-        expect(text()).not.toContain("Read-only · 4")
-        expect(text()).not.toContain("Write · 4")
+        expect(groupHeading("Read-only")).toBeNull()
+        expect(groupHeading("Write")).toBeNull()
     })
 
     it("does not say the server has no tools, which is a different answer", async () => {
@@ -482,7 +509,7 @@ describe("a policy whose per-tool table arrives under the runner's field names",
             "delete_issue",
         ]) {
             const row = labelled(`Permission for ${tool}`)
-            expect(row?.textContent).toContain("Inherits ask")
+            expect(row?.textContent).toContain("Follow agent policy")
             expect(row?.textContent).not.toContain("Allow")
         }
     })
@@ -500,58 +527,7 @@ describe("a policy whose per-tool table arrives under the runner's field names",
     it("summarises both groups as asking first, never as running automatically", async () => {
         await render({policy: foreignSpelling})
 
-        expect(text()).toContain("asks first")
-        expect(text()).not.toContain("runs automatically")
-        expect(text()).not.toContain("mixed")
-    })
-})
-
-describe("the preset that follows the agent's policy names it", () => {
-    // Its whole meaning is "the agent's own permission policy decides", and the drawer already
-    // carries the sentence that says which policy that is. The MCP drawer's `agentPolicy` prop was
-    // removed alongside decision 45, so a person picked the preset and was sent to a different row
-    // to find out whether the ladder asks, allows or denies. The sentence is the Integrations one,
-    // pointed at this source's own preset.
-    it("says which policy it follows when the agent is not on its default", async () => {
-        await render({policy: {}, agentPolicy: "deny"})
-
-        expect(labelled("Default permission")?.textContent).toContain("Follow agent policy")
-        expect(text()).toContain(
-            "This agent's permission policy is set to deny all, so these tools follow it.",
-        )
-    })
-
-    it("says nothing when the agent is on its default, which the sentence has no news about", async () => {
-        await render({policy: {}, agentPolicy: "allow_reads"})
-
-        expect(text()).not.toContain("This agent's permission policy is set to")
-    })
-
-    it("does not qualify the preset that writes what it says", async () => {
-        // "Ask for write and delete" no longer leans on the ladder, so naming the ladder under it
-        // would describe something that does not decide anything here (decision 45).
-        await render({
-            policy: {
-                permission: "ask",
-                tool_permissions: {
-                    get_current_user: "allow",
-                    get_issue: "allow",
-                    list_issues: "allow",
-                    list_comments: "allow",
-                },
-                new_tool_permission: "ask",
-            } as McpServerPolicy,
-            agentPolicy: "deny",
-        })
-
-        expect(labelled("Default permission")?.textContent).toContain("Ask for write and delete")
-        expect(text()).not.toContain("This agent's permission policy is set to")
-    })
-
-    it("says nothing on a preset that decides for itself", async () => {
-        await render({policy: {permission: "allow"}, agentPolicy: "deny"})
-
-        expect(text()).not.toContain("This agent's permission policy is set to")
+        expect(groupRollups(foreignSpelling)).toEqual(["asks first", "asks first"])
     })
 })
 
@@ -622,7 +598,7 @@ describe("Ask for write and delete — the preset that writes what it says", () 
 
     it("shows the grant on the rows it just named, not an inherited value", async () => {
         // The preset's whole claim is per tool, so the rows have to carry it: a read-only row
-        // still reading "Inherits ask" after the pick would say the opposite of what was picked.
+        // still reading "Follow agent policy" after the pick would say the opposite of what was picked.
         const onChange = await render({policy: {permission: "allow"}})
 
         await choose(labelled("Default permission"), "Ask for write and delete")
@@ -630,7 +606,9 @@ describe("Ask for write and delete — the preset that writes what it says", () 
 
         for (const tool of ["get_current_user", "get_issue", "list_issues", "list_comments"]) {
             expect(labelled(`Permission for ${tool}`)?.textContent).toContain("Allow")
-            expect(labelled(`Permission for ${tool}`)?.textContent).not.toContain("Inherits")
+            expect(labelled(`Permission for ${tool}`)?.textContent).not.toContain(
+                "Follow agent policy",
+            )
         }
     })
 
@@ -641,7 +619,7 @@ describe("Ask for write and delete — the preset that writes what it says", () 
         await render({policy: onChange.mock.calls[0][0] as McpServerPolicy})
 
         for (const tool of ["create_issue", "delete_issue"]) {
-            expect(labelled(`Permission for ${tool}`)?.textContent).toContain("Inherits ask")
+            expect(labelled(`Permission for ${tool}`)?.textContent).toContain("Follow agent policy")
         }
     })
 
@@ -651,10 +629,11 @@ describe("Ask for write and delete — the preset that writes what it says", () 
         await choose(labelled("Default permission"), "Ask for write and delete")
         await render({policy: onChange.mock.calls[0][0] as McpServerPolicy})
 
-        // The promise, visible in the two group headers.
-        expect(text()).toContain("runs automatically")
-        expect(text()).toContain("asks first")
-        expect(text()).not.toContain("mixed")
+        // The promise: reads run automatically, writes ask.
+        expect(groupRollups(onChange.mock.calls[0][0] as McpServerPolicy)).toEqual([
+            "runs automatically",
+            "asks first",
+        ])
     })
 
     it("names no preset while the list is on its way, for a policy shaped like this one", async () => {
@@ -769,12 +748,11 @@ describe("D3 — one tool overridden", () => {
     it("turns the affected group's summary to mixed and the untouched one to the floor", async () => {
         await render({policy: custom})
 
-        expect(text()).toContain("mixed")
         // Not "runs automatically". Declaring a per-tool table moves the governing value from the
         // server permission to the table's own floor, and the floor is `ask` until somebody sets
         // one, so the four read-only tools nobody named now ask first. Saying "runs
         // automatically" here would promise an unapproved run the runner will not perform (D88).
-        expect(text()).toContain("asks first")
+        expect(groupRollups(custom)).toEqual(["asks first", "mixed"])
     })
 
     it("writes an entry for the tool that was set", async () => {
@@ -882,7 +860,7 @@ describe("View tools — the same drawer with nothing to set", () => {
     it("lists the tools and their groups", async () => {
         await render({readOnly: true})
 
-        expect(text()).toContain("Read-only · 4")
+        expect(groupHeading("Read-only")).toBe("Read-only4")
         expect(text()).toContain("Get Linear issue")
     })
 
@@ -974,9 +952,11 @@ describe("while the tool list is being read", () => {
 
         await render()
 
-        // Three placeholder rows, so the list area keeps its shape while the answer is on the way.
-        // An empty frame here reads as a server with no tools, which is a different answer.
-        expect(document.querySelectorAll('[data-slot="skeleton-block"]')).toHaveLength(3)
+        // A group heading over five placeholder rows (ToolGroupsSkeleton), so the list area keeps
+        // its shape while the answer is on the way. An empty frame reads as a server with no tools.
+        const group = document.querySelector('[aria-hidden="true"] > .h-row-single')?.parentElement
+        expect(group, "no tool group skeleton").toBeTruthy()
+        expect(group!.lastElementChild!.children).toHaveLength(5)
         expect(text()).not.toContain("This server exposes no tools yet.")
 
         release(LINEAR_TOOLS)
@@ -1008,8 +988,8 @@ describe("a saved per-tool value the drawer cannot draw", () => {
         const control = labelled("Permission for get_issue")
         expect(control?.textContent).toBeTruthy()
         // `Allow` is not a decision, so `get_issue` falls to the declared table's floor, and
-        // the row says so the way every inheriting row does.
-        expect(control?.textContent).toContain("Inherits ask")
+        // the row reads like every other row with no rule of its own.
+        expect(control?.textContent).toContain("Follow agent policy")
     })
 
     it("does not let the server permission govern a table that was declared", async () => {
@@ -1050,5 +1030,72 @@ describe("a reader who may not edit the agent", () => {
 
         expect(button("Connect")).toBeUndefined()
         logged.mockRestore()
+    })
+})
+
+describe("the tool list read", () => {
+    /** Shows the catalog state of one server, read with the given sign-in. */
+    const Probe = ({
+        accountSource = "agent",
+        listTools = true,
+    }: {
+        accountSource?: "agent" | "user"
+        listTools?: boolean
+    }) => {
+        const mcp = useMcpPermissionSource({
+            slug: "linear",
+            policy: {permission: "allow"} as McpServerPolicy,
+            onChange: () => undefined,
+            accountSource,
+            listTools,
+        })
+        const catalog = mcp.source.catalog
+        const askWrites = mcp.source.presets?.options.find(
+            (option) => option.value === "ask_writes",
+        )
+        return createElement(
+            "div",
+            {"data-testid": "probe"},
+            `${catalog.status}:${catalog.tools.map((tool) => tool.name).join(",")}:` +
+                (askWrites?.disabled ? "askWritesOff" : "askWritesOn"),
+        )
+    }
+
+    const probe = () => document.querySelector('[data-testid="probe"]')?.textContent
+
+    it("keeps the newer read when an older read with the other sign-in ends after it", async () => {
+        let failOlder: (error: Error) => void = () => undefined
+        listMcpTools.mockImplementationOnce(
+            () =>
+                new Promise((_, reject) => {
+                    failOlder = reject
+                }),
+        )
+        listMcpTools.mockResolvedValueOnce([{name: "list_issues"}])
+
+        await act(async () => root.render(createElement(Probe, {accountSource: "agent"})))
+        await act(async () => root.render(createElement(Probe, {accountSource: "user"})))
+        expect(listMcpTools.mock.calls.map((call) => call[2])).toEqual([
+            {accountSource: "agent"},
+            {accountSource: "user"},
+        ])
+        expect(probe()).toContain("ready")
+
+        await act(async () => failOlder(new McpProtocolError("Sign in again.", "auth_required")))
+        expect(probe()).toMatch(/^ready:.*list_issues/)
+    })
+
+    it("drops the list when no sign-in can read it any more", async () => {
+        listMcpTools.mockResolvedValueOnce([
+            {name: "list_issues", annotations: {readOnlyHint: true}},
+        ])
+        await act(async () => root.render(createElement(Probe, {accountSource: "user"})))
+        expect(probe()).toBe("ready:list_issues:askWritesOn")
+
+        // The viewer signed out: the view stops reading the list.
+        await act(async () =>
+            root.render(createElement(Probe, {accountSource: "user", listTools: false})),
+        )
+        expect(probe()).toMatch(/:askWritesOff$/)
     })
 })

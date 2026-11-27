@@ -6,20 +6,21 @@
 export {AgentPrivacyControl, type AgentPrivacyControlProps} from "./AgentPrivacyControl"
 export {
     AgentPrivacyDialog,
+    AgentPrivacyPanel,
+    type AgentPrivacyPanelProps,
     type AgentPrivacyDialogProps,
     type AgentPrivacyProps,
     type AgentSharingWrites,
 } from "./AgentPrivacyDialog"
-export {AgentTransferDialog, type AgentTransferDialogProps} from "./AgentTransferDialog"
+export {AgentTransferForm, type AgentTransferFormProps} from "./AgentTransferForm"
 export {useAgentSharingWrites, type AgentSharingNotice} from "./useAgentSharingWrites"
 export {agentSharingCopy, joinNames, memberPickerCopy, shareDisclosureCopy} from "./copy"
 export {
     MemberPicker,
-    ShareDisclosureNotice,
     sharingWriteResultFromError,
     disclosureAccountNames,
+    useShareDisclosureText,
     type MemberPickerProps,
-    type ShareDisclosureNoticeProps,
     type ShareDisclosureTarget,
     type SharingPerson,
     type SharingWriteResult,

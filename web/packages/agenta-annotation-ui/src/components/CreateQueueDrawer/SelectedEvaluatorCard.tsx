@@ -6,6 +6,8 @@ import {
     type WorkflowRevisionLike,
 } from "@agenta/annotation"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import queuesCatalog from "@agenta/i18n/catalogs/annotation.queues"
 import {Trash} from "@phosphor-icons/react"
 import {Button, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
@@ -28,6 +30,7 @@ export default function SelectedEvaluatorCard({
     onRemove,
     disabled = false,
 }: SelectedEvaluatorCardProps) {
+    const t = useT(queuesCatalog)
     const revisionData = useAtomValue(
         useMemo(
             () => workflowMolecule.selectors.data(evaluator.revisionId),
@@ -41,7 +44,7 @@ export default function SelectedEvaluatorCard({
     }, [evaluator.isHuman, revisionData])
 
     return (
-        <div className="flex items-start justify-between gap-3 rounded-lg bg-gray-100 px-3 py-3">
+        <div className="flex items-start justify-between gap-3 rounded-lg bg-muted px-3 py-3">
             <div className="min-w-0 flex-1">
                 <Typography.Text className="block">
                     {evaluator.evaluatorName} - v{evaluator.version}
@@ -49,7 +52,7 @@ export default function SelectedEvaluatorCard({
                 {metrics.length > 0 ? (
                     <div className="mt-2 flex flex-wrap gap-1">
                         {metrics.map((metric) => (
-                            <Tag key={metric.name} className="!m-0 bg-gray-200">
+                            <Tag key={metric.name} className="!m-0 bg-secondary">
                                 {formatHumanMetricLabel(metric)}
                             </Tag>
                         ))}
@@ -60,7 +63,7 @@ export default function SelectedEvaluatorCard({
                 type="text"
                 size="small"
                 danger
-                aria-label={`Remove ${evaluator.evaluatorName}`}
+                aria-label={t("annotation.queues.removeEvaluator", {name: evaluator.evaluatorName})}
                 icon={<Trash size={14} />}
                 disabled={disabled}
                 onClick={() => onRemove(evaluator.revisionId)}

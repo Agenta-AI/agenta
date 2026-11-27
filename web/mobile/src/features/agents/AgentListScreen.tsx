@@ -5,28 +5,24 @@ import {
     agentWorkflowsListQueryStateAtom,
     matchesAgentQuery,
 } from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import agentsList from "@agenta/i18n/catalogs/agents.list"
 import {useWaitingByAgent} from "@agenta/sessions/state"
 import {userAtom} from "@agenta/shared/state"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
-import {ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
-import {Button} from "@agenta/ui/ui"
+import {ListTableViewToggle} from "@agenta/ui/list-table"
+import {Button, PageToolbar} from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtom, useAtomValue} from "jotai"
-import {useRouter} from "next/router"
 
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
-
+import {openAgentFromList} from "../agent-pages/openAgentFromList"
 import {startBlankSession} from "../chat/useStartBlankSession"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {FeatureOnboarding} from "../education/FeatureOnboarding"
 import {HowThisWorksButton} from "../education/HowThisWorksButton"
-import {AppShell} from "../nav/AppShell"
-import {NavDrawer} from "../nav/NavDrawer"
+import {PageLayout} from "../page-layout/PageLayout"
 
-import {isAgentOverviewEnabled} from "./agentEntry"
 import {AgentFilterMenu} from "./AgentFilterMenu"
 import {AgentListTable} from "./AgentListTable"
 import {
@@ -43,9 +39,6 @@ import {useAgentOwners} from "./useAgentOwners"
 import {useAgentRowActions} from "./useAgentRowActions"
 import {useArchivedAgents} from "./useArchivedAgents"
 import {useNewAgentAction} from "./useNewAgentAction"
-
-/** The page column, shared with sessions and automations, so the nav entries line up. */
-const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
 
 /**
  * The full agent roster — where the nav's Agents entry lands.
@@ -64,8 +57,8 @@ export const AgentListScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    const t = useT(agentsList)
     useBindProjectContext(projectId)
-    const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
     const newAgent = useNewAgentAction(base)
     const rowActions = useAgentRowActions(base, projectId)
@@ -110,9 +103,9 @@ export const AgentListScreen = ({
                     waiting: waitingByAgent.get(workflow.id) ?? 0,
                 }),
             )
-    }, [archived.agents, me?.id, ownerNames, query.data, search, showArchived, waitingByAgent])
+    }, [archived.agents, me?.id, ownerNames, query.data, search, showArchived, t, waitingByAgent])
 
-    const groups = useMemo(() => deriveAgentList(rows, view), [rows, view])
+    const groups = useMemo(() => deriveAgentList(rows, view), [rows, view, t])
     const term = search.trim()
     // The archived fetch must not blank rows already on screen: a skeleton over a list that was
     // showing nine agents reads as "they went away". It only owns the skeleton when there is
@@ -123,10 +116,12 @@ export const AgentListScreen = ({
     const projectHasAgents = (query.data ?? []).length > 0
     const openRow = useCallback(
         (row: AgentListRow) => {
-            if (isAgentOverviewEnabled()) void router.push(`${base}/agents/${row.id}`)
-            else startBlankSession(base, row.id)
+            // An archived agent has no agent sidebar (the sidebar shows only listed agents): it
+            // opens a new session, as before.
+            if (row.archived) startBlankSession(base, row.id)
+            else void openAgentFromList({queryClient, base, projectId, agentId: row.id})
         },
-        [base, router],
+        [base, projectId, queryClient],
     )
     const failed = showArchived ? archived.isError : query.isError
     const refetchArchived = archived.refetch
@@ -153,6 +148,13 @@ export const AgentListScreen = ({
     const emptyState = isLoading ? null : (
         <AgentsNoMatch
             term={term || undefined}
+            // Only the archive is chosen: nothing is archived, not a filter that hid it.
+            archiveEmpty={
+                !term &&
+                view.type === "archived" &&
+                isDefaultAgentFilters({...view, type: DEFAULT_AGENT_LIST_VIEW.type})
+            }
+            onShowActive={() => setView({...view, type: DEFAULT_AGENT_LIST_VIEW.type})}
             onClear={
                 term ? () => setSearch("") : isDefaultAgentFilters(view) ? undefined : resetFilters
             }
@@ -162,7 +164,7 @@ export const AgentListScreen = ({
     const body = failed ? (
         // A failed fetch must not read as an empty project, so the error replaces the results
         // rather than sitting under a header row that is no longer describing anything.
-        <LoadError framed title="Could not load agents" onRetry={retry} />
+        <LoadError framed title={t("agents.list.loadError")} onRetry={retry} />
     ) : (
         <AgentListTable
             groups={groups}
@@ -176,82 +178,52 @@ export const AgentListScreen = ({
 
     return (
         <>
-            <PageTitle title="Agents" />
-            <AppShell workspaceId={workspaceId} projectId={projectId}>
-                <ScreenScaffold
-                    header={
-                        <div
-                            className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${PAGE_FRAME}`}
-                        >
-                            <div className="flex min-w-0 items-center gap-2">
-                                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                {/* From `sm`, 24px is the desktop page-title rung; on a phone it
-                                    eats the row, so the title drops to the 16px body ramp. */}
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
-                                    Agents
-                                </h1>
-                                {projectEmpty ? null : (
-                                    <HowThisWorksButton guide="agents" className="max-sm:hidden" />
-                                )}
-                                <NewAgentAction
-                                    newAgent={newAgent}
-                                    base={base}
-                                    align="end"
-                                    className="h-control-sm rounded-control-sm px-btn-sm text-btn-sm sm:h-control sm:rounded-control sm:px-btn sm:text-btn-md"
-                                />
-                            </div>
-                        </div>
-                    }
-                >
-                    <div className={`min-w-0 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>
-                        {projectEmpty ? (
-                            <>
-                                <FeatureOnboarding guideKey="agents" base={base} />
-                                {archived.agents.length > 0 ? (
-                                    <div className="mt-6 flex justify-center">
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => setView({...view, type: "archived"})}
-                                        >
-                                            View archived agents
-                                        </Button>
-                                    </div>
-                                ) : null}
-                            </>
-                        ) : (
-                            <>
-                                {/* Search belongs to the list, not to the page: it sits on the
-                                    results' own left edge so it reads as the control that narrows
-                                    what is below it. The facets and the grouping ride one control
-                                    beside it, so the bar stays a search bar; the view switch takes
-                                    the far edge, where it changes how the results are drawn rather
-                                    than which ones are. */}
-                                <ListTableToolbar
-                                    search={search}
-                                    onSearchChange={setSearch}
-                                    searchPlaceholder="Search agents by name…"
-                                    actions={
-                                        <>
-                                            <AgentFilterMenu
-                                                view={view}
-                                                onChange={setView}
-                                                owners={owners}
-                                            />
-                                            <ListTableViewToggle
-                                                value={view.mode}
-                                                onChange={setMode}
-                                                className="ml-auto"
-                                            />
-                                        </>
-                                    }
-                                />
-                                {body}
-                            </>
+            <PageLayout
+                workspaceId={workspaceId}
+                projectId={projectId}
+                title={t("agents.list.pageTitle")}
+                description={t("agents.list.pageDescription")}
+                toolbar={
+                    projectEmpty ? undefined : (
+                        <PageToolbar
+                            search={search}
+                            onSearchChange={setSearch}
+                            searchPlaceholder={t("agents.list.searchPlaceholder")}
+                            actions={
+                                <AgentFilterMenu view={view} onChange={setView} owners={owners} />
+                            }
+                            end={<ListTableViewToggle value={view.mode} onChange={setMode} />}
+                        />
+                    )
+                }
+                actions={
+                    <>
+                        {projectEmpty ? null : (
+                            <HowThisWorksButton guide="agents" className="max-sm:hidden" />
                         )}
-                    </div>
-                </ScreenScaffold>
-            </AppShell>
+                        <NewAgentAction newAgent={newAgent} base={base} align="end" />
+                    </>
+                }
+            >
+                {projectEmpty ? (
+                    <>
+                        <FeatureOnboarding guideKey="agents" base={base} />
+                        {archived.agents.length > 0 ? (
+                            <div className="mt-6 flex justify-center">
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setView({...view, type: "archived"})}
+                                >
+                                    {t("agents.list.viewArchived")}
+                                </Button>
+                            </div>
+                        ) : null}
+                    </>
+                ) : (
+                    body
+                )}
+            </PageLayout>
         </>
     )
 }

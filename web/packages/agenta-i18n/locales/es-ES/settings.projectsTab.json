@@ -1,0 +1,8 @@
+{
+    "deleteBody": "Elimina de forma permanente {{name}}, incluidos todos sus agentes, conjuntos de datos y despliegues.",
+    "deleteTitle": "Eliminar proyecto",
+    "deleting": "Eliminando…",
+    "namePlaceholder": "Nombre del proyecto",
+    "newDescription": "Los proyectos agrupan tus agentes, conjuntos de datos y despliegues.",
+    "newTitle": "Nuevo proyecto"
+}

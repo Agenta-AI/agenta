@@ -1,0 +1,8 @@
+{
+    "emptyObject": "(leeres Objekt)",
+    "emptyArray": "(leeres Array)",
+    "removeRow": "Zeile {{index}} entfernen",
+    "addRow": "Zeile hinzufügen",
+    "numberPlaceholder": "Zahlenwert eingeben",
+    "valuePlaceholder": "Wert eingeben"
+}

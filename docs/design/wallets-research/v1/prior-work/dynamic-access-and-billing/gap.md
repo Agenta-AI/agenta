@@ -158,8 +158,8 @@ section freezes the pre-change state of the system.
   - **Resolution:** restart warnings called out in both user-facing docs.
 - Retention split was undocumented.
   - **Resolution:**
-    [docs/designs/data-retention/README.md](../data-retention/README.md)
+    [docs/design/data-retention/README.md](../data-retention/README.md)
     and
-    [docs/designs/data-retention/data-retention-periods.initial.specs.md](../data-retention/data-retention-periods.initial.specs.md)
+    [docs/design/data-retention/data-retention-periods.initial.specs.md](../data-retention/data-retention-periods.initial.specs.md)
     cover the two independent admin endpoints, crons, and lock
     namespaces.

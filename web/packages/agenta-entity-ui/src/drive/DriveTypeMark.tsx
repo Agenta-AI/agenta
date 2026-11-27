@@ -9,26 +9,31 @@ import {Folder, FolderOpen} from "@phosphor-icons/react"
 
 /** Chip colours per tone. */
 const TONE_CLASS: Record<DriveKindTone, string> = {
-    info: "bg-colorFillTertiary text-colorInfo",
-    warning: "bg-colorWarningBg text-colorWarning",
-    success: "bg-colorSuccessBg text-colorSuccess",
-    error: "bg-colorErrorBg text-colorError",
-    neutral: "bg-colorFillTertiary text-colorTextSecondary",
+    info: "bg-secondary text-info",
+    warning: "bg-warning/10 text-warning",
+    success: "bg-success/10 text-success",
+    error: "bg-destructive/10 text-destructive",
+    neutral: "bg-secondary text-muted-foreground",
 }
 /** The mini mark's colour bar. */
 const TONE_BAR_CLASS: Record<DriveKindTone, string> = {
-    info: "bg-colorInfo",
-    warning: "bg-colorWarning",
-    success: "bg-colorSuccess",
-    error: "bg-colorError",
-    neutral: "bg-colorTextQuaternary",
+    info: "bg-info",
+    warning: "bg-warning",
+    success: "bg-success",
+    error: "bg-destructive",
+    neutral: "bg-border-strong",
 }
 
-const Page = ({size}: {size: number}) => (
+/**
+ * The page glyph. `tight` crops the view box to the drawn page (its stroke included), so the box
+ * is the page: the tile draws it at the canvas's 44 x 54. The mini mark keeps the full box, which
+ * its tone bar is placed on.
+ */
+const Page = ({size, tight = false}: {size: number; tight?: boolean}) => (
     <svg
-        width={(size * 46) / 56}
+        width={tight ? (size * 43) / 52 : (size * 46) / 56}
         height={size}
-        viewBox="0 0 46 56"
+        viewBox={tight ? "0 2 43 52" : "0 0 46 56"}
         fill="none"
         aria-hidden
         // `size-auto`: a kit Button would size the svg as its icon.
@@ -37,13 +42,13 @@ const Page = ({size}: {size: number}) => (
         {/* Elevated fill so the page lifts off the pane in dark mode. */}
         <path
             d="M4 3h24l14 14v33a3 3 0 0 1-3 3H4a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3z"
-            className="fill-colorBgElevated stroke-colorBorder"
+            className="fill-background stroke-border"
             strokeWidth={1.5}
             strokeLinejoin="round"
         />
         <path
             d="M28 3v14h14"
-            className="fill-colorFillTertiary stroke-colorBorder dark:fill-colorFillSecondary"
+            className="fill-secondary stroke-border dark:fill-secondary"
             strokeWidth={1.5}
             strokeLinejoin="round"
         />
@@ -54,15 +59,13 @@ export const DriveTypeMark = ({path, size = "mini"}: {path: string; size?: "tile
     const tone = driveKindTone(resolveDriveFileKind(path), path)
     if (size === "tile")
         return (
-            // A phone's narrower tile scales the whole mark down (page + chip keep their fit).
-            <span className="inline-flex h-14 w-14 shrink-0 items-center justify-center max-md:h-11 max-md:w-11">
-                <span className="relative inline-flex h-14 w-14 shrink-0 items-center justify-center max-md:scale-[0.78]">
-                    <Page size={56} />
-                    <span
-                        className={`absolute bottom-[7px] left-1/2 -translate-x-1/2 rounded-[3px] px-[5px] py-px text-[8.5px] font-bold uppercase leading-[1.4] tracking-[0.4px] ${TONE_CLASS[tone]}`}
-                    >
-                        {fileTypeChip(path)}
-                    </span>
+            // The same 56 px mark on a phone (M03 draws the full page there too).
+            <span className="relative inline-flex h-14 w-14 shrink-0 items-center justify-center">
+                <Page size={54} tight />
+                <span
+                    className={`absolute bottom-2 left-1/2 -translate-x-1/2 rounded-sm px-1 py-px text-caption font-medium ${TONE_CLASS[tone]}`}
+                >
+                    {fileTypeChip(path)}
                 </span>
             </span>
         )
@@ -76,18 +79,28 @@ export const DriveTypeMark = ({path, size = "mini"}: {path: string; size?: "tile
     )
 }
 
-/** The folder glyph, open while expanded / current. */
+/**
+ * The folder glyph, open while expanded / current. An icon takes the text color (LOUD-04,
+ * COLOR-05) and the regular weight (ICON-01). `drawing` is for the large grid glyph, a drawing
+ * rather than an icon: it keeps the filled shape, still neutral.
+ */
 export const DriveFolderGlyph = ({
     open = false,
     size = 14,
     className = "",
+    drawing = false,
 }: {
     open?: boolean
     size?: number
     className?: string
-}) =>
-    open ? (
-        <FolderOpen size={size} weight="fill" className={`shrink-0 text-colorInfo ${className}`} />
-    ) : (
-        <Folder size={size} weight="fill" className={`shrink-0 text-colorInfo ${className}`} />
+    drawing?: boolean
+}) => {
+    const Glyph = open ? FolderOpen : Folder
+    return (
+        <Glyph
+            size={size}
+            weight={drawing ? "fill" : "regular"}
+            className={`shrink-0 text-muted-foreground ${className}`}
+        />
     )
+}

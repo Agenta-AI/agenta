@@ -19,9 +19,10 @@ import {
     useConnectFlow,
     useIntegrationIdentity,
 } from "@agenta/entity-ui/clientTools"
+import {richText, useT} from "@agenta/i18n"
+import chatConnectionDockCatalog from "@agenta/i18n/catalogs/chat.connectionDock"
 import {isOverlayOpen} from "@agenta/shared/utils"
-import {Button} from "@agenta/ui/ui"
-import {Spinner} from "@phosphor-icons/react"
+import {Button, Spinner} from "@agenta/ui/ui"
 import {
     motion,
     useMotionValue,
@@ -57,8 +58,7 @@ const DOT_PILL_MAX_STRETCH = 0.35
 /** Travel speed (px/s) that earns the full stretch; the longest hop in a 5-dot row roughly hits it. */
 const DOT_PILL_PEAK_VELOCITY = 420
 
-const CARD_SURFACE =
-    "rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer"
+const CARD_SURFACE = "rounded-lg border border-solid border-border-muted bg-background"
 
 export interface ConnectionDockProps {
     /** The whole dock state from `useConnectionDock` — passed as one object so a new field never
@@ -187,8 +187,9 @@ const PeekCard = ({
     onEnter: (toolCallId: string | null) => void
     onBringForward: (toolCallId: string) => void
 }) => {
+    const t = useT(chatConnectionDockCatalog)
     const {label, logo} = useIntegrationIdentity(connectIntegrationKey(meta))
-    const title = `Connect ${label} first`
+    const title = t("chat.connectionDock.connectFirst", {label})
 
     const [dealt, setDealt] = useState(false)
     // Read once at mount: the stagger belongs to this card's arrival, and re-running it as the
@@ -218,7 +219,7 @@ const PeekCard = ({
         <>
             <div
                 aria-hidden
-                className={`${CARD_SURFACE} pointer-events-none absolute bottom-0 flex items-start overflow-hidden px-3 pt-1.5 shadow-sm transition-all duration-300 ease-out motion-reduce:transition-none`}
+                className={`${CARD_SURFACE} pointer-events-none absolute bottom-0 flex items-start overflow-hidden px-3 pt-1.5 shadow-raised transition-all duration-300 ease-out motion-reduce:transition-none`}
                 style={{
                     left: currentInset,
                     right: currentInset,
@@ -231,7 +232,7 @@ const PeekCard = ({
                     style={{opacity: revealed ? 1 : 0}}
                 >
                     <IntegrationTile label={label} logo={logo} size={14} />
-                    <span className="whitespace-nowrap text-xs text-colorTextSecondary">
+                    <span className="whitespace-nowrap text-meta text-muted-foreground">
                         {label}
                     </span>
                 </span>
@@ -279,12 +280,13 @@ const ConnectDots = ({
     total: number
     onBringForward: (toolCallId: string) => void
 }) => {
+    const t = useT(chatConnectionDockCatalog)
     const activeIndex = batch.findIndex((meta) => meta.toolCallId === frontId)
     return (
         <div
             className="relative ml-auto flex items-center"
             role="group"
-            aria-label={`Connection ${position} of ${total}`}
+            aria-label={t("chat.connectionDock.connectionPosition", {position, total})}
         >
             {activeIndex >= 0 ? <ConnectPill activeIndex={activeIndex} /> : null}
             {batch.map((meta) => (
@@ -334,7 +336,7 @@ const ConnectPill = ({activeIndex}: {activeIndex: number}) => {
     return (
         <motion.span
             aria-hidden
-            className="pointer-events-none absolute left-0 top-1/2 rounded-full bg-colorText"
+            className="pointer-events-none absolute left-0 top-1/2 rounded-md bg-foreground"
             style={{
                 width: DOT_PILL_WIDTH,
                 height: DOT_SIZE,
@@ -358,9 +360,10 @@ const Dot = ({
     current: boolean
     onBringForward: (toolCallId: string) => void
 }) => {
+    const t = useT(chatConnectionDockCatalog)
     const {label} = useIntegrationIdentity(connectIntegrationKey(meta))
     const pickable = !meta.settled && !current
-    const title = pickable ? `Connect ${label} first` : undefined
+    const title = pickable ? t("chat.connectionDock.connectFirst", {label}) : undefined
     return (
         <button
             type="button"
@@ -376,8 +379,8 @@ const Dot = ({
             style={{paddingLeft: DOT_PAD, paddingRight: DOT_PAD}}
         >
             <span
-                className={`rounded-full transition-colors duration-200 motion-reduce:transition-none ${
-                    meta.settled ? "bg-colorTextQuaternary" : "bg-colorFill"
+                className={`rounded-md transition-colors duration-200 motion-reduce:transition-none ${
+                    meta.settled ? "bg-border-strong" : "bg-selected"
                 }`}
                 style={{width: DOT_SIZE, height: DOT_SIZE}}
             />
@@ -413,6 +416,7 @@ const ConnectCard = ({
     active: boolean
     shortcutsEnabled: boolean
 }) => {
+    const t = useT(chatConnectionDockCatalog)
     // Identity only — the header needs a name and a logo, not the OAuth flow.
     const {label, logo} = useIntegrationIdentity(connectIntegrationKey(meta))
 
@@ -422,8 +426,8 @@ const ConnectCard = ({
         <div className={`${CARD_SURFACE} relative z-20 flex flex-col gap-2.5 p-3`}>
             <div className="flex items-center gap-2">
                 <IntegrationTile label={label} logo={logo} size={20} />
-                <span className="text-xs font-medium text-colorText">
-                    The agent is waiting for you
+                <span className="text-label text-foreground">
+                    {t("chat.connectionDock.agentWaiting")}
                 </span>
                 {total > 1 ? (
                     <ConnectDots
@@ -484,6 +488,7 @@ const ConnectBody = ({
         },
         [onOutput, meta.toolName, meta.toolCallId],
     )
+    const t = useT(chatConnectionDockCatalog)
     const {label, phase, errorText, modeResolving, runConnect, cancel, decline} = useConnectFlow(
         meta,
         settle,
@@ -532,19 +537,20 @@ const ConnectBody = ({
         <>
             {phase === "connecting" ? (
                 <div className="flex items-center gap-2">
-                    <Spinner size={13} className="shrink-0 animate-spin text-colorPrimary" />
-                    <span className="text-xs text-colorTextSecondary">
-                        Connecting {name}… finish signing in from the popup window.
+                    <Spinner aria-hidden className="size-3.5 text-muted-foreground" />
+                    <span className="text-meta text-muted-foreground">
+                        {t("chat.connectionDock.connecting", {name})}
                     </span>
                 </div>
             ) : phase === "error" || errorText ? (
-                <span className="text-xs text-colorError" title={errorText ?? undefined}>
-                    {errorText ?? "Connection failed."}
+                <span className="text-meta text-destructive" title={errorText ?? undefined}>
+                    {errorText ?? t("chat.connectionDock.connectionFailed")}
                 </span>
             ) : (
-                <span className="text-xs text-colorTextSecondary">
-                    Connect to <span className="font-medium text-colorText">{name}</span> to give
-                    your agent access to its tools
+                <span className="text-meta text-muted-foreground">
+                    {richText(t("chat.connectionDock.connectPrompt", {name}), {
+                        name: (text) => <span className="font-medium text-foreground">{text}</span>,
+                    })}
                 </span>
             )}
 
@@ -552,29 +558,29 @@ const ConnectBody = ({
             <div className="-mt-1 flex items-center justify-end gap-1.5">
                 {phase === "connecting" ? (
                     <Button variant="outline" className={touchCls} onClick={cancel}>
-                        Cancel
+                        {t("chat.connectionDock.cancel")}
                     </Button>
                 ) : (
                     <>
                         <Button
                             variant="ghost"
-                            className={`text-colorTextSecondary ${touchCls}`}
+                            className={`text-muted-foreground ${touchCls}`}
                             onClick={decline}
                             disabled={Boolean(errorText)}
                         >
-                            Not now
+                            {t("chat.connectionDock.notNow")}
                         </Button>
                         {/* Disabled, not spinning: `modeResolving` is true on every mount while the
                             catalog lookup runs, and a spinner there reads as "already connecting". */}
                         <Button
                             disabled={modeResolving}
                             className={touchCls}
-                            title={
-                                modeResolving ? "Checking how this toolkit connects…" : undefined
-                            }
+                            title={modeResolving ? t("chat.connectionDock.checkingHow") : undefined}
                             onClick={() => runConnect(true)}
                         >
-                            {phase === "error" || errorText ? "Retry" : "Connect"}
+                            {phase === "error" || errorText
+                                ? t("chat.connectionDock.retry")
+                                : t("chat.connectionDock.connect")}
                         </Button>
                     </>
                 )}

@@ -1,9 +1,17 @@
 /** The connection card's Harnesses: which harnesses may use it, with unreachable ones disabled. */
 import {useRef, useState} from "react"
 
-import {harnessSummary} from "@agenta/entities/secret"
-import {cn} from "@agenta/ui/styles"
-import {Checkbox, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
+import {formatList, useT} from "@agenta/i18n"
+import providerConnectionCatalog from "@agenta/i18n/catalogs/entityUi.providerConnection"
+import {cn, scrollBehavior} from "@agenta/ui/styles"
+import {
+    Button,
+    Checkbox,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {CaretRight} from "@phosphor-icons/react"
 
 import {harnessMarkFor} from "./harnessMark"
@@ -31,24 +39,41 @@ const HarnessesSection = ({
     onToggle,
     unrestricted = false,
 }: HarnessesSectionProps) => {
+    const t = useT(providerConnectionCatalog)
     const [expanded, setExpanded] = useState(false)
     const sectionRef = useRef<HTMLElement>(null)
 
     const enabled = choices.filter((choice) => selected.includes(choice.id))
-    const summary = harnessSummary(
-        enabled.map((choice) => choice.label),
-        unrestricted,
-    )
+    const labels = enabled.map((choice) => choice.label)
+    // Always shown, so the section can stay closed without hiding what it decided.
+    const summary =
+        labels.length === 0
+            ? unrestricted
+                ? t("entityUi.providerConnection.anyHarness")
+                : t("entityUi.providerConnection.noHarnessSelected")
+            : t("entityUi.providerConnection.enabledInHarness", {
+                  harness: formatList(labels, {type: "conjunction", style: "long"}),
+              })
 
     return (
         <section ref={sectionRef} className="flex shrink-0 flex-col">
-            <button
+            <Button
                 type="button"
-                onClick={() => setExpanded((value) => !value)}
-                className="flex w-fit cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left"
+                variant="ghost"
+                onClick={() => {
+                    setExpanded(!expanded)
+                    // Under reduced motion nothing transitions, so it scrolls at once (MOTION-02).
+                    if (!expanded && scrollBehavior() === "auto")
+                        requestAnimationFrame(() =>
+                            sectionRef.current?.scrollIntoView({block: "nearest"}),
+                        )
+                }}
+                className="-mx-2 w-fit justify-start gap-1.5 px-2"
                 aria-expanded={expanded}
             >
-                <span className="font-medium text-colorText">Harnesses</span>
+                <span className="font-medium text-foreground">
+                    {t("entityUi.providerConnection.harnesses")}
+                </span>
                 {enabled.length ? (
                     <TooltipProvider delayDuration={300}>
                         <span className="flex items-center gap-1" aria-label={summary}>
@@ -61,7 +86,7 @@ const HarnessesSection = ({
                                                 {Mark ? (
                                                     <Mark className="size-3.5 shrink-0" />
                                                 ) : (
-                                                    <span className="text-colorTextSecondary">
+                                                    <span className="text-muted-foreground">
                                                         {choice.label}
                                                     </span>
                                                 )}
@@ -74,16 +99,16 @@ const HarnessesSection = ({
                         </span>
                     </TooltipProvider>
                 ) : (
-                    <span className="text-colorTextSecondary">· {summary}</span>
+                    <span className="text-muted-foreground">· {summary}</span>
                 )}
                 <CaretRight
                     size={12}
                     className={cn(
-                        "text-colorTextTertiary transition-transform",
+                        "text-muted-foreground transition-transform duration-[var(--duration-fast)] motion-reduce:transition-none",
                         expanded && "rotate-90",
                     )}
                 />
-            </button>
+            </Button>
 
             {/* Animates height through grid rows; once open, the section scrolls into view. */}
             <div
@@ -94,12 +119,14 @@ const HarnessesSection = ({
                     sectionRef.current?.scrollIntoView({behavior: "smooth", block: "nearest"})
                 }}
                 className={cn(
-                    "grid transition-[grid-template-rows,opacity] duration-200 ease-out",
+                    "grid transition-[grid-template-rows,opacity] duration-[var(--duration-base)] ease-[var(--ease-out)] motion-reduce:transition-none",
                     expanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
                 )}
             >
                 <div className="flex min-h-0 flex-col gap-2 overflow-hidden pt-2">
-                    <span className="text-colorTextSecondary">Enable this connection in</span>
+                    <span className="text-muted-foreground">
+                        {t("entityUi.providerConnection.enableIn")}
+                    </span>
                     <div className="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-2">
                         {choices.map((choice) => {
                             const Mark = harnessMarkFor(choice.id)
@@ -109,7 +136,7 @@ const HarnessesSection = ({
                                 <label
                                     key={choice.id}
                                     className={cn(
-                                        "box-border flex min-w-0 flex-col gap-1 rounded-lg border border-solid p-3 transition-colors",
+                                        "box-border flex min-w-0 flex-col gap-1 rounded-lg border border-solid p-3 transition-colors duration-[var(--duration-fast)]",
                                         checked ? "border-primary bg-primary/5" : "border-border",
                                         choice.supported
                                             ? "cursor-pointer hover:border-primary"
@@ -130,23 +157,23 @@ const HarnessesSection = ({
                                         className={cn(
                                             "truncate font-medium",
                                             choice.supported
-                                                ? "text-colorText"
-                                                : "text-colorTextDisabled",
+                                                ? "text-foreground"
+                                                : "text-muted-foreground",
                                         )}
                                     >
                                         {choice.label}
                                     </span>
-                                    <span className="text-[11px] leading-4 text-colorTextTertiary">
+                                    <span className="text-caption text-muted-foreground">
                                         {choice.supported
                                             ? (choice.domain ?? " ")
-                                            : "Incompatible with this provider"}
+                                            : t("entityUi.providerConnection.incompatible")}
                                     </span>
                                 </label>
                             )
                         })}
                     </div>
-                    <span className="text-[11px] text-colorTextTertiary">
-                        Each enabled harness adds this connection&apos;s models to the model picker.
+                    <span className="text-caption text-muted-foreground">
+                        {t("entityUi.providerConnection.harnessAddsModels")}
                     </span>
                 </div>
             </div>

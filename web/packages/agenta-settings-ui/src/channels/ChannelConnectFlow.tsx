@@ -1,16 +1,22 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {richText, useT, createT} from "@agenta/i18n"
+import channelsConnectCatalog from "@agenta/i18n/catalogs/channels.connect"
+import channelsTeamsCatalog from "@agenta/i18n/catalogs/channels.teams"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import {scrollBehavior} from "@agenta/ui/styles"
 import {
     Alert,
     Button,
+    Field,
     Input,
     InputAffix,
     PasswordInput,
-    RadioGroup,
-    RadioGroupItem,
+    SimpleTooltip,
     Spinner,
     Textarea,
 } from "@agenta/ui/ui"
+import {PaneFooter, ViewStep} from "@agenta/ui/view-stack"
 import {
     ArrowLeft,
     ArrowSquareOut,
@@ -18,7 +24,6 @@ import {
     At,
     ChatsCircle,
     Check,
-    CheckCircle,
     Clock,
     DownloadSimple,
     Eye,
@@ -26,12 +31,16 @@ import {
     Lightning,
     Link,
     Plug,
+    QrCode as QrCodeIcon,
     Wrench,
 } from "@phosphor-icons/react"
 
+import {ChoiceCards, type ChoiceCardOption} from "./ChoiceCards"
 import {CodeBlock} from "./CodeBlock"
 import {
+    BLOCK_TITLE,
     NOOP_ACTIONS,
+    SECTION_LABEL,
     SLACK_APP_DESCRIPTION_MAX,
     SLACK_APP_NAME_MAX,
     SLACK_BOT_HANDLE_MAX,
@@ -40,10 +49,11 @@ import {
     fieldPatternError,
     platformLabel,
     slackHandleFrom,
+    unescapeUnicode,
 } from "./helpers"
 import {platformLogo} from "./icons"
-import {PanelFooter} from "./PanelFooter"
 import {QrCode} from "./qr"
+import {TeamsAppSetup} from "./TeamsAppSetup"
 import type {
     ChannelConnection,
     ChannelInstallMode,
@@ -53,8 +63,13 @@ import type {
     ChannelsActions,
     HostedTelegramLink,
 } from "./types"
-import {ViewTransition} from "./ViewTransition"
 import {WhatsAppWebhook, copyText} from "./WhatsAppWebhook"
+
+const tNow = createT(channelsConnectCatalog, commonCatalog)
+
+/** Teams setup links for the Developer Portal path; the docs cover the Azure portal path. */
+const TEAMS_DEVELOPER_PORTAL_URL = "https://dev.teams.microsoft.com/bots"
+const ENTRA_ADMIN_CENTER_URL = "https://entra.microsoft.com"
 
 /**
  * The connect flow for one platform, shared by the desktop drawer and the /m sheet.
@@ -63,11 +78,14 @@ import {WhatsAppWebhook, copyText} from "./WhatsAppWebhook"
  * the /start in Telegram to bind the chat (polled through `actions`). Hosted Slack: open the
  * install redirect in a new window and wait for a new connection to appear. Custom app/bot:
  * render the fields the backend declares, create the connection, point it at this agent.
+ * Discord: the user's own bot only; after the token is checked, the flow shows the invite link.
+ * Teams: the user's own bot only; after connect, the flow shows the endpoint and the app download.
  */
 
 export interface ChannelConnectFlowProps {
     platform: ChannelPlatform
-    agentName: string
+    /** Unset when the agent has no name yet; the Slack app is then created as "your agent". */
+    agentName?: string
     /** Seeds the description of a new Slack app. */
     agentDescription?: string | null
     workspaceName?: string
@@ -94,32 +112,42 @@ const TELEGRAM_HOSTED_DOCS = "https://docs.agenta.ai/self-host/channels/telegram
 type SlackCustomStep = "choose" | "name" | "guide" | "creds"
 const SCREEN_ORDER: SlackCustomStep[] = ["choose", "name", "guide", "creds"]
 type SlackAppChoice = "new" | "existing"
-type TelegramHostedStep = "preparing" | "qr" | "waiting" | "linked" | "expired" | "unavailable"
+type TelegramHostedStep =
+    | "idle"
+    | "preparing"
+    | "qr"
+    | "waiting"
+    | "linked"
+    | "expired"
+    | "unavailable"
 
 /** Example values for declared setup fields; the backend sends none. */
 const FIELD_PLACEHOLDERS: Partial<Record<ChannelPlatform, Record<string, string>>> = {
     telegram: {bot_token: "123456789:AAH…"},
+    teams: {
+        app_id: "00000000-0000-0000-0000-000000000000",
+        tenant_id: "00000000-0000-0000-0000-000000000000",
+    },
 }
 
 /** How long the hosted Slack install wait runs before giving up, ms. */
 const SLACK_INSTALL_TIMEOUT_MS = 5 * 60 * 1000
 
-const SECTION_TITLE = "text-[13px] font-semibold text-foreground"
-
 const META_APPS_URL = "https://developers.facebook.com/apps"
+const DISCORD_APPS_URL = "https://discord.com/developers/applications"
 const WHATSAPP_PRICING_URL =
     "https://developers.facebook.com/documentation/business-messaging/whatsapp/pricing"
 
-/** A step's number in a small square: filled for the current step, outlined for the rest. */
+/** A step's number in a small square: filled for the current and done steps, toned for the rest. */
 const StepNumber = ({index, state}: {index: number; state: "current" | "done" | "upcoming"}) => (
     <span
-        className={`flex size-5 flex-none items-center justify-center rounded-[5px] text-[11px] font-semibold ${
+        className={`flex size-5 flex-none items-center justify-center rounded-sm text-caption font-medium transition-colors duration-[var(--duration-fast)] ${
             state === "upcoming"
-                ? "border border-solid border-border bg-background text-muted-foreground"
+                ? "bg-secondary text-muted-foreground"
                 : "bg-primary text-primary-foreground"
         }`}
     >
-        {state === "done" ? <Check size={10} weight="bold" /> : index}
+        {state === "done" ? <Check size={12} /> : index}
     </span>
 )
 
@@ -139,6 +167,7 @@ const StepRow = ({
     body?: React.ReactNode
     children?: React.ReactNode
 }) => {
+    const t = useT(channelsConnectCatalog, commonCatalog)
     const last = index === total
     return (
         <div className="flex gap-3">
@@ -148,13 +177,11 @@ const StepRow = ({
             </div>
             <div className={`flex min-w-0 flex-1 flex-col gap-2.5 ${last ? "" : "pb-6"}`}>
                 <div className="flex flex-col gap-1">
-                    <span className="pt-0.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                        Step {index}
+                    <span className="pt-0.5 text-meta text-muted-foreground">
+                        {t("channels.connect.stepLabel", {index})}
                     </span>
-                    <span className="text-sm font-medium text-foreground">{title}</span>
-                    {body ? (
-                        <span className="text-[13px] text-muted-foreground">{body}</span>
-                    ) : null}
+                    <span className={BLOCK_TITLE}>{title}</span>
+                    {body ? <span className="text-label text-muted-foreground">{body}</span> : null}
                 </div>
                 {children}
             </div>
@@ -164,74 +191,7 @@ const StepRow = ({
 
 /** An inline command, e.g. /newbot. */
 const Command = ({children}: {children: React.ReactNode}) => (
-    <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[12px] text-foreground">
-        {children}
-    </code>
-)
-
-interface MethodOption<T extends string> {
-    value: T
-    title: string
-    desc: string
-    icon: React.ReactNode
-    recommended?: boolean
-    disabled?: boolean
-}
-
-const MethodCards = <T extends string>({
-    options,
-    value,
-    onChange,
-    testId,
-}: {
-    options: MethodOption<T>[]
-    value: T
-    onChange: (value: T) => void
-    testId?: string
-}) => (
-    <RadioGroup
-        value={value}
-        onValueChange={(next) => onChange(next as T)}
-        className="gap-2"
-        data-testid={testId}
-    >
-        {options.map((option) => {
-            const selected = option.value === value
-            return (
-                <label
-                    key={option.value}
-                    className={`flex items-center gap-3 rounded-lg border border-solid bg-background px-3 py-2.5 transition-[border-color,box-shadow] ${
-                        option.disabled ? "cursor-default opacity-70" : "cursor-pointer"
-                    } ${selected ? "border-foreground shadow-md" : "border-border shadow-[0_1px_2px_0_rgb(0_0_0/0.05)]"}`}
-                >
-                    <span className="flex size-[30px] flex-none items-center justify-center rounded-lg bg-muted text-foreground">
-                        {option.icon}
-                    </span>
-                    <span className="flex min-w-0 flex-1 flex-col gap-px">
-                        <span className="flex items-center gap-2 text-sm font-medium text-foreground">
-                            {option.title}
-                            {option.recommended ? (
-                                <span className="rounded-full bg-colorSuccessBg px-[7px] text-[11px] font-medium leading-[18px] text-colorSuccess">
-                                    Recommended
-                                </span>
-                            ) : null}
-                        </span>
-                        <span
-                            className="truncate text-[12.5px] text-muted-foreground"
-                            title={option.desc}
-                        >
-                            {option.desc}
-                        </span>
-                    </span>
-                    <RadioGroupItem
-                        value={option.value}
-                        disabled={option.disabled}
-                        data-testid={`${testId}-${option.value}`}
-                    />
-                </label>
-            )
-        })}
-    </RadioGroup>
+    <code className="rounded bg-muted px-1.5 py-0.5 text-code-sm text-foreground">{children}</code>
 )
 
 const StepsBar = ({steps, current}: {steps: string[]; current: number}) => (
@@ -248,8 +208,8 @@ const StepsBar = ({steps, current}: {steps: string[]; current: number}) => (
                     state={i < current ? "done" : i === current ? "current" : "upcoming"}
                 />
                 <span
-                    className={`truncate text-sm ${
-                        i === current ? "font-medium text-foreground" : "text-muted-foreground"
+                    className={`truncate text-label ${
+                        i === current ? "text-foreground" : "text-muted-foreground"
                     }`}
                 >
                     {step}
@@ -292,7 +252,7 @@ const formatCountdown = (ms: number) => {
 
 export const ChannelConnectFlow = ({
     platform,
-    agentName,
+    agentName: agentNameProp,
     agentDescription,
     hostedHandle = "@agenta",
     actions = NOOP_ACTIONS,
@@ -303,18 +263,31 @@ export const ChannelConnectFlow = ({
     onConnected,
     pollIntervalMs = 2500,
 }: ChannelConnectFlowProps) => {
+    const t = useT(channelsConnectCatalog, channelsTeamsCatalog, commonCatalog)
+    const agentName = agentNameProp ?? t("channels.connect.yourAgent")
     const isSlack = platform === "slack"
     const isTelegram = platform === "telegram"
     // WhatsApp has no Agenta-hosted number: the customer always brings their own.
     const isWhatsApp = platform === "whatsapp"
+    // Discord and Teams have no Agenta-hosted bot either: the customer always brings their own.
+    const isDiscord = platform === "discord"
+    const isTeams = platform === "teams"
+    // The platforms with one method only show no method choice.
+    const customOnly = isWhatsApp || isDiscord || isTeams
     const name = platformLabel(platform)
 
     const [mode, setMode] = useState<ChannelInstallMode>(
-        isWhatsApp || hostedConnectedHere ? "custom" : initialMode,
+        customOnly || hostedConnectedHere ? "custom" : initialMode,
     )
-    // A new WhatsApp connection, held on screen until its webhook values are copied into Meta.
-    const [whatsAppConnection, setWhatsAppConnection] = useState<ChannelConnection | null>(null)
+    // A new WhatsApp or Teams connection, kept on screen for its setup steps after connect.
+    const [created, setCreated] = useState<ChannelConnection | null>(null)
+    // A new Discord bot, held on screen until the user adds it to a server with its invite link.
+    const [discordConnectionId, setDiscordConnectionId] = useState<string | null>(null)
+    const [discordInviteUrl, setDiscordInviteUrl] = useState<string | null>(null)
+    const [discordInviteError, setDiscordInviteError] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
+    // Changes with the method and with what connecting it showed.
+    const methodKey = [mode, created ? "created" : "", discordConnectionId ? "invite" : ""].join()
 
     // --- custom app/bot: the declared setup ---------------------------------- //
     const [setup, setSetup] = useState<ChannelSetupInfo | null>(null)
@@ -326,7 +299,8 @@ export const ChannelConnectFlow = ({
 
     // --- custom Slack app: how it presents itself --------------------------- //
     const [slackIdentity, setSlackIdentity] = useState(() =>
-        defaultSlackIdentity(agentName, agentDescription),
+        // Saved into the Slack app, so the fallback stays English.
+        defaultSlackIdentity(agentNameProp ?? "your agent", agentDescription),
     )
     // The handle follows the name until the user edits it by hand.
     const [handleEdited, setHandleEdited] = useState(false)
@@ -339,7 +313,8 @@ export const ChannelConnectFlow = ({
     const [slackInstallUrl, setSlackInstallUrl] = useState<string | null>(null)
 
     // --- hosted Telegram ------------------------------------------------------- //
-    const [tgStep, setTgStep] = useState<TelegramHostedStep>("preparing")
+    // "idle" until the person asks: minting the link creates a pending connection on the server.
+    const [tgStep, setTgStep] = useState<TelegramHostedStep>("idle")
     const [tgLink, setTgLink] = useState<HostedTelegramLink | null>(null)
     const [tgBaseline, setTgBaseline] = useState(0)
     // The link's expiry, fixed once at mint: going back to the QR does not extend it.
@@ -363,7 +338,8 @@ export const ChannelConnectFlow = ({
     // its bottom: bring the error into view, or it goes unseen.
     const errorRef = useRef<HTMLDivElement>(null)
     useEffect(() => {
-        if (error) errorRef.current?.scrollIntoView?.({block: "nearest", behavior: "smooth"})
+        if (error)
+            errorRef.current?.scrollIntoView?.({block: "nearest", behavior: scrollBehavior()})
     }, [error])
     const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
     const feedbackTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -371,8 +347,6 @@ export const ChannelConnectFlow = ({
     const onConnectedRef = useRef(onConnected)
     onConnectedRef.current = onConnected
     const knownRef = useRef(knownConnectionIds)
-    const lastScreen = useRef<SlackCustomStep>("choose")
-    const screenDirection = useRef(1)
     useEffect(() => {
         alive.current = true
         return () => {
@@ -395,7 +369,7 @@ export const ChannelConnectFlow = ({
     // Load the declared fields the first time the custom mode opens; the guard is a ref so
     // the effect does not cancel its own request.
     const setupRequested = useRef(false)
-    // Bumped by "Try again": WhatsApp has no method switch to re-run the load.
+    // Bumped by "Try again": WhatsApp, Discord and Teams have no method switch to re-run the load.
     const [setupAttempt, setSetupAttempt] = useState(0)
     useEffect(() => {
         if (mode !== "custom" || setupRequested.current) return
@@ -410,7 +384,7 @@ export const ChannelConnectFlow = ({
             .catch((e) => {
                 if (cancelled) return
                 setupRequested.current = false // let a retry (mode switch) load again
-                setError(errorMessage(e, `Could not load the ${name} setup.`))
+                setError(errorMessage(e, tNow("channels.connect.loadSetupError", {platform: name})))
             })
             .finally(() => {
                 if (!cancelled) setSetupLoading(false)
@@ -443,21 +417,11 @@ export const ChannelConnectFlow = ({
             if (!alive.current) return
             setTgLink(null)
             setTgStep("unavailable")
-            setError(
-                errorMessage(
-                    e,
-                    "The hosted Telegram bot is not available on this deployment. Use your own bot instead.",
-                ),
-            )
+            setError(errorMessage(e, tNow("channels.connect.telegramUnavailable")))
         } finally {
             mintingTelegramLink.current = false
         }
     }, [actions])
-
-    useEffect(() => {
-        if (!isTelegram || mode !== "hosted" || tgLink || tgStep !== "preparing") return
-        void mintTelegramLink()
-    }, [isTelegram, mode, tgLink, tgStep, mintTelegramLink])
 
     // Poll the bindings while the link is on screen: a scan from a phone never clicks the button.
     useEffect(() => {
@@ -513,13 +477,13 @@ export const ChannelConnectFlow = ({
         } catch (e) {
             if (!alive.current) return
             setAuthorizing(false)
-            setError(errorMessage(e, "Could not start the Slack install."))
+            setError(errorMessage(e, t("channels.connect.slackInstallStartError")))
             return
         }
         if (!alive.current) return
         if (!url) {
             setAuthorizing(false)
-            setError("This deployment has no hosted Slack app. Connect your own app instead.")
+            setError(t("channels.connect.noHostedSlack"))
             return
         }
         // Opened after an await: a popup blocker may hold it, so the link also shows while waiting.
@@ -559,14 +523,12 @@ export const ChannelConnectFlow = ({
             } catch (e) {
                 if (cancelled) return
                 setAuthorizing(false)
-                setError(errorMessage(e, "Slack didn’t finish the install."))
+                setError(errorMessage(e, tNow("channels.connect.slackInstallUnfinished")))
                 return
             }
             if (Date.now() > deadline) {
                 setAuthorizing(false)
-                setError(
-                    "Slack didn’t finish the install. The authorization window was closed or Slack returned an error. Nothing was saved — try again.",
-                )
+                setError(tNow("channels.connect.slackInstallTimeout"))
                 return
             }
             later(tick, pollIntervalMs)
@@ -591,11 +553,11 @@ export const ChannelConnectFlow = ({
                 description: slackIdentity.description.trim() || undefined,
             })
             if (!alive.current) return
-            setNamedManifest(info.manifest)
+            setNamedManifest(info.manifest ? unescapeUnicode(info.manifest) : null)
             setSlackStep("guide")
         } catch (e) {
             if (!alive.current) return
-            setError(errorMessage(e, `Could not load the ${name} setup.`))
+            setError(errorMessage(e, t("channels.connect.loadSetupError", {platform: name})))
         } finally {
             if (alive.current) setManifestLoading(false)
         }
@@ -606,21 +568,43 @@ export const ChannelConnectFlow = ({
     const fieldsValid = fields.every(
         (field) =>
             (!field.required || values[field.name]?.trim()) &&
-            !fieldPatternError(field, values[field.name] ?? ""),
+            fieldPatternError(field, values[field.name] ?? "") === null,
     )
+
+    // The bot answers in a server only after it is invited, so a failed read offers a retry
+    // instead of skipping the step. A retry reads the link again; it never connects again.
+    const loadDiscordInvite = async (connectionId: string) => {
+        setDiscordInviteError(null)
+        const fallback = tNow("channels.connect.loadInviteFailed")
+        try {
+            const url = await actions.discordInviteUrl(connectionId)
+            if (!alive.current) return
+            if (url) setDiscordInviteUrl(url)
+            else setDiscordInviteError(fallback)
+        } catch (e) {
+            if (alive.current) setDiscordInviteError(errorMessage(e, fallback))
+        }
+    }
 
     const submitCustom = async () => {
         setSaving(true)
         setError(null)
         try {
-            const created = await actions.connectCustom(platform, values)
+            const connection = await actions.connectCustom(platform, values)
             if (!alive.current) return
-            if (isWhatsApp && created?.webhookUrl && created.webhookVerifyToken) {
-                setWhatsAppConnection(created)
-            } else await onConnected()
+            if (isDiscord && connection?.connectionId) {
+                setDiscordConnectionId(connection.connectionId)
+                await loadDiscordInvite(connection.connectionId)
+                return
+            }
+            const keep = isWhatsApp
+                ? !!(connection?.webhookUrl && connection.webhookVerifyToken)
+                : isTeams && !!connection?.connectionId
+            if (keep) setCreated(connection)
+            else await onConnected()
         } catch (e) {
             if (!alive.current) return
-            setError(errorMessage(e, `${name} rejected the credentials.`))
+            setError(errorMessage(e, t("channels.connect.credentialsRejected", {platform: name})))
         } finally {
             if (alive.current) setSaving(false)
         }
@@ -634,38 +618,38 @@ export const ChannelConnectFlow = ({
         setSaving(false)
     }
 
-    const methodOptions: MethodOption<ChannelInstallMode>[] = isSlack
+    const methodOptions: ChoiceCardOption<ChannelInstallMode>[] = isSlack
         ? [
               {
                   value: "hosted",
-                  title: "Agenta app",
-                  desc: `One click. Shows up as ${hostedHandle}.`,
-                  icon: <Lightning size={15} />,
+                  title: t("channels.connect.agentaApp"),
+                  desc: t("channels.connect.agentaAppDesc", {handle: hostedHandle}),
+                  icon: <Lightning />,
                   recommended: true,
               },
               {
                   value: "custom",
-                  title: "Your own app",
-                  desc: "Your name and avatar. About 5 min.",
-                  icon: <Wrench size={15} />,
+                  title: t("channels.connect.ownApp"),
+                  desc: t("channels.connect.ownAppDesc"),
+                  icon: <Wrench />,
               },
           ]
         : [
               {
                   value: "hosted",
-                  title: "Agenta bot",
+                  title: t("channels.connect.agentaBot"),
                   desc: hostedConnectedHere
-                      ? `Already connected as ${hostedHandle}.`
-                      : "Scan a code and start chatting.",
-                  icon: hostedConnectedHere ? <CheckCircle size={15} /> : <Lightning size={15} />,
+                      ? t("channels.connect.agentaBotConnected", {handle: hostedHandle})
+                      : t("channels.connect.agentaBotDesc"),
+                  icon: <Lightning />,
                   recommended: !hostedConnectedHere,
                   disabled: hostedConnectedHere,
               },
               {
                   value: "custom",
-                  title: "Your own bot",
-                  desc: "Created with @BotFather.",
-                  icon: <Wrench size={15} />,
+                  title: t("channels.connect.ownBot"),
+                  desc: t("channels.connect.ownBotDesc"),
+                  icon: <Wrench />,
               },
           ]
 
@@ -677,8 +661,8 @@ export const ChannelConnectFlow = ({
         <div className="flex flex-col gap-4">
             {/* Only before the fields exist: a later load must not push them down. */}
             {setupLoading && !fields.length ? (
-                <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-                    <Spinner size="small" /> Loading the {name} setup…
+                <div className="flex items-center gap-2 text-label text-muted-foreground">
+                    <Spinner size="small" /> {t("channels.connect.loadingSetup", {platform: name})}
                 </div>
             ) : null}
             {fields.map((field) => (
@@ -699,25 +683,23 @@ export const ChannelConnectFlow = ({
             <Alert
                 type="error"
                 showIcon
-                message={`${name} is not connected`}
+                message={t("channels.connect.notConnectedError", {platform: name})}
                 description={error}
                 data-testid="channels-connect-error"
             />
         </div>
     ) : null
 
-    // Which screen shows, and which way the user moved, for the side-by-side swap.
+    // Which screen shows; its place in SCREEN_ORDER says which way the user moved.
     const screen: SlackCustomStep =
         isSlack && mode === "custom" && slackStep !== "choose" ? slackStep : "choose"
-    if (lastScreen.current !== screen) {
-        screenDirection.current =
-            SCREEN_ORDER.indexOf(screen) >= SCREEN_ORDER.indexOf(lastScreen.current) ? 1 : -1
-        lastScreen.current = screen
-    }
 
     // --- Slack custom app: the steps after the method choice ---------------------- //
     if (screen !== "choose") {
-        const steps = slackApp === "new" ? ["Name", "Create app", "Connect"] : null
+        const steps =
+            slackApp === "new"
+                ? [t("common.name"), t("channels.connect.stepCreateApp"), t("common.connect")]
+                : null
         const current = slackStep === "name" ? 0 : slackStep === "guide" ? 1 : 2
         const goBack = () => {
             setError(null)
@@ -726,23 +708,31 @@ export const ChannelConnectFlow = ({
             else setSlackStep("choose")
         }
         return (
-            <ViewTransition viewKey={screen} direction={screenDirection.current}>
-                <div className="flex min-h-full flex-1 flex-col gap-[22px]">
+            <ViewStep
+                step={screen}
+                index={SCREEN_ORDER.indexOf(screen)}
+                className="flex min-h-full flex-1 flex-col"
+            >
+                <div className="flex min-h-full flex-1 flex-col gap-6">
                     {steps ? <StepsBar steps={steps} current={current} /> : null}
                     {errorAlert}
 
                     {slackStep === "name" ? (
                         <div className="flex flex-col gap-4" data-testid="channels-slack-identity">
                             <div className="flex flex-col gap-0.5">
-                                <span className="text-sm font-semibold text-foreground">
-                                    How it shows up in Slack
+                                <span className={BLOCK_TITLE}>
+                                    {t("channels.connect.identityTitle")}
                                 </span>
-                                <span className="text-[13px] text-muted-foreground">
-                                    People mention it as @{slackIdentity.handle || "handle"}.
+                                <span className="text-label text-muted-foreground">
+                                    {t("channels.connect.identityMention", {
+                                        handle:
+                                            slackIdentity.handle ||
+                                            t("channels.connect.handleFallback"),
+                                    })}
                                 </span>
                             </div>
                             <IdentityField
-                                label="Name"
+                                label={t("common.name")}
                                 length={slackIdentity.name.length}
                                 max={SLACK_APP_NAME_MAX}
                             >
@@ -763,10 +753,10 @@ export const ChannelConnectFlow = ({
                                 />
                             </IdentityField>
                             <IdentityField
-                                label="Handle"
+                                label={t("channels.connect.handle")}
                                 length={slackIdentity.handle.length}
                                 max={SLACK_BOT_HANDLE_MAX}
-                                help="Letters, numbers, periods, hyphens and underscores."
+                                help={t("channels.connect.handleHelp")}
                             >
                                 <InputAffix
                                     prefix={<At size={14} className="text-muted-foreground" />}
@@ -783,7 +773,7 @@ export const ChannelConnectFlow = ({
                                 />
                             </IdentityField>
                             <IdentityField
-                                label="Description"
+                                label={t("common.description")}
                                 length={slackIdentity.description.length}
                                 max={SLACK_APP_DESCRIPTION_MAX}
                             >
@@ -807,13 +797,11 @@ export const ChannelConnectFlow = ({
                     {slackStep === "guide" ? (
                         <div className="flex flex-col gap-3.5">
                             <div className="flex flex-col gap-0.5">
-                                <span className="text-sm font-semibold text-foreground">
-                                    Create the app from a manifest
+                                <span className={BLOCK_TITLE}>
+                                    {t("channels.connect.manifestTitle")}
                                 </span>
-                                <span className="text-[13px] text-muted-foreground">
-                                    In Slack, choose Create New App → From a manifest, pick your
-                                    workspace and paste this. Then install the app to your
-                                    workspace.
+                                <span className="text-label text-muted-foreground">
+                                    {t("channels.connect.manifestBody")}
                                 </span>
                             </div>
                             {namedManifest ? (
@@ -828,8 +816,8 @@ export const ChannelConnectFlow = ({
                                     data-testid="channels-manifest"
                                 />
                             ) : (
-                                <span className="text-[13px] text-colorWarning">
-                                    No manifest is available for this deployment.
+                                <span className="text-label text-warning">
+                                    {t("channels.connect.noManifest")}
                                 </span>
                             )}
                             <div>
@@ -840,7 +828,7 @@ export const ChannelConnectFlow = ({
                                         rel="noreferrer"
                                     >
                                         <ArrowSquareOut data-icon="inline-start" />
-                                        Open Slack app settings
+                                        {t("channels.connect.openSlackSettings")}
                                     </a>
                                 </Button>
                             </div>
@@ -850,23 +838,22 @@ export const ChannelConnectFlow = ({
                     {slackStep === "creds" ? (
                         <div className="flex flex-col gap-4">
                             <div className="flex flex-col gap-0.5">
-                                <span className="text-sm font-semibold text-foreground">
-                                    Paste the app&apos;s credentials
+                                <span className={BLOCK_TITLE}>
+                                    {t("channels.connect.credsTitle")}
                                 </span>
-                                <span className="text-[13px] text-muted-foreground">
-                                    Copy these from the app&apos;s settings in Slack. We check them
-                                    with Slack, and they stay masked after saving.
+                                <span className="text-label text-muted-foreground">
+                                    {t("channels.connect.credsBody")}
                                 </span>
                             </div>
                             {renderFields()}
                         </div>
                     ) : null}
 
-                    <PanelFooter>
+                    <PaneFooter>
                         <div className="flex gap-2">
                             <Button variant="outline" onClick={goBack}>
                                 <ArrowLeft data-icon="inline-start" />
-                                Back
+                                {t("common.back")}
                             </Button>
                             {slackStep === "name" ? (
                                 <Button
@@ -874,23 +861,27 @@ export const ChannelConnectFlow = ({
                                     onClick={() => void buildNamedManifest()}
                                     data-testid="channels-slack-identity-next"
                                 >
-                                    {manifestLoading ? "Preparing…" : "Next"}
+                                    {manifestLoading ? t("common.preparing") : t("common.next")}
                                 </Button>
                             ) : slackStep === "guide" ? (
-                                <Button onClick={() => setSlackStep("creds")}>Next</Button>
+                                <Button onClick={() => setSlackStep("creds")}>
+                                    {t("common.next")}
+                                </Button>
                             ) : (
                                 <Button
                                     disabled={!fieldsValid || saving || fields.length === 0}
                                     onClick={() => void submitCustom()}
                                     data-testid="channels-connect-custom"
                                 >
-                                    {saving ? "Connecting…" : "Connect app"}
+                                    {saving
+                                        ? t("common.connecting")
+                                        : t("channels.connect.connectApp")}
                                 </Button>
                             )}
                         </div>
-                    </PanelFooter>
+                    </PaneFooter>
                 </div>
-            </ViewTransition>
+            </ViewStep>
         )
     }
 
@@ -901,9 +892,7 @@ export const ChannelConnectFlow = ({
     let cta: React.ReactNode = null
     let note: string
     if (isSlack) {
-        note = adding
-            ? "Your other workspaces stay connected. Each workspace answers as one agent."
-            : "One Slack workspace routes to one agent. Direct messages work right away."
+        note = adding ? t("channels.connect.slackNoteAdding") : t("channels.connect.slackNote")
         cta =
             mode === "hosted" ? (
                 <Button
@@ -911,34 +900,66 @@ export const ChannelConnectFlow = ({
                     onClick={() => void startSlackInstall()}
                     data-testid="channels-add-to-slack"
                 >
-                    {authorizing ? "Waiting for Slack…" : "Add to Slack"}
+                    {authorizing
+                        ? t("channels.connect.waitingForSlack")
+                        : t("channels.connect.addToSlack")}
                 </Button>
             ) : (
                 <Button
                     onClick={() => setSlackStep(slackApp === "new" ? "name" : "creds")}
                     data-testid="channels-slack-custom-continue"
                 >
-                    Continue
+                    {t("common.continue")}
                 </Button>
             )
-    } else if (isWhatsApp) {
-        note = "Meta bills your business directly for WhatsApp messages."
-        cta = whatsAppConnection ? (
-            <Button onClick={() => void onConnected()}>Done</Button>
+    } else if (isDiscord) {
+        note = t("channels.connect.discordNote")
+        cta = discordConnectionId ? (
+            <Button onClick={() => void onConnected()} data-testid="channels-discord-done">
+                {t("common.done")}
+            </Button>
         ) : (
             <Button
                 disabled={!fieldsValid || saving || fields.length === 0}
                 onClick={() => void submitCustom()}
                 data-testid="channels-connect-custom"
             >
-                {saving ? "Connecting…" : "Connect to WhatsApp"}
+                {saving ? t("common.connecting") : t("channels.connect.connectBot")}
+            </Button>
+        )
+    } else if (isTeams) {
+        note = t("channels.connect.telegramCustomNote")
+        cta = created ? (
+            <Button onClick={() => void onConnected()} data-testid="channels-teams-done">
+                {t("common.done")}
+            </Button>
+        ) : (
+            <Button
+                disabled={!fieldsValid || saving || fields.length === 0}
+                onClick={() => void submitCustom()}
+                data-testid="channels-connect-custom"
+            >
+                {saving ? t("common.connecting") : t("channels.connect.connectBot")}
+            </Button>
+        )
+    } else if (isWhatsApp) {
+        note = t("channels.connect.whatsappNote")
+        cta = created ? (
+            <Button onClick={() => void onConnected()}>{t("common.done")}</Button>
+        ) : (
+            <Button
+                disabled={!fieldsValid || saving || fields.length === 0}
+                onClick={() => void submitCustom()}
+                data-testid="channels-connect-custom"
+            >
+                {saving ? t("common.connecting") : t("channels.connect.connectWhatsApp")}
             </Button>
         )
     } else {
         note =
             mode === "hosted"
-                ? "Group chats appear here after someone mentions the bot in them once."
-                : "Your bot answers only as this agent. Other bots stay connected."
+                ? t("channels.connect.telegramHostedNote")
+                : t("channels.connect.telegramCustomNote")
         if (mode === "custom") {
             cta = (
                 <Button
@@ -946,7 +967,7 @@ export const ChannelConnectFlow = ({
                     onClick={() => void submitCustom()}
                     data-testid="channels-connect-custom"
                 >
-                    {saving ? "Connecting…" : "Connect bot"}
+                    {saving ? t("common.connecting") : t("channels.connect.connectBot")}
                 </Button>
             )
         } else if (tgShowsCode && tgLink) {
@@ -960,40 +981,59 @@ export const ChannelConnectFlow = ({
                         data-testid="channels-continue-in-telegram"
                     >
                         <ArrowSquareOut data-icon="inline-start" />
-                        Open in Telegram
+                        {t("channels.connect.openInTelegram")}
                     </a>
                 </Button>
             )
+        } else if (tgStep === "idle") {
+            cta = (
+                <Button
+                    onClick={() => void mintTelegramLink()}
+                    data-testid="channels-get-telegram-link"
+                >
+                    {t("channels.connect.getLink")}
+                </Button>
+            )
         } else if (tgStep === "expired") {
-            cta = <Button onClick={() => void mintTelegramLink()}>Get a new link</Button>
+            cta = (
+                <Button onClick={() => void mintTelegramLink()}>
+                    {t("channels.connect.getNewLink")}
+                </Button>
+            )
         } else if (tgStep === "unavailable") {
             cta = (
                 <div className="flex gap-2">
                     <Button variant="outline" onClick={() => void mintTelegramLink()}>
-                        Try again
+                        {t("common.tryAgain")}
                     </Button>
-                    <Button onClick={() => changeMode("custom")}>Use your own bot</Button>
+                    <Button onClick={() => changeMode("custom")}>
+                        {t("channels.connect.useOwnBot")}
+                    </Button>
                 </div>
             )
         }
     }
 
     return (
-        <ViewTransition viewKey={screen} direction={screenDirection.current}>
-            <div className="flex min-h-full flex-1 flex-col gap-[22px]">
+        <ViewStep
+            step={screen}
+            index={SCREEN_ORDER.indexOf(screen)}
+            className="flex min-h-full flex-1 flex-col"
+        >
+            <div className="flex min-h-full flex-1 flex-col gap-6">
                 {errorAlert}
 
-                {isWhatsApp ? null : (
+                {customOnly ? null : (
                     <div className="flex flex-col gap-2">
-                        <span className={SECTION_TITLE}>Connect with</span>
-                        <MethodCards
+                        <span className={SECTION_LABEL}>{t("channels.connect.connectWith")}</span>
+                        <ChoiceCards
                             options={methodOptions}
                             value={mode}
                             onChange={changeMode}
                             testId="channels-method"
                         />
                         <span
-                            className="px-0.5 text-xs text-muted-foreground"
+                            className="text-meta text-muted-foreground"
                             data-testid="channels-connect-note"
                         >
                             {note}
@@ -1001,318 +1041,330 @@ export const ChannelConnectFlow = ({
                     </div>
                 )}
 
-                {/* SLACK · hosted */}
-                {isSlack && mode === "hosted" ? (
-                    <div className="flex flex-col gap-2">
-                        <span className={SECTION_TITLE}>What to expect</span>
-                        <div className="flex flex-col">
-                            {[
-                                {
-                                    icon: <Eye size={16} />,
-                                    title: "Reads only where it’s added",
-                                    body: "Channels you invite it to, plus DMs.",
-                                },
-                                {
-                                    icon: <ChatsCircle size={16} />,
-                                    title: "Replies in threads",
-                                    body: `Mention ${hostedHandle} in a channel to get an answer from ${agentName}.`,
-                                },
-                                {
-                                    icon: <ArrowsClockwise size={16} />,
-                                    title: "Nothing to maintain",
-                                    body: "No manifest or secrets. Disconnect any time.",
-                                },
-                            ].map((fact) => (
-                                <div
-                                    key={fact.title}
-                                    className="flex items-start gap-3 border-0 border-b border-solid border-border py-[11px]"
-                                >
-                                    <span className="mt-px flex flex-none text-muted-foreground">
-                                        {fact.icon}
-                                    </span>
-                                    <span className="flex min-w-0 flex-1 flex-col gap-px">
-                                        <span className="text-sm text-foreground">
-                                            {fact.title}
+                {/* The method's content enters when the method changes (MOTION-01). */}
+                <ViewStep step={methodKey} className="flex flex-col gap-6">
+                    {/* SLACK · hosted */}
+                    {isSlack && mode === "hosted" ? (
+                        <div className="flex flex-col gap-2">
+                            <span className={SECTION_LABEL}>
+                                {t("channels.connect.whatToExpect")}
+                            </span>
+                            <div className="flex flex-col">
+                                {[
+                                    {
+                                        icon: <Eye size={16} />,
+                                        title: t("channels.connect.factReadsTitle"),
+                                        body: t("channels.connect.factReadsBody"),
+                                    },
+                                    {
+                                        icon: <ChatsCircle size={16} />,
+                                        title: t("channels.connect.factThreadsTitle"),
+                                        body: t("channels.connect.factThreadsBody", {
+                                            handle: hostedHandle,
+                                            agent: agentName,
+                                        }),
+                                    },
+                                    {
+                                        icon: <ArrowsClockwise size={16} />,
+                                        title: t("channels.connect.factMaintainTitle"),
+                                        body: t("channels.connect.factMaintainBody"),
+                                    },
+                                ].map((fact) => (
+                                    <div
+                                        key={fact.title}
+                                        className="flex items-start gap-3 border-0 border-b border-solid border-border-muted py-3 last:border-b-0"
+                                    >
+                                        <span className="mt-px flex flex-none text-muted-foreground">
+                                            {fact.icon}
                                         </span>
-                                        <span className="text-[13px] text-muted-foreground">
-                                            {fact.body}
-                                        </span>
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                ) : null}
-
-                {isSlack && mode === "hosted" && authorizing ? (
-                    <div className="flex flex-col gap-1.5 text-[13px] text-muted-foreground">
-                        <div className="flex items-center gap-2">
-                            <Spinner size="small" /> Finish the install in the Slack window…
-                            <Button
-                                variant="link"
-                                size="xs"
-                                onClick={() => {
-                                    clearTimeout(timer.current)
-                                    setAuthorizing(false)
-                                }}
-                            >
-                                Cancel
-                            </Button>
-                        </div>
-                        {slackInstallUrl ? (
-                            <a
-                                href={slackInstallUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-[13px] text-foreground underline underline-offset-2"
-                            >
-                                Slack didn’t open? Open it here.
-                            </a>
-                        ) : null}
-                    </div>
-                ) : null}
-
-                {/* SLACK · custom: a new app, or one already made */}
-                {isSlack && mode === "custom" ? (
-                    <div className="flex flex-col gap-2">
-                        <span className={SECTION_TITLE}>Your app</span>
-                        <MethodCards
-                            options={[
-                                {
-                                    value: "new" as const,
-                                    title: "New app",
-                                    desc: `Start from a manifest we fill in for ${agentName}.`,
-                                    icon: <FileText size={15} />,
-                                },
-                                {
-                                    value: "existing" as const,
-                                    title: "Existing app",
-                                    desc: "Reuse an app you already created in Slack.",
-                                    icon: <Plug size={15} />,
-                                },
-                            ]}
-                            value={slackApp}
-                            onChange={setSlackApp}
-                            testId="channels-slack-app"
-                        />
-                    </div>
-                ) : null}
-
-                {/* TELEGRAM · hosted */}
-                {isTelegram && mode === "hosted" ? (
-                    <div className="overflow-hidden rounded-2xl border border-solid border-border">
-                        <div className="relative flex flex-col items-center gap-[18px] bg-muted bg-[radial-gradient(var(--ag-colorBorder)_1px,transparent_1px)] bg-[size:14px_14px] px-5 pb-[22px] pt-7">
-                            {tgStep === "preparing" ? (
-                                <div className="flex h-[200px] items-center justify-center gap-2 text-[13px] text-muted-foreground">
-                                    <Spinner size="small" /> Preparing your link…
-                                </div>
-                            ) : null}
-                            {tgShowsCode && tgLink ? (
-                                <>
-                                    <div className="relative p-3.5">
-                                        {(
-                                            [
-                                                "left-0 top-0 border-l-2 border-t-2 rounded-tl-lg",
-                                                "right-0 top-0 border-r-2 border-t-2 rounded-tr-lg",
-                                                "bottom-0 left-0 border-b-2 border-l-2 rounded-bl-lg",
-                                                "bottom-0 right-0 border-b-2 border-r-2 rounded-br-lg",
-                                            ] as const
-                                        ).map((corner) => (
-                                            <span
-                                                key={corner}
-                                                className={`absolute size-5 border-0 border-solid border-foreground ${corner}`}
-                                            />
-                                        ))}
-                                        <div
-                                            ref={qrRef}
-                                            className="relative box-border size-[172px] rounded-xl bg-white p-3.5 text-black shadow-lg"
-                                        >
-                                            <QrCode
-                                                value={tgLink.url}
-                                                size={144}
-                                                label={`QR code: open ${telegramHandle} in Telegram`}
-                                            />
-                                            <span className="absolute left-1/2 top-1/2 flex size-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white">
-                                                {platformLogo("telegram", 26)}
+                                        <span className="flex min-w-0 flex-1 flex-col gap-px">
+                                            <span className="text-body text-foreground">
+                                                {fact.title}
                                             </span>
-                                        </div>
-                                    </div>
-                                    <span className="inline-flex h-[26px] items-center gap-1.5 rounded-full border border-solid border-border bg-background px-2.5 text-xs text-muted-foreground">
-                                        <Clock size={13} />
-                                        Expires in
-                                        <span className="font-medium tabular-nums text-foreground">
-                                            {expiresIn}
+                                            <span className="text-label text-muted-foreground">
+                                                {fact.body}
+                                            </span>
                                         </span>
-                                    </span>
-                                    <div className="absolute right-3 top-3 flex gap-1.5">
-                                        <Button
-                                            variant="outline"
-                                            size="icon-sm"
-                                            title="Download QR code"
-                                            aria-label="Download QR code"
-                                            onClick={() =>
-                                                downloadQrPng(
-                                                    qrRef.current?.querySelector("svg") ?? null,
-                                                    "telegram-agenta-qr.png",
-                                                )
-                                            }
-                                        >
-                                            <DownloadSimple />
-                                        </Button>
-                                        <Button
-                                            variant="outline"
-                                            size="icon-sm"
-                                            title={linkCopied ? "Link copied" : "Copy link"}
-                                            aria-label="Copy link"
-                                            onClick={async () => {
-                                                const ok = await copyText(tgLink.url)
-                                                setLinkCopied(ok)
-                                                feedbackLater(() => setLinkCopied(false), 1800)
-                                            }}
-                                            data-testid="channels-copy-telegram-link"
-                                        >
-                                            {linkCopied ? <Check weight="bold" /> : <Link />}
-                                        </Button>
                                     </div>
-                                </>
-                            ) : null}
-                            {tgStep === "expired" ? (
-                                <div className="flex h-[200px] w-full items-center">
-                                    <Alert
-                                        type="warning"
-                                        showIcon
-                                        className="w-full"
-                                        message="The link expired"
-                                        description="Nothing was linked. Get a new link and open it within the time shown."
-                                    />
-                                </div>
-                            ) : null}
-                            {tgStep === "unavailable" ? (
-                                <div className="flex h-[200px] items-center">
-                                    <a
-                                        href={TELEGRAM_HOSTED_DOCS}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="flex items-center gap-1 text-[13px] text-foreground"
-                                    >
-                                        Set up the hosted bot on a self-hosted deployment (docs)
-                                        <ArrowSquareOut size={12} />
-                                    </a>
-                                </div>
-                            ) : null}
-                            {tgStep === "linked" ? (
-                                <div
-                                    className="flex h-[200px] items-center gap-2 text-[13px] text-foreground"
-                                    data-testid="channels-telegram-linked"
-                                >
-                                    <Check size={14} weight="bold" className="text-colorSuccess" />
-                                    Linked. {agentName} answers in that Telegram chat now.
-                                </div>
-                            ) : null}
+                                ))}
+                            </div>
                         </div>
-                        <div className="flex flex-col gap-1 border-0 border-t border-solid border-border bg-background px-5 py-4 text-center">
-                            <span className="text-sm font-semibold text-foreground">
-                                Scan with your phone
-                            </span>
-                            <span className="text-[13px] text-muted-foreground">
-                                {telegramHandle} asks you to confirm, then this chat is linked to{" "}
-                                {agentName}.
-                            </span>
-                            {tgStep === "waiting" ? (
-                                <div
-                                    className="flex flex-col items-center gap-1.5 pt-1.5"
-                                    data-testid="channels-telegram-waiting"
-                                >
-                                    <span className="flex items-center gap-2 text-[13px] text-muted-foreground">
-                                        <Spinner size="small" /> Waiting for you in Telegram…
-                                    </span>
-                                    <Button
-                                        variant="link"
-                                        size="xs"
-                                        onClick={() => void onConnected()}
-                                    >
-                                        I already linked this chat
-                                    </Button>
-                                </div>
-                            ) : null}
-                        </div>
-                    </div>
-                ) : null}
+                    ) : null}
 
-                {/* TELEGRAM · custom */}
-                {isTelegram && mode === "custom" ? (
-                    <div className="flex flex-col">
-                        <StepRow
-                            index={1}
-                            total={2}
-                            active={!tokenEntered}
-                            title="Create a bot with @BotFather"
-                            body={
-                                <>
-                                    Send <Command>/newbot</Command>, then pick a name and a username
-                                    ending in “bot”.
-                                </>
-                            }
-                        >
-                            <div>
-                                <Button variant="outline" size="sm" asChild>
-                                    <a
-                                        href="https://t.me/BotFather"
-                                        target="_blank"
-                                        rel="noreferrer"
-                                    >
-                                        <ArrowSquareOut data-icon="inline-start" />
-                                        Open @BotFather
-                                    </a>
+                    {isSlack && mode === "hosted" && authorizing ? (
+                        <div className="flex flex-col gap-1.5 text-label text-muted-foreground">
+                            <div className="flex items-center gap-2">
+                                <Spinner size="small" /> {t("channels.connect.finishInSlack")}
+                                <Button
+                                    variant="link"
+                                    size="xs"
+                                    onClick={() => {
+                                        clearTimeout(timer.current)
+                                        setAuthorizing(false)
+                                    }}
+                                >
+                                    {t("common.cancel")}
                                 </Button>
                             </div>
-                        </StepRow>
-                        <StepRow
-                            index={2}
-                            total={2}
-                            active={tokenEntered}
-                            title="Paste the bot token"
-                            body="We check it with Telegram, then keep it masked."
-                        >
-                            {renderFields(true)}
-                        </StepRow>
-                    </div>
-                ) : null}
+                            {slackInstallUrl ? (
+                                <a
+                                    href={slackInstallUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-label text-foreground underline underline-offset-2"
+                                >
+                                    {t("channels.connect.slackDidNotOpen")}
+                                </a>
+                            ) : null}
+                        </div>
+                    ) : null}
 
-                {/* WHATSAPP · your own number */}
-                {isWhatsApp && !whatsAppConnection ? (
-                    <div className="flex flex-col gap-[22px]">
-                        <Alert
-                            type="info"
-                            showIcon
-                            data-testid="channels-connect-note"
-                            message={
-                                <>
-                                    {note}{" "}
-                                    <a
-                                        href={WHATSAPP_PRICING_URL}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="text-foreground underline underline-offset-2"
+                    {/* SLACK · custom: a new app, or one already made */}
+                    {isSlack && mode === "custom" ? (
+                        <div className="flex flex-col gap-2">
+                            <span className={SECTION_LABEL}>{t("channels.connect.yourApp")}</span>
+                            <ChoiceCards
+                                options={[
+                                    {
+                                        value: "new" as const,
+                                        title: t("channels.connect.newApp"),
+                                        desc: t("channels.connect.newAppDesc", {
+                                            agent: agentName,
+                                        }),
+                                        icon: <FileText />,
+                                    },
+                                    {
+                                        value: "existing" as const,
+                                        title: t("channels.connect.existingApp"),
+                                        desc: t("channels.connect.existingAppDesc"),
+                                        icon: <Plug />,
+                                    },
+                                ]}
+                                value={slackApp}
+                                onChange={setSlackApp}
+                                testId="channels-slack-app"
+                            />
+                        </div>
+                    ) : null}
+
+                    {/* TELEGRAM · hosted */}
+                    {isTelegram && mode === "hosted" ? (
+                        <div className="overflow-hidden rounded-lg bg-muted">
+                            <div className="relative flex flex-col items-center px-5 pb-2 pt-7">
+                                {/* Each link state enters in place; the actions stay put. */}
+                                <div
+                                    key={tgShowsCode ? "code" : tgStep}
+                                    className="ag-view-enter flex w-full flex-col items-center gap-4"
+                                >
+                                    {tgStep === "idle" ? (
+                                        <div className="flex h-50 flex-col items-center justify-center gap-3 text-center text-label text-muted-foreground">
+                                            <QrCodeIcon size={32} aria-hidden />
+                                            {t("channels.connect.getLinkBody", {
+                                                handle: telegramHandle,
+                                            })}
+                                        </div>
+                                    ) : null}
+                                    {tgStep === "preparing" ? (
+                                        <div className="flex h-50 items-center justify-center gap-2 text-label text-muted-foreground">
+                                            <Spinner size="small" />{" "}
+                                            {t("channels.connect.preparingLink")}
+                                        </div>
+                                    ) : null}
+                                    {tgShowsCode && tgLink ? (
+                                        <>
+                                            <div
+                                                ref={qrRef}
+                                                className="relative box-border w-fit rounded-lg bg-white p-3.5 text-black"
+                                            >
+                                                <QrCode
+                                                    value={tgLink.url}
+                                                    size={144}
+                                                    label={t("channels.connect.qrLabel", {
+                                                        handle: telegramHandle,
+                                                    })}
+                                                />
+                                                <span className="absolute left-1/2 top-1/2 flex size-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-md bg-white">
+                                                    {platformLogo("telegram", 26)}
+                                                </span>
+                                            </div>
+                                            <span className="inline-flex h-6 items-center gap-1.5 rounded-md bg-background px-2.5 text-meta text-muted-foreground">
+                                                <Clock size={12} />
+                                                {richText(
+                                                    t("channels.connect.expiresIn", {
+                                                        time: expiresIn,
+                                                    }),
+                                                    {
+                                                        time: (text) => (
+                                                            <span className="font-medium tabular-nums text-foreground">
+                                                                {text}
+                                                            </span>
+                                                        ),
+                                                    },
+                                                )}
+                                            </span>
+                                        </>
+                                    ) : null}
+                                    {tgStep === "expired" ? (
+                                        <div className="flex h-50 w-full items-center">
+                                            <Alert
+                                                type="warning"
+                                                showIcon
+                                                className="w-full"
+                                                message={t("channels.connect.linkExpiredTitle")}
+                                                description={t("channels.connect.linkExpiredBody")}
+                                            />
+                                        </div>
+                                    ) : null}
+                                    {tgStep === "unavailable" ? (
+                                        <div className="flex h-50 items-center">
+                                            <a
+                                                href={TELEGRAM_HOSTED_DOCS}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="flex items-center gap-1 text-label text-foreground"
+                                            >
+                                                {t("channels.connect.hostedDocsLink")}
+                                                <ArrowSquareOut size={12} />
+                                            </a>
+                                        </div>
+                                    ) : null}
+                                    {tgStep === "linked" ? (
+                                        <div
+                                            className="flex h-50 items-center gap-2 text-label text-foreground"
+                                            data-testid="channels-telegram-linked"
+                                        >
+                                            <Check size={14} className="text-success" />
+                                            {t("channels.connect.telegramLinked", {
+                                                agent: agentName,
+                                            })}
+                                        </div>
+                                    ) : null}
+                                </div>
+                                {tgShowsCode && tgLink ? (
+                                    <div className="absolute right-3 top-3 flex gap-1.5">
+                                        <SimpleTooltip title={t("channels.connect.downloadQr")}>
+                                            <Button
+                                                variant="outline"
+                                                size="icon-sm"
+                                                aria-label={t("channels.connect.downloadQr")}
+                                                onClick={() =>
+                                                    downloadQrPng(
+                                                        qrRef.current?.querySelector("svg") ?? null,
+                                                        "telegram-agenta-qr.png",
+                                                    )
+                                                }
+                                            >
+                                                <DownloadSimple />
+                                            </Button>
+                                        </SimpleTooltip>
+                                        <SimpleTooltip
+                                            title={
+                                                linkCopied
+                                                    ? t("channels.connect.linkCopied")
+                                                    : t("channels.connect.copyLink")
+                                            }
+                                        >
+                                            <Button
+                                                variant="outline"
+                                                size="icon-sm"
+                                                aria-label={t("channels.connect.copyLink")}
+                                                onClick={async () => {
+                                                    const ok = await copyText(tgLink.url)
+                                                    setLinkCopied(ok)
+                                                    feedbackLater(() => setLinkCopied(false), 1800)
+                                                }}
+                                                data-testid="channels-copy-telegram-link"
+                                            >
+                                                {linkCopied ? <Check /> : <Link />}
+                                            </Button>
+                                        </SimpleTooltip>
+                                    </div>
+                                ) : null}
+                            </div>
+                            <div className="flex flex-col gap-1 px-5 pb-5 pt-4 text-center">
+                                <span className={BLOCK_TITLE}>
+                                    {t("channels.connect.scanTitle")}
+                                </span>
+                                <span className="text-label text-muted-foreground">
+                                    {t("channels.connect.scanBody", {
+                                        handle: telegramHandle,
+                                        agent: agentName,
+                                    })}
+                                </span>
+                                {tgStep === "waiting" ? (
+                                    <div
+                                        className="flex flex-col items-center gap-1.5 pt-1.5"
+                                        data-testid="channels-telegram-waiting"
                                     >
-                                        WhatsApp pricing
-                                    </a>
-                                </>
-                            }
-                        />
+                                        <span className="flex items-center gap-2 text-label text-muted-foreground">
+                                            <Spinner size="small" />{" "}
+                                            {t("channels.connect.waitingTelegram")}
+                                        </span>
+                                        <Button
+                                            variant="link"
+                                            size="xs"
+                                            onClick={() => void onConnected()}
+                                        >
+                                            {t("channels.connect.alreadyLinked")}
+                                        </Button>
+                                    </div>
+                                ) : null}
+                            </div>
+                        </div>
+                    ) : null}
+
+                    {/* TELEGRAM · custom */}
+                    {isTelegram && mode === "custom" ? (
+                        <div className="flex flex-col">
+                            <StepRow
+                                index={1}
+                                total={2}
+                                active={!tokenEntered}
+                                title={t("channels.connect.botFatherTitle")}
+                                body={richText(t("channels.connect.botFatherBody"), {
+                                    cmd: (text) => <Command>{text}</Command>,
+                                })}
+                            >
+                                <div>
+                                    <Button variant="outline" size="sm" asChild>
+                                        <a
+                                            href="https://t.me/BotFather"
+                                            target="_blank"
+                                            rel="noreferrer"
+                                        >
+                                            <ArrowSquareOut data-icon="inline-start" />
+                                            {t("channels.connect.openBotFather")}
+                                        </a>
+                                    </Button>
+                                </div>
+                            </StepRow>
+                            <StepRow
+                                index={2}
+                                total={2}
+                                active={tokenEntered}
+                                title={t("channels.connect.pasteTokenTitle")}
+                                body={t("channels.connect.pasteTokenBody")}
+                            >
+                                {renderFields(true)}
+                            </StepRow>
+                        </div>
+                    ) : null}
+
+                    {/* DISCORD · your own bot */}
+                    {isDiscord && !discordConnectionId ? (
                         <div className="flex flex-col">
                             <StepRow
                                 index={1}
                                 total={3}
                                 active={!tokenEntered}
-                                title="Create a Meta app with WhatsApp"
-                                body="In Meta’s App Dashboard, create a Business app and add the WhatsApp product."
+                                title={t("channels.connect.discordCreateBotTitle")}
+                                body={t("channels.connect.discordCreateBotBody")}
                             >
                                 <div>
                                     <Button variant="outline" size="sm" asChild>
-                                        <a href={META_APPS_URL} target="_blank" rel="noreferrer">
+                                        <a href={DISCORD_APPS_URL} target="_blank" rel="noreferrer">
                                             <ArrowSquareOut data-icon="inline-start" />
-                                            Open Meta App Dashboard
+                                            {t("channels.connect.openDeveloperPortal")}
                                         </a>
                                     </Button>
                                 </div>
@@ -1321,15 +1373,150 @@ export const ChannelConnectFlow = ({
                                 index={2}
                                 total={3}
                                 active={false}
-                                title="Copy three values"
-                                body="The phone number ID from WhatsApp > API Setup, a permanent token for a system user from Meta Business Settings, and the app secret from App settings > Basic."
+                                title={t("channels.connect.discordIntentTitle")}
+                                body={t("channels.connect.discordIntentBody")}
                             />
                             <StepRow
                                 index={3}
                                 total={3}
                                 active={tokenEntered}
-                                title="Paste them here"
-                                body="We check them with Meta before saving. Secrets stay masked after you save."
+                                title={t("channels.connect.pasteTokenTitle")}
+                                body={t("channels.connect.discordPasteTokenBody")}
+                            >
+                                {renderFields(true)}
+                                {!setup && !setupLoading ? (
+                                    <div>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => {
+                                                setError(null)
+                                                setSetupAttempt((n) => n + 1)
+                                            }}
+                                        >
+                                            {t("common.tryAgain")}
+                                        </Button>
+                                    </div>
+                                ) : null}
+                            </StepRow>
+                            <span
+                                className="pt-2 text-meta text-muted-foreground"
+                                data-testid="channels-connect-note"
+                            >
+                                {note}
+                            </span>
+                        </div>
+                    ) : null}
+
+                    {isDiscord && discordConnectionId ? (
+                        <div className="flex flex-col gap-4" data-testid="channels-discord-invite">
+                            <div className="flex items-center gap-2 rounded-lg bg-success/10 p-3 text-label text-foreground">
+                                <Check size={14} className="text-success" />
+                                {t("channels.connect.discordConnected")}
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                <span className="text-label text-muted-foreground">
+                                    {t("channels.connect.discordInviteSteps")}
+                                </span>
+                                <span className="text-label text-muted-foreground">
+                                    {t("channels.connect.discordPrivateChannelHint")}
+                                </span>
+                                {discordInviteError ? (
+                                    <Alert
+                                        type="error"
+                                        showIcon
+                                        message={discordInviteError}
+                                        data-testid="channels-discord-invite-error"
+                                    />
+                                ) : null}
+                                <div>
+                                    {discordInviteUrl ? (
+                                        <Button variant="outline" size="sm" asChild>
+                                            <a
+                                                href={discordInviteUrl}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                data-testid="channels-discord-invite-link"
+                                            >
+                                                <ArrowSquareOut data-icon="inline-start" />
+                                                {t("channels.connect.addToServer")}
+                                            </a>
+                                        </Button>
+                                    ) : discordInviteError ? (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                discordConnectionId &&
+                                                void loadDiscordInvite(discordConnectionId)
+                                            }
+                                        >
+                                            {t("common.tryAgain")}
+                                        </Button>
+                                    ) : (
+                                        <Spinner size="small" />
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ) : null}
+
+                    {/* TEAMS · your own bot */}
+                    {isTeams && !created ? (
+                        <div className="flex flex-col">
+                            <StepRow
+                                index={1}
+                                total={4}
+                                active={!tokenEntered}
+                                title={t("channels.teams.registerTitle")}
+                                body={t("channels.teams.registerBody")}
+                            >
+                                <div>
+                                    <Button variant="outline" size="sm" asChild>
+                                        <a
+                                            href={TEAMS_DEVELOPER_PORTAL_URL}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                        >
+                                            <ArrowSquareOut data-icon="inline-start" />
+                                            {t("channels.teams.registerLink")}
+                                        </a>
+                                    </Button>
+                                </div>
+                            </StepRow>
+                            <StepRow
+                                index={2}
+                                total={4}
+                                active={false}
+                                title={t("channels.teams.secretTitle")}
+                                body={t("channels.teams.secretBody")}
+                            />
+                            <StepRow
+                                index={3}
+                                total={4}
+                                active={false}
+                                title={t("channels.teams.tenantTitle")}
+                                body={t("channels.teams.tenantBody")}
+                            >
+                                <div>
+                                    <Button variant="outline" size="sm" asChild>
+                                        <a
+                                            href={ENTRA_ADMIN_CENTER_URL}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                        >
+                                            <ArrowSquareOut data-icon="inline-start" />
+                                            {t("channels.teams.tenantLink")}
+                                        </a>
+                                    </Button>
+                                </div>
+                            </StepRow>
+                            <StepRow
+                                index={4}
+                                total={4}
+                                active={tokenEntered}
+                                title={t("channels.teams.pasteTitle")}
+                                body={t("channels.teams.pasteBody")}
                             >
                                 {renderFields()}
                                 {!setup && !setupLoading ? (
@@ -1342,31 +1529,126 @@ export const ChannelConnectFlow = ({
                                                 setSetupAttempt((n) => n + 1)
                                             }}
                                         >
-                                            Try again
+                                            {t("common.tryAgain")}
                                         </Button>
                                     </div>
                                 ) : null}
                             </StepRow>
+                            <span
+                                className="pt-2 text-meta text-muted-foreground"
+                                data-testid="channels-connect-note"
+                            >
+                                {note}
+                            </span>
                         </div>
-                    </div>
-                ) : null}
+                    ) : null}
 
-                {isWhatsApp && whatsAppConnection ? (
-                    <div className="flex flex-col gap-4">
-                        <div
-                            className="flex items-center gap-2 rounded-lg bg-colorSuccessBg p-3 text-[13px] text-foreground"
-                            data-testid="channels-whatsapp-connected"
-                        >
-                            <Check size={14} weight="bold" className="text-colorSuccess" />
-                            Connected. One step left in Meta.
+                    {isTeams && created ? (
+                        <div className="flex flex-col gap-4">
+                            <div
+                                className="flex items-center gap-2 rounded-lg bg-success/10 p-3 text-label text-foreground"
+                                data-testid="channels-teams-connected"
+                            >
+                                <Check size={14} className="text-success" />
+                                {t("channels.teams.connected")}
+                            </div>
+                            <TeamsAppSetup connection={created} actions={actions} />
                         </div>
-                        <WhatsAppWebhook connection={whatsAppConnection} />
-                    </div>
-                ) : null}
+                    ) : null}
 
-                {cta ? <PanelFooter>{cta}</PanelFooter> : null}
+                    {/* WHATSAPP · your own number */}
+                    {isWhatsApp && !created ? (
+                        <div className="flex flex-col gap-6">
+                            <Alert
+                                type="info"
+                                showIcon
+                                data-testid="channels-connect-note"
+                                message={
+                                    <>
+                                        {note}{" "}
+                                        <a
+                                            href={WHATSAPP_PRICING_URL}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-foreground underline underline-offset-2"
+                                        >
+                                            {t("channels.connect.whatsappPricing")}
+                                        </a>
+                                    </>
+                                }
+                            />
+                            <div className="flex flex-col">
+                                <StepRow
+                                    index={1}
+                                    total={3}
+                                    active={!tokenEntered}
+                                    title={t("channels.connect.metaAppTitle")}
+                                    body={t("channels.connect.metaAppBody")}
+                                >
+                                    <div>
+                                        <Button variant="outline" size="sm" asChild>
+                                            <a
+                                                href={META_APPS_URL}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                            >
+                                                <ArrowSquareOut data-icon="inline-start" />
+                                                {t("channels.connect.openMetaDashboard")}
+                                            </a>
+                                        </Button>
+                                    </div>
+                                </StepRow>
+                                <StepRow
+                                    index={2}
+                                    total={3}
+                                    active={false}
+                                    title={t("channels.connect.copyValuesTitle")}
+                                    body={t("channels.connect.copyValuesBody")}
+                                />
+                                <StepRow
+                                    index={3}
+                                    total={3}
+                                    active={tokenEntered}
+                                    title={t("channels.connect.pasteHereTitle")}
+                                    body={t("channels.connect.pasteHereBody")}
+                                >
+                                    {renderFields()}
+                                    {!setup && !setupLoading ? (
+                                        <div>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => {
+                                                    setError(null)
+                                                    setSetupAttempt((n) => n + 1)
+                                                }}
+                                            >
+                                                {t("common.tryAgain")}
+                                            </Button>
+                                        </div>
+                                    ) : null}
+                                </StepRow>
+                            </div>
+                        </div>
+                    ) : null}
+
+                    {isWhatsApp && created ? (
+                        <div className="flex flex-col gap-4">
+                            <div
+                                className="flex items-center gap-2 rounded-lg bg-success/10 p-3 text-label text-foreground"
+                                data-testid="channels-whatsapp-connected"
+                            >
+                                <Check size={14} className="text-success" />
+                                {t("channels.connect.whatsappConnected")}
+                            </div>
+                            <WhatsAppWebhook connection={created} />
+                        </div>
+                    ) : null}
+                </ViewStep>
+
+                {cta ? <PaneFooter>{cta}</PaneFooter> : null}
             </div>
-        </ViewTransition>
+        </ViewStep>
     )
 }
 
@@ -1383,16 +1665,18 @@ const IdentityField = ({
     help?: string
     children: React.ReactNode
 }) => (
-    <label className="flex flex-col gap-1.5">
-        <span className="flex items-baseline justify-between">
-            <span className="text-[13px] font-medium text-foreground">{label}</span>
-            <span className="text-xs tabular-nums text-muted-foreground">
+    <Field
+        label={label}
+        tooltip={help}
+        className="gap-1.5"
+        labelEnd={
+            <span className="text-meta tabular-nums text-muted-foreground">
                 {length}/{max}
             </span>
-        </span>
+        }
+    >
         {children}
-        {help ? <span className="text-xs text-muted-foreground">{help}</span> : null}
-    </label>
+    </Field>
 )
 
 const SetupFieldInput = ({
@@ -1408,23 +1692,31 @@ const SetupFieldInput = ({
     placeholder?: string
     hideLabel?: boolean
 }) => {
+    const t = useT(channelsConnectCatalog, commonCatalog)
     const patternError = fieldPatternError(field, value)
     return (
-        <label className="flex flex-col gap-1.5" aria-label={hideLabel ? field.label : undefined}>
-            {hideLabel ? null : (
-                <span className="flex items-baseline justify-between">
-                    <span className="text-[13px] font-medium text-foreground">{field.label}</span>
-                    {field.required ? (
-                        <span className="text-xs text-muted-foreground">Required</span>
-                    ) : null}
-                </span>
-            )}
+        <Field
+            label={hideLabel ? undefined : field.label}
+            tooltip={field.help || undefined}
+            className="gap-1.5"
+            labelEnd={
+                !hideLabel && field.required ? (
+                    <span className="text-meta text-muted-foreground">{t("common.required")}</span>
+                ) : undefined
+            }
+            error={
+                patternError ? (
+                    <span data-testid={`channels-field-${field.name}-error`}>{patternError}</span>
+                ) : undefined
+            }
+        >
             {field.secret ? (
                 <PasswordInput
                     value={value}
                     placeholder={placeholder}
                     onChange={(e) => onChange(e.target.value)}
-                    className="font-mono text-xs"
+                    className="text-code"
+                    aria-label={hideLabel ? field.label : undefined}
                     data-testid={`channels-field-${field.name}`}
                 />
             ) : (
@@ -1432,21 +1724,12 @@ const SetupFieldInput = ({
                     value={value}
                     placeholder={placeholder}
                     onChange={(e) => onChange(e.target.value)}
-                    className="font-mono text-xs"
+                    className="text-code"
+                    aria-label={hideLabel ? field.label : undefined}
                     data-testid={`channels-field-${field.name}`}
                     aria-invalid={patternError ? true : undefined}
                 />
             )}
-            {patternError ? (
-                <span
-                    className="text-xs text-error"
-                    data-testid={`channels-field-${field.name}-error`}
-                >
-                    {patternError}
-                </span>
-            ) : field.help ? (
-                <span className="text-xs text-muted-foreground">{field.help}</span>
-            ) : null}
-        </label>
+        </Field>
     )
 }

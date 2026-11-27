@@ -14,6 +14,8 @@
 import type {ReactNode} from "react"
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import sessionsTabsCatalog from "@agenta/i18n/catalogs/sessions.tabs"
 import {sessionRowStatusMeta, type SessionRowVm} from "@agenta/sessions/row"
 import {
     applySessionTabOrder,
@@ -54,6 +56,8 @@ import {SessionTab} from "./SessionTab"
 import {SessionTabDragItem} from "./SessionTabDragItem"
 import {SessionTabStrip, TAB_DIVIDER} from "./SessionTabStrip"
 import {useInlineRename} from "./useInlineRename"
+
+const tNow = createT(sessionsTabsCatalog)
 
 /** A rename asked for from outside the rail (Alt+R) — the tab for this session opens its editor. */
 const renameTabRequestAtom = atom<{sessionId: string; nonce: number} | null>(null)
@@ -191,6 +195,7 @@ const RailTab = ({
     /** Hairline before this tab — every tab but the first. */
     divided?: boolean
 }) => {
+    const t = useT(sessionsTabsCatalog)
     const ref = useRevealWhenActive(active)
     const handleSelect = useCallback(() => onSelect(vm), [onSelect, vm])
     // The SAME rename machine the session rows use, so Enter/blur commit and Escape abandons here
@@ -236,7 +241,7 @@ const RailTab = ({
                         >
                             <InlineRenameInput
                                 rename={rename}
-                                className="h-5 w-full min-w-0 rounded border border-solid border-colorBorder bg-colorBgContainer px-1 text-xs leading-5 text-colorText outline-none [font-family:inherit] focus:border-colorPrimary"
+                                className="h-5 w-full min-w-0 rounded border border-solid border-border bg-background px-1 text-label leading-5 text-foreground outline-none [font-family:inherit] focus-ring-field"
                             />
                         </span>
                     ) : (
@@ -254,14 +259,16 @@ const RailTab = ({
                                       {onRename ? (
                                           <button
                                               type="button"
-                                              aria-label={`Rename ${vm.title}`}
+                                              aria-label={t("sessions.tabs.rename", {
+                                                  title: vm.title,
+                                              })}
                                               onClick={(event) => {
                                                   event.stopPropagation()
                                                   startRename()
                                               }}
                                               // Hover-revealed where there IS a hover; on touch the
                                               // chip's actions are always mounted, so it stays visible.
-                                              className="text-colorTextTertiary hover:text-colorText flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 outline-none transition-opacity focus-visible:opacity-100 focus-visible:ring-[3px] focus-visible:ring-ring/50 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
+                                              className="text-muted-foreground hover:text-foreground flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 outline-none transition-opacity focus-visible:opacity-100 focus-ring [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
                                           >
                                               <PencilSimpleIcon size={12} />
                                           </button>
@@ -269,12 +276,14 @@ const RailTab = ({
                                       {onClose ? (
                                           <button
                                               type="button"
-                                              aria-label={`Close ${vm.title}`}
+                                              aria-label={t("sessions.tabs.close", {
+                                                  title: vm.title,
+                                              })}
                                               onClick={(event) => {
                                                   event.stopPropagation()
                                                   onClose()
                                               }}
-                                              className="text-colorTextTertiary hover:text-colorText flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                                              className="text-muted-foreground hover:text-foreground flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 outline-none focus-ring"
                                           >
                                               <XIcon size={12} />
                                           </button>
@@ -290,7 +299,7 @@ const RailTab = ({
                             // No pulse: at 6px the fade to half read as a washed-out colour,
                             // not as motion. The hue alone says running / waiting.
                             className={clsx(
-                                "h-1.5 w-1.5 shrink-0 rounded-full",
+                                "h-1.5 w-1.5 shrink-0 rounded-round",
                                 vm.status.dotClassName,
                             )}
                         />
@@ -353,6 +362,7 @@ const UnlistedTab = ({
     menu?: SessionMenuEntry[]
     onMenuSelect?: (key: string) => void
 }) => {
+    const t = useT(sessionsTabsCatalog)
     const ref = useRevealWhenActive(active)
     return (
         <div ref={ref} className={clsx("mr-2.25 shrink-0", divided && TAB_DIVIDER)}>
@@ -366,7 +376,7 @@ const UnlistedTab = ({
                             <span
                                 aria-label={IDLE_STATUS.label}
                                 className={clsx(
-                                    "h-1.5 w-1.5 shrink-0 rounded-full",
+                                    "h-1.5 w-1.5 shrink-0 rounded-round",
                                     IDLE_STATUS.dotClassName,
                                 )}
                             />
@@ -377,12 +387,12 @@ const UnlistedTab = ({
                             ? () => (
                                   <button
                                       type="button"
-                                      aria-label={`Close ${title}`}
+                                      aria-label={t("sessions.tabs.close", {title})}
                                       onClick={(event) => {
                                           event.stopPropagation()
                                           onClose()
                                       }}
-                                      className="text-colorTextTertiary hover:text-colorText flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                                      className="text-muted-foreground hover:text-foreground flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 outline-none focus-ring"
                                   >
                                       <XIcon size={12} />
                                   </button>
@@ -413,6 +423,7 @@ export const SessionTabRail = ({
     className,
     ...listArgs
 }: SessionTabRailProps) => {
+    const t = useT(sessionsTabsCatalog)
     // The card list seeds a first visit — which tabs start open, and in what order. It decides
     // nothing after that; the sidebar shares this query, so it costs no extra request.
     const list = useSessionCardList(listArgs)
@@ -463,7 +474,13 @@ export const SessionTabRail = ({
         setUnlisted((prev) =>
             prev.some((tab) => tab.id === activeSessionId)
                 ? prev
-                : [...prev, {id: activeSessionId, title: activeFallbackTitle || "New session"}],
+                : [
+                      ...prev,
+                      {
+                          id: activeSessionId,
+                          title: activeFallbackTitle || tNow("sessions.tabs.newSession"),
+                      },
+                  ],
         )
     }, [activeFallbackTitle, activeSessionId, activeOpen, hasActive, tabs.isPending])
     // Let one go the moment its row lands, or the tab is closed.
@@ -511,7 +528,7 @@ export const SessionTabRail = ({
             onAdd={onNew}
             addTooltip={
                 <span className="flex items-center gap-1.5">
-                    New session <ShortcutKeys id="session.new" tone="inverse" />
+                    {t("sessions.tabs.newSession")} <ShortcutKeys id="session.new" tone="inverse" />
                 </span>
             }
             extra={extra}

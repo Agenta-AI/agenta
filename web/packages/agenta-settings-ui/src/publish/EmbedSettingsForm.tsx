@@ -1,11 +1,15 @@
 import {useId, useState} from "react"
 
+import {useT, type CatalogKey} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import publishCatalog from "@agenta/i18n/catalogs/publish"
 import {CopyButton, getInitials} from "@agenta/ui/components/presentational"
 import {Alert, Button, Input, LoadingButton, Segmented, Textarea} from "@agenta/ui/ui"
+import {PaneFooter} from "@agenta/ui/view-stack"
 import {useMutation, useQuery, useQueryClient, type QueryKey} from "@tanstack/react-query"
 
 import {CodeBlock} from "../channels/CodeBlock"
-import {PanelFooter} from "../channels/PanelFooter"
+import {BLOCK_TITLE} from "../channels/helpers"
 
 import type {AgentEmbedPanelProps} from "./AgentEmbedPanel"
 import {
@@ -27,18 +31,21 @@ import {EmbedDomainsField} from "./EmbedDomainsField"
 import {EmbedSection} from "./EmbedSection"
 
 export const FieldLabel = ({children, htmlFor}: {children: React.ReactNode; htmlFor?: string}) => (
-    <label htmlFor={htmlFor} className="text-[13px] font-semibold text-foreground">
+    <label htmlFor={htmlFor} className={BLOCK_TITLE}>
         {children}
     </label>
 )
 
-const THEMES: {value: EmbedTheme; label: string}[] = [
-    {value: "system", label: "System"},
-    {value: "light", label: "Light"},
-    {value: "dark", label: "Dark"},
+const THEMES: {
+    value: EmbedTheme
+    label: CatalogKey<typeof commonCatalog | typeof publishCatalog>
+}[] = [
+    {value: "system", label: "common.system"},
+    {value: "light", label: "common.light"},
+    {value: "dark", label: "common.dark"},
 ]
 
-const HINT = "text-[12.5px] text-muted-foreground"
+const HINT = "text-label text-muted-foreground"
 
 const padStarters = (starters: string[]) =>
     Array.from({length: MAX_STARTERS}, (_, index) => starters[index] ?? "")
@@ -52,6 +59,7 @@ export const EmbedSettingsForm = ({
     widgetUrl,
     onBack,
 }: AgentEmbedPanelProps & {embed: Embed; queryKey: QueryKey}) => {
+    const t = useT(commonCatalog, publishCatalog)
     const queryClient = useQueryClient()
     const scope = {queryParams: {project_id: projectId}}
     const ids = {
@@ -105,7 +113,8 @@ export const EmbedSettingsForm = ({
         const appearance = appearanceError(draft.appearance)
         setDomainsError(domains)
         setFormError(appearance)
-        if (!domains && !appearance) save.mutate(draft)
+        // Explicit: a message's text must never decide whether the draft is valid.
+        if (domains === null && appearance === null) save.mutate(draft)
     }
     const accent = ACCENT.test(draft.appearance.accent.trim()) ? draft.appearance.accent.trim() : ""
     const avatarUrl = /^https?:\/\//.test(draft.appearance.avatarUrl.trim())
@@ -116,7 +125,7 @@ export const EmbedSettingsForm = ({
     return (
         <div className="flex min-w-0 flex-col gap-3.5" data-testid="agent-embed-settings">
             <div className="flex flex-col gap-1.5">
-                <FieldLabel htmlFor={ids.name}>Name</FieldLabel>
+                <FieldLabel htmlFor={ids.name}>{t("common.name")}</FieldLabel>
                 <Input
                     id={ids.name}
                     value={draft.name}
@@ -126,7 +135,7 @@ export const EmbedSettingsForm = ({
             </div>
 
             <EmbedSection
-                title="Add to your website"
+                title={t("publish.addToWebsite")}
                 defaultOpen
                 testId="agent-embed-snippet-section"
             >
@@ -134,15 +143,15 @@ export const EmbedSettingsForm = ({
                     <CodeBlock
                         label="embed.html"
                         code={snippet.data}
-                        maxHeightClass="max-h-[320px]"
+                        maxHeightClass="max-h-80"
                         actions={
                             <CopyButton
                                 text={embedAssistantPrompt(snippet.data)}
-                                buttonText="Copy prompt"
+                                buttonText={t("publish.copyPrompt")}
                                 icon
                                 variant="ghost"
                                 size="xs"
-                                successMessage="Prompt copied"
+                                successMessage={t("publish.promptCopied")}
                                 data-testid="agent-embed-copy-prompt"
                             />
                         }
@@ -151,18 +160,16 @@ export const EmbedSettingsForm = ({
                 ) : snippet.isError ? (
                     <Alert type="error" showIcon message={snippet.error.message} />
                 ) : (
-                    <span className={HINT}>Loading…</span>
+                    <span className={HINT}>{t("publish.loading")}</span>
                 )}
                 <span className={HINT} data-testid="agent-embed-snippet-hint">
-                    {draft.restricted
-                        ? "Paste it into a page on one of your allowed domains."
-                        : "Paste it into any page of your website."}
+                    {draft.restricted ? t("publish.pasteRestricted") : t("publish.pasteAny")}
                 </span>
             </EmbedSection>
 
             <EmbedSection
-                title="Specific domains"
-                info="When this is off, any website can show the chat. Turn it on to show the chat only on the domains you list."
+                title={t("publish.specificDomains")}
+                info={t("publish.specificDomainsInfo")}
                 summary={domainsSummary(draft)}
                 error={domainsError}
                 testId="agent-embed-domains-section"
@@ -180,28 +187,28 @@ export const EmbedSettingsForm = ({
             </EmbedSection>
 
             <EmbedSection
-                title="Appearance"
+                title={t("publish.appearance")}
                 summary={appearanceSummary(draft.appearance)}
                 testId="agent-embed-appearance-section"
             >
                 <div className="flex flex-col gap-1.5">
-                    <FieldLabel htmlFor={ids.avatar}>Avatar URL</FieldLabel>
+                    <FieldLabel htmlFor={ids.avatar}>{t("publish.avatarUrl")}</FieldLabel>
                     <div className="flex items-center gap-2.5">
                         {avatarUrl ? (
                             <img
                                 src={avatarUrl}
                                 alt=""
                                 referrerPolicy="no-referrer"
-                                className="size-8 flex-none rounded-full object-cover"
+                                className="size-8 flex-none rounded-md object-cover"
                                 data-testid="agent-embed-avatar-preview"
                             />
                         ) : (
                             <span
-                                className="flex size-8 flex-none items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground"
+                                className="flex size-8 flex-none items-center justify-center rounded-md bg-primary text-label font-semibold text-primary-foreground"
                                 style={accent ? {backgroundColor: accent} : undefined}
                                 data-testid="agent-embed-avatar-preview"
                             >
-                                {getInitials(draft.name.trim() || "Assistant")}
+                                {getInitials(draft.name.trim() || t("publish.assistant"))}
                             </span>
                         )}
                         <Input
@@ -213,7 +220,7 @@ export const EmbedSettingsForm = ({
                     </div>
                 </div>
                 <div className="flex flex-col gap-1.5">
-                    <FieldLabel htmlFor={ids.greeting}>Greeting</FieldLabel>
+                    <FieldLabel htmlFor={ids.greeting}>{t("publish.greeting")}</FieldLabel>
                     <Textarea
                         id={ids.greeting}
                         rows={2}
@@ -223,11 +230,13 @@ export const EmbedSettingsForm = ({
                     />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                    <FieldLabel>Starter prompts</FieldLabel>
+                    <FieldLabel>{t("publish.starterPrompts")}</FieldLabel>
                     {draft.appearance.starters.map((starter, index) => (
                         <Input
                             key={index}
-                            aria-label={`Starter prompt ${index + 1}`}
+                            aria-label={t("publish.starterPromptLabel", {
+                                number: index + 1,
+                            })}
                             value={starter}
                             onChange={(e) =>
                                 setAppearance({
@@ -242,17 +251,17 @@ export const EmbedSettingsForm = ({
                 </div>
                 <div className="flex flex-wrap items-end gap-4">
                     <div className="flex flex-col gap-1.5">
-                        <FieldLabel>Theme</FieldLabel>
+                        <FieldLabel>{t("publish.theme")}</FieldLabel>
                         <Segmented
                             size="sm"
-                            options={THEMES}
+                            options={THEMES.map((theme) => ({...theme, label: t(theme.label)}))}
                             value={draft.appearance.theme}
                             onChange={(value) => setAppearance({theme: value as EmbedTheme})}
                             data-testid="agent-embed-theme"
                         />
                     </div>
                     <div className="flex flex-col gap-1.5">
-                        <FieldLabel htmlFor={ids.accent}>Accent</FieldLabel>
+                        <FieldLabel htmlFor={ids.accent}>{t("publish.accent")}</FieldLabel>
                         <div className="flex items-center gap-2">
                             <span
                                 aria-hidden
@@ -273,28 +282,28 @@ export const EmbedSettingsForm = ({
                 </div>
             </EmbedSection>
 
-            <EmbedSection title="Preview" summary="400 × 600" testId="agent-embed-preview-section">
-                <span className={HINT}>
-                    Shows the saved settings. Messages you send here are real and appear in the
-                    agent&apos;s Sessions list.
-                </span>
+            <EmbedSection
+                title={t("publish.preview")}
+                summary="400 × 600"
+                testId="agent-embed-preview-section"
+            >
+                <span className={HINT}>{t("publish.previewHint")}</span>
                 <iframe
                     key={previewKey}
-                    title="Preview"
+                    title={t("publish.preview")}
                     src={widgetUrl(embed.embedId)}
-                    className="h-[600px] w-full max-w-[400px] rounded-lg border border-solid border-border bg-background"
+                    className="h-150 w-full max-w-[400px] rounded-lg border border-solid border-border bg-background"
                     data-testid="agent-embed-preview"
                 />
             </EmbedSection>
 
             {error ? <Alert type="error" showIcon message={error} /> : null}
 
-            <PanelFooter>
+            <PaneFooter>
                 {confirming ? (
                     <div className="flex w-full flex-col gap-2.5">
-                        <span className="text-[13px] text-foreground">
-                            Archive this embed? The chat stops working on every website. Past
-                            conversations stay in Agenta.
+                        <span className="text-label text-foreground">
+                            {t("publish.archiveConfirm")}
                         </span>
                         <div className="flex justify-end gap-2">
                             <Button
@@ -302,27 +311,26 @@ export const EmbedSettingsForm = ({
                                 disabled={archive.isPending}
                                 onClick={() => setConfirming(false)}
                             >
-                                Cancel
+                                {t("common.cancel")}
                             </Button>
                             <LoadingButton
-                                variant="destructive"
+                                variant="destructive-ghost"
                                 loading={archive.isPending}
                                 onClick={() => archive.mutate()}
                                 data-testid="agent-embed-archive-confirm"
                             >
-                                Archive
+                                {t("common.archive")}
                             </LoadingButton>
                         </div>
                     </div>
                 ) : (
                     <div className="flex w-full items-center justify-between gap-2">
                         <Button
-                            variant="ghost"
-                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            variant="destructive-ghost"
                             onClick={() => setConfirming(true)}
                             data-testid="agent-embed-archive"
                         >
-                            Archive
+                            {t("common.archive")}
                         </Button>
                         <LoadingButton
                             disabled={!dirty}
@@ -330,11 +338,11 @@ export const EmbedSettingsForm = ({
                             onClick={submit}
                             data-testid="agent-embed-save"
                         >
-                            Save changes
+                            {t("common.saveChanges")}
                         </LoadingButton>
                     </div>
                 )}
-            </PanelFooter>
+            </PaneFooter>
         </div>
     )
 }

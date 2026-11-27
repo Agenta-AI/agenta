@@ -1,10 +1,11 @@
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import testcaseCatalog from "@agenta/i18n/catalogs/entityUi.testcase"
 import {copyToClipboard} from "@agenta/ui"
 import {
     DrillInContent,
     DrillInRootToolbar,
-    JsonEditorWithLocalState,
     type DataType,
     type FieldViewModeOption,
     type PropertyType,
@@ -15,7 +16,13 @@ import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
 import deepEqual from "fast-deep-equal"
 
-import {parseCodeString, toCodeString, type RootDrawerViewMode} from "./codeFormat"
+import {
+    codeParseError,
+    parseCodeString,
+    textMatchesValue,
+    toCodeString,
+    type RootDrawerViewMode,
+} from "./codeFormat"
 import type {TestcaseDataEditorColumn, TestcaseDataEditorProps} from "./TestcaseDataEditor.types"
 import {
     buildTestcaseCodeEditorValue,
@@ -36,9 +43,12 @@ const DEFAULT_VALUE_BY_TYPE: Record<PropertyType, unknown> = {
     array: [],
 }
 
+const tNow = createT(testcaseCatalog)
+
+// Built when a field asks, so the labels are in the active language.
 // Chat-specific view mode and chip variants are scoped for v2.
-const TESTCASE_VIEW_OPTIONS: FieldViewModeOption[] = [
-    {value: "text", label: "Text"},
+const testcaseViewOptions = (): FieldViewModeOption[] => [
+    {value: "text", label: tNow("entityUi.testcase.viewText")},
     {value: "markdown", label: "Markdown"},
     {value: "json", label: "JSON"},
     {value: "yaml", label: "YAML"},
@@ -46,14 +56,14 @@ const TESTCASE_VIEW_OPTIONS: FieldViewModeOption[] = [
 
 // Messages render as a schema-aware form, so Text/Markdown collapse to the
 // same view and are misleading. Surface only Form / JSON / YAML.
-const MESSAGES_VIEW_OPTIONS: FieldViewModeOption[] = [
-    {value: "form", label: "Form"},
+const messagesViewOptions = (): FieldViewModeOption[] => [
+    {value: "form", label: tNow("entityUi.testcase.viewForm")},
     {value: "json", label: "JSON"},
     {value: "yaml", label: "YAML"},
 ]
 
 const getTestcaseViewOptions = ({dataType}: {dataType: DataType}): FieldViewModeOption[] =>
-    dataType === "messages" ? MESSAGES_VIEW_OPTIONS : TESTCASE_VIEW_OPTIONS
+    dataType === "messages" ? messagesViewOptions() : testcaseViewOptions()
 const renderTestcaseTypeChip = (value: unknown) => <TypeChip value={value} />
 
 function FullPayloadCodeEditor({
@@ -69,6 +79,7 @@ function FullPayloadCodeEditor({
     editable: boolean
     columns?: TestcaseDataEditorColumn[]
 }) {
+    const t = useT(testcaseCatalog)
     // When data columns are provided, scope the JSON/YAML view to just those
     // columns. The full flattened entity also contains system fields like
     // `tags`, `flags`, `meta`, `created_at` etc. — surfacing them here lets the
@@ -81,10 +92,26 @@ function FullPayloadCodeEditor({
 
     const displayValue = useMemo(() => toCodeString(editableValue, format), [editableValue, format])
     const editorId = `testcase-root-${format}-editor`
+    // Text that does not parse stays in the editor and says why; it never reaches the testcase.
+    const [parseError, setParseError] = useState<string | null>(null)
+    const [jsonText, setJsonText] = useState(displayValue)
+    const typedText = useRef(displayValue)
+    // Resync only on an outside change, so the user's own edit is never rewritten.
+    useEffect(() => {
+        if (textMatchesValue(typedText.current, format, editableValue)) return
+        typedText.current = displayValue
+        setJsonText(displayValue)
+        setParseError(null)
+    }, [displayValue, editableValue, format])
 
     const handleChange = useCallback(
         (next: string) => {
             if (!editable || !onChange) return
+            typedText.current = next
+            if (format === "json") setJsonText(next)
+            const error = codeParseError(next, format)
+            setParseError(error)
+            if (error) return
             const parsed = parseCodeString<unknown>(next, format, editableValue)
             if (parsed === editableValue) return
             const parsedRecord = normalizeTestcaseData(parsed as Record<string, unknown>)
@@ -94,15 +121,39 @@ function FullPayloadCodeEditor({
         [columns, editable, editableValue, format, onChange, value],
     )
 
+    const errorNote = parseError ? (
+        <p role="alert" className="m-0 mt-2 text-meta text-destructive">
+            {t("entityUi.testcase.invalidCode", {
+                format: format === "json" ? "JSON" : "YAML",
+                error: parseError,
+            })}
+        </p>
+    ) : null
+
     if (format === "json") {
         return (
             <div className="px-6 py-4">
-                <JsonEditorWithLocalState
-                    editorKey={editorId}
-                    initialValue={displayValue}
-                    onValidChange={handleChange}
-                    readOnly={!editable}
-                />
+                <EditorProvider key={editorId} codeOnly language="json" showToolbar={false}>
+                    <SharedEditor
+                        key={`${editorId}-shared`}
+                        initialValue={jsonText}
+                        handleChange={editable ? handleChange : undefined}
+                        editorType="border"
+                        className="min-h-15 overflow-hidden"
+                        disableDebounce
+                        noProvider
+                        syncWithInitialValueChanges
+                        disabled={!editable}
+                        state={editable ? undefined : "readOnly"}
+                        editorProps={{
+                            codeOnly: true,
+                            language: "json",
+                            showLineNumbers: true,
+                            disableLongText: true,
+                        }}
+                    />
+                </EditorProvider>
+                {errorNote}
             </div>
         )
     }
@@ -123,7 +174,7 @@ function FullPayloadCodeEditor({
                     value={displayValue}
                     handleChange={editable ? handleChange : undefined}
                     editorType="border"
-                    className="min-h-[200px] overflow-hidden"
+                    className="min-h-50 overflow-hidden"
                     disableDebounce
                     noProvider
                     disabled={!editable}
@@ -136,6 +187,7 @@ function FullPayloadCodeEditor({
                     }}
                 />
             </EditorProvider>
+            {errorNote}
         </div>
     )
 }
@@ -150,7 +202,7 @@ export function TestcaseDataEditor({
     initialPath,
     onPathChange,
     className,
-    label = "Testcase Data",
+    label,
     headerSlot,
     columnOptions,
     mappedPaths,
@@ -162,6 +214,7 @@ export function TestcaseDataEditor({
     fieldOrder = "sorted",
     fieldControls = true,
 }: TestcaseDataEditorProps) {
+    const t = useT(testcaseCatalog)
     const isRootViewControlled = controlledRootViewMode !== undefined
     const [uncontrolledRootViewMode, setUncontrolledRootViewMode] = useState<RootViewMode>("text")
     const [uncontrolledCollapseSignal, setUncontrolledCollapseSignal] = useState(0)
@@ -239,7 +292,7 @@ export function TestcaseDataEditor({
         <div className={className}>
             {!isRootViewControlled && resolvedFeatures.rootViewMode && (
                 <DrillInRootToolbar
-                    label={label}
+                    label={label ?? t("entityUi.testcase.testcaseData")}
                     headerSlot={headerSlot}
                     viewMode={activeRootViewMode as RootViewMode}
                     onViewModeChange={setUncontrolledRootViewMode}
@@ -254,7 +307,7 @@ export function TestcaseDataEditor({
                 getRootItems={getRootItems}
                 FieldRenderer={TestcaseDrillInFieldRenderer}
                 valueMode="native"
-                rootTitle="Root"
+                rootTitle={t("entityUi.testcase.root")}
                 editable={editable}
                 showAddControls={editable && !columns?.length && fieldControls}
                 showDeleteControls={editable && !columns?.length && fieldControls}

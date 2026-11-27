@@ -3,7 +3,9 @@ import {useEffect, useRef} from "react"
 import {isHiddenPath, type DriveTreeNode} from "@agenta/entities/drive"
 import {type MountUploadItem} from "@agenta/entities/drive"
 import {fileOrigin} from "@agenta/entities/drive"
-import {CaretDown, CaretRight, CircleNotch} from "@phosphor-icons/react"
+import {useT} from "@agenta/i18n"
+import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
+import {CollapseCaret, Spinner} from "@agenta/ui/ui"
 
 import {FOCUS_RING} from "./DriveFileRow"
 import {DriveFolderGlyph, DriveTypeMark} from "./DriveTypeMark"
@@ -21,6 +23,7 @@ export const TreeRow = ({
     isOpen,
     selected,
     showOrigin,
+    otherDrives,
     parent,
     scrollX,
     loading,
@@ -39,6 +42,8 @@ export const TreeRow = ({
     loading?: boolean
     /** Tag top-level nodes with their origin (agent-files vs session) — only when mixed. */
     showOrigin?: boolean
+    /** The session's drives other than the home: they tell a drive file from a session file. */
+    otherDrives?: readonly {slug: string}[]
     /** The parent folder path — the horizontal-scroll GROUP key (siblings share one offset). */
     parent: string
     /** This group's current horizontal offset, applied as a transform to the row's content. */
@@ -52,6 +57,7 @@ export const TreeRow = ({
     onToggle: (path: string) => void
     onSelect: (path: string) => void
 }) => {
+    const t = useT(driveBrowserCatalog)
     // Dot-prefixed (hidden) entries surface but dimmed, like a file browser greys .git/.claude.
     const hidden = isHiddenPath(node.path)
     const contentRef = useRef<HTMLDivElement>(null)
@@ -75,11 +81,11 @@ export const TreeRow = ({
             }}
             className={`h-7 w-full cursor-pointer overflow-hidden rounded-md transition-colors ${
                 selected
-                    ? "bg-colorFillTertiary font-medium text-colorText"
+                    ? "bg-selected text-foreground"
                     : pending
-                      ? // Subtle primary tint marks a pending upload row, matching the grid tile.
-                        "bg-[var(--ant-color-primary-bg)]"
-                      : "text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText"
+                      ? // A quiet fill marks a pending upload row, matching the grid tile.
+                        "bg-secondary"
+                      : "text-muted-foreground hover:bg-accent hover:text-foreground"
             } ${hidden ? "opacity-60" : ""}`}
         >
             <div
@@ -95,8 +101,8 @@ export const TreeRow = ({
                 {node.isFolder && loading ? (
                     // Expanded + loading: a spinner where the caret sits, so the row itself shows the
                     // fetch is in flight (the shimmer child rows below fill the gap where files land).
-                    <span className="flex w-4 shrink-0 items-center justify-center text-colorTextTertiary">
-                        <CircleNotch size={10} className="animate-spin" />
+                    <span className="flex w-4 shrink-0 items-center justify-center text-muted-foreground">
+                        <Spinner aria-hidden className="size-2.5" />
                     </span>
                 ) : node.isFolder ? (
                     <button
@@ -104,14 +110,18 @@ export const TreeRow = ({
                         // Not a tab stop — the row's main button is the single stop; arrow keys drive
                         // the rest. The caret stays mouse-clickable for expand/collapse.
                         tabIndex={-1}
-                        aria-label={isOpen ? "Collapse folder" : "Expand folder"}
+                        aria-label={
+                            isOpen
+                                ? t("entityUi.driveBrowser.collapseFolder")
+                                : t("entityUi.driveBrowser.expandFolder")
+                        }
                         onClick={(e) => {
                             e.stopPropagation()
                             onToggle(node.path)
                         }}
-                        className={`flex w-4 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-colorTextQuaternary hover:text-colorText ${FOCUS_RING}`}
+                        className={`flex w-4 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-muted-foreground hover:text-foreground ${FOCUS_RING}`}
                     >
-                        {isOpen ? <CaretDown size={10} /> : <CaretRight size={10} />}
+                        <CollapseCaret open={isOpen} className="text-current" />
                     </button>
                 ) : null}
                 {/* Keyboard focus stop only — the click (mouse and Enter/Space) bubbles to the row
@@ -120,7 +130,7 @@ export const TreeRow = ({
                     type="button"
                     data-tree-main=""
                     data-path={node.path}
-                    className={`flex h-7 cursor-pointer items-center gap-1.5 border-0 bg-transparent py-0 pr-3 text-left text-xs text-current ${FOCUS_RING} ${
+                    className={`flex h-7 cursor-pointer items-center gap-1.5 border-0 bg-transparent py-0 pr-3 text-left text-label [font-weight:inherit] text-current ${FOCUS_RING} ${
                         node.isFolder ? "" : "pl-4"
                     }`}
                 >
@@ -134,18 +144,20 @@ export const TreeRow = ({
                     {/* Only the top-level items carry the tag; nested rows inherit it from their
                         (already-tagged) agent-files folder, so the tree stays quiet. */}
                     {showOrigin && depth === 0 ? (
-                        <OriginTag origin={fileOrigin(node.path)} />
+                        <OriginTag origin={fileOrigin(node.path, otherDrives)} />
                     ) : null}
                     {/* In-flight upload status, trailing the name — the row is otherwise a normal file row. */}
                     {pending && !pending.error && pending.percent < 100 ? (
-                        <span className="flex shrink-0 items-center gap-1 text-xs text-colorTextTertiary">
-                            <CircleNotch size={10} className="animate-spin" />
+                        <span className="flex shrink-0 items-center gap-1 text-meta tabular-nums text-muted-foreground">
+                            <Spinner aria-hidden className="size-2.5" />
                             {pending.percent}%
                         </span>
                     ) : null}
                     {pending?.error ? (
-                        <span className="flex shrink-0 items-center gap-1.5 text-xs">
-                            <span className="text-colorError">Failed</span>
+                        <span className="flex shrink-0 items-center gap-1.5 text-meta">
+                            <span className="text-destructive">
+                                {t("entityUi.driveBrowser.failed")}
+                            </span>
                             {onRetryUpload ? (
                                 <button
                                     type="button"
@@ -153,9 +165,9 @@ export const TreeRow = ({
                                         e.stopPropagation()
                                         onRetryUpload(pending.id)
                                     }}
-                                    className="cursor-pointer border-0 bg-transparent p-0 text-colorPrimary hover:underline"
+                                    className="cursor-pointer border-0 bg-transparent p-0 text-primary hover:underline"
                                 >
-                                    Retry
+                                    {t("entityUi.driveBrowser.retry")}
                                 </button>
                             ) : null}
                             {onDismissUpload ? (
@@ -165,9 +177,9 @@ export const TreeRow = ({
                                         e.stopPropagation()
                                         onDismissUpload(pending.id)
                                     }}
-                                    className="cursor-pointer border-0 bg-transparent p-0 text-colorTextTertiary hover:underline"
+                                    className="cursor-pointer border-0 bg-transparent p-0 text-muted-foreground hover:underline"
                                 >
-                                    Dismiss
+                                    {t("entityUi.driveBrowser.dismiss")}
                                 </button>
                             ) : null}
                         </span>
@@ -188,11 +200,11 @@ export const TreeLoadingRow = ({depth, width = "58%"}: {depth: number; width?: s
         style={{paddingLeft: ROW_INDENT(depth) + 16}}
         aria-hidden
     >
-        <div className="h-3.5 w-3.5 shrink-0 animate-pulse rounded bg-colorFillSecondary" />
+        <div className="h-3.5 w-3.5 shrink-0 animate-pulse rounded-sm bg-secondary" />
         {/* `flex-1 min-w-0` gives the line box real width so the bar's % width is measured against it
             (without it the box shrink-wraps to 0 and the bar vanishes — only the icon square shows). */}
         <div className="flex h-4 min-w-0 flex-1 items-center">
-            <div className="h-2.5 animate-pulse rounded bg-colorFillSecondary" style={{width}} />
+            <div className="h-2.5 animate-pulse rounded-sm bg-secondary" style={{width}} />
         </div>
     </div>
 )

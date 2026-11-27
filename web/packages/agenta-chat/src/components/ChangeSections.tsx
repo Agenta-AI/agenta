@@ -1,0 +1,568 @@
+/**
+ * The body of a change card (task 25.1): a header with the change's icon, title and path, then
+ * its detail in one of four forms (a text diff, old and new values, an added or a removed item)
+ * and its warning lines. Changes with the same title and path (the model and its reasoning) share
+ * one header. Old values come from the server preview; without one the card shows the proposed
+ * values and says so. The footer (the version note and the buttons) is the card's.
+ */
+import {useEffect, useState, type ReactNode} from "react"
+
+import {useT} from "@agenta/i18n"
+import chatChangeCardCatalog from "@agenta/i18n/catalogs/chat.changeCard"
+import {computeTextDiffLines} from "@agenta/ui/diff"
+import {useIsPhone} from "@agenta/ui/phone"
+import {
+    ArrowRight,
+    BookOpen,
+    Cpu,
+    FileText,
+    GearSix,
+    Plugs,
+    Plus,
+    ShieldCheck,
+    Sparkle,
+    SquaresFour,
+    Warning,
+    Wrench,
+    X,
+    type Icon,
+} from "@phosphor-icons/react"
+
+import type {
+    ApprovalChange,
+    ApprovalChangeDetail,
+    ApprovalChangeRiskLine,
+    ApprovalChangeSection,
+} from "../skin/types"
+
+import {PhoneDetailScreen, useInPhoneDetail} from "./PhoneDetailScreen"
+
+const SECTION_ICON: Record<ApprovalChangeSection, Icon> = {
+    instructions: FileText,
+    model: Cpu,
+    skills: BookOpen,
+    mcps: Plugs,
+    integrations: SquaresFour,
+    tools: Wrench,
+    permissions: ShieldCheck,
+    settings: GearSix,
+}
+
+/** Diff rows before "View full diff" takes over. */
+const INLINE_DIFF_LINES = 6
+
+// Added and removed rows carry a 1 px bar on their left edge (C01, M05).
+const ADD_ROW =
+    "bg-[color-mix(in_srgb,var(--success)_13%,transparent)] text-success shadow-[inset_1px_0_0_var(--success)]"
+const DEL_ROW =
+    "bg-[color-mix(in_srgb,var(--destructive)_10%,transparent)] text-destructive shadow-[inset_1px_0_0_var(--destructive)]"
+
+/** The horizontal inset of every part of a change card: the parts run to the card edge. */
+export const CARD_INSET = "px-3"
+
+/** One block of the card: the changes that share a title and a path. */
+export interface ChangeBlock {
+    title: string
+    path: string[]
+    section: ApprovalChangeSection
+    changes: ApprovalChange[]
+    risks: ApprovalChangeRiskLine[]
+    fails: boolean
+}
+
+/** Groups neighbouring changes with the same title and path, so they share one header. */
+export const groupChanges = (changes: ApprovalChange[]): ChangeBlock[] => {
+    const blocks: ChangeBlock[] = []
+    for (const change of changes) {
+        const last = blocks[blocks.length - 1]
+        const same =
+            last &&
+            last.title === change.title &&
+            last.path.join("\u0000") === change.path.join("\u0000")
+        const block = same
+            ? last
+            : {
+                  title: change.title,
+                  path: change.path,
+                  section: change.section,
+                  changes: [],
+                  risks: [],
+                  fails: false,
+              }
+        if (!same) blocks.push(block)
+        block.changes.push(change)
+        block.fails ||= Boolean(change.fails)
+        for (const risk of change.risks) {
+            if (!block.risks.some((known) => known.message === risk.message)) block.risks.push(risk)
+        }
+    }
+    return blocks
+}
+
+interface DiffRow {
+    type: "context" | "added" | "removed" | "fold"
+    content: string
+}
+
+/** The hunks of a unified diff: the file header lines before the first `@@` go. A `---` or `+++`
+ * inside a hunk is a changed line (a Markdown rule, a line that starts with `++`) and stays. */
+const unifiedRows = (diff: string): DiffRow[] => {
+    const lines = diff.split("\n")
+    const start = lines.findIndex((line) => line.startsWith("@@"))
+    return (start === -1 ? lines : lines.slice(start)).map((line) =>
+        line.startsWith("@@")
+            ? {type: "fold", content: ""}
+            : line.startsWith("+")
+              ? {type: "added", content: line.slice(1)}
+              : line.startsWith("-")
+                ? {type: "removed", content: line.slice(1)}
+                : {type: "context", content: line.startsWith(" ") ? line.slice(1) : line},
+    )
+}
+
+const linesOf = (text: string | undefined, type: DiffRow["type"]): DiffRow[] =>
+    text === undefined ? [] : text.split("\n").map((content) => ({type, content}))
+
+/** The rows of a text detail: all of them, and the short form the card shows first. */
+export const diffRows = (
+    detail: Extract<ApprovalChangeDetail, {kind: "text_diff"}>,
+): {full: DiffRow[]; short: DiffRow[]} => {
+    if (detail.diff) {
+        const rows = unifiedRows(detail.diff)
+        return {full: rows, short: rows}
+    }
+    // No preview: the proposed fragments, removed text then added text, with no context.
+    if (detail.fragmentsOnly) {
+        const rows = [
+            ...(detail.edits ?? []).flatMap((edit) => [
+                ...linesOf(edit.old, "removed"),
+                ...linesOf(edit.new, "added"),
+            ]),
+            ...linesOf(detail.new, "added"),
+        ]
+        return {full: rows, short: rows}
+    }
+    const full = computeTextDiffLines(detail.old ?? "", detail.new ?? "") as DiffRow[]
+    // Long unchanged runs fold to one row, with two lines of context around each change.
+    const short = computeTextDiffLines(detail.old ?? "", detail.new ?? "", {
+        enableFolding: true,
+        contextLines: 2,
+        foldThreshold: 3,
+    }) as DiffRow[]
+    return {full, short}
+}
+
+const DiffRows = ({rows, inset = "px-2"}: {rows: DiffRow[]; inset?: string}) => (
+    <>
+        {rows.map((row, index) => (
+            <div
+                key={index}
+                className={`flex ${inset} ${
+                    row.type === "added"
+                        ? ADD_ROW
+                        : row.type === "removed"
+                          ? DEL_ROW
+                          : "text-muted-foreground"
+                }`}
+            >
+                <span aria-hidden className="mr-1.5 w-2.5 shrink-0 opacity-60">
+                    {row.type === "added" ? "+" : row.type === "removed" ? "−" : " "}
+                </span>
+                <span className="min-w-0 whitespace-pre-wrap break-words">
+                    {row.type === "fold" ? "⋯" : row.content || " "}
+                </span>
+            </div>
+        ))}
+    </>
+)
+
+/**
+ * A text diff: the first rows in the card, and "View full diff" for the rest. On the desktop the
+ * link opens the whole diff in place; on a phone it opens it full screen (M05), titled by
+ * `screenTitle`.
+ */
+const TextDiff = ({
+    detail,
+    screenTitle,
+    bleed,
+}: {
+    detail: Extract<ApprovalChangeDetail, {kind: "text_diff"}>
+    screenTitle: string
+    /** The card's own diff: a band from edge to edge, and "View full diff" a row of its own. */
+    bleed: boolean
+}) => {
+    const t = useT(chatChangeCardCatalog)
+    const phone = useIsPhone()
+    // A phone detail screen already shows the whole diff.
+    const inDetail = useInPhoneDetail()
+    const [full, setFull] = useState(false)
+    // The open state means "in place" on the desktop and "full screen" on a phone: a move across
+    // the phone width closes it rather than turning one into the other.
+    useEffect(() => setFull(false), [phone])
+    const rows = diffRows(detail)
+    const inPlace = (full && !phone) || inDetail
+    const shown = inPlace ? rows.full : rows.short.slice(0, INLINE_DIFF_LINES)
+    const more =
+        !inPlace && (rows.short.length > INLINE_DIFF_LINES || rows.full.length > rows.short.length)
+    return (
+        <div className={`flex flex-col ${bleed ? "" : "gap-1"}`}>
+            <div
+                className={`max-h-80 overflow-auto font-mono ${
+                    bleed
+                        ? `border-0 border-y border-solid border-border-muted bg-[var(--ag-surface-raised)] py-1 text-meta ${
+                              phone ? "leading-[1.7]" : "leading-[1.8]"
+                          }`
+                        : "rounded-md border border-solid border-border-muted bg-secondary py-1 text-caption leading-[1.7]"
+                }`}
+                data-testid="change-diff"
+            >
+                <DiffRows rows={shown} inset={bleed ? CARD_INSET : undefined} />
+            </div>
+            {more ? (
+                <button
+                    type="button"
+                    onClick={() => setFull(true)}
+                    className={`cursor-pointer border-0 bg-transparent text-muted-foreground hover:text-foreground ${
+                        bleed
+                            ? // A row of its own: 32 px, and 46 px on a phone (M05).
+                              `w-full text-left hover:bg-accent ${
+                                  phone
+                                      ? "p-3 text-label leading-[22px]"
+                                      : "px-3 py-1.5 text-meta leading-5"
+                              }`
+                            : `self-start p-0 text-meta ${
+                                  // A 44 px hit area around the 16 px line.
+                                  phone
+                                      ? "relative after:absolute after:-inset-x-1 after:-inset-y-3.5 after:content-['']"
+                                      : ""
+                              }`
+                    }`}
+                    data-testid="change-full-diff"
+                >
+                    {t("chat.changeCard.viewFullDiff", {count: rows.full.length})}
+                </button>
+            ) : null}
+            {phone && !inDetail ? (
+                <PhoneDetailScreen open={full} onOpenChange={setFull} title={screenTitle}>
+                    <div
+                        className="overflow-x-auto rounded-md border border-solid border-border-muted bg-secondary py-1 font-mono text-code"
+                        data-testid="change-diff-full"
+                    >
+                        <DiffRows rows={rows.full} />
+                    </div>
+                </PhoneDetailScreen>
+            ) : null}
+        </div>
+    )
+}
+
+const ValueChange = ({detail}: {detail: Extract<ApprovalChangeDetail, {kind: "value_change"}>}) => (
+    <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 text-meta">
+        {detail.label ? <span className="text-muted-foreground">{detail.label}</span> : null}
+        {detail.old !== undefined ? (
+            <span
+                className="whitespace-pre-wrap break-all font-mono text-destructive line-through"
+                data-testid="change-old"
+            >
+                {detail.old}
+            </span>
+        ) : null}
+        {detail.old !== undefined && detail.new !== undefined ? (
+            <ArrowRight
+                size={12}
+                aria-hidden
+                className="shrink-0 self-center text-muted-foreground"
+            />
+        ) : null}
+        {detail.new !== undefined ? (
+            <span
+                className="whitespace-pre-wrap break-all font-mono text-success"
+                data-testid="change-new"
+            >
+                {detail.new}
+            </span>
+        ) : null}
+    </div>
+)
+
+const Item = ({
+    detail,
+    section,
+}: {
+    detail: Extract<ApprovalChangeDetail, {kind: "item"}>
+    section: ApprovalChangeSection
+}) => {
+    const t = useT(chatChangeCardCatalog)
+    const added = detail.change === "added"
+    const SectionIcon = SECTION_ICON[section]
+    const note = added ? (detail.address ?? detail.description) : t("chat.changeCard.itemRemoved")
+    return (
+        <div className="flex min-w-0 flex-col gap-1" data-testid={`change-item-${detail.change}`}>
+            <div className="flex min-w-0 items-center gap-2">
+                <span
+                    aria-hidden
+                    className={`flex size-4 shrink-0 items-center justify-center rounded ${
+                        added ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
+                    }`}
+                >
+                    {added ? <Plus size={11} weight="bold" /> : <X size={11} weight="bold" />}
+                </span>
+                <SectionIcon size={14} aria-hidden className="shrink-0 text-muted-foreground" />
+                <span className="truncate text-label font-medium text-foreground">
+                    {detail.name}
+                </span>
+                {note ? (
+                    <span
+                        className="min-w-0 flex-1 truncate text-meta text-muted-foreground"
+                        title={note}
+                    >
+                        {note}
+                    </span>
+                ) : null}
+            </div>
+            {added && detail.address && detail.description ? (
+                <span className="pl-12 text-meta text-muted-foreground">{detail.description}</span>
+            ) : null}
+            {added && detail.files?.length ? (
+                <div className="flex flex-col gap-0.5 pl-12 text-meta">
+                    {detail.files.map((file) => (
+                        <span key={file.path} className="flex flex-wrap items-baseline gap-x-2">
+                            <span className="font-mono text-foreground">{file.path}</span>
+                            {file.executable ? (
+                                <span className="text-muted-foreground">
+                                    {t("chat.changeCard.canRun")}
+                                </span>
+                            ) : null}
+                        </span>
+                    ))}
+                </div>
+            ) : null}
+        </div>
+    )
+}
+
+const Detail = ({
+    detail,
+    section,
+    screenTitle,
+    bleed,
+}: {
+    detail: ApprovalChangeDetail
+    section: ApprovalChangeSection
+    /** The title of the change's full screen detail on a phone. */
+    screenTitle: string
+    bleed: boolean
+}) => {
+    switch (detail.kind) {
+        case "text_diff":
+            return <TextDiff detail={detail} screenTitle={screenTitle} bleed={bleed} />
+        case "value_change":
+            return (
+                <div className={bleed ? `${CARD_INSET} py-1.5` : ""}>
+                    <ValueChange detail={detail} />
+                </div>
+            )
+        case "item":
+            return (
+                <div className={bleed ? `${CARD_INSET} py-1.5` : ""}>
+                    <Item detail={detail} section={section} />
+                </div>
+            )
+        default:
+            return null
+    }
+}
+
+/** The card header: the section's icon, the title and the path joined with "›". */
+const ChangeHeader = ({
+    icon: HeaderIcon,
+    title,
+    path,
+    small = false,
+}: {
+    icon: Icon
+    title: string
+    path?: string[]
+    small?: boolean
+}) => {
+    const joined = path?.join(" › ") ?? ""
+    return (
+        <div className="flex min-w-0 items-center gap-2">
+            <span
+                aria-hidden
+                className={`flex shrink-0 items-center justify-center bg-secondary text-muted-foreground ${
+                    small ? "size-5 rounded-sm" : "size-6 rounded-md"
+                }`}
+            >
+                <HeaderIcon size={small ? 12 : 14} />
+            </span>
+            <div className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-label font-semibold text-foreground">{title}</span>
+                {joined ? (
+                    <span
+                        // 12 / 16, the canvas's secondary line.
+                        className="truncate text-meta text-muted-foreground"
+                        title={joined}
+                        data-testid="change-path"
+                    >
+                        {joined}
+                    </span>
+                ) : null}
+            </div>
+        </div>
+    )
+}
+
+export const RiskLine = ({children}: {children: ReactNode}) => (
+    <div
+        role="note"
+        className="flex items-start gap-2 rounded-lg bg-warning/10 px-2.5 py-2 text-meta text-warning"
+        data-testid="change-risk"
+    >
+        <Warning size={14} aria-hidden className="mt-px shrink-0" />
+        <span>{children}</span>
+    </div>
+)
+
+/**
+ * A block's label: its path, and the item it adds or removes. A grouped row shows it, and a phone
+ * detail screen of the block takes it as its title.
+ */
+export const blockLabel = (block: ChangeBlock): string => {
+    const item = block.changes.find((change) => change.detail?.kind === "item")?.detail
+    const name = item?.kind === "item" ? item.name : undefined
+    const path =
+        name && block.path[block.path.length - 1] !== name ? [...block.path, name] : block.path
+    return path.join(" › ") || block.title
+}
+
+export const Block = ({
+    block,
+    small,
+    bleed = false,
+}: {
+    block: ChangeBlock
+    small: boolean
+    /**
+     * The block is the whole card (C01): its header has the card's padding, its diff runs from
+     * edge to edge, and its other parts keep the card's inset.
+     */
+    bleed?: boolean
+}) => (
+    <div
+        className={`flex min-w-0 flex-col ${bleed ? "" : "gap-2"} ${
+            block.fails ? "rounded-md border border-solid border-destructive p-2" : ""
+        }`}
+        data-fails={block.fails ? "true" : undefined}
+    >
+        <div className={bleed ? `${CARD_INSET} py-2.5` : ""}>
+            <ChangeHeader
+                icon={SECTION_ICON[block.section]}
+                title={block.title}
+                path={block.path}
+                small={small}
+            />
+        </div>
+        {block.changes.map((change, index) =>
+            change.detail ? (
+                <Detail
+                    key={index}
+                    detail={change.detail}
+                    section={change.section}
+                    screenTitle={blockLabel(block)}
+                    bleed={bleed}
+                />
+            ) : null,
+        )}
+        {block.risks.map((risk) => (
+            <div key={risk.message} className={bleed ? "mx-3 mb-2.5 mt-1.5" : ""}>
+                <RiskLine>{risk.message}</RiskLine>
+            </div>
+        ))}
+    </div>
+)
+
+/** Whether the card's main button removes: every change of it takes an item away. */
+export const removesOnly = (changes: ApprovalChange[]): boolean =>
+    changes.length > 0 &&
+    changes.every((change) => change.detail?.kind === "item" && change.detail.change === "removed")
+
+export const ChangeSections = ({
+    changes,
+    proposedValues,
+    cannotApply,
+    agentName,
+    header,
+    sentence,
+}: {
+    changes: ApprovalChange[]
+    proposedValues?: boolean
+    cannotApply?: boolean
+    /** The name of the agent the changes are for, for the header of a card with several. */
+    agentName?: string
+    /** The card's own header (`create_agent`); the changes then show under it. */
+    header?: {title: string; path: string[]}
+    /** The sentence a card with its own header shows as its detail. */
+    sentence?: string
+}) => {
+    const t = useT(chatChangeCardCatalog)
+    const blocks = groupChanges(changes)
+    // One block is the card: its header is the card's header. Its path starts at the section, as
+    // the C01 and M05 frames draw it.
+    const single = !header && blocks.length === 1
+    const cardHeader = header ? (
+        <ChangeHeader icon={Sparkle} title={header.title} path={header.path} />
+    ) : !single && blocks.length > 1 && agentName ? (
+        <ChangeHeader
+            icon={Sparkle}
+            title={t("chat.changeCard.changesTo", {count: blocks.length, agent: agentName})}
+        />
+    ) : null
+    // One block draws the C01 card: header, a diff band from edge to edge, the rest inset. Any
+    // other card keeps its parts inside the card's inset.
+    const notes = (
+        <>
+            {proposedValues ? (
+                <p className="m-0 text-meta text-muted-foreground" data-testid="change-proposed">
+                    {t("chat.changeCard.proposedValues")}
+                </p>
+            ) : null}
+            {cannotApply ? (
+                <p className="m-0 text-meta text-destructive" data-testid="change-cannot-apply">
+                    {t("chat.changeCard.cannotApply")}
+                </p>
+            ) : null}
+        </>
+    )
+    if (single) {
+        return (
+            <div className="flex min-w-0 flex-col" data-testid="change-sections">
+                <div className="flex max-h-105 min-w-0 flex-col overflow-y-auto">
+                    <Block block={blocks[0]} small={false} bleed />
+                </div>
+                {proposedValues || cannotApply ? (
+                    <div className={`flex flex-col gap-1 ${CARD_INSET} py-2`}>{notes}</div>
+                ) : null}
+            </div>
+        )
+    }
+    return (
+        <div
+            className={`flex min-w-0 flex-col gap-3 ${CARD_INSET} pb-3 pt-2.5`}
+            data-testid="change-sections"
+        >
+            {cardHeader}
+            {header && sentence ? (
+                <p className="m-0 text-label leading-relaxed text-muted-foreground">{sentence}</p>
+            ) : null}
+            {notes}
+            {blocks.length ? (
+                <div className="flex max-h-105 min-w-0 flex-col gap-3 overflow-y-auto">
+                    {blocks.map((block, index) => (
+                        <Block key={`${block.path.join("›")}-${index}`} block={block} small />
+                    ))}
+                </div>
+            ) : null}
+        </div>
+    )
+}

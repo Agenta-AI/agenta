@@ -40,24 +40,32 @@ import {useDriveTreeKeyboard} from "@agenta/entities/drive"
 import {useDriveTreePane} from "@agenta/entities/drive"
 import {useDriveTreeReveal} from "@agenta/entities/drive"
 import {useDriveTreeViewport} from "@agenta/entities/drive"
-import {useDriveUploads} from "@agenta/entities/drive"
+import {canWriteAt, useDriveUploads} from "@agenta/entities/drive"
 import {type SessionDriveData} from "@agenta/entities/drive"
 import {useTreeGroupScroll} from "@agenta/entities/drive"
 import {TREE_WIDTH_COMPACT} from "@agenta/entities/drive"
 import {type MountFile} from "@agenta/entities/session"
+import {useT} from "@agenta/i18n"
+import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
+import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {projectIdAtom} from "@agenta/shared/state"
 import {InputAffix as Input} from "@agenta/ui/ui"
 import {MagnifyingGlass} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
-import {driveRootLabel} from "./DriveBreadcrumb"
+import {DriveBreadcrumb, driveRootLabel} from "./DriveBreadcrumb"
 import {DriveEditorSkeleton} from "./DriveEditorFrame"
 import {DriveExplorerSkeleton} from "./DriveExplorerSkeleton"
 import {DriveEmptyState, DriveErrorState} from "./DriveExplorerStates"
 import {DriveFilePreview} from "./DriveFilePreview"
 import {type DriveFolderMenuProps} from "./DriveFolderMenu"
-import {DriveHeader} from "./DriveHeader"
+import {
+    DriveHeader,
+    DriveHeaderMenuItems,
+    type DriveHeaderProps,
+    DrivePartialError,
+} from "./DriveHeader"
 import {
     type DriveItemWriteActions,
     useCopyDrivePath,
@@ -97,8 +105,8 @@ const CODE_EDIT_KINDS = new Set<DriveFileKind>(["code", "json", "html"])
 const PROSE_KINDS = new Set<DriveFileKind>(["markdown", "text"])
 
 const noop = () => undefined
-/** The rail's static root row. */
-const ROOT_NODE = {name: "All files", path: "", isFolder: true, children: []}
+/** The rail's static root row; its name is translated where it renders. */
+const ROOT_NODE = {name: "", path: "", isFolder: true, children: []}
 
 /**
  * The browsing body — loading/empty/error states + the two-pane search/tree/preview. Owns its
@@ -125,6 +133,8 @@ export function DriveExplorer({
     initialShowTree = true,
     treePersistKey,
     closeVariant = "close",
+    readOnly = false,
+    touch = false,
 }: {
     drive: SessionDriveData
     /** Render this flat list instead of the mount's lazy-loaded tree — the local-file mode used to
@@ -159,8 +169,13 @@ export function DriveExplorer({
     initialShowTree?: boolean
     /** Remember the tree's shown/hidden state and width across opens under this key. */
     treePersistKey?: string
-    closeVariant?: "close" | "collapse" | "back"
+    closeVariant?: "close" | "collapse" | "panel"
+    /** Open and download only: no upload, drop, paste, new item, rename, delete or edit (a phone). */
+    readOnly?: boolean
+    /** A touch screen (a phone): the header and the toolbar share one row. */
+    touch?: boolean
 }) {
+    const t = useT(driveExplorerCatalog, driveBrowserCatalog)
     const chrome = chromeProp ?? onClose != null
     const rootLabel = driveRootLabel(drive.mount)
     const {
@@ -223,7 +238,7 @@ export function DriveExplorer({
     const revealUpload = useRef<(path: string) => void>(() => undefined)
     const onUploaded = useCallback((path: string) => revealUpload.current(path), [])
     const {
-        canUpload,
+        canUpload: uploadsAllowed,
         uploadInputRef,
         uploadFiles,
         pendingUploadByPath,
@@ -235,6 +250,8 @@ export function DriveExplorer({
         retryUpload,
         dismissUpload,
     } = useDriveUploads({drive, explicitFiles, select, stagedFiles, onStagedChange, onUploaded})
+    // Every write below (upload, drop, paste, new item, rename, delete, edit) shares this gate.
+    const canUpload = uploadsAllowed && !readOnly
 
     const {
         lazyTree,
@@ -320,8 +337,8 @@ export function DriveExplorer({
     const selectedMountPath = selectedResolved?.path ?? selectedPath ?? ""
     const selectedFileSize = selected?.size ?? selectedNode?.size ?? undefined
 
-    // Writes share the upload gate: a writable, real mount.
-    const canWrite = canUpload
+    // Writes share the upload gate, judged at the destination: a mount backs it, not a read drive.
+    const canWrite = canUpload && canWriteAt(drive, currentFolder)
     // The pane's own box: confirms render inside it, not over the whole window.
     const paneRef = useRef<HTMLDivElement>(null)
     const getPane = useCallback(() => paneRef.current, [])
@@ -349,7 +366,7 @@ export function DriveExplorer({
     )
     useDrivePasteUpload({
         paneRef,
-        enabled: chrome && canUpload,
+        enabled: chrome && canWrite,
         onFiles: onPasteFiles,
         isNameTaken,
     })
@@ -366,6 +383,8 @@ export function DriveExplorer({
         /** A folder created a moment ago and still empty: renamed by create + delete. */
         fresh?: boolean
     } | null>(null)
+    // An open name editor closes when the explorer turns read only (the window became a phone).
+    if (readOnly && nameEdit) setNameEdit(null)
     // New folder / New file: created at once under an untitled name, then named in place.
     const startNew = useCallback(
         async (kind: "folder" | "file", folder: string) => {
@@ -394,9 +413,14 @@ export function DriveExplorer({
     // Row 2's slot for a running app's controls.
     const [appControlsEl, setAppControlsEl] = useState<HTMLDivElement | null>(null)
     // An app's access sheet stays inside this pane, so the chat beside it stays usable.
+    // Read only: a running app gets no write access, and its access menu offers none.
     const sheetHtmlAppEnv = useMemo(
-        () => ({...htmlAppEnv, sheetContainer: getPane}),
-        [htmlAppEnv, getPane],
+        () => ({
+            ...htmlAppEnv,
+            sheetContainer: getPane,
+            ...(readOnly ? {canEditMounts: false} : {}),
+        }),
+        [htmlAppEnv, getPane, readOnly],
     )
     // The app whose code is on screen; every other app opens running.
     const [htmlCodePath, setHtmlCodePath] = useState<string | null>(null)
@@ -432,7 +456,7 @@ export function DriveExplorer({
     // On the open file a rename flushes the draft first; a delete forgets it.
     const commitName = useCallback(
         async (name: string): Promise<boolean> => {
-            if (!nameEdit) return false
+            if (!nameEdit || readOnly) return false
             const {path, fresh} = nameEdit
             if (editing && path === selectedPath) await saveDraft()
             const ok = await (fresh
@@ -443,15 +467,16 @@ export function DriveExplorer({
             setNameEdit(null)
             return true
         },
-        [nameEdit, writes, editing, selectedPath, saveDraft, replaceSelection],
+        [nameEdit, readOnly, writes, editing, selectedPath, saveDraft, replaceSelection],
     )
     const startRename = useCallback(
         (path: string) => {
+            if (!writes.canChange(path)) return
             const folder = parentOf(path)
             if (selectedPath !== folder) select(folder)
             setNameEdit({path, kind: nodeByPath.get(path)?.isFolder ? "folder" : "file"})
         },
-        [selectedPath, select, nodeByPath],
+        [writes, selectedPath, select, nodeByPath],
     )
     const nameEditView = useMemo<DriveNameEdit | null>(() => {
         if (!nameEdit) return null
@@ -468,7 +493,7 @@ export function DriveExplorer({
     }, [nameEdit, siblingsOf, commitName])
     const onDelete = useCallback(
         async (path: string, isFolder: boolean) => {
-            if (!writes.canDelete(path)) return
+            if (!writes.canChange(path)) return
             const node = nodeByPath.get(path)
             const under =
                 selectedPath != null &&
@@ -481,15 +506,17 @@ export function DriveExplorer({
         },
         [writes, nodeByPath, selectedPath, editing, discardDraft, select],
     )
+    // Each item's menu asks for its own path: a read drive's items offer no write verb.
     const itemWrites = useMemo<DriveItemWriteActions | undefined>(
         () =>
-            canWrite
+            canUpload
                 ? {
+                      canChange: writes.canChange,
                       onRename: startRename,
                       onDelete: (path, isFolder) => void onDelete(path, isFolder),
                   }
                 : undefined,
-        [canWrite, startRename, onDelete],
+        [canUpload, writes.canChange, startRename, onDelete],
     )
     const fileActions = useMemo<DriveFileActions | undefined>(
         () =>
@@ -565,7 +592,9 @@ export function DriveExplorer({
     )
 
     // Row 2's read-side actions: copy path (none at the root), download (file, folder zip, or all).
-    const onCopyCurrentPath = selectedPath ? () => copyText(selectedPath, "Path copied") : undefined
+    const onCopyCurrentPath = selectedPath
+        ? () => copyText(selectedPath, t("entityUi.driveExplorer.pathCopied"))
+        : undefined
     const copyLink = useContext(DriveLinkContext)
     const onCopyCurrentLink =
         copyLink && selectedPath != null
@@ -582,6 +611,42 @@ export function DriveExplorer({
     // erroring while the session's own files loaded (or vice-versa) — still has a tree to browse, so
     // it falls through and renders the tree; its retry rides row 1 (see DriveHeader's
     // `partialErrored` slot), NOT a new banner row that would shove the content down.
+    // Row 1 of the pane. On a phone, a folder or a file draws it inside its toolbar row (one row).
+    const headerProps: DriveHeaderProps = {
+        selectedPath,
+        isFolder: selectedIsFolder,
+        rootLabel,
+        onNavigate: select,
+        canGoBack,
+        canGoForward,
+        onBack: goBack,
+        onForward: goForward,
+        copyText,
+        ids: driveIds ?? [],
+        showOrigin,
+        showTemporary,
+        onToggleTemporary: () => setShowTemporary((v) => !v),
+        showHidden,
+        onToggleHidden: toggleShowHiddenPref,
+        inGitScope,
+        showGitignored,
+        onToggleGitignored: toggleShowGitignoredPref,
+        treeVisible,
+        onToggleTree: toggleTree,
+        onClose,
+        closeVariant,
+        expanded: drawerExpanded,
+        onToggleExpand,
+        expandPlacement,
+        partialErrored: drive.partialErrored,
+        onRetry: drive.retry,
+        retrying: drive.isFetching,
+    }
+    // The preview's comment mode, keyed by the open file; the toolbar's Comment toggle shares it.
+    const commentKey = selectedPath == null ? null : `${selectedMount?.id ?? ""}:${selectedPath}`
+    let headerInToolbar = false
+    // On a phone the one row spans the tree and the content, as row 1 does elsewhere.
+    let phoneRow: ReactNode = null
     let body: ReactNode
     if (drive.errored && drive.fileCount === 0) {
         body = <DriveErrorState drive={drive} />
@@ -590,14 +655,18 @@ export function DriveExplorer({
         // Nothing is loaded yet, so the name is all we have to go on.
         const target = initialPath ?? persistedSelection
         const isFilePreview = target ? looksLikeFilePath(target) : false
+        // A phone's loaded view draws one row for rows 1 and 2; its skeleton draws that row too.
+        headerInToolbar = Boolean(touch && chrome && !onClose)
         body = (
             <DriveExplorerSkeleton
-                mode={isFilePreview ? "preview" : "grid"}
+                mode={isFilePreview ? "preview" : view}
                 showTree={treeVisible}
                 mirrored={mirrored}
+                withChrome={headerInToolbar}
+                phone={headerInToolbar}
             />
         )
-    } else if (drive.fileCount === 0) {
+    } else if (drive.fileCount === 0 && !drive.otherDrives?.length) {
         body = <DriveEmptyState scope={scope} />
     } else {
         // The folder's verbs — row 2's ⋯ and the blank-space right-click menu share them.
@@ -616,9 +685,32 @@ export function DriveExplorer({
                       onCopyLink: onCopyCurrentLink,
                       onDownloadAll: onDownloadCurrent,
                       downloadingAll,
+                      readOnly,
                   }
                 : undefined
 
+        // A host whose close lives in row 1 keeps row 1: the one row has no close. A file open
+        // in an editor keeps its two rows: row 2 carries its formatting bar, save status and Retry.
+        headerInToolbar = Boolean(
+            touch && chrome && !onClose && !editableMarkdown && !editableCode && !tooLargeToEdit,
+        )
+        const phoneRowParts = headerInToolbar
+            ? {
+                  crumb: (
+                      <>
+                          <DriveBreadcrumb
+                              variant="icons"
+                              shown={selectedPath ?? ""}
+                              rootLabel={rootLabel}
+                              isFile={!selectedIsFolder}
+                              onNavigate={select}
+                          />
+                          <DrivePartialError {...headerProps} />
+                      </>
+                  ),
+                  menu: <DriveHeaderMenuItems {...headerProps} />,
+              }
+            : undefined
         // Row 2 follows the selection.
         const contentHeader = !chrome ? null : selectedIsFolder ? (
             <DriveToolbar
@@ -628,6 +720,7 @@ export function DriveExplorer({
                 sort={sort}
                 setSort={setSort}
                 {...folderMenu}
+                phone={phoneRowParts}
             />
         ) : editableMarkdown ? (
             <DriveToolbar
@@ -649,7 +742,7 @@ export function DriveExplorer({
                 path={selectedPath ?? ""}
                 actions={fileActions}
                 draft={editableCode ? {status: editor.status, onRetry: onSave} : undefined}
-                note={tooLargeToEdit ? "Read-only · too large to edit here" : undefined}
+                note={tooLargeToEdit ? t("entityUi.driveBrowser.readOnlyTooLarge") : undefined}
                 appView={
                     htmlApp
                         ? {
@@ -664,14 +757,19 @@ export function DriveExplorer({
                 onCopyPath={onCopyCurrentPath}
                 onCopyLink={onCopyCurrentLink}
                 onDownload={onDownloadCurrent}
+                readOnly={readOnly}
+                phone={phoneRowParts}
             />
         )
+
+        if (headerInToolbar) phoneRow = contentHeader
+        const shownContentHeader = headerInToolbar ? null : contentHeader
 
         // The content column: the folder's children, an editor, or a preview.
         const contentPane =
             selectedPath == null ? (
-                <div className="flex h-full flex-1 items-center justify-center text-xs text-colorTextTertiary">
-                    Select a file to preview it.
+                <div className="flex h-full flex-1 items-center justify-center text-body text-muted-foreground">
+                    {t("entityUi.driveBrowser.selectFileToPreview")}
                 </div>
             ) : selectedIsFolder ? (
                 <FolderView
@@ -754,6 +852,7 @@ export function DriveExplorer({
                     path={selectedMountPath}
                     displayPath={selectedPath}
                     showOrigin={showOrigin}
+                    otherDrives={drive.otherDrives}
                     rootLabel={rootLabel}
                     touchedAt={selected?.touchedAt}
                     size={selectedFileSize}
@@ -763,80 +862,75 @@ export function DriveExplorer({
                 />
             )
         body = (
-            <PreviewCommentModeProvider
-                fileKey={selectedPath == null ? null : `${selectedMount?.id ?? ""}:${selectedPath}`}
-            >
-                <DriveTreePane
-                    pane={pane}
-                    mirrored={mirrored}
-                    treeScrollRef={treeScrollRef}
-                    onTreeKeyDown={onTreeKeyDown}
-                    treeDropProps={canUpload ? drop.containerDropProps(currentFolder) : undefined}
-                    contentHeader={contentHeader}
-                    railHeader={
-                        chrome ? (
-                            <Input
-                                allowClear
-                                size="sm"
-                                value={search}
-                                onValueChange={setSearch}
-                                placeholder="Search files"
-                                className="w-full"
-                                prefix={
-                                    <MagnifyingGlass
-                                        size={12}
-                                        className="text-colorTextQuaternary"
-                                    />
-                                }
-                            />
-                        ) : null
-                    }
-                    rows={
-                        <DriveTreeList
-                            flatRows={flatRows}
-                            searchLoading={lazyTree.searchLoading}
-                            treeVirtualizer={treeVirtualizer}
-                            measureRow={measureRow}
-                            justLoadedDirs={justLoadedDirs}
-                            firstEverPaths={firstEverPaths}
-                            shownExpanded={shownExpanded}
-                            selectedPath={selectedPath}
-                            showOrigin={showOrigin}
-                            isDirLoading={isDirLoading}
-                            scrollXFor={scrollXFor}
-                            onMeasureContent={onMeasureContent}
-                            canUpload={canUpload}
-                            drop={drop}
-                            pendingUploadByPath={pendingUploadByPath}
-                            onRetryUpload={retryUpload}
-                            onDismissUpload={dismissUpload}
-                            setExpanded={setExpanded}
-                            select={select}
-                            copyPath={copyPath}
-                            download={download}
-                            writes={itemWrites}
-                            depthOffset={chrome && !searchActive ? 1 : 0}
-                            rootRow={
-                                chrome && !searchActive ? (
-                                    <TreeRow
-                                        node={ROOT_NODE}
-                                        depth={0}
-                                        isOpen
-                                        selected={selectedPath === ""}
-                                        parent=""
-                                        scrollX={0}
-                                        onMeasureContent={noop}
-                                        onToggle={noop}
-                                        onSelect={select}
-                                    />
-                                ) : null
-                            }
+            <DriveTreePane
+                pane={pane}
+                mirrored={mirrored}
+                treeScrollRef={treeScrollRef}
+                onTreeKeyDown={onTreeKeyDown}
+                treeDropProps={canUpload ? drop.containerDropProps(currentFolder) : undefined}
+                contentHeader={shownContentHeader}
+                railHeader={
+                    chrome ? (
+                        <Input
+                            allowClear
+                            size="sm"
+                            value={search}
+                            onValueChange={setSearch}
+                            placeholder={t("entityUi.driveBrowser.searchFiles")}
+                            className="w-full"
+                            prefix={<MagnifyingGlass size={12} className="text-muted-foreground" />}
                         />
-                    }
-                >
-                    {contentPane}
-                </DriveTreePane>
-            </PreviewCommentModeProvider>
+                    ) : null
+                }
+                rows={
+                    <DriveTreeList
+                        flatRows={flatRows}
+                        searchLoading={lazyTree.searchLoading}
+                        treeVirtualizer={treeVirtualizer}
+                        measureRow={measureRow}
+                        justLoadedDirs={justLoadedDirs}
+                        firstEverPaths={firstEverPaths}
+                        shownExpanded={shownExpanded}
+                        selectedPath={selectedPath}
+                        showOrigin={showOrigin}
+                        otherDrives={drive.otherDrives}
+                        isDirLoading={isDirLoading}
+                        scrollXFor={scrollXFor}
+                        onMeasureContent={onMeasureContent}
+                        canUpload={canUpload}
+                        drop={drop}
+                        pendingUploadByPath={pendingUploadByPath}
+                        onRetryUpload={retryUpload}
+                        onDismissUpload={dismissUpload}
+                        setExpanded={setExpanded}
+                        select={select}
+                        copyPath={copyPath}
+                        download={download}
+                        writes={itemWrites}
+                        depthOffset={chrome && !searchActive ? 1 : 0}
+                        rootRow={
+                            chrome && !searchActive ? (
+                                <TreeRow
+                                    node={{
+                                        ...ROOT_NODE,
+                                        name: t("entityUi.driveExplorer.allFiles"),
+                                    }}
+                                    depth={0}
+                                    isOpen
+                                    selected={selectedPath === ""}
+                                    parent=""
+                                    scrollX={0}
+                                    onMeasureContent={noop}
+                                    onToggle={noop}
+                                    onSelect={select}
+                                />
+                            ) : null
+                        }
+                    />
+                }
+            >
+                {contentPane}
+            </DriveTreePane>
         )
     }
     // The lazy per-directory subscribers render alongside EVERY branch (skeleton/empty/tree) so the
@@ -846,36 +940,7 @@ export function DriveExplorer({
             {lazyTree.subscribers}
             {chrome ? (
                 <div ref={paneRef} className="relative flex h-full min-h-0 w-full flex-col">
-                    <DriveHeader
-                        selectedPath={selectedPath}
-                        isFolder={selectedIsFolder}
-                        rootLabel={rootLabel}
-                        onNavigate={select}
-                        canGoBack={canGoBack}
-                        canGoForward={canGoForward}
-                        onBack={goBack}
-                        onForward={goForward}
-                        copyText={copyText}
-                        ids={driveIds ?? []}
-                        showOrigin={showOrigin}
-                        showTemporary={showTemporary}
-                        onToggleTemporary={() => setShowTemporary((v) => !v)}
-                        showHidden={showHidden}
-                        onToggleHidden={toggleShowHiddenPref}
-                        inGitScope={inGitScope}
-                        showGitignored={showGitignored}
-                        onToggleGitignored={toggleShowGitignoredPref}
-                        treeVisible={treeVisible}
-                        onToggleTree={toggleTree}
-                        onClose={onClose}
-                        closeVariant={closeVariant}
-                        expanded={drawerExpanded}
-                        onToggleExpand={onToggleExpand}
-                        expandPlacement={expandPlacement}
-                        partialErrored={drive.partialErrored}
-                        onRetry={drive.retry}
-                        retrying={drive.isFetching}
-                    />
+                    {headerInToolbar ? null : <DriveHeader {...headerProps} />}
                     <input
                         ref={uploadInputRef}
                         type="file"
@@ -895,12 +960,18 @@ export function DriveExplorer({
                         }}
                     />
                     <div className="flex min-h-0 flex-1 flex-col" onKeyDown={onNavKeyDown}>
-                        {body}
+                        {/* Inside the key handler: Back and history keys work from the row too.
+                            The phone row holds the Comment toggle, so it shares the preview's
+                            comment mode. */}
+                        <PreviewCommentModeProvider fileKey={commentKey}>
+                            {phoneRow}
+                            {body}
+                        </PreviewCommentModeProvider>
                     </div>
                     {appAccess.dialog}
                 </div>
             ) : (
-                body
+                <PreviewCommentModeProvider fileKey={commentKey}>{body}</PreviewCommentModeProvider>
             )}
         </>
     )

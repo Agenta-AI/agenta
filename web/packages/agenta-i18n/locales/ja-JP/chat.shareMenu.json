@@ -1,0 +1,9 @@
+{
+    "agent": "エージェント",
+    "downloadZip": "再利用するために .zip をダウンロード",
+    "letOtherTeams": "他のチームがこれをもとに始められるようにします",
+    "publish": "公開",
+    "saveAsTemplate": "テンプレートとして保存",
+    "shareInMarketplace": "マーケットプレイスで共有",
+    "templates": "テンプレート"
+}

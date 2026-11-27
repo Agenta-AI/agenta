@@ -5,18 +5,19 @@
  * function tool's JSON-Schema `parameters`. `+ Add` (header) appends a root property; object nodes
  * expand to their child properties with a `+ Add property` affordance; array-of-object nodes recurse
  * through an `items` group; scalar arrays show a muted `items: <type>` leaf. The active row is
- * primary-tinted and each row hover-reveals a remove affordance (shared `RowRemoveButton`).
+ * primary-tinted and each row hover-reveals a remove affordance (shared `RowRemoveAction`).
  *
  * Pure presentation over the schema — all mutation is delegated to the host via callbacks; expansion
  * is the only local state (auto-opened along the selected path). Dark-safe (`--ag-color*` tokens).
  */
 import {useEffect, useMemo, useState} from "react"
 
-import {Button} from "@agenta/ui/ui"
+import {useT} from "@agenta/i18n"
+import parameterEditorCatalog from "@agenta/i18n/catalogs/entityUi.parameterEditor"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {CaretDown, CaretRight, Plus, Wrench} from "@phosphor-icons/react"
 
-import {RowRemoveButton} from "../../../drawers/shared/RowRemoveButton"
-
+import {RowRemoveAction} from "./RowRemoveAction"
 import {
     defType,
     getProps,
@@ -47,7 +48,7 @@ export interface ParameterTreeProps {
     disabled?: boolean
 }
 
-const TYPE_TINT = "text-[var(--ag-colorTextTertiary)]"
+const TYPE_TINT = "text-muted-foreground"
 
 // The nested object a node expands into: an object's own props, or an array-of-object's items.
 function expandableChild(def: Schema): Schema | null {
@@ -65,12 +66,10 @@ function typeLabel(def: Schema): string {
 
 function LeadingGlyph({type}: {type: string}) {
     if (type === "array") {
-        return <span className={`font-mono text-xs ${TYPE_TINT}`}>[ ]</span>
+        return <span className={` text-code-sm ${TYPE_TINT}`}>[ ]</span>
     }
     // Scalar: a small hollow dot.
-    return (
-        <span className="h-1.5 w-1.5 rounded-full border border-solid border-[var(--ag-colorTextQuaternary)]" />
-    )
+    return <span className="h-1.5 w-1.5 rounded-round border border-solid border-border-strong" />
 }
 
 function AddPropertyRow({
@@ -87,7 +86,7 @@ function AddPropertyRow({
             type="button"
             onClick={onClick}
             disabled={disabled}
-            className="flex w-full cursor-pointer appearance-none items-center gap-1 rounded border-0 bg-transparent px-2 py-1 text-left text-xs text-[var(--ag-colorPrimary)] hover:bg-[var(--ag-colorFillTertiary)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex w-full cursor-pointer appearance-none items-center gap-1 rounded border-0 bg-transparent px-2 py-1 text-left text-label text-primary hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
         >
             <Plus size={12} />
             {label}
@@ -120,21 +119,26 @@ function TreeRow({
     onRemove: () => void
     disabled?: boolean
 }) {
+    const t = useT(parameterEditorCatalog)
     return (
         <div
             className={`group flex items-center gap-1 rounded px-1.5 py-1 ${
-                active ? "bg-[var(--ag-colorPrimaryBg)]" : "hover:bg-[var(--ag-colorFillTertiary)]"
+                active ? "bg-selected" : "hover:bg-accent"
             }`}
         >
             {expandable ? (
                 <button
                     type="button"
-                    aria-label={expanded ? "Collapse" : "Expand"}
+                    aria-label={
+                        expanded
+                            ? t("entityUi.parameterEditor.collapse")
+                            : t("entityUi.parameterEditor.expand")
+                    }
                     onClick={(e) => {
                         e.stopPropagation()
                         onToggle()
                     }}
-                    className="flex h-4 w-4 shrink-0 cursor-pointer appearance-none items-center justify-center rounded border-0 bg-transparent p-0 text-[var(--ag-colorTextTertiary)] hover:text-[var(--ag-colorText)]"
+                    className="flex h-4 w-4 shrink-0 cursor-pointer appearance-none items-center justify-center rounded border-0 bg-transparent p-0 text-muted-foreground hover:text-foreground"
                 >
                     {expanded ? <CaretDown size={12} /> : <CaretRight size={12} />}
                 </button>
@@ -150,24 +154,27 @@ function TreeRow({
                 className="flex min-w-0 flex-1 cursor-pointer appearance-none items-center gap-2 border-0 bg-transparent p-0 text-left"
             >
                 <span
-                    className={`truncate font-mono text-xs ${
-                        active ? "text-[var(--ag-colorPrimary)]" : "text-[var(--ag-colorText)]"
+                    className={`truncate text-code-sm ${
+                        active ? "text-primary" : "text-foreground"
                     }`}
                 >
                     {name}
                 </span>
                 {required ? (
-                    <span
-                        className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorError)]"
-                        title="Required"
-                    />
+                    <SimpleTooltip title={t("entityUi.parameterEditor.required")}>
+                        <span
+                            role="img"
+                            aria-label={t("entityUi.parameterEditor.required")}
+                            className="size-1.5 shrink-0 rounded-round bg-destructive"
+                        />
+                    </SimpleTooltip>
                 ) : null}
-                <span className={`ml-auto shrink-0 pl-2 text-xs ${TYPE_TINT}`}>
+                <span className={`ml-auto shrink-0 pl-2 text-meta ${TYPE_TINT}`}>
                     {typeLabel(def)}
                 </span>
             </button>
 
-            {!disabled ? <RowRemoveButton onRemove={onRemove} /> : null}
+            {!disabled ? <RowRemoveAction name={name} onRemove={onRemove} /> : null}
         </div>
     )
 }
@@ -193,6 +200,7 @@ function TreeNodes({
     onRemove: (parentPath: Seg[], key: string) => void
     disabled?: boolean
 }) {
+    const t = useT(parameterEditorCatalog)
     const props = getProps(node)
     const required = getRequired(node)
     const entries = Object.entries(props)
@@ -226,15 +234,15 @@ function TreeNodes({
                         />
 
                         {scalarArray ? (
-                            <div className="ml-3 border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] pl-3">
-                                <span className="block px-1.5 py-1 font-mono text-xs text-[var(--ag-colorTextTertiary)]">
+                            <div className="ml-3 border-0 border-l border-solid border-border-muted pl-3">
+                                <span className="block px-1.5 py-1 text-code-sm text-muted-foreground">
                                     items: {defType(itemsSchema(def))}
                                 </span>
                             </div>
                         ) : null}
 
                         {isExpanded && child ? (
-                            <div className="ml-3 border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] pl-3">
+                            <div className="ml-3 border-0 border-l border-solid border-border-muted pl-3">
                                 <TreeNodes
                                     node={child}
                                     basePath={type === "array" ? [...path, {items: true}] : path}
@@ -248,7 +256,7 @@ function TreeNodes({
                                 />
                                 {!disabled ? (
                                     <AddPropertyRow
-                                        label="Add property"
+                                        label={t("entityUi.parameterEditor.addProperty")}
                                         onClick={() =>
                                             onAddProperty(
                                                 type === "array" ? [...path, {items: true}] : path,
@@ -276,6 +284,7 @@ export function ParameterTree({
     onRemove,
     disabled,
 }: ParameterTreeProps) {
+    const t = useT(parameterEditorCatalog)
     const [expanded, setExpanded] = useState<Set<string>>(new Set())
     const selectedKey = selectedPath ? pathKey(selectedPath) : null
 
@@ -302,41 +311,35 @@ export function ParameterTree({
     const isEmpty = Object.keys(rootProps).length === 0
 
     return (
-        <div className="ag-drawer-rail flex w-[144px] shrink-0 flex-col overflow-hidden border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)] sm:w-[240px]">
+        <div className="ag-drawer-rail flex w-[144px] shrink-0 flex-col overflow-hidden border-0 border-r border-solid border-border-muted sm:w-[240px]">
             {/* Pinned meta row — always reachable so property editing never traps you. */}
-            <div className="shrink-0 border-0 border-b border-solid border-[var(--ag-colorBorderSecondary)] px-2 pb-2 pt-3">
+            <div className="shrink-0 border-0 border-b border-solid border-border-muted px-2 pb-2 pt-3">
                 <button
                     type="button"
                     onClick={onSelectMeta}
                     className={`flex w-full cursor-pointer appearance-none items-center gap-2 rounded border-0 px-1.5 py-1.5 text-left ${
-                        metaSelected
-                            ? "bg-[var(--ag-colorPrimaryBg)]"
-                            : "bg-transparent hover:bg-[var(--ag-colorFillTertiary)]"
+                        metaSelected ? "bg-selected" : "bg-transparent hover:bg-accent"
                     }`}
                 >
                     <Wrench
                         size={14}
                         className={`shrink-0 ${
-                            metaSelected
-                                ? "text-[var(--ag-colorPrimary)]"
-                                : "text-[var(--ag-colorTextSecondary)]"
+                            metaSelected ? "text-primary" : "text-muted-foreground"
                         }`}
                     />
                     <span
-                        className={`truncate text-xs ${
-                            metaSelected
-                                ? "font-medium text-[var(--ag-colorPrimary)]"
-                                : "text-[var(--ag-colorText)]"
+                        className={`truncate text-label ${
+                            metaSelected ? "font-medium text-primary" : "text-foreground"
                         }`}
                     >
-                        Tool details
+                        {t("entityUi.parameterEditor.toolDetails")}
                     </span>
                 </button>
             </div>
 
             <div className="flex shrink-0 items-center justify-between gap-2 px-3 pb-2 pt-3">
-                <span className="text-xs font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                    Parameters
+                <span className="text-meta font-medium text-muted-foreground">
+                    {t("entityUi.parameterEditor.parameters")}
                 </span>
                 <Button
                     variant="link"
@@ -344,16 +347,15 @@ export function ParameterTree({
                     onClick={onAddRoot}
                     disabled={disabled}
                 >
-                    <Plus size={13} />
-                    Add
+                    <Plus size={12} />
+                    {t("entityUi.parameterEditor.add")}
                 </Button>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
                 {isEmpty ? (
-                    <p className="m-0 px-1.5 py-2 text-xs leading-snug text-[var(--ag-colorTextTertiary)]">
-                        No parameters yet. Add the inputs the model provides when it calls this
-                        tool.
+                    <p className="m-0 px-1.5 py-2 text-meta leading-snug text-muted-foreground">
+                        {t("entityUi.parameterEditor.noParameters")}
                     </p>
                 ) : (
                     <TreeNodes

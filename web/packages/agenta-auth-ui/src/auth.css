@@ -1,6 +1,6 @@
 /* Sign-in surface: only what the @agenta/ui primitives and the theme tokens cannot express.
    That is the optional display font, the dotted product panel, the preview mock's palette
-   (mapped onto the --ag-* theme vars), and the design's keyframes. Scoped to .auth-redesign. */
+   (on the theme variables), and the design's keyframes. Scoped to .auth-redesign. */
 
 /* With a deploy-time display font configured, headlines switch to its lighter weight. */
 .auth-headline {
@@ -24,10 +24,10 @@
 .auth-panel {
     position: relative;
     isolation: isolate;
-    background-color: var(--ag-colorBgLayout);
-    background-image: radial-gradient(var(--ag-colorBorder) 1px, transparent 1px);
+    background-color: var(--muted);
+    background-image: radial-gradient(var(--border) 1px, transparent 1px);
     background-size: 20px 20px;
-    box-shadow: 0 0 0 1px var(--ag-colorBorderSecondary);
+    box-shadow: 0 0 0 1px var(--border-muted);
 }
 /* A soft blur only along the panel's edges, where the preview runs off it; the middle stays sharp. */
 .auth-panel::after {
@@ -48,72 +48,53 @@
 /* Product preview: a mock of the app, drawn in the app's own theme colors. */
 .auth-preview-frame {
     box-shadow:
-        0 0 0 1px var(--ag-colorBorderSecondary),
-        var(--ag-boxShadowSecondary);
+        0 0 0 1px var(--border-muted),
+        var(--shadow-overlay);
 }
 .auth-preview {
-    background-color: var(--ag-colorBgContainer);
-    color: var(--ag-colorText);
+    background-color: var(--background);
+    color: var(--foreground);
 }
 .auth-preview-sidebar {
-    background-color: var(--ag-colorBgLayout);
-    border-right: 1px solid var(--ag-colorBorderSecondary);
+    background-color: var(--muted);
+    border-right: 1px solid var(--border-muted);
 }
 .auth-preview-nav-active {
-    background-color: var(--ag-colorBgContainer);
+    background-color: var(--background);
     box-shadow:
-        0 0 0 1px var(--ag-colorBorderSecondary),
-        var(--ag-boxShadowTertiary);
+        0 0 0 1px var(--border-muted),
+        var(--shadow-raised);
 }
 .auth-preview-muted {
-    color: var(--ag-colorTextSecondary);
+    color: var(--muted-foreground);
 }
 .auth-preview-faint {
-    color: var(--ag-colorTextTertiary);
+    color: var(--muted-foreground);
 }
 .auth-preview-ring-dot {
-    box-shadow: inset 0 0 0 1.25px var(--ag-colorTextTertiary);
-}
-.auth-preview-pending {
-    box-shadow: inset 0 0 0 1.25px var(--ag-colorBorder);
-}
-.auth-preview-success {
-    color: var(--ag-colorSuccess);
-}
-.auth-preview-success-bg {
-    background-color: var(--ag-colorSuccess);
-}
-.auth-preview-running-bg {
-    background-color: var(--ag-hero-action-bg);
+    box-shadow: inset 0 0 0 1.25px var(--muted-foreground);
 }
 .auth-preview-cta {
-    background-color: var(--ag-colorBgSpotlight);
-    color: var(--ag-colorTextLightSolid);
+    background-color: var(--foreground);
+    color: var(--background);
 }
-.auth-preview-feature {
-    background-color: var(--ag-colorFillQuaternary);
-    box-shadow: 0 0 0 1px var(--ag-colorBorderSecondary);
+.auth-preview-row {
+    box-shadow: inset 0 0 0 1px var(--border-muted);
 }
-.auth-preview-card,
-.auth-preview-tag {
-    background-color: var(--ag-colorBgContainer);
-    box-shadow: 0 0 0 1px var(--ag-colorBorderSecondary);
-}
-.auth-preview-divider {
-    border-top: 1px solid var(--ag-colorSplit);
-}
-/* App logos keep their brand colors, so their tiles stay white in both themes. */
-.auth-preview-app {
-    display: inline-flex;
-    width: 30px;
-    height: 30px;
-    align-items: center;
-    justify-content: center;
-    border-radius: 8px;
-    background-color: var(--ag-colorWhite);
+.auth-preview-open {
     box-shadow:
-        0 0 0 1px var(--ag-colorBorderSecondary),
-        var(--ag-boxShadowTertiary);
+        inset 0 0 0 1px var(--border-muted),
+        var(--shadow-raised);
+}
+.auth-preview-line {
+    background-color: var(--border-muted);
+}
+.auth-preview-node {
+    background-color: var(--background);
+    box-shadow: inset 0 0 0 1px var(--border-muted);
+}
+.auth-preview-tile {
+    background-color: var(--secondary);
 }
 
 /* ── Motion ──────────────────────────────────────────────────────────────────
@@ -240,12 +221,6 @@
 }
 .auth-otp-pop {
     animation: auth-pop 0.15s ease both;
-}
-.auth-preview-enter {
-    animation: auth-fade-up 0.4s ease both;
-}
-.auth-preview-check {
-    animation: auth-fade-up 0.25s ease both;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -4,6 +4,8 @@
  */
 import {useCallback, useMemo, useRef} from "react"
 
+import {createT} from "@agenta/i18n"
+import chatMessagesCatalog from "@agenta/i18n/catalogs/chat.messages"
 import type {UIMessage} from "ai"
 
 import type {ClientToolOutputHandler} from "../clientTools/ClientToolPart"
@@ -11,6 +13,8 @@ import {getPendingSecretInteractions} from "../clientTools/secretInteractions"
 import type {ClientToolMeta} from "../skin"
 
 import {useSettlingIds} from "./useSettlingIds"
+
+const tNow = createT(chatMessagesCatalog)
 
 export interface UseSecretDockArgs {
     messages: UIMessage[]
@@ -51,7 +55,7 @@ export const useSecretDock = ({
         await dismissAll(
             pendingRef.current,
             () => ({status: "cancelled"}),
-            "The secret request couldn't be dismissed.",
+            tNow("chat.messages.secretDismissFailed"),
         )
     }, [dismissAll])
 

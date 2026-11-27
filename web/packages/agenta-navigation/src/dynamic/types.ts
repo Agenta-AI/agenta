@@ -65,6 +65,15 @@ export interface SidebarEntityGroup {
     agentId?: string
 }
 
+/** A heading's open button: what it reads as, its glyph, and what it does. */
+export interface SidebarGroupEnter {
+    /** Accessible name and tooltip, e.g. "Open Demo shoot". */
+    label: string
+    /** The app's glyph: the mirror of the Back control that leaves the sidebar it opens. */
+    icon: ReactNode
+    onClick: () => void
+}
+
 /** A heading's "+": where it goes, what it reads as, and any extra click work. */
 export interface SidebarGroupAdd {
     /** Followed on a plain click unless `onClick` prevents it; a modified click opens it as is. */
@@ -106,7 +115,7 @@ export interface SidebarEntityConfig<TRef extends SidebarEntityRef = SidebarEnti
     showAllPath?: string
     /** Per-row icon, overriding the shared kind icon — for rows whose state differs from each
      * other (a session's liveness dot, say), where one icon for the whole group says nothing. */
-    getIcon?: (ref: TRef) => ReactElement
+    getIcon?: (ref: TRef) => ReactElement | null
     /** Optional row tooltip for context not shown by the label. */
     getTooltip?: (ref: TRef) => string | undefined
     /** Per-row classes, for state the label cannot carry (an archived session fades). */
@@ -131,6 +140,12 @@ export interface SidebarEntityConfig<TRef extends SidebarEntityRef = SidebarEnti
     /** A heading's "+", or nothing for a heading that gets none. Given the project URL, since
      * the add's own click may need to build a route. */
     groupAdd?: (group: SidebarEntityGroup, projectURL: string) => SidebarGroupAdd | undefined
+    /** A heading's open button, beside the "+", or nothing for a heading that gets none. Given
+     * the project URL, since the click may need to build a route. */
+    groupEnter?: (group: SidebarEntityGroup, projectURL: string) => SidebarGroupEnter | undefined
+    /** How many rows a heading shows at most, or undefined for no cap of its own. The entity's
+     * `maxItems` still bounds the whole list. */
+    groupMaxItems?: (group: SidebarEntityGroup) => number | undefined
     /** `ref.id -> last used, in ms`. Ranked rows lead newest-first; the rest keep source order. */
     ranksAtom?: Atom<ReadonlyMap<string, number>>
 }
@@ -153,7 +168,7 @@ export interface SidebarEntity {
     maxItems: number
     dragZone?: string
     showAllLink?: (projectURL: string) => string
-    getIcon?: (ref: SidebarEntityRef) => ReactElement
+    getIcon?: (ref: SidebarEntityRef) => ReactElement | null
     getTooltip?: (ref: SidebarEntityRef) => string | undefined
     getRowClassName?: (ref: SidebarEntityRef) => string | undefined
     getOnClick?: (ref: SidebarEntityRef) => () => void
@@ -168,4 +183,6 @@ export interface SidebarEntity {
     }>
     toggleGroupAtom?: WritableAtom<string[], [string], void>
     groupAddLink?: (group: SidebarEntityGroup, projectURL: string) => SidebarGroupAdd | undefined
+    groupEnter?: (group: SidebarEntityGroup, projectURL: string) => SidebarGroupEnter | undefined
+    groupMaxItems?: (group: SidebarEntityGroup) => number | undefined
 }

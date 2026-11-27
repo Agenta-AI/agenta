@@ -16,6 +16,8 @@
 import {memo, useMemo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
+import {useT} from "@agenta/i18n"
+import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {formatLabel} from "@agenta/ui/drill-in"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import clsx from "clsx"
@@ -104,6 +106,7 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
     onPropertyChange,
     SchemaPropertyRenderer,
 }: ObjectSchemaControlProps) {
+    const t = useT(schemaControlsCatalog)
     // Get description from schema or prop
     const tooltipText = description ?? (schema?.description as string | undefined) ?? ""
 
@@ -143,8 +146,12 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
     if (!schema?.properties || propertyKeys.length === 0) {
         return (
             <div className={clsx("flex flex-col gap-1", className)}>
-                {showHeader && <span className="text-sm font-medium text-colorText">{label}</span>}
-                <span className="text-xs text-colorTextDescription">No properties defined</span>
+                {showHeader && (
+                    <span className="text-label font-medium text-foreground">{label}</span>
+                )}
+                <span className="text-meta text-muted-foreground">
+                    {t("entityUi.schemaControls.noProperties")}
+                </span>
             </div>
         )
     }
@@ -153,12 +160,14 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
     if (specialType === "tool_configuration") {
         return (
             <div className={clsx("flex flex-col gap-2", className)}>
-                {showHeader && <span className="text-sm font-medium text-colorText">{label}</span>}
-                <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
-                    <span className="text-xs text-colorTextDescription">
-                        Tool Configuration (JSON Editor)
+                {showHeader && (
+                    <span className="text-label font-medium text-foreground">{label}</span>
+                )}
+                <div className="bg-muted p-3 rounded-md border border-border">
+                    <span className="text-meta text-muted-foreground">
+                        {t("entityUi.schemaControls.toolConfigurationJson")}
                     </span>
-                    <pre className="text-xs mt-2 overflow-auto max-h-[200px]">
+                    <pre className="text-meta mt-2 overflow-auto max-h-50">
                         {JSON.stringify(value, null, 2)}
                     </pre>
                 </div>
@@ -170,8 +179,10 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
     if (!SchemaPropertyRenderer) {
         return (
             <div className={clsx("flex flex-col gap-2", className)}>
-                {showHeader && <span className="text-sm font-medium text-colorText">{label}</span>}
-                <pre className="text-xs bg-gray-50 p-2 rounded overflow-auto max-h-[200px]">
+                {showHeader && (
+                    <span className="text-label font-medium text-foreground">{label}</span>
+                )}
+                <pre className="text-meta bg-muted p-2 rounded overflow-auto max-h-50">
                     {JSON.stringify(value, null, 2)}
                 </pre>
             </div>
@@ -208,7 +219,7 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
     if (showHeader) {
         const headerContent = (
             <div className="flex items-center gap-2 mb-2">
-                <span className="text-sm font-medium text-colorText">{label}</span>
+                <span className="text-label font-medium text-foreground">{label}</span>
             </div>
         )
 

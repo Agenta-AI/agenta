@@ -26,9 +26,9 @@ const PreviewSkeleton = ({variant}: {variant: PreviewVariant}) => {
         <div className="flex h-full w-full" style={{backgroundColor: bg}}>
             <div className="h-full w-1/4 shrink-0" style={{backgroundColor: panel}} />
             <div className="flex flex-1 flex-col gap-1.5 p-2">
-                <div className="h-1.5 w-3/4 rounded-full" style={{backgroundColor: bar}} />
-                <div className="h-1.5 w-1/2 rounded-full" style={{backgroundColor: bar}} />
-                <div className="h-1.5 w-2/3 rounded-full" style={{backgroundColor: bar}} />
+                <div className="h-1.5 w-3/4 rounded-sm" style={{backgroundColor: bar}} />
+                <div className="h-1.5 w-1/2 rounded-sm" style={{backgroundColor: bar}} />
+                <div className="h-1.5 w-2/3 rounded-sm" style={{backgroundColor: bar}} />
             </div>
         </div>
     )
@@ -36,7 +36,7 @@ const PreviewSkeleton = ({variant}: {variant: PreviewVariant}) => {
 
 /** "System default" shows both halves, since that is literally what it follows. */
 const ThemeThumbnail = ({mode}: {mode: string}) => (
-    <div className="h-[100px] w-full overflow-hidden rounded-md border border-solid border-colorBorderSecondary">
+    <div className="h-25 w-full overflow-hidden rounded-md border border-solid border-border-muted">
         {mode === "system" ? (
             <div className="flex h-full w-full">
                 <div className="h-full w-1/2 overflow-hidden">
@@ -56,28 +56,30 @@ const ThemeThumbnail = ({mode}: {mode: string}) => (
  * The theme chooser: a thumbnail per mode. Presentational — the host owns what a mode means
  * and how it is applied, so the sidebar fly-out and this page stay one set of choices.
  */
-export const ThemePicker = ({options, mode, onSelect}: ThemePickerProps) => (
-    <RadioGroup
-        value={mode}
-        onValueChange={onSelect}
-        className="grid grid-cols-1 gap-4 sm:grid-cols-3"
-    >
-        {options.map((option) => (
-            <Label
-                key={option.mode}
-                className={clsx(
-                    "flex cursor-pointer flex-col gap-2 rounded-lg border border-solid p-2 transition-colors",
-                    option.mode === mode
-                        ? "border-colorPrimary"
-                        : "border-colorBorderSecondary hover:border-colorBorder",
-                )}
-            >
-                <ThemeThumbnail mode={option.mode} />
-                <span className="flex items-center gap-2">
-                    <RadioGroupItem value={option.mode} aria-label={option.label} />
-                    <span className="text-colorText">{option.label}</span>
-                </span>
-            </Label>
-        ))}
-    </RadioGroup>
-)
+export const ThemePicker = ({options, mode, onSelect}: ThemePickerProps) => {
+    return (
+        <RadioGroup
+            value={mode}
+            onValueChange={onSelect}
+            className="grid grid-cols-1 gap-4 sm:grid-cols-3"
+        >
+            {options.map((option) => (
+                <Label
+                    key={option.mode}
+                    className={clsx(
+                        "flex cursor-pointer flex-col gap-2 rounded-lg border border-solid p-2 transition-colors",
+                        option.mode === mode
+                            ? "border-primary"
+                            : "border-border-muted hover:border-border",
+                    )}
+                >
+                    <ThemeThumbnail mode={option.mode} />
+                    <span className="flex items-center gap-2">
+                        <RadioGroupItem value={option.mode} aria-label={option.label} />
+                        <span className="text-foreground">{option.label}</span>
+                    </span>
+                </Label>
+            ))}
+        </RadioGroup>
+    )
+}

@@ -163,18 +163,26 @@ describe("Archived apps list, matching the classic app", () => {
     it("The back arrow goes to Prompts in beta developer mode", async () => {
         store.set(betaDeveloperModeActiveAtom as never, true as never)
         await mountWithViews("archived-apps")
-        const back = document.querySelector<HTMLAnchorElement>('a[aria-label="Back to prompts"]')
+        const back = [...document.querySelectorAll<HTMLAnchorElement>("a[aria-label]")].find(
+            (a) => a.getAttribute("aria-label")?.toLowerCase() === "back to prompts",
+        )
         expect(back?.getAttribute("href")).toBe("/w/ws/p/pr/prompts")
     })
 
     it("Without beta developer mode the back arrow goes home, even with the Prompts page on", async () => {
         await mountWithViews("archived-apps,prompts")
-        const back = document.querySelector<HTMLAnchorElement>('a[aria-label="Back to home"]')
+        const back = [...document.querySelectorAll<HTMLAnchorElement>("a[aria-label]")].find(
+            (a) => a.getAttribute("aria-label")?.toLowerCase() === "back to home",
+        )
         expect(back?.getAttribute("href")).toBe("/w/ws/p/pr/apps")
-        expect(document.querySelector('a[aria-label="Back to prompts"]')).toBeNull()
+        expect(
+            [...document.querySelectorAll<HTMLAnchorElement>("a[aria-label]")].find(
+                (a) => a.getAttribute("aria-label")?.toLowerCase() === "back to prompts",
+            ) ?? null,
+        ).toBeNull()
     })
 
-    it("Created At and Archived At show the date with the time", async () => {
+    it("Created at and Archived at show the date with the time", async () => {
         await mountWithViews("archived-apps")
         expect(host.textContent).toMatch(/Sep 1, 2026,? 9:05\s?AM/)
         expect(host.textContent).toMatch(/Oct 1, 2026,? 6:30\s?PM/)
@@ -236,7 +244,7 @@ describe("Archived apps list, matching the classic app", () => {
         await mountWithViews("archived-apps")
         await act(async () => button("Export CSV")?.click())
         expect(await readBlob(blobs[0])).toBe(
-            "Name,Created At,Archived At\r\n" +
+            "Name,Created at,Archived at\r\n" +
                 "Support bot,2026-09-01T09:05:00,2026-10-01T18:30:00\r\n" +
                 "Summarizer,2026-09-01T09:05:00,2026-10-01T18:30:00",
         )
@@ -246,7 +254,7 @@ describe("Archived apps list, matching the classic app", () => {
         )
         await act(async () => bulkExport[bulkExport.length - 1].click())
         expect(await readBlob(blobs[1])).toBe(
-            "Name,Created At,Archived At\r\n" +
+            "Name,Created at,Archived at\r\n" +
                 "Summarizer,2026-09-01T09:05:00,2026-10-01T18:30:00",
         )
     })

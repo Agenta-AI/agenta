@@ -1,8 +1,18 @@
 import {useState} from "react"
 
 import type {Workflow} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {message} from "@agenta/ui/app-message"
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
     Button,
     DropdownMenu,
     DropdownMenuContent,
@@ -25,12 +35,7 @@ const RenameAppDialog = dynamic(
     {ssr: false},
 )
 
-/**
- * The actions of the app on its overview: Rename, Copy Slug, and Archive. Rename and Archive need
- * `edit_workflows`, so a reader sees only Copy Slug, and no menu at all for an app with no slug.
- * An evaluator gets Copy Slug only: archiving one must first check the evaluation runs that use it,
- * which the Evaluators list does.
- */
+/** The prompt's overview actions; Rename and Archive need `edit_workflows`, evaluators get Copy slug only. */
 export const AppActionsMenu = ({
     projectId,
     app,
@@ -44,7 +49,9 @@ export const AppActionsMenu = ({
 }) => {
     const canEdit = useProjectPermission(projectId, "edit_workflows") && !evaluator
     const [renameOpen, setRenameOpen] = useState(false)
-    const {confirm, modal} = useConfirmModal()
+    const t = useT(commonCatalog)
+    const confirmDialog = useConfirmModal()
+    const {confirm} = confirmDialog
     const archive = useAppArchive({projectId, appId: app.id, base})
     const slug = app.slug ?? null
 
@@ -57,9 +64,9 @@ export const AppActionsMenu = ({
 
     const askArchive = () =>
         confirm({
-            title: "Archive app",
-            message: `${app.name || app.slug || "This app"} will move to archived apps.`,
-            okText: "Archive app",
+            title: "Archive prompt",
+            message: `${app.name || app.slug || "This prompt"} will move to the archive.`,
+            okText: "Archive prompt",
             danger: true,
             onOk: archive,
         })
@@ -72,12 +79,12 @@ export const AppActionsMenu = ({
                         type="button"
                         size="icon-sm"
                         variant="ghost"
-                        aria-label={evaluator ? "Evaluator actions" : "App actions"}
+                        aria-label={evaluator ? "Evaluator actions" : "Prompt actions"}
                     >
-                        <DotsThreeVertical aria-hidden className="size-4" weight="bold" />
+                        <DotsThreeVertical aria-hidden className="size-4" />
                     </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-[200px]">
+                <DropdownMenuContent align="end" className="w-60">
                     {canEdit ? (
                         <DropdownMenuItem onSelect={() => setRenameOpen(true)}>
                             <PencilSimple aria-hidden size={14} />
@@ -87,7 +94,7 @@ export const AppActionsMenu = ({
                     {slug ? (
                         <DropdownMenuItem onSelect={() => void copySlug()}>
                             <Copy aria-hidden size={14} />
-                            Copy Slug
+                            Copy slug
                         </DropdownMenuItem>
                     ) : null}
                     {canEdit ? (
@@ -95,7 +102,7 @@ export const AppActionsMenu = ({
                             <DropdownMenuSeparator />
                             <DropdownMenuItem variant="destructive" onSelect={askArchive}>
                                 <Trash aria-hidden size={14} />
-                                Archive app
+                                Archive prompt
                             </DropdownMenuItem>
                         </>
                     ) : null}
@@ -108,7 +115,53 @@ export const AppActionsMenu = ({
                     onClose={() => setRenameOpen(false)}
                 />
             ) : null}
-            {modal}
+            <AlertDialog
+                open={Boolean(confirmDialog.request)}
+                onOpenChange={(next) => {
+                    if (!next && !confirmDialog.pending) confirmDialog.close()
+                }}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{confirmDialog.request?.title ?? ""}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {confirmDialog.request?.message ?? ""}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {confirmDialog.error ? (
+                        <p className="m-0 text-body text-destructive">{confirmDialog.error}</p>
+                    ) : null}
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                variant="outline"
+                                onClick={confirmDialog.close}
+                                disabled={confirmDialog.pending}
+                            >
+                                {confirmDialog.request?.cancelText ?? t("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant={
+                                    confirmDialog.request?.danger === false
+                                        ? "default"
+                                        : "destructive"
+                                }
+                                disabled={confirmDialog.pending}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    void confirmDialog.runConfirm()
+                                }}
+                            >
+                                {confirmDialog.pending
+                                    ? t("common.working")
+                                    : (confirmDialog.request?.okText ?? t("common.confirm"))}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     )
 }

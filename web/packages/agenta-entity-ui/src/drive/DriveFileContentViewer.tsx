@@ -2,8 +2,9 @@ import {useState} from "react"
 
 import {resolveDriveFileKind} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
-import {EnhancedButton as Button} from "@agenta/ui/components/presentational"
-import {SimpleTooltip} from "@agenta/ui/ui"
+import {useT} from "@agenta/i18n"
+import drivePreviewCatalog from "@agenta/i18n/catalogs/entityUi.drivePreview"
+import {LoadingButton, SimpleTooltip} from "@agenta/ui/ui"
 import {DownloadSimple} from "@phosphor-icons/react"
 import {AnimatePresence, motion} from "motion/react"
 
@@ -62,15 +63,17 @@ export const DriveFileContentViewer = ({
  * the drawer header and the file preview, so both report a failure the same way. Icon-only: the
  * label crowded the pane header, and the tooltip carries the word. */
 export const DriveFileDownloadButton = ({mount, path}: {mount: Mount | null; path: string}) => {
+    const t = useT(drivePreviewCatalog)
     const download = useDriveFileDownload()
     const [downloading, setDownloading] = useState(false)
     return (
-        <SimpleTooltip title="Download">
-            <Button
-                icon={<DownloadSimple size={13} />}
-                aria-label="Download"
-                disabled={!mount}
+        <SimpleTooltip title={t("entityUi.drivePreview.download")}>
+            <LoadingButton
+                variant="outline"
+                size="default"
                 loading={downloading}
+                aria-label={t("entityUi.drivePreview.download")}
+                disabled={!mount}
                 onClick={async () => {
                     setDownloading(true)
                     try {
@@ -79,7 +82,9 @@ export const DriveFileDownloadButton = ({mount, path}: {mount: Mount | null; pat
                         setDownloading(false)
                     }
                 }}
-            />
+            >
+                <DownloadSimple size={13} />
+            </LoadingButton>
         </SimpleTooltip>
     )
 }

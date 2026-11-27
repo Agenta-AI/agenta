@@ -1,0 +1,9 @@
+{
+    "agent": "Agent",
+    "downloadZip": "Download a .zip to reuse it",
+    "letOtherTeams": "Let other teams start from it",
+    "publish": "Publish",
+    "saveAsTemplate": "Save as template",
+    "shareInMarketplace": "Share in the marketplace",
+    "templates": "Templates"
+}

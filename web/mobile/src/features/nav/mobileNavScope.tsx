@@ -7,7 +7,7 @@ import type {
     SidebarSelection,
     SidebarSlotContext,
 } from "@agenta/navigation"
-import {SidebarLogo, SidebarToggleButton} from "@agenta/navigation-ui"
+import {SidebarToggleButton} from "@agenta/navigation-ui"
 import {useRouter} from "next/router"
 
 import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
@@ -15,6 +15,7 @@ import {CreditsRemainingWidget} from "../wallet/CreditsRemainingWidget"
 
 import {DrawerProjectSwitcher} from "./DrawerProjectSwitcher"
 import {MOBILE_NAV_SCOPE_ID, useMobileBottomNavItems, useMobileNavItems} from "./useMobileNavItems"
+import {usePageArrangement} from "./usePageArrangement"
 
 /**
  * Mobile's scope for the SHARED `SidebarShell` — the same header/sections/footer contract the
@@ -39,6 +40,8 @@ export const selectedKeyOverrideFor = (
     promptsRowShown: boolean,
 ): string | undefined => {
     if (sessionId) return `${SESSIONS_SIDEBAR_KEY}-${sessionId}`
+    // Archived prompts sits under `/apps` but is not Home; with no Prompts row nothing lights up.
+    if (pathname.endsWith("/apps/archived")) return PROMPTS_ROW_KEY
     // Pinning a row the rail does not render selects nothing, so leave the route match instead.
     if (!promptsRowShown) return undefined
     return /\/apps\/\[app_id\]\/(overview|playground)$/.test(pathname) ? PROMPTS_ROW_KEY : undefined
@@ -69,13 +72,15 @@ const createMobileNavScope = (workspaceId: string, projectId: string): SidebarSc
     }
 
     const useSections = (): SidebarSection[] => {
-        const items = useMobileNavItems(projectURL)
+        const {pages, sessions, defaultHidden} = useMobileNavItems(projectURL)
+        const {visible, arrange} = usePageArrangement(pages, defaultHidden)
         const bottomItems = useMobileBottomNavItems(projectURL)
 
         return useMemo(
             () => [
-                {key: "project", items},
-                // `vertical` mirrors the desktop rail: Help & Docs opens as a flyout, not inline.
+                {key: "pages", items: visible, arrange},
+                {key: "sessions", items: [sessions], dividerBefore: true},
+                // `vertical`: Help & Docs opens as a flyout, not inline.
                 {
                     key: "bottom",
                     items: bottomItems,
@@ -83,24 +88,30 @@ const createMobileNavScope = (workspaceId: string, projectId: string): SidebarSc
                     mode: "vertical",
                 },
             ],
-            [items, bottomItems],
+            [visible, arrange, sessions, bottomItems],
         )
     }
 
-    // Docked at lg+, so it carries the desktop's collapse toggle; in the drawer `onDismiss`
-    // arrives and the same button becomes the sheet's close.
-    const Header = ({collapsed, onDismiss}: SidebarSlotContext) => (
-        <SidebarLogo collapsed={collapsed} toggle={<SidebarToggleButton onDismiss={onDismiss} />} />
-    )
+    // The project switcher heads the rail; in the drawer `onDismiss` turns the toggle into a close.
+    const Header = ({collapsed, onDismiss}: SidebarSlotContext) => {
+        const toggle = <SidebarToggleButton onDismiss={onDismiss} />
+        if (collapsed)
+            return <div className="flex h-12 shrink-0 items-center justify-center">{toggle}</div>
+        return (
+            <DrawerProjectSwitcher
+                workspaceId={workspaceId}
+                projectId={projectId}
+                side="bottom"
+                trailing={toggle}
+            />
+        )
+    }
 
-    // Forwarded, or the switcher keeps its expanded padding inside the 48px rail.
-    const AfterBottom = ({collapsed}: {collapsed: boolean}) => (
-        <DrawerProjectSwitcher
-            workspaceId={workspaceId}
-            projectId={projectId}
-            collapsed={collapsed}
-        />
-    )
+    // The icon rail has no room in its header, so the switcher waits at the bottom there.
+    const AfterBottom = ({collapsed}: {collapsed: boolean}) =>
+        collapsed ? (
+            <DrawerProjectSwitcher workspaceId={workspaceId} projectId={projectId} collapsed />
+        ) : null
 
     const Footer = ({collapsed}: SidebarSlotContext) => (
         <CreditsRemainingWidget

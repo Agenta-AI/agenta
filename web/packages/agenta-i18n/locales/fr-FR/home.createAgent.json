@@ -1,0 +1,4 @@
+{
+    "startFailed": "Impossible de démarrer la création de l'Agent. Veuillez réessayer",
+    "openFailed": "Agent créé, mais impossible de l'ouvrir : retrouvez-le dans Agents"
+}

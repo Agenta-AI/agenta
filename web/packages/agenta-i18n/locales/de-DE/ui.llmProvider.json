@@ -1,0 +1,12 @@
+{
+    "aboutHarnesses": "Über Harnesses",
+    "harnessExplainer": "Ein Harness ist die Laufzeitumgebung, die das Modell ausführt – dasselbe Modell kann über mehrere Harnesses verfügbar sein.",
+    "inputLabel": "Eingabe:",
+    "manageProviders": "Modellanbieter verwalten",
+    "models": "Modelle",
+    "outputLabel": "Ausgabe:",
+    "providers": "Anbieter",
+    "selectProvider": "Anbieter auswählen",
+    "signInToPick": "Ihr Abonnement braucht eine neue Anmeldung. Öffnen Sie „Modellanbieter verwalten“, um sich erneut anzumelden.",
+    "via": "über"
+}

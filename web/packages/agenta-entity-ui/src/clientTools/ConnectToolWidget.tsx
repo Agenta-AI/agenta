@@ -11,9 +11,11 @@
  * (which re-runs the OAuth via the shared `useConnectFlow`, priming the vault for the agent's
  * re-ask — the settled part itself can't be re-resolved).
  */
+import {useT} from "@agenta/i18n"
+import clientToolsCatalog from "@agenta/i18n/catalogs/entityUi.clientTools"
 import type {ClientToolWidgetProps as ClientToolHandlerProps} from "@agenta/shared/clientTools"
-import {Button} from "@agenta/ui/ui"
-import {ArrowClockwise, Hourglass, Spinner} from "@phosphor-icons/react"
+import {Button, Spinner} from "@agenta/ui/ui"
+import {ArrowClockwise, Hourglass} from "@phosphor-icons/react"
 
 import {useConnectFocus} from "./connectFocus"
 import {DEFERRED_SENTINEL, isDeferredByRunner} from "./deferred"
@@ -32,6 +34,7 @@ const realFailureDetail = (text: unknown): string | undefined =>
     typeof text === "string" && text && text !== GENERIC_CONNECT_ERROR ? text : undefined
 
 const ConnectToolWidget = ({meta, settle, bare = false}: ClientToolHandlerProps) => {
+    const t = useT(clientToolsCatalog)
     const {
         label,
         logo,
@@ -54,14 +57,12 @@ const ConnectToolWidget = ({meta, settle, bare = false}: ClientToolHandlerProps)
     // ── Connecting: a post-settle manual retry's popup is open ───────────────────────────────────
     if (phase === "connecting") {
         return (
-            <ChipRow
-                icon={
-                    bare ? null : <Spinner size={13} className="animate-spin text-colorPrimary" />
-                }
-            >
-                <span className="text-xs text-colorText">Connecting {label}…</span>
+            <ChipRow icon={bare ? null : <Spinner aria-hidden className="size-3.5 text-primary" />}>
+                <span className="text-meta text-foreground">
+                    {t("entityUi.clientTools.connectingLabel", {label})}
+                </span>
                 <Button variant="ghost" size="sm" onClick={cancel} className="px-2">
-                    Cancel
+                    {t("entityUi.clientTools.cancel")}
                 </Button>
             </ChipRow>
         )
@@ -75,7 +76,9 @@ const ConnectToolWidget = ({meta, settle, bare = false}: ClientToolHandlerProps)
                 <ChipRow
                     icon={bare ? null : <IntegrationTile label={label} logo={logo} size={16} />}
                 >
-                    <span className="truncate text-xs text-colorText">{label} connected</span>
+                    <span className="truncate text-meta text-foreground">
+                        {t("entityUi.clientTools.labelConnected", {label})}
+                    </span>
                 </ChipRow>
             )
         }
@@ -84,9 +87,11 @@ const ConnectToolWidget = ({meta, settle, bare = false}: ClientToolHandlerProps)
         if (deferredByRunner) {
             return (
                 <ChipRow
-                    icon={bare ? null : <Hourglass size={13} className="text-colorTextTertiary" />}
+                    icon={bare ? null : <Hourglass size={13} className="text-muted-foreground" />}
                 >
-                    <span className="text-xs text-colorTextTertiary">Connecting {label} next…</span>
+                    <span className="text-meta text-muted-foreground">
+                        {t("entityUi.clientTools.connectingLabelNext", {label})}
+                    </span>
                 </ChipRow>
             )
         }
@@ -110,10 +115,12 @@ const ConnectToolWidget = ({meta, settle, bare = false}: ClientToolHandlerProps)
                 : realFailureDetail(reason)
         return (
             <ChipRow icon={bare ? null : <IntegrationTile label={label} logo={logo} size={16} />}>
-                <span className="shrink-0 text-xs text-colorText">{label}</span>
-                <span className="truncate text-xs text-colorText" title={failureDetail}>
+                <span className="shrink-0 text-meta text-foreground">{label}</span>
+                <span className="truncate text-meta text-foreground" title={failureDetail}>
                     {failureDetail ??
-                        (reason === "declined" ? "not connected" : "connection failed")}
+                        (reason === "declined"
+                            ? t("entityUi.clientTools.notConnected")
+                            : t("entityUi.clientTools.connectionFailedLower"))}
                 </span>
                 <RetryButton onClick={() => runConnect(false)} disabled={modeResolving} />
             </ChipRow>
@@ -125,9 +132,9 @@ const ConnectToolWidget = ({meta, settle, bare = false}: ClientToolHandlerProps)
         const errorDetail = realFailureDetail(errorText)
         return (
             <ChipRow icon={bare ? null : <IntegrationTile label={label} logo={logo} size={16} />}>
-                <span className="shrink-0 text-xs text-colorText">{label}</span>
-                <span className="truncate text-xs text-colorText" title={errorDetail}>
-                    {errorDetail ?? "connection failed"}
+                <span className="shrink-0 text-meta text-foreground">{label}</span>
+                <span className="truncate text-meta text-foreground" title={errorDetail}>
+                    {errorDetail ?? t("entityUi.clientTools.connectionFailedLower")}
                 </span>
                 <RetryButton onClick={() => runConnect(false)} disabled={modeResolving} />
             </ChipRow>
@@ -147,12 +154,14 @@ const ConnectToolWidget = ({meta, settle, bare = false}: ClientToolHandlerProps)
                 <button
                     type="button"
                     onClick={jumpToDock}
-                    className="m-0 min-w-0 cursor-pointer truncate border-none bg-transparent p-0 text-left font-[inherit] text-xs leading-[inherit] text-colorText"
+                    className="m-0 min-w-0 cursor-pointer truncate border-none bg-transparent p-0 text-left font-[inherit] text-meta leading-[inherit] text-foreground"
                 >
-                    Connect to {label} below
+                    {t("entityUi.clientTools.connectToLabelBelow", {label})}
                 </button>
             ) : (
-                <span className="truncate text-xs text-colorText">Connect to {label} below</span>
+                <span className="truncate text-meta text-foreground">
+                    {t("entityUi.clientTools.connectToLabelBelow", {label})}
+                </span>
             )}
         </ChipRow>
     )
@@ -162,18 +171,21 @@ const ConnectToolWidget = ({meta, settle, bare = false}: ClientToolHandlerProps)
  * host's `bare` mode) it takes the host's row type instead of the chip's. */
 const ChipRow = ({icon, children}: {icon: React.ReactNode; children: React.ReactNode}) => (
     <div
-        className={`flex min-w-0 items-center gap-2 ${icon ? "py-1" : "py-0.5 [&_.text-xs]:text-sm"}`}
+        className={`flex min-w-0 items-center gap-2 ${icon ? "py-1" : "py-0.5 [&_.text-meta]:text-label"}`}
     >
         {icon ? <span className="shrink-0">{icon}</span> : null}
         {children}
     </div>
 )
 
-const RetryButton = ({onClick, disabled}: {onClick: () => void; disabled?: boolean}) => (
-    <Button variant="ghost" size="sm" onClick={onClick} disabled={disabled} className="px-2">
-        <ArrowClockwise size={13} />
-        Retry
-    </Button>
-)
+const RetryButton = ({onClick, disabled}: {onClick: () => void; disabled?: boolean}) => {
+    const t = useT(clientToolsCatalog)
+    return (
+        <Button variant="ghost" size="sm" onClick={onClick} disabled={disabled} className="px-2">
+            <ArrowClockwise size={13} />
+            {t("entityUi.clientTools.retry")}
+        </Button>
+    )
+}
 
 export default ConnectToolWidget

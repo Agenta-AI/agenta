@@ -3,31 +3,48 @@ import {type KeyboardEvent, useCallback, useMemo} from "react"
 
 import {
     type DriveTreeNode,
-    fileTypeLabel,
     humanSize,
     isHiddenPath,
     itemCountLabel,
     relativeTime,
 } from "@agenta/entities/drive"
+import {createT, useT, type CatalogKey} from "@agenta/i18n"
+import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
+import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
-import {Button} from "@agenta/ui/ui"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {DownloadSimple} from "@phosphor-icons/react"
 
+import {FOLDER_LIST_TRACKS} from "./DriveExplorerSkeleton"
 import {DriveItemContextMenu, type DriveItemWriteActions} from "./DriveItemContextMenu"
 import {DriveNameField, type DriveNameEdit} from "./DriveNameField"
 import {DriveFolderGlyph, DriveTypeMark} from "./DriveTypeMark"
 
-const COLUMNS: ListTableColumn[] = [
-    {key: "name", label: "Name", width: "minmax(180px,2fr)"},
-    {key: "type", label: "Type", width: "92px"},
-    {key: "size", label: "Size", width: "84px"},
-    {key: "modified", label: "Modified", width: "92px"},
-    {key: "download", label: "Download", srOnly: true, width: "28px"},
+// The row renderer is a memoized callback; it reads the language when a row renders.
+const tNow = createT(driveExplorerCatalog, driveBrowserCatalog)
+
+/** The list's columns; labels translate when the list renders. The name gives way first, so the
+ * row fits a narrow pane (the tree open, a phone) without a sideways scroll. */
+const columnsFor = (
+    t: (key: CatalogKey<typeof driveExplorerCatalog | typeof driveBrowserCatalog>) => string,
+): ListTableColumn[] => [
+    {key: "name", label: t("entityUi.driveBrowser.columnName"), width: FOLDER_LIST_TRACKS.name},
+    {key: "size", label: t("entityUi.driveBrowser.columnSize"), width: FOLDER_LIST_TRACKS.size},
+    {
+        key: "modified",
+        label: t("entityUi.driveBrowser.columnModified"),
+        width: FOLDER_LIST_TRACKS.modified,
+    },
+    {
+        key: "download",
+        label: t("entityUi.driveExplorer.download"),
+        srOnly: true,
+        width: FOLDER_LIST_TRACKS.download,
+    },
 ]
 
 export const FolderList = ({
     nodes,
-    selectedPath,
     onOpen,
     onCopyPath,
     onDownload,
@@ -35,18 +52,21 @@ export const FolderList = ({
     editing,
 }: {
     nodes: DriveTreeNode[]
-    selectedPath: string | null
     onOpen: (path: string) => void
     onCopyPath: (path: string) => void
     onDownload: (path: string, isFolder: boolean) => void
     writes?: DriveItemWriteActions
     editing?: DriveNameEdit | null
 }) => {
+    const t = useT(driveExplorerCatalog, driveBrowserCatalog)
     const groups = useMemo(() => [{key: "all", label: null, rows: nodes}], [nodes])
     const renderRow = useCallback(
         (n: DriveTreeNode) => {
             const hidden = isHiddenPath(n.path)
             const edit = editing && n.path === editing.path ? editing : null
+            const downloadLabel = n.isFolder
+                ? tNow("entityUi.driveExplorer.downloadAsZip")
+                : tNow("entityUi.driveExplorer.download")
             return (
                 <>
                     <span className="flex min-w-0 items-center gap-2">
@@ -63,44 +83,43 @@ export const FolderList = ({
                                 validate={edit.validate}
                                 onCommit={edit.onCommit}
                                 onCancel={edit.onCancel}
-                                className="h-6 min-w-0 flex-1 px-1.5 text-[13px]"
+                                className="h-6 min-w-0 flex-1 px-1.5 text-label"
                             />
                         ) : (
                             <span
-                                className={`truncate text-[13px] ${n.path === selectedPath ? "font-medium" : ""} ${hidden ? "opacity-60" : ""}`}
+                                className={`truncate text-label ${hidden ? "opacity-60" : ""}`}
                                 title={n.path}
                             >
                                 {n.name}
                             </span>
                         )}
                     </span>
-                    <span className="truncate text-xs text-colorTextSecondary">
-                        {n.isFolder ? "Folder" : fileTypeLabel(n.path)}
-                    </span>
-                    <span className="text-xs tabular-nums text-colorTextSecondary">
+                    <span className="text-meta tabular-nums text-muted-foreground">
                         {n.isFolder
                             ? itemCountLabel(n.itemCount ?? n.children.length)
                             : humanSize(n.size)}
                     </span>
-                    <span className="text-xs text-colorTextSecondary">
+                    <span className="text-meta text-muted-foreground">
                         {n.modifiedAt ? relativeTime(n.modifiedAt) : "—"}
                     </span>
-                    <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={n.isFolder ? "Download as zip" : "Download"}
-                        onClick={(e) => {
-                            e.stopPropagation()
-                            onDownload(n.path, n.isFolder)
-                        }}
-                        className="text-colorTextQuaternary hover:text-colorText"
-                    >
-                        <DownloadSimple size={14} />
-                    </Button>
+                    <SimpleTooltip title={downloadLabel}>
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={downloadLabel}
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                onDownload(n.path, n.isFolder)
+                            }}
+                            className="text-muted-foreground hover:text-foreground"
+                        >
+                            <DownloadSimple size={14} />
+                        </Button>
+                    </SimpleTooltip>
                 </>
             )
         },
-        [onDownload, selectedPath, editing],
+        [onDownload, editing],
     )
     // ↑ / ↓ / Home / End move focus between the rows; Enter / Space open (the row's own handler).
     const onKeyDown = useCallback((e: KeyboardEvent<HTMLDivElement>) => {
@@ -137,9 +156,9 @@ export const FolderList = ({
     return (
         // The top inset sits outside the scroller so rows don't scroll through it.
         <div className="flex min-h-0 flex-1 flex-col pt-2">
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6" onKeyDown={onKeyDown}>
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6" onKeyDown={onKeyDown}>
                 <ListTable
-                    columns={COLUMNS}
+                    columns={columnsFor(t)}
                     groups={groups}
                     rowKey={(n) => n.path}
                     renderRow={renderRow}
@@ -147,7 +166,7 @@ export const FolderList = ({
                     wrapRow={wrapRow}
                     density="compact"
                     stickyHeader
-                    minWidth={420}
+                    minWidth={0}
                 />
             </div>
         </div>

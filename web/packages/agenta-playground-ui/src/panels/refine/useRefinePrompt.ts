@@ -1,6 +1,8 @@
 import {useCallback, useRef, useState} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {createT} from "@agenta/i18n"
+import refineCatalog from "@agenta/i18n/catalogs/playground.refine"
 import {asRecord, generateId} from "@agenta/shared/utils"
 import {useStore} from "jotai"
 
@@ -14,7 +16,13 @@ export interface RefineRound {
     failed: boolean
 }
 
-const REFINE_FAILED = "Couldn't refine the prompt. Try again."
+const tNow = createT(refineCatalog)
+
+/** The failure in words. The server turns the refine tool off with a 503; any other cause stays in the log. */
+const failureText = (error: unknown) =>
+    (error as {response?: {status?: number}})?.response?.status === 503
+        ? tNow("playground.refine.refineAiDisabled")
+        : tNow("playground.refine.refineFailed")
 
 /**
  * The refine conversation for one prompt of one revision. The state lives in the dialog, so it
@@ -50,7 +58,8 @@ export function useRefinePrompt(revisionId: string, promptKey: string) {
                 return true
             } catch (error) {
                 console.error("Failed to refine prompt:", error)
-                setRounds((current) => [...current, {...round, reply: REFINE_FAILED, failed: true}])
+                const reply = failureText(error)
+                setRounds((current) => [...current, {...round, reply, failed: true}])
                 return false
             } finally {
                 running.current = false

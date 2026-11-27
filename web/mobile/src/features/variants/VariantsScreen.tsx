@@ -99,7 +99,7 @@ export const VariantsScreen = ({
 
     return (
         <>
-            <PageTitle title="Registry" />
+            <PageTitle title="Registry" context={app?.name ?? undefined} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
@@ -108,7 +108,7 @@ export const VariantsScreen = ({
                         >
                             <div className="flex min-w-0 flex-wrap items-center gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px]">
+                                <h1 className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
                                     Registry
                                 </h1>
                                 {fromPath ? null : (

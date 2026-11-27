@@ -1,0 +1,13 @@
+{
+    "emptyDescription": "Subscribe an endpoint to receive workflow events as signed HTTP requests.",
+    "emptyTitle": "No webhooks yet",
+    "events": "Events",
+    "paused": "Webhook paused",
+    "pausedStatus": "Paused",
+    "resumed": "Webhook resumed",
+    "subscribe": "Subscribe",
+    "target": "Target",
+    "test": "Test",
+    "updateFailed": "Failed to update webhook",
+    "webhookActions": "Webhook actions"
+}

@@ -2,6 +2,8 @@ import {useCallback, useRef, useState, type CSSProperties, type ReactNode} from 
 
 import type {useComposerAttachments} from "@agenta/chat/hooks"
 import {templateBuilderMessage, type AgentStarterTemplate} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import focusCatalog from "@agenta/i18n/catalogs/home.focus"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 
 import {resolveBoundAgentId} from "./boundAgent"
@@ -73,7 +75,7 @@ export interface HomeFocusProps {
  */
 export const HomeFocus = ({
     className,
-    title = "What should we work on?",
+    title,
     agents,
     preferredAgentId,
     templates,
@@ -95,6 +97,7 @@ export const HomeFocus = ({
     // on templates with a roster sitting behind the other tab.
     //
     // `null` means "no choice made yet, follow the data". An explicit choice outlives the data.
+    const t = useT(focusCatalog)
     const [tabChoice, setTabChoice] = useState<HomeListTab | null>(null)
     const [bindingChoice, setBindingChoice] = useState<Binding | null>(null)
     const hasAgents = agents.length > 0
@@ -164,8 +167,8 @@ export const HomeFocus = ({
         <div
             className={`flex w-full flex-1 flex-col overflow-y-auto overflow-x-hidden ${className ?? ""}`}
         >
-            <div className="mx-auto flex w-full max-w-[620px] flex-col gap-[26px]">
-                <HomeGreeting title={title} />
+            <div className="mx-auto flex w-full max-w-[620px] flex-col gap-6">
+                <HomeGreeting title={title ?? t("home.focus.title")} />
 
                 {/* Home's send is the primary, not the composer accent — the page has one thing to
                     press. `colorPrimary` already carries the brand's own answer per theme: ink on
@@ -175,9 +178,9 @@ export const HomeFocus = ({
                     className="relative box-border"
                     style={
                         {
-                            "--ag-composer-send-bg": "var(--ag-colorPrimary)",
-                            "--ag-composer-send-fg": "var(--ag-colorBgContainer)",
-                            "--ag-composer-send-hover-bg": "var(--ag-colorPrimaryHover)",
+                            "--ag-composer-send-bg": "var(--primary)",
+                            "--ag-composer-send-fg": "var(--background)",
+                            "--ag-composer-send-hover-bg": "var(--primary-hover)",
                         } as CSSProperties
                     }
                 >

@@ -1,13 +1,20 @@
 import {Fragment} from "react"
-import type {KeyboardEvent} from "react"
+import type {KeyboardEvent, ReactNode} from "react"
+
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+import {CaretDownIcon} from "@phosphor-icons/react"
 
 import {Checkbox} from "../components/ui/checkbox"
 import {CollapseCaret} from "../components/ui/collapse-caret"
 import {SkeletonBlock} from "../components/ui/skeleton"
 import {cn} from "../components/ui/utils"
+import {COMPACT_WINDOW_QUERY, useWindowMatch} from "../hooks/useWindowMatch"
 
 import {ListTableSelectionBar} from "./ListTableSelectionBar"
+import {ListTableRowSelectContext} from "./ListTableSelectMark"
 import type {ListTableColumn, ListTableProps} from "./types"
+import {useRowFlash} from "./useRowFlash"
 
 /** The checkbox column `selection` adds in front of the consumer's columns. */
 const SELECT_COLUMN: ListTableColumn = {
@@ -24,8 +31,7 @@ const SELECT_COLUMN: ListTableColumn = {
  * `outline-solid` is not redundant — Tailwind v4's `outline-none` sets `--tw-outline-style:
  * none`, which `outline-2` then reads back, so the pair alone renders NO ring at all.
  */
-const FOCUS_RING =
-    "outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-[-2px]"
+const FOCUS_RING = "outline-none focus-ring"
 
 const gridTemplate = (columns: ListTableColumn[]): string =>
     columns.map((column) => column.width).join(" ")
@@ -46,13 +52,9 @@ const STICKY = {height: "h-9", groupTop: "top-9"} as const
 /** With no visible header, a stuck group heading sits at the scroller's own top. */
 const groupTop = (hideHeader: boolean) => (hideHeader ? "top-0" : STICKY.groupTop)
 
-/**
- * The card's box, shared by a tile and its skeleton so the two are one shape. A card is a bordered
- * surface, not a fill, because a grid of fills reads as one slab; the border is what says "this
- * one opens on its own".
- */
+/** The card's box, shared by a tile and its skeleton: a soft fill, no border. */
 const CARD_CHROME =
-    "box-border flex min-w-0 flex-col gap-2 rounded-lg border border-solid border-border bg-card p-3 text-left text-card-foreground"
+    "box-border flex min-w-0 flex-col gap-2 rounded-lg border-0 bg-muted p-4 text-left text-foreground"
 
 /**
  * The list frame every table-shaped screen in this app shares: a header row, optional group
@@ -83,17 +85,30 @@ export const ListTable = <Row,>({
     minWidth = 572,
     loading = false,
     skeletonRows = 5,
+    skeleton,
     collapsedKeys,
     onToggleGroup,
     empty,
     stickyHeader = false,
-    hideHeader: hideHeaderProp = false,
+    flushFirstRows = false,
+    hideHeader: hideHeaderProp = true,
     density = "default",
+    groupCaret = "fill",
+    showGroupCount = false,
+    rowClassName,
+    headerClassName,
     selection,
+    flashKeys,
     className,
 }: ListTableProps<Row>) => {
-    const isGrid = view === "grid"
-    const selecting = Boolean(selection) && !isGrid
+    const t = useT(uiControlsCatalog)
+    // A phone shows the list only: one view that is easy to scan and tap (the switch hides too).
+    const compact = useWindowMatch(COMPACT_WINDOW_QUERY)
+    const isGrid = view === "grid" && !compact
+    // The Mark is the checkbox: no column, no header bar, and both views select.
+    const markSelect = Boolean(selection?.markAsCheckbox)
+    const selecting = Boolean(selection) && !isGrid && !markSelect
+    const flashClass = useRowFlash(flashKeys)
     const allColumns = selecting ? [SELECT_COLUMN, ...columns] : columns
     const grid = gridTemplate(allColumns)
     // Select-all covers every selectable row, also those in a collapsed group.
@@ -123,11 +138,37 @@ export const ListTable = <Row,>({
         if (!next.delete(key)) next.add(key)
         selection.onChange(next)
     }
+    const isSelected = (row: Row) => markSelect && Boolean(selection?.selectedKeys.has(rowKey(row)))
+    // Hands the row's selection to its `ListTableSelectMark`.
+    const withMarkSelect = (row: Row, node: ReactNode) =>
+        markSelect && selection && (selection.canSelect?.(row) ?? true) ? (
+            <ListTableRowSelectContext.Provider
+                key={rowKey(row)}
+                value={{
+                    checked: selection.selectedKeys.has(rowKey(row)),
+                    selecting: selectedCount > 0,
+                    label: selection.rowLabel(row),
+                    onToggle: () => toggleRow(rowKey(row)),
+                }}
+            >
+                {node}
+            </ListTableRowSelectContext.Provider>
+        ) : (
+            node
+        )
     // `min(100%, …)`, so a container narrower than one card still gets one card, not a scroller.
     const cardGrid = `repeat(auto-fill, minmax(min(100%, ${cardMinWidth}px), 1fr))`
-    // One value for the rows AND their skeleton, so loading holds the rhythm the rows arrive in.
-    const rowPad = density === "compact" ? "py-2" : "py-[13px]"
+    // ROW-01: shared by rows and skeleton; py-1 keeps a Mark + two-line row at exactly row-double.
+    const rowPad =
+        density === "compact" ? "min-h-row-single py-1 max-sm:min-h-11" : "min-h-row-double py-1"
+    // ROW-04: 4px between one-line rows, 8px between two-line rows.
+    const rowGap = density === "compact" ? "mb-1 last:mb-0" : "mb-2 last:mb-0"
     const isEmpty = groups.every((group) => group.rows.length === 0)
+    const skeletonHeading = skeleton?.heading ? (
+        <div className="flex items-center pb-1.5 pt-3.5">
+            <SkeletonBlock active className="h-4.5 w-32 rounded" />
+        </div>
+    ) : null
     // A grid has no column header, so a stuck heading sits at the scroller's own top.
     // Selection lives in the header row (select all, the bulk bar), so it keeps the header.
     const hideHeader = hideHeaderProp && !selecting
@@ -163,8 +204,16 @@ export const ListTable = <Row,>({
         // both sides, and the hover fill ends in a square edge instead of a rounded one.
         // A grid never scrolls sideways — its columns are however many fit — so it keeps the
         // wrapper (the headings align to it) and drops the scroller.
-        <div className={cn("-mx-3 px-3", !stickyHeader && !isGrid && "overflow-x-auto", className)}>
-            <div style={isGrid ? undefined : {minWidth}}>
+        // `relative` contains the absolute sr-only header cells, or they widen the whole window.
+        <div
+            className={cn(
+                "relative -mx-3 px-3",
+                !stickyHeader && !isGrid && "overflow-x-auto",
+                className,
+            )}
+        >
+            {/* An empty list has no columns to fit: its message takes the page width. */}
+            <div style={isGrid || (isEmpty && !loading) ? undefined : {minWidth}}>
                 {isGrid ? null : (
                     <div
                         role="row"
@@ -180,14 +229,13 @@ export const ListTable = <Row,>({
                                       // together is what matters — the header's content box has to stay
                                       // identical to a row's, or their grid tracks resolve differently and
                                       // every column but the first drifts off its cells.
-                                      "grid gap-3 border-0 border-b border-solid border-border/40 text-[13px] font-medium text-muted-foreground",
+                                      `box-border grid ${STICKY.height} items-center gap-3 border-0 border-b border-solid border-border/40 text-label text-muted-foreground`,
                                       // Opaque, or the rows read straight through it as they pass under. A
                                       // stated height rather than padding, so the group headings below can be
                                       // stuck directly beneath it without measuring anything — and the margin
                                       // goes, or a 4px slot of rows would show through the gap.
-                                      stickyHeader
-                                          ? `sticky top-0 z-20 ${STICKY.height} items-center bg-background`
-                                          : "mb-1 py-2",
+                                      stickyHeader ? "sticky top-0 z-20 bg-background" : "mb-1",
+                                      headerClassName,
                                   ],
                         )}
                         style={{gridTemplateColumns: grid}}
@@ -198,7 +246,7 @@ export const ListTable = <Row,>({
                                     checked={allState}
                                     disabled={selectableKeys.length === 0}
                                     onCheckedChange={toggleAll}
-                                    aria-label="Select all"
+                                    aria-label={t("ui.controls.selectAll")}
                                 />
                             </span>
                         ) : null}
@@ -229,65 +277,94 @@ export const ListTable = <Row,>({
 
                 {loading ? (
                     isGrid ? (
-                        // Card-shaped, in the real grid: a mark, a name and two lines of description,
-                        // so the cards arrive into the slots the skeleton was already holding.
-                        <div
-                            aria-hidden
-                            className="grid gap-3"
-                            style={{gridTemplateColumns: cardGrid}}
-                        >
-                            {Array.from({length: skeletonRows}, (_, tile) => (
-                                <div key={tile} className={CARD_CHROME}>
-                                    <div className="flex items-center gap-2">
+                        // Card-shaped, in the real grid: a mark, a name and two lines of description.
+                        <div aria-hidden>
+                            {skeletonHeading}
+                            <div className="grid gap-3" style={{gridTemplateColumns: cardGrid}}>
+                                {Array.from({length: skeletonRows}, (_, tile) => (
+                                    <div key={tile} className={CARD_CHROME}>
+                                        <div className="flex items-center gap-2">
+                                            <SkeletonBlock
+                                                active
+                                                className="size-8 shrink-0 rounded-md"
+                                            />
+                                            <SkeletonBlock active className="h-4 w-1/2 rounded" />
+                                        </div>
+                                        <SkeletonBlock active className="h-3.5 w-full rounded" />
                                         <SkeletonBlock
                                             active
-                                            className="size-7 shrink-0 rounded-md"
+                                            className={cn(
+                                                "h-3.5 rounded",
+                                                SKELETON_WIDTHS[tile % SKELETON_WIDTHS.length],
+                                            )}
                                         />
-                                        <SkeletonBlock active className="h-4 w-1/2 rounded" />
                                     </div>
-                                    <SkeletonBlock active className="h-3.5 w-full rounded" />
-                                    <SkeletonBlock
-                                        active
-                                        className={cn(
-                                            "h-3.5 rounded",
-                                            SKELETON_WIDTHS[tile % SKELETON_WIDTHS.length],
-                                        )}
-                                    />
-                                </div>
-                            ))}
+                                ))}
+                            </div>
                         </div>
                     ) : (
-                        // The real columns, in the real row rhythm: a list that loads as a spinner and
-                        // then snaps into a table moves everything under the reader's cursor. Bars
-                        // vary in width down each column so the block reads as text, not as a grid of
-                        // identical pills.
+                        // STATE-02: the real columns in the real row rhythm.
                         <div aria-hidden>
+                            {skeletonHeading}
                             {Array.from({length: skeletonRows}, (_, row) => (
                                 <div
                                     key={row}
-                                    className={cn("grid w-full items-center gap-3", rowPad)}
+                                    className={cn(
+                                        "grid w-full items-center gap-3",
+                                        rowPad,
+                                        rowGap,
+                                        rowClassName,
+                                    )}
                                     style={{gridTemplateColumns: grid}}
                                 >
-                                    {allColumns.map((column, index) => (
-                                        // `SkeletonBlock`, not `Skeleton`: the latter is antd's
-                                        // composite (avatar + title + paragraph) and paints nothing
-                                        // of its own — a bare one renders a transparent box.
-                                        <SkeletonBlock
-                                            active
-                                            key={column.key}
-                                            className={cn(
-                                                // The height of the line the cell's text will sit on,
-                                                // not a hair less: a thinner bar reads as a rule
-                                                // between rows rather than as text on its way.
-                                                "h-5 rounded",
-                                                SKELETON_WIDTHS[
-                                                    (row + index) % SKELETON_WIDTHS.length
-                                                ],
-                                                // A control column holds an icon, not a phrase.
-                                                column.srOnly && "w-full",
-                                            )}
-                                        />
-                                    ))}
+                                    {allColumns.map((column, index) =>
+                                        skeleton?.mark && index === (selecting ? 1 : 0) ? (
+                                            <span
+                                                key={column.key}
+                                                className="flex min-w-0 items-center gap-3"
+                                            >
+                                                <SkeletonBlock
+                                                    active
+                                                    className="size-8 shrink-0 rounded-md"
+                                                />
+                                                <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+                                                    <SkeletonBlock
+                                                        active
+                                                        className={cn(
+                                                            "h-4 rounded",
+                                                            SKELETON_WIDTHS[
+                                                                row % SKELETON_WIDTHS.length
+                                                            ],
+                                                        )}
+                                                    />
+                                                    <SkeletonBlock
+                                                        active
+                                                        className={cn(
+                                                            "h-3 rounded",
+                                                            SKELETON_WIDTHS[
+                                                                (row + 2) % SKELETON_WIDTHS.length
+                                                            ],
+                                                        )}
+                                                    />
+                                                </span>
+                                            </span>
+                                        ) : (
+                                            // `SkeletonBlock`, not antd's `Skeleton`, which paints nothing alone.
+                                            <SkeletonBlock
+                                                active
+                                                key={column.key}
+                                                className={cn(
+                                                    // The text line's height; thinner reads as a rule.
+                                                    "h-5 rounded",
+                                                    SKELETON_WIDTHS[
+                                                        (row + index) % SKELETON_WIDTHS.length
+                                                    ],
+                                                    // A control column holds an icon, not a phrase.
+                                                    column.srOnly && "w-full",
+                                                )}
+                                            />
+                                        ),
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -298,6 +375,11 @@ export const ListTable = <Row,>({
                     groups.map((group, groupIndex) => {
                         const collapsed = collapsedKeys?.has(group.key) ?? false
                         const actions = groupActions?.(group)
+                        const count = showGroupCount ? (
+                            <span className="shrink-0 tabular-nums text-muted-foreground">
+                                {group.count ?? group.rows.length}
+                            </span>
+                        ) : null
                         const rows = collapsed ? [] : group.rows
                         return (
                             // A box per group, not a Fragment: `sticky` is bounded by the
@@ -313,9 +395,13 @@ export const ListTable = <Row,>({
                                 // would let rows show through as they pass under), so the first
                                 // run pays it back as padding instead — without it the first
                                 // row's hover fill sits flush on the header's rule. A grid has no
-                                // header to pay back.
+                                // header to pay back. `flushFirstRows` opts out.
                                 className={cn(
-                                    stickyHeader && !isGrid && groupIndex === 0 && "pt-1",
+                                    stickyHeader &&
+                                        !flushFirstRows &&
+                                        !isGrid &&
+                                        groupIndex === 0 &&
+                                        "pt-1",
                                 )}
                             >
                                 {group.label === null && !actions ? null : (
@@ -339,7 +425,7 @@ export const ListTable = <Row,>({
                                                 className={cn(
                                                     "box-border flex min-w-0 cursor-pointer appearance-none items-center gap-1.5",
                                                     "border-0 bg-transparent p-0 text-left font-[inherit]",
-                                                    "text-[13px] text-muted-foreground hover:text-foreground",
+                                                    "text-label text-muted-foreground hover:text-foreground",
                                                     FOCUS_RING,
                                                 )}
                                             >
@@ -347,11 +433,24 @@ export const ListTable = <Row,>({
                                                     long repository truncates so the group's
                                                     action keeps its place on the right. */}
                                                 <span className="truncate">{group.label}</span>
-                                                <CollapseCaret open={!collapsed} size={12} />
+                                                {count}
+                                                {groupCaret === "chevron" ? (
+                                                    <CaretDownIcon
+                                                        aria-hidden
+                                                        size={12}
+                                                        className={cn(
+                                                            "shrink-0 text-muted-foreground transition-transform duration-150 motion-reduce:transition-none",
+                                                            collapsed && "-rotate-90",
+                                                        )}
+                                                    />
+                                                ) : (
+                                                    <CollapseCaret open={!collapsed} size={12} />
+                                                )}
                                             </button>
                                         ) : (
-                                            <p className="m-0 min-w-0 truncate text-[13px] text-muted-foreground">
-                                                {group.label}
+                                            <p className="m-0 flex min-w-0 items-center gap-1.5 text-label text-muted-foreground">
+                                                <span className="truncate">{group.label}</span>
+                                                {count}
                                             </p>
                                         )}
                                         {actions ? (
@@ -364,9 +463,7 @@ export const ListTable = <Row,>({
 
                                 {isGrid ? (
                                     rows.length ? (
-                                        // Cards sit on the content edge — none of a row's bleed:
-                                        // a tile that reached past its track would overflow the
-                                        // `auto-fill` columns it was measured into.
+                                        // The card boxes sit on the content edge, like the toolbar.
                                         <div
                                             className="grid gap-3 pb-2"
                                             style={{gridTemplateColumns: cardGrid}}
@@ -379,15 +476,13 @@ export const ListTable = <Row,>({
                                                         className={cn(
                                                             "group",
                                                             CARD_CHROME,
-                                                            // Lifts a touch on hover — a lighter
-                                                            // edge and a soft shadow — so the tile
-                                                            // reads as the thing about to open. A
-                                                            // shadow is nearly invisible on a dark
-                                                            // surface, so dark mode adds the fill
-                                                            // lift a row gets and a deeper shadow.
+                                                            // Fill fades in and the card rises 2px (user decision), none under reduced motion.
                                                             opens(row) &&
-                                                                "cursor-pointer transition-[border-color,box-shadow,background-color] hover:border-foreground/30 hover:shadow-[0_3px_14px_rgb(0_0_0/0.07)] dark:hover:bg-accent/40 dark:hover:shadow-[0_4px_16px_rgb(0_0_0/0.5)]",
+                                                                "cursor-pointer transition-[background-color,translate] duration-[var(--duration-base)] ease-out hover:-translate-y-0.5 hover:bg-accent motion-reduce:transition-none motion-reduce:hover:translate-y-0",
                                                             opens(row) && FOCUS_RING,
+                                                            isSelected(row) &&
+                                                                "bg-selected hover:bg-selected",
+                                                            flashClass(rowKey(row)),
                                                         )}
                                                     >
                                                         {renderCard?.(row)}
@@ -396,12 +491,15 @@ export const ListTable = <Row,>({
                                                 // A wrapper has to be `display: contents` (as the
                                                 // drive's context-menu trigger is) to leave the
                                                 // tile a grid item of its own.
-                                                return wrapRow ? (
-                                                    <Fragment key={rowKey(row)}>
-                                                        {wrapRow(row, tile)}
-                                                    </Fragment>
-                                                ) : (
-                                                    tile
+                                                return withMarkSelect(
+                                                    row,
+                                                    wrapRow ? (
+                                                        <Fragment key={rowKey(row)}>
+                                                            {wrapRow(row, tile)}
+                                                        </Fragment>
+                                                    ) : (
+                                                        tile
+                                                    ),
                                                 )
                                             })}
                                         </div>
@@ -427,10 +525,15 @@ export const ListTable = <Row,>({
                                                     // tracks — stay identical to the header's.
                                                     "group grid w-full items-center gap-3 rounded-md border-0 bg-transparent text-left",
                                                     rowPad,
+                                                    rowGap,
                                                     "-mx-3 w-[calc(100%+1.5rem)] px-3",
+                                                    rowClassName,
                                                     opens(row) &&
-                                                        "cursor-pointer hover:bg-accent/60",
+                                                        "cursor-pointer transition-colors duration-[var(--duration-fast)] ease-out hover:bg-accent motion-reduce:transition-none",
                                                     opens(row) && FOCUS_RING,
+                                                    isSelected(row) &&
+                                                        "bg-selected hover:bg-selected",
+                                                    flashClass(rowKey(row)),
                                                 )}
                                                 style={{gridTemplateColumns: grid}}
                                             >
@@ -459,12 +562,15 @@ export const ListTable = <Row,>({
                                                 {renderRow(row)}
                                             </div>
                                         )
-                                        return wrapRow ? (
-                                            <Fragment key={rowKey(row)}>
-                                                {wrapRow(row, rowNode)}
-                                            </Fragment>
-                                        ) : (
-                                            rowNode
+                                        return withMarkSelect(
+                                            row,
+                                            wrapRow ? (
+                                                <Fragment key={rowKey(row)}>
+                                                    {wrapRow(row, rowNode)}
+                                                </Fragment>
+                                            ) : (
+                                                rowNode
+                                            ),
                                         )
                                     })
                                 )}

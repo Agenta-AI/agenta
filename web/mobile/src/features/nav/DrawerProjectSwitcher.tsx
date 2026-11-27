@@ -1,49 +1,63 @@
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useMemo, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import {loadWithText} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
+import createProjectCatalog from "@agenta/i18n/catalogs/shell.createProject"
 import {
     ProjectOrgSwitcherView,
-    SidebarIconMenu,
     type SwitcherEntry,
     type SwitcherThemeControl,
 } from "@agenta/navigation-ui"
-import {message} from "@agenta/ui/app-message"
-import {KeyboardShortcutsSheet} from "@agenta/ui/shortcuts"
-import {THEME_OPTIONS, themeIcon, useThemeMode} from "@agenta/ui/theme"
-import {useMutation} from "@tanstack/react-query"
+import {themeIcon, useThemeMode, useThemeOptions} from "@agenta/ui/theme"
+import {useMutation, useQueryClient} from "@tanstack/react-query"
+import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import {useLogout} from "../auth/useLogout"
+import {readLimitRefusal} from "../limits/limitRefusal"
+import {LimitRefusalNotice} from "../limits/LimitRefusalNotice"
+import {ProjectLimitNotice} from "../limits/ProjectLimitNotice"
+import {useLimitRefusal} from "../limits/useLimitRefusal"
+import {isAtLimit} from "../settings/licenseApi"
 import {switchSettingsContext} from "../settings/switchContext"
-import {LiveChatNavButton} from "../support/LiveChatNavButton"
-import {useLiveChatEnabled} from "../support/useLiveChatEnabled"
+import {invalidateLicenseUsage, useLicenseUsage} from "../settings/useLicenseUsage"
 
-import {CreateProjectSheet} from "./CreateProjectSheet"
-import {useMobileHelpItem} from "./useMobileNavItems"
 import {useOrganizationProjects} from "./useOrganizationProjects"
 
+/** Opens from a menu row, so the dialog and its text load on first use. */
+const CreateProjectSheet = dynamic(
+    () => loadWithText(() => import("./CreateProjectSheet")).then((m) => m.CreateProjectSheet),
+    {ssr: false},
+)
+
 /**
- * The drawer's header switcher: the desktop rail's component, bound to mobile's project data.
+ * The rail's project switcher: the shared rail component, bound to mobile's project data.
  * Both panels speak organizations, because every org's workspace is named "Default".
  */
 export const DrawerProjectSwitcher = ({
     workspaceId,
     projectId,
     collapsed = false,
+    side = "top",
+    compact,
+    trailing,
 }: {
     workspaceId: string
     projectId: string
     /** The rail's state. False in the drawer, which never collapses. */
     collapsed?: boolean
+    /** Where the panel opens: "bottom" in the rail's header, "top" in its footer. */
+    side?: "top" | "bottom"
+    /** The header's compact trigger; on by default in the header. */
+    compact?: boolean
+    /** Controls beside the trigger, such as the collapse toggle. */
+    trailing?: ReactNode
 }) => {
+    const t = useT(navigationCatalog, commonCatalog, createProjectCatalog)
     const router = useRouter()
     const logout = useLogout()
-    // The sheet is a modal, so its state lives with whatever stays mounted after the menu closes.
-    const [shortcutsOpen, setShortcutsOpen] = useState(false)
-    // Help rides on the switcher row rather than taking a nav row of its own, as on the desktop.
-    const helpItem = useMobileHelpItem({
-        onOpenShortcuts: useCallback(() => setShortcutsOpen(true), []),
-    })
-    const liveChatEnabled = useLiveChatEnabled(projectId)
     const {query, groups, currentGroup, currentProject} = useOrganizationProjects(
         workspaceId,
         projectId,
@@ -56,12 +70,12 @@ export const DrawerProjectSwitcher = ({
         () =>
             (currentGroup?.projects ?? []).map((project) => ({
                 key: project.project_id,
-                name: project.project_name ?? "Project",
+                name: project.project_name ?? t("common.project"),
                 isActive: project.project_id === projectId,
                 onSelect: () => goTo(project.workspace_id, project.project_id),
             })),
 
-        [currentGroup?.projects, projectId],
+        [currentGroup?.projects, projectId, t],
     )
 
     const organizations = useMemo<SwitcherEntry[]>(
@@ -80,7 +94,17 @@ export const DrawerProjectSwitcher = ({
         [groups, currentGroup?.key],
     )
 
-    const [createOpen, setCreateOpen] = useState(false)
+    const queryClient = useQueryClient()
+    const [createOpen, setCreateOpenState] = useState(false)
+    const [createError, setCreateError] = useState<string | null>(null)
+    const setCreateOpen = (next: boolean) => {
+        setCreateError(null)
+        setCreateOpenState(next)
+    }
+    // The limit shows when the sheet opens, before the reader types a name.
+    const usage = useLicenseUsage(projectId, createOpen)
+    const projectsAtLimit = isAtLimit(usage.data?.projects)
+    const {refusal, refuse, clear: clearRefusal} = useLimitRefusal(usage, usage.data?.projects)
     // Same shared mutation the desktop rail calls; the row it feeds is already in the shared
     // view, gated on `onCreateProject`, and was invisible here only because nothing passed it.
     const createProject = useMutation({
@@ -91,15 +115,21 @@ export const DrawerProjectSwitcher = ({
         // Creating a project is a switch into it, exactly like picking one from the list.
         onSuccess: async (created) => {
             setCreateOpen(false)
+            void invalidateLicenseUsage(queryClient)
             // Refetch first: the destination reads this same query for its title.
             await query.refetch()
             goTo(created.organization_id ?? created.workspace_id ?? workspaceId, created.project_id)
         },
-        // The API's refusal is written for people (e.g. the plan's project limit).
+        // The plan's project limit stays in the sheet with its next step; any other refusal shows next to the field.
         onError: (error) => {
+            const limitRefusal = readLimitRefusal(error)
+            if (limitRefusal) {
+                refuse(limitRefusal)
+                return
+            }
             const detail = (error as {response?: {data?: {detail?: unknown}}})?.response?.data
                 ?.detail
-            message.error(typeof detail === "string" ? detail : "Unable to create project")
+            setCreateError(typeof detail === "string" ? detail : t("shell.createProject.failed"))
         },
     })
 
@@ -116,18 +146,19 @@ export const DrawerProjectSwitcher = ({
     // The same fly-out the desktop rail carries, over the same three choices — Preferences offers
     // them too, but the switcher is where you already are when you want to flip the lights.
     const {themeMode, setMode} = useThemeMode()
+    const themeOptions = useThemeOptions()
     const theme = useMemo<SwitcherThemeControl>(
         () => ({
             mode: themeMode,
             onSelect: (mode) => setMode(mode as typeof themeMode),
-            options: THEME_OPTIONS.map(({mode, label, short}) => ({
+            options: themeOptions.map(({mode, label, short}) => ({
                 mode,
                 label,
                 short,
                 icon: themeIcon(mode),
             })),
         }),
-        [themeMode, setMode],
+        [themeMode, setMode, themeOptions],
     )
 
     return (
@@ -135,27 +166,47 @@ export const DrawerProjectSwitcher = ({
             <ProjectOrgSwitcherView
                 panelContainer={panelContainer}
                 collapsed={collapsed}
-                projectLabel={currentProject?.project_name ?? "Select project"}
-                orgLabel={currentGroup?.organizationName ?? "Organization"}
+                projectLabel={
+                    currentProject?.project_name ?? t("navigation.projectMenu.selectProject")
+                }
+                orgLabel={
+                    currentGroup?.organizationName ?? t("navigation.settings.scopeOrganization")
+                }
                 projects={projects}
                 orgs={organizations}
-                orgNoun="organization"
                 theme={theme}
                 onCreateProject={() => setCreateOpen(true)}
                 onLogout={() => void logout()}
-                trailing={
-                    <>
-                        {liveChatEnabled ? <LiveChatNavButton /> : null}
-                        <SidebarIconMenu item={helpItem} />
-                    </>
-                }
+                side={side}
+                compact={compact}
+                trailing={trailing}
             />
-            <KeyboardShortcutsSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
             <CreateProjectSheet
                 open={createOpen}
-                onOpenChange={setCreateOpen}
-                onSubmit={(name) => createProject.mutate(name)}
+                onOpenChange={(open) => {
+                    setCreateOpen(open)
+                    clearRefusal()
+                }}
+                onSubmit={(name) => {
+                    setCreateError(null)
+                    clearRefusal()
+                    createProject.mutate(name)
+                }}
                 isPending={createProject.isPending}
+                submitDisabled={projectsAtLimit || Boolean(refusal)}
+                notice={
+                    projectsAtLimit && usage.data?.projects ? (
+                        <ProjectLimitNotice usage={usage.data.projects} projectId={projectId} />
+                    ) : refusal ? (
+                        <LimitRefusalNotice
+                            refusal={refusal}
+                            workspaceId={workspaceId}
+                            projectId={projectId}
+                            onNavigate={() => setCreateOpen(false)}
+                        />
+                    ) : null
+                }
+                error={createError}
             />
         </div>
     )

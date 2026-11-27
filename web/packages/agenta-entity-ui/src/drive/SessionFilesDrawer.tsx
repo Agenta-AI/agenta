@@ -9,14 +9,22 @@
  */
 import {useMemo} from "react"
 
-import {AGENT_FILES_DIR, cleanPath, type DroppedFile} from "@agenta/entities/drive"
+import {
+    AGENT_FILES_DIR,
+    cleanPath,
+    fileOrigin,
+    presentToolPath,
+    type DroppedFile,
+} from "@agenta/entities/drive"
 import {useSessionDriveSummary} from "@agenta/entities/drive"
 import {drivePathFromToolPath} from "@agenta/entities/session"
+import {createT} from "@agenta/i18n"
+import filesPaneCatalog from "@agenta/i18n/catalogs/entityUi.filesPane"
 import {atom, useAtom} from "jotai"
 import {atomFamily} from "jotai-family"
 
 import {type DriveId} from "./DriveExplorer"
-import {useDriveArtifactId} from "./driveSessionContext"
+import {useDriveArtifactId, useDriveRevisionId} from "./driveSessionContext"
 import {FilesDrawer} from "./FilesDrawer"
 import {driveQuickLookAtomFamily} from "./quickLook"
 
@@ -35,6 +43,9 @@ export const filesDrawerStagedAtomFamily = atomFamily((_sessionId: string) =>
 export const matchesTail = (filePath: string, requested: string): boolean =>
     filePath === requested || requested.endsWith(`/${filePath}`)
 
+// The id labels are built in a memo; they read the language when it runs.
+const tNow = createT(filesPaneCatalog)
+
 /**
  * The presented drive path a quick-look request selects by. Openers pass whatever they hold: a drive
  * path (a recents row), or a raw TOOL path — sandbox-absolute — from an in-thread file card or a
@@ -48,25 +59,33 @@ export const matchesTail = (filePath: string, requested: string): boolean =>
  *
  * Shared with SessionFilesPane, the docked variant of this host — the two must resolve alike.
  */
-export const resolveQuickLookPath = (recents: {path: string}[], requested: string): string => {
+export const resolveQuickLookPath = (
+    recents: {path: string}[],
+    requested: string,
+    drives: readonly {slug: string}[] = [],
+    homeSlug: string | null = null,
+    /** The home drive is presented at the root, not under `agent-files/` (no session folder). */
+    homeAtRoot = false,
+): string => {
     if (requested.startsWith("/")) {
         // A presented path written absolute (`/agent-files/x`) is the drive's own, not `/etc/x`, so
         // it is checked before any sandbox root is looked for in it (#7715).
         const presented = cleanPath(requested)
-        if (presented.startsWith(`${AGENT_FILES_DIR}/`)) return presented
+        if (
+            presented.startsWith(`${AGENT_FILES_DIR}/`) ||
+            fileOrigin(presented, drives) === "drive"
+        )
+            return presented
         const resolved = drivePathFromToolPath(requested)
         if (!resolved) return recents.some((f) => f.path === presented) ? presented : requested
-        // The agent mount is presented folded under `agent-files/`, except on a drive that IS the
-        // agent mount, which presents it at the root. Try both spellings, then fall back to the
-        // folded one — `resolveMount` unfolds it again, so it resolves either way.
-        const folded =
-            resolved.origin === "agent" ? `${AGENT_FILES_DIR}/${resolved.path}` : resolved.path
-        return (
-            recents.find((f) => f.path === folded)?.path ??
-            recents.find((f) => f.path === resolved.path)?.path ??
-            folded
-        )
+        // The home drive is presented under `agent-files/`, or at the root when it is the whole
+        // drive. Another drive's file is never a session file.
+        return presentToolPath(resolved, homeSlug, homeAtRoot ? "" : `${AGENT_FILES_DIR}/`)
     }
+    // A complete drive path, or a path in a configured drive, wins over a shorter tail match.
+    const presented = cleanPath(requested)
+    if (recents.some((f) => f.path === presented)) return presented
+    if (fileOrigin(presented, drives) === "drive") return presented
     return (
         recents.find((f) => matchesTail(f.path, requested))?.path ??
         drivePathFromToolPath(requested)?.path ??
@@ -79,6 +98,7 @@ export function SessionFilesDrawer({sessionId}: {sessionId: string}) {
     const [quickLook, setQuickLook] = useAtom(driveQuickLookAtomFamily(sessionId))
     const [staged, setStaged] = useAtom(filesDrawerStagedAtomFamily(sessionId))
     const artifactId = useDriveArtifactId()
+    const revisionId = useDriveRevisionId()
     const open = gridOpen || quickLook != null || staged.length > 0
 
     // Summary drive (cheap) — DriveExplorer lazy-loads the rest. Gated on open (the agent-mount query
@@ -86,19 +106,37 @@ export function SessionFilesDrawer({sessionId}: {sessionId: string}) {
     const drive = useSessionDriveSummary(
         open ? sessionId : "",
         open ? (artifactId ?? undefined) : undefined,
+        open ? (revisionId ?? undefined) : undefined,
     )
 
     // Resolve the quick-look path (possibly a tail) to the presented drive path the tree selects by.
     const initialPath = useMemo(
-        () => (quickLook ? resolveQuickLookPath(drive.recents, quickLook.path) : null),
-        [quickLook, drive.recents],
+        () =>
+            quickLook
+                ? resolveQuickLookPath(
+                      drive.recents,
+                      quickLook.path,
+                      drive.driveEntries,
+                      drive.homeSlug,
+                      drive.homeAtRoot,
+                  )
+                : null,
+        [quickLook, drive.recents, drive.driveEntries, drive.homeSlug, drive.homeAtRoot],
     )
 
     const driveIds = useMemo(
         () =>
             [
-                drive.mount?.id ? {key: "mount", label: "Drive ID", value: drive.mount.id} : null,
-                sessionId ? {key: "owner", label: "Session ID", value: sessionId} : null,
+                drive.mount?.id
+                    ? {
+                          key: "mount",
+                          label: tNow("entityUi.filesPane.driveId"),
+                          value: drive.mount.id,
+                      }
+                    : null,
+                sessionId
+                    ? {key: "owner", label: tNow("entityUi.filesPane.sessionId"), value: sessionId}
+                    : null,
             ].filter(Boolean) as DriveId[],
         [drive.mount?.id, sessionId],
     )

@@ -3,85 +3,14 @@ import {readdirSync, readFileSync, writeFileSync} from "node:fs"
 import {dirname, join, resolve} from "node:path"
 import {fileURLToPath} from "node:url"
 
+import {parseEntry} from "./parse-entry.mjs"
+
 const here = dirname(fileURLToPath(import.meta.url))
 const ENTRIES_DIR = resolve(here, "../../../../docs/blog/entries")
 const OUT_FILE = resolve(here, "../src/releases/changelog.json")
-const DOCS_ORIGIN = "https://agenta.ai/docs"
+const NOTICES_FILE = resolve(here, "../src/releases/notices.json")
 const KEEP_VERSIONS = 10
 const VERSION_TAG = /^v\d+\.\d+\.\d+$/
-
-const unquote = (raw) => {
-    const value = raw.trim()
-    if (value.startsWith('"')) return JSON.parse(value)
-    if (value.startsWith("'")) return value.slice(1, -1).replace(/''/g, "'")
-    return value
-}
-
-const parseInlineList = (raw) =>
-    raw
-        .trim()
-        .replace(/^\[|\]$/g, "")
-        .split(",")
-        .map((item) => unquote(item))
-        .filter(Boolean)
-
-// Parses only the frontmatter subset the changelog uses, and throws on anything else.
-const parseFrontmatter = (source, file) => {
-    const match = /^---\n([\s\S]*?)\n---\n/.exec(source)
-    if (!match) throw new Error(`${file}: no frontmatter`)
-    const data = {}
-    let listKey = null
-    for (const line of match[1].split("\n")) {
-        if (!line.trim()) continue
-        const top = /^([A-Za-z_][\w-]*):\s*(.*)$/.exec(line)
-        if (top) {
-            const [, key, rest] = top
-            listKey = null
-            if (rest === "") {
-                data[key] = []
-                listKey = key
-            } else if (rest.startsWith("[")) data[key] = parseInlineList(rest)
-            else data[key] = unquote(rest)
-            continue
-        }
-        const item = /^\s+-\s+([\w-]+):\s*(.+)$/.exec(line)
-        const field = /^\s+([\w-]+):\s*(.+)$/.exec(line)
-        if (listKey && item) data[listKey].push({[item[1]]: unquote(item[2])})
-        else if (listKey && field && data[listKey].length > 0)
-            data[listKey].at(-1)[field[1]] = unquote(field[2])
-        else throw new Error(`${file}: unsupported frontmatter line: ${line}`)
-    }
-    return data
-}
-
-const parseItems = (value, key, file) => {
-    if (value === undefined) return []
-    if (!Array.isArray(value)) throw new Error(`${file}: ${key} must be a list`)
-    return value.map((entry) => {
-        if (typeof entry?.area !== "string" || typeof entry?.text !== "string")
-            throw new Error(`${file}: every ${key} item needs an area and a text`)
-        return {area: entry.area, text: entry.text}
-    })
-}
-
-const absolutizeLinks = (markdown) => markdown.replace(/\]\(\/(?!\/)/g, `](${DOCS_ORIGIN}/`)
-
-// Skips MDX tag and comment lines until they close, then escapes any stray "<".
-const stripMdx = (markdown) => {
-    const kept = []
-    let inMdx = false
-    for (const line of markdown.split("\n")) {
-        const text = line.trim()
-        if (!inMdx && (text.startsWith("<") || text.startsWith("{/*"))) inMdx = true
-        if (!inMdx) kept.push(line)
-        else if (text.endsWith(">") || text.endsWith("*/}")) inMdx = false
-    }
-    return kept
-        .join("\n")
-        .replace(/\n{3,}/g, "\n\n")
-        .trim()
-        .replace(/</g, "&lt;")
-}
 
 const semverParts = (id) => id.slice(1).split(".").map(Number)
 const compareSemverDesc = (a, b) => {
@@ -92,37 +21,7 @@ const compareSemverDesc = (a, b) => {
 
 const entries = readdirSync(ENTRIES_DIR)
     .filter((name) => name.endsWith(".mdx"))
-    .map((name) => {
-        const source = readFileSync(join(ENTRIES_DIR, name), "utf8")
-        const data = parseFrontmatter(source, name)
-        const version = (Array.isArray(data.tags) ? data.tags : []).find((tag) =>
-            VERSION_TAG.test(tag),
-        )
-        if (!version) return null
-        for (const key of ["title", "slug", "date"])
-            if (typeof data[key] !== "string" || !data[key])
-                throw new Error(`${name}: missing ${key}`)
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(data.date))
-            throw new Error(`${name}: date must be YYYY-MM-DD`)
-        const summary = /<Summary>([\s\S]*?)<\/Summary>/.exec(source)
-        if (!summary) throw new Error(`${name}: a versioned entry needs a <Summary>`)
-        const stream =
-            /<Stream\b[^>]*?\bsrc="([^"]+)"/.exec(source) ??
-            /cloudflarestream\.com\/([0-9a-f]{32})\//.exec(source)
-        return {
-            version,
-            date: data.date,
-            feature: {
-                id: data.slug,
-                title: data.title,
-                body: absolutizeLinks(stripMdx(summary[1])),
-                link: `${DOCS_ORIGIN}/changelog/${data.slug}`,
-                ...(stream ? {streamVideoId: stream[1]} : {}),
-            },
-            improvements: parseItems(data.improvements, "improvements", name),
-            fixes: parseItems(data.fixes, "fixes", name),
-        }
-    })
+    .map((name) => parseEntry(readFileSync(join(ENTRIES_DIR, name), "utf8"), name))
     .filter(Boolean)
 
 const byVersion = new Map()
@@ -132,7 +31,7 @@ for (const entry of entries) {
     byVersion.set(entry.version, group)
 }
 
-const releases = [...byVersion.entries()]
+const allReleases = [...byVersion.entries()]
     .map(([id, group]) => {
         group.sort(
             (a, b) => b.date.localeCompare(a.date) || a.feature.id.localeCompare(b.feature.id),
@@ -143,10 +42,58 @@ const releases = [...byVersion.entries()]
             features: group.map((entry) => entry.feature),
             improvements: group.flatMap((entry) => entry.improvements),
             fixes: group.flatMap((entry) => entry.fixes),
+            ...(group.some((entry) => entry.securityFix) ? {securityFix: true} : {}),
+            ...(group.find((entry) => entry.upgradeNotesLink)
+                ? {upgradeNotesLink: group.find((entry) => entry.upgradeNotesLink).upgradeNotesLink}
+                : {}),
         }
     })
     .sort((a, b) => b.date.localeCompare(a.date) || compareSemverDesc(a.id, b.id))
-    .slice(0, KEEP_VERSIONS)
+
+const releases = allReleases.slice(0, KEEP_VERSIONS)
+// An instance far behind must still hear about the newest security fix.
+const newestSecurityFix = allReleases.find((release) => release.securityFix)
+if (newestSecurityFix && !releases.includes(newestSecurityFix)) releases.push(newestSecurityFix)
+
+const NOTICE_SEVERITIES = ["info", "warning"]
+const NOTICE_EDITIONS = ["oss", "ee"]
+
+// notices.json is hand-written, so a bad edit fails here rather than in the published feed.
+const checkNotices = (notices) => {
+    if (!Array.isArray(notices)) throw new Error(`${NOTICES_FILE}: must be a list`)
+    // Instances read only the first 10 notices (`MAX_FEED_NOTICES` in src/releases/feed.ts).
+    if (notices.length > 10) throw new Error(`${NOTICES_FILE}: at most 10 notices`)
+    const ids = new Set()
+    for (const notice of notices) {
+        const where = `${NOTICES_FILE}: notice ${JSON.stringify(notice?.id)}`
+        for (const key of ["id", "title", "body", "link"])
+            if (typeof notice?.[key] !== "string" || !notice[key])
+                throw new Error(`${where}: missing ${key}`)
+        // The same limits as the client (`MAX_TITLE_LENGTH` and `MAX_BODY_LENGTH` in src/releases/feed.ts).
+        if (notice.id.length > 300 || notice.title.length > 300 || notice.body.length > 20_000)
+            throw new Error(`${where}: id and title take at most 300 characters, body 20000`)
+        if (ids.has(notice.id)) throw new Error(`${where}: duplicate id`)
+        ids.add(notice.id)
+        if (notice.link.length > 2_000 || !/^https:\/\/[^\s]+$/.test(notice.link))
+            throw new Error(
+                `${where}: link must be an https URL with no spaces, at most 2000 characters`,
+            )
+        if (!NOTICE_SEVERITIES.includes(notice.severity))
+            throw new Error(`${where}: severity must be one of ${NOTICE_SEVERITIES.join(", ")}`)
+        if (
+            notice.editions !== undefined &&
+            !(
+                Array.isArray(notice.editions) &&
+                notice.editions.every((edition) => NOTICE_EDITIONS.includes(edition))
+            )
+        )
+            throw new Error(`${where}: editions must list ${NOTICE_EDITIONS.join(", ")}`)
+        for (const key of ["minVersion", "maxVersion"])
+            if (notice[key] !== undefined && !VERSION_TAG.test(notice[key]))
+                throw new Error(`${where}: ${key} must look like v0.128.0`)
+    }
+}
+checkNotices(JSON.parse(readFileSync(NOTICES_FILE, "utf8")))
 
 const output = `${JSON.stringify(releases, null, 4)}\n`
 if (process.argv.includes("--check")) {

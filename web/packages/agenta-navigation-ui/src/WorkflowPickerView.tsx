@@ -1,10 +1,13 @@
 import type {MouseEvent, ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
+    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {CaretDown} from "@phosphor-icons/react"
 import clsx from "clsx"
@@ -36,8 +39,9 @@ export const WorkflowPickerView = ({
     triggerContent,
     entries,
     onSelect,
-    ariaLabel = "Switch workflow",
+    ariaLabel,
 }: WorkflowPickerViewProps) => {
+    const t = useT(navigationCatalog)
     // Pick here: the prevented default also stops Radix from calling the item's onSelect.
     const handleLinkClick = (event: MouseEvent, key: string) => {
         if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
@@ -50,43 +54,58 @@ export const WorkflowPickerView = ({
         onSelect(key)
     }
 
+    const trigger = (
+        <DropdownMenuTrigger asChild>
+            <button
+                type="button"
+                aria-label={ariaLabel ?? t("navigation.items.switchWorkflow")}
+                className={clsx(
+                    "flex cursor-pointer items-center justify-between overflow-hidden rounded-md border-0 bg-transparent text-foreground transition-[width,height,padding,gap] duration-[var(--duration-slow)] ease-[var(--ease-in-out)] hover:bg-accent focus-ring",
+                    // A rail row: 28px, its Mark on the icon line (ALIGN-02).
+                    collapsed
+                        ? "size-row-dense justify-center gap-0 p-0"
+                        : "h-row-dense w-full gap-2 px-2",
+                )}
+            >
+                {triggerContent}
+                <span
+                    className={clsx(
+                        "flex shrink-0 items-center overflow-hidden transition-[width,opacity] duration-[var(--duration-slow)] ease-[var(--ease-in-out)]",
+                        collapsed ? "w-0 opacity-0" : "w-3 opacity-100",
+                    )}
+                    aria-hidden={collapsed}
+                >
+                    <CaretDown
+                        size={12}
+                        className="ag-caret text-muted-foreground"
+                        data-open={open || undefined}
+                    />
+                </span>
+            </button>
+        </DropdownMenuTrigger>
+    )
+
     return (
         <DropdownMenu open={open} onOpenChange={onOpenChange} modal={false}>
-            <DropdownMenuTrigger asChild>
-                <button
-                    type="button"
-                    aria-label={ariaLabel}
-                    className={clsx(
-                        "flex cursor-pointer items-center justify-between overflow-hidden rounded-md border-0 bg-transparent text-colorText transition-[width,height,padding,gap,border-color] duration-300 ease-in-out hover:bg-colorFillTertiary",
-                        // No border when expanded: the header row it sits in is already
-                        // framed by the rail's own line, so a box inside a box reads wrong.
-                        collapsed ? "!h-8 !w-8 gap-0 !p-1" : "h-full w-full gap-2 pl-1.5 pr-2",
-                    )}
+            {collapsed ? (
+                // Icon only when collapsed: the name moves to a tooltip (KIT-03).
+                <SimpleTooltip
+                    title={ariaLabel ?? t("navigation.items.switchWorkflow")}
+                    side="right"
                 >
-                    {triggerContent}
-                    <span
-                        className={clsx(
-                            "flex shrink-0 items-center overflow-hidden transition-[width,opacity] duration-300 ease-in-out",
-                            collapsed ? "w-0 opacity-0" : "w-3.5 opacity-100",
-                        )}
-                        aria-hidden={collapsed}
-                    >
-                        <CaretDown
-                            size={14}
-                            className={clsx("transition-transform", open && "rotate-180")}
-                        />
-                    </span>
-                </button>
-            </DropdownMenuTrigger>
+                    <span className="inline-flex">{trigger}</span>
+                </SimpleTooltip>
+            ) : (
+                trigger
+            )}
             <DropdownMenuContent
                 side="bottom"
                 align={collapsed ? "start" : "end"}
-                className="z-[2000] max-h-80 min-w-[220px] overflow-y-auto p-2"
+                className="max-h-80 min-w-popover-sm overflow-y-auto"
             >
                 {entries.map((entry) => (
                     <DropdownMenuItem
                         key={entry.key}
-                        className="px-2"
                         asChild={Boolean(entry.href)}
                         // A link entry picks in its own click handler; a modified click opens a tab.
                         onSelect={

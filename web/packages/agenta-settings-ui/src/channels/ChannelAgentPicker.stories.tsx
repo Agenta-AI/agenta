@@ -37,7 +37,6 @@ export const AgentStep: Story = {
                 connections={EMPTY_CONNECTIONS}
                 onSelect={noop}
                 platform="slack"
-                projectName="Acme support"
             />
         </InlinePanel>
     ),

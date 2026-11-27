@@ -1,8 +1,9 @@
 ---
-title: "First-agent onboarding and more dependable event automations"
+title: "A guided start for your first agent"
 slug: first-agent-onboarding-and-automation-fixes
 date: 2026-10-29
 tags: [v0.127.0]
+upgrade_notes: /self-host/upgrading#upgrading-to-01270-workspaces-are-removed
 description: "New signups enter first-agent onboarding, event automation delivery is repaired, and organizations replace workspace records."
 ---
 
@@ -10,11 +11,11 @@ description: "New signups enter first-agent onboarding, event automation deliver
 
 <img src="https://pub-69f3eb49ae974b8090d6ab0da30f8ea2.r2.dev/changelog/v0.127.0/release-poster-concept-v3.png" alt="Release concept: A path guides a new account toward its first agent." style={{ width: '100%', maxWidth: 680, height: 'auto', display: 'block', margin: '0 auto' }} />
 
-New accounts now enter first-agent onboarding when their project has no agents. The questions use the same role, company-size and referral choices as the signup survey, so people do not need to answer conflicting versions of them.
+New accounts now get a short guided start that helps them build their first agent. The questions match the sign-up survey, so nobody answers the same thing twice.
 
-- Event automations now receive Composio V3 webhook events instead of silently dropping them.
-- Editing an automation's event filters now updates its Composio trigger.
-- Organizations replace workspace records; self-hosted operators should read the upgrade notes before deploying.
+- Automations that start on an event in a connected app no longer miss events.
+- When you change an automation's event filters, the change now takes effect.
+- If you host Agenta yourself, read the upgrade notes before you update.
 
 </Summary>
 

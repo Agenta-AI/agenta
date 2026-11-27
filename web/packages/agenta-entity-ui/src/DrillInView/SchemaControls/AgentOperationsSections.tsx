@@ -12,26 +12,24 @@
  * The config surface shows one flat file view; the agent's durable folder is a SUBFOLDER of the
  * conversation's working folder, not a separate "App drive" (that split lives only in the drawer).
  */
-import {useCallback, type ReactNode} from "react"
+import {type ReactNode} from "react"
 
-import {triggerScheduleDrawerAtom} from "@agenta/entities/gatewayTrigger"
+import {useT} from "@agenta/i18n"
+import agentOperationsCatalog from "@agenta/i18n/catalogs/entityUi.agentOperations"
 import {CONFIG_REGION_BAR, ConfigRowTrailing} from "@agenta/ui/components/presentational"
 import {SkeletonBlock} from "@agenta/ui/ui"
-import {Lightning} from "@phosphor-icons/react"
-import {useSetAtom} from "jotai"
 
 import {SkeletonSectionRow} from "./agentTemplate/AgentConfigSkeleton"
-import {countSummary} from "./agentTemplate/agentTemplateUtils"
-import {CreateWithAIAddMenu} from "./agentTemplate/CreateWithAIAddMenu"
 import {
+    AddAutomationPhoneAction,
+    AddTriggerDropdown,
     TriggerManagementSection,
-    useAgentTriggers,
     type TriggerOwnerRef,
 } from "./TriggerManagementSection"
 
 const barClass = (sticky: boolean) =>
-    `${CONFIG_REGION_BAR} ${sticky ? "sticky top-0 z-[10]" : ""} bg-[var(--ag-surface-section-header)]`
-const titleClass = "text-[13px] font-semibold text-colorText"
+    `${CONFIG_REGION_BAR} ${sticky ? "sticky top-0 z-[10]" : ""} bg-muted`
+const titleClass = "text-subtitle text-foreground"
 
 /** A region header bar. `children` follow the {@link ConfigRowTrailing} convention. */
 export function AgentRegionHeaderBar({
@@ -53,10 +51,10 @@ export function AgentRegionHeaderBar({
 // Region BODIES are the white sheet the Configuration region's field list already paints
 // (`ag-drill-in-field-list`). Without it they'd expose the raised panel tint behind collapsed
 // section headers, so Subscriptions/Schedules would not match collapsed Tools/Skills.
-const bodyClass = "bg-[var(--ag-surface-section-content)] px-4 pb-3 pt-1"
+const bodyClass = "bg-background px-4 pb-3 pt-1"
 // Sections-holding body: no vertical padding, so an expanded section's band runs flush into the
 // region header above and the next region below instead of leaving white slivers.
-const sectionsBodyClass = "bg-[var(--ag-surface-section-content)] px-4"
+const sectionsBodyClass = "bg-background px-4"
 
 /**
  * Loading shape for the operational regions, shown while the panel's hydration/agent-ness is
@@ -64,21 +62,25 @@ const sectionsBodyClass = "bg-[var(--ag-surface-section-content)] px-4"
  * three-section structure is present from first paint and nothing shifts when data lands.
  */
 export function AgentOperationsSkeleton({sticky = true}: {sticky?: boolean}) {
+    const t = useT(agentOperationsCatalog)
     return (
         <>
             <section className="flex flex-col" aria-busy>
-                <AgentRegionHeaderBar title="Automations" sticky={sticky}>
-                    <ConfigRowTrailing>
-                        <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
-                    </ConfigRowTrailing>
-                </AgentRegionHeaderBar>
+                {/* The Automations region has no header bar; its "Add automation" button sits at
+                    the top right of the list. */}
                 <div className={`flex flex-col ${bodyClass}`}>
+                    <div className="flex justify-end pb-1 pt-2.5">
+                        <SkeletonBlock active className="h-7 w-[132px] shrink-0" />
+                    </div>
                     <SkeletonSectionRow title={112} value={44} withAdd divider />
                     <SkeletonSectionRow title={82} value={44} withAdd />
                 </div>
             </section>
             <section className="flex grow flex-col" aria-busy>
-                <AgentRegionHeaderBar title="Recent files" sticky={sticky}>
+                <AgentRegionHeaderBar
+                    title={t("entityUi.agentOperations.recentFiles")}
+                    sticky={sticky}
+                >
                     <ConfigRowTrailing>
                         <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
                     </ConfigRowTrailing>
@@ -100,6 +102,11 @@ export function AgentOperationsSections({
     storageHeader,
     automationDrawer,
     onOpenRunHistory,
+    onOpenAutomation,
+    onAddAutomation,
+    showFiles = true,
+    phone = false,
+    flat = false,
 }: {
     /** The open agent's revision id (the playground's variantId). */
     revisionId: string | null
@@ -117,71 +124,80 @@ export function AgentOperationsSections({
     automationDrawer: ReactNode
     /** A row's "Run history" destination; see {@link TriggerManagementSection}. */
     onOpenRunHistory?: (owner: TriggerOwnerRef) => void
+    /** A row's destination; see {@link TriggerManagementSection}. */
+    onOpenAutomation?: (owner: TriggerOwnerRef) => void
+    /** False drops the Files region (a host with no session, such as the Configuration page). */
+    showFiles?: boolean
+    /** Where "Add automation" opens the chosen form; absent, the automation drawer. */
+    onAddAutomation?: (
+        kind: TriggerOwnerRef["kind"],
+        references: Record<string, {id?: string; slug?: string}>,
+    ) => void
+    /**
+     * The phone shape (M10): no Automations header bar (the tab already names the list), no Files
+     * region, phone rows, and "Add automation" as the full-width button at the bottom, which opens
+     * a bottom sheet (M11). The host decides it (`useIsPhone`) and makes its scrolling column a flex
+     * column, so the button sits at the bottom of the screen.
+     */
+    phone?: boolean
+    /** The panel's flat list of automations; see {@link TriggerManagementSection}. */
+    flat?: boolean
 }) {
-    const {count: triggerCount, defaultReferences, defaultBoundLabel} = useAgentTriggers(revisionId)
-    const openScheduleDrawer = useSetAtom(triggerScheduleDrawerAtom)
-
-    // The region's own "+", now that Subscriptions and Schedules are one list with no headers of
-    // their own to hang it from. It opens a schedule-shaped draft; the drawer's own "Runs when"
-    // control is where a reader switches it to an event, so there is nothing to choose here.
-    const onAdd = useCallback(() => {
-        openScheduleDrawer({
-            defaultReferences,
-            defaultBoundLabel,
-            playgroundEntityId: revisionId ?? undefined,
-        })
-    }, [defaultBoundLabel, defaultReferences, openScheduleDrawer, revisionId])
+    const t = useT(agentOperationsCatalog)
 
     return (
         <>
-            <section className="flex flex-col">
-                <AgentRegionHeaderBar title="Automations" sticky={sticky}>
-                    {/* No reserved affordance column: this region has no caret, and the empty
-                        14px slot only held the "+" off the bar's right edge. */}
-                    <ConfigRowTrailing reserve={false}>
-                        <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                            {countSummary(triggerCount, "automation")}
-                        </span>
-                        {disabled ? null : (
-                            <CreateWithAIAddMenu
-                                label="Add automation"
-                                starterPrompt="I want an automation that"
-                                onManual={onAdd}
-                                manualTitle="Create manually"
-                                manualHint="Run on a schedule or an event"
-                                manualIcon={<Lightning size={16} />}
-                            />
-                        )}
-                    </ConfigRowTrailing>
-                </AgentRegionHeaderBar>
-                <div className={sectionsBodyClass}>
+            {/* On a phone the list is the whole screen: its white sheet runs down to the button. */}
+            <section className={phone ? "flex grow flex-col" : "flex flex-col"}>
+                {/* No header bar: the tab already names the list. */}
+                <div className={phone ? `${sectionsBodyClass} grow` : sectionsBodyClass}>
                     <TriggerManagementSection
                         entityId={revisionId}
                         disabled={disabled}
                         automationDrawer={automationDrawer}
                         onOpenRunHistory={onOpenRunHistory}
+                        onOpenAutomation={onOpenAutomation}
+                        phone={phone}
+                        flat={flat}
+                        onAdd={onAddAutomation}
                     />
                 </div>
+                {/* "Add automation" follows the list, as on a phone (M10). */}
+                {/* The flat list has its "Add" on the heading. */}
+                {phone || disabled || flat ? null : (
+                    <div className={`${sectionsBodyClass} flex pb-3.5`}>
+                        <AddTriggerDropdown entityId={revisionId} onAdd={onAddAutomation} />
+                    </div>
+                )}
             </section>
 
             {/* Last region: it grows so its white sheet runs to the panel's bottom edge instead of
                 stopping at the last file row. */}
-            <section className="flex grow flex-col">
-                <AgentRegionHeaderBar title="Recent files" sticky={sticky}>
-                    {storageHeader}
-                </AgentRegionHeaderBar>
-                {/* Files never recolours on expand (unlike Triggers' sections) — it stays a white sheet. */}
-                <div className={`flex grow flex-col ${bodyClass}`}>
-                    {storage ?? (
-                        // Static fallback for surfaces that don't slot the live Files body.
-                        <span className="text-xs text-colorTextDescription">
-                            The agent&rsquo;s working files — everything it reads and writes during
-                            a run. Open a conversation to browse them here; the agent&rsquo;s
-                            durable folder appears as a subfolder once agent-level storage lands.
-                        </span>
-                    )}
-                </div>
-            </section>
+            {/* A phone shows the automation list alone (M10). */}
+            {showFiles && !phone ? (
+                <section className="flex grow flex-col">
+                    <AgentRegionHeaderBar
+                        title={t("entityUi.agentOperations.recentFiles")}
+                        sticky={sticky}
+                    >
+                        {storageHeader}
+                    </AgentRegionHeaderBar>
+                    {/* Files never recolours on expand (unlike Triggers' sections) — it stays a white sheet. */}
+                    <div className={`flex grow flex-col ${bodyClass}`}>
+                        {storage ?? (
+                            // Static fallback for surfaces that don't slot the live Files body.
+                            <span className="text-meta text-muted-foreground">
+                                {t("entityUi.agentOperations.workingFilesHint")}
+                            </span>
+                        )}
+                    </div>
+                </section>
+            ) : null}
+
+            {/* A viewer gets no "Add automation", as on the desktop. */}
+            {phone && !disabled ? (
+                <AddAutomationPhoneAction entityId={revisionId} onAdd={onAddAutomation} />
+            ) : null}
         </>
     )
 }

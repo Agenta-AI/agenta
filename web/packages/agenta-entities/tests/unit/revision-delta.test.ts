@@ -7,8 +7,14 @@ import {describe, it, expect} from "vitest"
 
 import {
     applyRevisionDelta,
-    classifyRevisionDeltaChanges,
+    classifyRevisionDeltaChanges as classify,
 } from "../../src/workflow/commitDiff/revisionDelta"
+import {NO_COMMIT_DIFF_TEXT, type CommitDiffText} from "../../src/workflow/commitDiff/text"
+
+// The real words are in @agenta/entity-ui; a section tag only needs to show its count here.
+const TEXT: CommitDiffText = {...NO_COMMIT_DIFF_TEXT, count: (kind, n) => `${n} ${kind}`}
+const classifyRevisionDeltaChanges = (currentParams: unknown, delta: unknown) =>
+    classify(currentParams, delta, TEXT)
 
 const tool = (name: string, description = "Search") => ({
     type: "function",

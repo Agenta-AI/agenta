@@ -1,0 +1,16 @@
+{
+    "columnAdded": "Ajouté",
+    "columnAmount": "Quantité",
+    "columnCredit": "Crédit",
+    "columnExpires": "Expire",
+    "columnPaid": "Payé",
+    "empty": "Aucun crédit pour le moment.",
+    "free": "Gratuit",
+    "included": "Inclus",
+    "never": "Jamais",
+    "opening": "Ouverture…",
+    "statusExpired": "Expiré",
+    "statusUsedUp": "Épuisé",
+    "title": "Historique des crédits",
+    "viewInvoices": "Voir les factures"
+}

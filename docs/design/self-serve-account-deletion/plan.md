@@ -148,7 +148,7 @@ Ship in slices so each is reviewable on its own.
 
 ## Testing
 
-Follow `docs/designs/testing/README.md` and the running-tests notes. At minimum:
+Follow `docs/design/testing/README.md` and the running-tests notes. At minimum:
 
 - Service test: solo account deletes cleanly and calls Stripe cancel, SuperTokens delete,
   and Loops delete (mock the externals). Assert the DB cascade ran.

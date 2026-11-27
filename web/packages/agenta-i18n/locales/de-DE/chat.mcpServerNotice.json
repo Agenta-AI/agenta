@@ -1,0 +1,8 @@
+{
+    "didNotConnect": "{{name}} konnte nicht verbunden werden, daher waren dessen Werkzeuge nicht verfügbar",
+    "needsSignIn": "{{name}} erfordert eine neue Anmeldung.",
+    "needsSignInDetail": "Die Werkzeuge schlagen fehl, bis jemand im Projekt die Verbindung erneuert.",
+    "notSetUp": "{{name}} ist noch nicht eingerichtet, daher wurden dessen Werkzeuge übersprungen.",
+    "reconnect": "Erneut verbinden",
+    "reconnectNamed": "{{name}} erneut verbinden"
+}

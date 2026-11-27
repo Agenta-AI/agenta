@@ -20,7 +20,6 @@ from uuid import UUID, uuid4, uuid5
 from oss.src.core.access.dtos import (
     PrincipalKind,
     PrincipalRef,
-    RunApproval,
     RunAuthority,
     RunContext,
     RunEnvelope,
@@ -28,6 +27,7 @@ from oss.src.core.access.dtos import (
     RunSender,
 )
 from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.principals import approval_from_request
 from oss.src.core.access.service import get_access_service
 from oss.src.core.access.types import AccessDenied
 from oss.src.core.sharing.admission import CHANNEL_TURN_BOUNDARY, RunAdmission
@@ -237,10 +237,12 @@ class InboxDispatcher:
         )
         # The installation answered; the approver names the binding, the linked user
         # and the external sender key.
-        approved_by = RunApproval(
+        # A channel answer has no request credential.
+        approved_by = approval_from_request(
             principal=PrincipalRef(
                 kind=PrincipalKind.INSTALLATION, id=resolution.agent.id
             ),
+            credential_kind=None,
             user_id=user_id,
             external_key=external_user_key,
         )
@@ -278,6 +280,8 @@ class InboxDispatcher:
                 connection_id=connection_id,
                 thread=resolution.thread,
                 interaction_id=interaction_id,
+                approved=approved,
+                answered_by=event.data.processed.sender,
             )
         except Exception:  # UI cleanup must not replay an admitted decision.
             log.warning(
@@ -1490,7 +1494,7 @@ class InboxDispatcher:
         # Raises `AdmissionDenied` for an agent the installation may not run (the
         # caller settles the turn). Resolves the target once and leaves it on the
         # request, so the invoke runs what was checked.
-        await self.run_admission.admit_request(
+        agent_artifact_id = await self.run_admission.admit_request(
             envelope=envelope,
             session_id=None,
             project_id=project_id,
@@ -1509,6 +1513,7 @@ class InboxDispatcher:
                 # an accepted run: otherwise the trigger settles and the chat
                 # hears nothing, because no turn event ever follows.
                 strict_start=True,
+                admitted_agent_id=agent_artifact_id,
             )
         except Exception as e:
             if type(e).__name__ == "SessionTurnInUse" or (

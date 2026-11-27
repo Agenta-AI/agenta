@@ -1,5 +1,8 @@
 /**
- * ModelPickerControl — the agent playground's connection-first model menu.
+ * ModelPickerControl — the agent playground's connection-first model menu. In the Model view
+ * (`ModelPickerLayoutContext` "list") it draws one inline list instead (`ModelPickerList`,
+ * F01 f2), with its own group order and the "Agenta" name (`listPickerGroups`). The rest of
+ * this comment describes the popover.
  *
  * Level 1 is one row per stored connection (plus one per subscription PLAN, however many harnesses
  * drive it); level 2 is that connection's models grouped by the harness that runs them. It IS the
@@ -13,7 +16,7 @@
  *
  * Design: docs/design/provider-connections-models/experience.md ("Model picker in the playground").
  */
-import {useCallback, useMemo, useRef, useState, type ReactNode} from "react"
+import {useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {subscriptionPairModelsAtom, type AgentConnectionNamespace} from "@agenta/entities/secret"
 import {
@@ -21,16 +24,25 @@ import {
     invalidateAgentRequirements,
     loadAgentModelCandidates,
 } from "@agenta/entities/workflow"
+import {textVersionAtom, useT} from "@agenta/i18n"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
+import providerListCatalog from "@agenta/i18n/catalogs/entityUi.providerList"
 import {projectIdAtom, userAtom} from "@agenta/shared/state"
 import {
     HarnessTooltip,
     ManageProvidersRow,
+    ModelPickerList,
     SelectLLMProviderBase,
 } from "@agenta/ui/select-llm-provider"
+import {useOptionalViewStack, type ViewDef} from "@agenta/ui/view-stack"
 import {Plus} from "@phosphor-icons/react"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useStore} from "jotai"
 
 import ProviderDrawer from "../../../secretProvider/ProviderDrawer"
+import {ProviderCatalogBody} from "../../../secretProvider/views/ProviderCatalogBody"
+import {ProviderAddBar} from "../../../secretProvider/views/ProviderListBody"
+import {providerSaveFollowUpAtom} from "../../../secretProvider/views/providerSaveFollowUp"
+import {providerAddView, providerListView} from "../../../secretProvider/views/providerViews"
 import {
     buildConnectionPickerRows,
     displayedModelRow,
@@ -42,6 +54,7 @@ import {
 import type {ConnectionMode, HarnessCapabilitiesMap} from "../connectionUtils"
 import {buildPickerGroupsWithSections} from "../pickerSections"
 
+import {listPickerGroups, ModelPickerLayoutContext, ModelViewContext} from "./modelPickerLayout"
 import {rowsOfConnection} from "./rowsOfConnection"
 
 export interface ModelPickerControlProps {
@@ -90,6 +103,10 @@ const ModelPickerControl = ({
     onSelect,
     fallback,
 }: ModelPickerControlProps) => {
+    const t = useT(configItemsCatalog, providerListCatalog)
+    const layout = useContext(ModelPickerLayoutContext)
+    // The row text is built in the active language, so the rows are built again when it changes.
+    const textVersion = useAtomValue(textVersionAtom)
     const candidateAtom = agentModelCandidatesAtomFamily(showSubscriptions)
     const candidateState = useAtomValue(candidateAtom)
     const connections = candidateState.connections
@@ -114,7 +131,7 @@ const ModelPickerControl = ({
                 // know them too, or it speaks for a subscription this agent cannot drive.
                 harnessIds,
             }),
-        [candidates, connections, capabilities, harnessIds],
+        [candidates, connections, capabilities, harnessIds, textVersion],
     )
 
     // The exact row the config points at. `value` alone selects by model id, which lights up every
@@ -131,17 +148,22 @@ const ModelPickerControl = ({
         () => (onlyCurrentConnection ? rowsOfConnection(rows, {mode, slug, namespace}) : rows),
         [onlyCurrentConnection, rows, mode, slug, namespace],
     )
-    const groups = useMemo(() => buildPickerGroupsWithSections(shownRows), [shownRows])
+    const groups = useMemo(
+        () =>
+            layout === "list"
+                ? listPickerGroups(shownRows, {
+                      label: t("entityUi.providerList.agenta"),
+                      tag: t("entityUi.providerList.builtIn"),
+                  })
+                : buildPickerGroupsWithSections(shownRows),
+        [layout, shownRows, t],
+    )
     const allSourcesResolved = candidateState.status === "ready"
 
     const currentSelection = useMemo<PickerSelection | null>(
         () => (modelId && harness ? {modelId, provider, mode, slug, namespace, harness} : null),
         [modelId, provider, mode, slug, namespace, harness],
     )
-    const openProviderDrawer = useCallback(() => {
-        drawerConnectionKeysRef.current = connections.map((connection) => connection.id)
-        setDrawerOpen(true)
-    }, [connections])
     const providerSaved = useCallback(
         async (savedConnectionId?: string) => {
             const previousConnectionKeys = drawerConnectionKeysRef.current
@@ -189,6 +211,41 @@ const ModelPickerControl = ({
         ],
     )
 
+    // In a container with a view stack (the panel, a view drawer), Model providers takes the
+    // Model view's place; elsewhere the provider drawer opens. Both run `providerSaved` after a
+    // save: the drawer through `onSaved`, the stack through the follow-up its form view runs.
+    const stack = useOptionalViewStack()
+    const store = useStore()
+    const openModelProviders = useCallback(() => {
+        drawerConnectionKeysRef.current = connections.map((connection) => connection.id)
+        if (stack) {
+            store.set(providerSaveFollowUpAtom, {host: stack.open, run: providerSaved})
+            void stack.open(providerListView, {}, {kind: "project"})
+            return
+        }
+        setDrawerOpen(true)
+    }, [connections, providerSaved, stack, store])
+
+    // In the Model view a provider view opens one level down, so its Save comes back here.
+    const modelView = useContext(ModelViewContext)
+    const openInModelView = useCallback(
+        <P,>(view: ViewDef<P>, params: P) => {
+            if (!modelView) return
+            drawerConnectionKeysRef.current = connections.map((connection) => connection.id)
+            if (stack) store.set(providerSaveFollowUpAtom, {host: stack.open, run: providerSaved})
+            void (modelView.nav.push ?? modelView.nav.replace)(view, params, {kind: "project"})
+        },
+        [connections, modelView, providerSaved, stack, store],
+    )
+    const stackOpen = stack?.open
+    useEffect(
+        () => () => {
+            if (modelView && store.get(providerSaveFollowUpAtom)?.host === stackOpen)
+                store.set(providerSaveFollowUpAtom, null)
+        },
+        [modelView, stackOpen, store],
+    )
+
     const drawer = (
         <ProviderDrawer
             open={drawerOpen}
@@ -200,34 +257,66 @@ const ModelPickerControl = ({
         />
     )
 
+    // The Model view gives the list its full width; the states that are not the list keep the
+    // view's 16px gutter.
+    const gutter = (node: ReactNode) =>
+        layout === "list" ? <div className="px-4">{node}</div> : node
+
     if (!allSourcesResolved) {
-        return (
-            <div className="w-full rounded-control-sm border border-border px-3 py-1.5 text-field-md text-colorTextTertiary">
-                Loading models…
-            </div>
+        return gutter(
+            <div className="w-full rounded-control-sm border border-border px-3 py-1.5 text-field-md text-muted-foreground">
+                {t("entityUi.configItems.loadingModels")}
+            </div>,
         )
     }
 
-    // Nothing connected: the menu would be empty, so the pill IS the call to action. A project
-    // already running on a subscription keeps its menu — it has models without a stored key.
+    // Nothing connected: the Model view opens on the provider catalog, elsewhere a set-up pill.
+    // A project already running on a subscription keeps its menu: it has models without a key.
     if (allSourcesResolved && rows.every((row) => row.models.length === 0)) {
-        return (
+        if (layout === "list" && modelView) return <ProviderCatalogBody open={openInModelView} />
+        return gutter(
             <>
                 <button
                     type="button"
                     disabled={disabled}
-                    onClick={openProviderDrawer}
-                    className="flex w-full cursor-pointer items-center gap-2 rounded-control-sm border border-dashed border-border bg-transparent px-3 py-1.5 text-left text-field-md text-colorTextSecondary hover:border-colorPrimary hover:text-colorText disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={openModelProviders}
+                    className="flex w-full cursor-pointer items-center gap-2 rounded-control-sm border border-dashed border-border bg-transparent px-3 py-1.5 text-left text-field-md text-muted-foreground hover:border-primary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
                 >
                     <Plus size={14} className="shrink-0" />
-                    Set up model providers
+                    {t("entityUi.configItems.setUpProviders")}
                 </button>
+                {drawer}
+            </>,
+        )
+    }
+
+    if (!groups.length) return gutter(<>{fallback}</>)
+
+    const onPick = (value: string, metadata: Record<string, unknown> | undefined) =>
+        onSelect(pickerSelectionFrom(value, metadata))
+
+    if (layout === "list") {
+        return (
+            <>
+                {modelView?.notice ? gutter(modelView.notice) : null}
+                <ModelPickerList
+                    options={groups}
+                    value={displayed.modelId ?? undefined}
+                    selectedKey={displayed.key}
+                    onChange={(value, option) => onPick(value, option.metadata)}
+                    searchPlaceholder={t("entityUi.configItems.searchModels")}
+                    disabled={disabled}
+                    onManageProviders={openModelProviders}
+                    footer={
+                        modelView ? (
+                            <ProviderAddBar onAdd={() => openInModelView(providerAddView, {})} />
+                        ) : undefined
+                    }
+                />
                 {drawer}
             </>
         )
     }
-
-    if (!groups.length) return <>{fallback}</>
 
     return (
         <>
@@ -238,21 +327,22 @@ const ModelPickerControl = ({
                 providerDropdownWidth="max(calc(var(--radix-popover-trigger-width) - 0.5rem), 460px)"
                 // Provider names are short; the saved width goes to the model column.
                 connectionColumnWidth={200}
-                searchPlaceholder="Search models"
+                searchPlaceholder={t("entityUi.configItems.searchModels")}
                 sectionTooltip={<HarnessTooltip />}
                 options={groups}
                 value={displayed.modelId ?? undefined}
                 selectedKey={displayed.key}
                 onChange={(value, option) => {
                     const picked = Array.isArray(option) ? option[0] : option
-                    const metadata = (picked as {metadata?: Record<string, unknown>} | undefined)
-                        ?.metadata
-                    onSelect(pickerSelectionFrom(value as string, metadata))
+                    onPick(
+                        value as string,
+                        (picked as {metadata?: Record<string, unknown>} | undefined)?.metadata,
+                    )
                 }}
                 disabled={disabled}
-                placeholder="Select a model…"
+                placeholder={t("entityUi.configItems.selectModel")}
                 className="w-full"
-                footerContent={<ManageProvidersRow onClick={openProviderDrawer} />}
+                footerContent={<ManageProvidersRow onClick={openModelProviders} />}
             />
             {drawer}
         </>

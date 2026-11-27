@@ -1,3 +1,5 @@
+import {createT} from "@agenta/i18n"
+import panelsCatalog from "@agenta/i18n/catalogs/playground.panels"
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {asRecord} from "@agenta/shared/utils"
 
@@ -78,5 +80,10 @@ export async function refinePrompt(
     }
     const messages = data.structuredContent?.messages
     if (!Array.isArray(messages)) throw new Error("The refine tool returned no messages")
-    return {messages, summary: data.structuredContent?.summary || "Prompt refined successfully."}
+    return {
+        messages,
+        summary:
+            data.structuredContent?.summary ||
+            createT(panelsCatalog)("playground.panels.promptRefined"),
+    }
 }

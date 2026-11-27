@@ -10,6 +10,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { PI_SKILL_SNAPSHOT_MARKER } from "../../sandbox_agent/pi-assets.ts";
+import { DRIVES_README_PATH } from "../../sandbox_agent/run-drives.ts";
 import type { ObjectStore } from "./drive-objects.ts";
 
 type Log = (message: string) => void;
@@ -48,4 +49,13 @@ export async function publishSkillSnapshot(cwd: string, snapshotDir: string, obj
   );
   await objects.put(rel(markerPath), marker);
   log(`[inprocess] skill snapshot put on the drive files=${all.length} ms=${Date.now() - t0}`);
+}
+
+/** Put `drives/README.md` on the session folder's prefix, where the sandbox sees it beside the drive links. */
+export async function publishDrivesReadme(content: string, objects: ObjectStore, log: Log): Promise<void> {
+  try {
+    await objects.put(DRIVES_README_PATH, Buffer.from(content));
+  } catch (err) {
+    log(`[inprocess] ${DRIVES_README_PATH} not put on the drive: ${String(err).slice(0, 160)}`);
+  }
 }

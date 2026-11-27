@@ -1,0 +1,8 @@
+{
+    "backToCommands": "zurück zu den Befehlen",
+    "changesDraft": "Ändert die Entwurfskonfiguration dieses Agent.",
+    "editRules": "Regeln in der Konfiguration bearbeiten →",
+    "policyLabel": "Berechtigungsrichtlinie",
+    "subtitle": "was der Agent tun darf, bevor er fragen muss",
+    "title": "Berechtigungen"
+}

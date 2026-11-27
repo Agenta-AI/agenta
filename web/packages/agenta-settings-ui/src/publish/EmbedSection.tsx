@@ -1,5 +1,7 @@
 import {useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import publishCatalog from "@agenta/i18n/catalogs/publish"
 import {SimpleTooltip} from "@agenta/ui/ui"
 import {CaretDown, CaretRight, Info} from "@phosphor-icons/react"
 
@@ -27,6 +29,7 @@ export const EmbedSection = ({
     testId: string
     children: React.ReactNode
 }) => {
+    const t = useT(publishCatalog)
     const [open, setOpen] = useState(defaultOpen)
     return (
         <section
@@ -41,7 +44,7 @@ export const EmbedSection = ({
                 <button
                     type="button"
                     aria-expanded={open}
-                    className="flex min-w-0 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left text-[13px] font-semibold text-foreground"
+                    className="flex min-w-0 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left text-label text-foreground"
                     data-testid={`${testId}-toggle`}
                 >
                     {open ? <CaretDown size={12} /> : <CaretRight size={12} />}
@@ -51,7 +54,9 @@ export const EmbedSection = ({
                     <SimpleTooltip title={info}>
                         <button
                             type="button"
-                            aria-label={`About ${title.toLowerCase()}`}
+                            aria-label={t("publish.aboutSection", {
+                                title: title.toLowerCase(),
+                            })}
                             onClick={(event) => event.stopPropagation()}
                             className="inline-flex border-0 bg-transparent p-0 text-muted-foreground"
                         >
@@ -61,7 +66,7 @@ export const EmbedSection = ({
                 ) : null}
                 {!open && summary ? (
                     <span
-                        className="ml-auto truncate pl-2 text-[12.5px] text-muted-foreground"
+                        className="ml-auto truncate pl-2 text-label text-muted-foreground"
                         data-testid={`${testId}-summary`}
                     >
                         {summary}
@@ -69,7 +74,7 @@ export const EmbedSection = ({
                 ) : null}
             </div>
             {!open && error ? (
-                <span role="alert" className="text-[12.5px] text-destructive">
+                <span role="alert" className="text-label text-destructive">
                     {error}
                 </span>
             ) : null}

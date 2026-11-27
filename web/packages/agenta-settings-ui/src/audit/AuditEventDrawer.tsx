@@ -9,6 +9,9 @@
 import type {ReactNode} from "react"
 
 import {eventByIdAtomFamily} from "@agenta/entities/event"
+import {useT} from "@agenta/i18n"
+import settingsAuditCatalog from "@agenta/i18n/catalogs/settings.audit"
+import settingsAuditEventTypesCatalog from "@agenta/i18n/catalogs/settings.auditEventTypes"
 import {dayjs} from "@agenta/shared/utils"
 import {CopyButton} from "@agenta/ui/components/presentational"
 import {
@@ -20,6 +23,8 @@ import {
     SheetTitle,
 } from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
+
+import {localDate, localFromNow} from "../shared/localDate"
 
 import {ActorCell} from "./AuditEventCells"
 import {eventTypeLabel} from "./eventTypeLabels"
@@ -35,7 +40,7 @@ const Section = ({
 }) => (
     <section className="flex flex-col gap-2">
         <div className="flex min-h-6 items-center justify-between">
-            <h3 className="m-0 text-[13px] font-medium text-muted-foreground">{title}</h3>
+            <h3 className="m-0 text-label font-medium text-muted-foreground">{title}</h3>
             {action}
         </div>
         {children}
@@ -45,15 +50,15 @@ const Section = ({
 /** One `label: value` pair in a framed list. */
 const Row = ({label, children}: {label: string; children: ReactNode}) => (
     <div className="grid grid-cols-[112px_minmax(0,1fr)] items-center gap-3 px-3.5 py-2.5">
-        <span className="text-[13px] text-muted-foreground">{label}</span>
-        <div className="flex min-w-0 items-center gap-1.5 text-[13px] text-foreground">
+        <span className="text-label text-muted-foreground">{label}</span>
+        <div className="flex min-w-0 items-center gap-1.5 text-label text-foreground">
             {children}
         </div>
     </div>
 )
 
 const List = ({children}: {children: ReactNode}) => (
-    <div className="flex flex-col divide-y divide-solid divide-border overflow-hidden rounded-[10px] border border-solid border-border">
+    <div className="flex flex-col divide-y divide-solid divide-border overflow-hidden rounded-lg border border-solid border-border">
         {children}
     </div>
 )
@@ -71,7 +76,7 @@ const Copy = ({text, label}: {text: string; label: string}) => (
 )
 
 const Mono = ({children}: {children: ReactNode}) => (
-    <span className="min-w-0 break-all font-mono text-[12.5px]">{children}</span>
+    <span className="min-w-0 break-all text-code">{children}</span>
 )
 
 type Reference = Record<string, {id?: string; slug?: string; version?: string | number}>
@@ -103,6 +108,7 @@ export const AuditEventDrawer = ({
     names,
     currentUserId,
 }: AuditEventDrawerProps) => {
+    const t = useT(settingsAuditCatalog, settingsAuditEventTypesCatalog)
     const event = useAtomValue(eventByIdAtomFamily(eventId ?? ""))
 
     // Actor/count live in `attributes`; the top-level request fields are left unset by the backend.
@@ -114,15 +120,30 @@ export const AuditEventDrawer = ({
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetContent className="w-full sm:max-w-[560px]">
+            <SheetContent className="w-full sm:max-w-content-sm">
                 <SheetHeader>
                     <SheetTitle className="truncate">
-                        {event ? eventTypeLabel(event.event_type) : "Event details"}
+                        {event
+                            ? eventTypeLabel(event.event_type, t)
+                            : t("settings.audit.eventDetails")}
                     </SheetTitle>
                     {event && at ? (
                         <SheetDescription title={at.format("YYYY-MM-DD HH:mm:ss.SSS")}>
                             <span className="font-mono">{event.event_type}</span> ·{" "}
-                            {at.format("MMM D, YYYY · HH:mm:ss")} · {at.fromNow()}
+                            {localDate(
+                                at.toDate(),
+                                {
+                                    year: "numeric",
+                                    month: "short",
+                                    day: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                    second: "2-digit",
+                                    hour12: false,
+                                },
+                                () => at.format("MMM D, YYYY · HH:mm:ss"),
+                            )}{" "}
+                            · {localFromNow(at.toDate(), () => at.fromNow())}
                         </SheetDescription>
                     ) : null}
                 </SheetHeader>
@@ -130,9 +151,9 @@ export const AuditEventDrawer = ({
                 <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
                     {event ? (
                         <div className="flex flex-col gap-6">
-                            <Section title="Summary">
+                            <Section title={t("settings.audit.summary")}>
                                 <List>
-                                    <Row label="Actor">
+                                    <Row label={t("settings.audit.actor")}>
                                         {actor ? (
                                             <>
                                                 <ActorCell
@@ -140,20 +161,23 @@ export const AuditEventDrawer = ({
                                                     names={names}
                                                     currentUserId={currentUserId}
                                                 />
-                                                <Copy text={actor} label="Copy user ID" />
+                                                <Copy
+                                                    text={actor}
+                                                    label={t("settings.audit.copyUserId")}
+                                                />
                                             </>
                                         ) : (
                                             <span className="text-muted-foreground">—</span>
                                         )}
                                     </Row>
-                                    <Row label="Count">
+                                    <Row label={t("settings.audit.count")}>
                                         <span className="tabular-nums">{count ?? "—"}</span>
                                     </Row>
                                 </List>
                             </Section>
 
                             {references.length ? (
-                                <Section title="Affected">
+                                <Section title={t("settings.audit.affected")}>
                                     <List>
                                         {references.map((reference, index) => (
                                             <Row
@@ -172,7 +196,9 @@ export const AuditEventDrawer = ({
                                                 {reference.id ? (
                                                     <Copy
                                                         text={reference.id}
-                                                        label={`Copy ${reference.entity} ID`}
+                                                        label={t("settings.audit.copyEntityId", {
+                                                            entity: reference.entity,
+                                                        })}
                                                     />
                                                 ) : null}
                                             </Row>
@@ -181,40 +207,49 @@ export const AuditEventDrawer = ({
                                 </Section>
                             ) : null}
 
-                            <Section title="Identifiers">
+                            <Section title={t("settings.audit.identifiers")}>
                                 <List>
-                                    <Row label="Request ID">
+                                    <Row label={t("settings.audit.requestId")}>
                                         <Mono>{event.request_id ?? "—"}</Mono>
                                         {event.request_id ? (
-                                            <Copy text={event.request_id} label="Copy request ID" />
+                                            <Copy
+                                                text={event.request_id}
+                                                label={t("settings.audit.copyRequestId")}
+                                            />
                                         ) : null}
                                     </Row>
-                                    <Row label="Event ID">
+                                    <Row label={t("settings.audit.eventId")}>
                                         <Mono>{event.event_id ?? "—"}</Mono>
                                         {event.event_id ? (
-                                            <Copy text={event.event_id} label="Copy event ID" />
+                                            <Copy
+                                                text={event.event_id}
+                                                label={t("settings.audit.copyEventId")}
+                                            />
                                         ) : null}
                                     </Row>
                                 </List>
                             </Section>
 
                             <Section
-                                title="Attributes"
+                                title={t("settings.audit.attributes")}
                                 action={
                                     <CopyButton
                                         text={json}
-                                        buttonText="Copy JSON"
+                                        buttonText={t("settings.audit.copyJson")}
                                         variant="ghost"
                                     />
                                 }
                             >
-                                <pre className="m-0 max-h-[360px] overflow-y-auto whitespace-pre-wrap break-all rounded-[10px] border border-solid border-border bg-muted/40 p-3.5 font-mono text-[12px] leading-relaxed text-foreground">
+                                <pre className="m-0 max-h-90 overflow-y-auto whitespace-pre-wrap break-all rounded-lg border border-solid border-border bg-muted p-3.5 text-code-sm leading-relaxed text-foreground">
                                     {json}
                                 </pre>
                             </Section>
                         </div>
                     ) : (
-                        <EmptyState image="simple" description="No event selected" />
+                        <EmptyState
+                            image="simple"
+                            description={t("settings.audit.noEventSelected")}
+                        />
                     )}
                 </div>
             </SheetContent>

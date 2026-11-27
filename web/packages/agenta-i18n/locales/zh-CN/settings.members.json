@@ -1,0 +1,13 @@
+{
+    "added": "添加时间",
+    "emptyDescription": "邀请他人在此组织中协作。邀请在被接受或过期之前会显示在这里。",
+    "emptyTitle": "还没有成员",
+    "expired": "已过期",
+    "inviteMembers": "邀请成员",
+    "member": "成员",
+    "memberActions": "成员操作",
+    "resendInvitation": "重新发送邀请",
+    "resetPassword": "重置密码",
+    "username": "用户名",
+    "you": "你"
+}

@@ -1,9 +1,19 @@
-import {useCallback} from "react"
+import {useCallback, useState} from "react"
 
 import {type Automation, useAutomation} from "@agenta/automation-ui"
-import {getScheduleMessagePreview} from "@agenta/entities/gatewayTrigger"
+import {useAutomationDelete} from "@agenta/entity-ui/drill-in"
+import {createT, useT} from "@agenta/i18n"
+import automationsPanelCatalog from "@agenta/i18n/catalogs/automations.panel"
+import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
 import {message} from "@agenta/ui/app-message"
 import {
+    AlertDialog,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
     Button,
     DropdownMenu,
     DropdownMenuContent,
@@ -11,24 +21,22 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {ClockCounterClockwise, DotsThreeVertical, Pause, Play, Trash} from "@phosphor-icons/react"
+import {ClockCounterClockwise, DotsThree, Pause, Play, Trash} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
-import {useStartTaskSession} from "../chat/useStartTaskSession"
-import {useConfirmModal} from "../settings/useConfirmModal"
+import {useAutomationRunNow} from "./useAutomationRunNow"
 
-import {testRunBlockedReason} from "./AutomationTestRunButton"
-import {runNowText} from "./runNowText"
+const tNow = createT(automationsScreensCatalog)
 
 /**
  * The automation's own actions — everything that acts on the row rather than on a field.
  *
  * A kebab, because none of these is a thing to do often and one of them is one keystroke from
- * being irreversible. Delete goes through the same confirm modal every destructive action on
- * this surface uses, and names the automation, so it is never a generic "are you sure".
+ * being irreversible. Delete asks first with the "Delete this automation?" dialog (F06 f4), which
+ * names the automation, so it is never a generic "are you sure".
  *
  * On a list row the kebab is the row's only control, so it also carries the three things the
- * detail screen exposes as its own controls — test run, run history, and the on/off switch.
+ * detail screen exposes as its own controls — Run now, run history, and the on/off switch.
  * `surface` decides which set applies, so the detail screen never offers a second copy of a
  * control already sitting beside it.
  */
@@ -52,53 +60,36 @@ export const AutomationActionsMenu = ({
      */
     onLeave?: (url: string) => void
 }) => {
+    const t = useT(automationsScreensCatalog, automationsPanelCatalog)
     const router = useRouter()
     const {remove, setActive} = useAutomation(automation.id, automation.kind)
-    const startTask = useStartTaskSession(base)
-    const {confirm, modal} = useConfirmModal()
+    // The list row's Run now ignores unsaved edits: the row has none.
+    const {run: onRunNow} = useAutomationRunNow(automation, base)
+    const [confirmDelete, setConfirmDelete] = useState(false)
 
     const onToggle = useCallback(async () => {
         const next = !automation.isActive
         try {
             await setActive(automation.id, next)
-            message.success(next ? "Automation switched on" : "Automation switched off")
+            message.success(
+                next
+                    ? tNow("automations.screens.switchedOn")
+                    : tNow("automations.screens.switchedOff"),
+            )
         } catch {
-            message.error("Couldn't change this automation")
+            message.error(tNow("automations.screens.changeFailed"))
         }
     }, [automation.id, automation.isActive, setActive])
 
-    const onTestRun = useCallback(async () => {
-        const instruction = getScheduleMessagePreview(automation.raw.data?.inputs_fields).trim()
-        // A menu item has no disabled-with-tooltip state, so the detail button's reasons surface
-        // as a toast instead.
-        const blocked = testRunBlockedReason({agentId: automation.agentId, instruction})
-        if (blocked || !automation.agentId) {
-            message.error(blocked)
-            return
-        }
-        const text = await runNowText(automation)
-        // Null: the deliveries call failed. Empty: the pills resolved to nothing. Either way
-        // there is no message, so no session opens.
-        if (!text) return
-        // Sent on landing, like the detail screen's Run now.
-        void startTask(automation.agentId, text)
-    }, [automation, startTask])
-
-    const onDelete = useCallback(() => {
-        confirm({
-            title: "Delete this automation?",
-            message:
-                `“${automation.name}” stops running and leaves your list. ` +
-                "Its past runs stay in your history.",
-            onOk: async () => {
-                await remove(automation.id)
-                message.success("Automation deleted")
-                const list = `${base}/automations`
-                if (onLeave) onLeave(list)
-                else void router.push(list).catch(() => undefined)
-            },
-        })
-    }, [automation.id, automation.name, base, confirm, onLeave, remove, router])
+    // F06 f4: the dialog runs the delete, and keeps the automation when it fails.
+    const onDelete = useCallback(async () => {
+        await remove(automation.id)
+        message.success(tNow("automations.screens.deleted"))
+        const list = `${base}/automations`
+        if (onLeave) onLeave(list)
+        else void router.push(list).catch(() => undefined)
+    }, [automation.id, base, onLeave, remove, router])
+    const deletion = useAutomationDelete({onDelete, onClose: () => setConfirmDelete(false)})
 
     return (
         <>
@@ -113,25 +104,24 @@ export const AutomationActionsMenu = ({
                         // height, or the pair reads as one control and a smaller afterthought.
                         size={surface === "list" ? "icon-xs" : "icon-sm"}
                         variant="ghost"
-                        aria-label="Automation actions"
-                        className="hover:bg-foreground/10 dark:hover:bg-foreground/15"
+                        aria-label={t("automations.screens.actionsAria")}
                     >
                         {/* Bigger than the box would give it: three small dots read smaller than
                             a glyph that fills its box, so matching by measurement mismatches by
                             eye. */}
-                        <DotsThreeVertical
+                        <DotsThree
                             aria-hidden
                             className={surface === "list" ? "size-3.5" : "size-4"}
                             weight="bold"
                         />
                     </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-[220px]">
+                <DropdownMenuContent align="end" className="w-popover-sm">
                     {surface === "list" ? (
                         <>
-                            <DropdownMenuItem onSelect={() => void onTestRun()}>
+                            <DropdownMenuItem onSelect={() => void onRunNow()}>
                                 <Play aria-hidden size={14} />
-                                Run now
+                                {t("automations.screens.runNow")}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                                 onSelect={() =>
@@ -144,7 +134,7 @@ export const AutomationActionsMenu = ({
                                 {/* The history is a view of the automation rather than a route,
                                     so the screen is asked to open on it. The row promises runs;
                                     landing on the config would make the reader find them. */}
-                                Run history
+                                {t("automations.screens.runHistory")}
                             </DropdownMenuItem>
                             <DropdownMenuItem onSelect={() => void onToggle()}>
                                 {automation.isActive ? (
@@ -152,18 +142,52 @@ export const AutomationActionsMenu = ({
                                 ) : (
                                     <Play aria-hidden size={14} />
                                 )}
-                                {automation.isActive ? "Deactivate" : "Activate"}
+                                {automation.isActive
+                                    ? t("automations.screens.deactivate")
+                                    : t("automations.screens.activate")}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                         </>
                     ) : null}
-                    <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+                    <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
                         <Trash aria-hidden size={14} />
-                        Delete
+                        {t("automations.screens.delete")}
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
-            {modal}
+            <AlertDialog
+                open={confirmDelete}
+                onOpenChange={(next) => (next ? undefined : deletion.close())}
+            >
+                <AlertDialogContent data-testid="automation-delete-dialog">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{t("automations.screens.deleteTitle")}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t("automations.screens.deleteMessage", {name: automation.name})}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {deletion.failed ? (
+                        <p role="alert" className="m-0 text-label text-destructive">
+                            {t("automations.panel.deleteFailed")}
+                        </p>
+                    ) : null}
+                    <AlertDialogFooter>
+                        {/* Focus starts on Cancel when the dialog opens. */}
+                        <AlertDialogCancel asChild>
+                            <Button variant="outline" disabled={deletion.pending}>
+                                {t("automations.screens.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <Button
+                            variant="destructive"
+                            disabled={deletion.pending}
+                            onClick={() => void deletion.remove()}
+                        >
+                            {t("automations.screens.delete")}
+                        </Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     )
 }

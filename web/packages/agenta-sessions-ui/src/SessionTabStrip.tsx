@@ -14,6 +14,8 @@
  */
 import {useCallback, useEffect, useRef, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import sessionsTabsCatalog from "@agenta/i18n/catalogs/sessions.tabs"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {PlusIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
@@ -86,7 +88,7 @@ export interface SessionTabStripProps {
  *  in from this tab's edge, which clears 4px on each side of it. `colorBorder`, not the
  *  secondary step: on the canvas the lighter hairline all but vanished. */
 export const TAB_DIVIDER =
-    "relative before:absolute before:-left-[5px] before:top-1/2 before:h-4 before:w-px before:-translate-y-1/2 before:bg-colorBorder before:content-['']"
+    "relative before:absolute before:-left-[5px] before:top-1/2 before:h-4 before:w-px before:-translate-y-1/2 before:bg-border before:content-['']"
 
 const SCROLLER_CLASS =
     "flex min-w-0 flex-1 items-center overflow-x-auto overscroll-x-contain motion-safe:scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -103,6 +105,7 @@ export const SessionTabStrip = ({
     reorder,
     className,
 }: SessionTabStripProps) => {
+    const t = useT(sessionsTabsCatalog)
     // Edge fade is applied per side only where the strip is actually scrolled past its content, so
     // a strip that fits (single tab, no scroll) shows no fade on either edge.
     const [fade, setFade] = useState({left: false, right: false})
@@ -195,16 +198,16 @@ export const SessionTabStrip = ({
 
     const canAdd = Boolean(showTabs && onAdd)
     const addButton = canAdd ? (
-        <SimpleTooltip title={addTooltip ?? "New session"}>
+        <SimpleTooltip title={addTooltip ?? t("sessions.tabs.newSession")}>
             {/* Non-disabled span trigger: tooltips don't fire on a disabled button. */}
             <span className="inline-flex">
                 <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label="New session"
+                    aria-label={t("sessions.tabs.newSession")}
                     onClick={onAdd}
                     disabled={addDisabled}
-                    className="h-7 w-7 shrink-0 p-0"
+                    className="h-control-sm w-7 shrink-0 p-0"
                 >
                     <PlusIcon size={14} />
                 </Button>
@@ -222,7 +225,7 @@ export const SessionTabStrip = ({
         <div
             role="tablist"
             className={clsx(
-                "flex h-[48px] w-full min-w-0 shrink-0 items-center gap-2 overflow-hidden border-x-0 border-t-0 border-b border-solid border-[var(--ag-surface-card-border)] bg-[var(--ag-surface-canvas)] px-3",
+                "flex h-12 w-full min-w-0 shrink-0 items-center gap-2 overflow-hidden border-x-0 border-t-0 border-b border-solid border-[var(--ag-surface-card-border)] bg-[var(--ag-surface-canvas)] px-3",
                 className,
             )}
         >

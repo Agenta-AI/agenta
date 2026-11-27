@@ -855,6 +855,8 @@ def filter(  # pylint:disable=redefined-builtin
                 clauses.extend(_handle_fts_field(condition))
             elif field == Fields.SESSION_ID:
                 clauses.extend(_handle_string_field(condition))
+            elif field == Fields.TURN_ID:
+                clauses.extend(_handle_string_field(condition))
             elif field == Fields.USER_ID:
                 clauses.extend(_handle_string_field(condition))
             elif field == Fields.AGENT_ID:

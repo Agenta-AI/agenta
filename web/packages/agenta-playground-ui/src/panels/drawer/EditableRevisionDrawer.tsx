@@ -5,23 +5,42 @@ import {
     discardLocalServerDataAtom,
     getWorkflowCommitCallbacks,
     registerWorkflowCommitCallbacks,
+    workflowDraftAtomFamily,
     workflowMolecule,
 } from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import panelsCatalog from "@agenta/i18n/catalogs/playground.panels"
 import {playgroundController} from "@agenta/playground"
 import {cn} from "@agenta/ui/styles"
-import {Button, Sheet, SheetContent, SheetHeader} from "@agenta/ui/ui"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+    Sheet,
+    SheetContent,
+    SheetHeader,
+} from "@agenta/ui/ui"
 import {ArrowsIn, ArrowsOut, CaretDownIcon, CaretUpIcon} from "@phosphor-icons/react"
 import {atom, useStore, type Getter} from "jotai"
 
-import {DiscardChangesDialog} from "./DiscardChangesDialog"
 import {DrawerTitle} from "./DrawerTitle"
 import {EditableRevisionDrawerBody} from "./EditableRevisionDrawerBody"
 import type {EditableRevisionDrawerProps} from "./types"
 
 /** A changed revision, or a local copy of a saved one; a new template entity once it changes. */
 const hasUnsavedEdits = (get: Getter, entityId: string) => {
+    // A new entity from a template has no saved side, so it reads dirty: only an edit counts.
+    if (get(workflowMolecule.selectors.isEphemeral(entityId))) {
+        return get(workflowDraftAtomFamily(entityId)) !== null
+    }
     if (get(workflowMolecule.selectors.isDirty(entityId))) return true
-    return isLocalDraftId(entityId) && !get(workflowMolecule.selectors.isEphemeral(entityId))
+    return isLocalDraftId(entityId)
 }
 
 /** Edits that a close or a switch would lose, across the drawer's playground state. */
@@ -56,6 +75,7 @@ export const EditableRevisionDrawer = ({
     defaultTesting = false,
     playground = true,
 }: EditableRevisionDrawerProps) => {
+    const t = useT(panelsCatalog)
     const store = useStore()
     // Shown from inside the commit: switching after it clears the draft leaves the form on old text.
     const [committedId, setCommittedId] = useState<string | null>(null)
@@ -128,7 +148,8 @@ export const EditableRevisionDrawer = ({
         [act, playground, shownId, store],
     )
 
-    const testLabel = kind === "evaluator" ? "Test evaluator" : "Test app"
+    const testLabel =
+        kind === "evaluator" ? t("playground.panels.testEvaluator") : t("playground.panels.testApp")
 
     return (
         <>
@@ -140,6 +161,8 @@ export const EditableRevisionDrawer = ({
                     side="right"
                     aria-describedby={undefined}
                     data-testid="editable-revision-drawer"
+                    // The drawer renders outside the page: this gives its editors the playground's font.
+                    data-playground
                     className={cn(
                         "overflow-hidden max-sm:inset-0 max-sm:w-full max-sm:rounded-none sm:max-w-none",
                         testing ? "sm:w-[min(1600px,94vw)]" : "sm:w-[min(1100px,92vw)]",
@@ -158,7 +181,7 @@ export const EditableRevisionDrawer = ({
                                             <Button
                                                 variant="ghost"
                                                 size="icon-sm"
-                                                aria-label="Previous revision"
+                                                aria-label={t("playground.panels.previousRevision")}
                                                 disabled={!previousId}
                                                 onClick={() =>
                                                     previousId &&
@@ -173,7 +196,7 @@ export const EditableRevisionDrawer = ({
                                             <Button
                                                 variant="ghost"
                                                 size="icon-sm"
-                                                aria-label="Next revision"
+                                                aria-label={t("playground.panels.nextRevision")}
                                                 disabled={!nextId}
                                                 onClick={() =>
                                                     nextId &&
@@ -220,15 +243,37 @@ export const EditableRevisionDrawer = ({
                     ) : null}
                 </SheetContent>
             </Sheet>
-            <DiscardChangesDialog
+            {/* Asks before a close or a switch drops unsaved edits. */}
+            <AlertDialog
                 open={pending !== null}
-                onCancel={() => setPending(null)}
-                onDiscard={() => {
-                    const next = pending
-                    setPending(null)
-                    if (next) act(next)
-                }}
-            />
+                onOpenChange={(next) => (next ? undefined : setPending(null))}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{t("playground.panels.discardTitle")}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t("playground.panels.discardBody")}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button variant="outline">{t("playground.panels.keepEditing")}</Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant="destructive"
+                                onClick={() => {
+                                    const next = pending
+                                    setPending(null)
+                                    if (next) act(next)
+                                }}
+                            >
+                                {t("playground.panels.discard")}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     )
 }

@@ -10,7 +10,7 @@ import {cn} from "./utils"
  * `forwardRef`, `data-slot` on every part). Re-skins antd `Avatar` with NO visual change.
  *
  * antd → @agenta/ui: `src`→`AvatarImage`, `children`/`icon`→`AvatarFallback`, `size`
- * (small/default/large + number)→`size`, `shape` (circle/square)→`shape`. The three Radix
+ * (small/default/large + number)→`size`. Square only: no circle shape. The three Radix
  * parts (`Avatar`, `AvatarImage`, `AvatarFallback`) compose freely; `AvatarBox` is the
  * antd-shaped convenience wrapper (and the shape `InitialsAvatar` folds into).
  *
@@ -18,45 +18,33 @@ import {cn} from "./utils"
  *  - box: small 24 / default 28 / large 34  → `size-avatar-sm/-/-lg`, plus antd's
  *    `border: 1px solid transparent` (avatar/style/index.js L61) — it insets the image by
  *    1px and shrinks the content box the initials centre in.
- *  - radius: circle 50% (`rounded-control-round`); square SCALES with size —
- *    small 6 / default 8 / large 10 (`rounded-control-sm/-/-lg`), numeric→8.
- *  - fill: antd default avatar bg = `colorTextPlaceholder` (#bdc7d1 light /
- *    rgba(255,255,255,.38) dark — matches both). text = `colorTextLightSolid` (white both).
- *  - font: antd base per size then a scale-to-fit; string 12/18/20 (numeric→18), icon
- *    12/16/20 (numeric→size/2). String children get antd's ResizeObserver shrink
+ *  - radius: 25% of the box (small 6 / default 7 / large 8.5px), never a circle.
+ *  - fill: neutral like a Mark: `secondary` with `muted-foreground` text (COLOR-05).
+ *  - font: base per size then a scale-to-fit; string 12/13/16 (numeric→18), icon
+ *    12/14/16 (numeric→size/2). String children get antd's ResizeObserver shrink
  *    (`scale = min(1,(width-gap*2)/textWidth)`, gap 4) so long/large initials fit.
- * Arbitrary `text-[Npx]` is used for the font ramp (no control-scale key maps to
- * avatar's 18/20px glyph sizes); `box-border` is required (preflight OFF). `font-portal`
+ * The string ramp uses the text styles (meta / label / title); `box-border` is required (preflight OFF). `font-portal`
  * keeps initials in Inter even if the avatar is portaled (menus/tooltips).
  */
 
 export type AvatarSize = "small" | "default" | "large"
-export type AvatarShape = "circle" | "square"
 
 const avatarVariants = cva(
     // `border-solid` is load-bearing (preflight OFF): without it the width computes to 0 and
     // the 1px inset antd gets from `border: 1px solid transparent` disappears.
-    "relative box-border inline-flex shrink-0 select-none items-center justify-center overflow-hidden border border-solid border-transparent bg-colorTextPlaceholder text-colorTextLightSolid font-portal leading-[1.6666666666666667]",
+    // 25% radius keeps every box square-ish; a fixed px radius turns boxes under ~20px into circles.
+    "relative box-border inline-flex shrink-0 select-none items-center justify-center overflow-hidden rounded-[25%] border border-solid border-transparent bg-secondary text-muted-foreground font-portal leading-[1.6666666666666667]",
     {
         variants: {
             // Dims + default string font per size (AvatarBox overrides font inline for
-            // icon/numeric precision). Arbitrary px: no control-scale font key fits.
+            // icon/numeric precision).
             size: {
-                small: "size-avatar-sm text-[12px]",
-                default: "size-avatar text-[18px]",
-                large: "size-avatar-lg text-[20px]",
-            },
-            shape: {
-                circle: "rounded-control-round",
-                // Default square radius (8px) — also the numeric-size fallback.
-                square: "rounded-control",
+                small: "size-avatar-sm text-meta",
+                default: "size-avatar text-label",
+                large: "size-avatar-lg text-title",
             },
         },
-        compoundVariants: [
-            {shape: "square", size: "small", className: "rounded-control-sm"},
-            {shape: "square", size: "large", className: "rounded-control-lg"},
-        ],
-        defaultVariants: {size: "default", shape: "circle"},
+        defaultVariants: {size: "default"},
     },
 )
 
@@ -66,11 +54,11 @@ export interface AvatarProps
         React.ComponentProps<typeof AvatarPrimitive.Root>,
         VariantProps<typeof avatarVariants> {}
 
-function Avatar({className, size, shape, ...props}: AvatarProps) {
+function Avatar({className, size, ...props}: AvatarProps) {
     return (
         <AvatarPrimitive.Root
             data-slot="avatar"
-            className={cn(avatarVariants({size, shape}), className)}
+            className={cn(avatarVariants({size}), className)}
             {...props}
         />
     )
@@ -163,18 +151,17 @@ export interface AvatarBoxProps extends Omit<AvatarProps, "size" | "children"> {
 }
 
 // antd base font-size per preset, split by content (icon default 16 ≠ string default 18).
-const STRING_FONT: Record<AvatarSize, number> = {small: 12, default: 18, large: 20}
-const ICON_FONT: Record<AvatarSize, number> = {small: 12, default: 16, large: 20}
+const STRING_FONT: Record<AvatarSize, number> = {small: 12, default: 13, large: 16}
+const ICON_FONT: Record<AvatarSize, number> = {small: 12, default: 14, large: 16}
 
 /**
- * antd-shaped convenience Avatar: one tag with `src`/`alt`/`icon`/children + `size`/`shape`.
+ * antd-shaped convenience Avatar: one tag with `src`/`alt`/`icon`/children + `size`.
  * Mirrors antd's single-element API so call-sites (and `InitialsAvatar`) map 1:1.
  */
 function AvatarBox({
     src,
     alt,
     size = "default",
-    shape = "circle",
     icon,
     children,
     className,
@@ -213,7 +200,6 @@ function AvatarBox({
     return (
         <Avatar
             size={isNumeric ? undefined : (size as AvatarSize)}
-            shape={shape}
             // antd clears the root fill for image avatars (the image covers it); the fill
             // moves to the fallback so it still shows if the image fails to load.
             className={cn(src && "bg-transparent", className)}
@@ -226,7 +212,7 @@ function AvatarBox({
         >
             {src ? <AvatarImage src={src} alt={alt} /> : null}
             <AvatarFallback
-                className={cn(src && "bg-colorTextPlaceholder")}
+                className={cn(src && "bg-border-strong")}
                 delayMs={src ? fallbackDelayMs : 0}
             >
                 {fallback}

@@ -1,0 +1,9 @@
+{
+    "changes": "更改",
+    "whatsChanging": "更改内容",
+    "changeCount_other": "{{count}} 处更改",
+    "viewAsJson": "以 JSON 查看",
+    "instructions": "指令",
+    "description": "描述",
+    "parameters": "参数"
+}

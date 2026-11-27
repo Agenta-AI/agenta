@@ -14,6 +14,8 @@
 import {useState} from "react"
 
 import type {ChangeItem, ChangeSection, ScalarChange} from "@agenta/entities/workflow/commitDiff"
+import {useT} from "@agenta/i18n"
+import changeSectionsCatalog from "@agenta/i18n/catalogs/entityUi.changeSections"
 import {HeightCollapse} from "@agenta/ui/components"
 import {AdaptiveList} from "@agenta/ui/components/selection"
 import type {ExtendedDiffLine} from "@agenta/ui/diff"
@@ -38,22 +40,20 @@ import {
 
 /** Inline text-diff rows before the "View full diff" link takes over. */
 export const INLINE_TEXT_DIFF_LINES = 6
-/** Row inset inside a card body; ghost sits on a tighter one, its band filling the pane's width. */
+/** Row inset inside a card body; the version history summary sits on a tighter one. */
 const ROW_PAD = "px-3.5"
-const GHOST_ROW_PAD = "px-2"
+const SUMMARY_ROW_PAD = "px-2"
 const SUBGROUP_VISIBLE = 5
 const VIRTUALIZE_AT = 50
 
-const ADD_BG = "color-mix(in srgb, var(--ag-colorSuccess) 13%, transparent)"
-const DEL_BG = "color-mix(in srgb, var(--ag-colorError) 13%, transparent)"
+const ADD_BG = "color-mix(in srgb, var(--success) 13%, transparent)"
+const DEL_BG = "color-mix(in srgb, var(--destructive) 13%, transparent)"
 
 // One subtle surface for the whole card; header inherits it, the diff tints + open divider
 // carry the structure. Avoids stacking two lightening fills (no "darker body" token in dark mode).
-export const CARD =
-    "overflow-hidden rounded-[10px] border border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)]"
+export const CARD = "overflow-hidden rounded-lg border border-border-muted bg-secondary"
 /** Keyboard users need to see where focus lands once these rows are real controls. */
-const FOCUS_RING =
-    "outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring"
+const FOCUS_RING = "outline-none focus-ring"
 
 /** Sections whose edited rows carry field-level detail worth opening. */
 const DRILLABLE = new Set<ChangeSection["id"]>(["tools", "subagents"])
@@ -77,7 +77,7 @@ function Row({
             onClick={onActivate}
             className={cn(
                 className,
-                "cursor-pointer border-0 bg-transparent hover:bg-[var(--ag-colorFillQuaternary)]",
+                "cursor-pointer border-0 bg-transparent hover:bg-accent",
                 FOCUS_RING,
             )}
         >
@@ -89,7 +89,7 @@ function Row({
 export const LINK_BTN = cn(
     "inline-flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 transition-colors",
     textColors.secondary,
-    "hover:text-[var(--ag-colorText)]",
+    "hover:text-foreground",
 )
 
 /** One per config-panel accordion section, so the diff and the panel read as the same thing. */
@@ -104,10 +104,10 @@ export const SECTION_ICON: Record<ChangeSection["id"], React.ReactNode> = {
 }
 
 const KIND_COLOR: Record<string, BadgeProps["variant"]> = {
-    added: "green",
-    removed: "red",
-    edited: "gold",
-    changed: "gold",
+    added: "success",
+    removed: "destructive",
+    edited: "warning",
+    changed: "warning",
 }
 
 export const kindIcon = (kind: string) => {
@@ -117,9 +117,9 @@ export const kindIcon = (kind: string) => {
 }
 
 export const kindStyle = (kind: string) => {
-    if (kind === "added") return {color: "var(--ag-colorSuccess)"}
-    if (kind === "removed") return {color: "var(--ag-colorError)"}
-    return {color: "var(--ag-colorWarning)"}
+    if (kind === "added") return {color: "var(--success)"}
+    if (kind === "removed") return {color: "var(--destructive)"}
+    return {color: "var(--warning)"}
 }
 
 export function StatusTags({tags, small}: {tags: ChangeSection["tags"]; small?: boolean}) {
@@ -131,7 +131,7 @@ export function StatusTags({tags, small}: {tags: ChangeSection["tags"]; small?: 
                     variant={KIND_COLOR[t.kind] ?? "default"}
                     className={cn(
                         "rounded",
-                        small ? "px-1.5 text-[12px] leading-[18px]" : "px-2 text-[12px]",
+                        small ? "px-1.5 text-meta leading-[18px]" : "px-2 text-meta",
                     )}
                 >
                     {t.label}
@@ -153,7 +153,7 @@ export function HunkRows({
 }) {
     const shown = limit ? hunks.slice(0, limit) : hunks
     return (
-        <div className="py-2 font-mono text-xs leading-[1.8]">
+        <div className="py-2 text-code-sm leading-[1.8]">
             {shown.map((line, i) => {
                 if (line.type === "fold") {
                     return (
@@ -167,14 +167,14 @@ export function HunkRows({
                 const style = isAdd
                     ? {
                           background: ADD_BG,
-                          boxShadow: "inset 1px 0 0 var(--ag-colorSuccess)",
-                          color: "var(--ag-colorSuccess)",
+                          boxShadow: "inset 1px 0 0 var(--success)",
+                          color: "var(--success)",
                       }
                     : isDel
                       ? {
                             background: DEL_BG,
-                            boxShadow: "inset 1px 0 0 var(--ag-colorError)",
-                            color: "var(--ag-colorError)",
+                            boxShadow: "inset 1px 0 0 var(--destructive)",
+                            color: "var(--destructive)",
                         }
                       : undefined
                 return (
@@ -216,7 +216,7 @@ function ItemRow({
                 <span style={kindStyle(it.kind)} className="flex w-4 shrink-0 justify-center">
                     {kindIcon(it.kind)}
                 </span>
-                <span className="min-w-0 flex-1 truncate text-xs">
+                <span className="min-w-0 flex-1 truncate text-meta">
                     {it.label}
                     {it.detail ? (
                         <span className={cn("ml-1", textColors.tertiary)}>· {it.detail}</span>
@@ -240,6 +240,7 @@ function CappedItems({
     onOpenTool?: (itemId: string) => void
     padX?: string
 }) {
+    const t = useT(changeSectionsCatalog)
     const [expanded, setExpanded] = useState(false)
 
     if (expanded && items.length > VIRTUALIZE_AT) {
@@ -264,11 +265,11 @@ function CappedItems({
             {hidden > 0 ? (
                 <button
                     type="button"
-                    className={cn(padX, "py-1.5 text-xs", LINK_BTN)}
+                    className={cn(padX, "py-1.5 text-label", LINK_BTN)}
                     onClick={() => setExpanded(true)}
                 >
                     <DotsThree />
-                    Show {hidden} more
+                    {t("entityUi.changeSections.showMore", {count: hidden})}
                 </button>
             ) : null}
         </div>
@@ -281,15 +282,15 @@ function ScalarRows({changes, padX = ROW_PAD}: {changes: ScalarChange[]; padX?: 
             {changes.map((c) => (
                 <div
                     key={c.key}
-                    className={cn("flex flex-wrap items-center gap-2 py-1.5 text-xs", padX)}
+                    className={cn("flex flex-wrap items-center gap-2 py-1.5 text-meta", padX)}
                     title={c.key}
                 >
                     <span className={textColors.secondary}>{c.label ?? c.key}</span>
-                    <span className="font-mono" style={{color: "var(--ag-colorError)"}}>
+                    <span className="font-mono" style={{color: "var(--destructive)"}}>
                         {c.beforeLabel ?? c.before ?? "—"}
                     </span>
                     <ArrowRight className={textColors.tertiary} />
-                    <span className="font-mono" style={{color: "var(--ag-colorSuccess)"}}>
+                    <span className="font-mono" style={{color: "var(--success)"}}>
                         {c.afterLabel ?? c.after ?? "—"}
                     </span>
                 </div>
@@ -306,7 +307,6 @@ export function SectionCard({
     onOpenInstructions,
     onOpenTool,
     small,
-    ghost,
 }: {
     section: ChangeSection
     items?: ChangeItem[]
@@ -317,26 +317,16 @@ export function SectionCard({
     /** Omit to make edited tools non-clickable (no detail view to drill into). */
     onOpenTool?: (itemId: string) => void
     small?: boolean
-    /** Drop the card fill and border — flat rows separated by a rule, not stacked cards. */
-    ghost?: boolean
 }) {
+    const t = useT(changeSectionsCatalog)
     const toolItems = items ?? section.items
-    // Ghost bands fill the pane's box and pad inward, so nothing relies on a negative margin —
-    // one bled outward gets clipped by the collapse wrapper's overflow-hidden.
-    const rowPad = ghost ? GHOST_ROW_PAD : ROW_PAD
     // Split frame per DetailCard; each header sticks only within its own card wrapper.
     return (
-        <div className={cn(ghost ? "mb-1" : small ? "mb-1.5" : "mb-2.5")}>
-            {/* Sticky only with the card chrome behind it — a borderless row pinned over the
-                scrolling diff has nothing separating it from the content it covers. */}
+        <div className={cn(small ? "mb-1.5" : "mb-2.5")}>
             <div
                 className={cn(
-                    ghost
-                        ? "rounded-md"
-                        : cn(
-                              "sticky top-0 z-[1] bg-[var(--ag-colorBgContainer)]",
-                              open ? "rounded-t-[10px]" : "rounded-[10px]",
-                          ),
+                    "sticky top-0 z-[1] bg-background",
+                    open ? "rounded-t-lg" : "rounded-lg",
                 )}
             >
                 <button
@@ -346,19 +336,9 @@ export function SectionCard({
                     className={cn(
                         "flex w-full cursor-pointer items-center border-0 text-left font-[inherit] transition-colors",
                         FOCUS_RING,
-                        // Ghost bleeds its fill outward so the icon column still lines up with
-                        // the heading above it — same left edge, no visible inset.
-                        ghost
-                            ? cn(
-                                  GHOST_ROW_PAD,
-                                  "rounded-md border-0 bg-[var(--ag-colorFillQuaternary)] hover:bg-[var(--ag-colorFillTertiary)]",
-                                  small ? "gap-2 py-2" : "gap-2.5 py-2.5",
-                              )
-                            : cn(
-                                  "border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] hover:bg-[var(--ag-colorFillTertiary)]",
-                                  open ? "rounded-t-[10px]" : "rounded-[10px]",
-                                  small ? "gap-2 px-2.5 py-1.5" : "gap-2.5 px-3 py-2.5",
-                              ),
+                        "border border-solid border-border-muted bg-secondary hover:bg-accent",
+                        open ? "rounded-t-lg" : "rounded-lg",
+                        small ? "gap-2 px-2.5 py-1.5" : "gap-2.5 px-3 py-2.5",
                     )}
                 >
                     <span
@@ -369,7 +349,7 @@ export function SectionCard({
                     >
                         {SECTION_ICON[section.id]}
                     </span>
-                    <span className={cn("flex-1 leading-none", small ? "text-xs" : "text-[13px]")}>
+                    <span className={cn("flex-1 leading-none", small ? "text-meta" : "text-label")}>
                         {section.title}
                     </span>
                     {/* A scalar section's rows ARE the list of changes, so "N changed" only
@@ -388,48 +368,45 @@ export function SectionCard({
                 </button>
             </div>
             <HeightCollapse open={open}>
-                <div
-                    className={cn(
-                        "overflow-hidden",
-                        ghost
-                            ? "border-0 bg-transparent"
-                            : "rounded-b-[10px] border border-t-0 border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)]",
-                    )}
-                >
+                <div className="overflow-hidden rounded-b-lg border border-t-0 border-solid border-border-muted bg-secondary">
                     {/* MCPs and Skills carry rows too; only the tool kinds drill into a detail view. */}
                     {toolItems?.length ? (
                         <CappedItems
                             items={toolItems}
                             onOpenTool={DRILLABLE.has(section.id) ? onOpenTool : undefined}
-                            padX={rowPad}
+                            padX={ROW_PAD}
                         />
                     ) : null}
                     {section.scalarChanges ? (
-                        <ScalarRows changes={section.scalarChanges} padX={rowPad} />
+                        <ScalarRows changes={section.scalarChanges} padX={ROW_PAD} />
                     ) : null}
                     {section.textDiff ? (
                         <div>
                             <HunkRows
                                 hunks={section.textDiff.hunks}
                                 limit={onOpenInstructions ? INLINE_TEXT_DIFF_LINES : undefined}
-                                padX={rowPad}
+                                padX={ROW_PAD}
                             />
                             {onOpenInstructions ? (
                                 <div
                                     className={cn(
-                                        "flex items-center border-t border-[var(--ag-colorBorderSecondary)] py-2",
-                                        rowPad,
+                                        "flex items-center border-t border-border-muted py-2",
+                                        ROW_PAD,
                                     )}
                                 >
                                     <button
                                         type="button"
-                                        className={cn("text-xs", LINK_BTN)}
+                                        className={cn("text-label", LINK_BTN)}
                                         onClick={onOpenInstructions}
                                     >
                                         <ArrowRight />
-                                        View full diff
+                                        {t("entityUi.changeSections.viewFullDiff")}
                                         {section.textDiff.added + section.textDiff.removed > 2
-                                            ? ` · ${section.textDiff.added + section.textDiff.removed} lines`
+                                            ? ` · ${t("entityUi.changeSections.lineCount", {
+                                                  count:
+                                                      section.textDiff.added +
+                                                      section.textDiff.removed,
+                                              })}`
                                             : ""}
                                     </button>
                                 </div>
@@ -438,6 +415,124 @@ export function SectionCard({
                     ) : null}
                 </div>
             </HeightCollapse>
+        </div>
+    )
+}
+
+/** A run of changed text longer than this loses its shared start to "…" in a summary box. */
+const SHARED_START_MIN = 24
+/** Words kept before the change when the shared start goes. */
+const CONTEXT_WORDS = 4
+
+/**
+ * The changed lines of a text diff, without context: a removed line followed by one added line
+ * drops the start they share, so the box shows what changed ("…and draft a first reply" →
+ * "…and draft a first reply in plain words", S06).
+ */
+export const summaryLines = (
+    hunks: ExtendedDiffLine[],
+): {type: "added" | "removed"; content: string}[] => {
+    const out: {type: "added" | "removed"; content: string}[] = []
+    // Runs of changed lines, cut at each context line: one removed then one added line is a pair.
+    let run: {type: "added" | "removed"; content: string}[] = []
+    const flush = () => {
+        const [first, second] = run
+        if (run.length === 2 && first.type === "removed" && second.type === "added") {
+            let shared = 0
+            while (
+                shared < first.content.length &&
+                shared < second.content.length &&
+                first.content[shared] === second.content[shared]
+            )
+                shared++
+            // Cut at a word start, so the box never shows half a word, and keep a few words
+            // before the change to read it by.
+            let cut = first.content.lastIndexOf(" ", shared - 1) + 1
+            for (let word = 0; word < CONTEXT_WORDS && cut > 0; word++) {
+                cut = first.content.lastIndexOf(" ", cut - 2) + 1
+            }
+            if (cut >= SHARED_START_MIN) {
+                run = run.map((line) => ({...line, content: `…${line.content.slice(cut)}`}))
+            }
+        }
+        out.push(...run)
+        run = []
+    }
+    for (const line of hunks) {
+        if (line.type === "added" || line.type === "removed") {
+            run.push({type: line.type, content: line.content})
+        } else flush()
+    }
+    flush()
+    return out
+}
+
+/** The summary box of a text diff: every changed line, in the body font. The sign has its own
+ * column, so a removed Markdown bullet does not look like "− -". */
+function SummaryText({hunks}: {hunks: ExtendedDiffLine[]}) {
+    return (
+        <>
+            {summaryLines(hunks).map((line, i) => (
+                <div
+                    key={i}
+                    // The design's flat tints (#eaf2e3, #f9e5e5): the success and error fills.
+                    className={cn(
+                        "flex px-2.5 py-1",
+                        line.type === "added" ? "bg-success/10" : "bg-destructive/10",
+                    )}
+                    style={{
+                        color: line.type === "added" ? "var(--success)" : "var(--destructive)",
+                    }}
+                >
+                    {/* Read out, as in HunkRows: the sign is what says added or removed. */}
+                    <span className="mr-1.5 w-2.5 shrink-0">
+                        {line.type === "added" ? "+" : "−"}
+                    </span>
+                    <span className="min-w-0 whitespace-pre-wrap break-words">{line.content}</span>
+                </div>
+            ))}
+        </>
+    )
+}
+
+/**
+ * One section as the version history draws it (S06): the icon, the title 13 / 500 and a plain
+ * status at the right, then what changed in one bordered box. Always open, so no toggle.
+ */
+function SummarySection({section}: {section: ChangeSection}) {
+    const t = useT(changeSectionsCatalog)
+    const status = section.textDiff
+        ? t("entityUi.changeSections.changed")
+        : section.scalarChanges
+          ? undefined
+          : section.tags.map((tag) => tag.label).join(" · ")
+    return (
+        <div className="mb-3.5" data-testid="change-summary-section">
+            <div className="flex items-center gap-2 p-2">
+                <span
+                    className={cn(
+                        "inline-flex shrink-0 text-body leading-none",
+                        textColors.secondary,
+                    )}
+                >
+                    {SECTION_ICON[section.id]}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-label font-medium text-foreground">
+                    {section.title}
+                </span>
+                {status ? (
+                    <span className={cn("shrink-0 text-meta", textColors.tertiary)}>{status}</span>
+                ) : null}
+            </div>
+            <div className="mx-2 overflow-hidden rounded-md border border-solid border-border-muted text-label leading-5">
+                {section.items?.length ? (
+                    <CappedItems items={section.items} padX={SUMMARY_ROW_PAD} />
+                ) : null}
+                {section.scalarChanges ? (
+                    <ScalarRows changes={section.scalarChanges} padX={SUMMARY_ROW_PAD} />
+                ) : null}
+                {section.textDiff ? <SummaryText hunks={section.textDiff.hunks} /> : null}
+            </div>
         </div>
     )
 }
@@ -458,12 +553,12 @@ export function DetailCard({
     return (
         <div>
             {/* Solid underlay so scrolled rows don't ghost through the translucent fill. */}
-            <div className="sticky top-0 z-[1] rounded-t-[10px] bg-[var(--ag-colorBgContainer)]">
+            <div className="sticky top-0 z-[1] rounded-t-lg bg-background">
                 <button
                     type="button"
                     onClick={onCollapse}
                     className={cn(
-                        "flex w-full cursor-pointer items-center rounded-t-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] text-left font-[inherit] transition-colors",
+                        "flex w-full cursor-pointer items-center rounded-t-lg border border-solid border-border-muted bg-secondary text-left font-[inherit] transition-colors",
                         FOCUS_RING,
                         small ? "gap-2 px-2.5 py-1.5" : "gap-2.5 px-3 py-2.5",
                     )}
@@ -474,7 +569,7 @@ export function DetailCard({
                     </span>
                 </button>
             </div>
-            <div className="overflow-hidden rounded-b-[10px] border border-t-0 border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)]">
+            <div className="overflow-hidden rounded-b-lg border border-t-0 border-solid border-border-muted bg-secondary">
                 {children}
             </div>
         </div>
@@ -491,8 +586,6 @@ export interface ChangeSectionsProps {
     /** Wired by hosts that own a detail view (the commit modal); omitted, rows stay inline. */
     onOpenInstructions?: (sectionId: string) => void
     onOpenTool?: (sectionId: string, itemId: string) => void
-    /** Drop the card fill and border — flat rows separated by a rule, not stacked cards. */
-    ghost?: boolean
 }
 
 /**
@@ -506,7 +599,6 @@ export function ChangeSections({
     onToggleSection,
     onOpenInstructions,
     onOpenTool,
-    ghost,
 }: ChangeSectionsProps) {
     return (
         <>
@@ -517,13 +609,23 @@ export function ChangeSections({
                     items={section.items}
                     open={openState[section.id] ?? false}
                     small={size === "small"}
-                    ghost={ghost}
                     onToggle={() => onToggleSection(section.id)}
                     onOpenInstructions={
                         onOpenInstructions ? () => onOpenInstructions(section.id) : undefined
                     }
                     onOpenTool={onOpenTool ? (itemId) => onOpenTool(section.id, itemId) : undefined}
                 />
+            ))}
+        </>
+    )
+}
+
+/** The version history's summary of a version (S06): every section, open, read only. */
+export function ChangeSummary({sections}: {sections: ChangeSection[]}) {
+    return (
+        <>
+            {sections.map((section) => (
+                <SummarySection key={section.id} section={section} />
             ))}
         </>
     )

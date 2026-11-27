@@ -1,0 +1,115 @@
+import {useCallback, useEffect, useMemo} from "react"
+
+import {personalAccountsAccessAtom} from "@agenta/entities/secret"
+import {invalidateAgentRequirements} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import agentTemplateCatalog from "@agenta/i18n/catalogs/entityUi.agentTemplate"
+import integrationDrawerCatalog from "@agenta/i18n/catalogs/entityUi.integrationDrawer"
+import toolCatalogCatalog from "@agenta/i18n/catalogs/entityUi.toolCatalog"
+import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
+import {useAtomValue} from "jotai"
+
+import type {CreatedConnection} from "../../../../gatewayTool/components/ConnectForm"
+import {CreateWithAIRow} from "../CreateWithAIAddMenu"
+import {
+    IntegrationCatalog,
+    type IntegrationCatalogAdding,
+    type IntegrationCatalogProps,
+} from "../IntegrationCatalog"
+import {useAgentConfigWriter} from "../useAgentConfigWriter"
+import {useAgentTools} from "../useAgentTools"
+
+import type {IntegrationAddViewParams} from "./integrationAddView"
+import {integrationConnectView} from "./integrationConnectView"
+
+const noCreate = () => undefined
+
+/** Adds apps to the agent: the agent configuration's rows and writes. */
+const useAgentAdding = (revisionId: string): IntegrationCatalogAdding => {
+    const writer = useAgentConfigWriter(revisionId)
+    const onChange = useCallback(
+        (next: Record<string, unknown>) => writer.update(() => next),
+        [writer],
+    )
+    const {integrationRows, setIntegrationConnection, addPersonalIntegration} = useAgentTools({
+        config: writer.agent,
+        onChange,
+        openCreate: noCreate,
+    })
+    return useMemo(
+        () => ({
+            integrationRows,
+            onAddIntegration: setIntegrationConnection,
+            onAddPersonalIntegration: addPersonalIntegration,
+        }),
+        [integrationRows, setIntegrationConnection, addPersonalIntegration],
+    )
+}
+
+/** The catalog with an agent: a click on a connected app adds it. */
+const AgentCatalog = ({
+    revisionId,
+    onConnect,
+    onLeave,
+}: {
+    revisionId: string
+    onConnect: IntegrationCatalogProps["onConnect"]
+    onLeave: () => void
+}) => {
+    const t = useT(agentTemplateCatalog)
+    return (
+        <IntegrationCatalog
+            adding={useAgentAdding(revisionId)}
+            onConnect={onConnect}
+            leadingRows={
+                <CreateWithAIRow
+                    starterPrompt={t("entityUi.agentTemplate.integrationStarter")}
+                    onDone={onLeave}
+                />
+            }
+        />
+    )
+}
+
+const IntegrationAddViewBody = ({target, nav}: ViewProps<IntegrationAddViewParams>) => {
+    const t = useT(integrationDrawerCatalog, toolCatalogCatalog)
+    const forAgent = target.kind === "agent_draft"
+    useViewTitle(
+        forAgent
+            ? t("entityUi.integrationDrawer.addIntegration")
+            : t("entityUi.toolCatalog.browseIntegrations"),
+    )
+    // A sign-in here can fix a tagged integration without a new revision: check again on leaving.
+    useEffect(() => (forAgent ? () => void invalidateAgentRequirements() : undefined), [forAgent])
+    // With personal accounts on, Connect for an agent asks "Who can use it". With no agent the
+    // connection is the project's, which is what a chat's connect request checks for.
+    const access = useAtomValue(personalAccountsAccessAtom)
+    const askOwner = forAgent && access === "on"
+    const {push} = nav
+    const connect = useCallback(
+        (integrationKey: string, onCreated: (created: CreatedConnection) => void) => {
+            void push?.(
+                integrationConnectView,
+                {integrationKey, owners: askOwner ? ["user", "project"] : undefined, onCreated},
+                {kind: "project"},
+            )
+        },
+        [push, askOwner],
+    )
+    return (
+        <div className="flex min-h-0 flex-1 flex-col pt-3">
+            {forAgent ? (
+                <AgentCatalog
+                    revisionId={target.revisionId}
+                    onConnect={connect}
+                    onLeave={nav.cancel}
+                />
+            ) : (
+                // No agent here (chat, playground, prompts): browse and connect only.
+                <IntegrationCatalog onConnect={connect} />
+            )}
+        </div>
+    )
+}
+
+export default IntegrationAddViewBody

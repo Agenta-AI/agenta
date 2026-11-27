@@ -1,22 +1,27 @@
 import {useMemo} from "react"
 
 import {AgentGlyph} from "@agenta/entity-ui/agent"
+import {useT} from "@agenta/i18n"
+import sessionsMobileListCatalog from "@agenta/i18n/catalogs/sessions.mobileList"
 import {useSessionFilters, type SessionStatusFilter} from "@agenta/sessions/state"
 import {FilterMenu, type FilterMenuItem} from "@agenta/ui/filter-menu"
 import {
-    Archive,
+    ArrowBendDownRight,
+    Broadcast,
     CalendarBlank,
     ChatCircle,
     Clock,
+    ClockCounterClockwise,
+    Folder,
     Lightning,
+    ListBullets,
     Minus,
     Robot,
-    Rows,
     SquaresFour,
-    Waveform,
 } from "@phosphor-icons/react"
 
 import {
+    DEFAULT_SESSION_LIST_VIEW,
     isDefaultSessionListView,
     type SessionActivityWindow,
     type SessionGrouping,
@@ -29,7 +34,7 @@ const ALL_AGENTS = "all"
 
 /** The status filters get the dot a row paints, so the filter and the row read alike. */
 const StatusDot = ({className}: {className: string}) => (
-    <span aria-hidden className={`size-1.5 rounded-full ${className}`} />
+    <span aria-hidden className={`size-1.5 rounded-round ${className}`} />
 )
 
 /**
@@ -50,6 +55,8 @@ export const SessionFilterMenu = ({
     agents,
     waitingCount,
     onReset,
+    lockedAgent,
+    defaultView = DEFAULT_SESSION_LIST_VIEW,
 }: {
     view: SessionListView
     onChange: (view: SessionListView) => void
@@ -63,22 +70,49 @@ export const SessionFilterMenu = ({
      * showing a term that no longer applies.
      */
     onReset: () => void
+    /**
+     * The page's one agent, on the Sessions page of an agent. The Agent row shows it with a lock
+     * and cannot change, and Group by has no Agent choice.
+     */
+    lockedAgent?: {id: string; name: string}
+    /** What Reset returns to and what counts as untouched. */
+    defaultView?: SessionListView
 }) => {
-    const {agentId, status, mode, archivedOnly, setAgentId, setStatus, setMode, setArchivedOnly} =
-        useSessionFilters()
+    const t = useT(sessionsMobileListCatalog)
+    const {
+        agentId,
+        status,
+        mode,
+        archivedOnly,
+        showChildSessions,
+        setAgentId,
+        setStatus,
+        setMode,
+        setArchivedOnly,
+        setShowChildSessions,
+    } = useSessionFilters()
 
     const sections = useMemo<FilterMenuItem[]>(() => {
         return [
             {
                 key: "type",
-                label: "Type",
+                label: t("sessions.mobileList.type"),
                 // A bolt, not the robot: the robot means AGENT throughout this app, and an
                 // automation is a trigger that ran one.
                 icon: <Lightning size={ICON} />,
                 value: mode ? "automation" : "chat",
+                defaultValue: "chat",
                 options: [
-                    {value: "chat", label: "Chat", icon: <ChatCircle size={ICON} />},
-                    {value: "automation", label: "Automation", icon: <Lightning size={ICON} />},
+                    {
+                        value: "chat",
+                        label: t("sessions.mobileList.chat"),
+                        icon: <ChatCircle size={ICON} />,
+                    },
+                    {
+                        value: "automation",
+                        label: t("sessions.mobileList.automation"),
+                        icon: <Lightning size={ICON} />,
+                    },
                 ],
                 // One list at a time, the way the sidebar's Type facet works. Chat is the default
                 // because it is the set a reader means by "my sessions".
@@ -86,88 +120,163 @@ export const SessionFilterMenu = ({
             },
             {
                 key: "status",
-                label: "Status",
-                icon: <Waveform size={ICON} />,
+                label: t("sessions.mobileList.status"),
+                icon: <Broadcast size={ICON} />,
                 value: status,
+                defaultValue: "all",
                 // Ordered by what it costs to miss, and each dot is the one a row of that status
                 // paints. `live` is not offered: "the sandbox is up" is a fact about the
                 // infrastructure, and Running answers the question a reader is actually asking.
                 options: [
-                    {value: "all", label: "All", icon: <SquaresFour size={ICON} />},
+                    {
+                        value: "all",
+                        label: t("sessions.mobileList.all"),
+                        icon: <SquaresFour size={ICON} />,
+                    },
                     {
                         value: "waiting",
-                        label: waitingCount ? `Waiting ${waitingCount}` : "Waiting",
-                        icon: <StatusDot className="bg-[var(--ag-run-status-warning)]" />,
+                        label: waitingCount
+                            ? t("sessions.mobileList.waitingCount", {count: waitingCount})
+                            : t("sessions.mobileList.waiting"),
+                        icon: <StatusDot className="bg-warning" />,
                     },
                     {
                         value: "running",
-                        label: "Running",
-                        icon: <StatusDot className="bg-[var(--ag-run-status-success)]" />,
+                        label: t("sessions.mobileList.running"),
+                        icon: <StatusDot className="bg-success" />,
                     },
                     {
                         value: "idle",
-                        label: "Idle",
-                        icon: <StatusDot className="bg-[var(--ag-run-status-default)]" />,
+                        label: t("sessions.mobileList.idle"),
+                        icon: <StatusDot className="bg-muted-foreground" />,
                     },
                 ],
                 onChange: (value) => setStatus(value as SessionStatusFilter),
             },
-            {
-                key: "agent",
-                label: "Agent",
-                icon: <Robot size={ICON} />,
-                value: agentId ?? ALL_AGENTS,
-                options: [
-                    {value: ALL_AGENTS, label: "All agents", icon: <Robot size={ICON} />},
-                    ...agents.map((agent) => ({
-                        value: agent.id,
-                        label: agent.name,
-                        // The agent's own glyph, as in the table's Agent column.
-                        icon: (
-                            <AgentGlyph
-                                workflowId={agent.id}
-                                size={ICON}
-                                fallback={<Robot size={ICON} aria-hidden />}
-                            />
-                        ),
-                    })),
-                ],
-                emptyText: "No agents yet",
-                wide: true,
-                onChange: (value) => setAgentId(value === ALL_AGENTS ? null : value),
-            },
+            lockedAgent
+                ? {
+                      key: "agent",
+                      label: t("sessions.mobileList.agent"),
+                      icon: <Robot size={ICON} />,
+                      value: lockedAgent.id,
+                      valueLabel: lockedAgent.name,
+                      options: [{value: lockedAgent.id, label: lockedAgent.name}],
+                      locked: true,
+                      onChange: () => undefined,
+                  }
+                : {
+                      key: "agent",
+                      label: t("sessions.mobileList.agent"),
+                      icon: <Robot size={ICON} />,
+                      value: agentId ?? ALL_AGENTS,
+                      defaultValue: ALL_AGENTS,
+                      options: [
+                          {
+                              value: ALL_AGENTS,
+                              label: t("sessions.mobileList.allAgents"),
+                              icon: <Robot size={ICON} />,
+                          },
+                          ...agents.map((agent) => ({
+                              value: agent.id,
+                              label: agent.name,
+                              // The agent's own glyph, as in the table's Agent column.
+                              icon: (
+                                  <AgentGlyph
+                                      workflowId={agent.id}
+                                      size={ICON}
+                                      fallback={<Robot size={ICON} aria-hidden />}
+                                  />
+                              ),
+                          })),
+                      ],
+                      emptyText: t("sessions.mobileList.noAgentsYet"),
+                      wide: true,
+                      onChange: (value) => setAgentId(value === ALL_AGENTS ? null : value),
+                  },
             {
                 key: "activity",
-                label: "Last activity",
-                icon: <Clock size={ICON} />,
+                label: t("sessions.mobileList.lastActivity"),
+                icon: <ClockCounterClockwise size={ICON} />,
                 value: view.activity,
+                defaultValue: defaultView.activity,
                 options: [
-                    {value: "all", label: "All", icon: <SquaresFour size={ICON} />},
-                    {value: "24h", label: "Today", icon: <Clock size={ICON} />},
-                    {value: "7d", label: "Last 7 days", icon: <Clock size={ICON} />},
-                    {value: "30d", label: "Last 30 days", icon: <Clock size={ICON} />},
+                    {
+                        value: "all",
+                        label: t("sessions.mobileList.all"),
+                        icon: <SquaresFour size={ICON} />,
+                    },
+                    {
+                        value: "24h",
+                        label: t("sessions.mobileList.today"),
+                        icon: <Clock size={ICON} />,
+                    },
+                    {
+                        value: "7d",
+                        label: t("sessions.mobileList.last7Days"),
+                        icon: <Clock size={ICON} />,
+                    },
+                    {
+                        value: "30d",
+                        label: t("sessions.mobileList.last30Days"),
+                        icon: <Clock size={ICON} />,
+                    },
                 ],
                 onChange: (value) => onChange({...view, activity: value as SessionActivityWindow}),
             },
             {
                 kind: "toggle",
                 key: "archived",
-                label: "Only archived",
-                icon: <Archive size={ICON} />,
+                label: t("sessions.mobileList.onlyArchived"),
+                icon: <Folder size={ICON} />,
                 checked: archivedOnly,
                 onChange: setArchivedOnly,
             },
+            // Sessions that an agent in another session created. Hidden by default and added to
+            // the chat list when on; the automations list is a different set, so it has no switch.
+            ...(mode
+                ? []
+                : [
+                      {
+                          kind: "toggle" as const,
+                          key: "childSessions",
+                          label: t("sessions.mobileList.showChildSessions"),
+                          icon: <ArrowBendDownRight size={ICON} />,
+                          checked: showChildSessions,
+                          onChange: setShowChildSessions,
+                      },
+                  ]),
             {
                 key: "group",
-                label: "Group by",
-                icon: <Rows size={ICON} />,
+                label: t("sessions.mobileList.groupBy"),
+                icon: <ListBullets size={ICON} />,
                 block: "sort",
                 value: view.group,
                 options: [
-                    {value: "agent", label: "Agent", icon: <Robot size={ICON} />},
-                    {value: "date", label: "Date", icon: <CalendarBlank size={ICON} />},
-                    {value: "status", label: "Status", icon: <Waveform size={ICON} />},
-                    {value: "none", label: "None", icon: <Minus size={ICON} />},
+                    // One agent has nothing to group by.
+                    ...(lockedAgent
+                        ? []
+                        : [
+                              {
+                                  value: "agent",
+                                  label: t("sessions.mobileList.agent"),
+                                  icon: <Robot size={ICON} />,
+                              },
+                          ]),
+                    {
+                        value: "date",
+                        label: t("sessions.mobileList.date"),
+                        icon: <CalendarBlank size={ICON} />,
+                    },
+                    {
+                        value: "status",
+                        label: t("sessions.mobileList.status"),
+                        icon: <Broadcast size={ICON} />,
+                    },
+                    {
+                        value: "none",
+                        label: t("sessions.mobileList.none"),
+                        icon: <Minus size={ICON} />,
+                    },
                 ],
                 onChange: (value) => onChange({...view, group: value as SessionGrouping}),
             },
@@ -175,41 +284,43 @@ export const SessionFilterMenu = ({
     }, [
         agentId,
         agents,
+        defaultView.activity,
         archivedOnly,
+        lockedAgent,
         mode,
         onChange,
         setAgentId,
         setArchivedOnly,
         setMode,
+        setShowChildSessions,
         setStatus,
+        showChildSessions,
         status,
         view,
         waitingCount,
+        t,
     ])
 
     // Search is its own field in the toolbar, so it does not dot this button — a control that
     // looks touched because someone typed next to it says nothing about what the menu holds.
-    const active =
+    const changed =
         Boolean(agentId) ||
         status !== "all" ||
-        mode ||
+        Boolean(mode) ||
         archivedOnly ||
-        !isDefaultSessionListView(view)
+        (showChildSessions && !mode) ||
+        !isDefaultSessionListView(view, defaultView)
 
     return (
         <FilterMenu
             sections={sections}
             align="start"
-            // Icon alone: the table beside it is already the subject, and the word "Filter" added
-            // a second label to a toolbar that has one.
-            label={null}
-            triggerAriaLabel="Filter and group sessions"
             size="default"
-            // The square icon size is 28; the search field is 32.
-            triggerClassName="size-8"
-            active={active}
+            // A page locked to one agent is narrowed to it, so the dot shows there too (A02).
+            // The locked agent narrows the list with no choice in the menu.
+            active={Boolean(lockedAgent)}
             onReset={onReset}
-            resetDisabled={!active}
+            resetDisabled={!changed}
         />
     )
 }

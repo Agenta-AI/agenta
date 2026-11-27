@@ -4,8 +4,10 @@ import {
     useTriggerCatalogEvents,
     useTriggerCatalogIntegrations,
 } from "@agenta/entities/gatewayTrigger"
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {Button, Input, SkeletonBlock} from "@agenta/ui/ui"
-import {Search} from "lucide-react"
+import {MagnifyingGlassIcon} from "@phosphor-icons/react"
 
 import {EventListEmpty, EventSearchEmpty} from "../states/EventPickerStates"
 
@@ -27,6 +29,7 @@ export const EventList = ({
     onSearchChange: (next: string) => void
     onPick: (connectionId: string, eventKey: string) => void
 }) => {
+    const t = useT(automationsEditorCatalog)
     const {
         events: fetched,
         isLoading,
@@ -62,21 +65,21 @@ export const EventList = ({
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
             {searchable ? (
                 <div className="relative shrink-0">
-                    <Search
+                    <MagnifyingGlassIcon
                         aria-hidden
                         className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
                     />
                     <Input
                         value={search}
                         onChange={(changed) => onSearchChange(changed.target.value)}
-                        aria-label={`Search ${app.label} events`}
-                        placeholder={`Search ${app.label} events`}
-                        className="h-8 pl-8 text-[13px]"
+                        aria-label={t("automations.editor.searchAppEvents", {app: app.label})}
+                        placeholder={t("automations.editor.searchAppEvents", {app: app.label})}
+                        className="h-8 pl-8 text-label"
                     />
                 </div>
             ) : null}
             {/* The rows scroll under a pinned search field. */}
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden lg:gap-px">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-px overflow-y-auto overflow-x-hidden">
                 {isLoading ? (
                     <div className="flex flex-col gap-1.5">
                         {Array.from({length: 6}, (_, index) => (
@@ -119,11 +122,13 @@ export const EventList = ({
                                 type="button"
                                 variant="ghost"
                                 size="sm"
-                                className="justify-start text-xs font-normal"
+                                className="justify-start text-label"
                                 disabled={isFetchingNextPage}
                                 onClick={requestMore}
                             >
-                                {isFetchingNextPage ? "Loading…" : "Show more events"}
+                                {isFetchingNextPage
+                                    ? t("automations.editor.loading")
+                                    : t("automations.editor.showMoreEvents")}
                             </Button>
                         ) : null}
                     </>

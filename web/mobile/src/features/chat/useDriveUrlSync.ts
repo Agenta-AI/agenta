@@ -1,6 +1,8 @@
 import {useCallback, useEffect, useRef} from "react"
 
 import {driveQuickLookAtomFamily, type DriveLinkItem, useCopyText} from "@agenta/entity-ui/drive"
+import {createT} from "@agenta/i18n"
+import chatMobileSessionsCatalog from "@agenta/i18n/catalogs/chat.mobileSessions"
 import {
     DRIVE_QUERY_PARAM,
     formatDriveParam,
@@ -11,9 +13,17 @@ import {
 } from "@agenta/shared/utils"
 import {useSetAtom} from "jotai"
 
+const tNow = createT(chatMobileSessionsCatalog)
+
 const driveParam = ({path, isFolder}: DriveLinkItem) => formatDriveParam({path, folder: isFolder})
 
-/** Mirrors the Files pane in `?drive=`: read once per session, written on each selection. */
+/**
+ * Mirrors the Files pane in `?drive=`: read once per session, written on each selection.
+ *
+ * A link's `?drive=` is taken off the page entry as it is read. On a phone the open pane pushes a
+ * back entry on top of the page entry, and the selection is written there, so the page entry
+ * under it must not keep the link: a reload after the pane closed would open Files again.
+ */
 export const useDriveUrlSync = ({
     sessionId,
     open,
@@ -30,7 +40,9 @@ export const useDriveUrlSync = ({
         if (!enabled || !sessionId || hydratedRef.current === sessionId) return
         hydratedRef.current = sessionId
         const target = parseDriveParam(readQueryParam(DRIVE_QUERY_PARAM))
-        if (target) setQuickLook({path: target.path, exact: true, folder: target.folder})
+        if (!target) return
+        replaceQueryParam(DRIVE_QUERY_PARAM, null)
+        setQuickLook({path: target.path, exact: true, folder: target.folder})
     }, [enabled, sessionId, setQuickLook])
 
     // Only a close clears it; the first render is closed until the hydrated link opens the pane.
@@ -40,15 +52,32 @@ export const useDriveUrlSync = ({
         wasOpenRef.current = open
     }, [enabled, open])
 
+    const openRef = useRef(open)
+    openRef.current = open
+    const sessionRef = useRef(sessionId)
+    sessionRef.current = sessionId
+    // Written a task later: on a phone the open pane's back entry is pushed in a microtask after
+    // the pane mounts, and the explorer reports its first selection before that. Written at once,
+    // the link would land on the page entry under the back entry. A pane that closed, or a session
+    // that changed, in the meantime writes nothing.
     const onSelectionChange = useCallback(
-        (item: DriveLinkItem) => replaceQueryParam(DRIVE_QUERY_PARAM, driveParam(item)),
-        [],
+        (item: DriveLinkItem) => {
+            const value = driveParam(item)
+            setTimeout(() => {
+                if (openRef.current && sessionRef.current === sessionId)
+                    replaceQueryParam(DRIVE_QUERY_PARAM, value)
+            }, 0)
+        },
+        [sessionId],
     )
 
     const copy = useCopyText()
     const copyLink = useCallback(
         (item: DriveLinkItem) =>
-            copy(shareUrlWithQueryParam(DRIVE_QUERY_PARAM, driveParam(item)), "Link copied"),
+            copy(
+                shareUrlWithQueryParam(DRIVE_QUERY_PARAM, driveParam(item)),
+                tNow("chat.mobileSessions.linkCopied"),
+            ),
         [copy],
     )
 

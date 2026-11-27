@@ -69,11 +69,28 @@ const intlCompactNumber = new Intl.NumberFormat("en-US", {
     compactDisplay: "short",
     maximumFractionDigits: 1,
 })
-const intlCurrency = new Intl.NumberFormat("en-US", {
+const intlCurrencyPrecise = new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
     maximumFractionDigits: 6,
 })
+const intlCurrencyByDigits = new Map<number, Intl.NumberFormat>()
+/** Cents from a dollar up; below it, two digits past the leading zeros, at most six decimals. */
+const formatUsd = (value: number): string => {
+    const size = Math.abs(value)
+    const digits =
+        size >= 1 || size === 0 ? 2 : Math.min(6, Math.max(2, Math.ceil(-Math.log10(size)) + 2))
+    let intl = intlCurrencyByDigits.get(digits)
+    if (!intl) {
+        intl = new Intl.NumberFormat("en-US", {
+            style: "currency",
+            currency: "USD",
+            maximumFractionDigits: digits,
+        })
+        intlCurrencyByDigits.set(digits, intl)
+    }
+    return intl.format(value)
+}
 
 /**
  * Safely handles null, undefined, and NaN values
@@ -168,16 +185,30 @@ export const formatCompact = (value: number | undefined | null): string => {
 }
 
 /**
- * Formats a number as USD currency with up to 6 decimal places.
+ * Formats a number as USD currency for display: cents from a dollar up, two digits past the leading zeros below it.
  *
  * @example
  * ```typescript
  * formatCurrency(1234.56)   // "$1,234.56"
- * formatCurrency(0.00123)   // "$0.001230"
+ * formatCurrency(0.00123)   // "$0.00123"
+ * formatCurrency(0.150026)  // "$0.15"
  * ```
  */
 export const formatCurrency = (value: number | undefined | null): string => {
-    return withFallback(value, intlCurrency.format)
+    return withFallback(value, formatUsd)
+}
+
+/**
+ * Formats a number as USD currency with up to 6 decimal places, for data exports.
+ *
+ * @example
+ * ```typescript
+ * formatCurrencyPrecise(1.234567)  // "$1.234567"
+ * formatCurrencyPrecise(0.150026)  // "$0.150026"
+ * ```
+ */
+export const formatCurrencyPrecise = (value: number | undefined | null): string => {
+    return withFallback(value, intlCurrencyPrecise.format)
 }
 
 /**
@@ -196,24 +227,12 @@ export const formatCurrency = (value: number | undefined | null): string => {
  */
 export const formatLatency = (value: number | undefined | null): string => {
     return withFallback(value, (v) => {
-        const MS_LIMIT = 1000
-        const S_LIMIT = MS_LIMIT * 1000
-        const S_TO_US = S_LIMIT
-
-        let resultValue = v * S_TO_US
-        let unit = "μs"
-
-        if (MS_LIMIT < resultValue && resultValue < S_LIMIT) {
-            resultValue = Math.round(resultValue / MS_LIMIT)
-            unit = "ms"
-        } else if (S_LIMIT <= resultValue) {
-            resultValue = Math.round((resultValue / S_LIMIT) * 100) / 100
-            unit = "s"
-        } else {
-            resultValue = Math.round(resultValue)
-        }
-
-        return `${resultValue}${unit}`
+        // Pick the unit from the ROUNDED value, so 999.6μs reads "1ms", not "1000μs".
+        const us = Math.round(v * 1_000_000)
+        if (Math.abs(us) < 1000) return `${us}μs`
+        const ms = Math.round(v * 1000)
+        if (Math.abs(ms) < 1000) return `${ms}ms`
+        return `${Math.round(v * 100) / 100}s`
     })
 }
 

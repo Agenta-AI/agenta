@@ -22,7 +22,7 @@ const settingText = (value: unknown): string =>
 /** A small labelled block of the open card, as the old app lays them out. */
 const Field = ({label, children}: {label: string; children: ReactNode}) => (
     <div className="flex min-w-0 flex-col gap-1.5">
-        <span className="text-sm font-medium text-foreground">{label}</span>
+        <span className="text-label text-foreground">{label}</span>
         {children}
     </div>
 )
@@ -51,9 +51,7 @@ export const EvaluatorConfigCard = ({
         key,
         label: key,
         value: (
-            <span className="whitespace-pre-wrap break-words font-mono text-xs">
-                {settingText(value)}
-            </span>
+            <span className="whitespace-pre-wrap break-words text-code">{settingText(value)}</span>
         ),
     }))
 
@@ -63,7 +61,7 @@ export const EvaluatorConfigCard = ({
             data-differs={differs ? "true" : undefined}
             className={cn(
                 "box-border flex min-w-0 flex-col gap-3 rounded-md border border-solid border-border p-3",
-                differs && "bg-colorWarningBg/40",
+                differs && "bg-warning/4",
             )}
         >
             <div className="flex min-w-0 items-start gap-2">
@@ -82,26 +80,28 @@ export const EvaluatorConfigCard = ({
                             type="button"
                             disabled={!revisionId}
                             onClick={() => revisionId && setRevisionId(revisionId)}
-                            className="m-0 min-w-0 cursor-pointer break-words border-0 bg-transparent p-0 text-left text-sm font-semibold text-foreground hover:underline disabled:cursor-default disabled:no-underline"
+                            className="m-0 min-w-0 cursor-pointer break-words border-0 bg-transparent p-0 text-left text-label text-foreground hover:underline disabled:cursor-default disabled:no-underline"
                         >
                             {name}
                         </button>
                         {latest ? (
-                            <Badge variant="outlined">Latest</Badge>
+                            <Badge variant="default">Latest</Badge>
                         ) : version === null ? null : (
-                            <Badge variant="outlined">V{version}</Badge>
+                            <Badge variant="default">v{version}</Badge>
                         )}
                         {differs ? <DiffersBadge /> : null}
                     </div>
                     {description && !open ? (
-                        <p className="m-0 truncate text-sm text-muted-foreground">{description}</p>
+                        <p className="m-0 truncate text-label text-muted-foreground">
+                            {description}
+                        </p>
                     ) : null}
                 </div>
             </div>
             {open ? (
                 <div className="flex min-w-0 flex-col gap-3">
                     {description ? (
-                        <p className="m-0 break-words text-sm text-muted-foreground">
+                        <p className="m-0 break-words text-body text-muted-foreground">
                             {description}
                         </p>
                     ) : null}
@@ -119,16 +119,16 @@ export const EvaluatorConfigCard = ({
                                 {outputs.map((metric) => (
                                     <li
                                         key={metric.name}
-                                        className="flex min-w-0 flex-wrap items-center gap-2 text-sm"
+                                        className="flex min-w-0 flex-wrap items-center gap-2 text-body"
                                     >
                                         <span className="font-semibold text-foreground">
                                             {metric.name}
                                         </span>
                                         {metric.type ? (
-                                            <Badge variant="outlined">{metric.type}</Badge>
+                                            <Badge variant="default">{metric.type}</Badge>
                                         ) : null}
                                         {metric.required ? (
-                                            <Badge variant="outlined">Required</Badge>
+                                            <Badge variant="default">Required</Badge>
                                         ) : null}
                                     </li>
                                 ))}

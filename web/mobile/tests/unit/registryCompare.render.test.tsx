@@ -15,16 +15,22 @@ vi.mock("next/dynamic", () => ({
 vi.mock("@agenta/entities/workflow", () => ({
     workflowMolecule: {
         selectors: {
-            data: (id: string) => ({id: `revision:${id}`}),
+            data: (id: string) => ({id: `draft:${id}`}),
+            serverData: (id: string) => ({id: `revision:${id}`}),
         },
     },
 }))
-vi.mock("jotai", async (importOriginal) => ({
-    ...(await importOriginal<typeof import("jotai")>()),
-    useAtomValue: (atom: {id: string}) => ({
-        data: {parameters: {prompt: atom.id.replace("revision:", "")}},
-    }),
-}))
+vi.mock("jotai", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("jotai")>()
+    return {
+        ...actual,
+        // Only the revision selectors are faked; other atoms (the language) read for real.
+        useAtomValue: (atom: {id?: string}) =>
+            typeof atom.id === "string" && atom.id.startsWith("revision:")
+                ? {data: {parameters: {prompt: atom.id.replace("revision:", "")}}}
+                : actual.useAtomValue(atom as Parameters<typeof actual.useAtomValue>[0]),
+    }
+})
 vi.mock("@agenta/entities/shared", () => ({
     UserAuthorLabel: () => createElement("span", null, "Alex"),
 }))
@@ -76,7 +82,7 @@ describe("comparing two revisions", () => {
         expect(selectedPair(rows, new Set(["v4"]))).toBeNull()
     })
 
-    it("shows the older revision as the original and diffs the two configs", () => {
+    it("diffs the committed configs, not playground drafts", () => {
         host = document.createElement("div")
         document.body.append(host)
         const mounted = createRoot(host)
@@ -87,9 +93,9 @@ describe("comparing two revisions", () => {
             ),
         )
         const text = document.body.textContent ?? ""
-        expect(text.indexOf("Original Version")).toBeLessThan(text.indexOf("verbose v3"))
-        expect(text.indexOf("verbose v3")).toBeLessThan(text.indexOf("Modified Version"))
-        expect(text.indexOf("Modified Version")).toBeLessThan(text.indexOf("verbose v4"))
+        expect(text.indexOf("Original version")).toBeLessThan(text.indexOf("verbose v3"))
+        expect(text.indexOf("verbose v3")).toBeLessThan(text.indexOf("Modified version"))
+        expect(text.indexOf("Modified version")).toBeLessThan(text.indexOf("verbose v4"))
         expect(diff).toHaveBeenLastCalledWith(
             expect.objectContaining({original: {prompt: "v3"}, modified: {prompt: "v4"}}),
         )

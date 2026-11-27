@@ -43,7 +43,7 @@ export const QueueConfigurationTab = ({
 
     return (
         <div className="min-h-0 flex-1 overflow-y-auto bg-muted py-6">
-            <div className="mx-auto flex w-full max-w-[560px] flex-col gap-4 px-4">
+            <div className="mx-auto flex w-full max-w-140 flex-col gap-4 px-4">
                 <QueueConfigSection title="General">
                     <div className="flex flex-col gap-3 p-4">
                         {beta && canEdit ? (
@@ -71,7 +71,7 @@ export const QueueConfigurationTab = ({
                         )}
                         <QueueConfigField label="Type">
                             {kindLabel ? (
-                                <Badge variant={kind === "traces" ? "blue" : "green"}>
+                                <Badge variant={kind === "traces" ? "info" : "success"}>
                                     {kindLabel}
                                 </Badge>
                             ) : (
@@ -82,7 +82,7 @@ export const QueueConfigurationTab = ({
                 </QueueConfigSection>
                 <QueueConfigSection title="Evaluators">
                     {evaluatorRevisionIds.length === 0 ? (
-                        <p className="m-0 p-4 text-sm text-muted-foreground">
+                        <p className="m-0 p-4 text-body text-muted-foreground">
                             No evaluators configured for this queue.
                         </p>
                     ) : (

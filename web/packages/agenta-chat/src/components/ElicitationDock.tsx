@@ -19,6 +19,8 @@
  */
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import chatElicitationCatalog from "@agenta/i18n/catalogs/chat.elicitation"
 import {
     buildAcceptResult,
     buildCancelResult,
@@ -29,8 +31,8 @@ import {
     serializeElicitationContent,
     type ElicitationRequestPayload,
 } from "@agenta/shared/utils"
-import {Button, LoadingButton} from "@agenta/ui/ui"
-import {CaretLeft, CaretRight, CircleNotch, Question, X} from "@phosphor-icons/react"
+import {Button, LoadingButton, Spinner} from "@agenta/ui/ui"
+import {CaretLeft, CaretRight, Question, X} from "@phosphor-icons/react"
 
 import type {ClientToolOutputHandler} from "../clientTools/ClientToolPart"
 import type {ElicitationDockState} from "../hooks/useElicitationDock"
@@ -54,7 +56,7 @@ const CONTROL_MIN_H = 62
 
 /** The reserved box itself: geometry lives here ONCE, so no state can drift out of it. */
 const CARD_SURFACE =
-    "rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer flex flex-col gap-2.5 p-3 px-3.5 shadow-sm"
+    "rounded-lg border border-solid border-border-muted bg-background flex flex-col gap-2.5 p-3 px-3.5"
 
 export interface ElicitationDockProps {
     elicits: ElicitationDockState
@@ -67,6 +69,8 @@ export interface ElicitationDockProps {
     active?: boolean
     className?: string
 }
+
+const tNow = createT(chatElicitationCatalog)
 
 export const ElicitationDock = ({
     elicits,
@@ -130,7 +134,7 @@ const ElicitationCard = ({
                 setSubmissionError(
                     error instanceof Error
                         ? error.message
-                        : "Could not submit your answer. Try again.",
+                        : tNow("chat.elicitation.submitFailedRetry"),
                 )
             }
             try {
@@ -140,7 +144,8 @@ const ElicitationCard = ({
                     .then((landed) => {
                         // A host that reports the failure itself still resolves; without this the
                         // spinner outlives a write that never landed.
-                        if (landed === false) failed(new Error("Could not submit your answer."))
+                        if (landed === false)
+                            failed(new Error(tNow("chat.elicitation.submitFailed")))
                     })
                     .catch(failed)
             } catch (error) {
@@ -173,13 +178,18 @@ const toOutput = (result: {action: string; content?: unknown; humanFriendlyMessa
 
 /** Same icon size and gap as ApprovalCard's eyebrow: the two docks stack, so a difference reads
  * as a mistake rather than a distinction. */
-const Eyebrow = ({label, children}: {label?: string | null; children?: React.ReactNode}) => (
-    <div className="flex items-center gap-1.5">
-        <Question size={14} weight="fill" className="shrink-0 text-colorText" />
-        <span className="text-xs font-medium text-colorText">{label || "Request input"}</span>
-        {children}
-    </div>
-)
+const Eyebrow = ({label, children}: {label?: string | null; children?: React.ReactNode}) => {
+    const t = useT(chatElicitationCatalog)
+    return (
+        <div className="flex items-center gap-1.5">
+            <Question size={14} weight="fill" className="shrink-0 text-foreground" />
+            <span className="text-label text-foreground">
+                {label || t("chat.elicitation.requestInput")}
+            </span>
+            {children}
+        </div>
+    )
+}
 
 const LiveCard = ({
     payload,
@@ -203,6 +213,7 @@ const LiveCard = ({
     submitting: boolean
     submissionError?: string | null
 }) => {
+    const t = useT(chatElicitationCatalog)
     const cardRef = useRef<HTMLDivElement>(null)
     const form = useMemo(() => buildElicitationSteps(payload), [payload])
     // Which button fired, so the spinner lands on it (the card only reports "submitting").
@@ -308,7 +319,13 @@ const LiveCard = ({
                 setFiredAction("pick")
             }
             const value = step.kind === "boolean" ? row.value === "true" : row.value
-            stepper.pick(step.name, value, `Picked ${row.label}`, index, immediate)
+            stepper.pick(
+                step.name,
+                value,
+                tNow("chat.elicitation.picked", {label: row.label}),
+                index,
+                immediate,
+            )
         },
         [step, stepper, multi, focusOther, oneShot, submitting],
     )
@@ -464,10 +481,13 @@ const LiveCard = ({
             role="group"
             aria-label={
                 !step
-                    ? "Review answers"
+                    ? t("chat.elicitation.reviewAnswers")
                     : stepper.isMultiStep
-                      ? `Question ${stepper.position} of ${stepper.total}`
-                      : "Question"
+                      ? t("chat.elicitation.questionPosition", {
+                            position: stepper.position,
+                            total: stepper.total,
+                        })
+                      : t("chat.elicitation.question")
             }
             onKeyDownCapture={onKeyDown}
             onPointerDownCapture={stepper.cancelHold}
@@ -480,7 +500,7 @@ const LiveCard = ({
                     {stepper.isMultiStep ? (
                         <>
                             <NavButton
-                                label="Previous question"
+                                label={t("chat.elicitation.previousQuestion")}
                                 disabled={submitting || !stepper.canGoBack}
                                 onClick={stepper.back}
                             >
@@ -488,12 +508,12 @@ const LiveCard = ({
                             </NavButton>
                             <span
                                 aria-live="polite"
-                                className="min-w-[26px] text-center text-[11px] tabular-nums text-colorTextTertiary"
+                                className="min-w-[26px] text-center text-caption tabular-nums text-muted-foreground"
                             >
                                 {stepper.position}/{stepper.total}
                             </span>
                             <NavButton
-                                label="Next question"
+                                label={t("chat.elicitation.nextQuestion")}
                                 disabled={submitting || !stepper.canGoForward}
                                 onClick={stepper.forward}
                             >
@@ -503,15 +523,15 @@ const LiveCard = ({
                     ) : null}
                     <Button
                         variant="ghost"
-                        size="icon-sm"
-                        title="Dismiss"
-                        aria-label="Dismiss this request"
+                        size="icon-xs"
+                        title={t("chat.elicitation.dismiss")}
+                        aria-label={t("chat.elicitation.dismissRequest")}
                         disabled={submitting && firedAction !== "dismiss"}
                         onClick={dismiss}
-                        className={`ml-1 size-[22px] text-colorTextQuaternary hover:text-colorText ${touchCls}`}
+                        className={`ml-1 text-muted-foreground hover:text-foreground ${touchCls}`}
                     >
                         {submitting && firedAction === "dismiss" ? (
-                            <CircleNotch size={11} className="animate-spin" />
+                            <Spinner aria-hidden className="size-3" />
                         ) : (
                             <X size={11} />
                         )}
@@ -522,7 +542,7 @@ const LiveCard = ({
             {/* Fixed for the card's life, so it never moves the composer mid-answer. */}
             <p
                 data-elicitation-message
-                className="m-0 max-h-[34px] overflow-y-auto text-xs leading-snug text-colorTextSecondary"
+                className="m-0 max-h-[34px] overflow-y-auto text-meta leading-snug text-muted-foreground"
             >
                 {form.message}
             </p>
@@ -532,8 +552,8 @@ const LiveCard = ({
                     {steps.map((candidate, index) => (
                         <span
                             key={candidate.name}
-                            className={`h-0.5 flex-1 rounded-full ${
-                                index < stepper.position ? "bg-colorText" : "bg-colorFillTertiary"
+                            className={`h-0.5 flex-1 rounded-sm ${
+                                index < stepper.position ? "bg-foreground" : "bg-secondary"
                             }`}
                         />
                     ))}
@@ -548,13 +568,13 @@ const LiveCard = ({
                 ) : step ? (
                     <>
                         {/* Capped and scrollable, not clamped: nothing shifts, nothing is lost. */}
-                        <span className="block max-h-20 overflow-y-auto text-sm font-medium leading-snug sm:max-h-[34px] sm:text-[13px] sm:leading-tight">
+                        <span className="block max-h-20 overflow-y-auto text-label font-medium leading-snug sm:max-h-[34px] sm:leading-tight">
                             {stepper.isMultiStep ? (
-                                <span className="text-colorText">{stepper.position}. </span>
+                                <span className="text-foreground">{stepper.position}. </span>
                             ) : null}
                             {step.label}
                             {step.hint ? (
-                                <span className="font-normal text-colorTextQuaternary">
+                                <span className="font-normal text-muted-foreground">
                                     {" "}
                                     · {step.hint}
                                 </span>
@@ -597,14 +617,14 @@ const LiveCard = ({
                     loading={submitting && firedAction === "secondary"}
                     onClick={isReview ? decline : skipStep}
                 >
-                    {isReview ? "Decline" : "Skip"}
+                    {isReview ? t("chat.elicitation.decline") : t("chat.elicitation.skip")}
                 </LoadingButton>
                 <span
                     aria-live="polite"
-                    className={`mr-auto truncate text-xs ${
+                    className={`mr-auto truncate text-meta ${
                         submissionError || stepper.error
-                            ? "text-colorError"
-                            : "text-colorTextTertiary"
+                            ? "text-destructive"
+                            : "text-muted-foreground"
                     }`}
                 >
                     {submissionError ?? stepper.error ?? stepper.hold ?? ""}
@@ -627,12 +647,12 @@ const NavButton = ({
 }) => (
     <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon-xs"
         aria-label={label}
         disabled={disabled}
         onClick={onClick}
         // Rendered even when there is nowhere to go: a slot that appears on demand shifts the row.
-        className="size-[22px] text-colorTextSecondary disabled:opacity-40"
+        className="text-muted-foreground disabled:opacity-40"
     >
         {children}
     </Button>
@@ -644,49 +664,56 @@ const ReviewList = ({
 }: {
     stepper: ReturnType<typeof useElicitationStepper>
     disabled: boolean
-}) => (
-    <>
-        <span className="text-[13px] font-medium leading-tight">
-            Review your answers{" "}
-            <span className="font-normal text-colorTextQuaternary">
-                · {stepper.answeredCount} answered
-                {stepper.skippedCount > 0 ? ` · ${stepper.skippedCount} skipped` : ""}
+}) => {
+    const t = useT(chatElicitationCatalog)
+    return (
+        <>
+            <span className="text-label font-medium leading-tight">
+                {t("chat.elicitation.reviewYourAnswers")}{" "}
+                <span className="font-normal text-muted-foreground">
+                    · {t("chat.elicitation.answeredCount", {count: stepper.answeredCount})}
+                    {stepper.skippedCount > 0
+                        ? ` · ${t("chat.elicitation.skippedCount", {count: stepper.skippedCount})}`
+                        : ""}
+                </span>
             </span>
-        </span>
-        <div className="flex flex-col gap-0.5 overflow-y-auto" style={{maxHeight: 220}}>
-            {stepper.steps.map((step, index) => (
-                <button
-                    key={step.name}
-                    type="button"
-                    disabled={disabled}
-                    onMouseEnter={() => stepper.setCursor(index)}
-                    onClick={() => stepper.goTo(index)}
-                    // `border-transparent` is load-bearing: the app's button reset paints a border,
-                    // so a bare <button> here drew an outline around every row.
-                    // shrink-0 for the same reason the option rows carry it: these are flex
-                    // children of a capped column, so a long form squashed every row instead of
-                    // scrolling — at 25 answers they rendered 24px against a declared 30px.
-                    data-elicitation-review-row
-                    className={`flex h-[30px] min-w-0 shrink-0 cursor-pointer items-center justify-between gap-3 rounded-md border border-transparent bg-transparent px-2 text-left ${
-                        index === stepper.cursor ? "bg-colorFillSecondary" : ""
-                    }`}
-                >
-                    <span className="max-w-[55%] shrink-0 truncate text-xs text-colorTextSecondary">
-                        {step.label}
-                    </span>
-                    <span
-                        className={`min-w-0 truncate text-xs ${
-                            stepper.isAnswered(step) ? "text-colorText" : "text-colorTextQuaternary"
+            <div className="flex flex-col gap-0.5 overflow-y-auto" style={{maxHeight: 220}}>
+                {stepper.steps.map((step, index) => (
+                    <button
+                        key={step.name}
+                        type="button"
+                        disabled={disabled}
+                        onMouseEnter={() => stepper.setCursor(index)}
+                        onClick={() => stepper.goTo(index)}
+                        // `border-transparent` is load-bearing: the app's button reset paints a border,
+                        // so a bare <button> here drew an outline around every row.
+                        // shrink-0 for the same reason the option rows carry it: these are flex
+                        // children of a capped column, so a long form squashed every row instead of
+                        // scrolling — at 25 answers they rendered 24px against a declared 32px.
+                        data-elicitation-review-row
+                        className={`flex h-8 min-w-0 shrink-0 cursor-pointer items-center justify-between gap-3 rounded-sm border border-transparent bg-transparent px-2 text-left ${
+                            index === stepper.cursor ? "bg-accent" : ""
                         }`}
                     >
-                        {stepper.isAnswered(step)
-                            ? formatStepValue(step, stepper.values[step.name])
-                            : "Skipped"}
-                    </span>
-                </button>
-            ))}
-        </div>
-    </>
-)
+                        <span className="max-w-[55%] shrink-0 truncate text-label text-muted-foreground">
+                            {step.label}
+                        </span>
+                        <span
+                            className={`min-w-0 truncate text-label ${
+                                stepper.isAnswered(step)
+                                    ? "text-foreground"
+                                    : "text-muted-foreground"
+                            }`}
+                        >
+                            {stepper.isAnswered(step)
+                                ? formatStepValue(step, stepper.values[step.name])
+                                : t("chat.elicitation.skipped")}
+                        </span>
+                    </button>
+                ))}
+            </div>
+        </>
+    )
+}
 
 export default ElicitationDock

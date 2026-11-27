@@ -27,6 +27,8 @@
 
 import React, {useMemo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 import {filterItems} from "@agenta/shared/utils"
 
 import {EmptyState} from "../ui/empty-state"
@@ -168,19 +170,24 @@ export function SearchablePopoverList<T>({
     getItemLabel,
     getItemLabelNode,
     disabledIds,
-    disabledTooltip = "Already selected",
+    disabledTooltip: disabledTooltipProp,
     isLoading = false,
     searchPlaceholder,
     searchThreshold = 5,
     maxHeight = 300,
     minWidth = 220,
     maxWidth = 320,
-    loadingMessage = "Loading...",
-    noMatchesMessage = "No matches",
-    emptyMessage = "No items",
+    loadingMessage: loadingMessageProp,
+    noMatchesMessage: noMatchesMessageProp,
+    emptyMessage: emptyMessageProp,
     className,
     itemClassName,
 }: SearchablePopoverListProps<T>) {
+    const t = useT(listControlsCatalog)
+    const disabledTooltip = disabledTooltipProp ?? t("ui.listControls.alreadySelected")
+    const loadingMessage = loadingMessageProp ?? t("ui.listControls.loadingDots")
+    const noMatchesMessage = noMatchesMessageProp ?? t("ui.listControls.noMatches")
+    const emptyMessage = emptyMessageProp ?? t("ui.listControls.noItems")
     const [searchTerm, setSearchTerm] = useState("")
 
     // Filter items by search
@@ -196,7 +203,7 @@ export function SearchablePopoverList<T>({
         return (
             <div className="flex items-center justify-center py-4 px-6" style={{minWidth}}>
                 <Spinner size="small" />
-                <span className="ml-2 text-colorTextSecondary">{loadingMessage}</span>
+                <span className="ml-2 text-muted-foreground">{loadingMessage}</span>
             </div>
         )
     }
@@ -217,7 +224,7 @@ export function SearchablePopoverList<T>({
         <div className={className} style={{minWidth, maxWidth}}>
             {/* Search input (show if items > threshold) */}
             {items.length > searchThreshold && (
-                <div className="box-border border-0 border-b border-solid border-colorBorderSecondary p-2">
+                <div className="box-border border-0 border-b border-solid border-border-muted p-2">
                     <SearchInput
                         value={searchTerm}
                         onChange={setSearchTerm}

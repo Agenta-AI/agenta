@@ -4,8 +4,10 @@
  */
 import type {ReactNode} from "react"
 
+import type {ItemDescriptor} from "./itemDescriptors"
 import {ITEM_KINDS, type ItemKind} from "./itemKinds"
 import {ItemRow, type ItemRowStatus} from "./ItemRow"
+import {SectionEmpty} from "./SectionEmpty"
 
 export function ConfigItemList({
     kind,
@@ -16,6 +18,7 @@ export function ConfigItemList({
     disabled,
     statusFor,
     extraFor,
+    describeFor,
 }: {
     kind: ItemKind
     items: unknown[]
@@ -30,6 +33,8 @@ export function ConfigItemList({
      * "Login expired" through it; `ItemRow` has always had the slot.
      */
     extraFor?: (item: unknown, index: number) => ReactNode
+    /** A row's descriptor in place of the kind's own (the MCP rows name the connection). */
+    describeFor?: (item: unknown, index: number) => ItemDescriptor
 }) {
     const def = ITEM_KINDS[kind]
     if (items.length > 0) {
@@ -38,7 +43,7 @@ export function ConfigItemList({
                 {items.map((item, index) => (
                     <ItemRow
                         key={`${kind}-${index}`}
-                        descriptor={def.describe(item)}
+                        descriptor={describeFor?.(item, index) ?? def.describe(item)}
                         onEdit={() => openEdit(kind, index, item)}
                         onRemove={() => {
                             removeItem(kind, index)
@@ -54,6 +59,5 @@ export function ConfigItemList({
         )
     }
     if (disabled) return null
-    // One quiet line; the section header's "+" is the way to add one.
-    return <span className="text-xs text-colorTextTertiary">{def.emptyLabel}</span>
+    return <SectionEmpty>{def.emptyLabel}</SectionEmpty>
 }

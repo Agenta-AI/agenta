@@ -5,17 +5,19 @@ import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowLatestRevisionIdAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import type {ConfigViewMode} from "@agenta/entity-ui/drill-in"
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
+import {useT} from "@agenta/i18n"
+import panelsCatalog from "@agenta/i18n/catalogs/playground.panels"
 import {message} from "@agenta/ui/app-message"
 import {Tag} from "@agenta/ui/components"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 
-const VIEW_MODES: {value: ConfigViewMode; label: string}[] = [
-    {value: "form", label: "Form"},
+const VIEW_MODES = [
+    {value: "form", label: "playground.panels.viewForm"},
     {value: "json", label: "JSON"},
     {value: "yaml", label: "YAML"},
-]
+] as const satisfies readonly {value: ConfigViewMode; label: string}[]
 
 /**
  * The revision details beside the switcher. They keep their size and the switcher's name truncates
@@ -54,16 +56,17 @@ export const ConfigPanelHeader = ({
     switcher,
     actions,
 }: ConfigPanelHeaderProps) => {
+    const t = useT(panelsCatalog)
     // On a phone the bar has no room for the "Last modified" tag.
     const showLatestTag = useMediaQuery("(min-width: 640px)")
     const discard = useSetAtom(workflowMolecule.actions.discard)
     const discardDraft = () => {
         try {
             discard(revisionId)
-            message.success("Draft changes discarded")
+            message.success(t("playground.panels.draftDiscarded"))
         } catch (error) {
             console.error("Discard draft failed", error)
-            message.error("Failed to discard draft changes")
+            message.error(t("playground.panels.discardFailed"))
         }
     }
     const revision = useAtomValue(workflowMolecule.selectors.data(revisionId))
@@ -79,17 +82,17 @@ export const ConfigPanelHeader = ({
     const isLatest = revisionId === latestId
 
     return (
-        <div className="@container/config-header flex shrink-0 flex-wrap items-center justify-between gap-1 border-b border-border bg-background px-3 max-sm:min-h-12 max-sm:py-1.5 sm:sticky sm:top-0 sm:z-10 sm:h-12 sm:flex-nowrap sm:gap-2 sm:px-4">
-            {/* The details shrink first (the switcher name truncates). Only in a very narrow pane,
-                once they reach their minimum, do the buttons on the right shrink and scroll. */}
-            <div className="flex min-w-[5.5rem] items-center gap-1 overflow-hidden text-sm">
+        <div className="@container/config-header flex min-h-12 shrink-0 flex-wrap items-center justify-between gap-1 border-b border-border bg-background px-3 py-1.5 sm:sticky sm:top-0 sm:z-10 sm:gap-2 sm:px-4">
+            {/* When the details and the buttons do not fit on one line (a compare column), the
+                buttons go to a second line, so the Draft tag is never clipped. */}
+            <div className="flex min-w-[5.5rem] items-center gap-1 overflow-hidden text-body">
                 {!isLocalDraft ? switcher : null}
                 {isLocalDraft ? (
                     <>
                         <Tag draft />
                         {version !== null ? (
                             <span className="truncate text-muted-foreground">
-                                from {name} v{version}
+                                {t("playground.panels.fromNameVersion", {name, version})}
                             </span>
                         ) : null}
                     </>
@@ -114,13 +117,19 @@ export const ConfigPanelHeader = ({
                     value={viewMode}
                     onValueChange={(value) => onViewModeChange(value as ConfigViewMode)}
                 >
-                    <SelectTrigger size="sm" aria-label="Config view" className="h-7 w-24 shrink-0">
+                    <SelectTrigger
+                        size="sm"
+                        aria-label={t("playground.panels.configView")}
+                        className="h-control-sm w-24 shrink-0"
+                    >
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                         {VIEW_MODES.map((mode) => (
                             <SelectItem key={mode.value} value={mode.value}>
-                                {mode.label}
+                                {mode.label === "JSON" || mode.label === "YAML"
+                                    ? mode.label
+                                    : t(mode.label)}
                             </SelectItem>
                         ))}
                     </SelectContent>

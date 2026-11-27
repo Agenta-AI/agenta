@@ -1,5 +1,7 @@
 import {useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiStatusCatalog from "@agenta/i18n/catalogs/ui.status"
 import {dayjs} from "@agenta/shared/utils"
 import {Check, Copy} from "@phosphor-icons/react"
 
@@ -29,6 +31,7 @@ export function FormattedDate({
     asTag = false,
     className,
 }: FormattedDateProps) {
+    const t = useT(uiStatusCatalog)
     const [copied, setCopied] = useState(false)
 
     if (date == null) {
@@ -57,11 +60,13 @@ export function FormattedDate({
     ) : (
         <Copy
             size={12}
-            className="flex-shrink-0 opacity-0 group-hover/date:opacity-100 transition-opacity"
+            className="flex-shrink-0 opacity-0 group-hover/date:opacity-100 transition-opacity pointer-coarse:opacity-100"
         />
     )
 
-    const tooltipTitle = copied ? "Copied!" : `Click to copy: ${rawValue}`
+    const tooltipTitle = copied
+        ? t("ui.status.copiedBang")
+        : t("ui.status.clickToCopy", {value: rawValue})
 
     const inner = (
         <TooltipProvider delayDuration={400}>
@@ -84,7 +89,7 @@ export function FormattedDate({
     )
 
     if (asTag) {
-        return <Badge className={cn("bg-colorFillTertiary", className)}>{inner}</Badge>
+        return <Badge className={cn("bg-secondary", className)}>{inner}</Badge>
     }
 
     return inner

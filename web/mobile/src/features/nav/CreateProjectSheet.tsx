@@ -1,5 +1,8 @@
-import {useEffect, useState} from "react"
+import {useEffect, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import createProjectCatalog from "@agenta/i18n/catalogs/shell.createProject"
 import {
     Button,
     Dialog,
@@ -8,6 +11,7 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
+    Field,
     Input,
 } from "@agenta/ui/ui"
 
@@ -17,12 +21,22 @@ export const CreateProjectSheet = ({
     onOpenChange,
     onSubmit,
     isPending,
+    notice,
+    submitDisabled,
+    error,
 }: {
     open: boolean
     onOpenChange: (open: boolean) => void
     onSubmit: (name: string) => void
     isPending?: boolean
+    /** Shown under the field, for a refusal the reader can act on. */
+    notice?: ReactNode
+    /** The plan allows no more projects: Create stays off. */
+    submitDisabled?: boolean
+    /** Why the last create failed, shown under the field (KIT-05). */
+    error?: string | null
 }) => {
+    const t = useT(createProjectCatalog, commonCatalog)
     const [name, setName] = useState("")
 
     useEffect(() => {
@@ -31,15 +45,15 @@ export const CreateProjectSheet = ({
 
     const submit = () => {
         const trimmed = name.trim()
-        if (trimmed && !isPending) onSubmit(trimmed)
+        if (trimmed && !isPending && !submitDisabled) onSubmit(trimmed)
     }
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Create project</DialogTitle>
-                    <DialogDescription>Projects keep agents and sessions apart.</DialogDescription>
+                    <DialogTitle>{t("shell.createProject.title")}</DialogTitle>
+                    <DialogDescription>{t("shell.createProject.description")}</DialogDescription>
                 </DialogHeader>
                 <form
                     className="flex flex-col gap-3"
@@ -48,22 +62,27 @@ export const CreateProjectSheet = ({
                         submit()
                     }}
                 >
-                    <Input
-                        autoFocus
-                        value={name}
-                        placeholder="Project name"
-                        onChange={(event) => setName(event.target.value)}
-                    />
+                    <Field label={t("shell.createProject.namePlaceholder")} error={error}>
+                        <Input
+                            autoFocus
+                            value={name}
+                            aria-invalid={error ? true : undefined}
+                            onChange={(event) => setName(event.target.value)}
+                        />
+                    </Field>
                     {/* Enter submits; the visible Create sits in the footer, outside this form. */}
                     <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
                 </form>
+                {notice}
                 <DialogFooter>
                     {/* Pending blocks submitting only: a dismissed create still lands and refetches. */}
                     <Button variant="outline" onClick={() => onOpenChange(false)}>
-                        Cancel
+                        {t("common.cancel")}
                     </Button>
-                    <Button disabled={!name.trim() || isPending} onClick={submit}>
-                        {isPending ? "Creating…" : "Create"}
+                    <Button disabled={!name.trim() || isPending || submitDisabled} onClick={submit}>
+                        {isPending
+                            ? t("shell.createProject.creating")
+                            : t("shell.createProject.title")}
                     </Button>
                 </DialogFooter>
             </DialogContent>

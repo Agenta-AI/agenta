@@ -6,6 +6,8 @@ import {
     parseMessageTemplate,
     selectorLabel,
 } from "@agenta/entities/gatewayTrigger"
+import {useT} from "@agenta/i18n"
+import triggerSharedCatalog from "@agenta/i18n/catalogs/entityUi.triggerShared"
 
 import {PillEditor} from "./PillEditor"
 
@@ -27,6 +29,7 @@ export function EventMessageComposer({
     /** The event's field tags, drawn inside the instruction box under the text. */
     fields?: ReactNode
 }) {
+    const t = useT(triggerSharedCatalog)
     const template = parseMessageTemplate(inputsText, isChat, primaryKey)
 
     return (
@@ -39,19 +42,14 @@ export function EventMessageComposer({
                 insertApi={insertApi}
                 labelFor={selectorLabel}
                 footer={fields}
-                ariaLabel="Instruction"
+                ariaLabel={t("entityUi.triggerShared.instruction")}
             />
-            <span
-                className={`text-xs leading-snug ${
-                    template === null
-                        ? "text-[var(--ag-colorWarningText)]"
-                        : "text-[var(--ag-colorTextDescription)]"
-                }`}
-            >
-                {template === null
-                    ? "This automation sends a richer set of inputs than one message. Typing here replaces them."
-                    : "Sent to the agent each time this event happens. Fields fill in with the real values."}
-            </span>
+            {/* The usual hint lives in the host label's "?" (FORM-01); only the warning shows here. */}
+            {template === null ? (
+                <span className="text-meta leading-snug text-warning">
+                    {t("entityUi.triggerShared.richerInputsAutomation")}
+                </span>
+            ) : null}
         </div>
     )
 }

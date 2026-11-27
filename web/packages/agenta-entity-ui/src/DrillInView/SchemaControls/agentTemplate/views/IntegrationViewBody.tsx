@@ -1,0 +1,198 @@
+import {useCallback, useMemo, useRef, useState} from "react"
+
+import {USER_ACCOUNT_SOURCE} from "@agenta/entities/accountChoice"
+import {usePersonalToolConnections, useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
+import {personalAccountsAccessAtom} from "@agenta/entities/secret"
+import {agentRequirementsAtomFamily, requirementForItem} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
+import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
+import {useAtomValue} from "jotai"
+
+import {personalConnectionsFor} from "../../../../accounts/personalAccounts"
+import {
+    findIntegrationRow,
+    integrationRowConnection,
+    setGatewayConnectionAccount,
+} from "../../toolUtils"
+import {IntegrationAccountBlock} from "../accounts/IntegrationAccountBlock"
+import {
+    IntegrationDrawerBody,
+    IntegrationTitle,
+    UnmigratedNotice,
+} from "../IntegrationPermissionList"
+import {integrationTargetOf, removeIntegrationByRef} from "../itemKinds/tool"
+import {needsSetupReasonText, needsSetupLabel} from "../needsSetupText"
+import {useAgentConfigWriter} from "../useAgentConfigWriter"
+import {useAgentTools} from "../useAgentTools"
+
+import {integrationConnectView} from "./integrationConnectView"
+import type {IntegrationViewParams} from "./integrationView"
+import {RemovedItemState} from "./RemovedItemState"
+import {RemoveFromAgentDialog} from "./RemoveFromAgentDialog"
+import {RemoveFromAgentFooter} from "./RemoveFromAgentFooter"
+
+const noCreate = () => undefined
+
+const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewParams>) => {
+    const t = useT(integrationViewsCatalog)
+    const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
+    const onChange = useCallback(
+        (next: Record<string, unknown>) => writer.update(() => next),
+        [writer],
+    )
+    const {
+        integrationRows,
+        setIntegrationAccount,
+        setIntegrationPermissions,
+        setIntegrationToolPermission,
+    } = useAgentTools({config: writer.agent, onChange, openCreate: noCreate})
+    const integrationTarget = useMemo(() => integrationTargetOf(params.item), [params.item])
+    // Found by key in the list as it is now: a builder save that changes the list under the open
+    // view never puts another integration here.
+    const row = integrationTarget
+        ? findIntegrationRow(integrationRows, integrationTarget)
+        : undefined
+    const {integration} = useToolIntegrationDetail(integrationTarget?.integration ?? "")
+    const name = integration?.name || integrationTarget?.integration || ""
+    useViewTitle(name)
+    const accountContext = useMemo(
+        () => ({revisionId: writer.revisionId, agent: writer.agent}),
+        [writer.revisionId, writer.agent],
+    )
+    const [confirming, setConfirming] = useState(false)
+    const access = useAtomValue(personalAccountsAccessAtom)
+    const {connections: personal} = usePersonalToolConnections()
+    // The server's needs-setup check, read as the section row reads it, so both say one state.
+    const requirements = useAtomValue(agentRequirementsAtomFamily(writer.revisionId))
+    const {push} = nav
+    // The connect view can return after auto-save replaced the revision: write through the latest.
+    const writerRef = useRef(writer)
+    writerRef.current = writer
+    // Connect from the account part: the viewer's own account, or a shared one the agent then uses.
+    const connect = useCallback(
+        (owner: "user" | "project") => {
+            if (!integrationTarget) return
+            void push?.(
+                integrationConnectView,
+                {
+                    integrationKey: integrationTarget.integration,
+                    owners: [owner],
+                    onCreated: (created) => {
+                        if (created.owner !== "project") return
+                        writerRef.current.update((agent) => ({
+                            ...agent,
+                            tools: setGatewayConnectionAccount(
+                                Array.isArray(agent.tools) ? (agent.tools as unknown[]) : [],
+                                integrationTarget,
+                                {accountSource: "agent", slug: created.slug},
+                            ),
+                        }))
+                    },
+                },
+                {kind: "project"},
+            )
+        },
+        [push, integrationTarget],
+    )
+
+    if (!integrationTarget || !row) {
+        return (
+            <RemovedItemState
+                message={t("entityUi.integrationViews.removedState")}
+                onBack={() => void nav.back()}
+            />
+        )
+    }
+
+    const connectionSlug = integrationRowConnection(row) ?? ""
+    const requirement = requirements
+        ? requirementForItem(requirements, {
+              kinds: ["app_connection"],
+              slug: connectionSlug,
+              integration: integrationTarget.integration,
+          })
+        : undefined
+    // Until the check answers (or for a revision it has not checked), the title reads the
+    // connection's own status, as before.
+    const attention = !requirements
+        ? undefined
+        : requirement
+          ? (needsSetupReasonText(requirement.reason) ?? needsSetupLabel())
+          : null
+    const eachPerson = row.entry?.accountSource === USER_ACCOUNT_SOURCE
+    const notConnected =
+        eachPerson &&
+        access === "on" &&
+        personalConnectionsFor(personal, integrationTarget).length === 0
+    const remove = () => {
+        setConfirming(false)
+        writer.update((agent) => ({
+            ...agent,
+            tools: removeIntegrationByRef(
+                Array.isArray(agent.tools) ? (agent.tools as unknown[]) : [],
+                params.item,
+            ),
+        }))
+        void nav.back()
+    }
+
+    return (
+        <div className="flex min-h-0 flex-1 flex-col">
+            <div className="shrink-0 px-4 pt-4">
+                <IntegrationTitle
+                    target={integrationTarget}
+                    connectionSlug={eachPerson ? "" : connectionSlug}
+                    notConnected={notConnected}
+                    attention={attention}
+                />
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col">
+                {row.entry?.permissions ? (
+                    <IntegrationDrawerBody
+                        target={integrationTarget}
+                        connectionSlug={connectionSlug}
+                        permissions={row.entry.permissions}
+                        onChangePermissions={(next) =>
+                            setIntegrationPermissions(integrationTarget, next)
+                        }
+                        onChangeToolPermission={(toolKey, permission) =>
+                            setIntegrationToolPermission(integrationTarget, toolKey, permission)
+                        }
+                        disabled={writer.readOnly}
+                        account={
+                            row.entry ? (
+                                <IntegrationAccountBlock
+                                    target={integrationTarget}
+                                    entry={row.entry}
+                                    context={accountContext}
+                                    onChange={(account) =>
+                                        setIntegrationAccount(integrationTarget, account)
+                                    }
+                                    onConnect={connect}
+                                    disabled={writer.readOnly}
+                                />
+                            ) : undefined
+                        }
+                    />
+                ) : (
+                    <UnmigratedNotice target={integrationTarget} />
+                )}
+            </div>
+            {writer.readOnly ? null : <RemoveFromAgentFooter onClick={() => setConfirming(true)} />}
+            <RemoveFromAgentDialog
+                open={confirming}
+                name={name}
+                body={
+                    eachPerson
+                        ? t("entityUi.integrationViews.accountsStay")
+                        : t("entityUi.integrationViews.connectionStays")
+                }
+                onConfirm={remove}
+                onCancel={() => setConfirming(false)}
+            />
+        </div>
+    )
+}
+
+export default IntegrationViewBody

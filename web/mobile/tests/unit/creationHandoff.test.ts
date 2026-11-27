@@ -25,12 +25,28 @@ vi.mock("@agenta/home-ui", () => ({useCreateAgent: () => mocks.create}))
 vi.mock("@agenta/chat/assets", () => ({uploadAttachment: vi.fn()}))
 vi.mock("@agenta/shared/state", () => ({projectIdAtom: "project"}))
 vi.mock("@/features/analytics/client", () => ({captureIntent: mocks.captureIntent}))
-vi.mock("jotai", () => ({
-    useAtomValue: (atom: string) =>
-        atom === "templates" ? [{key: "reviewer", name: "Reviewer"}] : undefined,
-    useSetAtom: (atom: string) =>
-        ({stash: mocks.stash, drop: mocks.drop, reveal: mocks.reveal})[atom],
-}))
+// The real jotai stays under the mock: @agenta/i18n builds its language atoms from it.
+vi.mock("jotai", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("jotai")>()
+    return {
+        ...actual,
+        useAtomValue: (atom: unknown) =>
+            typeof atom !== "string"
+                ? actual.useAtomValue(atom as Parameters<typeof actual.useAtomValue>[0])
+                : atom === "templates"
+                  ? [{key: "reviewer", name: "Reviewer"}]
+                  : undefined,
+        useSetAtom: (atom: unknown) =>
+            typeof atom !== "string"
+                ? actual.useSetAtom(atom as Parameters<typeof actual.useSetAtom>[0])
+                : (
+                      {stash: mocks.stash, drop: mocks.drop, reveal: mocks.reveal} as Record<
+                          string,
+                          unknown
+                      >
+                  )[atom],
+    }
+})
 vi.mock("../../src/lib/ids", () => ({newId: () => "fresh-session"}))
 vi.mock("../../src/features/home/pendingTask", () => ({
     stashPendingTaskAtom: "stash",

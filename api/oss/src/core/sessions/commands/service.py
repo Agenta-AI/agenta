@@ -32,12 +32,10 @@ THE LATE-STOP GUARDS. A Stop that arrives after its turn ended must not kill the
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 from uuid import UUID, uuid4
 
-
-if TYPE_CHECKING:
-    from oss.src.core.access.service import AccessService
+from oss.src.core.access.service import AccessService, get_access_service
 from oss.src.core.access.dtos import RunApproval, RunEnvelope
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.principals import (
@@ -69,9 +67,16 @@ from oss.src.core.sessions.commands.types import (
     SessionCommandNotClaimable,
     SessionCommandNotFound,
 )
-from oss.src.core.sessions.executions.dtos import SessionExecutionState
-from oss.src.core.sessions.records.dtos import RunnerEnding
+from oss.src.core.sessions.executions.dtos import (
+    SessionExecutionSettlement,
+    SessionExecutionState,
+)
+from oss.src.core.sessions.records.dtos import SETTLED_BY_WATCHDOG, RunnerEnding
 from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
+from oss.src.core.sessions.executions.senders import (
+    server_input_waits,
+    turn_first_execution,
+)
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteraction,
     SessionInteractionStatus,
@@ -85,6 +90,7 @@ from oss.src.core.sessions.inputs.types import (
     SessionInputNotFound,
     SessionInputRemoved,
 )
+from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.sessions.streams.types import SessionIdInvalid
 from oss.src.dbs.redis.shared.engine import LockEngine
@@ -101,6 +107,7 @@ from oss.src.dbs.redis.sessions.locks import (
     forget_turn_admissions,
     reconcile_stopped_turn,
 )
+from oss.src.core.sessions.turns.interfaces import SessionTurnsDAOInterface
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -189,6 +196,23 @@ def steer_cancel_key(input_id: Union[UUID, str]) -> str:
     return f"steer:{input_id}"
 
 
+# Who cancelled a turn, as the record attribute `cancelledBy` names it. A person's Stop
+# writes no value; `steer` is a person's message that replaced the turn.
+CancelledBy = Literal["steer", "calling_session"]
+CANCELLED_BY_CALLING_SESSION: CancelledBy = "calling_session"
+
+
+def _cancel_command_data(
+    *, steer_input_id: Optional[UUID], cancelled_by: Optional[CancelledBy]
+) -> Optional[Dict[str, Any]]:
+    data: Dict[str, Any] = {}
+    if steer_input_id is not None:
+        data["steer_input_id"] = str(steer_input_id)
+    if cancelled_by is not None:
+        data["cancelled_by"] = cancelled_by
+    return data or None
+
+
 class SessionCommandsService:
     def __init__(
         self,
@@ -200,6 +224,8 @@ class SessionCommandsService:
         delivery: ControlDeliveryPort,
         executions_dao: Optional[SessionExecutionsDAOInterface] = None,
         inputs_dao: Optional[SessionInputsDAOInterface] = None,
+        streams_dao: Optional[SessionStreamsDAOInterface] = None,
+        turns_dao: Optional[SessionTurnsDAOInterface] = None,
     ) -> None:
         self._dao = commands_dao
         self._streams = streams_service
@@ -208,6 +234,9 @@ class SessionCommandsService:
         self._delivery = delivery
         self._executions = executions_dao
         self._inputs = inputs_dao
+        # Both set: a turn end applies the server input hold rule before it promotes.
+        self._streams_dao = streams_dao
+        self._turns = turns_dao
 
     # -- admission ---------------------------------------------------------- #
 
@@ -375,7 +404,11 @@ class SessionCommandsService:
         expected_execution_id: Optional[str] = None,
         idempotency_key: Optional[str] = None,
         steer_input_id: Optional[UUID] = None,
+        cancelled_by: Optional[CancelledBy] = None,
     ) -> CancelAdmission:
+        """`cancelled_by` marks who asked for the cancel when it is not a person:
+        `calling_session` for the session tool `cancel_session`. The record route
+        writes it on the turn's `done` record as `cancelledBy`."""
         if not validate_session_id(session_id):
             raise SessionIdInvalid(session_id)
 
@@ -431,10 +464,8 @@ class SessionCommandsService:
                 target_turn_id=None,
                 expected_turn_id=expected_execution_id,
                 idempotency_key=idempotency_key,
-                data=(
-                    {"steer_input_id": str(steer_input_id)}
-                    if steer_input_id is not None
-                    else None
+                data=_cancel_command_data(
+                    steer_input_id=steer_input_id, cancelled_by=cancelled_by
                 ),
                 state=SessionCommandState.obsolete,
                 outcome=SessionCommandOutcome.not_running,
@@ -460,10 +491,8 @@ class SessionCommandsService:
                 target_turn_id=None,
                 expected_turn_id=None,
                 idempotency_key=idempotency_key,
-                data=(
-                    {"steer_input_id": str(steer_input_id)}
-                    if steer_input_id is not None
-                    else None
+                data=_cancel_command_data(
+                    steer_input_id=steer_input_id, cancelled_by=cancelled_by
                 ),
                 state=SessionCommandState.obsolete,
                 outcome=SessionCommandOutcome.superseded_by_newer_turn,
@@ -505,10 +534,8 @@ class SessionCommandsService:
                     target_turn_id=target_turn_id,
                     expected_turn_id=expected_execution_id,
                     idempotency_key=idempotency_key,
-                    data=(
-                        {"steer_input_id": str(steer_input_id)}
-                        if steer_input_id is not None
-                        else None
+                    data=_cancel_command_data(
+                        steer_input_id=steer_input_id, cancelled_by=cancelled_by
                     ),
                     state=SessionCommandState.pending,
                     outcome=None,
@@ -569,10 +596,8 @@ class SessionCommandsService:
                         target_turn_id=target_turn_id,
                         expected_turn_id=expected_execution_id,
                         idempotency_key=idempotency_key,
-                        data=(
-                            {"steer_input_id": str(steer_input_id)}
-                            if steer_input_id is not None
-                            else None
+                        data=_cancel_command_data(
+                            steer_input_id=steer_input_id, cancelled_by=cancelled_by
                         ),
                         state=SessionCommandState.pending,
                         outcome=None,
@@ -618,8 +643,29 @@ class SessionCommandsService:
         project_id: UUID,
         session_id: str,
         execution_id: str,
+        transaction: Optional[Any] = None,
     ) -> bool:
-        """True when a Steer, not a Stop, cancelled this execution.
+        """True when a Steer, not a Stop, cancelled this execution."""
+        return (
+            await self.cancel_cause(
+                project_id=project_id,
+                session_id=session_id,
+                execution_id=execution_id,
+                transaction=transaction,
+            )
+            == "steer"
+        )
+
+    async def cancel_cause(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_id: str,
+        transaction: Optional[Any] = None,
+    ) -> Optional[CancelledBy]:
+        """Who cancelled this execution, when it was not a person's Stop: `steer` (a
+        person's message replaced the turn) or `calling_session` (`cancel_session`).
 
         A Steer that bound to a Stop already open keeps that Stop's key, so the turn still reads
         as stopped by the user."""
@@ -627,13 +673,19 @@ class SessionCommandsService:
             project_id=project_id,
             session_id=session_id,
             target_turn_id=execution_id,
+            transaction=transaction,
         )
-        steer_input_id = ((command.data or {}) if command else {}).get("steer_input_id")
-        return (
-            command is not None
-            and steer_input_id is not None
-            and command.idempotency_key == steer_cancel_key(steer_input_id)
-        )
+        if command is None:
+            return None
+        data = command.data or {}
+        steer_input_id = data.get("steer_input_id")
+        if steer_input_id is not None and command.idempotency_key == steer_cancel_key(
+            steer_input_id
+        ):
+            return "steer"
+        if data.get("cancelled_by") == CANCELLED_BY_CALLING_SESSION:
+            return CANCELLED_BY_CALLING_SESSION
+        return None
 
     async def respond_interaction(
         self,
@@ -645,6 +697,7 @@ class SessionCommandsService:
         expected_execution_id: Optional[str],
         idempotency_key: str,
         approved_by: RunApproval,
+        deliver: bool = True,
     ) -> InteractionContinuationAdmission:
         return await self.respond_interactions(
             project_id=project_id,
@@ -653,6 +706,7 @@ class SessionCommandsService:
             expected_execution_id=expected_execution_id,
             idempotency_key=idempotency_key,
             approved_by=approved_by,
+            deliver=deliver,
         )
 
     async def respond_interactions(
@@ -664,9 +718,16 @@ class SessionCommandsService:
         expected_execution_id: Optional[str],
         idempotency_key: str,
         approved_by: RunApproval,
+        deliver: bool = True,
     ) -> InteractionContinuationAdmission:
         """`approved_by` is the answering principal. The continuation keeps the asked
-        run's authority, sender and origin, and records the approver."""
+        run's authority, sender and origin, and records the approver.
+
+        With `deliver=False` the caller runs the continuation in its own request (an
+        in-band answer that the agent service records before its run): the command is
+        stored and left `pending`, and the runner's admission report settles it. A
+        caller that never runs it leaves it to the abandoned-command sweep, which then
+        delivers it as usual."""
         if self._executions is None:
             raise RuntimeError(
                 "durable interaction responses require executions storage"
@@ -769,12 +830,7 @@ class SessionCommandsService:
                     SessionExecutionState.terminal,
                 ):
                     for interaction_id, answer in interaction_answers:
-                        interaction = by_id[interaction_id]
-                        if (
-                            interaction.status != SessionInteractionStatus.responded
-                            or interaction.data is None
-                            or interaction.data.resolution != answer
-                        ):
+                        if not _holds_answer(by_id[interaction_id], answer):
                             raise InteractionResponseConflict(
                                 code="execution_terminal",
                                 message="The source execution can no longer be continued.",
@@ -791,17 +847,23 @@ class SessionCommandsService:
                 transitioned: List[SessionInteraction] = []
                 for interaction_id, answer in interaction_answers:
                     interaction = by_id[interaction_id]
-                    if interaction.status == SessionInteractionStatus.responded:
-                        if (
-                            interaction.data is None
-                            or interaction.data.resolution != answer
-                        ):
+                    # A row that already holds an answer is a replay: a client resends
+                    # every answer of the paused message. A `resolved` row was consumed
+                    # by a run already and has nothing left to continue.
+                    if interaction.status in (
+                        SessionInteractionStatus.responded,
+                        SessionInteractionStatus.resolved,
+                    ):
+                        if not _holds_answer(interaction, answer):
                             raise InteractionResponseConflict(
                                 code="execution_terminal",
                                 message="The interaction was already answered differently.",
-                                details={"interaction_status": "responded"},
+                                details={
+                                    "interaction_status": interaction.status.value
+                                },
                             )
-                        transitioned.append(interaction)
+                        if interaction.status == SessionInteractionStatus.responded:
+                            transitioned.append(interaction)
                         continue
                     if interaction.status != SessionInteractionStatus.pending:
                         raise InteractionResponseConflict(
@@ -829,6 +891,13 @@ class SessionCommandsService:
                     by_id[interaction_id] = updated
                     transitioned.append(updated)
 
+                answered = [
+                    interaction
+                    for interaction in by_id.values()
+                    if interaction.status == SessionInteractionStatus.responded
+                    and interaction.data is not None
+                    and interaction.data.resolution is not None
+                ]
                 if any(
                     interaction.status == SessionInteractionStatus.pending
                     for interaction in by_id.values()
@@ -841,14 +910,17 @@ class SessionCommandsService:
                         interactions=transitioned,
                         waiting_for_interactions=True,
                     )
+                elif not answered:
+                    # A run consumed every answer of the turn already: nothing is left
+                    # to continue.
+                    admission = InteractionContinuationAdmission(
+                        interaction=by_id[anchor_id],
+                        command=None,
+                        execution_id=source_execution_id,
+                        execution_state=source.state,
+                        interactions=[by_id[item] for item in requested],
+                    )
                 else:
-                    answered = [
-                        interaction
-                        for interaction in by_id.values()
-                        if interaction.status == SessionInteractionStatus.responded
-                        and interaction.data is not None
-                        and interaction.data.resolution is not None
-                    ]
                     result = await self._executions.settle(
                         project_id=project_id,
                         session_id=anchor.session_id,
@@ -867,6 +939,12 @@ class SessionCommandsService:
                         )
 
                     execution_id = str(uuid4())
+                    session_turn_id = await self._session_turn_id(
+                        project_id=project_id,
+                        session_id=anchor.session_id,
+                        execution=source,
+                        transaction=transaction,
+                    )
                     await self._executions.create_continuation(
                         project_id=project_id,
                         session_id=anchor.session_id,
@@ -888,6 +966,11 @@ class SessionCommandsService:
                                 "interaction_id": str(anchor_id),
                                 "interaction_ids": interaction_ids,
                                 "continuation_execution_id": execution_id,
+                                **(
+                                    {"session_turn_id": session_turn_id}
+                                    if session_turn_id is not None
+                                    else {}
+                                ),
                             },
                             idempotency_key=idempotency_key,
                             run_envelope=resumed_envelope(
@@ -926,7 +1009,14 @@ class SessionCommandsService:
                 error,
             )
         if (
-            admission.command is not None
+            not deliver
+            and admission.command is not None
+            and admission.command.state == SessionCommandState.pending
+        ):
+            await self._refuse_caller_continuation_without_access(admission)
+        if (
+            deliver
+            and admission.command is not None
             and admission.command.state == SessionCommandState.pending
         ):
             try:
@@ -942,6 +1032,31 @@ class SessionCommandsService:
                 if await self._mark_continuation_recoverable(admission, receipt):
                     admission.execution_state = SessionExecutionState.recoverable
         return admission
+
+    async def _refuse_caller_continuation_without_access(
+        self, admission: InteractionContinuationAdmission
+    ) -> None:
+        """The caller runs this continuation itself, so it gets the recheck that
+        delivery makes (`deliverable_envelope`) here. A refused continuation is settled
+        as delivery settles it, and the caller receives it settled, so it does not run."""
+        command = admission.command
+        try:
+            await deliverable_envelope(access=get_access_service(), command=command)
+            return
+        except (MissingEnvelope, AccessDenied) as refusal:
+            receipt = await self._settle_refused_continuation(
+                command=command,
+                error=_refusal_error(refusal=refusal, command=command),
+            )
+        settled = (
+            await self._dao.fetch_command(
+                project_id=command.project_id, command_id=command.id
+            )
+            if receipt.status == "refused"
+            else None
+        )
+        admission.command = settled
+        admission.execution_state = SessionExecutionState.terminal
 
     async def _cancel_unresumable_interactions(
         self,
@@ -1080,6 +1195,25 @@ class SessionCommandsService:
                 command.id,
                 failure,
             )
+
+    async def _session_turn_id(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution: SessionExecutionSettlement,
+        transaction: Any,
+    ) -> Optional[str]:
+        """The session turn a paused execution belongs to, or None when the chain is
+        broken (`turn_first_execution`)."""
+        first = await turn_first_execution(
+            executions_dao=self._executions,
+            project_id=project_id,
+            session_id=session_id,
+            execution=execution,
+            transaction=transaction,
+        )
+        return first.execution_id if first is not None else None
 
     async def _mark_continuation_recoverable(
         self,
@@ -1393,6 +1527,7 @@ class SessionCommandsService:
                     kind=SessionCommandKind.cancel,
                     target_turn_id=target_turn_id,
                     expected_turn_id=expected_turn_id,
+                    data=data,
                     state=state,
                     outcome=outcome,
                     settled_at=received_at if outcome is not None else None,
@@ -1809,6 +1944,34 @@ class SessionCommandsService:
 
     # -- settlement --------------------------------------------------------- #
 
+    async def _server_inputs_held(
+        self, *, project_id: UUID, session_id: str, transaction: Any
+    ) -> bool:
+        """True when a server input waits in the queue and `server_input_waits` holds."""
+        if self._streams_dao is None or self._turns is None:
+            return False
+        if not await self._inputs.has_pending_server_input(
+            project_id=project_id,
+            session_id=session_id,
+            transaction=transaction,
+        ):
+            return False
+        # The rule reads on the turn end's transaction. A read through `engine.session()`
+        # in this task would commit that transaction early and drop the input lock, and
+        # a read in another task would wait for a second pooled connection while this
+        # one is held, which never comes when the pool is full.
+        return await server_input_waits(
+            streams_dao=self._streams_dao,
+            executions_dao=self._executions,
+            inputs_dao=self._inputs,
+            turns_dao=self._turns,
+            cancelled_by_steer=self.cancelled_by_steer,
+            project_id=project_id,
+            session_id=session_id,
+            turns_without_person_limit=env.agenta.sessions.turns_without_person_limit,
+            transaction=transaction,
+        )
+
     async def _promote_next_input(
         self,
         *,
@@ -1824,6 +1987,19 @@ class SessionCommandsService:
             return None
 
         execution_id = str(uuid4())
+        # A turn end promotes the next row on its own, so a server input there obeys the
+        # same hold rule as in `enqueue_session_input`. A held row stays `pending`, and
+        # a person's queued message behind it still runs. Send now (`input_id`) is a
+        # person's choice and is not held.
+        messages_only = (
+            input_id is None
+            and only_policy is None
+            and await self._server_inputs_held(
+                project_id=project_id,
+                session_id=session_id,
+                transaction=transaction,
+            )
+        )
         pending_input = await self._inputs.promote_next(
             project_id=project_id,
             session_id=session_id,
@@ -1831,6 +2007,7 @@ class SessionCommandsService:
             input_id=input_id,
             only_policy=only_policy,
             transaction=transaction,
+            messages_only=messages_only,
         )
         if pending_input is None:
             return None
@@ -1962,6 +2139,39 @@ class SessionCommandsService:
             ),
             admission=admission,
         )
+
+    async def settle_execution_killed(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_id: str,
+    ) -> bool:
+        """Settle the execution that ran when a person ended (killed) its session.
+
+        The kill writes no record and hides the turn from the orphan sweep's stream
+        queries, so nothing else would settle it when the runner is gone. This settles it
+        `stopped` by the watchdog, only when it has no terminal outcome. The sweep's
+        third query then writes the missing `done` when no runner `done` exists, and a
+        runner `done` that arrives later reads as late output. It does not mark a
+        continuation recoverable and does not promote a queued input: the session ended.
+
+        Returns whether this call settled it."""
+        if self._executions is None:
+            return False
+        # `settle` takes the row lock (`lock_for_control`) and writes nothing when the
+        # execution already has a terminal outcome.
+        async with self._dao.transaction() as transaction:
+            result = await self._executions.settle(
+                project_id=project_id,
+                session_id=session_id,
+                execution_id=execution_id,
+                terminal_outcome=SessionCommandOutcome.stopped.value,
+                settled_by=SETTLED_BY_WATCHDOG,
+                settled_at=datetime.now(timezone.utc),
+                transaction=transaction,
+            )
+        return result.won
 
     async def deliver_input_admission(
         self, admission: InputContinuationAdmission
@@ -2460,9 +2670,20 @@ class SessionCommandsService:
         return settled
 
 
+def _holds_answer(interaction: SessionInteraction, answer: dict[str, Any]) -> bool:
+    """True when the row already holds this answer: `responded` (stored, not yet run)
+    or `resolved` (a run consumed it)."""
+    return (
+        interaction.status
+        in (SessionInteractionStatus.responded, SessionInteractionStatus.resolved)
+        and interaction.data is not None
+        and interaction.data.resolution == answer
+    )
+
+
 async def deliverable_envelope(
     *,
-    access: "AccessService",
+    access: AccessService,
     command: SessionCommand,
 ) -> RunEnvelope:
     """The envelope a continue_input / continue_interaction command runs under,

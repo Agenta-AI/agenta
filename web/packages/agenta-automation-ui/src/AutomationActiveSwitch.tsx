@@ -1,9 +1,13 @@
 import {useCallback, useState} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {message} from "@agenta/ui/app-message"
 import {Switch} from "@agenta/ui/ui"
 
 import {cn} from "./lib/utils"
+
+const tNow = createT(automationsEditorCatalog)
 
 /**
  * The automation's on/off switch, with the pending guard and the messages it owns.
@@ -24,6 +28,7 @@ export const AutomationActiveSwitch = ({
     label?: boolean
     className?: string
 }) => {
+    const t = useT(automationsEditorCatalog)
     const [saving, setSaving] = useState(false)
 
     const toggle = useCallback(
@@ -32,9 +37,13 @@ export const AutomationActiveSwitch = ({
             setSaving(true)
             try {
                 await onToggle(next)
-                message.success(next ? "Automation switched on" : "Automation switched off")
+                message.success(
+                    next
+                        ? tNow("automations.editor.switchedOn")
+                        : tNow("automations.editor.switchedOff"),
+                )
             } catch {
-                message.error("Couldn't change this automation")
+                message.error(tNow("automations.editor.changeFailed"))
             } finally {
                 setSaving(false)
             }
@@ -45,16 +54,23 @@ export const AutomationActiveSwitch = ({
     return (
         // The switch and its label are one control, so they sit closer than the 14px that
         // separates them from the rest of the line.
-        <span className={cn("flex shrink-0 items-center gap-[9px]", className)}>
+        <span className={cn("flex shrink-0 items-center gap-2", className)}>
             <Switch
                 size="sm"
+                // 44 px to tap on a phone; the switch keeps its drawn size.
                 checked={active}
                 disabled={saving}
                 onCheckedChange={(next) => void toggle(next)}
-                aria-label={active ? "Switch this automation off" : "Switch this automation on"}
+                aria-label={
+                    active
+                        ? t("automations.editor.switchOffAria")
+                        : t("automations.editor.switchOnAria")
+                }
             />
             {label ? (
-                <span className="text-[14px] text-foreground">{active ? "On" : "Off"}</span>
+                <span className="text-label text-foreground">
+                    {active ? t("automations.editor.on") : t("automations.editor.off")}
+                </span>
             ) : null}
         </span>
     )

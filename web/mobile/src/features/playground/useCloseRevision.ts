@@ -11,11 +11,12 @@ import {useConfirmModal} from "../settings/useConfirmModal"
  * Takes one revision off the compare view. With unsaved edits it asks first. Its edits go with
  * it, so they do not come back when the revision is opened again; a local draft goes entirely.
  *
- * Returns the close and the dialog to render.
+ * Returns the close and the confirm state; the screen draws its `AlertDialog`.
  */
 export const useCloseRevision = () => {
     const store = useStore()
-    const {confirm, modal} = useConfirmModal()
+    const confirmDialog = useConfirmModal()
+    const {confirm} = confirmDialog
 
     const close = useCallback(
         (revisionId: string) => {
@@ -42,5 +43,5 @@ export const useCloseRevision = () => {
         [confirm, store],
     )
 
-    return {close, modal}
+    return {close, confirmDialog}
 }

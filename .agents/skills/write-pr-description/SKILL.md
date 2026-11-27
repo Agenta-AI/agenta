@@ -51,11 +51,38 @@ Use this shape unless the change is truly trivial:
 ## Tests / notes
 <short bullet list or prose: what you verified, anything reviewers should watch for>
 
+## Screenshots
+<only for UI changes: before and after images, see "Screenshots for UI changes" below>
+
 ## What to QA
 <only for user-visible changes: short steps for the manual tester, see section 7>
 ```
 
 Adapt the headings if the situation calls for it (e.g. a pure feature PR might use "What this adds" instead of "What was broken"). The order stays the same: the obeservation (symptom or user-visible change first or intent), then the changes, then verification and validation.
+
+### Screenshots for UI changes
+
+A PR that changes the UI always shows before and after screenshots. A reviewer cannot see a UI change from the diff.
+
+- A PR changes the UI when it changes what a user sees in `web/` (a screen, a component, a label, a state). A change to the generated API client alone does not count.
+- Put a "Screenshots" section in the body with a before and an after image for each changed screen or state, side by side in a table, with one line per pair that says what to look at.
+- Take the "before" image from the base branch and the "after" image from the PR head, with the same viewport, the same theme and the same data.
+- A new screen has no "before". Say so and show only the after image.
+- A removed screen has no "after". Say so, show only the before image, and explain in one line why the screen is gone.
+- `gh` cannot attach images. Open the PR page in a browser and attach the images in the PR comment box. GitHub gives each image a URL. Put those URLs in the table.
+- The repo is public. Check each image before you upload it: no customer data, no real emails, no host names or IPs.
+
+Example:
+
+```
+## Screenshots
+
+| Before | After |
+| --- | --- |
+| ![before](https://github.com/user-attachments/assets/<id>) | ![after](https://github.com/user-attachments/assets/<id>) |
+
+The evaluator table now shows the evaluator name with a version tag instead of "default".
+```
 
 ## 3. Show, don't restate the diff
 
@@ -143,6 +170,7 @@ Before you finalize, read your own draft and ask:
 2. Is there a concrete before/after anywhere a shape or behavior moved?
 3. Did you delete every sentence that doesn't earn its place?
 4. Did you scan for em dashes and marketing words?
+5. If the PR changes the UI, does the body have a "Screenshots" section with a before and an after image for each changed screen or state (only an after image for a new screen, only a before image for a removed screen)?
 
 If any answer is no, edit before you push.
 

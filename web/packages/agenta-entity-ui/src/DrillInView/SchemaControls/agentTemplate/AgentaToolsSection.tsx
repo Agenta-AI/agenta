@@ -8,49 +8,53 @@ import {
     writeAgentaTools,
     type AgentaToolsMap,
 } from "@agenta/entities/workflow"
+import {createT, useT, type CatalogKey} from "@agenta/i18n"
+import buildKitCatalog from "@agenta/i18n/catalogs/entityUi.buildKit"
 import {useAtomValue} from "jotai"
 
 import {describeBuildKitPlatformTool} from "./buildKitDescriptors"
 import {buildKitToolOptions} from "./BuildKitSection"
-import {PermissionDrawerBody, type PermissionPresetOption} from "./IntegrationPermissionDrawer"
+import {PermissionDrawerBody, type PermissionPresetOption} from "./IntegrationPermissionList"
+
+const tNow = createT(buildKitCatalog)
 
 type Preset = "allow_all" | "always_ask" | "ask_writes" | "deny_all" | "custom"
 
+type BuildKitKey = CatalogKey<typeof buildKitCatalog>
+
+/** A preset whose texts read the active language each time they are read. */
+const preset = (
+    value: PermissionPresetOption["value"],
+    label: BuildKitKey,
+    help: BuildKitKey,
+    extra: Partial<PermissionPresetOption> = {},
+): PermissionPresetOption => ({
+    value,
+    get label() {
+        return tNow(label)
+    },
+    get help() {
+        return tNow(help)
+    },
+    ...extra,
+})
+
 const presets: PermissionPresetOption[] = [
-    {value: "allow_all", label: "Allow all", help: "Tools run without asking."},
-    {value: "always_ask", label: "Ask all", help: "Ask before each tool runs."},
-    {value: "ask_writes", label: "Allow reads", help: "Read-only tools run; write tools ask."},
-    {value: "deny_all", label: "Deactivate", help: "Turn every Agenta tool off."},
-    {
-        value: "custom",
-        label: "Custom",
-        help: "Per-tool choices below.",
+    preset("allow_all", "entityUi.buildKit.presetAllowAll", "entityUi.buildKit.presetAllowAllHelp"),
+    preset("always_ask", "entityUi.buildKit.presetAskAll", "entityUi.buildKit.presetAskAllHelp"),
+    preset(
+        "ask_writes",
+        "entityUi.buildKit.presetAllowReads",
+        "entityUi.buildKit.presetAllowReadsHelp",
+    ),
+    preset("deny_all", "entityUi.buildKit.presetOff", "entityUi.buildKit.presetOffAgentaHelp"),
+    preset("custom", "entityUi.buildKit.presetCustom", "entityUi.buildKit.presetCustomHelp", {
         disabled: true,
         separatorBefore: true,
-    },
+    }),
 ]
 
-/** Copy for the Agenta tools the build kit table does not name. */
-const AGENTA_TOOL_COPY: Record<string, {name: string; description: string}> = {
-    get_current_session: {
-        name: "Get the link to this chat",
-        description: "Gets this chat's name and a link to open it in Agenta.",
-    },
-    list_subscriptions: {
-        name: "List triggers",
-        description: "Lists the triggers set up for this project.",
-    },
-    check_skill_updates: {
-        name: "Check skill updates",
-        description: "Checks whether this agent's skills have newer versions.",
-    },
-    apply_skill_update: {
-        name: "Apply a skill update",
-        description: "Updates one of this agent's skills to its newer version.",
-    },
-}
-
-/** What each preset sets a tool to. Deactivate leaves an empty map, never removes the entry. */
+/** What each preset sets a tool to. Off leaves an empty map, never removes the entry. */
 function presetValue(preset: Preset, readOnly: boolean): "allow" | "ask" | undefined {
     if (preset === "allow_all") return "allow"
     if (preset === "always_ask") return "ask"
@@ -58,101 +62,87 @@ function presetValue(preset: Preset, readOnly: boolean): "allow" | "ask" | undef
     return undefined
 }
 
+/** The preset the tools' permissions match, or "custom". */
+export function agentaToolsPreset(
+    tools: AgentaToolsMap,
+    access: Record<string, "read" | "write">,
+): Preset {
+    const entries = Object.entries(access)
+    return (
+        (["deny_all", "allow_all", "always_ask", "ask_writes"] as const).find((value) =>
+            entries.every(([op, kind]) => tools[op] === presetValue(value, kind === "read")),
+        ) ?? "custom"
+    )
+}
+
+/** The name of a preset, as the "Default permission" select shows it. */
+export const agentaToolsPresetLabel = (value: Preset): string =>
+    presets.find((option) => option.value === value)?.label ?? value
+
 export interface AgentaToolsSectionProps {
     tools: AgentaToolsMap
     onChange: (next: AgentaToolsMap) => void
     /** Every Agenta tool, marked "read" or "write". */
     access: Record<string, "read" | "write">
-    /** The tools the playground build kit adds to runs right now. */
-    buildKitOps: Set<string>
-    disabled?: boolean
+    /** A read-only view (a phone): the permissions show as text. */
+    readOnly?: boolean
 }
 
-export function AgentaToolsSection({
-    tools,
-    onChange,
-    access,
-    buildKitOps,
-    disabled,
-}: AgentaToolsSectionProps) {
+export function AgentaToolsSection({tools, onChange, access, readOnly}: AgentaToolsSectionProps) {
+    const t = useT(buildKitCatalog)
     const rows = Object.entries(access).map(([op, kind]) => {
-        const {name, description} = AGENTA_TOOL_COPY[op] ?? describeBuildKitPlatformTool(op)
-        return {
-            key: op,
-            name,
-            description: buildKitOps.has(op)
-                ? `${description} In the playground, the Build kit setting applies.`
-                : description,
-            readOnly: kind === "read",
-        }
+        const {name, description} = describeBuildKitPlatformTool(op)
+        // Every row keeps its own description, so every row is two lines (ROW-01).
+        return {key: op, name, description, readOnly: kind === "read"}
     })
-    const preset =
-        (["deny_all", "allow_all", "always_ask", "ask_writes"] as const).find((value) =>
-            rows.every((row) => tools[row.key] === presetValue(value, row.readOnly)),
-        ) ?? "custom"
+    const preset = agentaToolsPreset(tools, access)
     return (
-        <div className="flex min-h-0 flex-col">
-            <div className="flex flex-col gap-1">
-                <span className="text-sm font-medium">Agenta tools</span>
-                <span className="text-xs text-colorTextDescription">
-                    Tools your agent can use wherever it runs: the playground, the API, Slack,
-                    Telegram, WhatsApp and automations. Saved with the agent.
-                </span>
-            </div>
-            <PermissionDrawerBody
-                flush
-                catalogKey="agenta-tools"
-                catalog={{status: "ready", complete: true, tools: rows}}
-                emptyLabel="No Agenta tools available."
-                permissions={{
-                    default: "deny",
-                    tools: Object.fromEntries(
-                        rows.map((row) => [row.key, tools[row.key] ?? "deny"]),
-                    ),
-                }}
-                onChangePermissions={() => undefined}
-                onChangeToolPermission={(op, permission) => {
-                    if (permission === "inherit" || permission === "allow_reads") return
-                    const next = {...tools}
-                    delete next[op]
-                    if (permission !== "deny") next[op] = permission
+        <PermissionDrawerBody
+            catalogKey="agenta-tools"
+            // "Off" turns a tool off; it is not a refusal, so it is not red (L8-22).
+            plainDeny
+            catalog={{status: "ready", complete: true, tools: rows}}
+            emptyLabel={t("entityUi.buildKit.noAgentaTools")}
+            permissions={{
+                default: "deny",
+                tools: Object.fromEntries(rows.map((row) => [row.key, tools[row.key] ?? "deny"])),
+            }}
+            onChangePermissions={() => undefined}
+            onChangeToolPermission={(op, permission) => {
+                if (permission === "inherit" || permission === "allow_reads") return
+                const next = {...tools}
+                delete next[op]
+                if (permission !== "deny") next[op] = permission
+                onChange(next)
+            }}
+            presets={{
+                options: presets,
+                value: preset,
+                overrideCount: 0,
+                onPick: (value) => {
+                    if (value === "custom" || value === "follow_agent") return
+                    const next: AgentaToolsMap = {}
+                    for (const row of rows) {
+                        const permission = presetValue(value as Preset, row.readOnly)
+                        if (permission) next[row.key] = permission
+                    }
                     onChange(next)
-                }}
-                presets={{
-                    options: presets,
-                    value: preset,
-                    overrideCount: 0,
-                    onPick: (value) => {
-                        if (value === "custom" || value === "follow_agent") return
-                        const next: AgentaToolsMap = {}
-                        for (const row of rows) {
-                            const permission = presetValue(value as Preset, row.readOnly)
-                            if (permission) next[row.key] = permission
-                        }
-                        onChange(next)
-                    },
-                }}
-                disabled={disabled}
-                toolOptions={buildKitToolOptions}
-                writeLabel="Write"
-                readOnlyLabel="Read-only"
-            />
-        </div>
+                },
+            }}
+            valuesAsText={readOnly}
+            toolOptions={buildKitToolOptions}
+            writeLabel={t("entityUi.buildKit.writeGroup")}
+            readOnlyLabel={t("entityUi.buildKit.readOnlyGroup")}
+        />
     )
 }
 
-/** The section for the agent in `config`, editing its `agenta_tools` entry in the draft. */
-export function useAgentaTools({
-    config,
-    onChange,
-    revisionId,
-    disabled,
-}: {
-    config: Record<string, unknown>
-    onChange: (next: Record<string, unknown>) => void
-    revisionId: string | null
-    disabled?: boolean
-}) {
+/**
+ * The Agenta tools of the agent in `config`: which tools exist (`access`), the agent's entry
+ * (`tools`), and the ones the playground build kit overrides. `status` is "none" when the
+ * deployment offers no Agenta tool, "loading" while the list is on its way.
+ */
+export function useAgentaToolsData(config: Record<string, unknown>, revisionId: string | null) {
     const accessQuery = useAtomValue(agentaToolsAccessAtom)
     const overlay = useAtomValue(
         useMemo(() => workflowAgentTemplateOverlayAtomFamily(revisionId ?? ""), [revisionId]),
@@ -172,23 +162,26 @@ export function useAgentaTools({
             ),
         [overlay, buildKit],
     )
-    if (accessQuery.isError) {
-        return (
-            <span className="text-xs text-colorError">
-                Could not load the Agenta tools. Reload the page to try again.
-            </span>
-        )
-    }
     const access = accessQuery.data
-    if (!access || Object.keys(access).length === 0) return null
-    const tools = Array.isArray(config.tools) ? config.tools : []
-    return (
-        <AgentaToolsSection
-            tools={readAgentaTools(tools) ?? {}}
-            onChange={(next) => onChange({...config, tools: writeAgentaTools(tools, next)})}
-            access={access}
-            buildKitOps={buildKitOps}
-            disabled={disabled}
-        />
+    const status: "loading" | "error" | "none" | "ready" = accessQuery.isError
+        ? "error"
+        : accessQuery.isPending && accessQuery.fetchStatus === "fetching"
+          ? "loading"
+          : !access || Object.keys(access).length === 0
+            ? "none"
+            : "ready"
+    const tools = useMemo(
+        () => readAgentaTools(Array.isArray(config.tools) ? config.tools : []) ?? {},
+        [config.tools],
     )
+    return {status, access: access ?? {}, tools, buildKitOps, retry: accessQuery.refetch}
 }
+
+/** The agent's `agenta_tools` entry with `next` written into its tool list. */
+export const withAgentaTools = (
+    config: Record<string, unknown>,
+    next: AgentaToolsMap,
+): Record<string, unknown> => ({
+    ...config,
+    tools: writeAgentaTools(Array.isArray(config.tools) ? config.tools : [], next),
+})

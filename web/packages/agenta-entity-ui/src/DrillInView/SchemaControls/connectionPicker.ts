@@ -16,7 +16,6 @@ import {
     mountedSubscriptionDisplayName,
     resolveAgentModelSelection,
     SecretKind,
-    SUBSCRIPTION_SIGN_IN_HINT,
     subscriptionAvailability,
     subscriptionPlanName,
     savedConnectionNamespace,
@@ -25,6 +24,8 @@ import {
     type AgentModelSelection,
     type ProviderConnection,
 } from "@agenta/entities/secret"
+
+import {subscriptionSignInHint} from "../../secretProvider/subscriptionText"
 
 import {modelDisplayName, type ConnectionMode, type HarnessCapabilitiesMap} from "./connectionUtils"
 import {harnessMetaFor} from "./harnessMeta"
@@ -162,11 +163,9 @@ const modelFromCandidate = (
 }
 
 /**
- * The row a hosted subscription shows while its sign-in cannot run anything.
- *
- * It contributes no candidates, so without this it would vanish from the picker exactly when the
- * user needs to be told why. The row is disabled and says "Sign in needed"; the AI providers page
- * is where the sign-in is done.
+ * The row a hosted subscription shows while its sign-in cannot run anything: disabled, "Sign in
+ * needed". `ModelPickerList` leaves it out (it has no models); with nothing else to pick it says
+ * to sign in again from Manage model providers. Model providers is where the sign-in is done.
  */
 const disabledSubscriptionRow = (connection: ProviderConnection): PickerConnectionRow => ({
     key: connection.id,
@@ -174,7 +173,7 @@ const disabledSubscriptionRow = (connection: ProviderConnection): PickerConnecti
     iconKey: connection.kind,
     kind: "subscription",
     disabled: true,
-    hint: SUBSCRIPTION_SIGN_IN_HINT,
+    hint: subscriptionSignInHint(),
     ...(connection.scope === "organization" ? {organization: true} : {}),
     models: [],
 })

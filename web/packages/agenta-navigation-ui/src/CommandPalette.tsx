@@ -1,5 +1,8 @@
 import {memo, useEffect, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
+import commandPaletteCatalog from "@agenta/i18n/catalogs/shell.commandPalette"
 import {
     CommandDialog,
     CommandEmpty,
@@ -56,9 +59,10 @@ const CommandPalette = ({
     groups,
     onNavigate,
     loading = false,
-    placeholder = "Search sessions, agents, pages…",
+    placeholder,
     shortcut = false,
 }: CommandPaletteProps) => {
+    const t = useT(navigationCatalog, commandPaletteCatalog)
     useEffect(() => {
         if (!shortcut) return
         const onKey = (event: KeyboardEvent) => {
@@ -82,21 +86,25 @@ const CommandPalette = ({
         <CommandDialog
             open={open}
             onOpenChange={onOpenChange}
-            title="Search"
-            description="Search sessions, agents and pages, or run an action."
+            title={t("navigation.items.search")}
+            description={t("shell.commandPalette.description")}
             shouldFilter={false}
-            // Centred (the dialog's own positioning), full width on a phone.
-            className="w-[calc(100%-32px)] max-w-[480px]"
+            // Opens at once: it is used many times an hour (MICRO-04). The width is the dialog's.
+            instant
         >
             <CommandInput
                 value={query}
                 onValueChange={onQueryChange}
-                placeholder={placeholder}
+                placeholder={placeholder ?? t("shell.commandPalette.placeholder")}
                 autoFocus
             />
             <CommandList>
                 {shown.length === 0 ? (
-                    <CommandEmpty>{loading ? "Searching…" : "Nothing matches"}</CommandEmpty>
+                    <CommandEmpty>
+                        {loading
+                            ? t("shell.commandPalette.searching")
+                            : t("shell.commandPalette.nothingMatches")}
+                    </CommandEmpty>
                 ) : null}
                 {shown.map((group, index) => (
                     <div key={group.key}>
@@ -117,7 +125,7 @@ const CommandPalette = ({
                                     <span className="min-w-0 flex-1 truncate">{entry.label}</span>
                                     {entry.hint ? (
                                         // Capped, or on a phone the agent name ate the session's title.
-                                        <span className="ml-auto max-w-[40%] shrink-0 truncate text-xs text-muted-foreground">
+                                        <span className="ml-auto max-w-[40%] shrink-0 truncate text-meta text-muted-foreground">
                                             {entry.hint}
                                         </span>
                                     ) : null}

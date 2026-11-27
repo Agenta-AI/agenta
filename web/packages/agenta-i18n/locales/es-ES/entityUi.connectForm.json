@@ -1,0 +1,11 @@
+{
+    "popupBlocked": "Ventana emergente bloqueada. Redirigiendo en esta pestaña.",
+    "connectName": "Conectar {{name}}",
+    "name": "Nombre",
+    "required": "Obligatorio",
+    "namePlaceholder": "p. ej., Mi cuenta de {{name}}",
+    "authMethod": "Método de autenticación",
+    "apiKey": "Clave de API",
+    "submitFailed": "No se ha podido iniciar la conexión: el servidor la ha rechazado. Inténtalo de nuevo; si sigue fallando, el proveedor de conexiones de esta instalación no está configurado.",
+    "connect": "Conectar"
+}

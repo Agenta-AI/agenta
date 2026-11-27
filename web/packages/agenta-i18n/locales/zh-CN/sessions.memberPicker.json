@@ -1,0 +1,12 @@
+{
+    "addMembers": "添加成员",
+    "error": "无法加载项目成员。",
+    "footer": "只能添加此项目的成员。",
+    "hasAccess": "已有访问权限",
+    "heading": "此项目的成员",
+    "noMatch": "此项目中没有与“{{text}}”匹配的成员。",
+    "noMembersDescription": "请先将成员添加到项目中。",
+    "noMembersTitle": "此项目中没有其他成员",
+    "placeholder": "按姓名或邮箱添加人员",
+    "remove": "移除 {{name}}"
+}

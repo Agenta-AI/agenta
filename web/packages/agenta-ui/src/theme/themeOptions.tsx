@@ -1,3 +1,7 @@
+import {useMemo} from "react"
+
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Desktop, Moon, Sun} from "@phosphor-icons/react"
 
 import type {ThemeModeValue} from "./useThemeMode"
@@ -23,6 +27,19 @@ export const THEME_OPTIONS: ThemeOption[] = [
     {mode: "dark", label: "Dark", short: "Dark"},
     {mode: "system", label: "System default", short: "System"},
 ]
+
+/** The same options with the labels in the chosen language. */
+export const useThemeOptions = (): ThemeOption[] => {
+    const t = useT(commonCatalog)
+    return useMemo(
+        () => [
+            {mode: "light", label: t("common.light"), short: t("common.light")},
+            {mode: "dark", label: t("common.dark"), short: t("common.dark")},
+            {mode: "system", label: t("common.systemDefault"), short: t("common.system")},
+        ],
+        [t],
+    )
+}
 
 /** The glyph for a mode, so every surface labels the same choice with the same icon. */
 export const themeIcon = (mode: ThemeModeValue, size = 14) => {

@@ -76,7 +76,7 @@ function TooltipContent({
                     // antd tooltip is borderless with the overlay shadow (boxShadowSecondary),
                     // colorBgSpotlight bg + white text. Deliberately more compact than antd:
                     // 12px/16px type, 6px×10px padding, 6px radius — a 28px single-line pill.
-                    "z-50 box-border w-fit rounded-control-sm bg-colorBgSpotlight px-2.5 py-1.5 text-field-sm leading-4 text-colorTextLightSolid shadow-overlay font-portal",
+                    "z-50 box-border w-fit rounded-control-sm bg-foreground px-2.5 py-1.5 text-meta text-background shadow-overlay font-portal",
                     // Soft width cap (matches antd's default tooltip max width) — not a control dim.
                     // break-words: the cap alone can't contain an unbreakable token (an event key,
                     // an id, a URL), which otherwise runs straight out of the tooltip's background.
@@ -88,7 +88,7 @@ function TooltipContent({
                 {children}
                 <TooltipShortcutKeys shortcut={shortcut} />
                 {/* Same fill as bg; Radix renders it as an SVG triangle. */}
-                <TooltipPrimitive.Arrow className="fill-colorBgSpotlight" />
+                <TooltipPrimitive.Arrow className="fill-foreground" />
             </TooltipPrimitive.Content>
         </TooltipPrimitive.Portal>
     )

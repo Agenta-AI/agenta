@@ -8,26 +8,25 @@ import {
     refetchAgentTemplatesAtom,
     type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
+import {useT} from "@agenta/i18n"
+import marketplaceCatalog from "@agenta/i18n/catalogs/marketplace.page"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTable} from "@agenta/ui/list-table"
 import {Kbd, SearchInput} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {useScrollFade} from "@/lib/useScrollFade"
 
 import {useNewAgentAction} from "../agents/useNewAgentAction"
 import {useBindProjectContext} from "../context/useBindProjectContext"
-import {AppShell} from "../nav/AppShell"
-import {NavDrawer} from "../nav/NavDrawer"
+import {PageLayout} from "../page-layout/PageLayout"
 
 import {FeaturedTemplate} from "./FeaturedTemplate"
 import {
     DEFAULT_MARKETPLACE_FILTER,
     categoryFromParam,
+    categoryText,
     deriveMarketplace,
     featuredTemplates,
     type MarketplaceFilter,
@@ -42,11 +41,9 @@ import {TemplateFilterRail} from "./TemplateFilterRail"
 import {TemplatePreviewSheet} from "./TemplatePreviewSheet"
 import {TemplateSortMenu} from "./TemplateSortMenu"
 
-const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
-const COLUMNS = [{key: "name", label: "Template", width: "1fr"}]
 const templateKey = (template: AgentStarterTemplate) => template.key
 
-/** The Agent Marketplace: a featured template, then the catalog with its filters. */
+/** The Templates page: a featured template, then the catalog with its filters. */
 export const MarketplaceScreen = ({
     workspaceId,
     projectId,
@@ -55,6 +52,11 @@ export const MarketplaceScreen = ({
     projectId: string
 }) => {
     useBindProjectContext(projectId)
+    const t = useT(marketplaceCatalog)
+    const columns = useMemo(
+        () => [{key: "name", label: t("marketplace.page.columnTemplate"), width: "1fr"}],
+        [t],
+    )
     const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
     const newAgent = useNewAgentAction(base)
@@ -139,132 +141,115 @@ export const MarketplaceScreen = ({
     const loaded = status === "success"
     const term = filter.query.trim()
     const categoryLabel =
-        filter.category === ALL_TEMPLATES_CATEGORY ? "All templates" : filter.category
+        filter.category === ALL_TEMPLATES_CATEGORY
+            ? t("marketplace.page.allTemplates")
+            : categoryText(filter.category)
     const searchProps = {
         value: filter.query,
         onValueChange: (query: string) => changeFilter({...filter, query}),
-        placeholder: "Search templates…",
-        "aria-label": "Search templates",
+        placeholder: t("marketplace.page.searchPlaceholder"),
+        "aria-label": t("marketplace.page.searchLabel"),
         className: "w-full",
     }
 
     return (
         <>
-            <PageTitle title="Agent Marketplace" />
-            <AppShell workspaceId={workspaceId} projectId={projectId}>
-                <ScreenScaffold
-                    scrollRef={fade.ref}
-                    onScroll={fade.onScroll}
-                    scrollStyle={fade.style}
-                    header={
-                        <div
-                            className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${PAGE_FRAME}`}
-                        >
-                            <div className="flex min-w-0 items-center gap-2">
-                                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
-                                    Agent Marketplace
-                                </h1>
-                            </div>
-                            <p className="text-muted-foreground m-0 mt-1 text-[13px]">
-                                Start from a working agent. Connect your apps, adjust the skills,
-                                and let it run.
-                            </p>
-                        </div>
-                    }
-                >
-                    <div className={`flex min-w-0 flex-col gap-8 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>
-                        {status === "pending" ? (
-                            <FeaturedTemplateSkeleton />
-                        ) : featured.length ? (
-                            <FeaturedTemplate
-                                templates={featured}
-                                busy={newAgent.creating}
-                                paused={previewOpen}
-                                onUse={startFromTemplate}
-                                onPreview={openTemplate}
-                            />
-                        ) : null}
+            <PageLayout
+                workspaceId={workspaceId}
+                projectId={projectId}
+                title={t("marketplace.page.title")}
+                description={t("marketplace.page.subtitle")}
+                scrollRef={fade.ref}
+                onScroll={fade.onScroll}
+                scrollStyle={fade.style}
+            >
+                <div className="flex flex-col gap-8">
+                    {status === "pending" ? (
+                        <FeaturedTemplateSkeleton />
+                    ) : featured.length ? (
+                        <FeaturedTemplate
+                            templates={featured}
+                            busy={newAgent.creating}
+                            paused={previewOpen}
+                            onUse={startFromTemplate}
+                            onPreview={openTemplate}
+                        />
+                    ) : null}
 
-                        <div className="grid min-w-0 grid-cols-1 items-start gap-3 lg:grid-cols-[208px_minmax(0,1fr)] lg:gap-9">
-                            <aside className="sticky top-4 hidden flex-col gap-6 lg:flex">
-                                <SearchInput
-                                    ref={searchRef}
-                                    suffix={<Kbd>/</Kbd>}
-                                    {...searchProps}
+                    <div className="grid min-w-0 grid-cols-1 items-start gap-3 lg:grid-cols-[208px_minmax(0,1fr)] lg:gap-9">
+                        <aside className="sticky top-4 hidden flex-col gap-6 lg:flex">
+                            <SearchInput ref={searchRef} suffix={<Kbd>/</Kbd>} {...searchProps} />
+                            {loaded ? (
+                                <TemplateFilterRail
+                                    filter={filter}
+                                    onChange={changeFilter}
+                                    categories={view.categories}
+                                    apps={view.apps}
                                 />
-                                {loaded ? (
-                                    <TemplateFilterRail
-                                        filter={filter}
-                                        onChange={changeFilter}
-                                        categories={view.categories}
-                                        apps={view.apps}
-                                    />
-                                ) : (
-                                    <TemplateFilterRailSkeleton />
-                                )}
-                            </aside>
-                            <div className="flex min-w-0 flex-col gap-3">
-                                <div className="flex items-center gap-2 lg:hidden">
-                                    <SearchInput ref={phoneSearchRef} {...searchProps} />
-                                    <TemplateFilterMenu
-                                        filter={filter}
-                                        onChange={changeFilter}
-                                        categories={view.categories}
-                                        apps={view.apps}
-                                    />
-                                </div>
-                                <div className="flex min-h-8 items-center justify-between gap-3">
-                                    <h2 className="m-0 text-sm font-semibold text-foreground">
-                                        {categoryLabel}
-                                        {loaded ? ` · ${view.templates.length}` : null}
-                                    </h2>
-                                    <div className="hidden lg:block">
-                                        <TemplateSortMenu
-                                            value={filter.sort}
-                                            onChange={(sort) => changeFilter({...filter, sort})}
-                                        />
-                                    </div>
-                                </div>
-                                {status === "error" ? (
-                                    <LoadError
-                                        framed
-                                        title="Could not load templates"
-                                        onRetry={refetchTemplates}
-                                    />
-                                ) : (
-                                    <ListTable
-                                        view="grid"
-                                        columns={COLUMNS}
-                                        groups={[{key: "all", label: null, rows: view.templates}]}
-                                        rowKey={templateKey}
-                                        renderRow={(template) => (
-                                            <span className="truncate">{template.name}</span>
-                                        )}
-                                        renderCard={(template) => (
-                                            <TemplateCardBody template={template} />
-                                        )}
-                                        cardMinWidth={250}
-                                        onOpenRow={openTemplate}
-                                        loading={status === "pending"}
-                                        skeletonRows={6}
-                                        empty={
-                                            templates.length === 0 ? (
-                                                <TemplatesEmpty />
-                                            ) : (
-                                                <TemplatesNoMatch
-                                                    term={term || undefined}
-                                                    onClear={clearFilters}
-                                                />
-                                            )
-                                        }
-                                    />
-                                )}
+                            ) : (
+                                <TemplateFilterRailSkeleton />
+                            )}
+                        </aside>
+                        <div className="flex min-w-0 flex-col gap-3">
+                            <div className="flex items-center gap-2 lg:hidden">
+                                <SearchInput ref={phoneSearchRef} {...searchProps} />
+                                <TemplateFilterMenu
+                                    filter={filter}
+                                    onChange={changeFilter}
+                                    categories={view.categories}
+                                    apps={view.apps}
+                                />
                             </div>
+                            <div className="flex min-h-8 items-center justify-between gap-3">
+                                <h2 className="m-0 text-title text-foreground">
+                                    {categoryLabel}
+                                    {loaded ? ` · ${view.templates.length}` : null}
+                                </h2>
+                                <div className="hidden lg:block">
+                                    <TemplateSortMenu
+                                        value={filter.sort}
+                                        onChange={(sort) => changeFilter({...filter, sort})}
+                                    />
+                                </div>
+                            </div>
+                            {status === "error" ? (
+                                <LoadError
+                                    framed
+                                    title={t("marketplace.page.loadError")}
+                                    onRetry={refetchTemplates}
+                                />
+                            ) : (
+                                <ListTable
+                                    view="grid"
+                                    columns={columns}
+                                    groups={[{key: "all", label: null, rows: view.templates}]}
+                                    rowKey={templateKey}
+                                    renderRow={(template) => (
+                                        <span className="truncate">{template.name}</span>
+                                    )}
+                                    renderCard={(template) => (
+                                        <TemplateCardBody template={template} />
+                                    )}
+                                    cardMinWidth={250}
+                                    onOpenRow={openTemplate}
+                                    loading={status === "pending"}
+                                    skeletonRows={6}
+                                    empty={
+                                        templates.length === 0 ? (
+                                            <TemplatesEmpty />
+                                        ) : (
+                                            <TemplatesNoMatch
+                                                term={term || undefined}
+                                                onClear={clearFilters}
+                                            />
+                                        )
+                                    }
+                                />
+                            )}
                         </div>
                     </div>
-                </ScreenScaffold>
-            </AppShell>
+                </div>
+            </PageLayout>
             <TemplatePreviewSheet
                 open={previewOpen}
                 template={preview}

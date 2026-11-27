@@ -10,6 +10,8 @@
  */
 import {useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import drawerSharedCatalog from "@agenta/i18n/catalogs/entityUi.drawerShared"
 import {Button} from "@agenta/ui/ui"
 import {ArrowLeft} from "@phosphor-icons/react"
 import clsx from "clsx"
@@ -63,9 +65,10 @@ export function SectionRail({
     fill = false,
     bleed = false,
     drillIn = false,
-    listLabel = "Sections",
+    listLabel,
     children,
 }: SectionRailProps) {
+    const t = useT(drawerSharedCatalog)
     // The rail opens, picking a section pushes its panel, a back link returns — side by side left
     // the panel a sliver on a phone.
     const [mobileView, setMobileView] = useState<"list" | "detail">("list")
@@ -89,7 +92,7 @@ export function SectionRail({
                                 onChange(item.value)
                                 if (drillIn) setMobileView("detail")
                             }}
-                            className={`h-8 w-full rounded-md px-2 text-xs transition-colors ${
+                            className={`h-8 w-full rounded-md px-2 text-label transition-colors ${
                                 item.count != null || item.status
                                     ? "flex items-center justify-between"
                                     : "justify-start"
@@ -97,8 +100,8 @@ export function SectionRail({
                                 // disabled: restated — the pre-migration `!` classes beat antd's
                                 // disabled skin, so disabled rows keep their resting colors.
                                 active
-                                    ? "bg-[var(--ag-colorFillSecondary)] font-semibold text-[var(--ag-colorText)] disabled:bg-[var(--ag-colorFillSecondary)] disabled:text-[var(--ag-colorText)]"
-                                    : "text-[var(--ag-colorTextSecondary)] hover:bg-[var(--ag-colorFillTertiary)] hover:text-[var(--ag-colorText)] disabled:text-[var(--ag-colorTextSecondary)]"
+                                    ? "bg-secondary font-semibold text-foreground disabled:bg-secondary disabled:text-foreground"
+                                    : "text-muted-foreground hover:bg-accent hover:text-foreground disabled:text-muted-foreground"
                             }`}
                         >
                             <span className="flex min-w-0 items-center gap-1.5">
@@ -111,14 +114,12 @@ export function SectionRail({
                             </span>
                             {item.status ? (
                                 <span
-                                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                                        item.status === "invalid"
-                                            ? "bg-[var(--ag-colorError)]"
-                                            : "bg-[var(--ag-colorWarning)]"
+                                    className={`h-1.5 w-1.5 shrink-0 rounded-round ${
+                                        item.status === "invalid" ? "bg-destructive" : "bg-warning"
                                     }`}
                                 />
                             ) : item.count != null ? (
-                                <span className="text-[12px] opacity-70">{item.count}</span>
+                                <span className="text-meta opacity-70">{item.count}</span>
                             ) : null}
                         </Button>
                     )
@@ -126,7 +127,7 @@ export function SectionRail({
             </div>
             <div
                 className={clsx(
-                    "min-w-0 flex-1 flex-col gap-1.5 border-0 border-solid border-[var(--ag-colorBorder)] sm:border-l sm:pl-4",
+                    "min-w-0 flex-1 flex-col gap-1.5 border-0 border-solid border-border sm:border-l sm:pl-4",
                     // Side by side on a phone too, so it keeps the divider and a tighter gutter.
                     !drillIn && "border-l pl-2",
                     bleed && "-my-4 py-4",
@@ -137,10 +138,10 @@ export function SectionRail({
                     <button
                         type="button"
                         onClick={() => setMobileView("list")}
-                        className="flex shrink-0 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-xs text-[var(--ag-colorTextSecondary)] sm:hidden"
+                        className="flex shrink-0 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-meta text-muted-foreground sm:hidden"
                     >
                         <ArrowLeft />
-                        {listLabel}
+                        {listLabel ?? t("entityUi.drawerShared.sections")}
                     </button>
                 ) : null}
                 {children}

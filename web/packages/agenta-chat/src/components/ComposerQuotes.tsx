@@ -1,4 +1,6 @@
 // Staged quotes as square tiles in the composer header, beside `ComposerAttachments`.
+import {useT} from "@agenta/i18n"
+import chatComposerQuotesCatalog from "@agenta/i18n/catalogs/chat.composerQuotes"
 import {
     formatLineRange,
     formatPreviewChipLocation,
@@ -52,6 +54,7 @@ const QuoteTile = ({
     onRemove: () => void
     onOpen?: () => void
 }) => {
+    const t = useT(chatComposerQuotesCatalog)
     const origin = quoteOrigin(quote)
     const preview = quote.source.kind === "preview"
     const Icon = preview ? ChatCircleText : origin ? FileText : Quotes
@@ -61,20 +64,20 @@ const QuoteTile = ({
     const face = (
         <>
             <span className="flex w-full items-center gap-1">
-                <Icon size={12} className="shrink-0 text-colorTextTertiary" />
+                <Icon size={12} className="shrink-0 text-muted-foreground" />
                 {origin ? (
-                    <span className="min-w-0 truncate font-mono text-[9px] leading-3 text-colorTextTertiary">
+                    <span className="min-w-0 truncate font-mono text-caption leading-3 text-muted-foreground">
                         {origin.fileName}
                     </span>
                 ) : null}
                 {quote.stale ? (
-                    <span className="truncate rounded bg-colorWarning/20 px-1 text-[9px] font-medium leading-3 text-colorWarning">
-                        changed
+                    <span className="truncate rounded bg-warning/20 px-1 text-caption font-medium leading-3 text-warning">
+                        {t("chat.composerQuotes.changed")}
                     </span>
                 ) : null}
             </span>
             <span
-                className={`w-full overflow-hidden text-left text-[11px] leading-3 text-colorText ${
+                className={`w-full overflow-hidden text-left text-caption leading-3 text-foreground ${
                     origin ? "line-clamp-3" : "line-clamp-4"
                 }`}
             >
@@ -83,7 +86,7 @@ const QuoteTile = ({
             {origin?.location ? (
                 <span
                     data-quote-range
-                    className="mt-auto w-full truncate font-mono text-[9px] leading-3 text-colorTextTertiary"
+                    className="mt-auto w-full truncate font-mono text-caption leading-3 text-muted-foreground"
                 >
                     {origin.location}
                 </span>
@@ -100,13 +103,13 @@ const QuoteTile = ({
     return (
         <div
             className={`group/attachment ${TILE} ${
-                quote.stale ? "!border-colorWarningBorder !bg-colorWarningBg" : ""
+                quote.stale ? "!border-warning/30 !bg-warning/10" : ""
             }`}
         >
             {preview && onOpen ? (
                 <button
                     type="button"
-                    aria-label="Show comment on the file"
+                    aria-label={t("chat.composerQuotes.showComment")}
                     title={title}
                     onClick={onOpen}
                     className={`${faceClass} cursor-pointer`}
@@ -120,7 +123,7 @@ const QuoteTile = ({
             )}
             <button
                 type="button"
-                aria-label="Remove quote"
+                aria-label={t("chat.composerQuotes.removeQuote")}
                 onClick={onRemove}
                 className={CORNER_BUTTON}
             >

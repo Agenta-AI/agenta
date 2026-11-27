@@ -35,7 +35,6 @@ vi.mock("@/features/context/useProjectPermission", () => ({
 }))
 vi.mock("@/components/PageTitle", () => ({PageTitle: () => null}))
 
-import {DEVELOPER_VIEWS} from "@/features/developer/developerViews"
 import ArchivedTestsetsPage from "@/pages/w/[workspace_id]/p/[project_id]/testsets/archived"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
@@ -88,8 +87,7 @@ afterEach(() => {
 })
 
 describe("archived test sets route", () => {
-    it("Archived testsets route shows not found while the view is hidden", async () => {
-        expect(DEVELOPER_VIEWS.find((view) => view.id === "testsets")?.stage).toBe("hidden")
+    it("Archived testsets route shows not found without beta developer mode", async () => {
         await mount()
         expect(document.querySelector('[data-testid="not-found"]')).not.toBeNull()
         expect(host.textContent).not.toContain("Archived test sets")
@@ -104,7 +102,9 @@ describe("archived test sets route", () => {
         expect(host.textContent).toContain(
             "Archived test sets are hidden from your workspace but can be restored at any time.",
         )
-        const back = host.querySelector('a[aria-label="Back to test sets"]')
+        const back = [...host.querySelectorAll<HTMLAnchorElement>("a[aria-label]")].find(
+            (a) => a.getAttribute("aria-label")?.toLowerCase() === "back to test sets",
+        )
         expect(back?.getAttribute("href")).toBe("/w/ws/p/pr/testsets")
         expect(host.textContent).toContain("No archived test sets")
     })

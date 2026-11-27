@@ -2,10 +2,8 @@
  * One of the project's MCP connections, as the Add MCP server drawer lists it.
  *
  * Three row treatments, and they differ in what the row lets you do rather than only in how
- * it looks. An added connection is already on this agent, so it carries no action at all:
- * the way to change that server is its rail row, not a second route from here. A working one
- * offers Add. One whose login has expired offers Reconnect and states that in place of the
- * host, because a host you cannot sign in to is not the fact the reader needs.
+ * it looks. An added connection is already on this agent: its menu can take it off. A working one
+ * offers Add. One whose login has expired offers Reconnect and states that after the host.
  *
  * The status vocabulary is the data layer's `McpConnectionStatus`, not a set of words of this
  * component's own, so a row here and a row in the settings table cannot end up calling the
@@ -17,15 +15,18 @@
  * sends every click inside it back to the row.
  */
 import {getMcpConnectionStatusLabel, type McpConnectionStatus} from "@agenta/entities/mcpEndpoint"
-import {formatCount} from "@agenta/shared/utils"
+import {useT} from "@agenta/i18n"
+import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
 import {McpServerMark} from "@agenta/ui/agent-icon"
-import {cn} from "@agenta/ui/styles"
-import {Button, touchTargetExpansion} from "@agenta/ui/ui"
-import {ArrowClockwise, Check, Plus} from "@phosphor-icons/react"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {Check, Plus} from "@phosphor-icons/react"
+
+import {CatalogListRow} from "../../DrillInView/SchemaControls/agentTemplate/CatalogListRow"
+import {ConnectionRowMenu} from "../../DrillInView/SchemaControls/agentTemplate/ConnectionRowMenu"
 
 export interface ConnectionListRowProps {
     name: string
-    /** The server's hostname. Replaced by the status when the connection is not working. */
+    /** The server's hostname. A connection that is not working adds its status after it. */
     host: string
     status: McpConnectionStatus
     /** Already on the agent being edited. */
@@ -40,6 +41,11 @@ export interface ConnectionListRowProps {
     busy?: boolean
     onAdd?: () => void
     onReconnect?: () => void
+    /** The connected row's menu: re-read the servers, and delete (the host asks first). */
+    onRefresh?: () => void
+    /** An added row's menu: take the server off the agent (the host asks first). */
+    onRemoveFromAgent?: () => void
+    onDelete?: () => void
 }
 
 export function ConnectionListRow({
@@ -51,82 +57,80 @@ export function ConnectionListRow({
     busy,
     onAdd,
     onReconnect,
+    onRefresh,
+    onRemoveFromAgent,
+    onDelete,
 }: ConnectionListRowProps) {
+    const t = useT(mcpConnectCatalog)
     const working = status === "connected"
+    // A broken connection keeps its host and adds the state: "billing.acme.io · Not signed in".
     const subtitle = !working
-        ? getMcpConnectionStatusLabel(status)
+        ? [host, getMcpConnectionStatusLabel(status)].filter(Boolean).join(" · ")
         : toolCount == null
           ? host
-          : `${host} · ${formatCount(toolCount, "tool")}`
+          : t("entityUi.mcpConnect.hostToolCount", {host, count: toolCount})
     // The whole row runs its one action; the button stays the keyboard path to it.
     const rowAction = added || busy ? undefined : working ? onAdd : onReconnect
 
+    // The integration catalog's row: the 32 px Mark, title, meta line and action (CONS-02).
     return (
-        <div
-            data-state={added ? "added" : status}
+        <CatalogListRow
+            variant="canvas"
             onClick={rowAction}
-            className={cn(
-                // Borderless; the -mx/px pair keeps the icon on the search field's edge while
-                // the hover fill reaches past it.
-                "-mx-2 flex items-center gap-3 rounded-lg px-2 py-2 transition-colors",
-                rowAction && "cursor-pointer hover:bg-accent/60",
-                added && "opacity-70",
-            )}
-        >
-            <McpServerMark size={28} />
-
-            <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium text-colorText">{name}</div>
-                <div
-                    className={cn(
-                        "truncate text-xs",
-                        working ? "text-colorTextTertiary" : "text-colorWarning",
+            actionLabel={
+                working
+                    ? t("entityUi.mcpConnect.addNameToAgent", {name})
+                    : t("entityUi.mcpConnect.reconnectName", {name})
+            }
+            leading={<McpServerMark size={32} name={name} />}
+            title={name}
+            action={
+                <span className="flex items-center gap-1">
+                    {added ? (
+                        <span className="flex shrink-0 items-center gap-1 text-meta text-muted-foreground">
+                            <Check size={14} />
+                            {t("entityUi.mcpConnect.added")}
+                        </span>
+                    ) : working ? (
+                        <SimpleTooltip title={t("entityUi.mcpConnect.addToAgent")}>
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                disabled={busy}
+                                // Shown on row hover and focus, always on touch, as in the catalog.
+                                className="text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:opacity-100 group-hover/row:opacity-100 group-focus-within/row:opacity-100 [@media(hover:hover)]:opacity-0"
+                                onClick={onAdd}
+                                aria-label={t("entityUi.mcpConnect.addNameToAgent", {name})}
+                            >
+                                <Plus />
+                            </Button>
+                        </SimpleTooltip>
+                    ) : (
+                        <Button
+                            variant="outline"
+                            size="compact"
+                            disabled={busy}
+                            // `secondary` stacks on the row's hover fill (SURF-06).
+                            className="hover:bg-secondary"
+                            onClick={onReconnect}
+                            aria-label={t("entityUi.mcpConnect.reconnectName", {name})}
+                        >
+                            {t("entityUi.mcpConnect.reconnect")}
+                        </Button>
                     )}
-                >
-                    {subtitle}
-                </div>
-            </div>
-
-            <div className="flex shrink-0 items-center gap-2.5">
-                {added ? (
-                    <span className="flex items-center gap-1.5 text-xs text-colorTextSecondary">
-                        <Check size={13} />
-                        Added
-                    </span>
-                ) : working ? (
-                    <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        disabled={busy}
-                        onClick={(event) => {
-                            event.stopPropagation()
-                            onAdd?.()
-                        }}
-                        aria-label={`Add ${name} to this agent`}
-                        title="Add to this agent"
-                        // 28px of chrome on both actions, so the row keeps the desktop
-                        // rhythm, and an invisible box around it for a finger.
-                        className={touchTargetExpansion(28)}
-                    >
-                        <Plus size={16} />
-                    </Button>
-                ) : (
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={busy}
-                        onClick={(event) => {
-                            event.stopPropagation()
-                            onReconnect?.()
-                        }}
-                        aria-label={`Reconnect ${name}`}
-                        className={touchTargetExpansion(28)}
-                    >
-                        <ArrowClockwise size={12} />
-                        Reconnect
-                    </Button>
-                )}
-            </div>
-        </div>
+                    {working && onRefresh ? (
+                        <ConnectionRowMenu
+                            onRefresh={onRefresh}
+                            onRemoveFromAgent={added ? onRemoveFromAgent : undefined}
+                            onDelete={onDelete}
+                        />
+                    ) : null}
+                </span>
+            }
+        >
+            <span className="truncate text-meta text-muted-foreground" title={subtitle}>
+                {subtitle}
+            </span>
+        </CatalogListRow>
     )
 }

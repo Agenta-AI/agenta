@@ -3,9 +3,11 @@ import {memo, ReactNode, useMemo} from "react"
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {workflowLatestRevisionQueryAtomFamily} from "@agenta/entities/workflow"
 import type {Workflow} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import spanCatalog from "@agenta/i18n/catalogs/observabilityUi.traceSpan"
 import {useEvaluatorNavigation} from "@agenta/observability/traceDrawer"
-import {EnhancedButton} from "@agenta/ui/components/presentational"
-import {Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
+import {formatLocalDateTime} from "@agenta/shared/utils/dateTime"
+import {Button, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
 import {getTraceDrawerReferences} from "./referenceSlots"
@@ -18,14 +20,8 @@ interface EvaluatorDetailsPopoverProps {
     children?: ReactNode
 }
 
-const formatDateTime = (value: string | number | Date | null | undefined) => {
-    if (!value) return "—"
-    try {
-        return new Date(value).toLocaleString()
-    } catch {
-        return "—"
-    }
-}
+const formatDateTime = (value: string | number | Date | null | undefined) =>
+    formatLocalDateTime(value) || "—"
 
 const getShortId = (value?: string | null) => {
     if (!value) return "—"
@@ -38,6 +34,7 @@ const EvaluatorDetailsPopover = ({
     fallbackLabel,
     children,
 }: EvaluatorDetailsPopoverProps) => {
+    const t = useT(spanCatalog)
     const {ReferenceTag} = getTraceDrawerReferences()
     const {buildEvaluatorTarget} = useEvaluatorNavigation()
     const latestRevisionId =
@@ -88,7 +85,9 @@ const EvaluatorDetailsPopover = ({
                 </div>
                 <div className="flex flex-col gap-2 *:text-nowrap">
                     <div className="flex items-center justify-between gap-3">
-                        <span className="text-colorTextSecondary">Evaluator ID</span>
+                        <span className="text-muted-foreground">
+                            {t("observabilityUi.traceSpan.evaluatorId")}
+                        </span>
                         <ReferenceTag
                             label={getShortId(
                                 typeof evaluatorId === "string"
@@ -114,30 +113,42 @@ const EvaluatorDetailsPopover = ({
                         />
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                        <span className="text-colorTextSecondary">Evaluator Type</span>
-                        <span> {isHuman ? "Human evaluator" : "Automatic evaluator"}</span>
+                        <span className="text-muted-foreground">
+                            {t("observabilityUi.traceSpan.evaluatorType")}
+                        </span>
+                        <span>
+                            {" "}
+                            {isHuman
+                                ? t("observabilityUi.traceSpan.humanEvaluator")
+                                : t("observabilityUi.traceSpan.automaticEvaluator")}
+                        </span>
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                        <span className="text-colorTextSecondary">Created at</span>
+                        <span className="text-muted-foreground">
+                            {t("observabilityUi.traceSpan.createdAt")}
+                        </span>
                         <span>{formatDateTime(createdAt)}</span>
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                        <span className="text-colorTextSecondary">Created by</span>
+                        <span className="text-muted-foreground">
+                            {t("observabilityUi.traceSpan.createdBy")}
+                        </span>
                         <UserAuthorLabel name={createdBy} showAvatar />
                     </div>
                 </div>
                 {target ? (
-                    <EnhancedButton
-                        type="default"
-                        size="small"
-                        block
-                        href={target.href}
-                        onClick={(event) => {
-                            event?.stopPropagation?.()
-                        }}
-                    >
-                        {isHuman ? "Open evaluator registry" : "Open evaluator playground"}
-                    </EnhancedButton>
+                    <Button variant="outline" size="sm" asChild>
+                        <a
+                            href={target.href}
+                            onClick={(event) => {
+                                event.stopPropagation()
+                            }}
+                        >
+                            {isHuman
+                                ? t("observabilityUi.traceSpan.openRegistry")
+                                : t("observabilityUi.traceSpan.openPlayground")}
+                        </a>
+                    </Button>
                 ) : null}
             </div>
         </div>
@@ -157,7 +168,7 @@ const EvaluatorDetailsPopover = ({
             <PopoverContent
                 side="bottom"
                 align="start"
-                className="w-auto max-w-[420px] p-3 text-sm"
+                className="w-auto max-w-[420px] p-3 text-body"
             >
                 {popoverContent}
             </PopoverContent>

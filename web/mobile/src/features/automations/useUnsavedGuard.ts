@@ -13,7 +13,7 @@ interface ConfirmRequest {
  *
  * The Pages Router has no navigation blocker, so the documented way out is to abort
  * `routeChangeStart` by throwing — the throw IS the abort, and `routeChangeError` is what puts
- * the progress bar back. The confirmation is the app's own `ConfirmModal`, not the browser's, so
+ * the progress bar back. The confirmation is the app's own `AlertDialog`, not the browser's, so
  * leaving an automation reads like every other confirm on this surface.
  *
  * The retry sets a bypass flag rather than unbinding the listener: the effect is keyed on `dirty`,
@@ -66,7 +66,13 @@ export const useUnsavedGuard = ({
                 message,
                 onOk: () => {
                     bypass.current = true
-                    void router.push(url).catch(() => undefined)
+                    // The event URL carries the basePath; push adds it again (`/m/m/...`).
+                    const {basePath} = router
+                    const path =
+                        basePath && url.startsWith(basePath)
+                            ? url.slice(basePath.length) || "/"
+                            : url
+                    void router.push(path).catch(() => undefined)
                 },
             })
             router.events.emit("routeChangeError")

@@ -1,5 +1,7 @@
 import React, {useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import panelsCatalog from "@agenta/i18n/catalogs/playground.panels"
 import {CopyTooltip} from "@agenta/ui/copy-tooltip"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import clsx from "clsx"
@@ -108,13 +110,14 @@ export const ToolCallViewHeader = ({
     callId?: string
     className?: string
 }) => {
+    const t = useT(panelsCatalog)
     const displayName = formatGatewayToolLabel(name)
     return (
         <div className={clsx("w-full p-2 pt-0 flex items-center justify-between", className)}>
-            <CopyTooltip title={"Function name"}>
+            <CopyTooltip title={t("playground.panels.functionName")}>
                 <span title={name}>{displayName}</span>
             </CopyTooltip>
-            <CopyTooltip title={"Call id"}>
+            <CopyTooltip title={t("playground.panels.callId")}>
                 <span className="font-mono">{callId}</span>
             </CopyTooltip>
         </div>

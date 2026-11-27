@@ -1,7 +1,9 @@
 import {AgentActionsMenu, AgentChip} from "@agenta/entity-ui/agent"
+import {useT} from "@agenta/i18n"
+import agentsList from "@agenta/i18n/catalogs/agents.list"
 import {InlineRenameInput} from "@agenta/sessions-ui"
 
-import {lastActiveLabel, NO_DESCRIPTION, type AgentListRow} from "./agentListView"
+import {lastActiveLabel, type AgentListRow} from "./agentListView"
 import {AgentPrivateMarker} from "./AgentPrivateMarker"
 import {AGENT_RENAME_INPUT_CLASS, useAgentInlineRename} from "./useAgentInlineRename"
 import {agentMenuProps, type AgentRowActions} from "./useAgentRowActions"
@@ -25,14 +27,15 @@ export const AgentRowCells = ({
     onOpen: (row: AgentListRow) => void
     actions: AgentRowActions
 }) => {
+    const t = useT(agentsList)
     const {rename, startFromMenu, handleCloseAutoFocus} = useAgentInlineRename(row)
 
     return (
         <>
-            <span className="flex min-w-0 items-center gap-2">
+            <span className="flex min-w-0 items-center gap-3">
                 {/* The agent's own mark, not a generic robot — a column of identical icons
                     identifies nothing. */}
-                <AgentChip workflowId={row.id} />
+                <AgentChip workflowId={row.id} box="size-8" />
                 {/* Tight leading and a hairline gap: the frame's own row padding is fixed and
                     shared, so the two lines are where a roster row can give height back. */}
                 <span className="flex min-w-0 flex-1 flex-col gap-px">
@@ -44,14 +47,14 @@ export const AgentRowCells = ({
                         >
                             <InlineRenameInput
                                 rename={rename}
-                                ariaLabel="Agent name"
+                                ariaLabel={t("agents.list.agentName")}
                                 className={AGENT_RENAME_INPUT_CLASS}
                             />
                         </span>
                     ) : (
                         <span className="flex min-w-0 items-center gap-1.5">
                             <span
-                                className="truncate text-[14px] font-medium leading-[18px] text-foreground"
+                                className="truncate text-body font-medium text-foreground"
                                 title={row.name}
                                 onDoubleClick={(event) => {
                                     event.stopPropagation()
@@ -65,10 +68,10 @@ export const AgentRowCells = ({
                                 narrows the list to rows that say nothing about why. */}
                             {row.waiting > 0 ? (
                                 <span
-                                    title={`${row.waiting} waiting on you`}
-                                    className="shrink-0 rounded bg-colorWarningBg px-1.5 py-0.5 text-[11px] leading-none text-colorWarningText"
+                                    title={t("agents.list.waitingOnYou", {n: row.waiting})}
+                                    className="shrink-0 rounded-sm bg-warning/10 px-1.5 py-0.5 text-caption leading-none text-warning"
                                 >
-                                    {row.waiting} waiting
+                                    {t("agents.list.waitingBadge", {n: row.waiting})}
                                 </span>
                             ) : null}
                         </span>
@@ -76,23 +79,21 @@ export const AgentRowCells = ({
                     {/* A described agent and an undescribed one have to be the same shape, or a
                         column of rows jumps height by height as you read down it. */}
                     <span
-                        className={`truncate text-[13px] leading-[16px] ${
-                            row.description ? "text-muted-foreground" : "text-placeholder"
-                        }`}
+                        className="truncate text-meta text-muted-foreground"
                         title={row.description || undefined}
                     >
-                        {row.description || NO_DESCRIPTION}
+                        {row.description || t("agents.list.noDescription")}
                     </span>
                 </span>
             </span>
 
             {narrow ? null : (
-                <span className="block truncate text-[13px] text-muted-foreground">
+                <span className="block truncate text-body-sm text-muted-foreground">
                     {row.ownerName || "—"}
                 </span>
             )}
 
-            <span className="block truncate text-[13px] text-placeholder">
+            <span className="block truncate text-meta tabular-nums text-muted-foreground max-sm:text-right">
                 {lastActiveLabel(row.updatedAt)}
             </span>
 
@@ -106,6 +107,8 @@ export const AgentRowCells = ({
                 <AgentActionsMenu
                     agent={{id: row.id, name: row.name}}
                     align="end"
+                    // The row's 24 px kebab (canvas A03), as the sessions table draws it.
+                    className="size-6"
                     onOpen={() => onOpen(row)}
                     onRename={startFromMenu}
                     onCloseAutoFocus={handleCloseAutoFocus}

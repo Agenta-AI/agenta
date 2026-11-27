@@ -1,8 +1,10 @@
 /**
  * The drawer's footer: the revert button and the revert's progress and outcome. The confirmation
- * itself is `RevertConfirmDialog`, scoped to the drawer.
+ * itself is an `AlertDialog` in `AgentVersionHistoryDrawer`.
  */
 
+import {richText, useT} from "@agenta/i18n"
+import versionCatalog from "@agenta/i18n/catalogs/playground.versionHistory"
 import {cn, textColors} from "@agenta/ui/styles"
 import {Button, Spinner} from "@agenta/ui/ui"
 import {CheckCircle} from "@phosphor-icons/react"
@@ -37,20 +39,29 @@ export const RevertFooter = ({
     onClose,
     onUpdate,
 }: RevertFooterProps) => {
+    const t = useT(versionCatalog)
     if (phase === "reverting") {
         return (
-            <div className={cn("flex items-center gap-2 text-xs", textColors.secondary)}>
+            <div
+                className={cn(
+                    "flex items-center gap-2 text-label font-normal",
+                    textColors.secondary,
+                )}
+            >
                 <Spinner className="size-3.5" />
-                Creating v{(latestVersion ?? 0) + 1} from v{selectedVersion}…
+                {t("playground.versionHistory.creating", {
+                    next: (latestVersion ?? 0) + 1,
+                    version: selectedVersion ?? "",
+                })}
             </div>
         )
     }
 
     if (phase === "done") {
         return (
-            <div className="flex items-center gap-2 text-xs text-[var(--ag-colorSuccess)]">
+            <div className="flex items-center gap-2 text-label font-normal text-success">
                 <CheckCircle size={14} />
-                Reverted. The latest version now holds v{selectedVersion}&apos;s configuration.
+                {t("playground.versionHistory.reverted", {version: selectedVersion ?? ""})}
             </div>
         )
     }
@@ -58,15 +69,18 @@ export const RevertFooter = ({
     if (phase === "failed") {
         return (
             <div className="flex items-center justify-between gap-4">
-                <span className="text-[11.5px] leading-snug text-[var(--ag-colorError)]">
-                    <strong className="font-semibold">Revert failed.</strong> Wait for any save to
-                    finish, then try again.
+                <span className="text-caption leading-snug text-destructive">
+                    {richText(t("playground.versionHistory.revertFailed"), {
+                        strong: (text) => <strong className="font-semibold">{text}</strong>,
+                    })}
                 </span>
                 <span className="flex shrink-0 gap-2">
-                    <Button variant="outline" onClick={onCancel}>
-                        Dismiss
+                    <Button variant="outline" size="compact" onClick={onCancel}>
+                        {t("playground.versionHistory.dismiss")}
                     </Button>
-                    <Button onClick={onConfirm}>Try again</Button>
+                    <Button size="compact" onClick={onConfirm}>
+                        {t("playground.versionHistory.tryAgain")}
+                    </Button>
                 </span>
             </div>
         )
@@ -74,12 +88,20 @@ export const RevertFooter = ({
 
     return (
         <div className="flex items-center justify-end gap-2">
-            <Button variant="outline" onClick={onClose}>
-                Cancel
+            <Button variant="outline" size="compact" onClick={onClose}>
+                {t("playground.versionHistory.cancel")}
             </Button>
-            {onUpdate ? <Button onClick={onUpdate}>Update to v{selectedVersion}</Button> : null}
-            <Button disabled={disabled} onClick={onRequestConfirm}>
-                {selectedVersion === null ? "Revert" : `Revert to v${selectedVersion}`}
+            {onUpdate ? (
+                <Button size="compact" onClick={onUpdate}>
+                    {t("playground.versionHistory.updateToVersion", {
+                        version: selectedVersion ?? "",
+                    })}
+                </Button>
+            ) : null}
+            <Button size="compact" disabled={disabled} onClick={onRequestConfirm}>
+                {selectedVersion === null
+                    ? t("playground.versionHistory.revert")
+                    : t("playground.versionHistory.revertToVersion", {version: selectedVersion})}
             </Button>
         </div>
     )

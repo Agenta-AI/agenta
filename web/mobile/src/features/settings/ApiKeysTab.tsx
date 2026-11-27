@@ -1,8 +1,19 @@
 import {useCallback, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsApiKeysTabCatalog from "@agenta/i18n/catalogs/settings.apiKeysTab"
 import {useApiKeys} from "@agenta/settings"
 import {ApiKeysPage} from "@agenta/settings-ui"
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
     Button,
     Dialog,
     DialogContent,
@@ -14,7 +25,6 @@ import {
 
 import {useProjectPermission} from "../context/useProjectPermission"
 
-import {ConfirmModal} from "./ConfirmModal"
 import type {SettingsTabProps} from "./settingsTabProps"
 import {useMobileSettingsAccess} from "./settingsTabs"
 
@@ -27,6 +37,7 @@ import {useMobileSettingsAccess} from "./settingsTabs"
  * credential and the buttons should not appear for a member who cannot mint one.
  */
 export const ApiKeysTab = ({workspaceId, projectId}: SettingsTabProps) => {
+    const t = useT(commonCatalog, settingsApiKeysTabCatalog)
     const canView = useMobileSettingsAccess().canViewApiKeys
     const canEdit = useProjectPermission(projectId, "edit_api_keys")
     const [pendingDelete, setPendingDelete] = useState<{resolve: (ok: boolean) => void} | null>(
@@ -58,12 +69,13 @@ export const ApiKeysTab = ({workspaceId, projectId}: SettingsTabProps) => {
             setError(null)
             setCreatedKey(secret)
         },
-        onWorkspacePending: () =>
-            setError("Your workspace is still loading. Try again in a moment."),
+        onWorkspacePending: () => setError(t("settings.apiKeysTab.workspacePending")),
         onError: (verb, cause) =>
             setError(
                 (cause as Error)?.message ||
-                    (verb === "create" ? "Could not create the key" : "Could not delete the key"),
+                    (verb === "create"
+                        ? t("settings.apiKeysTab.createError")
+                        : t("settings.apiKeysTab.deleteError")),
             ),
     })
 
@@ -76,7 +88,7 @@ export const ApiKeysTab = ({workspaceId, projectId}: SettingsTabProps) => {
     return (
         <div className="flex flex-col gap-2">
             {error ? (
-                <p role="alert" className="text-destructive m-0 text-xs">
+                <p role="alert" className="text-destructive m-0 text-meta">
                     {error}
                 </p>
             ) : null}
@@ -96,16 +108,45 @@ export const ApiKeysTab = ({workspaceId, projectId}: SettingsTabProps) => {
                 }}
             />
 
-            <ConfirmModal
+            <AlertDialog
                 open={Boolean(pendingDelete)}
-                title="Delete API key"
-                description="This cannot be undone."
-                body="Requests signed with this key stop working immediately."
-                confirmLabel="Delete"
-                pending={keys.deleting}
-                onClose={() => answerDelete(false)}
-                onConfirm={() => answerDelete(true)}
-            />
+                onOpenChange={(next) => {
+                    if (!next && !keys.deleting) answerDelete(false)
+                }}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{t("settings.apiKeysTab.deleteTitle")}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t("common.thisCannotBeUndone")}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="text-body">{t("settings.apiKeysTab.deleteBody")}</div>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                variant="outline"
+                                onClick={() => answerDelete(false)}
+                                disabled={keys.deleting}
+                            >
+                                {t("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant="destructive"
+                                disabled={keys.deleting}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    answerDelete(true)
+                                }}
+                            >
+                                {keys.deleting ? t("common.working") : t("common.delete")}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             <Dialog
                 open={Boolean(createdKey)}
@@ -115,22 +156,22 @@ export const ApiKeysTab = ({workspaceId, projectId}: SettingsTabProps) => {
             >
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Save your API key</DialogTitle>
+                        <DialogTitle>{t("settings.apiKeysTab.revealTitle")}</DialogTitle>
                         <DialogDescription>
-                            Shown once. It cannot be retrieved again after you close this.
+                            {t("settings.apiKeysTab.revealDescription")}
                         </DialogDescription>
                     </DialogHeader>
-                    <p className="m-0 break-all rounded-md border border-solid border-border bg-muted px-3 py-2 font-mono text-xs">
+                    <p className="m-0 break-all rounded-md border border-solid border-border bg-muted px-3 py-2 text-code-sm">
                         {createdKey}
                     </p>
                     {copyError ? (
-                        <p role="alert" className="text-destructive m-0 text-xs">
+                        <p role="alert" className="text-destructive m-0 text-meta">
                             {copyError}
                         </p>
                     ) : null}
                     <DialogFooter>
                         <Button variant="outline" onClick={closeReveal}>
-                            Done
+                            {t("common.done")}
                         </Button>
                         <Button
                             onClick={async () => {
@@ -142,11 +183,11 @@ export const ApiKeysTab = ({workspaceId, projectId}: SettingsTabProps) => {
                                     setCopyError(null)
                                     setCopied(true)
                                 } catch {
-                                    setCopyError("Couldn't copy — select the key above and copy it")
+                                    setCopyError(t("settings.apiKeysTab.copyError"))
                                 }
                             }}
                         >
-                            {copied ? "Copied" : "Copy key"}
+                            {copied ? t("common.copied") : t("settings.apiKeysTab.copyKey")}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

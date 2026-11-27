@@ -97,7 +97,7 @@ const render = async (props: ComponentProps<typeof RevisionDetails>) => {
     })
 }
 
-const LABEL_SELECTOR = ".text-xs.font-medium.text-muted-foreground"
+const LABEL_SELECTOR = ".text-label.font-medium.text-muted-foreground"
 
 const labelElement = (label: string) =>
     [...document.querySelectorAll<HTMLElement>(LABEL_SELECTOR)].find(

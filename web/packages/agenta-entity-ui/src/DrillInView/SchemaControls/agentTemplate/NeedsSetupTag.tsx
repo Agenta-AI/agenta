@@ -3,12 +3,13 @@
  * pair through their status; this is for the places that are not item rows (the model section,
  * a secret attachment, the MCP connection field).
  */
-import {NEEDS_SETUP_LABEL} from "@agenta/entities/workflow"
 import {Tag} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
 
+import {needsSetupLabel} from "./needsSetupText"
+
 export interface NeedsSetupTagProps {
-    /** The reason line, from `needsSetupReasonLabel`. */
+    /** The reason line, from `needsSetupReasonText`. */
     reason?: string | null
     /** False shows the reason alone, where a section title already carries the tag. */
     tag?: boolean
@@ -19,14 +20,12 @@ export function NeedsSetupTag({reason, tag = true, className}: NeedsSetupTagProp
     return (
         <span className={cn("flex min-w-0 flex-col items-start gap-0.5", className)}>
             {tag ? (
-                <Tag tone="gold" className="m-0 text-xs leading-[22.4px]">
-                    {NEEDS_SETUP_LABEL}
+                <Tag tone="warning" className="m-0 text-meta leading-[22.4px]">
+                    {needsSetupLabel()}
                 </Tag>
             ) : null}
             {reason ? (
-                <span className="truncate text-xs leading-tight text-[var(--ag-colorWarningText)]">
-                    {reason}
-                </span>
+                <span className="truncate text-meta leading-tight text-warning">{reason}</span>
             ) : null}
         </span>
     )

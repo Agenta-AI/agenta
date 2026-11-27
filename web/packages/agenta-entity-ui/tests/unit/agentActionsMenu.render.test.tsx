@@ -28,6 +28,7 @@ vi.mock("@agenta/ui/app-message", () => ({
 vi.mock("@agenta/ui/ui", () => {
     const Pass = ({children}: {children?: ReactNode}) => <div>{children}</div>
     return {
+        cn: (...classes: unknown[]) => classes.filter(Boolean).join(" "),
         Input: () => null,
         DropdownMenu: Pass,
         DropdownMenuContent: Pass,

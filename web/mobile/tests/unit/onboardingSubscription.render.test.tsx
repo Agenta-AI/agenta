@@ -10,7 +10,6 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 const {success} = vi.hoisted(() => ({success: vi.fn()}))
 vi.mock("@agenta/ui/app-message", () => ({message: {success}}))
 
-import {ONBOARDING_COPY} from "@/features/onboarding/onboardingCopy"
 import {
     useOnboardingSubscription,
     type OnboardingSubscription,
@@ -66,12 +65,12 @@ const Harness = ({chatgpt, claude, selected}: Inputs) => {
     rows.chatgpt = useOnboardingSubscription({
         ...shared,
         connection: chatgpt,
-        connectedMessage: ONBOARDING_COPY.model.chatgptConnected,
+        connected: "chatgpt",
     })
     rows.claude = useOnboardingSubscription({
         ...shared,
         connection: claude,
-        connectedMessage: ONBOARDING_COPY.model.claudeConnected,
+        connected: "claude",
     })
     return null
 }

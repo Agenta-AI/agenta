@@ -69,7 +69,7 @@ describe("SessionsTable keyboard", () => {
 
     it("Rows can take focus and show a focus ring", () => {
         expect(row(0).tabIndex).toBe(0)
-        expect(row(0).className).toContain("focus-visible:outline")
+        expect(row(0).className).toContain("focus-ring")
     })
 
     it("Enter and Space on a focused row open that session", () => {

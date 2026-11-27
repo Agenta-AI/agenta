@@ -1,28 +1,33 @@
-import {useCallback, useState} from "react"
+import {useCallback} from "react"
 
-import {projectIdAtom} from "@agenta/shared/state"
-import {SkillAgentPicker} from "@agenta/skills-ui"
+import {createT, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
     Button,
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-    Popover,
-    PopoverAnchor,
-    PopoverContent,
+    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {
     Archive,
     ArrowsClockwise,
     ArrowSquareOut,
     ArrowUUpLeft,
-    DotsThreeVertical,
+    DotsThree,
     DownloadSimple,
-    Plus,
 } from "@phosphor-icons/react"
-import {useAtomValue} from "jotai"
 
 import {useConfirmModal} from "../settings/useConfirmModal"
 
@@ -30,116 +35,128 @@ import type {SkillListRow} from "./skillListView"
 import {useSkillActions} from "./useSkillActions"
 import {useSkillUpdates} from "./useSkillUpdates"
 
-/**
- * A skill's own actions — the row's only control, and a card's.
- *
- * A kebab, because none of these is a thing to do often and one of them puts the skill away.
- * Archive goes through the same confirm modal every destructive action on this app uses and
- * names the skill, so it is never a generic "are you sure". Check for updates is only offered
- * where there is an upstream to check against.
- *
- * Add to agent hands off to a popover on the same kebab — the agent picker the detail drawer's
- * kebab opens — because the picker carries a search field a menu's typeahead would fight.
- */
+const tNow = createT(skillsListCatalog)
+
+/** A skill's kebab menu on a row or a card; Check for updates only for a GitHub import. */
 export const SkillActionsMenu = ({
     row,
     onOpen,
 }: {
     row: SkillListRow
-    /** The row's own click already does this; the menu offers it in words. */
     onOpen: (row: SkillListRow) => void
 }) => {
-    const projectId = useAtomValue(projectIdAtom) ?? ""
+    const t = useT(skillsListCatalog, commonCatalog)
     const {archive, restore, download} = useSkillActions()
     const {check} = useSkillUpdates()
-    const {confirm, modal} = useConfirmModal()
-    const [agentsOpen, setAgentsOpen] = useState(false)
+    const confirmDialog = useConfirmModal()
+    const {confirm} = confirmDialog
 
     const onArchive = useCallback(() => {
         confirm({
-            title: `Archive ${row.title}?`,
-            message:
-                "It leaves the registry and agents can no longer run it. Its name stays reserved, " +
-                "and restoring it brings back its full history.",
+            title: tNow("skills.list.archiveTitle", {name: row.title}),
+            message: tNow("skills.list.archiveMessage"),
+            okText: tNow("skills.list.archive"),
+            danger: true,
             onOk: () => archive(row.id),
         })
     }, [archive, confirm, row.id, row.title])
 
     return (
         <>
-            {/* The picker anchors to the kebab itself, so it opens where the menu just was. */}
-            <Popover open={agentsOpen} onOpenChange={setAgentsOpen}>
-                <DropdownMenu>
-                    {/* The hover is not the default `accent`: on a list row the row itself hovers
-                        to accent, so an accent button on top of it would read as no hover at all. */}
-                    <PopoverAnchor asChild>
+            <DropdownMenu>
+                {/* The span takes the tooltip, so two asChild triggers do not share one element. */}
+                <SimpleTooltip title={t("skills.list.skillActions")}>
+                    <span className="inline-flex">
                         <DropdownMenuTrigger asChild>
                             <Button
                                 type="button"
                                 size="icon-xs"
                                 variant="ghost"
-                                aria-label="Skill actions"
-                                className="hover:bg-foreground/10 dark:hover:bg-foreground/15"
+                                aria-label={t("skills.list.skillActions")}
                             >
-                                <DotsThreeVertical aria-hidden className="size-3.5" weight="bold" />
+                                <DotsThree aria-hidden />
                             </Button>
                         </DropdownMenuTrigger>
-                    </PopoverAnchor>
-                    <DropdownMenuContent align="end" className="w-[200px]">
-                        <DropdownMenuItem onSelect={() => onOpen(row)}>
-                            <ArrowSquareOut aria-hidden size={14} />
-                            Open skill
+                    </span>
+                </SimpleTooltip>
+                <DropdownMenuContent align="end" className="w-popover-sm">
+                    <DropdownMenuItem onSelect={() => onOpen(row)}>
+                        <ArrowSquareOut aria-hidden />
+                        {t("skills.list.openSkill")}
+                    </DropdownMenuItem>
+                    {row.origin === "imported" ? (
+                        <DropdownMenuItem onSelect={() => void check([row.id])}>
+                            <ArrowsClockwise aria-hidden />
+                            {t("skills.list.checkForUpdates")}
                         </DropdownMenuItem>
-                        {row.archived ? null : (
-                            <DropdownMenuItem
-                                // A frame late: the menu's close returns focus to the kebab, and a
-                                // popover already open would read that as focus leaving it.
-                                onSelect={() => requestAnimationFrame(() => setAgentsOpen(true))}
+                    ) : null}
+                    {row.item.origin === "builtin" ? null : (
+                        <DropdownMenuItem onSelect={() => void download(row.id)}>
+                            <DownloadSimple aria-hidden />
+                            {t("skills.list.download")}
+                        </DropdownMenuItem>
+                    )}
+                    <DropdownMenuSeparator />
+                    {row.archived ? (
+                        <DropdownMenuItem onSelect={() => void restore(row.id)}>
+                            <ArrowUUpLeft aria-hidden />
+                            {t("skills.list.restore")}
+                        </DropdownMenuItem>
+                    ) : (
+                        <DropdownMenuItem variant="destructive" onSelect={onArchive}>
+                            <Archive aria-hidden />
+                            {t("skills.list.archive")}
+                        </DropdownMenuItem>
+                    )}
+                </DropdownMenuContent>
+            </DropdownMenu>
+            <AlertDialog
+                open={Boolean(confirmDialog.request)}
+                onOpenChange={(next) => {
+                    if (!next && !confirmDialog.pending) confirmDialog.close()
+                }}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{confirmDialog.request?.title ?? ""}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {confirmDialog.request?.message ?? ""}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {confirmDialog.error ? (
+                        <p className="m-0 text-body text-destructive">{confirmDialog.error}</p>
+                    ) : null}
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                variant="outline"
+                                onClick={confirmDialog.close}
+                                disabled={confirmDialog.pending}
                             >
-                                <Plus aria-hidden size={14} />
-                                Add to agent
-                            </DropdownMenuItem>
-                        )}
-                        {row.origin === "imported" ? (
-                            <DropdownMenuItem onSelect={() => void check([row.id])}>
-                                <ArrowsClockwise aria-hidden size={14} />
-                                Check for updates
-                            </DropdownMenuItem>
-                        ) : null}
-                        {row.item.origin === "builtin" ? null : (
-                            <DropdownMenuItem onSelect={() => void download(row.id)}>
-                                <DownloadSimple aria-hidden size={14} />
-                                Download
-                            </DropdownMenuItem>
-                        )}
-                        <DropdownMenuSeparator />
-                        {row.archived ? (
-                            <DropdownMenuItem onSelect={() => void restore(row.id)}>
-                                <ArrowUUpLeft aria-hidden size={14} />
-                                Restore
-                            </DropdownMenuItem>
-                        ) : (
-                            <DropdownMenuItem variant="destructive" onSelect={onArchive}>
-                                <Archive aria-hidden size={14} />
-                                Archive
-                            </DropdownMenuItem>
-                        )}
-                    </DropdownMenuContent>
-                </DropdownMenu>
-                <PopoverContent
-                    align="end"
-                    sideOffset={6}
-                    aria-label="Add to agent"
-                    className="flex w-[280px] flex-col gap-0 p-0"
-                    onOpenAutoFocus={(event) => event.preventDefault()}
-                    onFocusOutside={(event) => event.preventDefault()}
-                    // The row underneath opens the drawer on click; the picker's clicks are its own.
-                    onClick={(event) => event.stopPropagation()}
-                >
-                    <SkillAgentPicker projectId={projectId} skill={row.item} />
-                </PopoverContent>
-            </Popover>
-            {modal}
+                                {confirmDialog.request?.cancelText ?? t("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant={
+                                    confirmDialog.request?.danger === false
+                                        ? "default"
+                                        : "destructive"
+                                }
+                                disabled={confirmDialog.pending}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    void confirmDialog.runConfirm()
+                                }}
+                            >
+                                {confirmDialog.pending
+                                    ? t("common.working")
+                                    : (confirmDialog.request?.okText ?? t("common.confirm"))}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     )
 }

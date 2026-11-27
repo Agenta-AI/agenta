@@ -1,0 +1,9 @@
+{
+    "attachTooltip": "添加到消息",
+    "delete": "删除录音",
+    "deleteTooltip": "删除录音（Esc）",
+    "sendTooltip": "发送语音消息",
+    "stopAndAttach": "停止录音并添加到消息",
+    "stopAndSend": "停止录音并发送语音消息",
+    "timeLeft": "剩余 {{time}}"
+}

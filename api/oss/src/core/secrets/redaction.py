@@ -43,7 +43,14 @@ CREDENTIAL_FIELDS: Dict[str, Tuple[str, Tuple[str, ...]]] = {
     "custom_secret": ("secret", ("content",)),
     "channel_secret": (
         "channel",
-        ("bot_token", "signing_secret", "webhook_secret", "access_token", "app_secret"),
+        (
+            "bot_token",
+            "signing_secret",
+            "webhook_secret",
+            "access_token",
+            "app_secret",
+            "client_secret",
+        ),
     ),
     "oauth_provider": ("provider", ("client_secret",)),
     "oauth_grant": ("grant", ("access_token", "refresh_token")),
@@ -70,6 +77,27 @@ SECONDARY_CREDENTIAL_FIELDS: Dict[str, Tuple[str, Tuple[str, ...]]] = {
 # declare `extras`, SSO and OAuth providers declare `extra`. Reading only one of them is
 # how a duplicated client secret survived redaction inside `extra["client_info"]`.
 CREDENTIAL_MAP_FIELDS: Tuple[str, ...] = ("extras", "extra")
+
+
+# The two ways to sign in to AWS Bedrock, by their extras keys. A row keeps one way: an
+# update that brings one ways credential drops the other ways stored credential instead
+# of carrying it over.
+AWS_SIGN_IN_WAYS: Tuple[frozenset, ...] = (
+    frozenset({"aws_bearer_token_bedrock", "AWS_BEARER_TOKEN_BEDROCK"}),
+    frozenset(
+        {
+            "aws_access_key_id",
+            "aws_secret_access_key",
+            "aws_session_token",
+            "AWS_ACCESS_KEY_ID",
+            "AWS_SECRET_ACCESS_KEY",
+            "AWS_SESSION_TOKEN",
+        }
+    ),
+)
+# A session token belongs to access keys, but alone it does not choose that way: a form
+# can send a stored one back beside a new API key.
+AWS_SESSION_TOKEN_KEYS = frozenset({"aws_session_token", "AWS_SESSION_TOKEN"})
 
 
 # Credential fields that sit on the data object itself instead of inside a nested
@@ -160,14 +188,18 @@ def _value_status(secret: SecretResponseDTO) -> SecretValueStatus:
         str(secret.kind.value), (None, None)
     )
     container = getattr(secret.data, container_name, None) if container_name else None
-    has_credential_extras = any(
-        extras.get(extras_key) not in (None, "")
-        for _, extras in _credential_maps(container)
-        for extras_key in CREDENTIAL_EXTRAS_KEYS
+    configured_keys = sorted(
+        {
+            extras_key
+            for _, extras in _credential_maps(container)
+            for extras_key in CREDENTIAL_EXTRAS_KEYS
+            if extras.get(extras_key) not in (None, "")
+        }
     )
 
     return SecretValueStatus(
-        configured=value not in (None, "") or has_credential_extras,
+        configured=value not in (None, "") or bool(configured_keys),
+        configured_keys=configured_keys or None,
         preview=(
             mask_secret_value(value)
             if secret.write_only and isinstance(value, str) and value
@@ -233,7 +265,10 @@ def _projected(
 
     value_status = _value_status(secret)
     if organization_row:
-        value_status = SecretValueStatus(configured=value_status.configured)
+        value_status = SecretValueStatus(
+            configured=value_status.configured,
+            configured_keys=value_status.configured_keys,
+        )
 
     projected = PublicSecretResponseDTO.model_validate(
         {**public_data, "value_status": value_status}

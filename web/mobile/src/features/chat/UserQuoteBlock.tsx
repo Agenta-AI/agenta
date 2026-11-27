@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import chatMobileTurnCatalog from "@agenta/i18n/catalogs/chat.mobileTurn"
 import {normalizeQuoteText, type QuotedExcerpt} from "@agenta/shared/quotes"
 
 const AGENT_REPLY = "Agent reply"
@@ -29,22 +31,21 @@ const plainExcerpt = (text: string) => {
 
 /** One quote inside a sent message: a ruled block with its source over the excerpt. */
 export const UserQuoteBlock = ({quote}: {quote: QuotedExcerpt}) => {
+    const t = useT(chatMobileTurnCatalog)
     const excerpt = plainExcerpt(quote.text)
     return (
         <div
             title={excerpt}
             className="flex min-w-0 flex-col gap-0.5 border-0 border-l-2 border-solid border-border pl-3"
         >
-            <span className="truncate text-[11.5px] text-muted-foreground/80">
+            <span className="truncate text-meta text-muted-foreground">
                 {quote.origin === AGENT_REPLY ? (
-                    "Agent reply"
+                    t("chat.mobileTurn.agentReply")
                 ) : (
                     <span className="font-mono">{quote.origin.split("/").pop()}</span>
                 )}
             </span>
-            <span className="line-clamp-2 text-xs text-muted-foreground sm:text-[13px]">
-                {excerpt}
-            </span>
+            <span className="line-clamp-2 text-label text-muted-foreground">{excerpt}</span>
         </div>
     )
 }

@@ -30,7 +30,7 @@ export const TestsetsDateFilter = ({
         () => [
             {
                 key: "created",
-                label: "Date Created",
+                label: "Date created",
                 icon: <CalendarBlank size={ICON} />,
                 value: filter?.range ?? "all",
                 options: CREATED_RANGES.map((range) => ({value: range.value, label: range.label})),
@@ -51,15 +51,14 @@ export const TestsetsDateFilter = ({
                 triggerAriaLabel="Filters"
                 size="default"
                 // The square icon size is 28; the search field beside it is 32.
-                triggerClassName="size-8"
                 active={filter !== null}
                 onReset={() => onChange(null)}
                 resetDisabled={filter === null}
             />
             {filter ? (
-                <span className="flex min-w-0 items-center gap-1 text-[13px] text-muted-foreground">
+                <span className="flex min-w-0 items-center gap-1 text-label text-muted-foreground">
                     <span className="truncate">
-                        Date Created: {createdRangeLabel(filter.range)}
+                        Date created: {createdRangeLabel(filter.range)}
                     </span>
                     <Button
                         type="button"
@@ -72,7 +71,7 @@ export const TestsetsDateFilter = ({
                     </Button>
                 </span>
             ) : (
-                <span className="truncate text-[13px] text-placeholder max-sm:hidden">
+                <span className="truncate text-label text-muted-foreground max-sm:hidden">
                     No filters applied
                 </span>
             )}

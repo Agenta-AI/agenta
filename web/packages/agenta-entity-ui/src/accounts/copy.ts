@@ -1,50 +1,43 @@
 /**
- * Texts of the "Account" block in an item's drawer and of "Attach a secret".
+ * Texts of the account options and of "Attach a secret".
  *
- * APPROVED (UX-DECISIONS.md, 2026-10-29): the label "Account", "Each person's default <name>",
- * "Each person's own sign-in", "The project's sign-in", "When you run it: <account> (your
- * default)", "Change", "Make it my default for every agent", "Connect another <name> account",
- * "When you run it: signed in as you", "Sign out".
- *
+ * APPROVED (UX-DECISIONS.md, 2026-10-29): "Each person's own sign-in", "The project's sign-in".
  * Every other text here is a DRAFT for the owner's text pass.
+ *
+ * The text lives in the `entityUi.accounts` catalog. Each entry is read when it is used, so it is
+ * in the active language; a component that shows these texts can call `useT` with the catalog so it
+ * draws again when the language's text loads.
  */
+import {createT} from "@agenta/i18n"
+import accountsCatalog from "@agenta/i18n/catalogs/entityUi.accounts"
+
+const t = createT(accountsCatalog)
+
 export const ACCOUNT_COPY = {
-    label: "Account",
-    eachPersonDefault: (name: string) => `Each person's default ${name}`,
-    eachPersonSignIn: "Each person's own sign-in",
-    projectSignIn: "The project's sign-in",
-    whenYouRun: (account: string) => `When you run it: ${account}`,
-    yourDefault: "(your default)",
-    change: "Change",
-    makeDefault: "Make it my default for every agent",
-    connectAnother: (name: string) => `Connect another ${name} account`,
-    signedInAsYou: "When you run it: signed in as you",
-    signOut: "Sign out",
+    get eachPersonSignIn() {
+        return t("entityUi.accounts.eachPersonSignIn")
+    },
+    get projectSignIn() {
+        return t("entityUi.accounts.projectSignIn")
+    },
     // Drafts.
-    noAccountYet: (name: string) => `When you run it: you have no ${name} account yet`,
-    connectOne: "Connect one",
-    noneChosen: "When you run it: none of your accounts is chosen",
-    choose: "Choose",
-    notSignedIn: "When you run it: not signed in",
-    signInExpired: "When you run it: your sign-in expired",
-    signIn: "Sign in",
-    tokenPlaceholder: "Your token",
-    saveToken: "Save",
-    defaultMark: "Default",
-    choiceFailed: "Could not save your choice. Try again.",
-    defaultFailed: "Could not change your default. Try again.",
+    get choiceFailed() {
+        return t("entityUi.accounts.choiceFailed")
+    },
     // "Attach a secret" (drafts).
-    eachPersonSecret: "Each person's own secret",
-    createNewSecret: "Create new secret",
-    addOne: "Add one",
-    addAnotherSecret: "Add another secret",
-    addYourSecret: "Add your secret",
-    whoCanUseIt: "Who can use it",
-    onlyMe: "Only me",
-    onlyMeSecretNote: "You pick it when an agent asks for your own value.",
-    everyoneIn: (project?: string) => `Everyone in ${project ?? "this project"}`,
-    everyoneSecretNote: "Builders can attach it to agents in this project.",
-    secretValueLine: "Each person who runs the agent gives their own value.",
-    noSecretYet: "When you run it: you have no secret of your own yet",
-    userSecretRow: "Each person's own secret",
-} as const
+    get createNewSecret() {
+        return t("entityUi.accounts.createNewSecret")
+    },
+    get addOne() {
+        return t("entityUi.accounts.addOne")
+    },
+    get addAnotherSecret() {
+        return t("entityUi.accounts.addAnotherSecret")
+    },
+    get addYourSecret() {
+        return t("entityUi.accounts.addYourSecret")
+    },
+    get userSecretRow() {
+        return t("entityUi.accounts.userSecretRow")
+    },
+}

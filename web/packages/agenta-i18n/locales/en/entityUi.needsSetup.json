@@ -1,0 +1,12 @@
+{
+    "agentTitle": "This agent needs setup",
+    "label": "Needs setup",
+    "modelMessage": "The model needs setup before this agent can run.",
+    "modelPlaceholder": "Set up the model to send messages",
+    "reasonNotAvailable": "No longer available",
+    "reasonNotChosen": "No account chosen",
+    "reasonNotFound": "Not found in this project",
+    "reasonNotShared": "Not shared with this project",
+    "reasonSignInExpired": "Sign-in expired",
+    "reasonTurnedOff": "Turned off"
+}

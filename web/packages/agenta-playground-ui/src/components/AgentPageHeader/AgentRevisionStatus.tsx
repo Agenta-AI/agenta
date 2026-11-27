@@ -1,6 +1,9 @@
-import {useEffect, useRef, useState} from "react"
+import {useEffect, useId, useRef, useState} from "react"
 
 import {revalidateAgentRevisionReads, workflowMolecule} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import headerCatalog from "@agenta/i18n/catalogs/playground.agentHeader"
+import revisionStatusCatalog from "@agenta/i18n/catalogs/playground.revisionStatus"
 import {
     agentAutoCommitErrorAtomFamily,
     agentAutoCommitScheduledAtomFamily,
@@ -10,9 +13,11 @@ import {
     type LatestVersion,
 } from "@agenta/playground/state"
 import {projectIdAtom} from "@agenta/shared/state"
-import {SimpleTooltip} from "@agenta/ui/ui"
+import {cn} from "@agenta/ui/styles"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {ClockCounterClockwise, WarningCircle} from "@phosphor-icons/react"
-import {useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
+import {atomFamily} from "jotai-family"
 import dynamic from "next/dynamic"
 
 import {openAgentVersionHistoryAtom, versionHistoryOpenAtomFamily} from "../AgentVersionHistory"
@@ -24,6 +29,13 @@ const AgentVersionHistoryDrawer = dynamic(
     () => import("../AgentVersionHistory").then((m) => m.AgentVersionHistoryDrawer),
     {ssr: false},
 )
+
+/**
+ * The mounted chips of each workflow, oldest first. One history drawer opens per workflow: the
+ * newest chip draws it (on a phone the Configuration screen's chip covers the session header's,
+ * which stays mounted), so one tap never opens two drawers.
+ */
+const historyChipsAtomFamily = atomFamily((_workflowId: string) => atom<string[]>([]))
 
 /** Wraps in a tooltip only when there is something to say beyond the visible label. */
 const StatusWrap = ({tip, children}: {tip: string | null; children: React.ReactElement}) =>
@@ -46,6 +58,16 @@ export interface AgentRevisionStatusProps {
     autoUpdate?: boolean
     /** Re-check for a newer version when this changes: pass the session id, so a switch checks. */
     checkKey?: string | null
+    /**
+     * Lay out for a phone: the chip says "Saved as vN" and has a 44 px hit area, the version
+     * history covers the screen with a back arrow, and a save state that needs attention ("Not
+     * saved") shows its words, not only its icon.
+     */
+    phone?: boolean
+    /** On a phone, the name of the screen the history's back arrow returns to. */
+    backTitle?: string
+    /** Only what needs the person: "Update to vN" and a failed save's retry; nothing at rest. */
+    quiet?: boolean
     className?: string
 }
 
@@ -65,8 +87,12 @@ export const AgentRevisionStatus = ({
     onUpdate,
     autoUpdate = false,
     checkKey,
+    phone = false,
+    backTitle,
+    quiet = false,
     className,
 }: AgentRevisionStatusProps) => {
+    const t = useT(headerCatalog, revisionStatusCatalog)
     // A commit can land while this surface is closed — the agent commits itself mid-session, or
     // the same agent is driven from another surface (the desktop playground and `/m` share one
     // agent). The invalidation that follows a commit refetches ACTIVE observers only, and a closed
@@ -86,6 +112,15 @@ export const AgentRevisionStatus = ({
     const autoCommitScheduled = useAtomValue(agentAutoCommitScheduledAtomFamily(revisionId || ""))
     const retrySave = useSetAtom(flushAgentAutoCommitAtom)
 
+    const chipId = useId()
+    const historyChips = useAtomValue(historyChipsAtomFamily(historyWorkflowId || ""))
+    const setHistoryChips = useSetAtom(historyChipsAtomFamily(historyWorkflowId || ""))
+    useEffect(() => {
+        if (!historyWorkflowId) return
+        setHistoryChips((chips) => [...chips, chipId])
+        return () => setHistoryChips((chips) => chips.filter((id) => id !== chipId))
+    }, [historyWorkflowId, chipId, setHistoryChips])
+    const drawsHistory = historyChips[historyChips.length - 1] === chipId
     const historyOpen = useAtomValue(versionHistoryOpenAtomFamily(historyWorkflowId || ""))
     const openHistory = useSetAtom(openAgentVersionHistoryAtom)
     // Latched, not unmounted on close: tearing the drawer out mid-close skips its slide-out.
@@ -97,8 +132,9 @@ export const AgentRevisionStatus = ({
         setHistoryOpens((n) => n + 1)
     }, [historyOpen])
 
-    // The only moments a newer version is looked for: the page becoming visible, a session
-    // switch (`checkKey`), and the drawer opening.
+    // The only moments a newer version is looked for: the page becoming visible, the window
+    // getting focus, a save of this agent (auto-save here, or a builder's committed result), a
+    // session switch (`checkKey`), and the drawer opening.
     const projectId = useAtomValue(projectIdAtom)
     const [latest, setLatest] = useState<LatestVersion | null>(null)
     const offersUpdate = Boolean(onUpdate)
@@ -147,68 +183,175 @@ export const AgentRevisionStatus = ({
 
     const dot = failed
         ? {
-              tone: "bg-colorError",
-              label: "Not saved",
-              tip: `${autoCommitError ?? "Couldn't save changes"} — click to retry`,
+              tone: "bg-destructive",
+              label: t("playground.agentHeader.notSaved"),
+              tip: t("playground.agentHeader.tipFailed", {
+                  error: autoCommitError ?? t("playground.agentHeader.couldNotSave"),
+              }),
           }
         : saving
-          ? {tone: "bg-colorTextTertiary", label: "Saving…", tip: "Saving your changes"}
+          ? {
+                tone: "bg-muted-foreground",
+                label: t("playground.agentHeader.saving"),
+                tip: t("playground.agentHeader.tipSaving"),
+            }
           : isDirty
-            ? {tone: "bg-colorWarning", label: "Draft", tip: "Unsaved changes"}
-            : {tone: "bg-colorSuccess", label: "Saved", tip: "Saved"}
+            ? {
+                  tone: "bg-warning",
+                  label: t("playground.agentHeader.draft"),
+                  tip: t("playground.agentHeader.tipDraft"),
+              }
+            : {
+                  tone: "bg-success",
+                  label: t("playground.agentHeader.saved"),
+                  tip: t("playground.agentHeader.saved"),
+              }
 
     // One object for one revision: the version and its save state describe the same thing, and as
     // two chips they competed. A failed save is the exception — there the status IS the retry
     // control, so it stays separate rather than sharing a button that opens history.
     const merged = version !== null && !!historyWorkflowId && !failed
+    const atRest = !failed && !saving && !isDirty
 
     const statusBody = (
         <>
             {failed ? (
-                <WarningCircle size={12} className="shrink-0 text-colorError" />
+                <WarningCircle size={12} className="shrink-0 text-destructive" />
             ) : (
-                <span className={`h-[6px] w-[6px] shrink-0 rounded-full ${dot.tone}`} />
+                <span className={`size-1.5 shrink-0 rounded-round ${dot.tone}`} />
             )}
-            {/* Words only for states that need attention; hidden on a narrow bar. */}
-            {showLabel ? <span className="hidden sm:inline">{dot.label}</span> : null}
+            {/* Words only for states that need attention; hidden on a narrow bar, except on a
+                phone, where the icon alone does not say that a save failed. */}
+            {showLabel ? (
+                <span className={phone ? undefined : "hidden sm:inline"}>{dot.label}</span>
+            ) : null}
         </>
     )
+
+    const historyDrawer =
+        historyWorkflowId && historyMounted && drawsHistory ? (
+            <AgentVersionHistoryDrawer
+                workflowId={historyWorkflowId}
+                revisionId={revisionId}
+                currentVersion={version}
+                onUpdate={onUpdate}
+                phone={phone}
+                backTitle={backTitle}
+            />
+        ) : null
+
+    // "Update to vN": a newer version saved elsewhere. On touch the pill keeps its size and gets
+    // a 44 px hit area.
+    const updatePill =
+        newer && !autoUpdateId ? (
+            <button
+                type="button"
+                onClick={() => onUpdate?.(newer.id)}
+                className=" shrink-0 cursor-pointer whitespace-nowrap rounded border-0 bg-selected px-1.5 py-0.5 text-label text-primary hover:bg-accent"
+            >
+                {t("playground.agentHeader.updateAvailable", {version: newer.version})}
+            </button>
+        ) : null
+
+    const statusControl = (
+        <StatusWrap tip={failed ? dot.tip : null}>
+            <span
+                role={failed ? "button" : undefined}
+                tabIndex={failed ? 0 : undefined}
+                aria-label={failed ? t("playground.agentHeader.retrySaving") : undefined}
+                onClick={failed ? () => void retrySave({revisionId}) : undefined}
+                onKeyDown={
+                    failed
+                        ? (event) => {
+                              if (event.key !== "Enter" && event.key !== " ") return
+                              event.preventDefault()
+                              void retrySave({revisionId})
+                          }
+                        : undefined
+                }
+                className={cn(
+                    "flex items-center gap-1.5 text-meta text-muted-foreground",
+                    failed && "cursor-pointer",
+                    failed && "",
+                )}
+            >
+                {statusBody}
+            </span>
+        </StatusWrap>
+    )
+
+    if (quiet) {
+        if (!updatePill && !failed && !historyDrawer) return null
+        return (
+            <div className={`flex items-center gap-2 ${className ?? ""}`}>
+                {updatePill}
+                {failed ? statusControl : null}
+                {historyDrawer}
+            </div>
+        )
+    }
 
     return (
         <div className={`flex items-center gap-2 ${className ?? ""}`}>
             {merged ? (
-                <SimpleTooltip title={`${dot.label} · Version history`}>
-                    <button
-                        type="button"
-                        aria-label={`Version ${version}, ${dot.label}. Open version history`}
+                <SimpleTooltip
+                    title={t("playground.agentHeader.statusAndHistory", {status: dot.label})}
+                >
+                    {/* A kit control, the height of the bar's other controls (SIZE-01). */}
+                    <Button
+                        variant="ghost"
+                        size="compact"
+                        aria-label={t("playground.agentHeader.versionStatusOpen", {
+                            version,
+                            status: dot.label,
+                        })}
                         onClick={() => openHistory(historyWorkflowId)}
-                        className="flex cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent px-1.5 py-0.5 text-xs text-colorTextSecondary hover:bg-colorFillSecondary hover:text-colorText"
+                        className={cn(
+                            "gap-1.5",
+                            phone
+                                ? "whitespace-nowrap"
+                                : "text-muted-foreground hover:text-foreground",
+                        )}
                     >
                         {/* One chip: the save state is a fact about this version. */}
-                        <span className="flex items-center gap-1">
+                        <span className="flex items-center gap-1.5">
                             {/* A caret would promise a menu; this opens a drawer of history. */}
-                            <span className="relative flex shrink-0">
-                                <ClockCounterClockwise size={11} />
-                                {/* Save state as a badge on the icon, so it never trails the text. */}
-                                <span
-                                    className={`absolute -right-[2px] -top-[2px] h-[5px] w-[5px] rounded-full ring-[1.5px] ring-[var(--ag-surface-raised)] ${dot.tone}`}
-                                />
-                            </span>
-                            v{version}
+                            {phone ? (
+                                // Canvas M07: a 14 px glyph and no dot; the words carry the state
+                                // ("Saved as vN", "Saving…").
+                                <ClockCounterClockwise size={14} className="size-3.5 shrink-0" />
+                            ) : (
+                                <span className="relative flex shrink-0">
+                                    <ClockCounterClockwise size={12} className="size-3" />
+                                    {/* A saved version is the resting state: no mark (LOUD-04). */}
+                                    {atRest ? null : (
+                                        <span
+                                            className={`absolute -right-[2px] -top-[2px] size-1.5 rounded-round ring-1 ring-muted ${dot.tone}`}
+                                        />
+                                    )}
+                                </span>
+                            )}
+                            {phone
+                                ? settled
+                                    ? t("playground.revisionStatus.savedAs", {version})
+                                    : dot.label
+                                : `v${version}`}
                         </span>
-                        {showLabel ? <span className="hidden sm:inline">{dot.label}</span> : null}
-                    </button>
+                        {showLabel && !phone ? (
+                            <span className="hidden sm:inline">{dot.label}</span>
+                        ) : null}
+                    </Button>
                 </SimpleTooltip>
             ) : null}
 
             {!merged && version !== null ? (
                 historyWorkflowId ? (
-                    <SimpleTooltip title="Version history">
+                    <SimpleTooltip title={t("playground.agentHeader.versionHistory")}>
                         <button
                             type="button"
-                            aria-label="Open version history"
+                            aria-label={t("playground.agentHeader.openVersionHistory")}
                             onClick={() => openHistory(historyWorkflowId)}
-                            className="flex cursor-pointer items-center gap-1 rounded border-0 bg-colorFillSecondary px-1.5 py-0.5 text-xs text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText"
+                            className="flex cursor-pointer items-center gap-1 rounded border-0 bg-secondary px-1.5 py-0.5 text-meta text-muted-foreground hover:bg-accent hover:text-foreground"
                         >
                             <ClockCounterClockwise size={11} className="shrink-0" />v{version}
                         </button>
@@ -219,69 +362,33 @@ export const AgentRevisionStatus = ({
                         title={
                             commitMessage ? (
                                 <div className="flex flex-col gap-1">
-                                    <span className="text-[12px] font-medium uppercase tracking-wide opacity-65">
-                                        Commit message
+                                    <span className="text-meta font-medium opacity-65">
+                                        {t("playground.agentHeader.commitMessage")}
                                     </span>
-                                    <div className="max-h-[240px] overflow-y-auto overscroll-contain whitespace-pre-wrap break-words text-xs leading-relaxed">
+                                    <div className="max-h-60 overflow-y-auto overscroll-contain whitespace-pre-wrap break-words text-label font-normal leading-relaxed">
                                         {commitMessage}
                                     </div>
                                 </div>
                             ) : (
-                                <span className="text-xs italic">No commit message</span>
+                                <span className="text-label font-normal italic">
+                                    {t("playground.agentHeader.noCommitMessage")}
+                                </span>
                             )
                         }
                     >
-                        <span className="cursor-default rounded bg-colorFillSecondary px-1.5 py-0.5 text-xs text-colorTextSecondary">
+                        <span className="cursor-default rounded bg-secondary px-1.5 py-0.5 text-meta text-muted-foreground">
                             v{version}
                         </span>
                     </SimpleTooltip>
                 )
             ) : null}
 
-            {newer && !autoUpdateId ? (
-                <button
-                    type="button"
-                    onClick={() => onUpdate?.(newer.id)}
-                    className="shrink-0 cursor-pointer whitespace-nowrap rounded border-0 bg-[var(--ag-colorPrimaryBg)] px-1.5 py-0.5 text-xs font-medium text-[var(--ag-colorPrimary)] hover:bg-[var(--ag-colorPrimaryBgHover)]"
-                >
-                    Update to v{newer.version}
-                </button>
-            ) : null}
+            {updatePill}
 
-            {historyWorkflowId && historyMounted ? (
-                <AgentVersionHistoryDrawer
-                    workflowId={historyWorkflowId}
-                    revisionId={revisionId}
-                    currentVersion={version}
-                    onUpdate={onUpdate}
-                />
-            ) : null}
+            {historyDrawer}
 
             {/* Tooltip only on failure: there it carries the error and the retry hint. */}
-            {merged ? null : (
-                <StatusWrap tip={failed ? dot.tip : null}>
-                    <span
-                        role={failed ? "button" : undefined}
-                        tabIndex={failed ? 0 : undefined}
-                        aria-label={failed ? "Retry saving changes" : undefined}
-                        onClick={failed ? () => void retrySave({revisionId}) : undefined}
-                        onKeyDown={
-                            failed
-                                ? (event) => {
-                                      if (event.key !== "Enter" && event.key !== " ") return
-                                      event.preventDefault()
-                                      void retrySave({revisionId})
-                                  }
-                                : undefined
-                        }
-                        className={`flex items-center gap-1.5 text-xs text-colorTextTertiary ${
-                            failed ? "cursor-pointer" : ""
-                        }`}
-                    >
-                        {statusBody}
-                    </span>
-                </StatusWrap>
-            )}
+            {merged ? null : statusControl}
         </div>
     )
 }

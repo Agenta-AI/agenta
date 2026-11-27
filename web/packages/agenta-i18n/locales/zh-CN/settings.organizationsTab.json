@@ -1,0 +1,19 @@
+{
+    "chooseMember": "选择成员",
+    "createFailed": "创建失败",
+    "deleteBody": "将永久删除 {{name}}，以及其中的所有工作区、项目和 Agent。",
+    "deleteFailed": "无法删除此组织",
+    "deleteTitle": "删除组织",
+    "inviteFirst": "请先邀请他人加入此组织；所有权只能转让给成员。",
+    "namePlaceholder": "组织名称",
+    "newDescription": "组织用于归集你的工作区、项目以及其中的成员。",
+    "newTitle": "新建组织",
+    "noProjectYet": "{{name}} 还没有可打开的项目",
+    "renameFailed": "无法重命名此组织",
+    "thisOrganization": "此组织",
+    "thisOrganizationCapital": "此组织",
+    "transfer": "转让",
+    "transferDescription": "新所有者将获得 {{name}} 的完全控制权。你仍是成员。",
+    "transferFailed": "无法转让所有权",
+    "transferTitle": "转让所有权"
+}

@@ -55,6 +55,7 @@ def _span(
     start_offset_s: int = 0,
     span_type: SpanType = SpanType.TASK,
     session_id: str | None = None,
+    turn_id: str | None = None,
     user_id: str | None = None,
     agent_id: str | None = None,
 ) -> OTelFlatSpan:
@@ -90,6 +91,8 @@ def _span(
     }
     if session_id is not None:
         ag_attributes["session"] = {"id": session_id}
+    if turn_id is not None:
+        ag_attributes["turn"] = {"id": turn_id}
     if user_id is not None:
         ag_attributes["user"] = {"id": user_id}
     if agent_id is not None:
@@ -1620,11 +1623,12 @@ def test_trace_map_to_traces_and_back_and_get_span_helpers():
     assert get_span_from_trace(trace, str(UUID(int=1))) is None
 
 
-def test_promote_identity_by_trace_lifts_root_only():
+def test_promote_identity_by_trace_lifts_session_and_turn_from_every_span():
     root = _span(
         span_id=ROOT_UUID,
         span_name="root",
         session_id="sess-1",
+        turn_id="turn-1",
         user_id="user-1",
         agent_id="agent-1",
     )
@@ -1633,18 +1637,61 @@ def test_promote_identity_by_trace_lifts_root_only():
         parent_id=ROOT_UUID,
         span_name="child",
         start_offset_s=1,
+        session_id="sess-1",
+        turn_id="turn-1",
     )
 
     out = promote_identity_by_trace([root, child])
     out_idx = {span.span_id: span for span in out}
 
     assert out_idx[ROOT_UUID].session_id == "sess-1"
+    assert out_idx[ROOT_UUID].turn_id == "turn-1"
     assert out_idx[ROOT_UUID].user_id == "user-1"
     assert out_idx[ROOT_UUID].agent_id == "agent-1"
 
-    assert out_idx[CHILD_A_UUID].session_id is None
+    assert out_idx[CHILD_A_UUID].session_id == "sess-1"
+    assert out_idx[CHILD_A_UUID].turn_id == "turn-1"
+
+
+def test_promote_identity_by_trace_never_takes_ids_from_the_root():
+    root = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        session_id="sess-root",
+        turn_id="turn-root",
+        user_id="user-1",
+        agent_id="agent-1",
+    )
+    own_ids = _span(
+        span_id=CHILD_A_UUID,
+        parent_id=ROOT_UUID,
+        span_name="child-a",
+        start_offset_s=1,
+        session_id="sess-child",
+        turn_id="turn-child",
+        user_id="user-child",
+        agent_id="agent-child",
+    )
+    no_ids = _span(
+        span_id=CHILD_B_UUID,
+        parent_id=ROOT_UUID,
+        span_name="child-b",
+        start_offset_s=2,
+    )
+
+    out = promote_identity_by_trace([root, own_ids, no_ids])
+    out_idx = {span.span_id: span for span in out}
+
+    assert out_idx[CHILD_A_UUID].session_id == "sess-child"
+    assert out_idx[CHILD_A_UUID].turn_id == "turn-child"
+    # user_id and agent_id stay root-only.
     assert out_idx[CHILD_A_UUID].user_id is None
     assert out_idx[CHILD_A_UUID].agent_id is None
+
+    assert out_idx[CHILD_B_UUID].session_id is None
+    assert out_idx[CHILD_B_UUID].turn_id is None
+    assert out_idx[CHILD_B_UUID].user_id is None
+    assert out_idx[CHILD_B_UUID].agent_id is None
 
 
 def test_promote_identity_by_trace_is_per_trace_and_ignores_missing_attrs():
@@ -1668,6 +1715,7 @@ def test_promote_identity_by_trace_is_per_trace_and_ignores_missing_attrs():
 
     assert out_idx["root-a"].session_id == "sess-a"
     assert out_idx["root-b"].session_id is None
+    assert out_idx["root-b"].turn_id is None
     assert out_idx["root-b"].user_id is None
     assert out_idx["root-b"].agent_id is None
 

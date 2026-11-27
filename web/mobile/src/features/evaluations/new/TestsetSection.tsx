@@ -19,11 +19,11 @@ import {useTestsetLatestRevisions} from "./useTestsetLatestRevisions"
 
 const PICK: ListTableColumn = {key: "pick", label: "Select", srOnly: true, width: "20px"}
 const NAME: ListTableColumn = {key: "name", label: "Name", width: "minmax(160px,2fr)"}
-const CREATED: ListTableColumn = {key: "created", label: "Date Created", width: "minmax(150px,1fr)"}
+const CREATED: ListTableColumn = {key: "created", label: "Date created", width: "minmax(150px,1fr)"}
 const WIDE_COLUMNS = [
     PICK,
     NAME,
-    {key: "commit", label: "Commit Message", width: "minmax(140px,2fr)"},
+    {key: "commit", label: "Commit message", width: "minmax(140px,2fr)"},
     CREATED,
     {key: "author", label: "Created by", width: "minmax(120px,1fr)"},
 ]
@@ -107,20 +107,20 @@ export const TestsetSection = ({
                                     onToggle={() => pick(row)}
                                 />
                                 <span
-                                    className="block truncate text-[14px] font-medium text-foreground"
+                                    className="block truncate text-body font-medium text-foreground"
                                     title={row.name}
                                 >
                                     {row.name}
                                 </span>
                                 {narrow ? null : (
                                     <span
-                                        className="block truncate text-[13px] text-muted-foreground"
+                                        className="block truncate text-label text-muted-foreground"
                                         title={message ?? undefined}
                                     >
                                         {message ?? "—"}
                                     </span>
                                 )}
-                                <span className="block truncate text-[13px] text-muted-foreground">
+                                <span className="block truncate text-label text-muted-foreground">
                                     <FormattedDate
                                         date={row.created_at}
                                         format={narrow ? "MMM D, YYYY" : undefined}
@@ -128,7 +128,7 @@ export const TestsetSection = ({
                                     />
                                 </span>
                                 {narrow ? null : (
-                                    <span className="block min-w-0 truncate text-[13px] text-muted-foreground">
+                                    <span className="block min-w-0 truncate text-label text-muted-foreground">
                                         <UserAuthorLabel
                                             userId={row.created_by_id}
                                             showAvatar

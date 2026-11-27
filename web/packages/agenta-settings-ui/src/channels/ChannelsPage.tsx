@@ -1,5 +1,8 @@
 import {useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import channelsPageCatalog from "@agenta/i18n/catalogs/channels.page"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {CaretRight} from "@phosphor-icons/react"
 
 import {
@@ -54,9 +57,9 @@ export interface ChannelsPageProps {
 
 export const ChannelsPage = ({
     agentId,
-    agentName = "your agent",
+    agentName: agentNameProp,
     agentDescription,
-    workspaceName = "your workspace",
+    workspaceName: workspaceNameProp,
     connections = EMPTY_CONNECTIONS,
     loading = false,
     loadError = null,
@@ -65,10 +68,14 @@ export const ChannelsPage = ({
     renderPanel,
     hostedHandle = "@agenta",
 }: ChannelsPageProps) => {
+    const t = useT(channelsPageCatalog, commonCatalog)
+    const agentName = agentNameProp ?? t("channels.page.yourAgent")
+    const workspaceName = workspaceNameProp ?? t("channels.page.yourWorkspace")
     const [retrying, setRetrying] = useState(false)
     const {open, panel} = useChannelPanel({
         agentId,
-        agentName,
+        // Raw: the panel keeps saved names English and translates only what it shows.
+        agentName: agentNameProp,
         agentDescription,
         workspaceName,
         connections,
@@ -84,20 +91,22 @@ export const ChannelsPage = ({
 
     return (
         <div className="flex flex-col gap-4">
-            <section className="overflow-hidden rounded-xl border border-solid border-colorBorderSecondary bg-colorBgContainer">
+            <section className="overflow-hidden rounded-xl border border-solid border-border-muted bg-background">
                 <div className="flex items-center justify-between gap-2 px-4 pb-2 pt-4">
                     <div className="flex min-w-0 items-center gap-2">
-                        <h3 className="m-0 text-base font-semibold text-colorText">Channels</h3>
+                        <h3 className="m-0 text-label font-semibold text-foreground">
+                            {t("channels.page.title")}
+                        </h3>
                         {anyIssue ? (
-                            <span className="rounded bg-colorErrorBg px-1.5 py-0.5 text-xs text-colorError">
-                                Needs attention
+                            <span className="rounded bg-destructive/10 px-1.5 py-0.5 text-meta text-destructive">
+                                {t("common.needsAttention")}
                             </span>
                         ) : null}
                     </div>
                 </div>
                 <div className="flex flex-col px-4 pb-3">
                     {loadError ? (
-                        <div role="alert" className="mb-2 text-xs text-colorError">
+                        <div role="alert" className="mb-2 text-meta text-destructive">
                             {loadError}
                             {onRetry ? (
                                 <button
@@ -113,16 +122,16 @@ export const ChannelsPage = ({
                                             setRetrying(false)
                                         }
                                     }}
-                                    className="ml-2 cursor-pointer border-0 bg-transparent text-colorPrimary underline"
+                                    className="ml-2 cursor-pointer border-0 bg-transparent text-primary underline"
                                 >
-                                    {retrying ? "Retrying…" : "Try again"}
+                                    {retrying ? t("common.retrying") : t("common.tryAgain")}
                                 </button>
                             ) : null}
                         </div>
                     ) : null}
                     {nothingConnected && !loading && !loadError ? (
-                        <p className="m-0 mb-1 text-xs leading-normal text-colorTextSecondary">
-                            Talk to {agentName} from the chat tools your team already uses.
+                        <p className="m-0 mb-1 text-meta leading-normal text-muted-foreground">
+                            {t("channels.page.intro", {agent: agentName})}
                         </p>
                     ) : null}
                     {CHANNEL_PLATFORMS.map((platform) => {
@@ -145,32 +154,36 @@ export const ChannelsPage = ({
                                 className="flex cursor-pointer items-center gap-2.5 border-0 bg-transparent px-0 py-2.5 text-left disabled:cursor-default"
                                 data-testid={`channels-row-${platform}`}
                             >
-                                <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer">
+                                <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg border border-solid border-border-muted bg-background">
                                     {platformLogo(platform, 18)}
                                 </span>
                                 <span className="flex min-w-0 flex-1 flex-col gap-px">
-                                    <span className="flex items-center gap-1.5 text-[13px] font-medium text-colorText">
+                                    <span className="flex items-center gap-1.5 text-label font-medium text-foreground">
                                         {platformLabel(platform)}
                                         {summary.dotClass ? (
                                             <span
-                                                className={`inline-block h-1.5 w-1.5 rounded-full ${summary.dotClass}`}
+                                                className={`inline-block h-1.5 w-1.5 rounded-xs ${summary.dotClass}`}
                                             />
                                         ) : null}
                                     </span>
-                                    <span className={`truncate text-xs ${summary.subClass}`}>
-                                        {loading ? "Loading…" : loadError ? "Unavailable" : sub}
+                                    <span className={`truncate text-label ${summary.subClass}`}>
+                                        {loading
+                                            ? t("channels.page.loading")
+                                            : loadError
+                                              ? t("common.unavailable")
+                                              : sub}
                                     </span>
                                 </span>
                                 {loading || loadError ? null : summary.action === "manage" ? (
                                     <CaretRight
                                         size={14}
-                                        className="flex-shrink-0 text-colorTextTertiary"
+                                        className="flex-shrink-0 text-muted-foreground"
                                     />
                                 ) : (
-                                    <span className="inline-flex h-6 items-center whitespace-nowrap rounded-md border border-solid border-colorBorder bg-colorBgContainer px-2.5 text-xs text-colorText">
+                                    <span className="inline-flex h-6 items-center whitespace-nowrap rounded-md border border-solid border-border bg-background px-2.5 text-label text-foreground">
                                         {summary.action === "connect-here"
-                                            ? "Connect here"
-                                            : "Connect"}
+                                            ? t("channels.page.connectHere")
+                                            : t("common.connect")}
                                     </span>
                                 )}
                             </button>

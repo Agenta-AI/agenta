@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {Warning} from "@phosphor-icons/react"
 
 /**
@@ -7,12 +9,13 @@ import {Warning} from "@phosphor-icons/react"
  * reserved slot for failure.
  */
 export const AutomationFailureBanner = ({reason}: {reason?: string | null}) => {
+    const t = useT(automationsEditorCatalog)
     if (!reason) return null
 
     return (
         <div
             role="status"
-            className="mt-4 flex items-start gap-2.5 rounded-[10px] border border-solid border-destructive/40 bg-destructive/10 px-3.5 py-3"
+            className="mt-4 flex items-start gap-2 rounded-lg border border-solid border-destructive/30 bg-destructive/10 px-3 py-3"
         >
             <Warning
                 aria-hidden
@@ -21,10 +24,10 @@ export const AutomationFailureBanner = ({reason}: {reason?: string | null}) => {
                 className="mt-px shrink-0 text-destructive"
             />
             <div className="flex min-w-0 flex-col gap-0.5">
-                <span className="text-[14px] font-medium text-destructive">
-                    The last run didn&apos;t finish
+                <span className="text-body font-medium text-destructive">
+                    {t("automations.editor.lastRunFailed")}
                 </span>
-                <span className="text-[13px] leading-snug text-muted-foreground">{reason}</span>
+                <span className="text-label leading-snug text-muted-foreground">{reason}</span>
             </div>
         </div>
     )

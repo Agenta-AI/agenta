@@ -1,15 +1,21 @@
+import {useContext} from "react"
+
+import {useT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
+import phoneCatalog from "@agenta/i18n/catalogs/ui.phone"
 import {sidebarCollapsedAtom} from "@agenta/navigation"
-import {EnhancedButton} from "@agenta/ui/components/presentational"
-import {Sidebar, X} from "@phosphor-icons/react"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {SidebarSimple, X} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {useAtom} from "jotai"
 import type {PrimitiveAtom} from "jotai"
 
+import {SidebarLayoutContext} from "./sidebarLayout"
+
 export interface SidebarToggleButtonProps {
     /** The rail's collapsed state. Defaults to the shared atom both shells already use. */
     collapsedAtom?: PrimitiveAtom<boolean>
-    /** Given, the button CLOSES instead of collapsing — the overlay mount, where a 48px icon
-     * strip inside a sheet is not a state anything can undo. */
+    /** Given, the button CLOSES instead of collapsing (the overlay mount). */
     onDismiss?: () => void
     className?: string
 }
@@ -20,46 +26,27 @@ export const SidebarToggleButton = ({
     onDismiss,
     className,
 }: SidebarToggleButtonProps) => {
+    const t = useT(navigationCatalog, phoneCatalog)
+    // The phone sheet names itself "the sidebar", as its menu button does ("Open the sidebar").
+    const phone = useContext(SidebarLayoutContext) === "phone"
     const [collapsed, setCollapsed] = useAtom(collapsedAtom)
 
+    const label = onDismiss
+        ? t(phone ? "ui.phone.closeSidebar" : "navigation.chrome.closeNavigation")
+        : t(collapsed ? "navigation.chrome.expandSidebar" : "navigation.chrome.collapseSidebar")
+
     return (
-        <EnhancedButton
-            type="text"
-            size="small"
-            className={clsx(
-                // A 28px square, the same box the rail's icon rows use, so the one control above
-                // the list is as easy to hit as the rows under it. It was 22 with a -3px ::after
-                // extending only the POINTER area, which left a hover fill visibly smaller than
-                // the thing you were pointing at.
-                "shrink-0 !size-7 !p-0",
-                // 4px nearer the rail's right edge on the expanded rail only; collapsed, it centres.
-                !collapsed && "-mr-1",
-                className,
-            )}
-            aria-label={onDismiss ? "Close navigation" : undefined}
-            icon={
-                onDismiss ? (
-                    <X size={16} />
-                ) : (
-                    <Sidebar
-                        size={16}
-                        className={clsx("transition-transform", collapsed ? "rotate-180" : "")}
-                    />
-                )
-            }
-            onClick={() => (onDismiss ? onDismiss() : setCollapsed((c) => !c))}
-            // No tooltip on the close: the sheet autofocuses its first focusable child, and a
-            // Radix tooltip opens on FOCUS as well as hover — so every open popped a "Close"
-            // bubble nobody asked for. The X plus its aria-label already say it.
-            tooltipProps={
-                onDismiss
-                    ? undefined
-                    : {
-                          title: collapsed ? "Expand" : "Collapse",
-                          mouseEnterDelay: 1,
-                          placement: "right",
-                      }
-            }
-        />
+        <SimpleTooltip title={label} side={onDismiss ? "bottom" : "right"}>
+            <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className={clsx("shrink-0 text-muted-foreground hover:text-foreground", className)}
+                aria-label={label}
+                onClick={() => (onDismiss ? onDismiss() : setCollapsed((c) => !c))}
+            >
+                {onDismiss ? <X /> : <SidebarSimple />}
+            </Button>
+        </SimpleTooltip>
     )
 }

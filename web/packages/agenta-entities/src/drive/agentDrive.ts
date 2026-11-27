@@ -1,8 +1,7 @@
 /**
- * App drive data (#5247 `POST /mounts/agents/query`): the agent's ONE durable folder, keyed by
- * the workflow artifact id. Read-never-creates — a mount exists only after a run on a #5247
- * runner, so `null` covers both "backend not deployed yet" and "agent never ran": the App drive
- * row simply stays gated until a mount appears, and lights up by itself once one does.
+ * The agent's drive found by its artifact id (`POST /mounts/agents/query`): the home drive of a
+ * configuration without a `drives` list, saved before drives were listed. Read never creates, so
+ * `null` means the agent has no drive.
  */
 import {projectIdAtom} from "@agenta/shared/state"
 import {atomFamily} from "jotai-family"
@@ -15,9 +14,14 @@ export const agentMountQueryFamily = atomFamily((artifactId: string) =>
         const projectId = get(projectIdAtom) ?? ""
         return {
             queryKey: ["mounts", "agent", projectId, artifactId],
-            // At most one mount comes back; every consumer wants it or null.
-            queryFn: async () =>
-                (await queryAgentMounts({artifactId, projectId, lowPriority: true}))?.[0] ?? null,
+            // At most one mount comes back; every consumer wants it or null. A failed lookup is an
+            // error, not "no drive".
+            queryFn: async () => {
+                const mounts = await queryAgentMounts({artifactId, projectId, lowPriority: true})
+                if (mounts === null) throw new Error("The agent drive lookup failed")
+                return mounts[0] ?? null
+            },
+            retry: false,
             enabled: Boolean(artifactId && projectId),
             staleTime: 60_000,
             refetchOnWindowFocus: false,

@@ -1,0 +1,6 @@
+{
+    "audienceNote": "Todos neste projeto podem ler os chats do {{platform}} de um agente compartilhado, incluindo mensagens diretas. Novos chats com um agente privado ficam visíveis só para o proprietário.",
+    "off": "Desativado",
+    "offIn": "Desativado · em {{places}}",
+    "turnOn": "Ativar"
+}

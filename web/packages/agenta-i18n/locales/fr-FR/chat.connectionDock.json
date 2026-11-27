@@ -1,0 +1,14 @@
+{
+    "agentWaiting": "L’agent vous attend",
+    "cancel": "Annuler",
+    "checkingHow": "Vérification du mode de connexion de ce kit d’outils…",
+    "connect": "Connecter",
+    "connectFirst": "Connectez d’abord {{label}}",
+    "connectPrompt": "Connectez-vous à <name>{{name}}</name> pour donner à votre agent accès à ses outils",
+    "connecting": "Connexion à {{name}}… terminez la connexion dans la fenêtre contextuelle.",
+    "connectionFailed": "Échec de la connexion.",
+    "connectionPosition": "Connexion {{position}} sur {{total}}",
+    "dismissFailed": "Impossible d’ignorer la demande de connexion.",
+    "notNow": "Pas maintenant",
+    "retry": "Réessayer"
+}

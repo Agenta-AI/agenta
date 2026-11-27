@@ -9,6 +9,7 @@ export {
     formatCompact,
     formatCompactNumber,
     formatCurrency,
+    formatCurrencyPrecise,
     formatLatency,
     formatTokens,
     formatTokenUsage,

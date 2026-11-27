@@ -9,6 +9,8 @@
  */
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {Button} from "@agenta/ui/ui"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 
@@ -25,9 +27,10 @@ export interface SectionQuickActionProps {
 export function SectionQuickAction({
     children,
     onOpenDetails,
-    detailsLabel = "Detailed configuration",
+    detailsLabel,
     disabled,
 }: SectionQuickActionProps) {
+    const t = useT(schemaControlsCatalog)
     return (
         <div className="flex flex-col gap-3">
             {children}
@@ -35,10 +38,10 @@ export function SectionQuickAction({
                 variant="ghost"
                 onClick={onOpenDetails}
                 disabled={disabled}
-                className="h-auto w-fit px-0 text-xs text-primary"
+                className="h-auto w-fit px-0 text-meta text-primary"
             >
                 <ArrowSquareOut size={13} />
-                {detailsLabel}
+                {detailsLabel ?? t("entityUi.schemaControls.detailedConfiguration")}
             </Button>
         </div>
     )

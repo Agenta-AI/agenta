@@ -505,6 +505,78 @@ async def test_only_the_channel_run_creates_a_channel_thread_s_session():
         assert (rows[0]["visibility"], rows[0]["owner_user_id"]) == ("private", alice)
 
 
+async def test_a_child_row_and_its_copied_grants_commit_together(monkeypatch):
+    """A child of a private session gets its calling session's grants in the insert's
+    transaction. A failed copy leaves no row, so a retry with the same session id creates
+    the row with the grants. The copy reads the grants as they are at the insert: a
+    grant removed before it is not copied. A changed calling policy creates nothing."""
+
+    import oss.src.dbs.postgres.sharing.dao as sharing_dao
+    from oss.src.core.sessions.streams.dtos import SessionStreamCreate
+
+    async with seeded("alice", "bob", "carol") as org:
+        project_id = _project(org)
+        alice, bob, carol = (org.user_ids[k] for k in ("alice", "bob", "carol"))
+        calling_stream_id, calling_id = await _session(
+            project_id, visibility="private", owner=alice
+        )
+        await _grant(project_id, calling_stream_id, bob, "participant")
+        await _grant(project_id, calling_stream_id, carol, "viewer")
+        streams = SessionStreamsDAO(engine=get_transactions_engine())
+        child_id = f"s-{uuid4().hex}"
+        row_of = (
+            "SELECT id FROM session_streams WHERE project_id = :p AND session_id = :s"
+        )
+
+        def _create(access=None):
+            return streams.create(
+                project_id=project_id,
+                user_id=bob,
+                stream=SessionStreamCreate(
+                    session_id=child_id, access=access or _private(alice)
+                ),
+                grants_from_session_id=calling_id,
+            )
+
+        failing = {"left": 1}
+        copy_sql = sharing_dao._COPY_GRANTS_SQL
+
+        real_text = sharing_dao.text
+
+        def flaky_text(sql):
+            if sql == copy_sql and failing["left"]:
+                failing["left"] -= 1
+                raise RuntimeError("grant write failed")
+            return real_text(sql)
+
+        monkeypatch.setattr(sharing_dao, "text", flaky_text)
+        with pytest.raises(RuntimeError):
+            await _create()
+        assert await fetch_all(row_of, {"p": project_id, "s": child_id}) == []
+
+        # The owner removes Carol before the retry: she is not copied.
+        await _dao().set_session_sharing(
+            project_id=project_id,
+            session_id=calling_id,
+            expected=_private(alice),
+            change=SessionSharingChange(remove_user_ids=[carol]),
+            user_id=alice,
+        )
+        # A start that read the calling policy before a change creates nothing.
+        with pytest.raises(SharingConflict):
+            await _create(access=_project_policy(alice))
+        assert await fetch_all(row_of, {"p": project_id, "s": child_id}) == []
+
+        created = await _create()
+        assert [(g.user_id, g.role) for g in created.created_grants] == [
+            (bob, SessionRole.PARTICIPANT)
+        ]
+        grants = await _dao().list_session_grants(
+            project_id=project_id, stream_id=created.id
+        )
+        assert {g.user_id: g.role for g in grants} == {bob: SessionRole.PARTICIPANT}
+
+
 async def test_killed_and_archived_sessions_keep_their_policy():
     async with seeded("alice") as org:
         project_id, alice = _project(org), org.user_ids["alice"]
@@ -1244,11 +1316,11 @@ async def test_sharing_write_statement_count(monkeypatch):
                 ),
             )
 
-        # expected read + lock + compare read + upsert (a make-private no longer turns
-        # channel bindings off)
-        assert len(make_private) == 4, make_private
-        # expected read + lock + compare read + upsert
-        assert len(make_project) == 4, make_project
+        # expected read + agent drive read + lock + compare read + agent drive read
+        # under the lock + upsert (a make-private no longer turns channel bindings off)
+        assert len(make_private) == 6, make_private
+        # the same six
+        assert len(make_project) == 6, make_project
         # session state read + grants read + lock read + locked grants read + upsert
         assert len(invite) == 5, invite
 

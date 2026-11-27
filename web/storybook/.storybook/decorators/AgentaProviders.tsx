@@ -1,30 +1,24 @@
-import React from "react"
+import React, {useLayoutEffect} from "react"
 
-import ThemeContextProvider from "@agenta/oss/src/components/Layout/ThemeContextProvider"
-import {default as AppMessageBridge} from "@agenta/ui/app-message"
+import {default as AppMessageContext} from "@agenta/ui/app-message"
 import {QueryClientProvider, type QueryClient} from "@tanstack/react-query"
-import {App as AntApp} from "antd"
 import {getDefaultStore, Provider as JotaiProvider} from "jotai"
 
 import {defaultStoryQueryClient} from "./withAgentaData"
 
-// The REAL app theme provider (ConfigProvider + antd theme + cssVar:{key:"agenta"} +
-// .agenta/.dark class wiring). Reused verbatim so Storybook renders exactly what the
-// app renders — no re-derived token math.
-
-// The app renders `<Provider store={getDefaultStore()}>` (oss/src/state/Providers.tsx:26)
-// because ~120 files reach for `getDefaultStore()` imperatively (molecule.set.*, bridges).
-// A bare `<Provider>` mints an isolated store, so React would read one store while those
-// writes land in another — silently, with no error. Match the app: same store.
+// The app renders `<Provider store={getDefaultStore()}>` because many files reach for
+// `getDefaultStore()` imperatively (molecule.set.*, bridges). A bare `<Provider>` mints an
+// isolated store, so React would read one store while those writes land in another, silently.
+// Match the app: same store.
 const sharedStore = getDefaultStore()
 
 export type StoryTheme = "light" | "dark"
 
 /**
- * Minimal, styling-faithful subset of the app provider tree (from
- * web/oss/src/components/pages/_app). Skips auth/router/analytics/layout which do
- * not affect component appearance. `key={theme}` remounts ThemeContextProvider so it
- * re-reads the forced localStorage mode when the toolbar toggles light/dark.
+ * The styling-relevant subset of the /m app's provider tree (web/mobile/src/pages/_app.tsx).
+ * Skips auth, router, analytics and layout, which do not change how a component looks. Dark
+ * mode is the `.dark` class on <html>, as /m's _document.tsx sets it, plus the "agenta-theme"
+ * localStorage key that `useThemeMode` reads.
  */
 export function AgentaProviders({
     theme,
@@ -35,26 +29,23 @@ export function AgentaProviders({
     queryClient?: QueryClient
     children: React.ReactNode
 }) {
-    if (typeof window !== "undefined") {
+    useLayoutEffect(() => {
+        const root = document.documentElement
+        root.classList.toggle("dark", theme === "dark")
+        root.style.colorScheme = theme
         try {
-            // usehooks-ts useLocalStorage JSON-parses its value, so it must be stored
-            // JSON-encoded ('"light"'), not as a raw string, or it falls back to System.
+            // usehooks-ts useLocalStorage JSON-parses its value, so store it JSON-encoded.
             window.localStorage.setItem("agenta-theme", JSON.stringify(theme))
         } catch {
             /* ignore */
         }
-    }
+    }, [theme])
 
     return (
         <JotaiProvider store={sharedStore}>
             <QueryClientProvider client={queryClient}>
-                <ThemeContextProvider key={theme}>
-                    <AntApp>
-                        {/* Wires antd static message/modal/notification to the theme. */}
-                        <AppMessageBridge />
-                        <div className="p-6">{children}</div>
-                    </AntApp>
-                </ThemeContextProvider>
+                <div className="bg-background p-6 text-foreground">{children}</div>
+                <AppMessageContext />
             </QueryClientProvider>
         </JotaiProvider>
     )

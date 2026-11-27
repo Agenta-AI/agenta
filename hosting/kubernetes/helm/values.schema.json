@@ -15,7 +15,7 @@
             "oss",
             "ee"
           ],
-          "description": "Edition. Emitted as AGENTA_LICENSE."
+          "description": "Picks the default database names (agenta_<license>_*) and the classic web (/w) build. With ee, the services ignore provider keys from the environment unless AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED is true. The api, services and runner images are the same for both values. Emitted as AGENTA_LICENSE."
         },
         "webUrl": {
           "type": "string",
@@ -112,6 +112,13 @@
                 "string"
               ],
               "description": "AGENTA_ACCESS_EMAIL_DISABLED \u2014 disable email/password auth."
+            },
+            "personalAccountsEnabled": {
+              "type": [
+                "boolean",
+                "string"
+              ],
+              "description": "AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED \u2014 default true. People can store their own accounts (custom secrets, Composio connections, MCP sign-ins) and an agent's `user` items use them. Set false to turn it off; during an upgrade keep it false until every API, services and runner pod runs a release that supports personal accounts."
             },
             "defaultPlan": {
               "type": "string",
@@ -1079,6 +1086,31 @@
         }
       }
     },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "AGENTA_TELEMETRY_ENABLED."
+        },
+        "instanceKind": {
+          "type": "string",
+          "enum": ["", "production", "development", "ci", "test"],
+          "description": "AGENTA_TELEMETRY_INSTANCE_KIND. Empty lets the API detect it."
+        }
+      }
+    },
+    "releases": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "updateCheckEnabled": {
+          "type": "boolean",
+          "description": "AGENTA_UPDATE_CHECK_ENABLED."
+        }
+      }
+    },
     "sendgrid": {
       "type": "object",
       "additionalProperties": false,
@@ -1109,14 +1141,6 @@
           ],
           "description": "ALEMBIC_AUTO_MIGRATIONS."
         },
-        "cfgPathCore": {
-          "type": "string",
-          "description": "ALEMBIC_CFG_PATH_CORE."
-        },
-        "cfgPathTracing": {
-          "type": "string",
-          "description": "ALEMBIC_CFG_PATH_TRACING."
-        },
         "env": {
           "type": "object",
           "additionalProperties": {
@@ -1142,7 +1166,10 @@
           "description": "Helm hook phase for the migration Job. 'post' (default) renders post-install,post-upgrade and is required with the bundled PostgreSQL, which does not exist yet at pre-install time. 'pre' renders pre-install,pre-upgrade so the migrations finish before the app pods start; use it with an external database."
         },
         "activeDeadlineSeconds": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 1,
+          "default": 3600,
+          "description": "Seconds the migration Job may run before Kubernetes stops it and the install or upgrade fails. Default 3600. Raise it for a database with very many organizations."
         },
         "backoffLimit": {
           "type": "integer"

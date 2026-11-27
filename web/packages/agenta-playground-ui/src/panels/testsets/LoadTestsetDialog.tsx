@@ -6,6 +6,8 @@ import {
     type TestsetSelectionResult,
 } from "@agenta/entity-ui/selection"
 import {TestcaseTable} from "@agenta/entity-ui/testcase"
+import {useT} from "@agenta/i18n"
+import testsetsCatalog from "@agenta/i18n/catalogs/playground.testsets"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {
     Alert,
@@ -54,6 +56,7 @@ export const LoadTestsetDialog = ({
     onCancel,
     create,
 }: LoadTestsetDialogProps) => {
+    const t = useT(testsetsCatalog)
     const wide = useMediaQuery("(min-width: 768px)")
     const isEdit = mode === "edit"
     const [step, setStep] = useState<"sets" | "rows">(isEdit ? "rows" : "sets")
@@ -136,7 +139,7 @@ export const LoadTestsetDialog = ({
                                     onClick={() => setStep("sets")}
                                 >
                                     <CaretLeft aria-hidden size={14} />
-                                    Test sets
+                                    {t("playground.testsets.testSets")}
                                 </Button>
                             )}
                             {selection.selectedRevisionId ? (
@@ -149,8 +152,10 @@ export const LoadTestsetDialog = ({
                                         />
                                         <Input
                                             type="search"
-                                            aria-label="Search test cases"
-                                            placeholder="Search test cases..."
+                                            aria-label={t("playground.testsets.searchTestCases")}
+                                            placeholder={t(
+                                                "playground.testsets.searchTestCasesPlaceholder",
+                                            )}
                                             value={searchTerm}
                                             onChange={(event) => setSearchTerm(event.target.value)}
                                             className="pl-8"
@@ -170,8 +175,8 @@ export const LoadTestsetDialog = ({
                                     </div>
                                 </>
                             ) : (
-                                <p className="m-auto text-sm text-muted-foreground">
-                                    Select a test set to preview
+                                <p className="m-auto text-body text-muted-foreground">
+                                    {t("playground.testsets.selectToPreview")}
                                 </p>
                             )}
                         </section>
@@ -182,19 +187,22 @@ export const LoadTestsetDialog = ({
                         <Alert
                             type="warning"
                             showIcon
-                            className="text-xs"
-                            message="Cannot select items from this test set"
+                            className="text-label font-normal"
+                            message={t("playground.testsets.cannotSelect")}
                         />
                     ) : (
-                        <p className="m-0 text-sm text-muted-foreground">
+                        <p className="m-0 text-body text-muted-foreground">
                             {selection.selectedRevisionId
-                                ? `${selection.selectedIds.length} of ${selection.totalLabel} test cases selected`
+                                ? t("playground.testsets.selectedOf", {
+                                      selected: selection.selectedIds.length,
+                                      total: selection.totalLabel,
+                                  })
                                 : null}
                         </p>
                     )}
                     <div className="flex shrink-0 gap-2">
                         <Button variant="outline" onClick={cancel}>
-                            Cancel
+                            {t("playground.testsets.cancel")}
                         </Button>
                         {selection.selectionDisabled ? null : (
                             <Button

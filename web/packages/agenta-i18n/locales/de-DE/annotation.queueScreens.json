@@ -1,0 +1,7 @@
+{
+    "listTitle": "Annotation-Warteschlangen",
+    "queueName": "Name der Warteschlange",
+    "emptyTitle": "Diese Warteschlange ist leer",
+    "testcaseUnavailable": "Daten des Testfalls nicht verfügbar",
+    "testcaseNoData": "Für diesen Testfall sind keine Daten verfügbar"
+}

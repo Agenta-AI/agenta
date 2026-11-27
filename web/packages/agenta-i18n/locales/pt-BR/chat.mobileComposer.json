@@ -1,0 +1,11 @@
+{
+    "addProviderKey": "Adicione a chave do seu provedor de modelos para executar este agente.",
+    "attachment": "Anexo",
+    "backToCommands": "← voltar aos comandos",
+    "connectModelPlaceholder": "Conecte um modelo para começar a conversar…",
+    "messageSubject": "Mensagem",
+    "modelButton": "Modelo: {{model}}",
+    "removeOneToAdd": "Remova um para adicionar outro (máximo de {{count}})",
+    "searchModels": "Pesquisar modelos",
+    "setUpProviders": "Configurar provedores de modelos"
+}

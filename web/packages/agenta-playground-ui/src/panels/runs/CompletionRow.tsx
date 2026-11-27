@@ -1,5 +1,7 @@
 import {memo, useEffect, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import runsCatalog from "@agenta/i18n/catalogs/playground.runs"
 import {executionItemController} from "@agenta/playground"
 import {HeightCollapse} from "@agenta/ui/components"
 import {RunButton} from "@agenta/ui/components/presentational"
@@ -43,6 +45,7 @@ export const CompletionRow = memo(
         templateFormat,
         renderTraceFooter,
     }: CompletionRowProps) => {
+        const t = useT(runsCatalog)
         const row = useExecutionRow({entityId, rowId})
         const deleteRow = useSetAtom(executionItemController.actions.deleteRow)
         const duplicateRow = useSetAtom(executionItemController.actions.duplicateRow)
@@ -68,19 +71,24 @@ export const CompletionRow = memo(
                     <button
                         type="button"
                         aria-expanded={!collapsed}
-                        aria-label={`${collapsed ? "Expand" : "Collapse"} test case ${index + 1}`}
+                        aria-label={t(
+                            collapsed
+                                ? "playground.runs.expandCase"
+                                : "playground.runs.collapseCase",
+                            {number: index + 1},
+                        )}
                         onClick={() => {
                             setClicked(true)
                             setOwn(!collapsed)
                         }}
-                        className="flex shrink-0 items-center rounded-md border-0 bg-transparent p-1 text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+                        className="flex shrink-0 items-center rounded-md border-0 bg-transparent p-1 text-muted-foreground outline-none hover:bg-accent focus-ring"
                     >
                         {collapsed ? <CaretRight size={12} /> : <CaretDown size={12} />}
                     </button>
                     <button
                         type="button"
                         onClick={() => openDetails({rowId, entityId})}
-                        className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border-0 bg-muted px-2 py-0.5 text-xs text-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+                        className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border-0 bg-muted px-2 py-0.5 text-label font-normal text-foreground outline-none hover:bg-accent focus-ring"
                     >
                         <Rows size={12} aria-hidden />
                         {`testcase ${index + 1}`}

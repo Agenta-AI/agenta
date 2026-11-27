@@ -1,0 +1,9 @@
+{
+    "copyFailed": "Couldn't copy — select the secret above and copy it",
+    "copySecret": "Copy secret",
+    "deleteBody": "Agenta stops delivering events to {{url}}.",
+    "deleteFailed": "Could not delete the subscription",
+    "deleteTitle": "Delete subscription",
+    "secretDescription": "Shown once. You need it to verify that incoming requests came from Agenta.",
+    "secretTitle": "Save your webhook secret"
+}

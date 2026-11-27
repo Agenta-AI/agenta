@@ -2,14 +2,16 @@
  * EntityCommitModal Component
  *
  * Performance-optimized modal shell for committing entity changes.
- * Uses EnhancedModal for lazy rendering and consistent styling.
+ * Uses the kit Dialog, which mounts its content only while open.
  */
 
 import {useEffect, useCallback, useRef, useState, type ReactNode} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import commitModalCatalog from "@agenta/i18n/catalogs/entityUi.commitModal"
 import {extractApiErrorMessage, generateSlugWithSuffix, isValidSlug} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
-import {EnhancedModal} from "@agenta/ui/components/modal"
+import {cn, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {revisionModalAdapter, testsetModalAdapter, variantModalAdapter} from "../../../adapters"
@@ -114,7 +116,7 @@ export interface EntityCommitModalProps {
     entityNameLabel?: string
 }
 
-const SLUG_CONFLICT_MESSAGE = "A resource with this slug already exists in this project."
+const tNow = createT(commitModalCatalog)
 
 function getErrorStatus(error: unknown): number | undefined {
     return (error as {response?: {status?: number}})?.response?.status
@@ -156,7 +158,7 @@ export function EntityCommitModal({
     onSuccess,
     onSubmit,
     onAfterSuccess,
-    successMessage = "Changes committed successfully",
+    successMessage,
     submitLabel,
     commitDeployOptions,
     commitModes,
@@ -170,8 +172,9 @@ export function EntityCommitModal({
     createEntityFields,
     entityNameEditable = false,
     entityNameEditableModes,
-    entityNameLabel = "Name",
+    entityNameLabel,
 }: EntityCommitModalProps) {
+    const t = useT(commitModalCatalog)
     const internalOpen = useAtomValue(commitModalOpenAtom)
     const context = useAtomValue(commitModalContextAtom)
     const currentEntity = useAtomValue(commitModalEntityAtom)
@@ -230,7 +233,7 @@ export function EntityCommitModal({
     const resolvedEntityNameLabel =
         typeof configuredNameLabel === "function"
             ? configuredNameLabel({entity: createFieldsEntity, mode: selectedMode})
-            : (configuredNameLabel ?? entityNameLabel)
+            : (configuredNameLabel ?? entityNameLabel ?? t("entityUi.commitModal.name"))
 
     // Check if diff data is available for dynamic width
     const hasDiffData = context?.diffData?.original && context?.diffData?.modified
@@ -405,11 +408,15 @@ export function EntityCommitModal({
                     if (!result.success) {
                         const isSlugConflict = result.slugConflict || result.errorStatus === 409
                         if (isSlugConflict) {
-                            setSlugFieldError(SLUG_CONFLICT_MESSAGE)
+                            setSlugFieldError(tNow("entityUi.commitModal.slugConflict"))
                             setSlugEditing(true)
                         }
                         setCommitError(
-                            new Error(extractApiErrorMessage(result.error || "Commit failed")),
+                            new Error(
+                                extractApiErrorMessage(
+                                    result.error || tNow("entityUi.commitModal.commitFailed"),
+                                ),
+                            ),
                         )
                         setCommitLoading(false)
                         return
@@ -421,8 +428,12 @@ export function EntityCommitModal({
                         closeModal()
                     }
 
-                    if (successMessage) {
-                        message.success(successMessage)
+                    const success =
+                        successMessage === undefined
+                            ? tNow("entityUi.commitModal.committed")
+                            : successMessage
+                    if (success) {
+                        message.success(success)
                     }
 
                     handleSuccess({newRevisionId: result.newRevisionId})
@@ -431,7 +442,7 @@ export function EntityCommitModal({
                 } catch (error) {
                     const msg = extractApiErrorMessage(error)
                     if (getErrorStatus(error) === 409) {
-                        setSlugFieldError(SLUG_CONFLICT_MESSAGE)
+                        setSlugFieldError(tNow("entityUi.commitModal.slugConflict"))
                         setSlugEditing(true)
                     }
                     setCommitError(
@@ -449,8 +460,12 @@ export function EntityCommitModal({
                 if (isExternallyControlled) {
                     onClose?.()
                 }
-                if (successMessage) {
-                    message.success(successMessage)
+                const success =
+                    successMessage === undefined
+                        ? tNow("entityUi.commitModal.committed")
+                        : successMessage
+                if (success) {
+                    message.success(success)
                 }
                 handleSuccess({})
             }
@@ -477,53 +492,63 @@ export function EntityCommitModal({
         ],
     )
 
+    // "Commit" is the default action word; a host's own word is shown as it is.
+    const actionText = actionLabel === "Commit" ? t("entityUi.commitModal.commit") : actionLabel
+
     const footerNode = (
         <EntityCommitFooter
             onClose={handleClose}
             onConfirm={handleConfirm}
             isLoading={isLoading}
             canProceed={canProceedWithExtension}
-            confirmLabel={submitLabel ?? actionLabel}
+            confirmLabel={submitLabel ?? actionText}
             deployOptions={commitDeployOptions}
         />
     )
 
     return (
-        <EnhancedModal
-            open={isOpen}
-            onCancel={handleClose}
-            afterClose={handleAfterClose}
-            // Agent commits render title + footer inside the body (two full-bleed panels).
-            title={isAgentTwoPane ? null : <EntityCommitTitle />}
-            aria-label={`${actionLabel} changes`}
-            footer={isAgentTwoPane ? null : footerNode}
-            width={hasDiffData ? 900 : 520}
-            styles={
-                isAgentTwoPane
-                    ? {
-                          container: {padding: 0, overflow: "hidden"},
-                          body: {padding: 0, overflow: "hidden"},
-                      }
-                    : {
-                          body: {
-                              maxHeight: "calc(80vh - 110px)",
-                              overflow: "hidden",
-                              display: "flex",
-                              flexDirection: "column",
-                          },
-                      }
-            }
-        >
-            <EntityCommitContent
-                commitModes={commitModes}
-                selectedMode={selectedMode}
-                onModeChange={setSelectedMode}
-                extraContent={renderModeContent?.({mode: selectedMode})}
-                modeLabel={modeLabel}
-                entityNameEditable={isEntityNameEditable}
-                entityNameLabel={resolvedEntityNameLabel}
-                footerSlot={isAgentTwoPane ? footerNode : undefined}
-            />
-        </EnhancedModal>
+        <Dialog open={isOpen} onOpenChange={(next) => !next && handleClose()}>
+            <DialogContent
+                className={cn(
+                    hasDiffData && "max-w-[900px]",
+                    // Agent commits render title + footer inside the body (two full-bleed panels).
+                    isAgentTwoPane && "gap-0 overflow-hidden p-0",
+                )}
+                // Fires once the close animation has unmounted the content.
+                onCloseAutoFocus={handleAfterClose}
+            >
+                {isAgentTwoPane ? (
+                    <DialogTitle className="sr-only">
+                        {actionLabel === "Commit"
+                            ? t("entityUi.commitModal.commitChanges")
+                            : t("entityUi.commitModal.actionChanges", {action: actionLabel})}
+                    </DialogTitle>
+                ) : (
+                    <DialogHeader>
+                        <DialogTitle>
+                            <EntityCommitTitle />
+                        </DialogTitle>
+                    </DialogHeader>
+                )}
+                <div
+                    className={cn(
+                        "min-h-0 flex-1 overflow-hidden text-field-md text-foreground",
+                        !isAgentTwoPane && "flex max-h-[calc(80vh-110px)] flex-col",
+                    )}
+                >
+                    <EntityCommitContent
+                        commitModes={commitModes}
+                        selectedMode={selectedMode}
+                        onModeChange={setSelectedMode}
+                        extraContent={renderModeContent?.({mode: selectedMode})}
+                        modeLabel={modeLabel}
+                        entityNameEditable={isEntityNameEditable}
+                        entityNameLabel={resolvedEntityNameLabel}
+                        footerSlot={isAgentTwoPane ? footerNode : undefined}
+                    />
+                </div>
+                {isAgentTwoPane ? null : <DialogFooter>{footerNode}</DialogFooter>}
+            </DialogContent>
+        </Dialog>
     )
 }

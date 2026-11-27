@@ -8,7 +8,7 @@ never raise ``HTTPException`` directly.
 import json
 
 from math import isfinite
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import httpx
 
@@ -22,6 +22,8 @@ from agenta.sdk.engines.running.utils import (  # noqa: F401
 )
 from agenta.sdk.agents import HarnessKind
 
+from oss.src.core.sharing.types import HOME_DRIVE_NOT_ALLOWED
+
 
 class WorkflowError(Exception):
     """Base exception for workflow-domain errors."""
@@ -33,8 +35,9 @@ class WorkflowError(Exception):
 
 class AgentReferenceUnresolved(WorkflowError):
     """A reference names an agent (a key of `AGENT_REFERENCE_KEYS`) and nothing
-    resolves: the agent is unknown, deleted, archived, or in another project. Callers
-    answer it as an unknown id (404 `not_found`)."""
+    resolves: the agent is unknown, deleted, archived, or in another project. Also raised
+    when an idempotent create's retry finds an agent the caller's read scope hides. Callers
+    answer it as an unknown agent."""
 
     def __init__(self, message: str = "Not found."):
         super().__init__(message)
@@ -57,6 +60,45 @@ class StaticWorkflowSlug(WorkflowError):
                 f"Choose a different slug than '{slug}'."
             )
         )
+
+
+class StaticWorkflowReadOnly(WorkflowError):
+    """Raised when a write names a static workflow by id: an edit, an archive, a fork, a
+    variant or a revision created outside the commit, or a commit from an agent's tool.
+
+    A static workflow is defined in code. A project may commit only the editable fields of
+    one that lists them, through the commit endpoint; every other write is refused. A
+    sibling of :class:`StaticWorkflowSlug`, which refuses a reserved slug the caller sent.
+    """
+
+    code = "static_workflow_read_only"
+
+    _NEXT_STEP = (
+        "Commit only the workflow's editable fields through the commit endpoint, or "
+        "leave this workflow unchanged."
+    )
+    # For an agent's commit tool, which may never change a static workflow.
+    AGENT_NEXT_STEP = (
+        "An agent's tools cannot change this workflow. Leave it unchanged and do not "
+        "send this change again."
+    )
+
+    def __init__(self, slug: str, *, next_step: Optional[str] = None):
+        self.slug = slug
+        self.next_step = next_step or self._NEXT_STEP
+        super().__init__(
+            f"The workflow '{slug}' is defined by Agenta and cannot be changed here."
+        )
+
+    def to_detail(self) -> Dict[str, Any]:
+        """The canonical agent-actionable envelope. See `api/AGENTS.md`."""
+        return {
+            "code": self.code,
+            "message": self.message,
+            "retryable": False,
+            "next_step": self.next_step,
+            "details": {"slug": self.slug},
+        }
 
 
 def _json_safe_echo(value: Any) -> Any:
@@ -119,6 +161,35 @@ class InvalidAgentHarnessError(Exception):
         }
 
 
+class StaticFieldNotEditableError(Exception):
+    """A delta commit on a static workflow targets a field outside its ``editable`` list.
+
+    A static workflow is defined in code; a project may commit only the fields its catalogue
+    entry lists as editable. A full-data commit drops the other fields instead, so this is
+    raised only for a delta, which names its target.
+    """
+
+    code = "static_field_not_editable"
+
+    def __init__(self, *, field: str, editable: List[str]) -> None:
+        self.field = field
+        self.editable = list(editable)
+        self.message = f"'{field}' cannot be changed on this workflow."
+        super().__init__(self.message)
+
+    def to_detail(self) -> Dict[str, Any]:
+        """The canonical agent-actionable envelope. See `api/AGENTS.md`."""
+        return {
+            "code": self.code,
+            "message": self.message,
+            "retryable": False,
+            "next_step": (
+                "Change only the fields in `details.editable` and send the commit again."
+            ),
+            "details": {"field": self.field, "editable": self.editable},
+        }
+
+
 class InvalidAgentInstructionsError(Exception):
     """The commit carries ``parameters.agent.instructions`` in a shape the runtime cannot read.
 
@@ -146,7 +217,7 @@ class InvalidAgentInstructionsError(Exception):
             "retryable": False,
             "next_step": (
                 'Set agent.instructions to {"agents_md": "<the full AGENTS.md text>"} '
-                "and send the commit again."
+                "and send the call again."
             ),
             "details": {
                 "field": "parameters.agent.instructions",
@@ -183,6 +254,118 @@ class InvalidAgentConnectionError(Exception):
                 "reason": self.reason,
             },
         }
+
+
+class InvalidAgentConfigurationError(Exception):
+    """The commit carries an agent configuration the runtime refuses to parse.
+
+    Before every run the runtime parses ``parameters`` with ``AgentTemplate.from_params``. A
+    skill without ``body`` was stored with 200, and then every run of the agent failed with a
+    500. Refused at the write boundary for the same reason as
+    :class:`InvalidAgentHarnessError`, and kept outside the :class:`WorkflowError` family for
+    the same reason too.
+
+    The rule reads the RESULT, not the change. An agent stored before this rule existed can
+    hold such a field, and then a change to any other field is refused too, until the same
+    change corrects it. The issues name the field, so the caller knows what to correct.
+
+    ``message`` is plain text for a person and names no field path; the paths are in
+    ``details.issues``.
+    """
+
+    code = "invalid_agent_configuration"
+
+    def __init__(self, *, issues: List[str]) -> None:
+        message = "This agent's setup is not valid, so it cannot run."
+        super().__init__(message)
+        self.issues = list(issues)
+        self.message = message
+
+    def to_detail(self) -> Dict[str, Any]:
+        """The canonical agent-actionable envelope. See `api/AGENTS.md`."""
+        return {
+            "code": self.code,
+            "message": self.message,
+            "retryable": False,
+            "next_step": (
+                "Correct the fields listed in `details.issues` and send the call again. "
+                "If the stored agent already holds one of them, correct it in the same "
+                "change: no other change is accepted until it is corrected."
+            ),
+            "details": {"issues": self.issues},
+        }
+
+
+class AgentDriveError(Exception):
+    """The commit carries ``parameters.agent.drives``, ``home_drive`` or ``has_session_drive``
+    that no run can use. Kept outside :class:`WorkflowError` for the reason :class:`InvalidAgentHarnessError`
+    gives; the commit routes map every subclass to 422."""
+
+    code: str
+
+    def __init__(self, *, field: str, value: Any, message: str, next_step: str) -> None:
+        super().__init__(message)
+        self.field = field
+        self.value = value
+        self.message = message
+        self.next_step = next_step
+
+    def to_detail(self) -> Dict[str, Any]:
+        return {
+            "code": self.code,
+            "message": self.message,
+            "retryable": False,
+            "next_step": self.next_step,
+            "details": {
+                "field": f"parameters.agent.{self.field}",
+                "value": _json_safe_echo(self.value),
+            },
+        }
+
+
+class InvalidAgentDrivesError(AgentDriveError):
+    """A drive entry breaks a rule of the SDK's ``validate_agent_drives``."""
+
+    code = "invalid_drive_entry"
+
+
+class InvalidSessionDriveError(AgentDriveError):
+    """``has_session_drive`` is not a boolean."""
+
+    code = "invalid_session_drive"
+
+
+class InvalidHomeDriveError(AgentDriveError):
+    """``home_drive`` names no entry of ``drives``, or a read entry."""
+
+    code = "invalid_home_drive"
+
+
+class AgentDriveNotFoundError(AgentDriveError):
+    """An entry names no active drive in this project, or a private drive the saver may
+    not use."""
+
+    code = "drive_not_found"
+
+
+class AgentDriveNotSharedError(AgentDriveError):
+    """A shared agent lists a private drive of the saver."""
+
+    code = "drive_not_shared"
+
+
+class HomeDriveNotAllowedError(AgentDriveError):
+    """A private agent's home drive is not a private drive of the agent's owner."""
+
+    code = HOME_DRIVE_NOT_ALLOWED
+
+
+class MountLookupMissing(WorkflowError):
+    """The service was built without the mount lookup, so it cannot check the drives of
+    an agent. A wiring fault of the server, never the caller's."""
+
+    def __init__(self, message: Optional[str] = None):
+        super().__init__(message or "Drives cannot be checked: no mount lookup.")
 
 
 class WorkflowServiceUrlMissing(WorkflowError):

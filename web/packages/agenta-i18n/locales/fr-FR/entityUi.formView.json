@@ -1,0 +1,8 @@
+{
+    "emptyObject": "(objet vide)",
+    "emptyArray": "(tableau vide)",
+    "removeRow": "Supprimer la ligne {{index}}",
+    "addRow": "Ajouter une ligne",
+    "numberPlaceholder": "Saisissez une valeur numérique",
+    "valuePlaceholder": "Saisissez une valeur"
+}

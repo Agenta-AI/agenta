@@ -1,6 +1,8 @@
 import {useMemo, type ReactNode} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import runsCatalog from "@agenta/i18n/catalogs/playground.runs"
 import {playgroundController} from "@agenta/playground"
 import {Badge} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
@@ -16,10 +18,11 @@ export interface RevisionResultCardProps {
 
 /**
  * A bordered card around one revision's output, as in the old playground: the revision's name
- * and version sit on the top border ("Workflow v5"), with an amber "draft" tag while the revision
+ * and version sit on the top border ("Workflow v5"), with an amber "Draft" tag while the revision
  * has unsaved edits.
  */
 export const RevisionResultCard = ({entityId, children, className}: RevisionResultCardProps) => {
+    const t = useT(runsCatalog)
     const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), []))
     const node = nodes.find((candidate) => candidate.entityId === entityId) ?? null
     // A stable list: the hook builds its atom from it.
@@ -30,7 +33,7 @@ export const RevisionResultCard = ({entityId, children, className}: RevisionResu
         useMemo(() => workflowMolecule.selectors.isDirty(entityId), [entityId]),
     )
     const version = data?.version as number | undefined
-    const name = node ? getNodeLabel(node) : "Output"
+    const name = node ? getNodeLabel(node) : t("playground.runs.output")
 
     return (
         <div
@@ -44,9 +47,9 @@ export const RevisionResultCard = ({entityId, children, className}: RevisionResu
                         <span className="ml-1 text-muted-foreground">v{version}</span>
                     ) : null}
                 </Badge>
-                {isDirty ? <Badge variant="draft">draft</Badge> : null}
+                {isDirty ? <Badge variant="default">{t("playground.runs.draft")}</Badge> : null}
             </div>
-            <div className="min-w-0 rounded-lg border border-solid border-border px-3 pb-2 pt-6 text-sm">
+            <div className="min-w-0 rounded-lg border border-solid border-border px-3 pb-2 pt-6 text-body">
                 {children}
             </div>
         </div>

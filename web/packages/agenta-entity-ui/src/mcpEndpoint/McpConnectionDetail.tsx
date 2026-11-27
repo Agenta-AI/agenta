@@ -25,11 +25,22 @@ import {
     type MCPEndpoint,
     type McpToolSummary,
 } from "@agenta/entities/mcpEndpoint"
+import {createT, useT} from "@agenta/i18n"
+import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
+import mcpDetailCatalog from "@agenta/i18n/catalogs/entityUi.mcpDetail"
 import {projectIdAtom} from "@agenta/shared/state"
-import {EnhancedModal, ModalContent} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
-import {Button, cn, Field, Input, touchTargetExpansion} from "@agenta/ui/ui"
+import {
+    Button,
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    Field,
+    Input,
+} from "@agenta/ui/ui"
 import {ArrowClockwise, WarningCircle, Wrench} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
@@ -53,13 +64,15 @@ export interface McpConnectionDetailProps {
 }
 
 /** An OAuth connection whose sign-in could not be renewed, in place of the gateway's words. */
-const SIGN_IN_AGAIN = "Sign in again to keep using this connection."
+// Toasts fire from the rename handler, outside render.
+const tNow = createT(mcpDetailCatalog)
 
 type ToolsState =
     | {status: "idle"}
     | {status: "loading"}
     | {status: "ready"; tools: McpToolSummary[]}
-    | {status: "failed"; error: string}
+    /** `error` is the server's own message, or null; `signInLost` picks the sign-in sentence. */
+    | {status: "failed"; error: string | null; signInLost: boolean}
 
 export default function McpConnectionDetail({
     endpoint,
@@ -71,6 +84,7 @@ export default function McpConnectionDetail({
     readOnly = false,
     canListTools = true,
 }: McpConnectionDetailProps) {
+    const t = useT(mcpDetailCatalog, mcpConnectCatalog)
     const projectId = useAtomValue(projectIdAtom) ?? undefined
     const [name, setName] = useState("")
     const [saving, setSaving] = useState(false)
@@ -115,9 +129,8 @@ export default function McpConnectionDetail({
             if (signInLost) onChanged?.()
             setTools({
                 status: "failed",
-                error: signInLost
-                    ? SIGN_IN_AGAIN
-                    : (error as Error)?.message || "The tool list could not be read.",
+                error: (error as Error)?.message || null,
+                signInLost,
             })
         }
     }, [canListTools, endpoint?.slug, isReady, onChanged, projectId])
@@ -151,10 +164,10 @@ export default function McpConnectionDetail({
                 },
                 projectId,
             )
-            message.success("Connection renamed.")
+            message.success(tNow("entityUi.mcpDetail.connectionRenamed"))
             onChanged?.()
         } catch (error) {
-            message.error((error as Error)?.message || "The connection could not be renamed.")
+            message.error((error as Error)?.message || tNow("entityUi.mcpDetail.couldNotRename"))
         } finally {
             setSaving(false)
         }
@@ -166,26 +179,26 @@ export default function McpConnectionDetail({
         <div className="flex w-full flex-wrap items-center gap-2">
             {readOnly ? null : (
                 <Button variant="outline" onClick={() => onReconnect(endpoint)}>
-                    {isReady ? "Reconnect" : "Connect"}
+                    {isReady ? t("entityUi.mcpDetail.reconnect") : t("entityUi.mcpDetail.connect")}
                 </Button>
             )}
             {/* Only an OAuth connection holds a grant to revoke; the route refuses anything else. */}
             {!readOnly && isReady && endpoint.auth_mode === "oauth" ? (
                 <Button
                     variant="ghost"
-                    className="text-colorError"
+                    className="text-destructive"
                     onClick={() => onDisconnect(endpoint)}
                 >
-                    Disconnect
+                    {t("entityUi.mcpDetail.disconnect")}
                 </Button>
             ) : null}
             <div className="ml-auto flex items-center gap-2">
                 <Button variant="outline" onClick={onClose}>
-                    Close
+                    {t("entityUi.mcpDetail.close")}
                 </Button>
                 {readOnly ? null : (
                     <Button onClick={rename} disabled={saving || !!nameProblem || unchanged}>
-                        Save
+                        {t("entityUi.mcpDetail.save")}
                     </Button>
                 )}
             </div>
@@ -193,28 +206,27 @@ export default function McpConnectionDetail({
     ) : null
 
     return (
-        <EnhancedModal
-            open={!!endpoint}
-            onCancel={onClose}
-            title={endpoint?.name || endpoint?.slug || "Connection"}
-            footer={footer}
-            width={520}
-            destroyOnClose
-        >
-            <ModalContent>
+        <Dialog open={!!endpoint} onOpenChange={(next) => !next && onClose()}>
+            {/* No autofocus: viewing must not open a phone keyboard on Name. */}
+            <DialogContent onOpenAutoFocus={(event) => event.preventDefault()}>
+                <DialogHeader>
+                    <DialogTitle>
+                        {endpoint?.name || endpoint?.slug || t("entityUi.mcpDetail.connection")}
+                    </DialogTitle>
+                </DialogHeader>
                 {endpoint ? (
                     <div className="flex flex-col gap-5" data-testid="mcp-connection-detail">
                         <div className="flex min-w-0 items-center gap-2">
                             <StatusIndicator
                                 tone={isReady ? "success" : "warning"}
                                 label={getMcpConnectionStatusLabel(status ?? "not_signed_in")}
-                                className="shrink-0 text-[13px]"
+                                className="shrink-0 text-label"
                             />
-                            <span aria-hidden className="text-colorTextDescription">
+                            <span aria-hidden className="text-muted-foreground">
                                 ·
                             </span>
                             <span
-                                className="truncate text-xs text-colorTextDescription"
+                                className="truncate text-meta text-muted-foreground"
                                 title={endpoint.data.route.base_url ?? undefined}
                             >
                                 {endpoint.data.route.base_url}
@@ -222,14 +234,13 @@ export default function McpConnectionDetail({
                         </div>
 
                         <Field
-                            label="Name"
+                            label={t("entityUi.mcpDetail.name")}
                             error={nameProblem ?? undefined}
-                            // Said out loud: renaming something an agent uses invites the opposite assumption.
-                            description="Agents keep using this connection under its existing reference, so renaming it does not change any agent."
+                            tooltip={t("entityUi.mcpDetail.renameNote")}
                         >
                             <Input
                                 value={name}
-                                aria-label="Connection name"
+                                aria-label={t("entityUi.mcpDetail.connectionName")}
                                 readOnly={readOnly}
                                 onChange={(event) => setName(event.target.value)}
                                 onKeyDown={(event) => {
@@ -239,19 +250,21 @@ export default function McpConnectionDetail({
                             />
                         </Field>
 
-                        <div className="flex items-center gap-2 text-sm">
-                            <span className="font-medium text-colorText">Authentication</span>
-                            <span className="text-colorTextSecondary">
-                                {MCP_AUTH_MODE_LABEL[endpoint.auth_mode]}
+                        <div className="flex items-center gap-2 text-label">
+                            <span className="font-medium text-foreground">
+                                {t("entityUi.mcpDetail.authentication")}
+                            </span>
+                            <span className="text-muted-foreground">
+                                {t(MCP_AUTH_MODE_LABEL[endpoint.auth_mode])}
                             </span>
                             {readOnly ? null : (
                                 <Button
-                                    variant="link"
+                                    variant="ghost"
                                     size="xs"
-                                    className={cn("ml-auto px-0 text-xs", touchTargetExpansion(24))}
+                                    className="ml-auto text-meta"
                                     onClick={() => onReconnect(endpoint)}
                                 >
-                                    Change
+                                    {t("entityUi.mcpDetail.change")}
                                 </Button>
                             )}
                         </div>
@@ -259,12 +272,11 @@ export default function McpConnectionDetail({
                         {canListTools ? (
                             <section className="flex flex-col gap-2">
                                 <div className="flex flex-col gap-0.5">
-                                    <h4 className="m-0 text-sm font-medium text-colorText">
-                                        Tools
+                                    <h4 className="m-0 text-label font-medium text-foreground">
+                                        {t("entityUi.mcpDetail.tools")}
                                     </h4>
-                                    <p className="m-0 text-xs text-colorTextDescription">
-                                        Choose what this server may do in an agent&apos;s
-                                        configuration.
+                                    <p className="m-0 text-meta text-muted-foreground">
+                                        {t("entityUi.mcpDetail.toolsHint")}
                                     </p>
                                 </div>
                                 <ToolFilterInput
@@ -283,8 +295,9 @@ export default function McpConnectionDetail({
                         ) : null}
                     </div>
                 ) : null}
-            </ModalContent>
-        </EnhancedModal>
+                {footer ? <DialogFooter>{footer}</DialogFooter> : null}
+            </DialogContent>
+        </Dialog>
     )
 }
 
@@ -301,17 +314,20 @@ const ToolList = ({
     onRetry: () => void
     filter: string
 }) => {
+    const t = useT(mcpDetailCatalog)
     if (!isReady) {
         return (
-            <p className="m-0 text-sm text-colorTextDescription">
-                {signInExpired ? SIGN_IN_AGAIN : "Connect this server to see the tools it exposes."}
+            <p className="m-0 text-body text-muted-foreground">
+                {signInExpired
+                    ? t("entityUi.mcpDetail.signInAgain")
+                    : t("entityUi.mcpDetail.connectToSeeTools")}
             </p>
         )
     }
     if (state.status === "loading") {
         return (
-            <p className="m-0 text-sm text-colorTextDescription" role="status">
-                Reading the tool list…
+            <p className="m-0 text-body text-muted-foreground" role="status">
+                {t("entityUi.mcpDetail.readingToolList")}
             </p>
         )
     }
@@ -321,12 +337,16 @@ const ToolList = ({
         return (
             <ToolsEmpty
                 icon={<WarningCircle size={18} />}
-                title="Couldn't read this server's tools"
-                description={state.error}
+                title={t("entityUi.mcpDetail.couldNotReadTools")}
+                description={
+                    state.signInLost
+                        ? t("entityUi.mcpDetail.signInAgain")
+                        : (state.error ?? t("entityUi.mcpDetail.toolListUnreadable"))
+                }
                 action={
                     <Button variant="outline" onClick={onRetry}>
                         <ArrowClockwise size={14} />
-                        Retry tools
+                        {t("entityUi.mcpDetail.retryTools")}
                     </Button>
                 }
             />
@@ -337,8 +357,8 @@ const ToolList = ({
         return (
             <ToolsEmpty
                 icon={<Wrench size={18} />}
-                title="No tools yet"
-                description="This server exposes no tools yet."
+                title={t("entityUi.mcpDetail.noToolsYet")}
+                description={t("entityUi.mcpDetail.noToolsYetBody")}
             />
         )
     }
@@ -348,18 +368,20 @@ const ToolList = ({
     if (shown.length === 0) {
         // The server has tools; this query does not name any of them. Said as such, so nobody
         // reads a filter's own emptiness as a server that stopped advertising.
-        return <p className="m-0 text-sm text-colorTextDescription">No tool here matches that.</p>
+        return (
+            <p className="m-0 text-body text-muted-foreground">
+                {t("entityUi.mcpDetail.noToolMatches")}
+            </p>
+        )
     }
 
     return (
         <ul className="m-0 flex list-none flex-col gap-2 p-0">
             {shown.map((tool) => (
                 <li key={tool.name} data-testid="mcp-tool" className="flex flex-col gap-0.5">
-                    <span className="text-sm text-colorText">{tool.name}</span>
+                    <span className="text-label text-foreground">{tool.name}</span>
                     {tool.description ? (
-                        <span className="text-xs text-colorTextDescription">
-                            {tool.description}
-                        </span>
+                        <span className="text-meta text-muted-foreground">{tool.description}</span>
                     ) : null}
                 </li>
             ))}

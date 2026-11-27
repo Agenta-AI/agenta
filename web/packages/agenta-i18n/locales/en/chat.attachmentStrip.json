@@ -1,0 +1,7 @@
+{
+    "pause": "Pause {{name}}",
+    "play": "Play {{name}}",
+    "view": "View {{name}}",
+    "viewMore_one": "View {{count}} more file",
+    "viewMore_other": "View {{count}} more files"
+}

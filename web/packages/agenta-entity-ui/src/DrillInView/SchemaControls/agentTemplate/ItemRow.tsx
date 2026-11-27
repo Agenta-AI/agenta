@@ -1,16 +1,30 @@
 /**
- * The presentational rows for the agent-template config sections: a colored avatar, the generic
+ * The presentational rows for the agent-template config sections: a neutral Mark, the generic
  * tool/MCP/skill row, and the richer instructions-file row. All are dumb — they render an
  * {@link ItemDescriptor} and call back on open/remove; the section owners hold the state.
  */
 import {type ReactNode} from "react"
 
-import {Tag} from "@agenta/ui/components/presentational"
+import {useT} from "@agenta/i18n"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
+import {ConfigRowTriangle, Tag} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
-import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
-import {CaretRight, Trash} from "@phosphor-icons/react"
+import {
+    IconTile,
+    SkeletonBlock,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
+import {CaretRight} from "@phosphor-icons/react"
 
 import {describeInstruction, type ItemDescriptor} from "./itemDescriptors"
+import {usePhoneSections} from "./phoneSections"
+import {RowRemoveAction} from "./RowRemoveAction"
+
+/** A panel row's Mark: 28 px with a 16 px glyph, also for an item that draws its own Mark. */
+const PANE_MARK = "size-7 [&_svg]:size-4 [&_[data-slot=icon-tile]]:size-7"
 
 /**
  * Draft/validation status for a config-item row: tints the row border and shows a tag.
@@ -32,28 +46,28 @@ export interface ItemRowStatus {
 }
 
 const STATUS_BORDER: Record<ItemRowStatusTone, string> = {
-    new: "var(--ag-colorSuccessBorder)",
-    edited: "var(--ag-colorInfoBorder)",
-    invalid: "var(--ag-colorErrorBorder)",
-    incomplete: "var(--ag-colorWarningBorder)",
+    new: "color-mix(in srgb, var(--success) 30%, transparent)",
+    edited: "color-mix(in srgb, var(--info) 30%, transparent)",
+    invalid: "color-mix(in srgb, var(--destructive) 30%, transparent)",
+    incomplete: "color-mix(in srgb, var(--warning) 30%, transparent)",
 }
 // antd preset `Tag color` → the presentational Tag's `tone` (same preset hues on `Badge`).
 const STATUS_TAG_TONE = {
-    new: "green",
-    edited: "blue",
-    invalid: "red",
-    incomplete: "gold",
+    new: "success",
+    edited: "info",
+    invalid: "destructive",
+    incomplete: "warning",
 } as const satisfies Record<ItemRowStatusTone, string>
 // antd pins `.ant-tag`'s line-height in px (22.4), so overriding only the FONT size leaves it
 // intact; Badge's `text-badge-md` BUNDLES its line-height, which a bare `text-xs` drops
 // (tags rendered 20.3px instead of 24.4px until this was restated).
-const TAG_CLS = "m-0 text-xs leading-[22.4px]"
+const TAG_CLS = "m-0 text-meta"
 // Solid accent for borderless child rows (an inset left bar, so rounded corners survive).
 const STATUS_ACCENT: Record<ItemRowStatusTone, string> = {
-    new: "var(--ag-colorSuccess)",
-    edited: "var(--ag-colorInfo)",
-    invalid: "var(--ag-colorError)",
-    incomplete: "var(--ag-colorWarning)",
+    new: "var(--success)",
+    edited: "var(--info)",
+    invalid: "var(--destructive)",
+    incomplete: "var(--warning)",
 }
 
 export function StatusTag({status}: {status: ItemRowStatus}) {
@@ -90,30 +104,47 @@ function RowSubtitle({
     className: string
 }) {
     if (status?.reason) {
-        return (
-            <span className={cn(className, "text-[var(--ag-colorWarningText)]")}>
-                {status.reason}
-            </span>
-        )
+        return <span className={cn(className, "text-warning")}>{status.reason}</span>
     }
     if (!description) return null
     return <span className={className}>{description}</span>
 }
 
-/** Colored avatar square (icon or monogram) at the start of a config-item row. */
-export function ItemAvatar({descriptor}: {descriptor: ItemDescriptor}) {
-    // `chip` wins when the item paints itself; everything else keeps the solid type square.
-    const chipped = Boolean(descriptor.avatarClassName)
+/**
+ * The Mark at the start of a config-item row: the neutral `IconTile`, 24px in a one-line row and
+ * 32px in a two-line row (`mark-md`, `mark-lg`; COLOR-05, CONS-01). An item that draws its own
+ * Mark (an MCP server, a skill, a subagent's agent Mark) keeps its chip at the same size.
+ */
+export function ItemAvatar({
+    descriptor,
+    size = 24,
+    className,
+}: {
+    descriptor: ItemDescriptor
+    size?: 24 | 32
+    className?: string
+}) {
+    if (descriptor.avatarClassName) {
+        return (
+            <span
+                className={cn(
+                    "flex shrink-0 items-center justify-center rounded-md text-caption font-medium leading-none",
+                    size === 32
+                        ? "size-8 [&_img]:size-5 [&_svg]:size-4"
+                        : "size-6 [&_svg]:size-3.5",
+                    descriptor.avatarClassName,
+                    className,
+                )}
+                style={descriptor.avatarStyle}
+            >
+                {descriptor.icon ?? descriptor.mono}
+            </span>
+        )
+    }
     return (
-        <span
-            className={cn(
-                "flex h-7 w-7 shrink-0 items-center justify-center rounded text-[12px] font-semibold leading-none",
-                chipped ? descriptor.avatarClassName : "text-white",
-            )}
-            style={chipped ? descriptor.avatarStyle : {background: descriptor.color}}
-        >
+        <IconTile size={size} tone="neutral" aria-hidden className={className}>
             {descriptor.icon ?? descriptor.mono}
-        </span>
+        </IconTile>
     )
 }
 
@@ -147,6 +178,10 @@ export function ItemRow({
     extra?: ReactNode
     status?: ItemRowStatus
 }) {
+    const t = useT(configItemsCatalog)
+    const phone = usePhoneSections() !== null
+    // ROW-01: a name alone is a one-line row (36), a name with a second line is two-line (48).
+    const twoLine = Boolean(status?.reason || descriptor.description)
     // `disabled` counts: a disabled row that still reads as a button invokes a handler that no-ops.
     const interactive = Boolean(onEdit) && !locked && !disabled
     return (
@@ -155,12 +190,17 @@ export function ItemRow({
             // The whole row opens it; the chevron and tags used to be a dead target.
             onClick={interactive ? onEdit : undefined}
             className={cn(
-                "group flex items-center gap-2.5 rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] py-2.5 pl-3 pr-2 transition-colors",
-                // Item cards read as white sheets sitting ON the expanded section's band.
-                !locked && "bg-[var(--ag-surface-section-content)]",
-                interactive && !status && "cursor-pointer hover:bg-[var(--ag-colorFillQuaternary)]",
+                "group flex items-center transition-colors",
+                // In the pane a plain row with the hover fill, not a card in the section
+                // (SURF-01/02). The clear border only shows a status tint.
+                // box-border: the status border sits inside the row height (ROW-01).
+                "box-border gap-2 rounded-md border border-solid border-transparent px-2 py-1",
+                twoLine ? "min-h-row-double" : "min-h-row-single",
+                // On a phone screen the row hangs its fill; its Mark stays on the line.
+                phone && "-mx-2.25",
+                interactive && !status && "cursor-pointer hover:bg-accent",
                 interactive && status && "cursor-pointer",
-                locked && "bg-[var(--ant-color-fill-quaternary)] opacity-70",
+                locked && "bg-muted opacity-70",
             )}
         >
             {/* The `role="button"` region is a SIBLING of the remove button, never its ancestor
@@ -180,55 +220,60 @@ export function ItemRow({
                         : undefined
                 }
                 className={cn(
-                    "flex min-w-0 flex-1 items-center gap-2.5 transition-opacity",
+                    "flex min-w-0 flex-1 items-center rounded-sm transition-opacity",
+                    interactive && "focus-ring",
+                    // 8 px to the panel's 28 px Mark; SPACE-04 for the phone.
+                    twoLine && phone ? "gap-3" : "gap-2",
                     inactive && "opacity-50",
                 )}
             >
-                <ItemAvatar descriptor={descriptor} />
+                <ItemAvatar
+                    descriptor={descriptor}
+                    size={twoLine && phone ? 32 : 24}
+                    // A panel row's Mark is 28 px, the size of its section's tile; a phone row's
+                    // follows the row (24 or 32, CONS-01).
+                    className={!phone ? PANE_MARK : undefined}
+                />
                 <div className="min-w-0 flex-1">
                     <div
-                        className={`truncate text-[13px] font-normal ${
-                            descriptor.monoName === false ? "" : "font-mono"
-                        }`}
+                        className={cn(
+                            "truncate font-normal leading-5",
+                            "text-label",
+                            descriptor.monoName !== false && "font-mono",
+                        )}
                     >
                         {descriptor.name}
                     </div>
                     <RowSubtitle
                         status={status}
                         description={descriptor.description}
-                        className="block truncate text-xs leading-tight text-[var(--ag-colorTextTertiary)]"
+                        // The needs-setup reason is a 12/20 line (canvas F01, the integration card).
+                        className={cn(
+                            "block truncate text-meta text-muted-foreground",
+                            status?.reason ? "leading-5" : "leading-4",
+                        )}
                     />
                 </div>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
                 {status ? <StatusTag status={status} /> : null}
-                {descriptor.tags.map((tag) => {
+                {descriptor.tags.map((tag, index) => {
                     const label = typeof tag === "string" ? tag : tag.label
                     const tone = typeof tag === "string" ? undefined : tag.tone
                     return (
-                        <Tag key={label} tone={tone} className={TAG_CLS}>
+                        <Tag key={index} tone={tone} className={TAG_CLS}>
                             {label}
                         </Tag>
                     )
                 })}
-                {locked ? <Tag className={TAG_CLS}>Locked</Tag> : null}
+                {locked ? <Tag className={TAG_CLS}>{t("entityUi.configItems.locked")}</Tag> : null}
                 {extra}
                 {onRemove && !disabled && !locked ? (
-                    <button
-                        type="button"
-                        aria-label="Remove"
-                        onClick={(e) => {
-                            e.stopPropagation()
-                            onRemove()
-                        }}
-                        // A 24px ghost target, not a bare glyph: a hover-only icon is hard to hit.
-                        className="flex size-6 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-[var(--ag-colorTextTertiary)] opacity-0 transition-opacity hover:bg-[var(--ag-colorErrorBg)] hover:text-[var(--ag-colorErrorText)] focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--ag-colorPrimary)] group-hover:opacity-100"
-                    >
-                        <Trash size={14} />
-                    </button>
+                    <RowRemoveAction name={descriptor.name} onRemove={onRemove} />
                 ) : null}
                 {interactive ? (
-                    <CaretRight size={13} className="text-[var(--ag-colorTextQuaternary)]" />
+                    // Canvas F01: a panel card ends with an outline chevron.
+                    <CaretRight aria-hidden size={12} className="shrink-0 text-muted-foreground" />
                 ) : null}
             </div>
         </div>
@@ -257,7 +302,7 @@ export function ItemChildRow({
     return (
         <div
             style={status ? {boxShadow: `inset 2px 0 0 ${STATUS_ACCENT[status.tone]}`} : undefined}
-            className="group flex cursor-pointer items-center gap-2.5 rounded px-2.5 py-1.5 transition-colors hover:bg-[var(--ag-colorFillSecondary)]"
+            className="group flex cursor-pointer items-center gap-2.5 rounded px-2.5 py-1.5 transition-colors hover:bg-accent"
         >
             {/* `role="button"` on the text region only — a sibling of the remove button, not its
                 ancestor (axe nested-interactive). */}
@@ -272,10 +317,10 @@ export function ItemChildRow({
                         onEdit()
                     }
                 }}
-                className="min-w-0 flex-1"
+                className="focus-ring min-w-0 flex-1 rounded-sm"
             >
                 <div
-                    className={`truncate text-xs font-medium ${
+                    className={`truncate text-label font-medium ${
                         descriptor.monoName === false ? "" : "font-mono"
                     }`}
                 >
@@ -284,7 +329,7 @@ export function ItemChildRow({
                 <RowSubtitle
                     status={status}
                     description={descriptor.description}
-                    className="block truncate text-xs leading-snug text-colorTextDescription"
+                    className="block truncate text-meta leading-snug text-muted-foreground"
                 />
             </div>
             <div
@@ -294,28 +339,17 @@ export function ItemChildRow({
             >
                 {status ? <StatusTag status={status} /> : null}
                 {onRemove && !disabled ? (
-                    <button
-                        type="button"
-                        aria-label="Remove"
-                        onClick={(e) => {
-                            e.stopPropagation()
-                            onRemove()
-                        }}
-                        className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-zinc-5)] opacity-0 transition-opacity hover:text-colorError group-hover:opacity-100"
-                    >
-                        <Trash size={14} />
-                    </button>
+                    <RowRemoveAction name={descriptor.name} onRemove={onRemove} />
                 ) : null}
-                <CaretRight size={14} className="text-[var(--ag-zinc-5)]" />
+                <CaretRight size={14} className="text-muted-foreground" />
             </div>
         </div>
     )
 }
 
 /**
- * An instructions markdown file row. Avatar + filename + a 2-line preview of the (markdown-stripped)
- * content, clamped with an ellipsis. The whole row opens the editor drawer for the full content —
- * there is no inline expand, so it reads the same as the tool / MCP rows.
+ * An instructions markdown file row (canvas F01): avatar, the filename, and one line with the word
+ * count and the start of the (markdown-stripped) content. The whole row opens the editor.
  */
 export function InstructionsFileRow({
     filename,
@@ -328,9 +362,16 @@ export function InstructionsFileRow({
     onOpen: () => void
     status?: ItemRowStatus
 }) {
-    const descriptor = describeInstruction(filename, content)
+    const t = useT(configItemsCatalog)
+    const phone = usePhoneSections() !== null
     const wordCount = content.trim().split(/\s+/).filter(Boolean).length
-    const meta = wordCount > 0 ? `${wordCount} word${wordCount === 1 ? "" : "s"}` : "empty"
+    const meta =
+        wordCount > 0
+            ? t("entityUi.configItems.wordCount", {count: wordCount})
+            : t("entityUi.configItems.empty")
+    const descriptor = describeInstruction(filename, content)
+    // An empty file has no preview: `descriptor.description` already says "Empty file".
+    const line = wordCount > 0 ? `${meta} · ${descriptor.description}` : meta
     return (
         <div
             role="button"
@@ -343,35 +384,57 @@ export function InstructionsFileRow({
                 }
             }}
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
-            // Same border and ground as the integration and subagent rows above: --ag-c-EAEFF5 is
-            // a fixed light hex, so this row's edge vanished against a dark section.
             className={cn(
-                "group flex cursor-pointer items-start gap-3 rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-surface-section-content)] px-3 py-2.5 transition-colors",
-                !status && "hover:border-[var(--ag-zinc-5)]",
+                // A plain row-double row with the hover fill, not a card (SURF-01/02). The clear
+                // border only shows a status tint.
+                "focus-ring group box-border flex min-h-row-double cursor-pointer items-center rounded-md border border-solid border-transparent px-2 py-1.5 transition-colors hover:bg-accent",
+                // 8 px to the panel's 28 px Mark; 12 px to the phone's 32 px one (SPACE-04).
+                phone ? "gap-3" : "gap-2",
             )}
         >
-            <ItemAvatar descriptor={descriptor} />
-            <div className="min-w-0 flex-1">
-                {/* Identity row: filename (color inherits → theme-correct) + a muted meta, so the
-                    name/type/size reads separately from the content preview below. */}
-                <div className="flex items-baseline gap-2">
-                    <span className="truncate font-mono text-[13px] font-medium leading-tight">
-                        {filename}
-                    </span>
-                    {/* antd's Typography carries `line-height: token.lineHeight` (5/3); a bare
-                        span would inherit the row's instead, so restate it. */}
-                    <span className="shrink-0 text-xs leading-[1.6667] text-colorTextDescription">
-                        {meta}
-                    </span>
+            <ItemAvatar
+                descriptor={descriptor}
+                size={phone ? 32 : 24}
+                className={phone ? undefined : PANE_MARK}
+            />
+            <div className="flex min-w-0 flex-1 flex-col">
+                <div className="flex items-center gap-2">
+                    <span className="truncate font-mono text-label leading-5">{filename}</span>
                     {status ? <StatusTag status={status} /> : null}
                 </div>
-                {/* `descriptor.description` is the stripped-markdown preview (or "Empty file");
-                    clamp to 2 lines so long instructions get a real "…" rather than a hard cut. */}
-                <span className="mt-1 line-clamp-2 text-xs leading-snug text-colorTextDescription">
-                    {descriptor.description}
-                </span>
+                <span className="truncate text-meta text-muted-foreground">{line}</span>
             </div>
-            <CaretRight size={15} className="mt-1 shrink-0 text-[var(--ag-zinc-5)]" />
+            <ConfigRowTriangle />
         </div>
     )
+}
+
+/** Loading rows in a two-line ItemRow's shape for the host's layout: pane or phone (STATE-02). */
+export function ItemRowSkeleton({count = 2}: {count?: number}) {
+    const phone = usePhoneSections() !== null
+    return Array.from({length: count}).map((_, i) => (
+        <div
+            key={i}
+            aria-hidden
+            className={cn(
+                "box-border flex min-h-row-double items-center gap-2 rounded-md border border-solid border-transparent px-2 py-1",
+                phone && "-mx-2.25",
+            )}
+        >
+            <div className={cn("flex min-w-0 flex-1 items-center", phone ? "gap-3" : "gap-2")}>
+                <SkeletonBlock
+                    shape="mark"
+                    className={cn("shrink-0", phone ? "size-8" : "size-7")}
+                />
+                <div className="min-w-0 flex-1">
+                    <div className="flex h-5 items-center">
+                        <SkeletonBlock className="h-3.5 w-32" />
+                    </div>
+                    <div className="flex h-4 items-center">
+                        <SkeletonBlock className="h-3 w-48" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    ))
 }

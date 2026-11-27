@@ -1,4 +1,8 @@
+import {createT} from "@agenta/i18n"
+import sessionsMobileListCatalog from "@agenta/i18n/catalogs/sessions.mobileList"
 import type {SessionRowVm} from "@agenta/sessions/row"
+
+const tNow = createT(sessionsMobileListCatalog)
 
 /**
  * How the sessions list is CUT — the one half of the view the filter menu owns that is not a
@@ -39,9 +43,13 @@ export interface SessionListView {
  */
 export const DEFAULT_SESSION_LIST_VIEW: SessionListView = {group: "agent", activity: "7d"}
 
-export const isDefaultSessionListView = (view: SessionListView): boolean =>
-    view.group === DEFAULT_SESSION_LIST_VIEW.group &&
-    view.activity === DEFAULT_SESSION_LIST_VIEW.activity
+/** The Sessions page of one agent groups by date: every row has the same agent. */
+export const LOCKED_AGENT_SESSION_LIST_VIEW: SessionListView = {group: "date", activity: "7d"}
+
+export const isDefaultSessionListView = (
+    view: SessionListView,
+    defaults: SessionListView = DEFAULT_SESSION_LIST_VIEW,
+): boolean => view.group === defaults.group && view.activity === defaults.activity
 
 /**
  * The window as an ISO instant the server can compare against, or `undefined` for no bound.
@@ -57,6 +65,29 @@ export const activityFloorIso = (
     if (!hours) return undefined
     const HOUR_MS = 3_600_000
     return new Date(Math.floor(now / HOUR_MS) * HOUR_MS - hours * HOUR_MS).toISOString()
+}
+
+/** An agent the Sessions page names: in a group heading and in the filter menu's Agent row. */
+export interface SessionAgentOption {
+    id: string
+    name: string
+}
+
+/**
+ * The agents the Sessions page names: each catalog agent by its name or else its slug, plus the
+ * builder. The builder lives in code, not in the agent catalog, so without it every builder chat
+ * groups under "Unknown agent".
+ */
+export const sessionAgentRoster = (
+    catalog: readonly {id: string; name?: string | null; slug?: string | null}[],
+    builder: SessionAgentOption | null,
+): SessionAgentOption[] => {
+    const agents = catalog
+        .map((agent) => ({id: agent.id, name: (agent.name || agent.slug || "").trim()}))
+        .filter((agent) => agent.id && agent.name)
+    return builder && !agents.some((agent) => agent.id === builder.id)
+        ? [...agents, builder]
+        : agents
 }
 
 export interface SessionListGroup {
@@ -87,12 +118,12 @@ const dateBucket = (activityAt: string | null, now: number): {key: string; label
     const parsed = activityAt ? Date.parse(activityAt) : Number.NaN
     // A row with no activity timestamp is the oldest thing on the list, not a bucket of its own:
     // one heading over one row says nothing a reader can use.
-    if (Number.isNaN(parsed)) return {key: "older", label: "Older"}
+    if (Number.isNaN(parsed)) return {key: "older", label: tNow("sessions.mobileList.older")}
     const days = Math.floor((startOfDay(now) - startOfDay(parsed)) / DAY_MS)
-    if (days <= 0) return {key: "today", label: "Today"}
-    if (days === 1) return {key: "yesterday", label: "Yesterday"}
-    if (days < 7) return {key: "week", label: "This week"}
-    return {key: "older", label: "Older"}
+    if (days <= 0) return {key: "today", label: tNow("sessions.mobileList.today")}
+    if (days === 1) return {key: "yesterday", label: tNow("sessions.mobileList.yesterday")}
+    if (days < 7) return {key: "week", label: tNow("sessions.mobileList.thisWeek")}
+    return {key: "older", label: tNow("sessions.mobileList.older")}
 }
 
 const groupOf = (
@@ -108,7 +139,14 @@ const groupOf = (
     const name = agentNames.get(id)?.trim()
     // "No agent yet" is a session with no turns; "Unknown agent" is one whose agent the roster
     // this client holds does not name. Different facts, so different headings.
-    return {key: id || "__unbound__", label: name || (id ? "Unknown agent" : "No agent yet")}
+    return {
+        key: id || "__unbound__",
+        label:
+            name ||
+            (id
+                ? tNow("sessions.mobileList.unknownAgent")
+                : tNow("sessions.mobileList.noAgentYet")),
+    }
 }
 
 /**

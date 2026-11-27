@@ -94,6 +94,13 @@ STREAMS_HEALTH_CHECK_INTERVAL = 30
 # No socket_keepalive: redis-py already enables it for TCP, and a unix:// URL
 # rejects the option.
 
+# Most pub/sub subscriptions one process may hold. Each open SSE stream holds one
+# connection for as long as the client stays connected. A stream past the cap ends
+# with a reconnect delay instead of taking a connection that ingest needs. Every API
+# process opens its own pool, so the number of API processes times this cap must
+# stay under the server's maxclients (10000 by default).
+STREAMS_SUBSCRIBER_MAX_CONNECTIONS = 500
+
 
 def streams_client_options() -> Dict[str, Any]:
     return {
@@ -103,30 +110,56 @@ def streams_client_options() -> Dict[str, Any]:
 
 
 class StreamsEngine:
-    """Redis durable — persistent streams for tracing/events."""
+    """Redis durable — persistent streams for tracing/events.
+
+    Two clients on the same server, each with its own connection pool:
+
+    - `get_redis()` for short commands: span and event XADD, PUBLISH, stream reads.
+    - `get_subscriber_redis()` for pub/sub subscriptions. A subscription holds a
+      connection until its SSE stream closes, which can be hours.
+
+    With one shared pool, open watch streams took every connection and span ingest
+    and event publishing failed with "Too many connections". Subscribers now draw
+    from their own capped pool, so they can never take the connections ingest needs.
+    """
 
     def __init__(self) -> None:
         from redis.asyncio import Redis
 
         self._redis: Optional[Redis] = None
+        self._subscriber_redis: Optional[Redis] = None
+
+    def _open(self, **kwargs: Any) -> "Redis":
+        from redis.asyncio import Redis
+
+        if not env.redis.uri_durable:
+            raise RuntimeError("REDIS_URI_DURABLE is required for streams.")
+        return Redis.from_url(
+            env.redis.uri_durable,
+            decode_responses=False,
+            **streams_client_options(),
+            **kwargs,
+        )
 
     def get_redis(self) -> "Redis":
         if self._redis is None:
-            from redis.asyncio import Redis
-
-            if not env.redis.uri_durable:
-                raise RuntimeError("REDIS_URI_DURABLE is required for streams.")
-            self._redis = Redis.from_url(
-                env.redis.uri_durable,
-                decode_responses=False,
-                **streams_client_options(),
-            )
+            self._redis = self._open()
         return self._redis
+
+    def get_subscriber_redis(self) -> "Redis":
+        if self._subscriber_redis is None:
+            self._subscriber_redis = self._open(
+                max_connections=STREAMS_SUBSCRIBER_MAX_CONNECTIONS,
+            )
+        return self._subscriber_redis
 
     async def close(self) -> None:
         if self._redis is not None:
             await self._redis.close()
             self._redis = None
+        if self._subscriber_redis is not None:
+            await self._subscriber_redis.close()
+            self._subscriber_redis = None
 
 
 _cache_engine: Optional[CacheEngine] = None

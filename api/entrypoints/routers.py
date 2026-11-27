@@ -158,9 +158,18 @@ from oss.src.apis.fastapi.evaluations.router import SimpleQueuesRouter
 from oss.src.apis.fastapi.traces.router import SimpleTracesRouter
 from oss.src.apis.fastapi.sessions.router import SessionsRouter
 from oss.src.apis.fastapi.sharing.router import SharingRouter
+from oss.src.apis.fastapi.releases.router import ReleasesRouter
+from oss.src.core.releases.service import ReleasesService
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 from oss.src.apis.fastapi.invocations.router import InvocationsRouter
+from oss.src.apis.fastapi.telemetry.router import TelemetryRouter
+from oss.src.core.telemetry.service import (
+    log_telemetry_status,
+    schedule_install_ping,
+    schedule_startup_event,
+)
 from oss.src.core.annotations.service import AnnotationsService
+from oss.src.core.annotations.general_fields import AnnotationGeneralFieldsService
 from oss.src.core.invocations.service import InvocationsService
 
 from oss.src.core.ai_services.service import AIServicesService
@@ -168,6 +177,7 @@ from oss.src.apis.fastapi.ai_services.router import AIServicesRouter
 
 from oss.src.core.accounts.service import PlatformAdminAccountsService
 from oss.src.apis.fastapi.accounts.router import PlatformAdminAccountsRouter
+from oss.src.apis.fastapi.licenses.router import LicensesRouter
 from oss.src.dbs.postgres.gateway.connections.dao import ConnectionsDAO
 from oss.src.core.gateway.connections.providers.composio import (
     ComposioConnectionsAdapter,
@@ -180,8 +190,14 @@ from oss.src.core.gateway.catalog.service import CatalogService
 from oss.src.core.tools.providers.composio import ComposioToolsAdapter
 from oss.src.core.tools.registry import ToolsGatewayRegistry
 from oss.src.core.tools.service import ToolsService
+from oss.src.core.tools.gate import GateReader
+from oss.src.core.tools.session_writes import SessionWriteServices
 from oss.src.apis.fastapi.tools.router import ToolsRouter
 from oss.src.apis.fastapi.account_choices.router import AccountChoicesRouter
+from oss.src.apis.fastapi.approval_choices.router import ApprovalChoicesRouter
+from oss.src.core.approval_choices.service import ApprovalChoicesService
+from oss.src.dbs.postgres.approval_choices.dao import ApprovalChoicesDAO
+from oss.src.dbs.postgres.sharing.dao import SharingDAO
 from oss.src.core.account_choices.lifecycle import AccountsLifecycle
 from oss.src.core.account_choices.service import get_account_choices_service
 from oss.src.dbs.postgres.triggers.dao import TriggersDAO
@@ -385,6 +401,14 @@ async def lifespan(*args, **kwargs):
     warn_deprecated_env_vars()
     validate_required_env_vars()
     validate_platform_runtime_key()
+    if is_ee():
+        from ee.src.core.licenses.cloud import validate_cloud_license  # noqa: PLC0415
+
+        validate_cloud_license()
+
+    await log_telemetry_status()
+    schedule_install_ping()
+    schedule_startup_event()
 
     await _triggers_broker.startup()
     await _channels_inbox_broker.startup()
@@ -935,10 +959,16 @@ simple_evaluators_service = SimpleEvaluatorsService(
     evaluators_service=evaluators_service,
 )
 
+annotation_general_fields_service = AnnotationGeneralFieldsService(
+    tracing_service=tracing_service,
+    session_turns_service=session_turns_service,
+)
+
 simple_traces_service = SimpleTracesService(
     tracing_service=tracing_service,
     evaluators_service=evaluators_service,
     simple_evaluators_service=simple_evaluators_service,
+    annotation_general_fields_service=annotation_general_fields_service,
 )
 
 simple_workflows_service = SimpleWorkflowsService(
@@ -1087,6 +1117,7 @@ triggers_service = TriggersService(
     triggers_dao=triggers_dao,
     connections_service=connections_service,
     workflows_service=workflows_service,
+    executions_dao=session_executions_dao,
 )
 
 
@@ -1164,6 +1195,8 @@ mounts_service = MountsService(
 session_mounts_service = SessionMountsService(
     mounts_service=mounts_service,
 )
+
+workflows_service.set_mount_lookup(mounts_service)
 
 session_attachments_service = SessionAttachmentsService(
     attachments_dao=session_attachments_dao,
@@ -1301,12 +1334,33 @@ simple_queues = SimpleQueuesRouter(
     simple_queues_service=simple_queues_service,
 )
 
+sessions_service = SessionsService(
+    streams_service=session_streams_service,
+    turns_service=session_turns_service,
+    interactions_service=interactions_service,
+    mounts_service=mounts_service,
+    # Read-only, for the list's message preview — records themselves stay the records router's.
+    records_service=records_service,
+)
+
+approval_choices_dao = ApprovalChoicesDAO(engine=_transactions_engine)
+
 tools = ToolsRouter(
     tools_service=tools_service,
     run_admission=run_admission,
     workflows_service=workflows_service,
     tracing_service=tracing_service,
     mounts_service=mounts_service,
+    sessions_service=sessions_service,
+    gate_reader=GateReader(
+        streams_dao=session_streams_dao,
+        executions_dao=session_executions_dao,
+        inputs_dao=session_inputs_dao,
+        turns_dao=session_turns_dao,
+        workflows_service=workflows_service,
+        sharing_dao=SharingDAO(engine=_transactions_engine),
+        approval_choices_dao=approval_choices_dao,
+    ),
 )
 
 triggers = TriggersRouter(
@@ -1400,6 +1454,8 @@ session_commands_service = SessionCommandsService(
     ),
     executions_dao=session_executions_dao,
     inputs_dao=session_inputs_dao,
+    streams_dao=session_streams_dao,
+    turns_dao=session_turns_dao,
 )
 
 _channels_inbox_dispatcher = InboxDispatcher(
@@ -1425,10 +1481,11 @@ _channels_inbox_worker = ChannelsInboxWorker(
     dispatcher=_channels_inbox_dispatcher,
 )
 
+channels_service.inbox_dispatch_task = _channels_inbox_worker.dispatch_inbox_event
+
 channels_ingress = ChannelsIngressRouter(
     channels_service=channels_service,
     adapter_registry=channels_adapter_registry,
-    dispatch_task=_channels_inbox_worker.dispatch_inbox_event,
     telegram_binding_service=_telegram_binding_service,
     records_service=records_service,
     attachments_service=session_attachments_service,
@@ -1625,6 +1682,7 @@ annotations_service = AnnotationsService(
     evaluators_service=evaluators_service,
     simple_evaluators_service=simple_evaluators_service,
     tracing_service=tracing_service,
+    annotation_general_fields_service=annotation_general_fields_service,
 )
 annotations = AnnotationsRouter(
     annotations_service=annotations_service,
@@ -1654,15 +1712,6 @@ ai_services = AIServicesRouter(
 # Session header rename (name/description) lives on the streams router
 # (PUT /sessions/streams/header) via streams_service.set_header.
 
-sessions_service = SessionsService(
-    streams_service=session_streams_service,
-    turns_service=session_turns_service,
-    interactions_service=interactions_service,
-    mounts_service=mounts_service,
-    # Read-only, for the list's message preview — records themselves stay the records router's.
-    records_service=records_service,
-)
-
 session_inputs_service = SessionInputsService(
     inputs_dao=session_inputs_dao,
     interactions_dao=interactions_dao,
@@ -1675,8 +1724,27 @@ session_starts_service = SessionStartsService(
     run_admission=run_admission,
     executions_dao=session_executions_dao,
     streams_dao=session_streams_dao,
+    inputs_dao=session_inputs_dao,
+    turns_dao=session_turns_dao,
+    cancelled_by_steer=session_commands_service.cancelled_by_steer,
     workflows_service=workflows_service,
     lock_engine=_lock_engine,
+)
+# A schedule's fire into an existing session puts its input on the session queue.
+_triggers_dispatcher.session_starts_service = session_starts_service
+# The session writes start child sessions and send them messages through the same
+# queue, and create the still-running schedules through the triggers service.
+tools.session_writes = SessionWriteServices(
+    streams_dao=session_streams_dao,
+    executions_dao=session_executions_dao,
+    inputs_dao=session_inputs_dao,
+    turns_dao=session_turns_dao,
+    interactions_service=interactions_service,
+    records_service=records_service,
+    starts_service=session_starts_service,
+    commands_service=session_commands_service,
+    triggers_service=triggers_service,
+    workflows_service=workflows_service,
 )
 agent_template_catalog_path = (
     Path(__file__).resolve().parents[1]
@@ -1750,6 +1818,10 @@ sharing = SharingRouter(
     memberships_service=get_memberships_service(),
     workflows_service=workflows_service,
     streams_service=session_streams_service,
+)
+
+releases = ReleasesRouter(
+    releases_service=ReleasesService(),
 )
 
 # PLATFORM ADMIN ---------------------------------------------------------------
@@ -2131,6 +2203,18 @@ app.include_router(
     tags=["Account Choices"],
 )
 
+approval_choices = ApprovalChoicesRouter(
+    approval_choices_service=ApprovalChoicesService(
+        approval_choices_dao=approval_choices_dao
+    ),
+)
+
+app.include_router(
+    router=approval_choices.router,
+    prefix="/approval-choices",
+    tags=["Approval Choices"],
+)
+
 app.include_router(
     router=tools.router,
     prefix="/preview/tools",
@@ -2245,6 +2329,21 @@ app.include_router(
     include_in_schema=False,
 )
 
+telemetry = TelemetryRouter()
+
+app.include_router(
+    router=telemetry.router,
+    prefix="/instance",
+    tags=["Instance"],
+)
+
+app.include_router(
+    router=telemetry.admin_router,
+    prefix="/admin/telemetry",
+    tags=["Instance", "Admin"],
+    include_in_schema=False,
+)
+
 app.include_router(
     router=evaluations.router,
     prefix="/evaluations",
@@ -2320,6 +2419,14 @@ app.include_router(
     tags=["Admin"],
 )
 
+licenses = LicensesRouter()
+
+app.include_router(
+    router=licenses.router,
+    prefix="/instance",
+    tags=["Instance"],
+)
+
 app.include_router(
     router=sessions.root.router,
     tags=["Sessions"],
@@ -2337,6 +2444,12 @@ app.include_router(
     tags=["Sharing"],
 )
 
+app.include_router(
+    router=releases.router,
+    prefix="/instance",
+    tags=["Releases"],
+)
+
 
 @app.get("/health", operation_id="health_check", tags=["Status"])
 async def health_check():
@@ -2351,7 +2464,7 @@ async def store_jwks():
     return webidentity.jwks()
 
 
-access_router = AccessRouter()
+access_router = AccessRouter(workflows_service=workflows_service)
 app.include_router(
     access_router.router,
     prefix="/access",

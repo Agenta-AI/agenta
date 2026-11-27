@@ -186,3 +186,11 @@ def test_executable_workspace_file_is_rejected(tmp_path: Path):
         TemplatePackageParser().parse(_resolved(root))
 
     assert error.value.code == "executable_package_file"
+
+
+def test_a_seed_path_under_agent_files_lands_in_the_drive_root():
+    from oss.src.core.agent_templates.parser import _workspace_path  # noqa: PLC0415
+
+    assert _workspace_path("agent-files/notes/a.md") == "notes/a.md"
+    assert _workspace_path("notes/a.md") == "notes/a.md"
+    assert _workspace_path("agent-files") == "agent-files"

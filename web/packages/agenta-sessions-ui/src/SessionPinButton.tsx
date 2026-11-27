@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import sessionsRowsCatalog from "@agenta/i18n/catalogs/sessions.rows"
 import {PushPinIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
 
@@ -22,26 +24,33 @@ export const SessionPinButton = ({
     tooltip?: boolean
     className?: string
 }) => {
+    const t = useT(sessionsRowsCatalog)
     const button = (
         <button
             type="button"
-            aria-label={pinned ? "Unpin session" : "Pin session"}
+            aria-label={pinned ? t("sessions.rows.unpinSession") : t("sessions.rows.pinSession")}
             onClick={(event) => {
                 event.stopPropagation()
                 onToggle()
             }}
             className={clsx(
-                "relative shrink-0 cursor-pointer border-0 bg-transparent p-0 text-colorTextTertiary",
+                "relative shrink-0 cursor-pointer border-0 bg-transparent p-0 text-muted-foreground",
                 // Transparent ::after hit extender around the unchanged 14px icon — absolute, so
                 // the trailing controls' h-5 box and the row do not grow. Wider on touch, where
                 // there is no cursor to aim with: ~38px against the ~26px a mouse gets.
                 "after:absolute after:inset-[-12px] after:content-[''] [@media(hover:hover)]:after:inset-[-6px]",
-                !pinned && revealOnHover && "opacity-0 focus:opacity-100 group-hover:opacity-100",
+                !pinned &&
+                    revealOnHover &&
+                    "opacity-0 focus:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100",
                 className,
             )}
         >
             <PushPinIcon size={14} weight={pinned ? "fill" : "regular"} />
         </button>
     )
-    return tooltip ? <Tip title={pinned ? "Unpin" : "Pin"}>{button}</Tip> : button
+    return tooltip ? (
+        <Tip title={pinned ? t("sessions.rows.unpin") : t("sessions.rows.pin")}>{button}</Tip>
+    ) : (
+        button
+    )
 }

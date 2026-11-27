@@ -10,7 +10,11 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 _TRUTHY = {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
-_LICENSE = "ee" if os.getenv("AGENTA_LICENSE") == "ee" else "oss"
+# `AGENTA_LICENSE` only names the default database prefix, so an install keeps the
+# databases it was created with. It does not choose the code path or the plan.
+_DB_PREFIX_DEFAULT = (
+    "agenta_ee" if os.getenv("AGENTA_LICENSE") == "ee" else "agenta_oss"
+)
 MAC_ADDRESS = ":".join(f"{(getnode() >> ele) & 0xFF:02x}" for ele in range(40, -1, -8))
 
 
@@ -210,11 +214,12 @@ class AccessConfig(BaseModel):
     ).lower() in _TRUTHY
 
     # People may store their own accounts (custom secrets, Composio connections, MCP
-    # sign-ins), and an agent's "user" items use them. Off until every API pod and runner
-    # of the deployment runs the release that added them: an older pod reads a person's
-    # row as an organization row.
+    # sign-ins), and an agent's "user" items use them. On by default. An installation can
+    # set it to false. Set it to false until every API pod, services pod and runner of the deployment
+    # runs the release that added them: an older pod reads a person's row as an
+    # organization row.
     personal_accounts_enabled: bool = _parse_bool_env(
-        "AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED", False
+        "AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED", True
     )
 
     plans: dict | None = _load_json_env_dict("AGENTA_ACCESS_PLANS")
@@ -538,7 +543,7 @@ class WorkersConfig(BaseModel):
     """Topology selectors for the merged `worker-streams`/`worker-queues` entrypoints.
 
     Empty list means "all loops in that family" — see
-    docs/designs/workers-sprawl/specs.md.
+    docs/design/workers-sprawl/specs.md.
     """
 
     streams: list[str] = _load_csv_env_list("AGENTA_WORKER_STREAMS")
@@ -821,6 +826,36 @@ class SessionsConfig(BaseModel):
     commands: SessionsCommandsConfig = SessionsCommandsConfig()
     records: SessionsRecordsConfig = SessionsRecordsConfig()
     watchdog: SessionWatchdogConfig = SessionWatchdogConfig()
+    # Turns in a row in one session that no person sent. At this count a server input
+    # waits in the queue until a person sends a message.
+    turns_without_person_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_TURNS_WITHOUT_PERSON_LIMIT")
+        or 20
+    )
+    # Running child sessions of one calling session. `start_session`, and a send that
+    # would start a turn in an idle child, are refused at this count.
+    child_sessions_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_CHILD_SESSIONS_LIMIT") or 5
+    )
+    # Levels of child sessions. A session that a person started is level 0, its child
+    # is level 1, the child of that child is level 2. `start_session` is refused when
+    # the new child would be deeper than this level.
+    child_session_depth_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_CHILD_SESSION_DEPTH_LIMIT")
+        or 3
+    )
+    # Queued messages from one calling session in one child session. A send that would
+    # queue one more is refused.
+    child_queued_messages_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_CHILD_QUEUED_MESSAGES_LIMIT")
+        or 3
+    )
+    # Minutes after a start or a send before the calling session gets the still-running
+    # update, when the agent gives no `update_after_minutes`.
+    still_running_update_minutes: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_STILL_RUNNING_UPDATE_MINUTES")
+        or 30
+    )
 
     model_config = ConfigDict(extra="ignore")
 
@@ -860,8 +895,6 @@ class AuthCodeRateLimitConfig(BaseModel):
 
 class AgentaConfig(BaseModel):
     """Agenta core configuration"""
-
-    license: str = _LICENSE
 
     web_url: str = os.getenv("AGENTA_WEB_URL") or "http://localhost"
     services_url: str = os.getenv("AGENTA_SERVICES_URL") or "http://localhost/services"
@@ -922,11 +955,13 @@ class AlembicConfig(BaseModel):
         or "true"
     ).lower() in _TRUTHY
 
-    cfg_path_core: str = os.getenv("ALEMBIC_CFG_PATH_CORE") or (
-        f"/app/{_LICENSE}/databases/postgres/migrations/core/alembic.ini"
+    cfg_path_core: str = (
+        os.getenv("ALEMBIC_CFG_PATH_CORE")
+        or "/app/ee/databases/postgres/migrations/core/alembic.ini"
     )
-    cfg_path_tracing: str = os.getenv("ALEMBIC_CFG_PATH_TRACING") or (
-        f"/app/{_LICENSE}/databases/postgres/migrations/tracing/alembic.ini"
+    cfg_path_tracing: str = (
+        os.getenv("ALEMBIC_CFG_PATH_TRACING")
+        or "/app/ee/databases/postgres/migrations/tracing/alembic.ini"
     )
 
     model_config = ConfigDict(extra="ignore")
@@ -1590,6 +1625,19 @@ class IdentityConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# license — the self-hosted license key. `AGENTA_LICENSE` is only the database prefix.
+# ---------------------------------------------------------------------------
+
+
+class LicenseConfig(BaseModel):
+    """License key set by the operator. It takes priority over a key added in the app."""
+
+    key: str | None = (os.getenv("AGENTA_LICENSE_KEY") or "").strip() or None
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
 # llm — provider API keys (top-level by vendor).
 # ---------------------------------------------------------------------------
 
@@ -1897,8 +1945,8 @@ class PostgresConfig(BaseModel):
 
     # Database-name resolution: explicit POSTGRES_URI_* wins; else compose from
     # POSTGRES_DB_PREFIX (e.g. an EE stack adopting an OSS database sets
-    # POSTGRES_DB_PREFIX=agenta_oss); else today's default, agenta_{license}.
-    db_prefix: str = os.getenv("POSTGRES_DB_PREFIX") or f"agenta_{_LICENSE}"
+    # POSTGRES_DB_PREFIX=agenta_oss); else agenta_{AGENTA_LICENSE}, agenta_oss when unset.
+    db_prefix: str = os.getenv("POSTGRES_DB_PREFIX") or _DB_PREFIX_DEFAULT
 
     user: str = os.getenv("POSTGRES_USER") or "username"
     password: str = os.getenv("POSTGRES_PASSWORD") or "password"
@@ -1985,10 +2033,7 @@ class PostgresConfig(BaseModel):
             b"|".join(
                 (
                     (os.getenv("AGENTA_AUTH_KEY") or "replace-me").encode(),
-                    (
-                        os.getenv("POSTGRES_URI_CORE")
-                        or f"postgresql+asyncpg://username:password@postgres:5432/agenta_{_LICENSE}_core"
-                    ).encode(),
+                    uri_core.encode(),
                 )
             ),
             digest_size=8,
@@ -2083,6 +2128,25 @@ class RedisConfig(BaseModel):
     def enabled(self) -> bool:
         """Redis enabled if URIs are configured"""
         return bool(self.uri_volatile or self.uri_durable)
+
+
+# ---------------------------------------------------------------------------
+# releases
+# ---------------------------------------------------------------------------
+
+
+class ReleasesConfig(BaseModel):
+    """The update check: the API downloads Agenta's public release feed and sends the
+    running version and the instance kind, nothing else. It does not follow
+    AGENTA_TELEMETRY_ENABLED."""
+
+    update_check_enabled: bool = _parse_bool_env("AGENTA_UPDATE_CHECK_ENABLED", True)
+    # Change it only to test a different feed. An empty value uses the default.
+    feed_url: str = (
+        os.getenv("AGENTA_RELEASE_FEED_URL") or "https://agenta.ai/releases.json"
+    )
+
+    model_config = ConfigDict(extra="ignore")
 
 
 # ---------------------------------------------------------------------------
@@ -2332,6 +2396,77 @@ class SuperTokensConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# telemetry
+# ---------------------------------------------------------------------------
+
+_DEPLOYMENT_METHODS = ("compose", "helm", "railway", "kubernetes", "docker")
+
+DeploymentMethod = Literal["compose", "helm", "railway", "kubernetes", "docker"]
+
+
+def _detect_deployment_method() -> Optional[DeploymentMethod]:
+    """How the API runs, when AGENTA_DEPLOYMENT_METHOD does not say."""
+
+    if os.getenv("KUBERNETES_SERVICE_HOST"):
+        return "kubernetes"
+    if os.path.exists("/.dockerenv"):
+        return "docker"
+    return None
+
+
+def _parse_deployment_method() -> Optional[DeploymentMethod]:
+    value = (os.getenv("AGENTA_DEPLOYMENT_METHOD") or "").strip().lower()
+    if not value:
+        return _detect_deployment_method()
+    if value in _DEPLOYMENT_METHODS:
+        return value
+    warnings.warn(
+        f"AGENTA_DEPLOYMENT_METHOD={value!r} is not recognized; "
+        "expected one of compose, helm, railway, kubernetes, docker. "
+        "Reporting no deployment method.",
+        stacklevel=2,
+    )
+    return None
+
+
+_INSTANCE_KINDS = ("production", "development", "ci", "test")
+
+InstanceKind = Literal["production", "development", "ci", "test"]
+
+
+def _parse_instance_kind() -> Optional[InstanceKind]:
+    """AGENTA_TELEMETRY_INSTANCE_KIND, when set: Agenta's own test and QA stacks set
+    `test` so their events can be filtered out. Empty means the API detects it."""
+
+    value = (os.getenv("AGENTA_TELEMETRY_INSTANCE_KIND") or "").strip().lower()
+    if not value:
+        return None
+    if value in _INSTANCE_KINDS:
+        return value
+    warnings.warn(
+        f"AGENTA_TELEMETRY_INSTANCE_KIND={value!r} is not recognized; "
+        "expected one of production, development, ci, test. "
+        "Detecting the instance kind instead.",
+        stacklevel=2,
+    )
+    return None
+
+
+class TelemetryConfig(BaseModel):
+    """What a self-hosted instance sends to Agenta's PostHog project."""
+
+    enabled: bool = _parse_bool_env("AGENTA_TELEMETRY_ENABLED", default=True)
+    # Whether the operator set the switch, so the startup log can name the reason.
+    enabled_set: bool = bool((os.getenv("AGENTA_TELEMETRY_ENABLED") or "").strip())
+    deployment_method: Optional[DeploymentMethod] = _parse_deployment_method()
+    # Overrides the detected instance kind when set.
+    instance_kind: Optional[InstanceKind] = _parse_instance_kind()
+    ci: bool = bool(os.getenv("CI"))
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
 # Triggers
 # ---------------------------------------------------------------------------
 
@@ -2353,6 +2488,16 @@ class TriggersConfig(BaseModel):
             "AGENTA_TRIGGERS_SCHEDULE_MIN_INTERVAL_MINUTES"
         )
         or 15
+    )
+
+    # The most one-time schedules (`data.run_at`) that one schedule tick fires,
+    # earliest `run_at` first; the rest fire in the next tick. A total over all
+    # projects: there is no limit per project.
+    one_time_schedules_max_per_tick: int = (
+        _parse_optional_positive_int_env(
+            "AGENTA_TRIGGERS_ONE_TIME_SCHEDULES_MAX_PER_TICK"
+        )
+        or 2000
     )
 
 
@@ -2452,6 +2597,7 @@ class EnvironSettings(BaseModel):
     gateway_credentials: GatewayCredentialsConfig = GatewayCredentialsConfig()
     gateway_egress: GatewayEgressConfig = GatewayEgressConfig()
     identity: IdentityConfig = IdentityConfig()
+    license: LicenseConfig = LicenseConfig()
     llm: LLMConfig = LLMConfig()
     llm_gateway: LLMGatewayConfig = LLMGatewayConfig()
     loops: LoopsConfig = LoopsConfig()
@@ -2461,6 +2607,7 @@ class EnvironSettings(BaseModel):
     postgres: PostgresConfig = PostgresConfig()
     posthog: PostHogConfig = PostHogConfig()
     redis: RedisConfig = RedisConfig()
+    releases: ReleasesConfig = ReleasesConfig()
     runner: RunnerConfig = RunnerConfig()
     sessions: SessionsRedisConfig = SessionsRedisConfig()
     smtp: SmtpConfig = SmtpConfig()
@@ -2469,6 +2616,7 @@ class EnvironSettings(BaseModel):
     store: StoreConfig = StoreConfig()
     stripe: StripeConfig = StripeConfig()
     supertokens: SuperTokensConfig = SuperTokensConfig()
+    telemetry: TelemetryConfig = TelemetryConfig()
     triggers: TriggersConfig = TriggersConfig()
     typesafe: TypeSafeConfig = TypeSafeConfig()
     wallets: WalletsConfig = WalletsConfig()

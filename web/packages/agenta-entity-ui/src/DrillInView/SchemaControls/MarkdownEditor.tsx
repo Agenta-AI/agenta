@@ -32,6 +32,8 @@ import {
     useState,
 } from "react"
 
+import {useT} from "@agenta/i18n"
+import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {
     EditorProvider,
     MarkdownToolbar,
@@ -238,6 +240,7 @@ export function MarkdownEditor({
     onLinkClick,
     loadingSkeleton,
 }: MarkdownEditorProps) {
+    const t = useT(schemaControlsCatalog)
     // Stable id shared by the provider and the editor so they target one composer. Colons from
     // useId() are dropped to keep it id/atom-key safe.
     const reactId = useId()
@@ -321,9 +324,11 @@ export function MarkdownEditor({
             type="button"
             onClick={() => setView(markdownView ? "rendered" : "source")}
             disabled={disabled}
-            className="shrink-0 cursor-pointer border-0 bg-transparent px-1 text-xs text-[var(--ag-zinc-5)] transition-colors hover:text-[var(--ag-c-586673)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="shrink-0 cursor-pointer border-0 bg-transparent px-1 text-meta text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
         >
-            {markdownView ? "Rich text" : "Source"}
+            {markdownView
+                ? t("entityUi.schemaControls.richText")
+                : t("entityUi.schemaControls.source")}
         </button>
     ) : null
 
@@ -341,7 +346,7 @@ export function MarkdownEditor({
         ) : (
             // border-0 first: preflight is off, so a bare `border-b` still paints the UA's other
             // three sides — the top one doubling up with the container's own border.
-            <div className="flex shrink-0 items-center justify-between gap-1 border-0 border-b border-solid border-[var(--ag-c-EAEFF5)] px-3 py-1.5">
+            <div className="flex shrink-0 items-center justify-between gap-1 border-0 border-b border-solid border-border-muted px-3 py-1.5">
                 {toolbarControls}
                 {viewToggle}
             </div>
@@ -352,7 +357,7 @@ export function MarkdownEditor({
             {filename ? (
                 // antd v6's default Tag variant is `filled` (borderless), so the `bordered` this
                 // carried was a no-op — the neutral Badge is the exact equivalent.
-                <Badge className="font-mono text-xs font-normal leading-[22.4px] text-[var(--ag-c-586673)]">
+                <Badge className=" text-code-sm font-normal leading-[22.4px] text-muted-foreground">
                     {filename}
                 </Badge>
             ) : (
@@ -368,7 +373,7 @@ export function MarkdownEditor({
     const boundStyle: CSSProperties | undefined = grow
         ? undefined
         : fill
-          ? {height: "calc(100vh - 152px)"}
+          ? {height: "calc(100dvh - 152px)"}
           : maxHeight != null
             ? {maxHeight: typeof maxHeight === "number" ? `${maxHeight}px` : maxHeight}
             : undefined
@@ -429,7 +434,7 @@ export function MarkdownEditor({
             className={cn(
                 "flex flex-col overflow-hidden",
                 grow && "min-h-0 flex-1",
-                bordered && "rounded-md border border-solid border-[var(--ag-c-BDC7D1)]",
+                bordered && "rounded-md border border-solid border-border",
             )}
             style={boundStyle}
         >
@@ -479,9 +484,9 @@ export function MarkdownEditor({
                 >
                     {body}
                     {dragOver ? (
-                        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-md border-2 border-dashed border-[var(--ant-color-primary)] bg-[var(--ant-color-primary-bg,rgba(22,119,255,0.08))]">
-                            <span className="rounded-md bg-[var(--ant-color-bg-elevated,#fff)] px-3 py-1.5 text-xs font-medium text-[var(--ag-c-586673)] shadow-sm">
-                                Drop a Markdown file to replace the content
+                        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-md border border-dashed border-border-strong bg-accent">
+                            <span className="rounded-md bg-popover px-3 py-1.5 text-label text-muted-foreground shadow-overlay">
+                                {t("entityUi.schemaControls.dropMarkdown")}
                             </span>
                         </div>
                     ) : null}

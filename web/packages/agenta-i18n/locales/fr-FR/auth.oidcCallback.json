@@ -1,0 +1,6 @@
+{
+    "backToSignIn": "Retour à la connexion",
+    "codeUsed": "Ce lien de connexion a déjà été utilisé. Reconnectez-vous.",
+    "securityCheckFailed": "La vérification de sécurité a échoué. Veuillez réessayer.",
+    "signedInButAppFailed": "Connexion réussie, mais l’application n’a pas pu s’ouvrir. Veuillez réessayer."
+}

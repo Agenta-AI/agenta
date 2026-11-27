@@ -12,9 +12,10 @@
  * each one authenticates. What a server may actually do is a property of an agent, not of the
  * connection, so permissions are reachable from here only read-only ("View tools").
  */
-import {type ReactNode, useCallback, useMemo, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {
+    usePersonalMcpSignIn,
     mcpReconnectTarget,
     connectionNameProblem,
     deleteMcpEndpointAtom,
@@ -25,7 +26,6 @@ import {
     getMcpConnectionStatusLabel,
     readMcpConnectionHealth,
     mcpEndpointsQueryAtom,
-    readMcpToolCount,
     refreshMcpEndpointsAtom,
     type McpConnectionStatus,
     type MCPEndpoint,
@@ -34,39 +34,55 @@ import {customNamedSecretsAtom, personalAccountsAccessAtom} from "@agenta/entiti
 import {
     McpConnectJourney,
     McpConnectionDetail,
-    McpPermissionDrawer,
+    McpServerToolsSheet,
 } from "@agenta/entity-ui/mcpEndpoint"
+import {useT, createT, type CatalogKey} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsMcpCatalog from "@agenta/i18n/catalogs/settings.mcp"
+import settingsSharedCatalog from "@agenta/i18n/catalogs/settings.shared"
 import {getSettingsSidebarIcon} from "@agenta/settings"
 import {projectIdAtom} from "@agenta/shared/state"
 import {McpServerMark} from "@agenta/ui/agent-icon"
 import {message} from "@agenta/ui/app-message"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
-import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
-import {Button} from "@agenta/ui/ui"
+import {
+    LIST_COLUMN_WIDTH,
+    ListTable,
+    ListTableNameCell,
+    type ListTableColumn,
+} from "@agenta/ui/list-table"
+import {useIsPhone} from "@agenta/ui/phone"
+import {Button, Segmented} from "@agenta/ui/ui"
 import {
     ArrowsClockwise,
+    CheckCircle,
     LinkBreak,
+    MagnifyingGlass,
     PencilSimpleLine,
     Plus,
+    SignIn,
+    SignOut,
     Trash,
     Wrench,
 } from "@phosphor-icons/react"
-import {useAtom, useAtomValue, useSetAtom} from "jotai"
-import {atomWithStorage} from "jotai/utils"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import type {ConfirmDestructive} from "../confirm"
 import {SettingsPageActions} from "../SettingsPageShell"
 import {showsYours} from "../shared/accountOwners"
+import {ConnectionsToolbar} from "../shared/ConnectionsToolbar"
 import {InlineName} from "../shared/InlineName"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
-import {SettingsGroupHeading} from "../shared/SettingsGroupHeading"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 import {usePhoneColumns} from "../shared/usePhoneColumns"
 
-import {McpYoursTable, personalSignInServers} from "./McpYoursTable"
+import {asksForSignIn, isSignedIn, McpSignInCell} from "./McpSignInCell"
+import {McpTokenSignInDialog} from "./McpTokenSignInDialog"
 
-/** Per viewer, like the other pages' groups: "Yours" folds away and stays folded. */
-const yoursCollapsedAtom = atomWithStorage("agenta:settings:mcps-yours-collapsed", false)
+const tNow = createT(commonCatalog, settingsMcpCatalog)
+
+/** The Status filter: every server, the connected ones, or the ones that need attention. */
+type StatusFilter = "all" | "connected" | "attention"
 
 /** Nouns for the rows; a host that calls them something else passes its own. */
 export interface McpServersSectionCopy {
@@ -75,11 +91,13 @@ export interface McpServersSectionCopy {
     emptyBody: string
 }
 
-const DEFAULT_COPY: McpServersSectionCopy = {
-    connect: "Connect MCP",
-    emptyTitle: "No MCP servers connected",
-    emptyBody:
-        "Connect a server by URL. You'll sign in or add a key once; agents in this project can then add it and choose what it may run.",
+const DEFAULT_COPY: Record<
+    keyof McpServersSectionCopy,
+    CatalogKey<typeof commonCatalog | typeof settingsMcpCatalog>
+> = {
+    connect: "settings.mcp.connect",
+    emptyTitle: "settings.mcp.emptyTitle",
+    emptyBody: "settings.mcp.emptyBody",
 }
 
 /**
@@ -109,20 +127,43 @@ const STATUS_TONE: Record<McpConnectionStatus, "success" | "warning" | "error"> 
 const hasGrantToRevoke = (endpoint: MCPEndpoint) =>
     endpoint.auth_mode === "oauth" && Boolean(endpoint.secret_id)
 
-const COLUMNS: ListTableColumn[] = [
-    {key: "name", label: "Name", width: "minmax(0,2fr)"},
-    {key: "url", label: "Server URL", width: "minmax(0,2fr)"},
-    {key: "auth", label: "Auth", width: "minmax(0,1fr)"},
-    {key: "status", label: "Status", width: "minmax(0,1.2fr)"},
-]
+type ColumnLabel = CatalogKey<typeof commonCatalog | typeof settingsMcpCatalog>
+type McpColumn = ListTableColumn & {label: ColumnLabel}
 
-const ACTIONS_COLUMN: ListTableColumn = {
-    key: "actions",
-    label: "Actions",
-    srOnly: true,
-    width: "32px",
+const NAME_COLUMN: McpColumn = {key: "name", label: "common.name", width: "minmax(160px,1.4fr)"}
+const URL_COLUMN: McpColumn = {key: "url", label: "settings.mcp.serverUrl", width: "minmax(0,1fr)"}
+const STATUS_COLUMN: McpColumn = {
+    key: "status",
+    label: "common.status",
+    width: LIST_COLUMN_WIDTH.secondary,
 }
-const PHONE_KEYS = ["name", "status", "actions"]
+/** The person's own sign-in: run-as, never ownership, so a status cell beside the server's. */
+const SIGN_IN_COLUMN: McpColumn = {
+    key: "signin",
+    label: "settings.mcp.yourSignIn",
+    width: LIST_COLUMN_WIDTH.name,
+}
+const ACTIONS_COLUMN: McpColumn = {
+    key: "actions",
+    label: "common.actions",
+    srOnly: true,
+    width: LIST_COLUMN_WIDTH.actions,
+}
+
+const columnsFor = (personal: boolean, signIn: boolean): McpColumn[] =>
+    personal && signIn
+        ? [NAME_COLUMN, URL_COLUMN, STATUS_COLUMN, SIGN_IN_COLUMN, ACTIONS_COLUMN]
+        : [NAME_COLUMN, URL_COLUMN, STATUS_COLUMN, ACTIONS_COLUMN]
+
+/** A phone keeps the name and the menu; the person's sign-in moves under the name. */
+const phoneKeysFor = (personal: boolean) =>
+    personal ? ["name", "actions"] : ["name", "status", "actions"]
+
+const matches = (endpoint: MCPEndpoint, term: string) =>
+    !term ||
+    [endpoint.name, endpoint.slug, endpoint.data.route.base_url].some((value) =>
+        value?.toLowerCase().includes(term),
+    )
 
 export interface McpServersSectionProps {
     /** Destructive confirmation — the desktop's AlertPopup, a sheet elsewhere. */
@@ -135,10 +176,6 @@ export interface McpServersSectionProps {
      */
     canListTools?: boolean
     copy?: Partial<McpServersSectionCopy>
-    /** The project group's heading: the project switch. Shown with "Yours". */
-    projectSwitch?: ReactNode
-    /** How many projects the person has in the organization, for the empty "Yours" note. */
-    projectCount?: number
 }
 
 export default function McpServersSection({
@@ -146,12 +183,17 @@ export default function McpServersSection({
     readOnly,
     canListTools = true,
     copy: copyOverrides,
-    projectSwitch,
-    projectCount,
 }: McpServersSectionProps) {
+    const t = useT(commonCatalog, settingsMcpCatalog, settingsSharedCatalog)
+    const phone = useIsPhone()
     const copy = useMemo<McpServersSectionCopy>(
-        () => ({...DEFAULT_COPY, ...copyOverrides}),
-        [copyOverrides],
+        () => ({
+            connect: t(DEFAULT_COPY.connect),
+            emptyTitle: t(DEFAULT_COPY.emptyTitle),
+            emptyBody: t(DEFAULT_COPY.emptyBody),
+            ...copyOverrides,
+        }),
+        [t, copyOverrides],
     )
 
     const {data: endpoints, isPending} = useAtomValue(mcpEndpointsQueryAtom)
@@ -160,7 +202,13 @@ export default function McpServersSection({
     const deleteEndpoint = useSetAtom(deleteMcpEndpointAtom)
     const namedSecrets = useAtomValue(customNamedSecretsAtom)
     const access = useAtomValue(personalAccountsAccessAtom)
-    const [yoursCollapsed, setYoursCollapsed] = useAtom(yoursCollapsedAtom)
+    const personal = showsYours(access)
+    // Lay the skeleton out with the sign-in column, the common case, until access is known.
+    const layoutPersonal = personal || access === "loading"
+    const signIn = usePersonalMcpSignIn()
+    const [tokenFor, setTokenFor] = useState<MCPEndpoint | null>(null)
+    const [search, setSearch] = useState("")
+    const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
 
     const [connecting, setConnecting] = useState(false)
     const [reconnecting, setReconnecting] = useState<MCPEndpoint | null>(null)
@@ -174,27 +222,62 @@ export default function McpServersSection({
     const [viewingKey, setViewingKey] = useState<string | null>(null)
     /** "View tools", tracked by key for the same reason as the connection above. */
     const [toolsKey, setToolsKey] = useState<string | null>(null)
-    // The tools drawer's panel: a reconnect started there opens inside it, not over the page.
-    const [toolsPanel, setToolsPanel] = useState<HTMLDivElement | null>(null)
     const [renamingKey, setRenamingKey] = useState<string | null>(null)
     const projectId = useAtomValue(projectIdAtom)
 
-    const rows = useMemo(() => endpoints ?? [], [endpoints])
-    // A person signs in to the project's servers.
-    const yoursServers = useMemo(() => personalSignInServers(rows), [rows])
-    const names = useMemo(() => rows.map((row) => row.name), [rows])
+    const allRows = useMemo(() => endpoints ?? [], [endpoints])
+    const term = search.trim().toLowerCase()
+    const rows = useMemo(
+        () =>
+            allRows.filter(
+                (row) =>
+                    matches(row, term) &&
+                    (statusFilter === "all" ||
+                        (getMcpConnectionStatus(row) === "connected") ===
+                            (statusFilter === "connected")),
+            ),
+        [allRows, statusFilter, term],
+    )
+    const narrowed = Boolean(term) || statusFilter !== "all"
+    const names = useMemo(() => allRows.map((row) => row.name), [allRows])
     const rowKey = useCallback((record: MCPEndpoint) => record.id ?? record.slug ?? "", [])
     const viewing = useMemo(
-        () => rows.find((row) => rowKey(row) === viewingKey) ?? null,
-        [rowKey, rows, viewingKey],
+        () => allRows.find((row) => rowKey(row) === viewingKey) ?? null,
+        [allRows, rowKey, viewingKey],
     )
     const setViewing = useCallback(
         (record: MCPEndpoint | null) => setViewingKey(record ? rowKey(record) : null),
         [rowKey],
     )
     const viewingTools = useMemo(
-        () => rows.find((row) => rowKey(row) === toolsKey) ?? null,
-        [rowKey, rows, toolsKey],
+        () => allRows.find((row) => rowKey(row) === toolsKey) ?? null,
+        [allRows, rowKey, toolsKey],
+    )
+
+    // An OAuth sign-in opens its popup inside the click; a token server asks for the token.
+    const startSignIn = useCallback(
+        (endpoint: MCPEndpoint) => {
+            if (endpoint.auth_mode === "api_key") setTokenFor(endpoint)
+            else signIn.signIn(endpoint)
+        },
+        [signIn],
+    )
+
+    const confirmSignOut = useCallback(
+        (endpoint: MCPEndpoint) => {
+            const run = () => signIn.signOut(endpoint)
+            if (!confirm) return void run()
+            confirm({
+                title: tNow("settings.mcp.signOutOf", {
+                    name: endpoint.name || endpoint.slug || tNow("settings.mcp.thisServer"),
+                }),
+                message: tNow("settings.mcp.signOutMessage"),
+                okText: tNow("common.signOut"),
+                danger: true,
+                onOk: run,
+            })
+        },
+        [confirm, signIn],
     )
 
     /**
@@ -242,21 +325,21 @@ export default function McpServersSection({
     const handleDisconnect = useCallback(
         (endpoint: MCPEndpoint) => {
             if (!endpoint.id) return
-            const label = endpoint.name || endpoint.slug || "this server"
+            const label = endpoint.name || endpoint.slug || tNow("settings.mcp.thisServer")
             const run = async () => {
                 try {
                     await disconnect(endpoint.id as string)
                 } catch (error) {
                     message.error(
-                        (error as Error)?.message || "Failed to disconnect the MCP server.",
+                        (error as Error)?.message || tNow("settings.mcp.disconnectFailed"),
                     )
                 }
             }
             if (!confirm) return void run()
             confirm({
-                title: `Disconnect ${label}`,
-                message: "Agents using this server lose its tools",
-                okText: "Disconnect",
+                title: tNow("settings.mcp.disconnectTitle", {name: label}),
+                message: tNow("settings.mcp.disconnectMessage"),
+                okText: tNow("common.disconnect"),
                 danger: true,
                 onOk: run,
             })
@@ -273,32 +356,39 @@ export default function McpServersSection({
     const handleRemove = useCallback(
         (endpoint: MCPEndpoint) => {
             if (!endpoint.id) return
-            const label = endpoint.name || endpoint.slug || "this server"
+            const label = endpoint.name || endpoint.slug || tNow("settings.mcp.thisServer")
             const run = async () => {
                 try {
                     await deleteEndpoint(endpoint.id as string)
                     setViewing(null)
                     setToolsKey(null)
                 } catch (error) {
-                    message.error((error as Error)?.message || "Failed to remove the MCP server.")
+                    message.error((error as Error)?.message || tNow("settings.mcp.removeFailed"))
                 }
             }
             if (!confirm) return void run()
             confirm({
-                title: "Remove server",
-                message: `${label} is removed from this project. Agents configured to use it stop working, and reconnecting later creates a new connection.`,
+                title: tNow("settings.mcp.removeTitle", {name: label}),
+                message: tNow("settings.mcp.removeMessage", {name: label}),
+                okText: tNow("common.remove"),
+                danger: true,
                 onOk: run,
             })
         },
         [confirm, deleteEndpoint, setViewing],
     )
 
+    // No sign-in column when no server asks for one; kept while the list loads.
+    const anySignIn = isPending || allRows.some(asksForSignIn)
     const allColumns = useMemo(
-        () => (readOnly ? COLUMNS : [...COLUMNS, ACTIONS_COLUMN]),
-        [readOnly],
+        () =>
+            columnsFor(layoutPersonal, anySignIn).map((column) => ({
+                ...column,
+                label: t(column.label),
+            })),
+        [anySignIn, layoutPersonal, t],
     )
-    const {columns, shows} = usePhoneColumns(allColumns, PHONE_KEYS)
-    const empty = !isPending && rows.length === 0
+    const {columns, shows, wide} = usePhoneColumns(allColumns, phoneKeysFor(layoutPersonal))
 
     const connect = (
         <Button data-testid="mcp-connect-open" onClick={openConnect}>
@@ -313,17 +403,61 @@ export default function McpServersSection({
             groups={[{key: "servers", label: null, rows}]}
             rowKey={rowKey}
             minWidth={0}
-            loading={isPending}
+            loading={isPending || access === "loading"}
             skeletonRows={3}
-            hideHeader={empty}
+            skeleton={{mark: true}}
+            // A phone shows one column, and an empty list has no columns: no header either way.
+            hideHeader={!wide || (!isPending && !rows.length)}
             onOpenRow={(record) => setViewing(record)}
             empty={
-                <SettingsEmpty
-                    icon={getSettingsSidebarIcon("mcpEndpoints")}
-                    title={copy.emptyTitle}
-                    description={copy.emptyBody}
-                    action={readOnly ? null : connect}
-                />
+                term ? (
+                    <SettingsEmpty
+                        compact
+                        icon={<MagnifyingGlass size={16} />}
+                        title={t("settings.shared.noMatchTitle")}
+                        description={t("settings.shared.noMatchSearchBody")}
+                        action={
+                            <Button variant="outline" onClick={() => setSearch("")}>
+                                {t("common.clearSearch")}
+                            </Button>
+                        }
+                    />
+                ) : narrowed ? (
+                    // A status with no servers is an answer, not a miss: a full empty screen.
+                    <SettingsEmpty
+                        plain
+                        icon={
+                            statusFilter === "attention" ? (
+                                <CheckCircle size={20} />
+                            ) : (
+                                getSettingsSidebarIcon("mcpEndpoints")
+                            )
+                        }
+                        title={
+                            statusFilter === "attention"
+                                ? t("settings.mcp.noneNeedAttentionTitle")
+                                : t("settings.mcp.noneConnectedTitle")
+                        }
+                        description={
+                            statusFilter === "attention"
+                                ? t("settings.mcp.noneNeedAttentionBody")
+                                : t("settings.mcp.noneConnectedBody")
+                        }
+                        action={
+                            <Button variant="outline" onClick={() => setStatusFilter("all")}>
+                                {t("settings.mcp.showAllServers")}
+                            </Button>
+                        }
+                    />
+                ) : (
+                    <SettingsEmpty
+                        compact
+                        icon={getSettingsSidebarIcon("mcpEndpoints")}
+                        title={copy.emptyTitle}
+                        description={copy.emptyBody}
+                        action={readOnly ? null : connect}
+                    />
+                )
             }
             renderRow={(record) => {
                 const status = getMcpConnectionStatus(record)
@@ -332,134 +466,189 @@ export default function McpServersSection({
                 const secretName = record.secret_id
                     ? secretNameById.get(record.secret_id)
                     : undefined
+                // How the server signs in, under its name; never the credential itself.
+                const authLine =
+                    record.auth_mode === "oauth" ? (
+                        t("settings.mcp.oauth")
+                    ) : record.auth_mode === "none" ? undefined : secretName ? (
+                        <>
+                            {t("settings.mcp.apiKeyPrefix")}{" "}
+                            <span className="text-code">{secretName}</span>
+                        </>
+                    ) : (
+                        t("settings.mcp.apiKey")
+                    )
                 return (
                     <>
-                        <span className="flex min-w-0 items-center gap-2.5">
-                            {/* One generic glyph for every server: the registry holds arbitrary
-                            URLs, so there is no per-server branding to show. */}
-                            <McpServerMark size={28} />
-                            <InlineName
-                                value={record.name || record.slug || ""}
-                                editing={!readOnly && renamingKey === rowKey(record)}
-                                ariaLabel="Connection name"
-                                testId="mcp-connection-name"
-                                onStart={
-                                    readOnly ? undefined : () => setRenamingKey(rowKey(record))
-                                }
-                                onDone={() => setRenamingKey(null)}
-                                validate={(name) =>
-                                    connectionNameProblem({
-                                        name,
-                                        existingNames: names,
-                                        currentName: record.name,
-                                    })
-                                }
-                                onSave={async (name) => {
-                                    if (!record.id) return
-                                    // A full replace: the edit route writes what it is given.
-                                    await editMcpEndpoint(
-                                        {
-                                            id: record.id,
+                        {renamingKey === rowKey(record) && !readOnly ? (
+                            <span className="flex min-w-0 items-center gap-3">
+                                <McpServerMark size={32} name={record.name || record.slug} />
+                                <InlineName
+                                    value={record.name || record.slug || ""}
+                                    editing
+                                    ariaLabel={t("settings.mcp.connectionName")}
+                                    testId="mcp-connection-name"
+                                    onDone={() => setRenamingKey(null)}
+                                    validate={(name) =>
+                                        connectionNameProblem({
                                             name,
-                                            description: record.description,
-                                            auth_mode: record.auth_mode,
-                                            secret_id: record.secret_id,
-                                            data: record.data,
-                                            flags: record.flags,
-                                        },
-                                        projectId ?? undefined,
-                                    )
-                                    void refresh()
-                                }}
+                                            existingNames: names,
+                                            currentName: record.name,
+                                        })
+                                    }
+                                    onSave={async (name) => {
+                                        if (!record.id) return
+                                        // A full replace: the edit route writes what it is given.
+                                        await editMcpEndpoint(
+                                            {
+                                                id: record.id,
+                                                name,
+                                                description: record.description,
+                                                auth_mode: record.auth_mode,
+                                                secret_id: record.secret_id,
+                                                data: record.data,
+                                                flags: record.flags,
+                                            },
+                                            projectId ?? undefined,
+                                        )
+                                        void refresh()
+                                    }}
+                                />
+                            </span>
+                        ) : (
+                            <ListTableNameCell
+                                // One glyph for every server; the tile color follows the name.
+                                mark={<McpServerMark size={32} name={record.name || record.slug} />}
+                                title={record.name || record.slug || ""}
+                                // A phone's meta line: a broken server first, then the sign-in.
+                                meta={
+                                    shows("url")
+                                        ? authLine
+                                        : !personal
+                                          ? (record.data.route.base_url ?? undefined)
+                                          : status !== "connected"
+                                            ? getMcpConnectionStatusLabel(status)
+                                            : asksForSignIn(record)
+                                              ? isSignedIn(record)
+                                                  ? t("settings.mcp.signedInAsYou")
+                                                  : t("settings.mcp.notSignedIn")
+                                              : (record.data.route.base_url ?? undefined)
+                                }
+                                // Red only where the dot is red; a warning dot keeps a muted line.
+                                metaTone={
+                                    !shows("url") && personal && STATUS_TONE[status] === "error"
+                                        ? "danger"
+                                        : "muted"
+                                }
                             />
-                        </span>
+                        )}
                         {shows("url") ? (
                             <span
-                                className="truncate text-[13px] text-muted-foreground"
+                                className="truncate text-label text-muted-foreground"
                                 title={record.data.route.base_url ?? undefined}
                             >
                                 {record.data.route.base_url}
                             </span>
                         ) : null}
-                        {!shows("auth") ? null : record.auth_mode === "oauth" ? (
-                            <span className="truncate">OAuth</span>
-                        ) : record.auth_mode === "none" ? (
-                            <span className="truncate">None</span>
-                        ) : secretName ? (
-                            // Never the credential itself, only what it is filed under.
-                            <span className="flex min-w-0 items-center gap-1">
-                                <span>API key ·</span>
-                                <span className="truncate font-mono text-xs">{secretName}</span>
+                        {!shows("status") ? null : (
+                            <span
+                                data-testid="mcp-connection-status"
+                                className="flex min-w-0 items-center gap-2"
+                            >
+                                <span className="flex min-w-0 flex-col">
+                                    <StatusIndicator
+                                        tone={STATUS_TONE[status]}
+                                        label={getMcpConnectionStatusLabel(status)}
+                                        // min-w-0 lets the label truncate instead of pushing the menu out.
+                                        className="min-w-0 text-label"
+                                    />
+                                    {checkLabel ? (
+                                        <span
+                                            data-testid="mcp-connection-check"
+                                            className="truncate text-meta text-muted-foreground"
+                                            title={checkLabel}
+                                        >
+                                            {checkLabel}
+                                        </span>
+                                    ) : null}
+                                </span>
                             </span>
-                        ) : (
-                            <span className="truncate">API key</span>
                         )}
-                        <span
-                            data-testid="mcp-connection-status"
-                            className="flex min-w-0 items-center gap-2"
-                        >
-                            <span className="flex min-w-0 flex-col">
-                                <StatusIndicator
-                                    tone={STATUS_TONE[status]}
-                                    label={getMcpConnectionStatusLabel(status)}
-                                    // min-w-0 lets the label truncate instead of pushing the menu out.
-                                    className="min-w-0 text-[13px]"
-                                />
-                                {checkLabel ? (
-                                    <span
-                                        data-testid="mcp-connection-check"
-                                        className="truncate text-xs text-muted-foreground"
-                                        title={checkLabel}
-                                    >
-                                        {checkLabel}
-                                    </span>
-                                ) : null}
-                            </span>
-                        </span>
-                        {readOnly ? null : (
-                            <SettingsRowMenu
-                                label="Server actions"
-                                items={[
-                                    {
-                                        key: "reconnect",
-                                        label: "Reconnect",
-                                        icon: <ArrowsClockwise size={14} />,
-                                        onClick: () => openReconnect(record),
-                                    },
-                                    {
-                                        key: "view-tools",
-                                        label: "View tools",
-                                        icon: <Wrench size={14} />,
-                                        hidden: !canListTools,
-                                        onClick: () => setToolsKey(rowKey(record)),
-                                    },
-                                    {
-                                        key: "rename",
-                                        label: "Rename",
-                                        icon: <PencilSimpleLine size={14} />,
-                                        deferred: true,
-                                        onClick: () => setRenamingKey(rowKey(record)),
-                                    },
-                                    {type: "divider"},
-                                    {
-                                        key: "disconnect",
-                                        label: "Disconnect",
-                                        icon: <LinkBreak size={14} />,
-                                        danger: true,
-                                        // Only an OAuth grant can be revoked; anything else is a 400.
-                                        hidden: !hasGrantToRevoke(record),
-                                        onClick: () => handleDisconnect(record),
-                                    },
-                                    {
-                                        key: "remove",
-                                        label: "Remove",
-                                        icon: <Trash size={14} />,
-                                        danger: true,
-                                        onClick: () => handleRemove(record),
-                                    },
-                                ]}
+                        {shows("signin") ? (
+                            <McpSignInCell
+                                endpoint={record}
+                                pending={signIn.pendingId !== null}
+                                onSignIn={startSignIn}
                             />
-                        )}
+                        ) : null}
+                        <SettingsRowMenu
+                            label={t("settings.mcp.serverActions")}
+                            items={[
+                                {
+                                    key: "reconnect",
+                                    label: t("common.reconnect"),
+                                    icon: <ArrowsClockwise size={14} />,
+                                    hidden: readOnly,
+                                    onClick: () => openReconnect(record),
+                                },
+                                {
+                                    key: "view-tools",
+                                    label: t("settings.mcp.viewTools"),
+                                    icon: <Wrench size={14} />,
+                                    hidden: readOnly || !canListTools,
+                                    onClick: () => setToolsKey(rowKey(record)),
+                                },
+                                {
+                                    key: "rename",
+                                    label: t("common.rename"),
+                                    icon: <PencilSimpleLine size={14} />,
+                                    deferred: true,
+                                    hidden: readOnly,
+                                    onClick: () => setRenamingKey(rowKey(record)),
+                                },
+                                {
+                                    key: "sign-in",
+                                    label: t("common.signIn"),
+                                    icon: <SignIn size={14} />,
+                                    // A phone has no sign-in cell; the menu holds Sign in.
+                                    hidden:
+                                        shows("signin") ||
+                                        !personal ||
+                                        !asksForSignIn(record) ||
+                                        isSignedIn(record),
+                                    disabled: signIn.pendingId !== null,
+                                    onClick: () => startSignIn(record),
+                                },
+                                {
+                                    key: "sign-out",
+                                    label: t("common.signOut"),
+                                    icon: <SignOut size={14} />,
+                                    // Only a sign-in the person has can be removed.
+                                    hidden:
+                                        !personal || !record.user_sign_in || !asksForSignIn(record),
+                                    disabled: signIn.pendingId !== null,
+                                    onClick: () => confirmSignOut(record),
+                                },
+                                {type: "divider"},
+                                {
+                                    key: "disconnect",
+                                    label: t("common.disconnect"),
+                                    icon: <LinkBreak size={14} />,
+                                    danger: true,
+                                    // Only an OAuth grant can be revoked; anything else is a 400.
+                                    hidden: readOnly || !hasGrantToRevoke(record),
+                                    onClick: () => handleDisconnect(record),
+                                },
+                                {
+                                    key: "remove",
+                                    label: t("common.remove"),
+                                    icon: <Trash size={14} />,
+                                    danger: true,
+                                    hidden: readOnly,
+                                    onClick: () => handleRemove(record),
+                                },
+                            ]}
+                        />
                     </>
                 )
             }}
@@ -470,67 +659,62 @@ export default function McpServersSection({
         <div className="flex flex-col">
             {readOnly ? null : <SettingsPageActions>{connect}</SettingsPageActions>}
 
-            {showsYours(access) ? (
-                <div className="flex flex-col gap-8">
-                    <McpYoursTable
-                        servers={yoursServers}
-                        collapsed={yoursCollapsed}
-                        onToggle={() => setYoursCollapsed((value) => !value)}
-                        confirm={confirm}
-                        projectCount={projectCount}
+            <ConnectionsToolbar
+                search={search}
+                onSearchChange={setSearch}
+                searchPlaceholder={t("settings.mcp.searchServers")}
+                segment={
+                    <Segmented
+                        aria-label={t("common.status")}
+                        size={phone ? "sm" : "default"}
+                        block={phone}
+                        value={statusFilter}
+                        onChange={(next) => setStatusFilter(next as StatusFilter)}
+                        options={[
+                            {value: "all", label: t("settings.shared.ownerAll")},
+                            {
+                                value: "connected",
+                                label: getMcpConnectionStatusLabel("connected"),
+                            },
+                            {value: "attention", label: t("common.needsAttention")},
+                        ]}
                     />
-                    <section className="flex flex-col gap-3">
-                        <SettingsGroupHeading
-                            label={projectSwitch ?? "Project"}
-                            count={rows.length}
-                        />
-                        {projectTable}
-                    </section>
-                </div>
-            ) : (
-                projectTable
-            )}
+                }
+            />
+            {signIn.error && !tokenFor ? (
+                <p className="m-0 mb-2 text-meta text-destructive">{signIn.error}</p>
+            ) : null}
+            {projectTable}
 
+            <McpTokenSignInDialog
+                open={Boolean(tokenFor)}
+                serverName={tokenFor?.name || tokenFor?.slug || t("settings.mcp.thisServer")}
+                error={tokenFor && signIn.pendingId === null ? signIn.error : null}
+                onSubmit={(token) =>
+                    tokenFor ? signIn.signInWithToken(tokenFor, token) : Promise.resolve(false)
+                }
+                onClose={() => setTokenFor(null)}
+            />
+
+            {/* A new journey per attempt: a reconnect chosen while one is open starts over. */}
             <McpConnectJourney
-                // A new controller per attempt. The component unmounts itself while closed,
-                // which covers open/close; the key covers the other way in, where a reconnect
-                // is chosen while one is already open and the hook would otherwise keep the
-                // endpoint it was mounted with.
                 key={reconnecting?.id ?? "new"}
                 open={connecting}
                 onClose={closeConnect}
                 existingNames={names}
                 reconnect={mcpReconnectTarget(reconnecting)}
                 onConnected={() => void refresh()}
-                container={viewingTools ? toolsPanel : null}
             />
 
-            {/*
-                "View tools" is the agent's permission drawer with nothing to set: the header,
-                the groups and the rows, no selects and no footer (decision 23). A Settings row
-                belongs to no agent, so there is no policy to read or write here — the empty
-                policy and the ignored `onChange` say that, and `readOnly` makes it true rather
-                than merely unused.
-            */}
-            <McpPermissionDrawer
-                open={Boolean(viewingTools)}
-                onClose={() => setToolsKey(null)}
-                slug={viewingTools?.slug ?? undefined}
-                connectionName={viewingTools?.name || viewingTools?.slug || undefined}
-                // Passed rather than defaulted: the drawer assumes "connected" when given
-                // nothing, which would claim a healthy server for a lapsed one.
-                status={viewingTools ? getMcpConnectionStatus(viewingTools) : undefined}
-                // Null for every row until the query response carries a count, so the header
-                // shows none. Wired now so it starts working with no change here.
-                cachedToolCount={
-                    viewingTools ? (readMcpToolCount(viewingTools) ?? undefined) : undefined
-                }
-                policy={{}}
-                onChange={() => undefined}
-                onReconnect={viewingTools ? () => openReconnect(viewingTools) : undefined}
-                readOnly
-                panelRef={setToolsPanel}
-            />
+            {/* "View tools": the project's connection, read-only; a permission belongs to an agent. */}
+            {viewingTools?.slug ? (
+                <McpServerToolsSheet
+                    key={rowKey(viewingTools)}
+                    endpoint={viewingTools}
+                    onReconnect={() => openReconnect(viewingTools)}
+                    onClosed={() => setToolsKey(null)}
+                />
+            ) : null}
 
             <McpConnectionDetail
                 endpoint={viewing}

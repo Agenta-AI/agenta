@@ -19,9 +19,11 @@
  * ```
  */
 
-import React from "react"
+import {useT} from "@agenta/i18n"
+import uiStatusCatalog from "@agenta/i18n/catalogs/ui.status"
 
-import {cn, sizeClasses, flexLayouts, bgColors, type SizeVariant} from "../../../utils/styles"
+import {cn, sizeClasses, type SizeVariant} from "../../../utils/styles"
+import {Badge} from "../../ui/badge"
 
 // ============================================================================
 // TYPES
@@ -36,14 +38,14 @@ export interface VersionBadgeProps {
     /**
      * Display variant
      * - "text": Plain text "v3"
-     * - "chip": Badge with background
+     * - "chip": The kit Badge
      * - "bold": Bold text
      * @default "text"
      */
     variant?: "text" | "chip" | "bold"
 
     /**
-     * Size variant
+     * Size variant (text and bold only; the Badge has one size)
      * @default "default"
      */
     size?: SizeVariant
@@ -67,23 +69,24 @@ export function VersionBadge({
     size = "default",
     className,
 }: VersionBadgeProps) {
-    const variantClasses = {
-        text: "",
-        bold: "font-medium",
-        // `text-foreground` (not a fixed gray) so the chip adapts in dark mode.
-        chip: cn(
-            flexLayouts.inlineCenter,
-            bgColors.chip,
-            "px-1.5 py-0.5 rounded text-foreground font-medium",
-        ),
+    const t = useT(uiStatusCatalog)
+    const title = t("ui.status.versionTitle", {version})
+    const label = t("ui.status.versionShort", {version})
+
+    if (variant === "chip") {
+        return (
+            <Badge variant="default" className={className} title={title}>
+                {label}
+            </Badge>
+        )
     }
 
     return (
         <span
-            className={cn(sizeClasses[size], variantClasses[variant], className)}
-            title={`Version ${version}`}
+            className={cn(sizeClasses[size], variant === "bold" && "font-medium", className)}
+            title={title}
         >
-            v{version}
+            {label}
         </span>
     )
 }

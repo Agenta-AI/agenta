@@ -1,12 +1,19 @@
 import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import testcaseCatalog from "@agenta/i18n/catalogs/entityUi.testcase"
 import {copyToClipboard} from "@agenta/ui"
 import {DropdownButton, type DropdownButtonOption} from "@agenta/ui/components"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {ViewModeDropdown} from "@agenta/ui/drill-in"
 import {
     Alert,
     Button,
+    cn,
+    Sheet,
+    SheetContent,
+    SheetFooter,
+    SheetHeader,
+    SheetTitle,
     Skeleton,
     Tooltip,
     TooltipContent,
@@ -28,8 +35,10 @@ import type {RootDrawerViewMode} from "./codeFormat"
 
 const EXPANDED_DRAWER_WIDTH = 1920
 
-const ROOT_VIEW_OPTIONS: {value: RootDrawerViewMode; label: string}[] = [
-    {value: "form", label: "Form"},
+const tNow = createT(testcaseCatalog)
+
+const rootViewOptions = (): {value: RootDrawerViewMode; label: string}[] => [
+    {value: "form", label: tNow("entityUi.testcase.viewForm")},
     {value: "json", label: "JSON"},
     {value: "yaml", label: "YAML"},
 ]
@@ -129,6 +138,7 @@ function TestcaseDrawer<TData = unknown>({
     renderEvaluatorMetrics,
     enableRootViewMode = false,
 }: TestcaseDrawerProps<TData>) {
+    const t = useT(testcaseCatalog)
     const skipDeferredFlow = viewOnly || editMode === "autoApply"
     const sessionStartDraftsRef = useRef<Map<string, TData>>(new Map())
     const sessionStartDraft = testcaseId
@@ -235,7 +245,7 @@ function TestcaseDrawer<TData = unknown>({
                 ? [
                       {
                           key: "commit",
-                          label: "Apply and Commit Changes",
+                          label: tNow("entityUi.testcase.applyAndCommit"),
                           disabled: !hasSessionDirty,
                       },
                   ]
@@ -244,7 +254,7 @@ function TestcaseDrawer<TData = unknown>({
                 ? [
                       {
                           key: "save",
-                          label: "Apply and Save Testset",
+                          label: tNow("entityUi.testcase.applyAndSave"),
                           disabled: !hasSessionDirty,
                       },
                   ]
@@ -263,7 +273,7 @@ function TestcaseDrawer<TData = unknown>({
                         <Button
                             variant="ghost"
                             size="icon-sm"
-                            aria-label="Close drawer"
+                            aria-label={tNow("entityUi.testcase.closeDrawer")}
                             onClick={handleCancel}
                         >
                             <CaretDoubleRight size={14} />
@@ -276,8 +286,8 @@ function TestcaseDrawer<TData = unknown>({
                                         size="icon-sm"
                                         aria-label={
                                             isDrawerExpanded
-                                                ? "Restore drawer width"
-                                                : "Expand drawer"
+                                                ? tNow("entityUi.testcase.restoreWidth")
+                                                : tNow("entityUi.testcase.expandDrawer")
                                         }
                                         onClick={() => setIsDrawerExpanded((value) => !value)}
                                     >
@@ -289,7 +299,9 @@ function TestcaseDrawer<TData = unknown>({
                                     </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                    {isDrawerExpanded ? "Restore drawer width" : "Expand drawer"}
+                                    {isDrawerExpanded
+                                        ? tNow("entityUi.testcase.restoreWidth")
+                                        : tNow("entityUi.testcase.expandDrawer")}
                                 </TooltipContent>
                             </Tooltip>
                         )}
@@ -298,7 +310,7 @@ function TestcaseDrawer<TData = unknown>({
                                 <Button
                                     variant="ghost"
                                     size="icon-sm"
-                                    aria-label="Previous testcase"
+                                    aria-label={tNow("entityUi.testcase.previous")}
                                     disabled={!hasPrevious}
                                     onClick={onPrevious}
                                 >
@@ -307,7 +319,7 @@ function TestcaseDrawer<TData = unknown>({
                                 <Button
                                     variant="ghost"
                                     size="icon-sm"
-                                    aria-label="Next testcase"
+                                    aria-label={tNow("entityUi.testcase.next")}
                                     disabled={!hasNext}
                                     onClick={onNext}
                                 >
@@ -315,12 +327,16 @@ function TestcaseDrawer<TData = unknown>({
                                 </Button>
                             </div>
                         )}
-                        <span className="font-medium text-sm">
-                            {isNewRow ? "New Testcase" : `Testcase ${testcaseNumber ?? ""}`}
+                        <span className="font-medium text-label">
+                            {isNewRow
+                                ? tNow("entityUi.testcase.newTestcase")
+                                : tNow("entityUi.testcase.testcaseNumber", {
+                                      number: testcaseNumber ?? "",
+                                  })}
                         </span>
                         {!skipDeferredFlow && isDirty && (
-                            <span className="text-[12px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">
-                                edited
+                            <span className="text-caption bg-info/10 text-info px-1.5 py-0.5 rounded-sm">
+                                {tNow("entityUi.testcase.edited")}
                             </span>
                         )}
                         {testcaseId && !isNewRow && (
@@ -329,14 +345,16 @@ function TestcaseDrawer<TData = unknown>({
                                     <Button
                                         variant="ghost"
                                         size="icon-sm"
-                                        aria-label="Copy ID"
+                                        aria-label={tNow("entityUi.testcase.copyId")}
                                         onClick={handleCopyId}
                                     >
                                         <Copy size={14} />
                                     </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                    {isIdCopied ? "Copied!" : "Copy ID"}
+                                    {isIdCopied
+                                        ? tNow("entityUi.testcase.copiedId")
+                                        : tNow("entityUi.testcase.copyId")}
                                 </TooltipContent>
                             </Tooltip>
                         )}
@@ -351,12 +369,16 @@ function TestcaseDrawer<TData = unknown>({
                                                 variant="ghost"
                                                 size="icon-sm"
                                                 onClick={handleCollapseAll}
-                                                aria-label="Collapse all fields"
+                                                aria-label={tNow(
+                                                    "entityUi.testcase.collapseAllFields",
+                                                )}
                                             >
                                                 <ArrowsInLineVertical size={14} />
                                             </Button>
                                         </TooltipTrigger>
-                                        <TooltipContent>Collapse all</TooltipContent>
+                                        <TooltipContent>
+                                            {tNow("entityUi.testcase.collapseAll")}
+                                        </TooltipContent>
                                     </Tooltip>
                                 )}
                                 <Tooltip>
@@ -365,7 +387,7 @@ function TestcaseDrawer<TData = unknown>({
                                             variant="ghost"
                                             size="icon-sm"
                                             onClick={handleCopyPayload}
-                                            aria-label="Copy testcase payload"
+                                            aria-label={tNow("entityUi.testcase.copyPayload")}
                                         >
                                             {isPayloadCopied ? (
                                                 <Check size={14} />
@@ -375,12 +397,14 @@ function TestcaseDrawer<TData = unknown>({
                                         </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                        {isPayloadCopied ? "Copied" : "Copy testcase"}
+                                        {isPayloadCopied
+                                            ? tNow("entityUi.testcase.copied")
+                                            : tNow("entityUi.testcase.copyTestcase")}
                                     </TooltipContent>
                                 </Tooltip>
                                 <ViewModeDropdown<RootDrawerViewMode>
                                     value={rootViewMode}
-                                    options={ROOT_VIEW_OPTIONS}
+                                    options={rootViewOptions()}
                                     onChange={setRootViewMode}
                                 />
                             </>
@@ -416,75 +440,89 @@ function TestcaseDrawer<TData = unknown>({
     )
 
     return (
-        <EnhancedDrawer
-            title={title}
+        <Sheet
             open={open}
-            onClose={handleCancel}
-            size="large"
-            width={isDrawerExpanded ? EXPANDED_DRAWER_WIDTH : (initialWidth ?? undefined)}
-            closeIcon={null}
-            afterOpenChange={afterOpenChange}
-            destroyOnHidden
-            styles={{
-                body: {padding: "0px"},
-                footer: {padding: "12px 24px", display: "flex", justifyContent: "flex-end"},
+            onOpenChange={(next) => {
+                if (!next) handleCancel()
             }}
-            footer={
-                skipDeferredFlow ? null : (
-                    <div className="w-full flex items-center justify-end gap-3">
-                        <Button variant="outline" onClick={handleCancel}>
-                            Cancel
-                        </Button>
-                        {/* Split button (replaces antd Space.Compact + Dropdown) — main action
-                         *  applies, the chevron menu holds commit/save variants. */}
-                        <DropdownButton
-                            label="Apply and Continue Editing"
-                            variant="default"
-                            onClick={handleApply}
-                            disabled={!hasSessionDirty}
-                            loading={isSavingTestset}
-                            dropdownDisabled={!onOpenCommitModal && !onSaveTestset}
-                            placement="topRight"
-                            dropdownIcon={<CaretUp size={14} />}
-                            options={applyMenuOptions}
-                            onOptionSelect={(key) => {
-                                if (key === "commit") handleOpenCommitModal()
-                                else if (key === "save") void handleSaveTestset()
-                            }}
-                        />
-                    </div>
-                )
-            }
         >
-            {open && testcaseId && (
-                <>
-                    {isLoading && (
-                        <div className="p-6 space-y-4">
-                            <Skeleton active paragraph={{rows: 8}} />
-                        </div>
+            <SheetContent
+                side="right"
+                style={{
+                    width: isDrawerExpanded ? EXPANDED_DRAWER_WIDTH : (initialWidth ?? 736),
+                    maxWidth: "calc(100% - 1rem)",
+                }}
+                onOpenAutoFocus={() => afterOpenChange?.(true)}
+                onCloseAutoFocus={() => afterOpenChange?.(false)}
+            >
+                <SheetHeader showCloseButton={false}>
+                    <SheetTitle className="min-w-0">{title}</SheetTitle>
+                </SheetHeader>
+                <div
+                    className={cn(
+                        "min-h-0 flex-1 overflow-y-auto p-0 text-field-md text-foreground",
+                        skipDeferredFlow && "rounded-b-[inherit]",
                     )}
-                    {isError && (
-                        <div className="p-6">
-                            <Alert
-                                type="error"
-                                message="Failed to load testcase"
-                                description={errorMessage ?? "Unknown error"}
-                                showIcon
+                >
+                    {open && testcaseId && (
+                        <>
+                            {isLoading && (
+                                <div className="p-6 space-y-4">
+                                    <Skeleton active paragraph={{rows: 8}} />
+                                </div>
+                            )}
+                            {isError && (
+                                <div className="p-6">
+                                    <Alert
+                                        type="error"
+                                        message={t("entityUi.testcase.loadFailed")}
+                                        description={
+                                            errorMessage ?? t("entityUi.testcase.unknownError")
+                                        }
+                                        showIcon
+                                    />
+                                </div>
+                            )}
+                            {testcaseData &&
+                                renderContent({
+                                    initialPath: drillInPath,
+                                    onPathChange: setDrillInPath,
+                                    rootViewMode,
+                                    collapseSignal,
+                                })}
+                            {testcaseData && testcaseId && renderOutputs?.(testcaseId)}
+                            {testcaseData && testcaseId && renderEvaluatorMetrics?.(testcaseId)}
+                        </>
+                    )}
+                </div>
+                {skipDeferredFlow ? null : (
+                    <SheetFooter className="justify-end px-6 py-3">
+                        <div className="w-full flex items-center justify-end gap-3">
+                            <Button variant="outline" onClick={handleCancel}>
+                                {t("entityUi.testcase.cancel")}
+                            </Button>
+                            {/* Split button (replaces antd Space.Compact + Dropdown) — main action
+                             *  applies, the chevron menu holds commit/save variants. */}
+                            <DropdownButton
+                                label={t("entityUi.testcase.applyAndContinue")}
+                                variant="default"
+                                onClick={handleApply}
+                                disabled={!hasSessionDirty}
+                                loading={isSavingTestset}
+                                dropdownDisabled={!onOpenCommitModal && !onSaveTestset}
+                                placement="topRight"
+                                dropdownIcon={<CaretUp size={14} />}
+                                options={applyMenuOptions}
+                                onOptionSelect={(key) => {
+                                    if (key === "commit") handleOpenCommitModal()
+                                    else if (key === "save") void handleSaveTestset()
+                                }}
                             />
                         </div>
-                    )}
-                    {testcaseData &&
-                        renderContent({
-                            initialPath: drillInPath,
-                            onPathChange: setDrillInPath,
-                            rootViewMode,
-                            collapseSignal,
-                        })}
-                    {testcaseData && testcaseId && renderOutputs?.(testcaseId)}
-                    {testcaseData && testcaseId && renderEvaluatorMetrics?.(testcaseId)}
-                </>
-            )}
-        </EnhancedDrawer>
+                    </SheetFooter>
+                )}
+            </SheetContent>
+        </Sheet>
     )
 }
 

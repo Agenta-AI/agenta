@@ -21,7 +21,7 @@ import McpPermissionDrawer from "../../../packages/agenta-entity-ui/src/mcpEndpo
  * It shows what is SAVED and never resolves a permission. On this wire the absence of a value IS
  * the fourth value: no `permission` on the server means it follows the agent's policy, and a tool
  * with no entry in `tool_permissions` carries no rule of its own. That is why a row with no rule
- * reads "Inherits ask" rather than borrowing the server's word for it, and why this source's preset
+ * reads "Follow agent policy" rather than borrowing the server's word for it, and why this source's preset
  * menu has a sixth entry the Integrations one does not.
  */
 const meta = {
@@ -170,7 +170,7 @@ function DrawerHost({
     const [live, setLive] = useState(policy)
 
     return (
-        <div data-vrt-subject className="min-h-[640px]">
+        <div className="min-h-[640px]">
             <Button variant="outline" onClick={() => setOpen(true)}>
                 Open permissions
             </Button>
@@ -260,9 +260,9 @@ export const PerToolMenuOpen: Story = {
  * summary turns to "mixed". The count is the number of SAVED entries, including one that happens to
  * equal what governs the rest: an author who set a value deliberately gets to keep seeing it.
  *
- * Note what the untouched read-only rows now say. Declaring a per-tool table moves the governing
- * value from the server permission to the table's own floor, so a row nobody named reads
- * "Inherits allow" only because the floor was written at the value the rows were already showing.
+ * Note what the untouched read-only rows now say. They read "Follow agent policy": declaring a
+ * per-tool table moves the governing value from the server permission to the table's own floor,
+ * and a row nobody named holds no value of its own.
  */
 export const CustomWithOverrides: Story = {
     render: () => (
@@ -409,7 +409,7 @@ export const OpenState: Story = {
         const [open, setOpen] = useState(false)
         const [live, setLive] = useState<McpServerPolicy>({permission: "allow"})
         return (
-            <div data-vrt-subject className="min-h-[200px]">
+            <div className="min-h-[200px]">
                 <Button variant="outline" onClick={() => setOpen(true)}>
                     Open permissions
                 </Button>

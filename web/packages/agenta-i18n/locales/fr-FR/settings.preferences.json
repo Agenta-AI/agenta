@@ -1,0 +1,18 @@
+{
+    "appearance": "Apparence",
+    "beta": "Beta",
+    "betaDeveloperMode": "Utiliser le nouveau mode développeur bêta",
+    "betaDeveloperModeDescription": "Le mode développeur reste dans la nouvelle application et affiche la section Développeur, au lieu d’ouvrir l’application classique.",
+    "channelDebug": "Débogage des canaux",
+    "channelDebugDescription": "Affiche les espaces, les fils et les événements bruts des canaux dans les paramètres des canaux.",
+    "channelProbe": "Sonde de canal Agenta",
+    "channelProbeDescription": "Affiche la sonde de canal temporaire dans le navigateur.",
+    "debugging": "Débogage",
+    "debuggingDescription": "Outils pour inspecter les exécutions et les canaux.",
+    "developerMode": "Mode développeur",
+    "developerModeDescription": "Affiche Évaluation, Gestion des prompts et Traçage dans la navigation.",
+    "featureFlags": "Indicateurs de fonctionnalités",
+    "language": "Langue",
+    "playgroundInspector": "Inspecteur du Playground",
+    "playgroundInspectorDescription": "Affiche les commandes pour inspecter les sessions et les tours du Playground."
+}

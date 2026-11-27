@@ -190,23 +190,25 @@ describe("AgentPrivacyDialog", () => {
         )
         return onSetVisibility
     }
+    const projectRadio = () =>
+        Array.from(document.querySelectorAll<HTMLElement>('[role="radio"]')).find((radio) =>
+            radio.textContent?.startsWith(agentSharingCopy.cardProject),
+        )
     const shareButton = () =>
         Array.from(document.querySelectorAll("button")).find(
             (b) => b.textContent?.trim() === shareDisclosureCopy.shareWithProject,
         )
 
-    it("the Shared with project choice says the agent's chats stay private", () => {
+    it("the Shared with project choice says who can see the agent", () => {
         renderDialog({})
         expect(document.body.textContent ?? "").toContain(
-            agentSharingCopy.lineProject("Acme support"),
+            agentSharingCopy.noteProject("Acme support"),
         )
     })
 
     it("an open share confirmation closes and writes nothing once the state is not known or not the owner's", async () => {
         const onSetVisibility = renderDialog({})
-        const card = Array.from(document.querySelectorAll<HTMLElement>('[role="radio"]')).find(
-            (radio) => radio.getAttribute("value") === "project",
-        )
+        const card = projectRadio()
         expect(card).toBeTruthy()
         act(() => card!.click())
         expect(shareButton()).toBeTruthy()
@@ -224,9 +226,7 @@ describe("AgentPrivacyDialog", () => {
 
     it("a confirmation pending when the dialog closes does not come back once the state loads", () => {
         const onSetVisibility = renderDialog({})
-        const card = Array.from(document.querySelectorAll<HTMLElement>('[role="radio"]')).find(
-            (radio) => radio.getAttribute("value") === "project",
-        )
+        const card = projectRadio()
         act(() => card!.click())
         expect(shareButton()).toBeTruthy()
 

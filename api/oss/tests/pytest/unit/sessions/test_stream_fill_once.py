@@ -266,6 +266,7 @@ async def test_a_beat_never_overwrites_an_existing_title(lock_engine):
     dao = _FakeStreamsDAO()
     svc = _service(lock_engine, dao)
     await svc.set_header(
+        envelope=None,
         project_id=_PROJECT,
         user_id=None,
         session_id=_SESSION,
@@ -302,6 +303,7 @@ async def test_a_rename_after_a_fill_still_wins(lock_engine):
     )
 
     await svc.set_header(
+        envelope=None,
         project_id=_PROJECT,
         user_id=None,
         session_id=_SESSION,
@@ -555,6 +557,7 @@ async def test_a_send_titles_the_session_from_its_inputs(lock_engine):
     svc = _service(lock_engine, dao)
 
     await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=uuid4(),
         request=SessionStreamCommandRequest(
@@ -572,6 +575,7 @@ async def test_a_send_on_a_named_session_keeps_the_name(lock_engine):
     dao = _FakeStreamsDAO()
     svc = _service(lock_engine, dao)
     await svc.set_header(
+        envelope=None,
         project_id=_PROJECT,
         user_id=None,
         session_id=_SESSION,
@@ -580,6 +584,7 @@ async def test_a_send_on_a_named_session_keeps_the_name(lock_engine):
     )
 
     await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=uuid4(),
         request=SessionStreamCommandRequest(

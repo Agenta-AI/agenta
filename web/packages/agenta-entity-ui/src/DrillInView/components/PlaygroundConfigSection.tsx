@@ -18,6 +18,8 @@
 import {memo, useMemo, useCallback, useEffect, useRef, useState} from "react"
 
 import {workflowDraftConsumedAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
 import type {DataPath} from "@agenta/shared/utils"
 import type {MoleculeDrillInAdapter} from "@agenta/ui/drill-in"
 import {useDrillInUI} from "@agenta/ui/drill-in"
@@ -58,7 +60,7 @@ export type {
 } from "./PlaygroundConfigSection/types"
 
 // Stable reference: a new object here would re-run the context's classNames memo every render.
-const DRILL_IN_CLASS_NAMES = {fieldList: "bg-[var(--ag-surface-section-content)]"}
+const DRILL_IN_CLASS_NAMES = {fieldList: "bg-background"}
 
 function PlaygroundConfigSection({
     revisionId: targetRevisionId,
@@ -71,6 +73,7 @@ function PlaygroundConfigSection({
     stickyHeaderTop = 48,
     loadingFallback,
 }: PlaygroundConfigSectionProps) {
+    const t = useT(playgroundConfigCatalog)
     const {llmProviderConfig} = useDrillInUI()
 
     const mol = moleculeAdapter ?? defaultAdapter
@@ -121,6 +124,11 @@ function PlaygroundConfigSection({
     // Schema for model config popover
     const schemaAtom = useMemo(() => mol.atoms.agConfigSchema(revisionId), [mol, revisionId])
     const schema = useAtomValue(schemaAtom)
+
+    // The empty-config copy names an evaluator only for an evaluator.
+    const isEvaluator = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.isEvaluator(revisionId), [revisionId]),
+    )
 
     // Choose the best available data for loading checks
     const activeData = pickActiveData(useServerData, data, serverData)
@@ -377,9 +385,9 @@ function PlaygroundConfigSection({
         }
         return (
             <div className={clsx("p-4 flex flex-col gap-3", className)}>
-                <div className="h-9 rounded bg-[var(--ag-rgba-051729-06)] animate-pulse" />
-                <div className="h-32 rounded border border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-rgba-051729-02)] animate-pulse" />
-                <div className="h-24 rounded border border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-rgba-051729-02)] animate-pulse" />
+                <div className="h-9 rounded bg-secondary animate-pulse" />
+                <div className="h-32 rounded border border-solid border-border-muted bg-muted animate-pulse" />
+                <div className="h-24 rounded border border-solid border-border-muted bg-muted animate-pulse" />
             </div>
         )
     }
@@ -390,12 +398,15 @@ function PlaygroundConfigSection({
                 className={clsx("flex flex-col items-center justify-center py-12 px-6", className)}
             >
                 <div className="flex flex-col items-center gap-2 text-center max-w-[320px]">
-                    <span className="text-sm font-medium text-[var(--ag-rgba-051729-65)]">
-                        No configuration needed
+                    <span className="text-label font-medium text-muted-foreground">
+                        {isEvaluator
+                            ? t("entityUi.playgroundConfig.noConfigNeeded")
+                            : t("entityUi.playgroundConfig.noConfiguration")}
                     </span>
-                    <span className="text-xs text-[var(--ag-rgba-051729-45)]">
-                        This evaluator runs with default settings. You can use it directly without
-                        any additional configuration.
+                    <span className="text-meta text-muted-foreground">
+                        {isEvaluator
+                            ? t("entityUi.playgroundConfig.evaluatorDefaults")
+                            : t("entityUi.playgroundConfig.revisionNoConfig")}
                     </span>
                 </div>
             </div>
@@ -414,15 +425,15 @@ function PlaygroundConfigSection({
                     <div
                         className={clsx(
                             "border border-solid rounded overflow-hidden",
-                            validationErrors.length > 0
-                                ? "border-[var(--ag-c-FF4D4F)]"
-                                : "border-gray-200",
+                            validationErrors.length > 0 ? "border-destructive" : "border-border",
                         )}
                     >
                         <SharedEditor
                             key={`${viewMode}-${discardVersionRef.current}`}
                             editorType="border"
-                            placeholder={`Enter ${viewMode.toUpperCase()} configuration…`}
+                            placeholder={t("entityUi.playgroundConfig.enterConfiguration", {
+                                format: viewMode.toUpperCase(),
+                            })}
                             initialValue={rawEditorValue}
                             value={rawEditorValue}
                             handleChange={handleRawEditorChange}
@@ -439,7 +450,7 @@ function PlaygroundConfigSection({
                             {validationErrors.map((err, i) => (
                                 <div
                                     key={`${err.path}-${i}`}
-                                    className="text-xs text-[var(--ag-c-FF4D4F)] leading-tight"
+                                    className="text-meta text-destructive leading-tight"
                                 >
                                     <span className="font-mono font-medium">{err.path}</span>
                                     {": "}
@@ -453,10 +464,12 @@ function PlaygroundConfigSection({
                 <>
                     {!hasTopLevelObjectSection && (
                         <div
-                            className="flex items-center w-full px-3 py-2 bg-[var(--ag-surface-section-header)] border-0 border-b border-solid border-colorBorderSecondary sticky z-[2]"
+                            className="flex items-center w-full px-3 py-2 bg-muted border-0 border-b border-solid border-border-muted sticky z-[2]"
                             style={{top: stickyHeaderTop}}
                         >
-                            <span className="capitalize font-medium text-sm">Config</span>
+                            <span className="capitalize font-medium text-label">
+                                {t("entityUi.playgroundConfig.config")}
+                            </span>
                         </div>
                     )}
                     <MoleculeDrillInView
@@ -464,7 +477,7 @@ function PlaygroundConfigSection({
                         entityId={revisionId}
                         molecule={drillInAdapter}
                         editable={!disabled && !useServerData}
-                        rootTitle="Configuration"
+                        rootTitle={t("entityUi.playgroundConfig.configuration")}
                         showBreadcrumb={false}
                         collapsible={false}
                         slots={drillInSlots}

@@ -1,5 +1,5 @@
 # This .dockerignore only applies when the Docker build context is `application/`.
-# Today that is used by the four python `Dockerfile.dev` (api/services, oss/ee),
+# Today that is used by the two python `Dockerfile.dev` (api and services),
 # which need both their own source and the local SDK + client (../sdks/python,
 # ../clients/python) inside the build context so `uv sync` can resolve the
 # `[tool.uv.sources] agenta = { path = "../sdks/python", editable = true }` source.
@@ -58,10 +58,8 @@ services/oss/tests
 services/ee/tests
 
 # Dockerfiles themselves aren't COPY'd into the image
-api/oss/docker
-api/ee/docker
-services/oss/docker
-services/ee/docker
+api/docker
+services/docker
 
 # Docs aren't needed at runtime
 api/ee/docs

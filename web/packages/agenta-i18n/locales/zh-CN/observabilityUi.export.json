@@ -1,0 +1,11 @@
+{
+    "couldNotStart": "无法开始导出。",
+    "preparing": "正在准备导出",
+    "rateLimited": "已触发速率限制，暂停 {{seconds}} 秒（目前已导出 {{rows}} 行）",
+    "exporting": "正在导出 {{rows}} 行",
+    "nothingToExport": "没有可导出的追踪",
+    "limitReached": "已达到导出上限。已下载前 {{rows}} 行。",
+    "exported": "已导出 {{rows}} 行",
+    "cancelled": "导出已取消",
+    "failed": "导出失败"
+}

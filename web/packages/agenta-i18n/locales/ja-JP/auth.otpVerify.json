@@ -1,0 +1,17 @@
+{
+    "authenticationFailed": "認証に失敗しました。もう一度お試しください。",
+    "characterN": "{{number}} 文字目",
+    "codeExpired": "このコードは有効期限が切れています。下から新しいコードをリクエストしてください。",
+    "codeVerified": "コードを確認しました",
+    "couldNotSendNewCode": "新しいコードを送信できませんでした。もう一度お試しください。",
+    "enterAllCharacters": "コードの 6 文字をすべて入力してください。",
+    "incorrectCode_other": "このコードは正しくありません。残り {{count}} 回です。",
+    "newCodeSent": "新しいコードを送信しました。",
+    "oneTimeCode": "ワンタイムコード",
+    "openInbox": "{{inbox}} を開いてコードを確認",
+    "resendCode": "コードを再送信",
+    "resendCodeIn": "コードを再送信 · {{time}}",
+    "sentTo": "送信先: {{email}}",
+    "useDifferentEmail": "別のメールアドレスを使う",
+    "verifying": "確認中…"
+}

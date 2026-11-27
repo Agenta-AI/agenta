@@ -8,21 +8,30 @@
 import {useMemo, useState} from "react"
 
 import type {OrganizationSecretProjects} from "@agenta/entities/secret"
+import {useT} from "@agenta/i18n"
+import organizationProjectsCatalog from "@agenta/i18n/catalogs/entityUi.organizationProjects"
 import {
     Button,
+    ChoiceSwitch,
     Command,
     CommandEmpty,
     CommandGroup,
     CommandInput,
     CommandItem,
     CommandList,
+    Field,
     Popover,
     PopoverContent,
     PopoverTrigger,
-    RadioGroup,
-    RadioGroupItem,
 } from "@agenta/ui/ui"
-import {ArrowSquareOut, CaretUpDown, Check, WarningCircle, X} from "@phosphor-icons/react"
+import {
+    ArrowSquareOut,
+    CaretUpDown,
+    Check,
+    LockSimple,
+    WarningCircle,
+    X,
+} from "@phosphor-icons/react"
 
 /**
  * What the admin may do about projects in this deployment. `pending` is EE while the plan's
@@ -57,8 +66,7 @@ export interface OrganizationProjectsSectionProps {
     saved?: OrganizationSecretProjects | null
 }
 
-const HEADING = "font-medium text-colorText"
-const NOTE = "text-[11px] text-colorTextTertiary"
+const HEADING = "font-medium text-foreground"
 
 /** Every project the saved choice reached and the new one does not. */
 const removedProjects = (
@@ -84,6 +92,7 @@ const ProjectPicker = ({
     selected: string[]
     onToggle: (id: string) => void
 }) => {
+    const t = useT(organizationProjectsCatalog)
     const [open, setOpen] = useState(false)
     const [search, setSearch] = useState("")
     return (
@@ -100,21 +109,23 @@ const ProjectPicker = ({
                     variant="outline"
                     role="combobox"
                     aria-expanded={open}
-                    className="w-full justify-between font-normal text-colorTextSecondary"
+                    className="w-full justify-between font-normal text-muted-foreground"
                 >
-                    Pick projects
+                    {t("entityUi.organizationProjects.pickProjects")}
                     <CaretUpDown size={12} className="shrink-0" />
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-1" align="start">
                 <Command>
                     <CommandInput
-                        placeholder="Search projects"
+                        placeholder={t("entityUi.organizationProjects.searchProjects")}
                         value={search}
                         onValueChange={setSearch}
                     />
-                    <CommandList className="max-h-[212px]">
-                        <CommandEmpty>No projects match &quot;{search}&quot;.</CommandEmpty>
+                    <CommandList className="max-h-53">
+                        <CommandEmpty>
+                            {t("entityUi.organizationProjects.noProjectsMatch", {search})}
+                        </CommandEmpty>
                         <CommandGroup>
                             {projects.map((project) => {
                                 const checked = selected.includes(project.id)
@@ -146,6 +157,7 @@ const OrganizationProjectsSection = ({
     onChange,
     saved,
 }: OrganizationProjectsSectionProps) => {
+    const t = useT(organizationProjectsCatalog)
     const names = useMemo(
         () => new Map(scope.projects.map((project) => [project.id, project.name])),
         [scope.projects],
@@ -158,8 +170,12 @@ const OrganizationProjectsSection = ({
     if (scope.projectChoice === "all") {
         return (
             <section className="flex shrink-0 flex-col gap-1">
-                <span className={HEADING}>Projects that can use it</span>
-                <span className="text-colorTextSecondary">Every project in {scope.name}.</span>
+                <span className={HEADING}>
+                    {t("entityUi.organizationProjects.projectsThatCanUse")}
+                </span>
+                <span className="text-muted-foreground">
+                    {t("entityUi.organizationProjects.everyProjectIn")}
+                </span>
             </section>
         )
     }
@@ -175,78 +191,73 @@ const OrganizationProjectsSection = ({
 
     return (
         <section className="flex shrink-0 flex-col gap-2">
-            <span className={HEADING}>Projects that can use it</span>
-            <RadioGroup
-                value={value.availability}
-                onValueChange={(next) =>
-                    onChange({
-                        availability: next as OrganizationSecretProjects["availability"],
-                        projectIds: value.projectIds,
-                    })
-                }
-                className="flex flex-col gap-2"
-            >
-                <label className="flex cursor-pointer items-start gap-2.5">
-                    <RadioGroupItem value="all_projects" className="mt-0.5" />
-                    <span className="flex flex-col gap-0.5">
-                        <span className="text-colorText">All projects</span>
-                        <span className={NOTE}>
-                            Every project in {scope.name}, including new ones.
-                        </span>
-                    </span>
-                </label>
-                <label
-                    className={
-                        selectedAllowed
-                            ? "flex cursor-pointer items-start gap-2.5"
-                            : "flex cursor-not-allowed items-start gap-2.5 opacity-60"
+            <Field label={t("entityUi.organizationProjects.projectsThatCanUse")}>
+                <ChoiceSwitch
+                    value={value.availability}
+                    choices={[
+                        {
+                            value: "all_projects",
+                            label: t("entityUi.organizationProjects.allProjects"),
+                            note: t("entityUi.organizationProjects.everyProjectInIncludingNew"),
+                        },
+                        {
+                            value: "selected_projects",
+                            label: t("entityUi.organizationProjects.selectedProjects"),
+                            note: t("entityUi.organizationProjects.onlyProjectsYouPick"),
+                            disabled: !selectedAllowed,
+                        },
+                    ]}
+                    onChange={(next) =>
+                        onChange({availability: next, projectIds: value.projectIds})
                     }
-                >
-                    <RadioGroupItem
-                        value="selected_projects"
-                        disabled={!selectedAllowed}
-                        className="mt-0.5"
-                    />
-                    <span className="flex flex-col gap-0.5">
-                        <span className="text-colorText">Selected projects</span>
-                        <span className={NOTE}>Only the projects you pick.</span>
-                    </span>
-                </label>
-            </RadioGroup>
+                    aria-label={t("entityUi.organizationProjects.projectsThatCanUse")}
+                />
+            </Field>
 
             {scope.projectChoice === "plan" ? (
-                <span className="flex flex-wrap items-center gap-1 text-colorTextSecondary">
-                    Choosing projects is available on Business and Enterprise plans.
+                // Why "Selected projects" is greyed, and where to get it: one quiet row.
+                <div className="flex items-center gap-2 rounded-md bg-secondary px-2.5 py-2 text-meta text-muted-foreground">
+                    <LockSimple size={14} className="shrink-0" aria-hidden />
+                    <span className="min-w-0 flex-1">
+                        {t("entityUi.organizationProjects.choosingProjectsPlan")}
+                    </span>
                     {scope.plansHref ? (
                         <a
                             href={scope.plansHref}
-                            className="flex items-center gap-1 text-btn-link hover:text-btn-link-hover"
+                            className="flex shrink-0 items-center gap-1 font-medium text-btn-link no-underline hover:text-btn-link-hover"
                         >
-                            See plans
+                            {t("entityUi.organizationProjects.seePlans")}
                             <ArrowSquareOut size={12} />
                         </a>
                     ) : null}
-                </span>
+                </div>
             ) : null}
 
             {selectedAllowed && value.availability === "selected_projects" ? (
-                <div className="flex flex-col gap-2 pl-6">
+                <div className="flex flex-col gap-2">
                     {value.projectIds.length ? (
                         <div className="flex flex-wrap gap-1.5">
                             {value.projectIds.map((id) => (
                                 <span
                                     key={id}
-                                    className="flex items-center gap-1 rounded-control-sm bg-colorFillTertiary py-0.5 pl-2 pr-1 text-colorText"
+                                    className="flex items-center gap-1 rounded-control-sm bg-secondary py-0.5 pl-2 pr-1 text-foreground"
                                 >
                                     {names.get(id) ?? id}
-                                    <button
+                                    <Button
                                         type="button"
-                                        aria-label={`Remove ${names.get(id) ?? id}`}
+                                        variant="ghost"
+                                        size="icon-xs"
+                                        aria-label={t(
+                                            "entityUi.organizationProjects.removeProject",
+                                            {
+                                                project: names.get(id) ?? id,
+                                            },
+                                        )}
                                         onClick={() => toggle(id)}
-                                        className="flex cursor-pointer items-center border-0 bg-transparent p-0.5 text-colorTextTertiary hover:text-colorText"
+                                        className="size-5 text-muted-foreground"
                                     >
                                         <X size={12} />
-                                    </button>
+                                    </Button>
                                 </span>
                             ))}
                         </div>
@@ -257,19 +268,18 @@ const OrganizationProjectsSection = ({
                         onToggle={toggle}
                     />
                     {value.projectIds.length === 0 ? (
-                        <span className="flex items-start gap-1 text-colorWarning">
+                        <span className="flex items-start gap-1 text-warning">
                             <WarningCircle size={14} className="mt-0.5 shrink-0" />
-                            No project can use this connection until you pick one.
+                            {t("entityUi.organizationProjects.noProjectUntilPick")}
                         </span>
                     ) : null}
                 </div>
             ) : null}
 
             {removed.map((project) => (
-                <span key={project.id} className="flex items-start gap-1 text-colorWarning">
+                <span key={project.id} className="flex items-start gap-1 text-warning">
                     <WarningCircle size={14} className="mt-0.5 shrink-0" />
-                    {project.name} can no longer use this connection after you save. Agents in{" "}
-                    {project.name} that use it will need configuration.
+                    {t("entityUi.organizationProjects.projectLosesAccess", {project: project.name})}
                 </span>
             ))}
         </section>

@@ -1,5 +1,7 @@
 import {FC, type ReactNode, useCallback, useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiEditorCatalog from "@agenta/i18n/catalogs/ui.editor"
 import {Plus, Trash} from "@phosphor-icons/react"
 import clsx from "clsx"
 
@@ -40,17 +42,18 @@ const AddItemMenu: FC<{items: AddItemMenuItem[]; children: ReactNode}> = ({items
     </DropdownMenu>
 )
 
-const addTrigger = (
+const addTrigger = (label: string) => (
     <button
         type="button"
-        aria-label="Add item"
-        className="box-border border-0 bg-transparent p-0 cursor-pointer text-colorText !mx-0"
+        aria-label={label}
+        className="box-border border-0 bg-transparent p-0 cursor-pointer text-foreground !mx-0"
     >
         <Plus size={14} />
     </button>
 )
 
 const ArrayNodeComponent: FC<ArrayNodeProps> = (props) => {
+    const t = useT(uiEditorCatalog)
     const {
         path,
         k,
@@ -91,38 +94,38 @@ const ArrayNodeComponent: FC<ArrayNodeProps> = (props) => {
         (index: number) => [
             {
                 key: "primitive",
-                label: "Primitive",
+                label: t("ui.editor.primitive"),
                 onClick: () => addItemWithTypeAt(index, "primitive"),
             },
             {
                 key: "object",
-                label: "Object { }",
+                label: t("ui.editor.objectBraces"),
                 onClick: () => addItemWithTypeAt(index, "object"),
             },
             {
                 key: "array",
-                label: "Array [ ]",
+                label: t("ui.editor.arrayBrackets"),
                 onClick: () => addItemWithTypeAt(index, "array"),
             },
         ],
-        [addItemWithTypeAt],
+        [addItemWithTypeAt, t],
     )
 
     const addToEndMenuItems = useMemo(
         () => [
             {
                 key: "primitive",
-                label: "Primitive",
+                label: t("ui.editor.primitive"),
                 onClick: () => addItemWithType("primitive"),
             },
             {
                 key: "object",
-                label: "Object { }",
+                label: t("ui.editor.objectBraces"),
                 onClick: () => addItemWithType("object"),
             },
             {
                 key: "array",
-                label: "Array [ ]",
+                label: t("ui.editor.arrayBrackets"),
                 onClick: () => addItemWithType("array"),
             },
         ],
@@ -141,7 +144,7 @@ const ArrayNodeComponent: FC<ArrayNodeProps> = (props) => {
                 <Input
                     defaultValue={k as string}
                     variant="ghost"
-                    className="w-32 text-xs font-semibold p-0"
+                    className="w-32 text-label p-0"
                     onBlur={(e) => {
                         const newKey = e.target.value.trim()
                         if (newKey && newKey !== k) {
@@ -155,7 +158,9 @@ const ArrayNodeComponent: FC<ArrayNodeProps> = (props) => {
                     <TreeRow depth={1} className={clsx("no-line flex", "ml-2")}>
                         <div className={clsx(styles["between-hover"])}>
                             <div className={styles["add-between"]}>
-                                <AddItemMenu items={getMenuItems(0)}>{addTrigger}</AddItemMenu>
+                                <AddItemMenu items={getMenuItems(0)}>
+                                    {addTrigger(t("ui.editor.addItem"))}
+                                </AddItemMenu>
                             </div>
                         </div>
                     </TreeRow>
@@ -170,7 +175,7 @@ const ArrayNodeComponent: FC<ArrayNodeProps> = (props) => {
                                 <div className={clsx(styles["between-hover"])}>
                                     <div className={styles["add-between"]}>
                                         <AddItemMenu items={getMenuItems(idx)}>
-                                            {addTrigger}
+                                            {addTrigger(t("ui.editor.addItem"))}
                                         </AddItemMenu>
                                     </div>
                                 </div>
@@ -180,8 +185,8 @@ const ArrayNodeComponent: FC<ArrayNodeProps> = (props) => {
                                 <div className={styles["add-between"]}>
                                     <button
                                         type="button"
-                                        aria-label="Remove item"
-                                        className="box-border border-0 bg-transparent p-0 cursor-pointer text-colorText"
+                                        aria-label={t("ui.editor.removeItem")}
+                                        className="box-border border-0 bg-transparent p-0 cursor-pointer text-foreground"
                                         onClick={() => removeItem(idx)}
                                     >
                                         <Trash size={14} />
@@ -212,7 +217,7 @@ const ArrayNodeComponent: FC<ArrayNodeProps> = (props) => {
                             <div className={clsx(styles["between-hover"])}>
                                 <div className={styles["add-between"]}>
                                     <AddItemMenu items={addToEndMenuItems}>
-                                        {addTrigger}
+                                        {addTrigger(t("ui.editor.addItem"))}
                                     </AddItemMenu>
                                 </div>
                             </div>
@@ -223,7 +228,9 @@ const ArrayNodeComponent: FC<ArrayNodeProps> = (props) => {
                         <TreeRow depth={1} className={clsx("no-line flex", "ml-2")}>
                             <div className={clsx(styles["between-hover"])}>
                                 <div className={styles["add-between"]}>
-                                    <AddItemMenu items={getMenuItems(0)}>{addTrigger}</AddItemMenu>
+                                    <AddItemMenu items={getMenuItems(0)}>
+                                        {addTrigger(t("ui.editor.addItem"))}
+                                    </AddItemMenu>
                                 </div>
                             </div>
                         </TreeRow>

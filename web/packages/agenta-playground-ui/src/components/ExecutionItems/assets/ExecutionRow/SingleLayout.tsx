@@ -7,7 +7,8 @@ import {RunnableOutputValue} from "@agenta/entity-ui"
 import {executionItemController, playgroundController} from "@agenta/playground"
 import type {DropdownButtonOption, DropdownButtonOptionStatus} from "@agenta/ui/components"
 import {HeightCollapse} from "@agenta/ui/components"
-import {CollapsibleGroupHeader, EnhancedButton} from "@agenta/ui/components/presentational"
+import {CollapseToggleButton, CollapsibleGroupHeader} from "@agenta/ui/components/presentational"
+import {Button, SimpleTooltip, type ButtonProps} from "@agenta/ui/ui"
 import {
     ArrowsOutLineHorizontalIcon,
     CopyIcon,
@@ -38,7 +39,6 @@ import {usePlaygroundNodeLabels} from "../../../../hooks/usePlaygroundNodeLabels
 import {useRepetitionResult} from "../../../../hooks/useRepetitionResult"
 import {getShortTestcaseId} from "../../../../utils/testcaseLabel"
 import ExecutionResultView from "../../../ExecutionResultView"
-import CollapseToggleButton from "../../../shared/CollapseToggleButton"
 import {EvaluatorFieldGrid} from "../../../shared/EvaluatorFieldGrid"
 import {
     buildSchemaMap,
@@ -81,7 +81,7 @@ const SectionBlock: React.FC<{
     <div
         role="group"
         aria-label={ariaLabel}
-        className="flex flex-col gap-2 pl-3 border-0 border-l-2 border-solid border-[var(--ag-c-1677FF22)]"
+        className="flex flex-col gap-2 pl-3 border-0 border-l border-solid border-border"
     >
         {children}
     </div>
@@ -139,41 +139,52 @@ const RowHeaderActions = ({
 }: RowHeaderActionsProps) => {
     return (
         <div className={className}>
-            <EnhancedButton
-                icon={<ArrowsOutLineHorizontalIcon size={12} />}
-                size="small"
-                type="text"
-                onClick={(e) => {
-                    e.stopPropagation()
-                    openFocusDrawer({rowId, entityId})
-                }}
-                tooltipProps={{title: tooltipTitle}}
-            />
-            <EnhancedButton
-                icon={<MinusCircleIcon size={14} />}
-                type="text"
-                onClick={() => deleteRow(rowId)}
-                size="small"
-                disabled={rowCount === 1}
-                tooltipProps={{title: "Remove"}}
-            />
-            <EnhancedButton
-                icon={<CopyIcon size={14} />}
-                type="text"
-                onClick={() => duplicateRow(rowId)}
-                size="small"
-                tooltipProps={{title: "Duplicate"}}
-            />
+            <SimpleTooltip title={tooltipTitle}>
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        openFocusDrawer({rowId, entityId})
+                    }}
+                >
+                    <ArrowsOutLineHorizontalIcon size={12} />
+                </Button>
+            </SimpleTooltip>
+            <SimpleTooltip title="Remove">
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => deleteRow(rowId)}
+                    disabled={rowCount === 1}
+                >
+                    <MinusCircleIcon size={14} />
+                </Button>
+            </SimpleTooltip>
+            <SimpleTooltip title="Duplicate">
+                <Button variant="ghost" size="sm" onClick={() => duplicateRow(rowId)}>
+                    <CopyIcon size={14} />
+                </Button>
+            </SimpleTooltip>
             {testsetButton}
         </div>
     )
 }
 
+// The host clones this child to add onClick, so the tooltip sits inside it.
+const AddToTestsetIconButton = (props: ButtonProps) => (
+    <SimpleTooltip title="Add to testset">
+        <Button variant="ghost" size="sm" {...props}>
+            <DatabaseIcon size={14} />
+        </Button>
+    </SimpleTooltip>
+)
+
 /** Reusable step name tag (used in both full and compact modes) */
 const StepTag = ({icon, name}: {icon: React.ReactNode; name: string}) => (
     <Tag
         variant="filled"
-        className="flex items-center gap-1 !m-0 self-start whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium bg-[var(--ag-c-0517290F)] text-[var(--ag-c-344054)] border border-solid border-transparent"
+        className="flex items-center gap-1 !m-0 self-start whitespace-nowrap rounded px-2 py-0.5 text-label bg-secondary text-muted-foreground border border-solid border-transparent"
     >
         {icon}
         {name}
@@ -214,7 +225,7 @@ const StepCollapsedSummary = ({
     if (!traceId || !SharedGenerationResultUtils) return null
 
     return (
-        <div className="w-full flex items-center gap-2 rounded-md border border-[var(--ant-color-border-secondary)] border-l-[3px] border-l-[var(--ant-color-primary)] bg-[var(--ant-color-bg-layout)] px-3 py-1.5">
+        <div className="w-full flex items-center gap-2 rounded-md border border-border-muted border-l-primary bg-muted px-3 py-1.5">
             <StepTag icon={icon} name={stepName} />
             <div className="flex-1 min-w-0 flex items-center overflow-hidden">
                 <SharedGenerationResultUtils traceId={traceId} />
@@ -327,7 +338,9 @@ const DownstreamNodeCard = ({
                 : "Error"
         return (
             <NodeResultCard name={nodeName} status={rawStatus} headerActions={traceActions}>
-                <span className="text-[var(--ant-color-error)] text-xs leading-5">{errorMsg}</span>
+                <span className="text-destructive text-label font-normal leading-5">
+                    {errorMsg}
+                </span>
             </NodeResultCard>
         )
     }
@@ -340,9 +353,7 @@ const DownstreamNodeCard = ({
                 : "Skipped"
         return (
             <NodeResultCard name={nodeName} status={rawStatus} headerActions={traceActions}>
-                <span className="text-[var(--ant-color-text-tertiary)] text-xs leading-5 italic">
-                    {skipMsg}
-                </span>
+                <span className="text-muted-foreground text-meta leading-5 italic">{skipMsg}</span>
             </NodeResultCard>
         )
     }
@@ -366,7 +377,7 @@ const DownstreamNodeCard = ({
     if (!entries || entries.length === 0) {
         return (
             <NodeResultCard name={nodeName} status={rawStatus} headerActions={traceActions}>
-                <span className="text-xs leading-5">—</span>
+                <span className="text-label font-normal leading-5">—</span>
             </NodeResultCard>
         )
     }
@@ -374,12 +385,12 @@ const DownstreamNodeCard = ({
     return (
         <NodeResultCard name={nodeName} status={rawStatus} headerActions={traceActions}>
             <div
-                className="grid items-baseline text-xs leading-5"
+                className="grid items-baseline text-label font-normal leading-5"
                 style={{gridTemplateColumns: "auto 1fr", columnGap: 12, rowGap: 6}}
             >
                 {entries.map(([key, value]) => (
                     <React.Fragment key={key}>
-                        <span className="text-[var(--ant-color-text-tertiary)] whitespace-nowrap leading-5">
+                        <span className="text-muted-foreground whitespace-nowrap leading-5">
                             {formatFieldLabel(key)}:
                         </span>
                         <span className="break-words min-w-0 leading-5">
@@ -398,7 +409,7 @@ const DownstreamNodeCard = ({
                                 return (
                                     <Tag
                                         color={verdictBoolean ? "success" : "error"}
-                                        className="!m-0 text-xs rounded-md px-2 py-0 leading-5"
+                                        className="!m-0 text-label font-normal rounded-md px-2 py-0 leading-5"
                                     >
                                         {verdictBoolean ? "true" : "false"}
                                     </Tag>
@@ -425,13 +436,11 @@ const CopyVariableButton = ({rowId, variableKey}: {rowId: string; variableKey: s
     ) as string
 
     return (
-        <EnhancedButton
-            size="small"
-            type="text"
-            icon={<CopySimpleIcon size={14} />}
-            onClick={() => navigator.clipboard.writeText(value)}
-            tooltipProps={{title: "Copy"}}
-        />
+        <SimpleTooltip title="Copy">
+            <Button variant="ghost" size="sm" onClick={() => navigator.clipboard.writeText(value)}>
+                <CopySimpleIcon size={14} />
+            </Button>
+        </SimpleTooltip>
     )
 }
 
@@ -746,15 +755,7 @@ const SingleView = ({
     const testsetButton = renderTestsetButton?.({
         results: result ? [result] : [],
         icon: false,
-        children: (
-            <EnhancedButton
-                icon={<DatabaseIcon size={14} />}
-                type="text"
-                size="small"
-                disabled={!hasResults}
-                tooltipProps={{title: "Add to testset"}}
-            />
-        ),
+        children: <AddToTestsetIconButton disabled={!hasResults} />,
     })
 
     return (
@@ -776,11 +777,11 @@ const SingleView = ({
                             setHasInteractedWithCollapse(true)
                             setIsCollapsed((prev) => !prev)
                         }}
-                        className="text-gray-500 shrink-0"
+                        className="text-muted-foreground shrink-0"
                         renderLabel={(label) => (
                             <Tag
                                 variant="filled"
-                                className="flex items-center gap-1 !m-0 whitespace-nowrap rounded px-2 py-0.5 text-xs bg-[var(--ag-c-0517290F)] text-[var(--ag-c-344054)] border border-solid border-transparent cursor-pointer select-none hover:bg-[var(--ag-c-0517291A)] transition-colors"
+                                className="flex items-center gap-1 !m-0 whitespace-nowrap rounded px-2 py-0.5 text-meta bg-secondary text-muted-foreground border border-solid border-transparent cursor-pointer select-none hover:bg-accent transition-colors"
                                 onClick={(e) => {
                                     e.stopPropagation()
                                     openFocusDrawer({rowId, entityId})
@@ -849,15 +850,11 @@ const SingleView = ({
                                 <div
                                     className={clsx(
                                         "flex items-start gap-2 px-3 py-2 rounded-md",
-                                        "bg-blue-50 border border-solid border-blue-100",
-                                        "dark:bg-blue-900/20 dark:border-blue-900/40",
+                                        "bg-info/10 border border-solid border-info/30",
                                     )}
                                 >
-                                    <Info
-                                        size={14}
-                                        className="text-blue-500 dark:text-blue-300 mt-0.5 shrink-0"
-                                    />
-                                    <div className="flex-1 text-xs text-gray-700 dark:text-blue-50 leading-relaxed">
+                                    <Info size={14} className="text-info mt-0.5 shrink-0" />
+                                    <div className="flex-1 text-body text-foreground">
                                         Fill these with the data the application being evaluated
                                         received and produced. The evaluator will judge this pair —
                                         not your own typed values.
@@ -866,8 +863,7 @@ const SingleView = ({
                                         type="button"
                                         onClick={() => setEvaluatorCalloutDismissed(true)}
                                         className={clsx(
-                                            "shrink-0 p-0.5 rounded text-gray-400 hover:text-gray-700 hover:bg-blue-100",
-                                            "dark:text-blue-200 dark:hover:text-blue-50 dark:hover:bg-blue-900/40",
+                                            "shrink-0 p-0.5 rounded-sm text-muted-foreground hover:text-foreground hover:bg-accent focus-ring",
                                             "border-0 bg-transparent cursor-pointer",
                                         )}
                                         aria-label="Dismiss"
@@ -1007,7 +1003,7 @@ const SingleView = ({
                     <div
                         className={clsx([
                             "w-full flex flex-col gap-3 pb-2 relative group/output",
-                            "border-0 border-t border-solid border-[var(--ag-rgba-051729-06)] pt-3",
+                            "border-0 border-t border-solid border-border-muted pt-3",
                         ])}
                     >
                         {/* Primary node */}
@@ -1020,7 +1016,7 @@ const SingleView = ({
                             <div
                                 className={clsx(
                                     "min-w-0",
-                                    !currentDisplayResult && !isBusy && "text-[var(--ag-c-BDC7D1)]",
+                                    !currentDisplayResult && !isBusy && "text-muted-foreground",
                                 )}
                             >
                                 <ExecutionResultView

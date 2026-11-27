@@ -399,6 +399,9 @@ class FakeChannelsDAO(ChannelsDAOInterface):
     async def count_unstarted_triggers(self, **kwargs):
         raise NotImplementedError
 
+    async def query_active_connections(self, **kwargs):
+        raise NotImplementedError
+
     async def get_project_and_connection_by_external_key(self, **kwargs):
         raise NotImplementedError
 
@@ -444,6 +447,9 @@ class FakeTurnsDAO(SessionTurnsDAOInterface):
 
     async def latest_turn(self, *, project_id, session_id):
         return self.turns.get(session_id)
+
+    async def find_turn(self, **kwargs):
+        raise NotImplementedError
 
     async def latest_turn_per_harness_kind(self, **kwargs):
         raise NotImplementedError

@@ -16,6 +16,8 @@
  */
 import * as React from "react"
 
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {dayjs} from "@agenta/shared/utils"
 import {CalendarBlank} from "@phosphor-icons/react"
 
@@ -42,7 +44,7 @@ export interface DatePickerProps {
 function DatePicker({
     value,
     onChange,
-    placeholder = "Pick a date",
+    placeholder: placeholderProp,
     disabled,
     format = "YYYY-MM-DD",
     className,
@@ -50,6 +52,8 @@ function DatePicker({
     "aria-label": ariaLabel,
     "aria-labelledby": ariaLabelledby,
 }: DatePickerProps) {
+    const t = useT(uiControlsCatalog)
+    const placeholder = placeholderProp ?? t("ui.controls.pickDate")
     const [open, setOpen] = React.useState(false)
     const valid = value && dayjs(value).isValid() ? dayjs(value) : undefined
 
@@ -67,10 +71,10 @@ function DatePicker({
                     aria-labelledby={ariaLabelledby}
                     className={cn("w-full justify-between font-normal", className)}
                 >
-                    <span className={cn(!valid && "text-[var(--ag-colorTextPlaceholder)]")}>
+                    <span className={cn(!valid && "text-muted-foreground")}>
                         {valid ? valid.format(format) : placeholder}
                     </span>
-                    <CalendarBlank size={14} className="text-[var(--ag-colorIcon)]" />
+                    <CalendarBlank size={14} className="text-muted-foreground" />
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">

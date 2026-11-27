@@ -2,6 +2,11 @@
 import {useCallback, useEffect, useRef, type ReactNode} from "react"
 
 import {splitTemplate} from "@agenta/entities/gatewayTrigger"
+import {createT} from "@agenta/i18n"
+import triggerSharedCatalog from "@agenta/i18n/catalogs/entityUi.triggerShared"
+
+// The pill DOM is built in a callback, outside render.
+const tNow = createT(triggerSharedCatalog)
 
 // Copy puts the template here next to the readable text, so a paste in a pill editor gets
 // its pills back. Other apps read only the readable text.
@@ -49,14 +54,14 @@ export function PillEditor({
             span.dataset.token = inner
             span.contentEditable = "false"
             span.className =
-                "mx-0.5 inline-flex select-none items-center gap-1 rounded-md border border-solid border-border bg-muted px-1.5 py-0.5 text-xs font-medium text-foreground"
+                "mx-0.5 inline-flex select-none items-center gap-1 rounded-md border border-solid border-border bg-muted px-1.5 py-0.5 text-label font-medium text-foreground"
             span.appendChild(document.createTextNode(label))
             const remove = document.createElement("button")
             remove.type = "button"
             remove.dataset.remove = ""
-            remove.ariaLabel = `Remove ${label}`
+            remove.ariaLabel = tNow("entityUi.triggerShared.removeLabel", {label})
             remove.className =
-                "cursor-pointer border-0 bg-transparent p-0 text-xs leading-none text-inherit opacity-70 hover:opacity-100"
+                "cursor-pointer border-0 bg-transparent p-0 text-meta leading-none text-inherit opacity-70 hover:opacity-100"
             remove.textContent = "×"
             span.appendChild(remove)
             return span
@@ -236,7 +241,7 @@ export function PillEditor({
     }
 
     return (
-        <div className="box-border w-full rounded-lg border border-solid border-[var(--ag-colorBorder)] bg-[var(--ag-colorBgContainer)] focus-within:border-[var(--ag-colorPrimary)]">
+        <div className="box-border w-full rounded-lg border border-solid border-border bg-background focus-within:border-primary">
             <div
                 ref={ref}
                 contentEditable
@@ -250,7 +255,7 @@ export function PillEditor({
                 onCut={onCut}
                 onKeyDown={onKeyDown}
                 onClick={onClick}
-                className="box-border max-h-[280px] min-h-[88px] w-full overflow-y-auto whitespace-pre-wrap break-words px-3 py-2 text-base leading-relaxed text-foreground outline-none md:text-sm"
+                className="box-border max-h-70 min-h-22 w-full overflow-y-auto whitespace-pre-wrap break-words px-3 py-2 text-body leading-relaxed text-foreground outline-none text-body"
             />
             {footer ? <div className="px-3 pb-2">{footer}</div> : null}
         </div>

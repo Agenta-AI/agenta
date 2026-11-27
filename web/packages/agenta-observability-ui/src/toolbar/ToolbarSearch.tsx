@@ -1,5 +1,7 @@
 import {useCallback, type KeyboardEvent} from "react"
 
+import {useT} from "@agenta/i18n"
+import toolbarCatalog from "@agenta/i18n/catalogs/observabilityUi.toolbar"
 import {searchQueryAtom} from "@agenta/observability"
 import {SearchInput} from "@agenta/ui/ui"
 import {useAtom} from "jotai"
@@ -13,6 +15,7 @@ import {useDropFilterField, useUpdateFilter} from "./filterControls"
  * `{source: "clear"}`, we get it because `onValueChange` fires on clear too.
  */
 export const ToolbarSearch = () => {
+    const t = useT(toolbarCatalog)
     const [searchQuery, setSearchQuery] = useAtom(searchQueryAtom)
     const dropFilterField = useDropFilterField()
     const updateFilter = useUpdateFilter()
@@ -35,12 +38,13 @@ export const ToolbarSearch = () => {
 
     return (
         <SearchInput
-            aria-label="Search observability data"
-            placeholder="Search"
+            aria-label={t("observabilityUi.toolbar.searchData")}
+            placeholder={t("observabilityUi.toolbar.search")}
             value={searchQuery}
             onValueChange={onValueChange}
             onKeyDown={onKeyDown}
-            className="w-[320px] shrink-0"
+            // Grows to 320px but starts small, so on a phone the filter button stays on its row.
+            className="min-w-0 max-w-[320px] flex-[1_1_160px]"
         />
     )
 }

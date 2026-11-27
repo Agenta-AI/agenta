@@ -69,7 +69,7 @@ export const Pill = memo(
                     and the app's 14px text. PopoverContent is deliberately padding-less and
                     size-less, and it portals out of the app's font scope with preflight off,
                     so without these the panel inherits <body>'s 16px and no inset at all. */}
-                <PopoverContent side="bottom" align="center" className="w-60 p-3 text-sm">
+                <PopoverContent side="bottom" align="center" className="w-60 p-3 text-body">
                     {popoverContent}
                 </PopoverContent>
             </Popover>

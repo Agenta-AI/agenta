@@ -5,6 +5,8 @@ import {
     AutomationTriggerDrawers,
     useAutomationCreate,
 } from "@agenta/automation-ui"
+import {useT} from "@agenta/i18n"
+import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
 import {Button, Spinner} from "@agenta/ui/ui"
 import {useRouter} from "next/router"
 
@@ -24,6 +26,7 @@ export const AutomationDraftScreen = ({
     projectId: string
 }) => {
     useBindProjectContext(projectId)
+    const t = useT(automationsScreensCatalog)
     const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
 
@@ -38,31 +41,36 @@ export const AutomationDraftScreen = ({
 
     return (
         <>
-            <PageTitle title="Automations" context="New automation" />
+            <PageTitle
+                title={t("automations.screens.pageTitle")}
+                context={t("automations.screens.newAutomation")}
+            />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
                         <AutomationScreenHeader
-                            workspaceId={workspaceId}
-                            projectId={projectId}
-                            title="New automation"
-                            backHref={`${base}/automations`}
+                            back={{
+                                label: t("automations.screens.pageTitle"),
+                                href: `${base}/automations`,
+                            }}
+                            className="mx-auto box-border w-full max-w-content-sm px-4 md:px-6"
                         />
                     }
                 >
-                    {/* pt-1: the name field's focus ring would otherwise be clipped by the scroller's edge. */}
-                    <div className="mx-auto flex w-full max-w-[760px] flex-col px-8 pb-[70px] pt-1">
+                    {/* pt-1: the name field's focus ring would otherwise be clipped by the scroller's edge.
+                        A phone takes back the 4px the header gives up, as the detail screen does. */}
+                    <div className="mx-auto box-border flex w-full max-w-content-sm flex-col px-4 pb-18 pt-1 max-md:pt-2 md:px-6">
                         <AutomationCreateBody
                             state={state}
                             autoEditName
                             footer={
-                                <div className="mt-[30px] flex items-center justify-end gap-2.5 border-0 border-t border-solid border-border pt-5">
+                                <div className="mt-8 flex items-center justify-end gap-2 border-0 border-t border-solid border-border pt-5">
                                     <Button
                                         type="button"
                                         variant="outline"
                                         onClick={() => void router.push(`${base}/automations`)}
                                     >
-                                        Cancel
+                                        {t("automations.screens.cancel")}
                                     </Button>
                                     {/* Always pressable. A press with something missing does
                                         not create; it turns the missing fields red, which is
@@ -76,7 +84,7 @@ export const AutomationDraftScreen = ({
                                                 its first run — long enough that a button which
                                                 only greys out reads as broken. */}
                                         {state.saving ? <Spinner data-icon="inline-start" /> : null}
-                                        Create automation
+                                        {t("automations.screens.createAutomation")}
                                     </Button>
                                 </div>
                             }

@@ -1,5 +1,6 @@
 import {loadableController} from "@agenta/entities/loadable"
 import {isLocalDraftId} from "@agenta/entities/shared"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {playgroundController} from "@agenta/playground"
 import {useLocalDraftWarning} from "@agenta/playground-ui/hooks"
 import {atom, useAtomValue} from "jotai"
@@ -13,8 +14,10 @@ import {useConfirmModal} from "../settings/useConfirmModal"
  * in it: they stay when the page is left, as in the old playground.
  */
 const loseOnLeaveAtom = atom((get) => {
-    const hasLocalCopy = get(playgroundController.selectors.nodes()).some((node) =>
-        isLocalDraftId(node.entityId),
+    // An untouched copy (Compare's new column) loses nothing: only an edited one counts.
+    const hasLocalCopy = get(playgroundController.selectors.nodes()).some(
+        (node) =>
+            isLocalDraftId(node.entityId) && get(workflowMolecule.selectors.isDirty(node.entityId)),
     )
     const loadableId = get(playgroundController.selectors.loadableId())
     const testsetChanged = loadableId
@@ -29,18 +32,18 @@ const loseOnLeaveAtom = atom((get) => {
  * edits of saved revisions); it asks first only when something would be lost (a local copy, or
  * unsaved test set edits).
  *
- * Returns the dialog to render.
+ * Returns the confirm state; the screen draws its `AlertDialog`.
  */
 export const usePlaygroundLeaveGuard = () => {
     useLocalDraftWarning()
     const loseOnLeave = useAtomValue(loseOnLeaveAtom)
-    const {confirm, modal} = useConfirmModal()
+    const confirmDialog = useConfirmModal()
     useUnsavedGuard({
         dirty: loseOnLeave,
-        confirm,
+        confirm: confirmDialog.confirm,
         title: "Discard unsaved changes?",
         message:
             "You have local draft revisions or unsaved changes that will be lost if you leave. Are you sure you want to continue?",
     })
-    return modal
+    return confirmDialog
 }

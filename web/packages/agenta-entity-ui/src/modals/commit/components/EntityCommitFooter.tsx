@@ -9,7 +9,8 @@
 
 import {useCallback, useState} from "react"
 
-import {ModalFooter} from "@agenta/ui/components/modal"
+import {richText, useT} from "@agenta/i18n"
+import commitModalCatalog from "@agenta/i18n/catalogs/entityUi.commitModal"
 import {cn, textColors} from "@agenta/ui/styles"
 import {
     Button,
@@ -52,21 +53,21 @@ function DeployForm({
     canProceed: boolean
     onDeploy: (envs: string[], message?: string) => void
 }) {
+    const t = useT(commitModalCatalog)
     const [envs, setEnvs] = useState<string[]>([])
     const [deployMessage, setDeployMessage] = useState("")
 
     return (
-        <div
-            className="w-[300px] rounded-lg border border-solid border-[var(--ag-colorBorder)] bg-[var(--ag-colorBgElevated)] p-3"
-            style={{boxShadow: "0 10px 32px rgba(0, 0, 0, 0.55)"}}
-        >
-            <div className={cn("mb-2 text-xs font-medium", textColors.secondary)}>Deploy to</div>
+        <div className="w-[300px] rounded-lg border border-solid border-border bg-popover p-3 shadow-overlay">
+            <div className={cn("mb-2 text-label font-medium", textColors.secondary)}>
+                {t("entityUi.commitModal.deployTo")}
+            </div>
             <div className="flex flex-col gap-2">
                 {options.map((o) => (
                     <label
                         key={o.key}
                         className={cn(
-                            "flex items-center gap-2 text-xs",
+                            "flex items-center gap-2 text-meta",
                             o.disabled ? "cursor-not-allowed text-disabled" : "cursor-pointer",
                         )}
                     >
@@ -84,7 +85,9 @@ function DeployForm({
                         {o.hint ? (
                             <span className="flex items-center gap-2">
                                 {o.label}
-                                <span className={cn("text-xs", textColors.tertiary)}>{o.hint}</span>
+                                <span className={cn("text-meta", textColors.tertiary)}>
+                                    {o.hint}
+                                </span>
                             </span>
                         ) : (
                             o.label
@@ -92,14 +95,16 @@ function DeployForm({
                     </label>
                 ))}
             </div>
-            <div className={cn("mb-1.5 mt-4 text-xs font-medium", textColors.secondary)}>
-                Deployment message <span className={textColors.tertiary}>(optional)</span>
+            <div className={cn("mb-1.5 mt-4 text-label font-medium", textColors.secondary)}>
+                {richText(t("entityUi.commitModal.deploymentMessage"), {
+                    muted: (text) => <span className={textColors.tertiary}>{text}</span>,
+                })}
             </div>
             <Textarea
                 value={deployMessage}
                 onChange={(e) => setDeployMessage(e.target.value)}
                 rows={2}
-                placeholder="Describe this deployment…"
+                placeholder={t("entityUi.commitModal.deploymentPlaceholder")}
             />
             <LoadingButton
                 className="mt-3 w-full"
@@ -107,7 +112,7 @@ function DeployForm({
                 disabled={!canProceed || envs.length === 0}
                 onClick={() => onDeploy(envs, deployMessage.trim() || undefined)}
             >
-                {confirmLabel} &amp; deploy
+                {t("entityUi.commitModal.actionAndDeploy", {action: confirmLabel})}
             </LoadingButton>
         </div>
     )
@@ -118,9 +123,11 @@ export function EntityCommitFooter({
     onConfirm,
     isLoading,
     canProceed,
-    confirmLabel = "Commit",
+    confirmLabel: confirmLabelProp,
     deployOptions,
 }: EntityCommitFooterProps) {
+    const t = useT(commitModalCatalog)
+    const confirmLabel = confirmLabelProp ?? t("entityUi.commitModal.commit")
     const [deployOpen, setDeployOpen] = useState(false)
 
     const handleCommit = useCallback(async () => {
@@ -131,7 +138,7 @@ export function EntityCommitFooter({
         return (
             <div className="flex items-center justify-end gap-2">
                 <Button variant="outline" onClick={onClose}>
-                    Cancel
+                    {t("entityUi.commitModal.cancel")}
                 </Button>
                 {/* Split button (was antd Space.Compact): flex + -ml-px + rounded joins. */}
                 <div className="flex">
@@ -149,7 +156,7 @@ export function EntityCommitFooter({
                                 size="icon"
                                 className="-ml-px rounded-l-none"
                                 disabled={!canProceed}
-                                aria-label="Commit and deploy options"
+                                aria-label={t("entityUi.commitModal.deployOptions")}
                             >
                                 <CaretUp size={12} />
                             </Button>
@@ -178,12 +185,13 @@ export function EntityCommitFooter({
     }
 
     return (
-        <ModalFooter
-            onCancel={onClose}
-            onConfirm={handleCommit}
-            confirmLabel={confirmLabel}
-            isLoading={isLoading}
-            canConfirm={canProceed}
-        />
+        <div className="flex w-full items-center justify-end gap-2">
+            <Button variant="outline" onClick={onClose} disabled={isLoading}>
+                {t("entityUi.commitModal.cancel")}
+            </Button>
+            <LoadingButton loading={isLoading} disabled={!canProceed} onClick={handleCommit}>
+                {confirmLabel}
+            </LoadingButton>
+        </div>
     )
 }

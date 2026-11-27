@@ -1,0 +1,11 @@
+{
+    "about": "Acerca de {{label}}",
+    "cancel": "Cancelar",
+    "sections": "Secciones",
+    "add": "Añadir",
+    "notSet": "Sin definir",
+    "empty": "Vacío",
+    "committedValue": "Valor confirmado",
+    "removeChange": "Quitar cambio",
+    "restore": "Restaurar"
+}

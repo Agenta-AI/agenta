@@ -146,6 +146,22 @@ class SessionTurnsService:
             session_id=session_id,
         )
 
+    async def find_turn(
+        self,
+        *,
+        project_id: UUID,
+        session_id: Optional[str] = None,
+        turn_id: Optional[UUID] = None,
+        trace_id: Optional[UUID] = None,
+    ) -> Optional[SessionTurn]:
+        """The matching turn with the highest turn_index; `turn_id` is the column, not the row key."""
+        return await self._dao.find_turn(
+            project_id=project_id,
+            session_id=session_id,
+            turn_id=turn_id,
+            trace_id=trace_id,
+        )
+
     async def latest_turn_per_harness_kind(
         self,
         *,

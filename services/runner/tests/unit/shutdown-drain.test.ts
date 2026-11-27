@@ -58,6 +58,7 @@ import {
 import type { SessionEnvironment } from "../../src/engines/sandbox_agent.ts";
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import { turnLogUnmoved } from "../utils/turn-log.ts";
+import { driveSigns } from "../utils/drive-sign.ts";
 import {
   ABANDONED_ATTEMPT_REASON,
   SubscriptionLoginAttempts,
@@ -355,6 +356,7 @@ function engineStoppedByCancel(cancelSettled: boolean): {
       return { ok: true, output: "partial", stopReason: "cancelled", cancelSettled };
     },
     readLatestTurnIndex: turnLogUnmoved,
+    signDrive: driveSigns,
     async runCold() {
       throw new Error("a scoped session never takes the unpooled cold path");
     },

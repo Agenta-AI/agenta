@@ -1,6 +1,10 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
-import {Group} from "lucide-react"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
+import {ListIcon} from "@phosphor-icons/react"
 
 import {Popover, PopoverContent} from "../components/ui/popover"
 
@@ -48,11 +52,11 @@ export const GroupMenu = <Value extends string = string>({
     onChange,
     multi,
     searchable = false,
-    searchPlaceholder = "Search",
+    searchPlaceholder: searchPlaceholderProp,
     defaultSearch = "",
-    emptyText = "Nothing to group by",
+    emptyText: emptyTextProp,
     onReset,
-    resetLabel = "Reset to defaults",
+    resetLabel: resetLabelProp,
     resetDisabled,
     open: openProp,
     onOpenChange,
@@ -68,6 +72,10 @@ export const GroupMenu = <Value extends string = string>({
     triggerAriaLabel,
     active,
 }: GroupMenuProps<Value>) => {
+    const t = useT(uiControlsCatalog, listControlsCatalog, commonCatalog)
+    const searchPlaceholder = searchPlaceholderProp ?? t("common.search")
+    const emptyText = emptyTextProp ?? t("ui.listControls.nothingToGroupBy")
+    const resetLabel = resetLabelProp ?? t("ui.controls.resetToDefaults")
     const [uncontrolled, setUncontrolled] = useState(false)
     const [query, setQuery] = useState(defaultSearch)
     const open = openProp ?? uncontrolled
@@ -95,20 +103,20 @@ export const GroupMenu = <Value extends string = string>({
         <Popover open={open} onOpenChange={setOpen}>
             <FilterMenuTrigger
                 label={label}
-                icon={icon ?? <Group size={14} aria-hidden />}
+                icon={icon ?? <ListIcon size={14} aria-hidden />}
                 size={size}
                 variant={variant}
                 triggerClassName={triggerClassName}
                 triggerAriaLabel={triggerAriaLabel}
                 active={active}
-                defaultLabel="Group"
+                defaultLabel={t("ui.controls.group")}
             />
             <PopoverContent
                 side={side}
                 align={align}
                 sideOffset={sideOffset}
-                aria-label="Group by"
-                className={className ?? "w-[220px] p-0"}
+                aria-label={t("ui.listControls.groupBy")}
+                className={className ?? "w-popover-sm p-0"}
                 onOpenAutoFocus={(event) => event.preventDefault()}
             >
                 {searchable ? (
@@ -119,7 +127,7 @@ export const GroupMenu = <Value extends string = string>({
                             onChange={(event) => setQuery(event.target.value)}
                             placeholder={searchPlaceholder}
                             aria-label={searchPlaceholder}
-                            className="box-border w-full appearance-none border-0 bg-transparent p-0 font-[inherit] text-[13px] text-foreground outline-none placeholder:text-placeholder"
+                            className="box-border w-full appearance-none border-0 bg-transparent p-0 font-[inherit] text-label text-foreground outline-none placeholder:text-muted-foreground"
                         />
                     </label>
                 ) : null}
@@ -127,7 +135,11 @@ export const GroupMenu = <Value extends string = string>({
                     className="p-1"
                     options={shown}
                     selected={selected}
-                    emptyText={query.trim() ? `Nothing matches “${query.trim()}”.` : emptyText}
+                    emptyText={
+                        query.trim()
+                            ? t("ui.controls.nothingMatches", {term: query.trim()})
+                            : emptyText
+                    }
                     autoFocus={!searchable}
                     onSelect={(next) => {
                         onChange(next as Value)

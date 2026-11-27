@@ -1,6 +1,8 @@
 import {useEffect, useMemo, useRef, type ReactNode} from "react"
 
 import {templateCategories} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import galleryCatalog from "@agenta/i18n/catalogs/onboarding.gallery"
 import {Button} from "@agenta/ui/ui"
 import {ArrowLeft, Plus} from "@phosphor-icons/react"
 import {motion} from "motion/react"
@@ -11,27 +13,24 @@ import {cn} from "@/lib/utils"
 
 import {
     ALL,
-    categoryLabel,
     galleryTemplates,
     RECOMMENDED,
     type GalleryCategory,
     type OnboardingCatalog,
 } from "./onboardingChoices"
-import {ONBOARDING_COPY} from "./onboardingCopy"
 import type {OnboardingCreateState} from "./OnboardingCreateState"
 import type {OnboardingAgent} from "./onboardingDraft"
 import {onboardingHeadingId, type GalleryFocus} from "./onboardingRoute"
 import {OnboardingScratchPanel} from "./OnboardingScratchPanel"
+import {ONBOARDING_STYLE} from "./onboardingStyle"
 import {OnboardingTemplateDetail} from "./OnboardingTemplateDetail"
 import {OnboardingTemplateTile} from "./OnboardingTemplateTile"
 import {OnboardingGalleryError} from "./states/OnboardingGalleryError"
 import {OnboardingGallerySkeleton} from "./states/OnboardingGallerySkeleton"
 import {useGalleryDetail} from "./useGalleryDetail"
 
-const copy = ONBOARDING_COPY.gallery
-
 const ROW =
-    "flex h-14 w-full shrink-0 cursor-pointer items-center gap-3 rounded-[10px] px-3 text-left text-foreground transition-colors"
+    "flex h-12 w-full shrink-0 cursor-pointer items-center gap-3 rounded-md px-3 text-left text-foreground transition-colors"
 
 /** The template catalog by category, one template or the blank start in focus beside it. */
 export const OnboardingGallery = ({
@@ -61,18 +60,26 @@ export const OnboardingGallery = ({
     onCloseDetail: () => void
     onChange: (patch: Partial<OnboardingAgent>) => void
 }) => {
+    const t = useT(galleryCatalog)
     const presets = useMotionPresets()
-    const chips = useMemo(
-        () => [
-            {id: RECOMMENDED, label: copy.recommended},
-            ...templateCategories(catalog.templates).map((item) => ({
-                id: item,
-                label: categoryLabel(item),
-            })),
-            {id: ALL, label: copy.all},
-        ],
-        [catalog.templates],
-    )
+    const categories = templateCategories(catalog.templates)
+    const chipLabel = (item: string) =>
+        item === "Engineering"
+            ? t("onboarding.gallery.categoryEngineering")
+            : item === "Support"
+              ? t("onboarding.gallery.categorySupport")
+              : item === "Sales"
+                ? t("onboarding.gallery.categorySales")
+                : item === "Knowledge"
+                  ? t("onboarding.gallery.categoryKnowledge")
+                  : item === "Ops"
+                    ? t("onboarding.gallery.categoryOps")
+                    : item
+    const chips = [
+        {id: RECOMMENDED, label: t("onboarding.gallery.recommended")},
+        ...categories.map((item) => ({id: item, label: chipLabel(item)})),
+        {id: ALL, label: t("onboarding.gallery.all")},
+    ]
     const listed = useMemo(
         () => galleryTemplates(catalog.templates, category, preferred),
         [catalog.templates, category, preferred],
@@ -119,10 +126,10 @@ export const OnboardingGallery = ({
                     <Button
                         variant="ghost"
                         onClick={onCloseDetail}
-                        className="-ml-3 h-11 self-start px-3 text-sm font-medium"
+                        className="-ml-3 self-start px-3"
                     >
                         <ArrowLeft data-icon="inline-start" />
-                        {copy.backToTemplates}
+                        {t("onboarding.gallery.backToTemplates")}
                     </Button>
                     {shownPanel}
                 </motion.div>
@@ -142,18 +149,18 @@ export const OnboardingGallery = ({
                     <h1
                         id={onboardingHeadingId("templates")}
                         tabIndex={-1}
-                        className={ONBOARDING_COPY.headingClass}
+                        className={ONBOARDING_STYLE.headingClass}
                     >
-                        {copy.title}
+                        {t("onboarding.gallery.title")}
                     </h1>
-                    <p className="text-muted-foreground m-0 text-[15px] leading-[22px]">
-                        {copy.subtitle}
+                    <p className="text-muted-foreground m-0 text-body">
+                        {t("onboarding.gallery.subtitle")}
                     </p>
                 </div>
                 {catalog.status === "success" ? (
                     <div
                         role="group"
-                        aria-label={copy.categories}
+                        aria-label={t("onboarding.gallery.categories")}
                         className="-mx-4 flex scroll-px-4 gap-1.5 overflow-x-auto px-4 py-0.5 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden"
                     >
                         {chips.map((chip) => {
@@ -166,11 +173,11 @@ export const OnboardingGallery = ({
                                     aria-pressed={active}
                                     onClick={() => onCategory(chip.id)}
                                     className={cn(
-                                        "h-7 shrink-0 cursor-pointer rounded-md border-0 px-2.5 text-xs font-medium leading-4 transition-colors",
+                                        "h-control-sm shrink-0 cursor-pointer rounded-md border-0 px-2 text-label transition-colors",
                                         FOCUS_RING,
                                         active
-                                            ? "bg-foreground text-background"
-                                            : "bg-background text-foreground ring-foreground/10 shadow-xs ring-1",
+                                            ? "bg-selected text-foreground"
+                                            : "bg-secondary text-foreground hover:bg-accent",
                                     )}
                                 >
                                     {chip.label}
@@ -187,22 +194,22 @@ export const OnboardingGallery = ({
                             onClick={() => focusAndOpen({kind: "scratch"})}
                             className={cn(
                                 ROW,
-                                "mb-1.5 border-[1.5px] border-dashed",
+                                "mb-1.5 border border-dashed",
                                 FOCUS_RING,
                                 scratch
-                                    ? "border-muted-foreground bg-muted"
-                                    : "border-border hover:border-muted-foreground hover:bg-background bg-transparent",
+                                    ? "border-border-strong bg-selected"
+                                    : "border-border bg-transparent hover:bg-accent",
                             )}
                         >
-                            <span className="bg-background ring-border flex size-[34px] shrink-0 items-center justify-center rounded-[9px] ring-1">
+                            <span className="bg-secondary flex size-8 shrink-0 items-center justify-center rounded-md">
                                 <Plus size={16} />
                             </span>
                             <span className="flex min-w-0 flex-1 flex-col">
-                                <span className="text-sm font-medium leading-5">
-                                    {copy.scratch}
+                                <span className="text-label">
+                                    {t("onboarding.gallery.scratch")}
                                 </span>
-                                <span className="text-muted-foreground text-xs leading-[18px]">
-                                    {copy.scratchHint}
+                                <span className="text-muted-foreground text-meta">
+                                    {t("onboarding.gallery.scratchHint")}
                                 </span>
                             </span>
                         </button>
@@ -211,7 +218,9 @@ export const OnboardingGallery = ({
                         ) : catalog.status === "error" ? (
                             <OnboardingGalleryError onRetry={catalog.retry} />
                         ) : listed.length === 0 ? (
-                            <p className="text-muted-foreground m-0 py-4 text-sm">{copy.empty}</p>
+                            <p className="text-muted-foreground m-0 py-4 text-body">
+                                {t("onboarding.gallery.empty")}
+                            </p>
                         ) : (
                             // Keyed by category, so a chip switch replays the rows' stagger.
                             <div key={category} className="flex flex-col gap-1">
@@ -240,16 +249,16 @@ export const OnboardingGallery = ({
                                                     "border-0",
                                                     FOCUS_RING,
                                                     active
-                                                        ? "bg-muted"
-                                                        : "hover:bg-muted bg-transparent",
+                                                        ? "bg-selected"
+                                                        : "bg-transparent hover:bg-accent",
                                                 )}
                                             >
                                                 <OnboardingTemplateTile template={template} />
                                                 <span className="flex min-w-0 flex-1 flex-col">
-                                                    <span className="text-sm font-medium leading-5">
+                                                    <span className="text-label">
                                                         {template.name}
                                                     </span>
-                                                    <span className="text-muted-foreground truncate text-xs leading-[18px]">
+                                                    <span className="text-muted-foreground truncate text-meta">
                                                         {template.trigger}
                                                     </span>
                                                 </span>

@@ -2,6 +2,8 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {PendingInputWriteOutcome} from "@agenta/entities/session"
+import {createT} from "@agenta/i18n"
+import chatMessagesCatalog from "@agenta/i18n/catalogs/chat.messages"
 import {
     approvalContinuationSettled,
     hasRunningApprovalContinuation,
@@ -10,6 +12,7 @@ import {
 import {generateId} from "@agenta/shared/utils"
 import type {FileUIPart, UIMessage} from "ai"
 
+import type {ChildUpdate} from "../assets/childUpdate"
 import {countUserMessages, durableUserTurnIds} from "../assets/pendingSendEchoes"
 import {
     applyQueueOps,
@@ -43,6 +46,13 @@ export interface QueuedMessage {
     promotedExecutionId?: string | null
     /** An edit of this row is still saving. */
     saving?: boolean
+    /**
+     * The input's kind, on a row from the server queue (`message` when the server sent none).
+     * Any other kind is a server input: it can be removed, never edited or sent by hand.
+     */
+    kind?: string
+    /** The structured part of a `child_update` row; absent when the row carries none. */
+    childUpdate?: ChildUpdate
 }
 
 /** `settledSeq`: a snapshot read with a higher sequence reflects this write. */
@@ -82,13 +92,7 @@ export interface ServerQueueAdapter {
     refresh?: (options?: {fresh?: boolean}) => Promise<number | null>
 }
 
-const REMOVE_FAILED = "Couldn't remove this message. Try again."
-const REMOVE_ABOUT_TO_RUN = "This message is about to run and can't be removed."
-const NOT_QUEUED = "This message is no longer queued."
-const SEND_NOW_FAILED = "Couldn't send this message now. Try again."
-const SEND_NOW_BUSY = "Another message is being sent first. Try again once it starts."
-const EDIT_FAILED = "Your edit wasn't saved. Edit to try again."
-const EDIT_ABOUT_TO_RUN = "This message is about to run and can't be edited."
+const tNow = createT(chatMessagesCatalog)
 
 interface UseAgentChatQueueArgs {
     /** Keys the echo rows, so a remount of this session's view finds the sends it has not seen saved. */
@@ -310,11 +314,17 @@ export const useAgentChatQueue = ({
         untilSeq: number | null
     } | null>(null)
     const refreshQueue = server.refresh
+    // Whether a read has listed this session's queue as empty, read in the effect below.
+    const listedEmptyRef = useRef(false)
+    listedEmptyRef.current = server.viewSeq > 0 && server.queued.length === 0
     useEffect(() => {
         const grew = userCount > lastUserCountRef.current
         lastUserCountRef.current = userCount
         if (!grew) return
         const ids = retiredParkedIdsRef.current
+        // Nothing listed and nothing of ours parked: no input can have started, so a re-read has
+        // nothing to drop.
+        if (listedEmptyRef.current && ids.size === 0) return
         const settle = (untilSeq: number) =>
             setHandoff((current) => (current?.ids === ids ? {ids, untilSeq} : current))
         setHandoff({ids, untilSeq: null})
@@ -427,9 +437,14 @@ export const useAgentChatQueue = ({
                         settleOp(id, token, settledSeq)
                     }
                     // 409: promoted, or bound to a pending stop.
-                    else fail(outcome === "conflict" ? REMOVE_ABOUT_TO_RUN : REMOVE_FAILED)
+                    else
+                        fail(
+                            outcome === "conflict"
+                                ? tNow("chat.messages.removeAboutToRun")
+                                : tNow("chat.messages.removeFailed"),
+                        )
                 })
-                .catch(() => fail(REMOVE_FAILED))
+                .catch(() => fail(tNow("chat.messages.removeFailed")))
         },
         [dropOp, server, setOp, setRowError, settleOp],
     )
@@ -615,17 +630,17 @@ export const useAgentChatQueue = ({
                     if (outcome !== "applied") {
                         fail(
                             outcome === "busy"
-                                ? SEND_NOW_BUSY
+                                ? tNow("chat.messages.sendNowBusy")
                                 : outcome === "failed"
-                                  ? SEND_NOW_FAILED
-                                  : NOT_QUEUED,
+                                  ? tNow("chat.messages.sendNowFailed")
+                                  : tNow("chat.messages.notQueued"),
                         )
                         return
                     }
                     settleOp(id, token, settledSeq)
                     if (executionId) echoes.markAccepted(echoId, executionId)
                 })
-                .catch(() => fail(SEND_NOW_FAILED))
+                .catch(() => fail(tNow("chat.messages.sendNowFailed")))
         },
         [dropOp, echoes, server, setOp, setRowError, settleOp],
     )
@@ -729,7 +744,10 @@ export const useAgentChatQueue = ({
                 if (!dropOp(id, token)) return
                 if (serverQueuedRef.current.some((message) => message.id === id)) {
                     setRowError(id, {
-                        message: outcome === "conflict" ? EDIT_ABOUT_TO_RUN : EDIT_FAILED,
+                        message:
+                            outcome === "conflict"
+                                ? tNow("chat.messages.editAboutToRun")
+                                : tNow("chat.messages.editFailed"),
                         unsavedEdit: {text: item.text, fileParts: item.fileParts},
                     })
                     return
@@ -772,7 +790,7 @@ export const useAgentChatQueue = ({
                 editSession?.server || server.queued.some((message) => message.id === id)
             if (id && serverOwnsInput) {
                 const save = server.edit
-                if (!save) return Promise.reject(new Error("This queued message cannot be edited."))
+                if (!save) return Promise.reject(new Error(tNow("chat.messages.cannotEditQueued")))
                 saveEdit(id, item, save)
                 editSessionRef.current = null
                 setEditingId(null)

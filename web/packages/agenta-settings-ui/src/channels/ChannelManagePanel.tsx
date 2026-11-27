@@ -1,16 +1,23 @@
 import {useCallback, useEffect, useState} from "react"
 
+import {useT, createT, type CatalogKey} from "@agenta/i18n"
+import channelsActionsCatalog from "@agenta/i18n/catalogs/channels.actions"
+import channelsLabelsCatalog from "@agenta/i18n/catalogs/channels.labels"
+import channelsManageCatalog from "@agenta/i18n/catalogs/channels.manage"
+import channelsTeamsCatalog from "@agenta/i18n/catalogs/channels.teams"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {
     Alert,
     Button,
     Checkbox,
     Input,
+    ItemViewTitle,
     PasswordInput,
-    RadioGroup,
-    RadioGroupItem,
+    SimpleTooltip,
     Spinner,
     Switch,
 } from "@agenta/ui/ui"
+import {PaneFooter} from "@agenta/ui/view-stack"
 import {
     ArrowSquareOut,
     ArrowsLeftRight,
@@ -19,14 +26,18 @@ import {
     Plus,
     UsersThree,
     Warning,
+    Wrench,
 } from "@phosphor-icons/react"
 
-import {nameSpacesFrom} from "./actions"
+import {chatTypeOf, nameSpacesFrom} from "./actions"
 import {ChannelAdvancedSection} from "./ChannelAdvancedSection"
 import {ChannelPeopleSection} from "./ChannelPeopleSection"
+import {ChoiceCards} from "./ChoiceCards"
 import {
+    BLOCK_TITLE,
     NOOP_ACTIONS,
     ROW_BUTTON,
+    SECTION_LABEL,
     answeringAgentName,
     botHandle,
     connectionKindLabel,
@@ -35,12 +46,13 @@ import {
     disconnectSubject,
     errorMessage,
     formatConnectedOn,
+    hasChannels,
     platformLabel,
     slackInviteHandle,
 } from "./helpers"
 import {platformLogo} from "./icons"
-import {PanelFooter} from "./PanelFooter"
 import {channelSharingCopy} from "./sharingCopy"
+import {TeamsAppSetup} from "./TeamsAppSetup"
 import type {
     ChannelBehaviorState,
     ChannelConnection,
@@ -52,6 +64,13 @@ import type {
     ChannelsActions,
 } from "./types"
 import {WhatsAppWebhook} from "./WhatsAppWebhook"
+
+const tNow = createT(
+    channelsActionsCatalog,
+    channelsLabelsCatalog,
+    channelsManageCatalog,
+    commonCatalog,
+)
 
 /**
  * The manage view for a connected channel: where it answers, who may message it, its
@@ -86,29 +105,83 @@ export interface ChannelManagePanelProps {
 }
 
 /** The secret fields a token update asks for when the backend declares none. */
-const FALLBACK_SECRETS: Record<ChannelPlatform, ChannelSetupField[]> = {
-    telegram: [{name: "bot_token", label: "Bot token", secret: true, required: true}],
-    whatsapp: [
-        {name: "access_token", label: "Access token", secret: true, required: true},
-        {name: "app_secret", label: "App secret", secret: true, required: true},
-    ],
-    slack: [
-        {name: "bot_token", label: "Bot User OAuth Token", secret: true, required: true},
-        {name: "signing_secret", label: "Signing Secret", secret: true, required: true},
-    ],
+const fallbackSecrets = (platform: ChannelPlatform): ChannelSetupField[] =>
+    ({
+        telegram: [
+            {
+                name: "bot_token",
+                label: tNow("channels.manage.botToken"),
+                secret: true,
+                required: true,
+            },
+        ],
+        discord: [
+            {
+                name: "bot_token",
+                label: tNow("channels.manage.botToken"),
+                secret: true,
+                required: true,
+            },
+        ],
+        whatsapp: [
+            {
+                name: "access_token",
+                label: tNow("channels.manage.accessToken"),
+                secret: true,
+                required: true,
+            },
+            {
+                name: "app_secret",
+                label: tNow("channels.manage.appSecret"),
+                secret: true,
+                required: true,
+            },
+        ],
+        slack: [
+            {
+                name: "bot_token",
+                label: tNow("channels.manage.botUserOAuthToken"),
+                secret: true,
+                required: true,
+            },
+            {
+                name: "signing_secret",
+                label: tNow("channels.manage.signingSecret"),
+                secret: true,
+                required: true,
+            },
+        ],
+        teams: [
+            {
+                name: "client_secret",
+                label: tNow("channels.manage.clientSecretValue"),
+                secret: true,
+                required: true,
+            },
+        ],
+    })[platform]
+
+/** The name of a platform's shared places, as the "group" switch says it. */
+const PLACES_TITLES: Record<ChannelPlatform, CatalogKey<typeof channelsManageCatalog>> = {
+    slack: "channels.manage.channels",
+    telegram: "channels.manage.groupChats",
+    whatsapp: "channels.manage.groupChats",
+    discord: "channels.manage.channels",
+    teams: "channels.manage.channelsAndGroupChats",
 }
 
 /** A discovered place's stable identity: its kind and platform address. */
 const candidateKey = (candidate: ChannelSpaceCandidate): string =>
     `${candidate.kind}:${JSON.stringify(candidate.externalLocator)}`
 
-const spaceIcon = (kind: ChannelSpaceKind, isSlack: boolean) => {
-    if (kind === "private") return <ChatCircle size={15} />
-    return isSlack ? <Hash size={15} /> : <UsersThree size={15} />
+const spaceIcon = (kind: ChannelSpaceKind, platform: ChannelPlatform) => {
+    const type = chatTypeOf(kind, platform)
+    if (type === "dm") return <ChatCircle size={15} />
+    return type === "channel" ? <Hash size={15} /> : <UsersThree size={15} />
 }
 
-const SECTION_TITLE = "pb-1 text-[13px] font-semibold text-foreground"
-const ROW = "border-0 border-b border-solid border-border py-3"
+const SECTION_TITLE = `pb-1 ${SECTION_LABEL}`
+const ROW = "border-0 border-b border-solid border-border-muted py-3"
 
 export const ChannelManagePanel = ({
     connection,
@@ -123,9 +196,19 @@ export const ChannelManagePanel = ({
     onReconnect,
     onTurnOn,
 }: ChannelManagePanelProps) => {
+    const t = useT(
+        channelsActionsCatalog,
+        channelsLabelsCatalog,
+        channelsManageCatalog,
+        channelsTeamsCatalog,
+        commonCatalog,
+    )
     const isSlack = connection.platform === "slack"
     const isTelegram = connection.platform === "telegram"
     const isWhatsApp = connection.platform === "whatsapp"
+    const isDiscord = connection.platform === "discord"
+    const isTeams = connection.platform === "teams"
+    const channels = hasChannels(connection.platform)
     const name = platformLabel(connection.platform)
     const connectionId = connection.connectionId
     const handle = botHandle(connection, hostedHandle)
@@ -146,7 +229,7 @@ export const ChannelManagePanel = ({
     // "Who can message it" limits this agent's binding; the panel of another agent's
     // connection ("elsewhere") has no binding of this agent to limit.
     const hasPeople = (isSlack || isTelegram) && !elsewhere
-    const otherAgent = unassigned ? "no agent" : answeringAgentName(connection)
+    const otherAgent = unassigned ? t("channels.manage.noAgent") : answeringAgentName(connection)
     const connectedOn = formatConnectedOn(connection.connectedAt)
     // Only a custom install has secrets of its own to replace.
     const canUpdateToken = connection.kind === "custom"
@@ -166,7 +249,9 @@ export const ChannelManagePanel = ({
             listed = await actions.listSpaces(connectionId)
         } catch (e) {
             setSpaces([])
-            setSpacesError(errorMessage(e, `Could not load where ${name} answers.`))
+            setSpacesError(
+                errorMessage(e, tNow("channels.manage.loadSpacesFailed", {platform: name})),
+            )
             return
         }
         setSpaces(listed)
@@ -179,6 +264,41 @@ export const ChannelManagePanel = ({
             /* keep the stand-in names */
         }
     }, [actions, connectionId, name])
+
+    // What the empty place list says: how a place first appears. WhatsApp has no list.
+    const emptyPlaces: Record<ChannelPlatform, string | null> = {
+        slack: t("channels.manage.emptySlack", {handle: inviteHandle}),
+        telegram: t("channels.manage.emptyGroups", {handle}),
+        discord: `${t("channels.manage.emptyDiscord", {handle})} ${t("channels.manage.discordPrivateChannelHint")}`,
+        whatsapp: null,
+        teams: t("channels.manage.emptyTeams", {handle}),
+    }
+
+    // --- the Discord invite link, from the connection's setup document ---------- //
+    const [discordInviteUrl, setDiscordInviteUrl] = useState<string | null>(null)
+    const [discordInviteError, setDiscordInviteError] = useState<string | null>(null)
+    // Bumped by "Try again" to read the link again.
+    const [discordInviteAttempt, setDiscordInviteAttempt] = useState(0)
+    useEffect(() => {
+        // A revoked bot cannot join a server, so it gets no invite link.
+        if (!isDiscord || !connectionId || elsewhere || revoked) return
+        let cancelled = false
+        const fallback = tNow("channels.manage.loadInviteFailed")
+        setDiscordInviteError(null)
+        actions
+            .discordInviteUrl(connectionId)
+            .then((url) => {
+                if (cancelled) return
+                setDiscordInviteUrl(url)
+                if (!url) setDiscordInviteError(fallback)
+            })
+            .catch((e) => {
+                if (!cancelled) setDiscordInviteError(errorMessage(e, fallback))
+            })
+        return () => {
+            cancelled = true
+        }
+    }, [isDiscord, connectionId, elsewhere, revoked, actions, discordInviteAttempt])
 
     // --- the picker behind "Add channel" --------------------------------------- //
     const [pickerOpen, setPickerOpen] = useState(false)
@@ -200,7 +320,7 @@ export const ChannelManagePanel = ({
             setCandidates(await actions.discoverSpaces(connectionId))
         } catch (e) {
             setCandidates([])
-            setPickerError(errorMessage(e, "Could not list the channels this app can see."))
+            setPickerError(errorMessage(e, t("channels.actions.discoverSpacesFailed")))
         }
     }
 
@@ -235,7 +355,7 @@ export const ChannelManagePanel = ({
         if (failed.length) {
             // Keep the ones that failed checked, so a retry adds only those.
             setPicked(failed)
-            setPickerError(errorMessage(firstError, "Could not add this channel."))
+            setPickerError(errorMessage(firstError, t("channels.actions.addSpaceFailed")))
             try {
                 setCandidates(await actions.discoverSpaces(connectionId))
             } catch {
@@ -260,7 +380,7 @@ export const ChannelManagePanel = ({
             setBehavior(await actions.readBehavior(connection.platform, connectionId))
         } catch (e) {
             setBehavior(null)
-            setBehaviorError(errorMessage(e, "Could not read where this agent may answer."))
+            setBehaviorError(errorMessage(e, tNow("channels.actions.readBehaviorFailed")))
         }
     }, [actions, connectionId, connection.platform])
 
@@ -274,7 +394,7 @@ export const ChannelManagePanel = ({
         try {
             await actions.writeBehavior(connection.platform, connectionId, next)
         } catch (e) {
-            writeError = errorMessage(e, "Could not save this setting.")
+            writeError = errorMessage(e, t("channels.actions.saveSettingFailed"))
         } finally {
             // Re-read partial writes, but do not erase the failed-save feedback.
             await loadBehavior()
@@ -316,9 +436,9 @@ export const ChannelManagePanel = ({
         try {
             const setup = await actions.loadSetup(connection.platform)
             const secrets = setup.fields.filter((field) => field.secret)
-            setTokenFields(secrets.length ? secrets : FALLBACK_SECRETS[connection.platform])
+            setTokenFields(secrets.length ? secrets : fallbackSecrets(connection.platform))
         } catch {
-            setTokenFields(FALLBACK_SECRETS[connection.platform])
+            setTokenFields(fallbackSecrets(connection.platform))
         }
     }
 
@@ -341,7 +461,9 @@ export const ChannelManagePanel = ({
                 /* the save landed; a stale status row is not worth an error */
             })
         } catch (e) {
-            setTokenError(errorMessage(e, `${name} rejected the new credentials.`))
+            setTokenError(
+                errorMessage(e, t("channels.manage.credentialsRejected", {platform: name})),
+            )
         } finally {
             setTokenSaving(false)
         }
@@ -374,10 +496,13 @@ export const ChannelManagePanel = ({
                 message: errorMessage(
                     e,
                     kind === "disconnect"
-                        ? `Could not disconnect ${name}. Try again.`
+                        ? t("channels.manage.disconnectFailed", {platform: name})
                         : kind === "turn-on"
-                          ? `Could not turn ${name} on. Try again.`
-                          : `Could not connect ${name} to ${agentName}. Try again.`,
+                          ? t("channels.manage.turnOnFailed", {platform: name})
+                          : t("channels.manage.connectHereFailed", {
+                                platform: name,
+                                agent: agentName,
+                            }),
                 ),
             })
         } finally {
@@ -388,17 +513,19 @@ export const ChannelManagePanel = ({
     const allBehaviorRows: {key: "dm" | "group"; title: string; help: string}[] = [
         {
             key: "dm",
-            title: "Direct messages",
+            title: t("channels.labels.directMessages"),
             help: isSlack
-                ? `Anyone in the workspace can DM ${handle}.`
-                : "Private chats people open with the bot.",
+                ? t("channels.manage.dmHelpSlack", {handle})
+                : t("channels.manage.dmHelp"),
         },
         {
             key: "group",
-            title: isSlack ? "Channels" : "Group chats",
-            help: isSlack
-                ? `Replies in a thread when someone mentions ${handle}.`
-                : "Groups the bot is added to, when it’s mentioned.",
+            title: t(PLACES_TITLES[connection.platform]),
+            help: isTeams
+                ? t("channels.manage.groupHelpTeams", {handle})
+                : channels
+                  ? t("channels.manage.groupHelpSlack", {handle})
+                  : t("channels.manage.groupHelp"),
         },
     ]
     // WhatsApp is one-to-one only: there is no group chat to switch.
@@ -412,7 +539,13 @@ export const ChannelManagePanel = ({
             ? null
             : [
                   ...(spaces.some((space) => space.kind === "private")
-                      ? [{id: "direct-messages", kind: "private" as const, name: "Direct messages"}]
+                      ? [
+                            {
+                                id: "direct-messages",
+                                kind: "private" as const,
+                                name: t("channels.labels.directMessages"),
+                            },
+                        ]
                       : []),
                   ...spaces.filter((space) => space.kind !== "private"),
               ]
@@ -441,17 +574,17 @@ export const ChannelManagePanel = ({
         off && onTurnOn ? (
             <div className="flex flex-col gap-3" data-testid="channels-off">
                 <div className="flex items-center gap-3 px-1">
-                    <span className="flex size-8 flex-none items-center justify-center rounded-lg bg-muted">
+                    <span className="flex size-8 flex-none items-center justify-center rounded-md bg-secondary">
                         {platformLogo(connection.platform, 16)}
                     </span>
                     <span className="flex min-w-0 flex-1 flex-col gap-px">
-                        <span className="truncate text-sm font-medium text-foreground">
+                        <span className="truncate text-label text-foreground">
                             {channelSharingCopy.connectionRow(
                                 name,
                                 (isSlack ? connection.workspaceName : null) || handle,
                             )}
                         </span>
-                        <span className="text-[12.5px] text-muted-foreground">
+                        <span className="text-label text-muted-foreground">
                             {offPlaces.length
                                 ? channelSharingCopy.offIn(offPlaces)
                                 : channelSharingCopy.off}
@@ -479,19 +612,17 @@ export const ChannelManagePanel = ({
 
     const tokenForm = tokenOpen ? (
         <div
-            className="flex flex-col gap-3 rounded-lg border border-solid border-border p-3"
+            className="flex flex-col gap-3 rounded-lg bg-muted p-3"
             data-testid="channels-token-form"
         >
             {tokenError ? <Alert type="error" showIcon message={tokenError} /> : null}
             {tokenFields ? (
                 tokenFields.map((field, index) => (
                     <label key={field.name} className="flex flex-col gap-1.5">
-                        <span className="text-[13px] font-medium text-foreground">
-                            {field.label}
-                        </span>
+                        <span className={BLOCK_TITLE}>{field.label}</span>
                         {index > 0 ? (
-                            <span className="text-xs text-muted-foreground">
-                                Leave empty to keep the current one.
+                            <span className="text-meta text-muted-foreground">
+                                {t("channels.manage.leaveEmpty")}
                             </span>
                         ) : null}
                         <PasswordInput
@@ -502,14 +633,14 @@ export const ChannelManagePanel = ({
                                     [field.name]: e.target.value,
                                 }))
                             }
-                            className="font-mono text-xs"
+                            className="text-code"
                             data-testid={`channels-token-${field.name}`}
                         />
                     </label>
                 ))
             ) : (
-                <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-                    <Spinner size="small" /> Loading the {name} setup…
+                <div className="flex items-center gap-2 text-label text-muted-foreground">
+                    <Spinner size="small" /> {t("channels.manage.loadingSetup", {platform: name})}
                 </div>
             )}
             <div className="flex justify-end gap-2">
@@ -519,7 +650,7 @@ export const ChannelManagePanel = ({
                     disabled={tokenSaving}
                     onClick={() => setTokenOpen(false)}
                 >
-                    Cancel
+                    {t("common.cancel")}
                 </Button>
                 <Button
                     size="sm"
@@ -528,7 +659,7 @@ export const ChannelManagePanel = ({
                     data-testid="channels-token-save"
                 >
                     {tokenSaving ? <Spinner size="small" /> : null}
-                    Save
+                    {t("common.save")}
                 </Button>
             </div>
         </div>
@@ -536,26 +667,28 @@ export const ChannelManagePanel = ({
 
     // --- answering as another agent: move it here, or get a bot of its own ------------- //
     if (elsewhere) {
-        const ownThing = isSlack ? "a Slack app" : isWhatsApp ? "a WhatsApp number" : "a bot"
         const canOwn = !!onUseOwnBot
         const choice = canOwn ? conflictChoice : "move"
         return (
             <div
-                className="flex min-h-full flex-1 flex-col gap-[22px]"
+                className="flex min-h-full flex-1 flex-col gap-6"
                 data-testid="channels-connect-here"
             >
-                <div className="flex gap-3 rounded-lg bg-colorWarningBg p-3.5">
+                <div className="flex gap-3 rounded-lg bg-warning/10 p-3.5">
                     <ArrowsLeftRight size={18} className="mt-px flex-none text-muted-foreground" />
-                    <div className="flex min-w-0 flex-col gap-[3px]">
-                        <span className="text-sm font-medium text-foreground">
+                    <div className="flex min-w-0 flex-col gap-1">
+                        <span className="text-label text-foreground">
                             {unassigned
-                                ? `${title} is connected, but answers as no agent yet`
-                                : `${title} is answering as ${otherAgent}`}
+                                ? t("channels.manage.unassignedTitle", {title})
+                                : t("channels.manage.elsewhereTitle", {
+                                      title,
+                                      agent: otherAgent,
+                                  })}
                         </span>
-                        <span className="text-[13px] text-muted-foreground">
+                        <span className="text-label text-muted-foreground">
                             {unassigned
-                                ? `Connect it here so ${agentName} answers.`
-                                : `A connection answers as one agent at a time. The linked chats stay linked.`}
+                                ? t("channels.manage.unassignedHelp", {agent: agentName})
+                                : t("channels.manage.elsewhereHelp")}
                         </span>
                     </div>
                 </div>
@@ -564,56 +697,61 @@ export const ChannelManagePanel = ({
                 ) : null}
                 {canOwn ? (
                     <div className="flex flex-col gap-2">
-                        <span className="text-[13px] font-semibold text-foreground">
-                            How should {agentName} connect?
+                        <span className={SECTION_LABEL}>
+                            {t("channels.manage.howConnect", {agent: agentName})}
                         </span>
-                        <RadioGroup
-                            value={choice}
-                            onValueChange={(value) => setConflictChoice(value as "move" | "own")}
-                            className="gap-0 overflow-hidden rounded-lg border border-solid border-border"
-                            data-testid="channels-own-bot-offer"
-                        >
-                            {[
+                        <ChoiceCards
+                            options={[
                                 {
-                                    value: "move",
-                                    title: unassigned ? "Connect it here" : "Move it here",
+                                    value: "move" as const,
+                                    icon: <ArrowsLeftRight />,
+                                    title: unassigned
+                                        ? t("channels.manage.connectItHere")
+                                        : t("channels.manage.moveItHere"),
                                     desc: unassigned
-                                        ? `${agentName} answers on ${title}.`
-                                        : `${otherAgent} stops answering on ${title}. Linked chats stay linked.`,
+                                        ? t("channels.manage.moveDescUnassigned", {
+                                              agent: agentName,
+                                              title,
+                                          })
+                                        : t("channels.manage.moveDesc", {
+                                              other: otherAgent,
+                                              title,
+                                          }),
                                 },
                                 {
-                                    value: "own",
+                                    value: "own" as const,
+                                    icon: <Wrench />,
                                     title: isSlack
-                                        ? "Use your own app"
+                                        ? t("channels.manage.useOwnApp")
                                         : isWhatsApp
-                                          ? "Connect another number"
-                                          : "Use your own bot",
+                                          ? t("channels.manage.connectAnotherNumber")
+                                          : t("channels.manage.useOwnBot"),
                                     desc: unassigned
-                                        ? `${agentName} gets ${ownThing} of its own.`
-                                        : `${otherAgent} keeps ${title}. ${agentName} gets ${ownThing} of its own.`,
+                                        ? t(
+                                              isSlack
+                                                  ? "channels.manage.ownDescSlack"
+                                                  : isWhatsApp
+                                                    ? "channels.manage.ownDescWhatsApp"
+                                                    : "channels.manage.ownDescBot",
+                                              {agent: agentName},
+                                          )
+                                        : t(
+                                              isSlack
+                                                  ? "channels.manage.keepDescSlack"
+                                                  : isWhatsApp
+                                                    ? "channels.manage.keepDescWhatsApp"
+                                                    : "channels.manage.keepDescBot",
+                                              {other: otherAgent, title, agent: agentName},
+                                          ),
                                 },
-                            ].map((option, i) => (
-                                <label
-                                    key={option.value}
-                                    className={`flex cursor-pointer gap-3 px-3.5 py-3 ${
-                                        i ? "border-0 border-t border-solid border-border" : ""
-                                    } ${choice === option.value ? "bg-muted" : "bg-background"}`}
-                                >
-                                    <RadioGroupItem value={option.value} className="mt-0.5" />
-                                    <span className="flex flex-col gap-0.5">
-                                        <span className="text-sm font-medium text-foreground">
-                                            {option.title}
-                                        </span>
-                                        <span className="text-[13px] text-muted-foreground">
-                                            {option.desc}
-                                        </span>
-                                    </span>
-                                </label>
-                            ))}
-                        </RadioGroup>
+                            ]}
+                            value={choice}
+                            onChange={setConflictChoice}
+                            testId="channels-own-bot-offer"
+                        />
                     </div>
                 ) : null}
-                <PanelFooter>
+                <PaneFooter>
                     <Button
                         disabled={busy !== null}
                         onClick={() => {
@@ -623,101 +761,122 @@ export const ChannelManagePanel = ({
                     >
                         {busy === "connect-here" ? <Spinner size="small" /> : null}
                         {choice === "own"
-                            ? "Continue"
+                            ? t("common.continue")
                             : unassigned
-                              ? `Connect ${agentName}`
-                              : "Move it here"}
+                              ? t("channels.manage.connectAgent", {agent: agentName})
+                              : t("channels.manage.moveItHere")}
                     </Button>
-                </PanelFooter>
+                </PaneFooter>
             </div>
         )
     }
 
     return (
-        <div className="flex min-h-full flex-1 flex-col gap-[26px]">
+        <div className="flex min-h-full flex-1 flex-col gap-6">
             {/* --- what is connected --- */}
-            <div className="flex items-center gap-3 border-0 border-b border-solid border-border pb-5">
-                <span className="relative box-border flex size-10 flex-none items-center justify-center rounded-lg border border-solid border-border">
-                    {platformLogo(connection.platform, 24)}
-                    <span
-                        className={`absolute -right-0.5 -top-0.5 size-2 rounded-full border-[1.5px] border-solid border-background ${
-                            revoked
-                                ? "bg-colorError"
-                                : off
-                                  ? "bg-colorTextQuaternary"
-                                  : "bg-colorSuccess"
-                        }`}
-                    />
-                </span>
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span className="truncate text-[15px] font-semibold text-foreground">
-                        {title}
+            <ItemViewTitle
+                className="border-0 border-b border-solid border-border-muted pb-5"
+                mark={
+                    <span className="relative box-border flex size-6 items-center justify-center rounded-md bg-secondary">
+                        {platformLogo(connection.platform, 14)}
+                        <span
+                            className={`absolute -right-0.5 -top-0.5 size-2 rounded-round border border-solid border-background ${
+                                revoked ? "bg-destructive" : off ? "bg-border-strong" : "bg-success"
+                            }`}
+                        />
                     </span>
-                    <span className="truncate text-[13px] text-muted-foreground">
+                }
+                title={title}
+                description={
+                    <span className="block truncate">
                         <span
                             className={
                                 revoked
-                                    ? "text-error"
+                                    ? "text-destructive"
                                     : off
                                       ? "text-muted-foreground"
-                                      : "text-colorSuccess"
+                                      : "text-success"
                             }
                         >
-                            {revoked ? "Not answering" : off ? channelSharingCopy.off : "Live"}
+                            {revoked
+                                ? t("channels.manage.notAnswering")
+                                : off
+                                  ? channelSharingCopy.off
+                                  : t("common.live")}
                         </span>
                         {` · ${connectionKindLabel(connection)}`}
                         {isSlack && connection.handle ? ` · ${connection.handle}` : ""}
-                        {connectedOn ? ` · since ${connectedOn}` : ""}
+                        {connectedOn ? ` · ${t("channels.manage.since", {date: connectedOn})}` : ""}
                     </span>
-                </div>
-                {telegramUrl ? (
-                    <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        asChild
-                        title="Open in Telegram"
-                        aria-label="Open in Telegram"
-                    >
-                        <a href={telegramUrl} target="_blank" rel="noreferrer">
-                            <ArrowSquareOut />
-                        </a>
-                    </Button>
-                ) : null}
-            </div>
+                }
+                actions={
+                    telegramUrl ? (
+                        <SimpleTooltip title={t("channels.manage.openInTelegram")}>
+                            <Button
+                                variant="ghost"
+                                size="icon-compact"
+                                asChild
+                                aria-label={t("channels.manage.openInTelegram")}
+                            >
+                                <a href={telegramUrl} target="_blank" rel="noreferrer">
+                                    <ArrowSquareOut />
+                                </a>
+                            </Button>
+                        </SimpleTooltip>
+                    ) : null
+                }
+            />
 
             {revoked ? (
                 <div
-                    className="flex items-start gap-2.5 rounded-lg border border-solid border-colorErrorBorder bg-colorErrorBg p-3"
+                    className="flex items-start gap-2.5 rounded-lg bg-destructive/10 p-3"
                     data-testid="channels-revoked"
                 >
-                    <Warning size={16} className="mt-0.5 flex-none text-error" />
+                    <Warning size={16} className="mt-0.5 flex-none text-destructive" />
                     <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                        <span className="text-[13px] font-medium text-foreground">
+                        <span className="text-label font-medium text-foreground">
                             {isWhatsApp
-                                ? "Meta rejected the access token"
-                                : revokedOffersToken
-                                  ? "Telegram revoked the bot token"
-                                  : `${name} uninstalled the app`}
+                                ? t("channels.manage.metaRejectedToken")
+                                : isTeams
+                                  ? t("channels.manage.microsoftRejectedSecret")
+                                  : revokedOffersToken
+                                    ? isDiscord
+                                        ? t("channels.manage.discordRevokedToken")
+                                        : t("channels.manage.telegramRevokedToken")
+                                    : t("channels.manage.appUninstalled", {platform: name})}
                         </span>
-                        <span className="text-[13px] text-muted-foreground">
+                        <span className="text-label text-muted-foreground">
                             {isWhatsApp
-                                ? `${agentName} cannot answer there until you paste a new access token.`
-                                : revokedOffersToken
-                                  ? `${agentName} cannot answer there until you paste a new token from @BotFather.`
-                                  : `${agentName} cannot answer there until the app is installed again.`}
+                                ? t("channels.manage.revokedHelpWhatsApp", {
+                                      agent: agentName,
+                                  })
+                                : isTeams
+                                  ? t("channels.manage.revokedHelpTeams", {
+                                        agent: agentName,
+                                    })
+                                  : revokedOffersToken
+                                    ? t(
+                                          isDiscord
+                                              ? "channels.manage.revokedHelpDiscord"
+                                              : "channels.manage.revokedHelpTelegram",
+                                          {agent: agentName},
+                                      )
+                                    : t("channels.manage.revokedHelpApp", {
+                                          agent: agentName,
+                                      })}
                         </span>
                         {revokedOffersToken ? (
                             tokenOpen ? null : (
                                 <div>
                                     <Button size="sm" onClick={() => void openTokenForm()}>
-                                        Update token
+                                        {t("channels.manage.updateToken")}
                                     </Button>
                                 </div>
                             )
                         ) : onReconnect ? (
                             <div>
                                 <Button size="sm" onClick={onReconnect}>
-                                    Reconnect
+                                    {t("common.reconnect")}
                                 </Button>
                             </div>
                         ) : null}
@@ -731,13 +890,13 @@ export const ChannelManagePanel = ({
 
             {/* --- the two switches --- */}
             <div className="flex flex-col">
-                <span className={SECTION_TITLE}>Answers in</span>
+                <span className={SECTION_TITLE}>{t("channels.manage.answersIn")}</span>
                 {behaviorError ? <Alert type="error" showIcon message={behaviorError} /> : null}
                 {behaviorRows.map((row) => (
                     <div key={row.key} className={`flex items-start gap-4 ${ROW}`}>
                         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                            <span className="text-sm text-foreground">{row.title}</span>
-                            <span className="text-[13px] text-muted-foreground">{row.help}</span>
+                            <span className="text-body text-foreground">{row.title}</span>
+                            <span className="text-label text-muted-foreground">{row.help}</span>
                         </span>
                         {behaviorSaving === row.key ? <Spinner size="small" /> : null}
                         <Switch
@@ -754,9 +913,37 @@ export const ChannelManagePanel = ({
                 {/* --- where it answers --- */}
                 <div className="flex flex-col pt-5">
                     <div className="flex items-center justify-between pb-1">
-                        <span className="text-[13px] font-semibold text-foreground">
-                            {isSlack ? "Channels it’s in" : isWhatsApp ? "Chats" : "Groups"}
+                        <span className={SECTION_LABEL}>
+                            {isTeams
+                                ? t("channels.manage.channelsAndGroupChats")
+                                : channels
+                                  ? t("channels.manage.channelsItsIn")
+                                  : isWhatsApp
+                                    ? t("channels.manage.chats")
+                                    : t("channels.manage.groups")}
                         </span>
+                        {discordInviteUrl ? (
+                            <Button variant="ghost" size="xs" asChild>
+                                <a
+                                    href={discordInviteUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    data-testid="channels-discord-invite-link"
+                                >
+                                    <Plus data-icon="inline-start" />
+                                    {t("channels.manage.addToServer")}
+                                </a>
+                            </Button>
+                        ) : discordInviteError ? (
+                            <Button
+                                variant="ghost"
+                                size="xs"
+                                onClick={() => setDiscordInviteAttempt((n) => n + 1)}
+                                data-testid="channels-discord-invite-retry"
+                            >
+                                {t("common.tryAgain")}
+                            </Button>
+                        ) : null}
                         {isSlack && !pickerOpen ? (
                             <Button
                                 variant="ghost"
@@ -764,17 +951,25 @@ export const ChannelManagePanel = ({
                                 onClick={() => void openPicker()}
                                 data-testid="channels-add-space"
                             >
-                                <Plus weight="bold" data-icon="inline-start" />
-                                Add channel
+                                <Plus data-icon="inline-start" />
+                                {t("channels.manage.addChannel")}
                             </Button>
                         ) : null}
                     </div>
+                    {discordInviteError ? (
+                        <Alert
+                            type="error"
+                            showIcon
+                            message={discordInviteError}
+                            data-testid="channels-discord-invite-error"
+                        />
+                    ) : null}
                     {spacesError ? <Alert type="error" showIcon message={spacesError} /> : null}
                     {places === null ? (
                         <div
-                            className={`flex items-center gap-2 text-[13px] text-muted-foreground ${ROW}`}
+                            className={`flex items-center gap-2 text-label text-muted-foreground ${ROW}`}
                         >
-                            <Spinner size="small" /> Loading…
+                            <Spinner size="small" /> {t("channels.labels.loading")}
                         </div>
                     ) : (
                         places.map((space) => (
@@ -784,10 +979,10 @@ export const ChannelManagePanel = ({
                                 data-testid="channels-space"
                             >
                                 <span className="flex flex-none text-muted-foreground">
-                                    {spaceIcon(space.kind, isSlack)}
+                                    {spaceIcon(space.kind, connection.platform)}
                                 </span>
                                 <span
-                                    className={`flex-1 truncate text-sm ${
+                                    className={`flex-1 truncate text-label ${
                                         placeOff(space)
                                             ? "text-muted-foreground"
                                             : "text-foreground"
@@ -795,12 +990,12 @@ export const ChannelManagePanel = ({
                                 >
                                     {space.name}
                                 </span>
-                                <span className="flex-none text-[13px] text-muted-foreground">
+                                <span className="flex-none text-label text-muted-foreground">
                                     {placeOff(space)
-                                        ? "Off"
+                                        ? t("channels.manage.off")
                                         : space.kind === "private"
                                           ? ""
-                                          : "Mentions only"}
+                                          : t("channels.manage.mentionsOnly")}
                                 </span>
                             </div>
                         ))
@@ -811,9 +1006,8 @@ export const ChannelManagePanel = ({
                             className="mt-3 flex flex-col gap-2 rounded-lg bg-muted p-3"
                             data-testid="channels-space-picker"
                         >
-                            <span className="text-[13px] text-muted-foreground">
-                                Pick one or more channels. The app joins public channels itself. For
-                                a private channel, run /invite {inviteHandle} in it first.
+                            <span className="text-label text-muted-foreground">
+                                {t("channels.manage.pickerHint", {handle: inviteHandle})}
                             </span>
                             {pickerError ? (
                                 <Alert type="error" showIcon message={pickerError} />
@@ -821,15 +1015,15 @@ export const ChannelManagePanel = ({
                             <Input
                                 value={pickerQuery}
                                 onChange={(e) => setPickerQuery(e.target.value)}
-                                placeholder="Search channels"
-                                className="text-[13px]"
+                                placeholder={t("channels.manage.searchChannels")}
+                                className="text-label"
                                 data-testid="channels-space-search"
                             />
                             {(() => {
                                 if (candidates === null)
                                     return (
-                                        <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-                                            <Spinner size="small" /> Looking…
+                                        <div className="flex items-center gap-2 text-label text-muted-foreground">
+                                            <Spinner size="small" /> {t("channels.labels.looking")}
                                         </div>
                                     )
                                 const fresh = candidates.filter((c) => !c.isConfigured)
@@ -844,14 +1038,16 @@ export const ChannelManagePanel = ({
                                     : fresh
                                 if (!shown.length)
                                     return (
-                                        <span className="text-[13px] text-muted-foreground">
+                                        <span className="text-label text-muted-foreground">
                                             {query
-                                                ? `No channel matches “${pickerQuery.trim()}”.`
-                                                : "No new channels."}
+                                                ? t("channels.manage.noChannelMatches", {
+                                                      query: pickerQuery.trim(),
+                                                  })
+                                                : t("channels.manage.noNewChannels")}
                                         </span>
                                     )
                                 return (
-                                    <div className="flex max-h-64 flex-col gap-1.5 overflow-y-auto">
+                                    <div className="flex max-h-64 flex-col gap-0.5 overflow-y-auto">
                                         {shown.map((candidate) => {
                                             // A private channel the bot is not in: only a Slack
                                             // member can invite it.
@@ -860,10 +1056,10 @@ export const ChannelManagePanel = ({
                                             return (
                                                 <label
                                                     key={`${candidate.kind}-${candidate.displayName}`}
-                                                    className={`${ROW_BUTTON} flex items-center gap-2.5 rounded-md border border-solid border-border bg-background px-2.5 py-2 ${
+                                                    className={`${ROW_BUTTON} flex items-center gap-2.5 rounded-md px-2.5 py-2 transition-colors duration-[var(--duration-fast)] ${
                                                         blocked
                                                             ? "cursor-not-allowed opacity-70"
-                                                            : "cursor-pointer"
+                                                            : "cursor-pointer hover:bg-accent"
                                                     }`}
                                                     data-testid="channels-space-candidate"
                                                 >
@@ -878,18 +1074,21 @@ export const ChannelManagePanel = ({
                                                         aria-label={candidate.displayName}
                                                     />
                                                     <span className="flex flex-none text-muted-foreground">
-                                                        {spaceIcon(candidate.kind, isSlack)}
+                                                        {spaceIcon(
+                                                            candidate.kind,
+                                                            connection.platform,
+                                                        )}
                                                     </span>
-                                                    <span className="flex-1 truncate text-[13px] text-foreground">
+                                                    <span className="flex-1 truncate text-label text-foreground">
                                                         {candidate.displayName}
                                                     </span>
                                                     {blocked ? (
-                                                        <span className="flex-none text-xs text-muted-foreground">
-                                                            Run /invite first
+                                                        <span className="flex-none text-meta text-muted-foreground">
+                                                            {t("channels.manage.runInviteFirst")}
                                                         </span>
                                                     ) : candidate.membership === "member" ? (
-                                                        <span className="flex-none text-xs text-muted-foreground">
-                                                            In channel
+                                                        <span className="flex-none text-meta text-muted-foreground">
+                                                            {t("channels.manage.inChannel")}
                                                         </span>
                                                     ) : null}
                                                 </label>
@@ -905,7 +1104,7 @@ export const ChannelManagePanel = ({
                                     disabled={adding}
                                     onClick={() => setPickerOpen(false)}
                                 >
-                                    Cancel
+                                    {t("common.cancel")}
                                 </Button>
                                 <Button
                                     size="sm"
@@ -915,18 +1114,18 @@ export const ChannelManagePanel = ({
                                 >
                                     {adding ? <Spinner size="small" /> : null}
                                     {picked.length > 1
-                                        ? `Add ${picked.length} channels`
-                                        : "Add channel"}
+                                        ? t("channels.manage.addChannels", {
+                                              count: picked.length,
+                                          })
+                                        : t("channels.manage.addChannel")}
                                 </Button>
                             </div>
                         </div>
                     ) : null}
 
                     {isWhatsApp || places?.length !== 0 ? null : (
-                        <span className="py-3 text-[13px] text-muted-foreground">
-                            {isSlack
-                                ? `Invite ${inviteHandle} to a channel to add it here.`
-                                : `Add ${handle} to a group and mention it once. The group appears here.`}
+                        <span className="py-3 text-label text-muted-foreground">
+                            {emptyPlaces[connection.platform]}
                         </span>
                     )}
                 </div>
@@ -935,15 +1134,23 @@ export const ChannelManagePanel = ({
             {/* --- where Meta delivers messages (WhatsApp only) --- */}
             {isWhatsApp ? (
                 <div className="flex flex-col gap-2">
-                    <span className={SECTION_TITLE}>Webhook</span>
+                    <span className={SECTION_TITLE}>{t("channels.manage.webhook")}</span>
                     <WhatsAppWebhook connection={connection} />
+                </div>
+            ) : null}
+
+            {/* --- where Teams delivers messages, and the app to install (Teams only) --- */}
+            {isTeams ? (
+                <div className="flex flex-col gap-2">
+                    <span className={SECTION_TITLE}>{t("channels.teams.appSection")}</span>
+                    <TeamsAppSetup connection={connection} actions={actions} />
                 </div>
             ) : null}
 
             {/* --- who may message it, and its credentials --- */}
             {hasPeople || canUpdateToken ? (
                 <div className="flex flex-col">
-                    <span className={SECTION_TITLE}>Access</span>
+                    <span className={SECTION_TITLE}>{t("channels.manage.access")}</span>
                     {hasPeople && connectionId ? (
                         <ChannelPeopleSection
                             platform={connection.platform}
@@ -956,14 +1163,16 @@ export const ChannelManagePanel = ({
                     {canUpdateToken ? (
                         <div className={`flex items-center gap-4 ${ROW}`}>
                             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                <span className="text-sm text-foreground">
+                                <span className="text-body text-foreground">
                                     {isSlack
-                                        ? "App credentials"
+                                        ? t("channels.manage.appCredentials")
                                         : isWhatsApp
-                                          ? "Access token"
-                                          : "Bot token"}
+                                          ? t("channels.manage.accessToken")
+                                          : isTeams
+                                            ? t("channels.manage.clientSecret")
+                                            : t("channels.manage.botToken")}
                                 </span>
-                                <span className="tracking-widest text-[13px] text-muted-foreground">
+                                <span className="tracking-widest text-label text-muted-foreground">
                                     ••••••••••••
                                 </span>
                             </span>
@@ -973,7 +1182,7 @@ export const ChannelManagePanel = ({
                                 onClick={() => void openTokenForm()}
                                 data-testid="channels-update-token"
                             >
-                                Update
+                                {t("common.update")}
                             </Button>
                         </div>
                     ) : null}
@@ -983,7 +1192,7 @@ export const ChannelManagePanel = ({
                             <Alert
                                 type="success"
                                 showIcon
-                                message="The new credentials were saved."
+                                message={t("channels.manage.credentialsSaved")}
                             />
                         </div>
                     ) : null}
@@ -992,17 +1201,17 @@ export const ChannelManagePanel = ({
 
             {onAdd ? (
                 <div className="flex items-center justify-between gap-3">
-                    <span className="text-[13px] text-muted-foreground">
+                    <span className="text-label text-muted-foreground">
                         {isSlack
-                            ? "Add another workspace, or your own Slack app"
+                            ? t("channels.manage.addAnotherWorkspace")
                             : isWhatsApp
-                              ? "Add another number"
+                              ? t("channels.manage.addAnotherNumber")
                               : connection.kind === "hosted"
-                                ? "Add a bot of your own too"
-                                : "Add another bot"}
+                                ? t("channels.manage.addOwnBotToo")
+                                : t("channels.manage.addAnotherBot")}
                     </span>
                     <Button variant="outline" size="sm" onClick={onAdd}>
-                        Add
+                        {t("common.add")}
                     </Button>
                 </div>
             ) : null}
@@ -1027,15 +1236,19 @@ export const ChannelManagePanel = ({
                 />
             ) : null}
 
-            <PanelFooter>
+            <PaneFooter>
                 {error?.kind === "disconnect" ? (
                     <Alert type="error" showIcon message={error.message} className="w-full" />
                 ) : null}
                 {confirming ? (
                     <div className="flex w-full flex-col gap-2.5">
-                        <span className="text-[13px] text-foreground">
-                            Disconnect {disconnectSubject(connection)}? {agentName} stops answering
-                            there. Past conversations stay in Agenta.
+                        <span className="text-label text-foreground">
+                            {t(
+                                connection.status === "pending"
+                                    ? "channels.manage.disconnectPendingConfirm"
+                                    : "channels.manage.disconnectConfirm",
+                                {subject: disconnectSubject(connection), agent: agentName},
+                            )}
                         </span>
                         <div className="flex justify-end gap-2">
                             <Button
@@ -1043,32 +1256,34 @@ export const ChannelManagePanel = ({
                                 disabled={busy !== null}
                                 onClick={() => setConfirming(false)}
                             >
-                                Cancel
+                                {t("common.cancel")}
                             </Button>
                             <Button
-                                variant="destructive"
+                                variant="destructive-ghost"
                                 disabled={busy !== null}
                                 onClick={() => void run("disconnect", onDisconnect)}
                                 data-testid="channels-disconnect-confirm"
                             >
                                 {busy === "disconnect" ? <Spinner size="small" /> : null}
-                                Disconnect
+                                {t("common.disconnect")}
                             </Button>
                         </div>
                     </div>
                 ) : (
-                    <div className="flex w-full items-center justify-end">
+                    // The quiet destructive start action, as "Remove from agent".
+                    <div className="flex w-full items-center">
                         <Button
-                            variant="destructive"
+                            variant="destructive-ghost"
+                            className="-ml-2"
                             disabled={busy !== null}
                             onClick={() => setConfirming(true)}
                             data-testid="channels-disconnect"
                         >
-                            Disconnect
+                            {t("common.disconnect")}
                         </Button>
                     </div>
                 )}
-            </PanelFooter>
+            </PaneFooter>
         </div>
     )
 }

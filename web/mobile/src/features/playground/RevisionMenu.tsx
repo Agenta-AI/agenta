@@ -19,7 +19,7 @@ import {
 const MenuLabel = ({hint, children}: {hint: string | null; children: string}) => (
     <span className="flex flex-col">
         {children}
-        {hint ? <span className="text-xs font-normal text-muted-foreground">{hint}</span> : null}
+        {hint ? <span className="text-meta text-muted-foreground">{hint}</span> : null}
     </span>
 )
 
@@ -57,10 +57,10 @@ export const RevisionMenu = ({
     <DropdownMenu>
         <DropdownMenuTrigger asChild>
             <Button type="button" size="icon-sm" variant="ghost" aria-label="Revision actions">
-                <DotsThreeVertical aria-hidden weight="bold" />
+                <DotsThreeVertical aria-hidden />
             </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-[200px]">
+        <DropdownMenuContent align="end" className="w-60">
             {onDeploy ? (
                 <DropdownMenuItem className="sm:hidden" disabled={!canDeploy} onSelect={onDeploy}>
                     <Rocket aria-hidden size={14} />
@@ -74,7 +74,7 @@ export const RevisionMenu = ({
             <DropdownMenuSeparator />
             <DropdownMenuItem disabled={!dirty} onSelect={onRevert}>
                 <ArrowCounterClockwise aria-hidden size={14} />
-                Revert Changes
+                Revert changes
             </DropdownMenuItem>
             {onDelete ? (
                 <DropdownMenuItem

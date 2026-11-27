@@ -12,6 +12,8 @@
  */
 import type {ReactElement, ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
 import {
     Select,
     SelectContent,
@@ -57,6 +59,7 @@ export function ConfigSelect({
     "aria-label": ariaLabel,
     "aria-labelledby": ariaLabelledby,
 }: ConfigSelectProps) {
+    const t = useT(playgroundConfigCatalog)
     const showClear = !!allowClear && value != null && value !== "" && !disabled
     return (
         <span className="group/select relative block w-full">
@@ -82,10 +85,11 @@ export function ConfigSelect({
                             // The item text has to grow for the description to sit at the row's edge.
                             className="[&>span]:min-w-0 [&>span]:flex-1"
                         >
+                            {/* The label keeps its width; a long description wraps instead. */}
                             <span className="flex items-center justify-between gap-3">
-                                <span className="truncate">{option.label}</span>
+                                <span className="shrink-0">{option.label}</span>
                                 {option.description ? (
-                                    <span className="text-colorTextDescription [[data-slot=select-value]_&]:hidden">
+                                    <span className="min-w-0 text-right text-muted-foreground [[data-slot=select-value]_&]:hidden">
                                         {option.description}
                                     </span>
                                 ) : null}
@@ -97,12 +101,12 @@ export function ConfigSelect({
             {showClear ? (
                 <button
                     type="button"
-                    aria-label="Clear selection"
+                    aria-label={t("entityUi.playgroundConfig.clearSelection")}
                     onClick={(e) => {
                         e.stopPropagation()
                         onChange(null)
                     }}
-                    className="absolute right-2 top-1/2 hidden -translate-y-1/2 cursor-pointer border-0 bg-colorBgContainer p-0 text-colorTextTertiary hover:text-colorTextSecondary group-hover/select:block"
+                    className="absolute right-2 top-1/2 hidden -translate-y-1/2 cursor-pointer border-0 bg-background p-0 text-muted-foreground hover:text-muted-foreground group-hover/select:block"
                 >
                     <XCircle size={12} weight="fill" />
                 </button>

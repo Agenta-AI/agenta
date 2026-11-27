@@ -1,8 +1,11 @@
 import {useCallback, useEffect, useLayoutEffect, useId, useMemo, useRef, useState} from "react"
 
+import {createT, useT, type CatalogKey} from "@agenta/i18n"
+import spanCatalog from "@agenta/i18n/catalogs/observabilityUi.traceSpan"
+import {messagesToText} from "@agenta/observability/traceDrawer"
 import {sanitizeDataWithBlobUrls} from "@agenta/shared/utils"
 import {getStringOrJson} from "@agenta/shared/utils"
-import {CopyButton, EnhancedButton} from "@agenta/ui/components/presentational"
+import {CopyButton} from "@agenta/ui/components/presentational"
 import {
     Editor as EditorWrapper,
     EditorProvider,
@@ -17,12 +20,14 @@ import {
     AccordionContent,
     AccordionItem,
     AccordionTrigger,
+    Button,
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
     Input,
     Segmented,
+    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {copyToClipboard} from "@agenta/ui/utils"
 import {
@@ -84,28 +89,36 @@ type AccordionTreePanelProps = {
  */
 type PanelViewMode = "json" | "yaml" | "decoded-json" | "pretty-json" | "text" | "markdown"
 
-const PANEL_VIEW_MODE_LABELS: Record<PanelViewMode, string> = {
+const tNow = createT(spanCatalog)
+
+const PANEL_VIEW_MODE_LABELS = {
     json: "JSON",
     yaml: "YAML",
-    "decoded-json": "Decoded JSON",
-    "pretty-json": "Pretty JSON",
-    text: "Text",
-    markdown: "Markdown",
+    "decoded-json": "observabilityUi.traceSpan.viewDecodedJson",
+    "pretty-json": "observabilityUi.traceSpan.viewPrettyJson",
+    text: "observabilityUi.traceSpan.viewText",
+    markdown: "observabilityUi.traceSpan.viewMarkdown",
+} as const satisfies Record<PanelViewMode, string>
+
+const viewModeLabel = (t: (key: CatalogKey<typeof spanCatalog>) => string, mode: PanelViewMode) => {
+    const label = PANEL_VIEW_MODE_LABELS[mode]
+    return label === "JSON" || label === "YAML" ? label : t(label)
 }
 
 // The JSS block these replace targeted `.ant-collapse-*` internals. This renders its own
 // accordion markup, so the same rules apply directly — measurements unchanged (42px header,
-// 1px borders on colorBorder, the panel filling the remaining height).
+// 1px borders on `border`, the panel filling the remaining height).
 const collapseContainerClass =
-    "bg-[unset] flex flex-col relative [&>div]:flex [&>div]:flex-col [&>div]:h-full [&>div]:bg-colorFillAlter [&>div]:rounded-control-lg [&>div]:border [&>div]:border-solid [&>div]:border-colorBorder [&>div]:overflow-y-auto"
+    "bg-[unset] flex flex-col relative [&>div]:flex [&>div]:flex-col [&>div]:h-full [&>div]:bg-secondary [&>div]:rounded-control-lg [&>div]:overflow-y-auto"
 
-const collapseHeaderClass = "items-center h-[42px] bg-colorBgContainer"
+// Toned, not bordered: the sections separate by the secondary fill (SURF-01, SURF-02).
+const collapseHeaderClass = "box-border items-center h-row-single"
 
 const collapsePanelClass =
-    "border-t border-solid border-colorBorder p-0 leading-normal text-field-md grow rounded-b-control [&_.agenta-editor-wrapper]:bg-[inherit]"
+    "border-0 border-t border-solid border-border-muted p-0 leading-normal text-field-md grow rounded-b-control [&_.agenta-editor-wrapper]:bg-[inherit]"
 
 const searchBarClass =
-    "absolute top-12 right-6 z-[100] bg-colorBgContainer rounded-md shadow-lg flex items-center p-1 gap-1 border border-solid border-colorBorder"
+    "absolute top-12 right-6 z-[100] bg-popover rounded-lg shadow-overlay flex items-center p-1 gap-1 border border-solid border-border"
 
 const LanguageAwareViewer = ({
     initialValue,
@@ -226,6 +239,8 @@ const AccordionTreePanel = ({
     defaultCollapsed = false,
     ...props
 }: AccordionTreePanelProps) => {
+    const t = useT(spanCatalog)
+
     const {PrettyJsonView: PrettyJsonViewSlot} = getTraceDrawerReferences()
     const editorRef = useRef<HTMLDivElement>(null)
     const textViewerId = useId().replace(/:/g, "")
@@ -294,9 +309,14 @@ const AccordionTreePanel = ({
         getDefaultJsonViewMode(availableViewModes),
     )
 
+    // Until the user picks a mode, follow the data: the first value can be a loading placeholder.
+    const userPickedViewMode = useRef(false)
     useEffect(() => {
+        const fallback = getDefaultJsonViewMode(availableViewModes)
         if (!availableViewModes.includes(panelViewMode)) {
-            setPanelViewMode(getDefaultJsonViewMode(availableViewModes))
+            setPanelViewMode(fallback)
+        } else if (!userPickedViewMode.current && panelViewMode !== fallback) {
+            setPanelViewMode(fallback)
         }
     }, [availableViewModes, panelViewMode])
 
@@ -344,9 +364,11 @@ const AccordionTreePanel = ({
             return yaml.dump(yamlSource, {lineWidth: 120})
         } catch (error: unknown) {
             console.error("Failed to convert value to YAML:", error)
-            return `Error: Failed to convert content to YAML. (${
-                (error as Error | undefined)?.message || "Unknown error"
-            })`
+            return tNow("observabilityUi.traceSpan.yamlError", {
+                message:
+                    (error as Error | undefined)?.message ||
+                    tNow("observabilityUi.traceSpan.unknownError"),
+            })
         }
     }, [panelViewMode, isStringValue, parsedStructuredString, sanitizedValue])
 
@@ -363,22 +385,30 @@ const AccordionTreePanel = ({
     }, [isStringValue, parsedStructuredString, sanitizedValue])
 
     const textOutput = useMemo(() => {
+        // Chat messages read as role headings and content, not a JSON dump.
+        const messagesText = messagesToText(sanitizedValue, {
+            markdown: panelViewMode === "markdown",
+        })
+        if (messagesText !== null) return messagesText
         if (typeof sanitizedValue === "string") {
             return parsedStructuredString !== null
                 ? normalizeEscapedLineBreaks(sanitizedValue)
                 : sanitizedValue
         }
         return getStringOrJson(sanitizedValue)
-    }, [parsedStructuredString, sanitizedValue])
+    }, [panelViewMode, parsedStructuredString, sanitizedValue])
 
     const viewModeMenuItems = useMemo(
         () =>
             availableViewModes.map((mode) => ({
                 key: mode,
-                label: PANEL_VIEW_MODE_LABELS[mode],
-                onClick: () => setPanelViewMode(mode),
+                label: viewModeLabel(t, mode),
+                onClick: () => {
+                    userPickedViewMode.current = true
+                    setPanelViewMode(mode)
+                },
             })),
-        [availableViewModes],
+        [availableViewModes, t],
     )
 
     const copyText =
@@ -411,30 +441,29 @@ const AccordionTreePanel = ({
                     />
                     {/* antd rendered this inside the input's `suffix` slot. */}
                     {resultCount > 0 ? (
-                        <span className="text-xs text-gray-400">
+                        <span className="text-meta text-muted-foreground tabular-nums">
                             {currentResultIndex + 1}/{resultCount}
                         </span>
                     ) : null}
-                    <EnhancedButton
-                        size="small"
-                        type="text"
-                        icon={<ArrowUpIcon size={14} />}
+                    <Button
+                        size="sm"
+                        variant="ghost"
                         onClick={handlePrevMatch}
                         disabled={resultCount === 0}
-                    />
-                    <EnhancedButton
-                        size="small"
-                        type="text"
-                        icon={<ArrowDownIcon size={14} />}
+                    >
+                        <ArrowUpIcon size={14} />
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="ghost"
                         onClick={handleNextMatch}
                         disabled={resultCount === 0}
-                    />
-                    <EnhancedButton
-                        size="small"
-                        type="text"
-                        icon={<XIcon size={14} />}
-                        onClick={closeSearch}
-                    />
+                    >
+                        <ArrowDownIcon size={14} />
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={closeSearch}>
+                        <XIcon size={14} />
+                    </Button>
                 </div>
             )}
             <Accordion
@@ -454,13 +483,15 @@ const AccordionTreePanel = ({
                         >
                             <div className="flex items-center gap-2">
                                 {enableSearch && isCodeMode && (
-                                    <EnhancedButton
-                                        icon={<MagnifyingGlassIcon size={14} />}
-                                        type={isSearchOpen ? "primary" : "text"}
-                                        onClick={() => setIsSearchOpen((prev) => !prev)}
-                                        size="small"
-                                        tooltipProps={{title: "Search"}}
-                                    />
+                                    <SimpleTooltip title={t("observabilityUi.traceSpan.search")}>
+                                        <Button
+                                            variant={isSearchOpen ? "default" : "ghost"}
+                                            onClick={() => setIsSearchOpen((prev) => !prev)}
+                                            size="sm"
+                                        >
+                                            <MagnifyingGlassIcon size={14} />
+                                        </Button>
+                                    </SimpleTooltip>
                                 )}
                                 {enableFormatSwitcher &&
                                     availableViewModes.length > 1 &&
@@ -469,9 +500,10 @@ const AccordionTreePanel = ({
                                     availableViewModes[1] === "yaml" ? (
                                         <Segmented
                                             value={panelViewMode}
-                                            onChange={(value) =>
+                                            onChange={(value) => {
+                                                userPickedViewMode.current = true
                                                 setPanelViewMode(value as PanelViewMode)
-                                            }
+                                            }}
                                             options={[
                                                 {label: "JSON", value: "json"},
                                                 {label: "YAML", value: "yaml"},
@@ -481,10 +513,10 @@ const AccordionTreePanel = ({
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
                                                 <span className="inline-flex">
-                                                    <EnhancedButton size="small" type="text">
-                                                        {PANEL_VIEW_MODE_LABELS[panelViewMode]}
+                                                    <Button size="sm" variant="ghost">
+                                                        {viewModeLabel(t, panelViewMode)}
                                                         <CaretUpDown size={14} />
-                                                    </EnhancedButton>
+                                                    </Button>
                                                 </span>
                                             </DropdownMenuTrigger>
                                             {/* antd sized this overlay 168px minimum. */}
@@ -495,11 +527,7 @@ const AccordionTreePanel = ({
                                                 {viewModeMenuItems.map((item) => (
                                                     <DropdownMenuItem
                                                         key={item.key}
-                                                        onSelect={() =>
-                                                            setPanelViewMode(
-                                                                item.key as PanelViewMode,
-                                                            )
-                                                        }
+                                                        onSelect={item.onClick}
                                                     >
                                                         {item.label}
                                                     </DropdownMenuItem>
@@ -572,6 +600,8 @@ const AccordionTreePanel = ({
                                 />
                             ) : (
                                 <TextModeViewer
+                                    // The text differs per mode, and the editor reads it on mount only.
+                                    key={panelViewMode}
                                     editorId={`accordion-${textViewerId}`}
                                     value={textOutput}
                                     mode={panelViewMode as "text" | "markdown"}
@@ -589,43 +619,52 @@ const AccordionTreePanel = ({
             {collapse}
             {fileAttachments?.length || imageAttachments?.length ? (
                 <div className="flex flex-col gap-2 mt-4">
-                    <span className="tracking-wide">Attachments</span>
+                    <span className="tracking-wide">
+                        {t("observabilityUi.traceSpan.attachments")}
+                    </span>
                     <div className="flex flex-wrap gap-2">
                         {(fileAttachments || [])?.map((file, index) => (
                             <a
                                 key={`${file.data}-${index}`}
-                                className="group w-[80px] h-[60px] rounded border border-solid border-gray-200 bg-gray-100 px-2 pt-3 pb-2 hover:bg-gray-200 hover:scale-[1.02] cursor-pointer flex flex-col justify-between"
+                                className="group w-[80px] h-15 rounded-md border border-solid border-border bg-secondary px-2 pt-3 pb-2 hover:bg-accent cursor-pointer flex flex-col justify-between"
                                 href={file.data}
                                 target="_blank"
                                 rel="noreferrer"
                             >
                                 <div className="w-full flex items-start gap-1">
                                     <FileTextIcon size={16} className="shrink-0" />
-                                    <span className="text-[12px] truncate">
-                                        {file.filename || `File ${index + 1}`}
+                                    <span className="text-meta truncate">
+                                        {file.filename ||
+                                            t("observabilityUi.traceSpan.fileN", {
+                                                number: index + 1,
+                                            })}
                                     </span>
                                 </div>
                                 <div className="flex gap-1.5 shrink-0 invisible group-hover:visible">
-                                    <EnhancedButton
-                                        icon={<DownloadIcon size={10} className="mb-[1px]" />}
-                                        size="small"
-                                        tooltipProps={{title: "Download"}}
-                                        className="!w-5 !h-5"
-                                        onClick={(e) => {
-                                            e.preventDefault()
-                                            downloadFile(file.data)
-                                        }}
-                                    />
-                                    <EnhancedButton
-                                        icon={<CopyIcon size={10} className="mb-[1px]" />}
-                                        size="small"
-                                        tooltipProps={{title: "Copy URL"}}
-                                        className="!w-5 !h-5"
-                                        onClick={(e) => {
-                                            e.preventDefault()
-                                            copyToClipboard(file.data)
-                                        }}
-                                    />
+                                    <SimpleTooltip title={t("observabilityUi.traceSpan.download")}>
+                                        <Button
+                                            variant="outline"
+                                            size="icon-xs"
+                                            onClick={(e) => {
+                                                e.preventDefault()
+                                                downloadFile(file.data)
+                                            }}
+                                        >
+                                            <DownloadIcon />
+                                        </Button>
+                                    </SimpleTooltip>
+                                    <SimpleTooltip title={t("observabilityUi.traceSpan.copyUrl")}>
+                                        <Button
+                                            variant="outline"
+                                            size="icon-xs"
+                                            onClick={(e) => {
+                                                e.preventDefault()
+                                                copyToClipboard(file.data)
+                                            }}
+                                        >
+                                            <CopyIcon />
+                                        </Button>
+                                    </SimpleTooltip>
                                 </div>
                             </a>
                         ))}
@@ -635,7 +674,10 @@ const AccordionTreePanel = ({
                                 key={`${image.data}-${index}`}
                                 src={image.data}
                                 isValidPreview={true}
-                                alt={image.filename || `Image ${index + 1}`}
+                                alt={
+                                    image.filename ||
+                                    t("observabilityUi.traceSpan.imageN", {number: index + 1})
+                                }
                                 size={80}
                                 className=""
                             />

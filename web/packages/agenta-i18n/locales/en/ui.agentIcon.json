@@ -1,0 +1,13 @@
+{
+    "agentIcon": "Agent icon",
+    "backToPalette": "Back to palette",
+    "couldNotLoad": "Could not load icons",
+    "customColour": "Custom colour",
+    "hex": "Hex",
+    "hexColour": "Hex colour",
+    "noIconsFound": "No icons found",
+    "nothingMatches": "Nothing matches “{{search}}”",
+    "reset": "Reset",
+    "savesAsYouPick": "Saves as you pick",
+    "searchIcons": "Search icons"
+}

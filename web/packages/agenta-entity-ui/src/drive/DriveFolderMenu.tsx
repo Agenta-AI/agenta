@@ -5,6 +5,9 @@
  */
 import {type ComponentProps, type ReactElement, type ReactNode} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
+import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {
     ContextMenu,
     ContextMenuContent,
@@ -12,7 +15,17 @@ import {
     ContextMenuSeparator,
     ContextMenuTrigger,
 } from "@agenta/ui/ui"
-import {DownloadSimple, FilePlus, FolderPlus, LinkSimple, UploadSimple} from "@phosphor-icons/react"
+import {
+    Copy,
+    DownloadSimple,
+    FilePlus,
+    FolderPlus,
+    LinkSimple,
+    UploadSimple,
+} from "@phosphor-icons/react"
+
+// The entries are built by a plain function that menus call while rendering.
+const tNow = createT(driveExplorerCatalog, driveBrowserCatalog)
 
 /** A folder's write actions; absent on a read-only mount. */
 export interface DriveFolderActions {
@@ -31,6 +44,8 @@ export interface DriveFolderMenuProps {
     onCopyLink?: () => void
     onDownloadAll?: () => void
     downloadingAll?: boolean
+    /** The explorer is read only (a phone): the write entries are left out, not disabled. */
+    readOnly?: boolean
 }
 
 export type DriveFolderMenuEntry =
@@ -41,9 +56,35 @@ export type DriveFolderMenuEntry =
           label: string
           disabled: boolean
           onSelect?: () => void
-          /** A muted hint at the row's end (the zip badge). */
-          shortcut?: string
       }
+
+/** New folder, New file and Upload, then a separator; disabled on a read-only mount. */
+const driveFolderWriteEntries = (actions?: DriveFolderActions): DriveFolderMenuEntry[] => [
+    {
+        key: "new-folder",
+        icon: <FolderPlus />,
+        label: tNow("entityUi.driveBrowser.newFolder"),
+        disabled: !actions,
+        onSelect: actions?.onNewFolder,
+    },
+    {
+        key: "new-file",
+        icon: <FilePlus />,
+        label: tNow("entityUi.driveBrowser.newFile"),
+        disabled: !actions,
+        onSelect: actions?.onNewFile,
+    },
+    {
+        key: "upload",
+        icon: <UploadSimple />,
+        label: actions?.stagedCount
+            ? tNow("entityUi.driveBrowser.uploadStagedHere", {count: actions.stagedCount})
+            : tNow("entityUi.driveBrowser.uploadFiles"),
+        disabled: !actions,
+        onSelect: actions?.onUpload,
+    },
+    "separator",
+]
 
 /** The folder's menu, in order, with separators — the single source both menus render from. */
 export const driveFolderMenuEntries = ({
@@ -52,44 +93,27 @@ export const driveFolderMenuEntries = ({
     onCopyLink,
     onDownloadAll,
     downloadingAll,
+    readOnly,
 }: DriveFolderMenuProps): DriveFolderMenuEntry[] => [
-    {
-        key: "new-folder",
-        icon: <FolderPlus />,
-        label: "New folder",
-        disabled: !actions,
-        onSelect: actions?.onNewFolder,
-    },
-    {
-        key: "new-file",
-        icon: <FilePlus />,
-        label: "New file",
-        disabled: !actions,
-        onSelect: actions?.onNewFile,
-    },
-    {
-        key: "upload",
-        icon: <UploadSimple />,
-        label: actions?.stagedCount
-            ? `Upload ${actions.stagedCount} staged ${actions.stagedCount === 1 ? "file" : "files"} here`
-            : "Upload files…",
-        disabled: !actions,
-        onSelect: actions?.onUpload,
-    },
-    "separator",
-    {
-        key: "copy-path",
-        icon: <LinkSimple />,
-        label: "Copy path",
-        disabled: !onCopyPath,
-        onSelect: onCopyPath,
-    },
+    ...(readOnly ? [] : driveFolderWriteEntries(actions)),
+    // The root has no path to copy: the entry is left out.
+    ...(onCopyPath
+        ? [
+              {
+                  key: "copy-path",
+                  icon: <Copy />,
+                  label: tNow("entityUi.driveExplorer.copyPath"),
+                  disabled: false,
+                  onSelect: onCopyPath,
+              },
+          ]
+        : []),
     ...(onCopyLink
         ? [
               {
                   key: "copy-link",
                   icon: <LinkSimple />,
-                  label: "Copy link",
+                  label: tNow("entityUi.driveExplorer.copyLink"),
                   disabled: false,
                   onSelect: onCopyLink,
               },
@@ -98,10 +122,11 @@ export const driveFolderMenuEntries = ({
     {
         key: "download-all",
         icon: <DownloadSimple />,
-        label: downloadingAll ? "Preparing download…" : "Download all",
+        label: downloadingAll
+            ? tNow("entityUi.driveExplorer.preparingDownload")
+            : tNow("entityUi.driveBrowser.downloadAll"),
         disabled: !onDownloadAll || Boolean(downloadingAll),
         onSelect: onDownloadAll,
-        shortcut: ".zip",
     },
 ]
 
@@ -131,6 +156,8 @@ export const DriveFolderContextMenu = ({
     menu?: DriveFolderMenuProps
     children: ReactElement | ReactElement[]
 }) => {
+    // The entries translate when built; this re-renders the menu when the language changes.
+    useT(driveExplorerCatalog, driveBrowserCatalog)
     if (!menu) return <div {...wrapper}>{children}</div>
     return (
         <ContextMenu>
@@ -148,7 +175,7 @@ export const DriveFolderContextMenu = ({
                 <div {...wrapper}>{children}</div>
             </ContextMenuTrigger>
             <ContextMenuContent
-                className="min-w-[180px]"
+                className="min-w-45"
                 // New folder / New file open a name field; the menu must not pull focus back.
                 onCloseAutoFocus={(e) => e.preventDefault()}
             >
@@ -163,11 +190,6 @@ export const DriveFolderContextMenu = ({
                         >
                             {entry.icon}
                             {entry.label}
-                            {entry.shortcut ? (
-                                <span className="ml-auto pl-3 text-xs tracking-widest text-muted-foreground">
-                                    {entry.shortcut}
-                                </span>
-                            ) : null}
                         </ContextMenuItem>
                     ),
                 )}

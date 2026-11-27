@@ -1,8 +1,12 @@
 import {useEffect, useState} from "react"
 
+import {richText, useT} from "@agenta/i18n"
+import channelsWhatsappCatalog from "@agenta/i18n/catalogs/channels.whatsapp"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Button, Input} from "@agenta/ui/ui"
 import {Check, Copy} from "@phosphor-icons/react"
 
+import {BLOCK_TITLE} from "./helpers"
 import type {ChannelConnection} from "./types"
 
 export const copyText = async (text: string): Promise<boolean> => {
@@ -14,26 +18,42 @@ export const copyText = async (text: string): Promise<boolean> => {
     }
 }
 
-const CopyField = ({label, value, testId}: {label: string; value: string; testId: string}) => {
+/** A read-only value with a copy button. */
+export const CopyField = ({
+    label,
+    value,
+    testId,
+}: {
+    label: string
+    value: string
+    testId: string
+}) => {
+    const t = useT(channelsWhatsappCatalog, commonCatalog)
     const [copied, setCopied] = useState(false)
     useEffect(() => {
         if (!copied) return
-        const timer = setTimeout(() => setCopied(false), 1800)
+        const timer = setTimeout(() => setCopied(false), 1500)
         return () => clearTimeout(timer)
     }, [copied])
     return (
         <label className="flex flex-col gap-1.5">
-            <span className="text-[13px] font-medium text-colorText">{label}</span>
+            <span className={BLOCK_TITLE}>{label}</span>
             <span className="flex gap-2">
-                <Input readOnly value={value} className="font-mono text-xs" data-testid={testId} />
+                <Input readOnly value={value} className="text-code" data-testid={testId} />
                 <Button
                     variant="outline"
                     size="sm"
-                    aria-label={`Copy ${label.toLowerCase()}`}
+                    aria-label={t("channels.whatsapp.copyField", {
+                        label: label.toLowerCase(),
+                    })}
                     onClick={async () => setCopied(await copyText(value))}
                 >
-                    {copied ? <Check size={13} weight="bold" /> : <Copy size={13} />}
-                    {copied ? "Copied" : "Copy"}
+                    {copied ? (
+                        <Check data-icon="inline-start" />
+                    ) : (
+                        <Copy data-icon="inline-start" />
+                    )}
+                    {copied ? t("common.copied") : t("common.copy")}
                 </Button>
             </span>
         </label>
@@ -45,21 +65,25 @@ const CopyField = ({label, value, testId}: {label: string; value: string; testId
  * Meta delivers no messages until both are pasted there, so the connect flow shows them right
  * after connecting and the manage view keeps them findable.
  */
-export const WhatsAppWebhook = ({connection}: {connection: ChannelConnection}) => (
-    <div className="flex flex-col gap-3" data-testid="channels-whatsapp-webhook">
-        <p className="m-0 text-xs leading-relaxed text-colorTextSecondary">
-            In your Meta app, open WhatsApp &gt; Configuration, paste these two values, then
-            subscribe to the <code>messages</code> field.
-        </p>
-        <CopyField
-            label="Callback URL"
-            value={connection.webhookUrl ?? ""}
-            testId="channels-whatsapp-webhook-url"
-        />
-        <CopyField
-            label="Verify token"
-            value={connection.webhookVerifyToken ?? ""}
-            testId="channels-whatsapp-verify-token"
-        />
-    </div>
-)
+export const WhatsAppWebhook = ({connection}: {connection: ChannelConnection}) => {
+    const t = useT(channelsWhatsappCatalog, commonCatalog)
+    return (
+        <div className="flex flex-col gap-3" data-testid="channels-whatsapp-webhook">
+            <p className="m-0 text-meta leading-relaxed text-muted-foreground">
+                {richText(t("channels.whatsapp.webhookHint"), {
+                    code: (text) => <code>{text}</code>,
+                })}
+            </p>
+            <CopyField
+                label={t("channels.whatsapp.callbackUrl")}
+                value={connection.webhookUrl ?? ""}
+                testId="channels-whatsapp-webhook-url"
+            />
+            <CopyField
+                label={t("channels.whatsapp.verifyToken")}
+                value={connection.webhookVerifyToken ?? ""}
+                testId="channels-whatsapp-verify-token"
+            />
+        </div>
+    )
+}

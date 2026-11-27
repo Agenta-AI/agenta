@@ -172,8 +172,22 @@ export interface ResolvedToolSpec {
    * Layer-3 permission: `allow` runs with no prompt, `ask` raises a
    * human-in-the-loop request, `deny` never runs. Absent = fall back to the global
    * permission plan. The SDK derives a default from `readOnly` when the author set none.
+   * For the three session writes it is `ask` unless the configured permission is `deny`; the
+   * configured permission is then in `configuredPermission`.
    */
   permission?: ToolPermission;
+  /**
+   * Gate policy of the session writes (`start_session`, `send_session_message`,
+   * `cancel_session`). The SDK gives those three the runner permission `ask` and keeps the
+   * permission they had before that change here. The runner does not read it; it sends it to
+   * `tools.agenta.resolve_gate` with the call (see `tools/gate-answer.ts`).
+   */
+  configuredPermission?: ToolPermission;
+  /**
+   * Gate policy of the session writes: the permission set on each Subagent entry that sets one,
+   * keyed by the entry's slug. Sent to `tools.agenta.resolve_gate` with `configuredPermission`.
+   */
+  targetPermissions?: Record<string, ToolPermission>;
 }
 
 /** Where and how to route a tool call back through Agenta. */
@@ -232,10 +246,10 @@ export interface RunContext {
     id?: string;
   };
   /**
-   * The tool call being dispatched, filled by the relay for each direct call and never by the
-   * service. Its id stays the same when the same call is relayed again (a resumed approval
-   * reuses it), so an endpoint can key a side effect on it and answer a retry without repeating
-   * the effect.
+   * The tool call being dispatched, filled by the relay for each call (direct and callRef) and
+   * by the gate answer, and never by the service. Its id stays the same when the same call is
+   * relayed again (a resumed approval reuses it), so an endpoint or a handler can key a side
+   * effect on it and answer a retry without repeating the effect.
    */
   tool?: {
     call_id?: string;
@@ -348,6 +362,15 @@ export interface McpServerConfig {
      */
     newToolPermission?: ToolPermission;
   };
+}
+
+/** What a run may do with an attached drive. */
+export type DriveAccess = "read" | "read-write";
+
+/** One entry of the agent's `drives` list: a drive of the project, named by its slug. */
+export interface AgentDrive {
+  slug: string;
+  access: DriveAccess;
 }
 
 /**
@@ -923,6 +946,16 @@ export interface AgentRunRequest {
    */
   sandboxPermission?: SandboxPermission;
   /**
+   * The agent's configured drives, each at `drives/<slug>/`. Absent for a legacy configuration
+   * or from an older agent service: the runner then mounts the agent drive found by
+   * `runContext.workflow.artifact.id`, linked at `agent-files`.
+   */
+  drives?: AgentDrive[];
+  /** The slug of the drive in `drives` linked at `agent-files`; null or absent for none. */
+  homeDrive?: string | null;
+  /** Whether the session folder is a durable drive. Absent means true. */
+  hasSessionDrive?: boolean;
+  /**
    * Generic harness-rendered files to drop in the session cwd before the session starts. Each
    * entry is `{ path (relative to cwd), content (UTF-8 file text) }`. Produced by the Python
    * harness adapters: a harness translates its own `harness_options` slice into a config file in
@@ -956,6 +989,12 @@ export interface AgentRunRequest {
    * non-session runs. A session sees a sequence of turnIds (send/steer each start a new one).
    */
   turnId?: string;
+  /**
+   * The id of the session turn (the `session_turns` row) that this execution belongs to. Set on
+   * an approval resume, where `turnId` is the new execution's id. Absent on a fresh turn, where
+   * the session turn is `turnId`. Written as `ag.turn.id` on every span of the run.
+   */
+  sessionTurnId?: string;
   /** True only when the shared event route, rather than this HTTP response, owns delivery. */
   detached?: boolean;
   /**
@@ -1181,6 +1220,15 @@ export function resolvePromptText(request: AgentRunRequest): string {
     }
   }
   return "";
+}
+
+/**
+ * The session turn this run belongs to, written as `ag.turn.id` on every span. A run with no
+ * session has no turn: the server still mints a `turnId` for it, but its spans carry no turn id.
+ */
+export function spanTurnId(request: AgentRunRequest): string | undefined {
+  if (!request.sessionId?.trim()) return undefined;
+  return (request.sessionTurnId ?? request.turnId)?.trim() || undefined;
 }
 
 /** Prefer the platform conversation id, falling back to the harness's ephemeral id. */

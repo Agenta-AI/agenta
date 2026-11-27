@@ -1,11 +1,10 @@
 import type {RunColumnGroup} from "@agenta/entities/evaluationRun/etl"
-
-import {StatusTag} from "@/components/StatusTag"
+import {Badge} from "@agenta/ui/ui"
 
 import {RunStatusTag} from "../overview/RunStatusTag"
 
-import {ScenarioCellValue} from "./ScenarioCellValue"
 import {scoreText, type ScenarioRow} from "./scenarioColumns"
+import {ScenarioLabeledValue} from "./ScenarioLabeledValue"
 import {ScenarioStepError} from "./states/ScenarioStepError"
 import {ScenarioValuesError} from "./states/ScenarioValuesError"
 
@@ -53,23 +52,23 @@ export const ScenarioCard = ({
     return (
         <div className="flex min-w-0 flex-col gap-2">
             <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-medium tabular-nums">#{row.index}</span>
+                <span className="text-label tabular-nums">#{row.index}</span>
                 <RunStatusTag status={row.scenario.status ?? null} />
             </div>
-            {input ? <ScenarioCellValue cell={input} lines={1} /> : null}
+            {input ? <ScenarioLabeledValue cell={input} lines={1} /> : null}
             {row.valuesFailed ? <ScenarioValuesError onRetry={onRetry} /> : null}
-            {output && !row.valuesFailed ? <ScenarioCellValue cell={output} lines={2} /> : null}
+            {output && !row.valuesFailed ? <ScenarioLabeledValue cell={output} lines={2} /> : null}
             {errors.map((error) => (
                 <ScenarioStepError key={error.key} message={error.message} />
             ))}
             {scores.length > 0 && !row.valuesFailed ? (
                 <div className="flex flex-wrap gap-1.5">
                     {scores.map((score) => (
-                        <StatusTag key={score.key} tone="muted" className="max-w-full">
+                        <Badge key={score.key} className="max-w-full">
                             <span className="truncate">
                                 {score.label}: {score.text}
                             </span>
-                        </StatusTag>
+                        </Badge>
                     ))}
                 </div>
             ) : null}

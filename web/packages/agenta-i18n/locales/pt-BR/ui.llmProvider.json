@@ -1,0 +1,12 @@
+{
+    "aboutHarnesses": "Sobre os harnesses",
+    "harnessExplainer": "Um harness é o ambiente de execução do modelo: o mesmo modelo pode estar disponível por meio de vários harnesses.",
+    "inputLabel": "Entrada:",
+    "manageProviders": "Gerenciar provedores de modelos",
+    "models": "Modelos",
+    "outputLabel": "Saída:",
+    "providers": "Provedores",
+    "selectProvider": "Selecione um provedor",
+    "signInToPick": "Sua assinatura precisa de um novo login. Abra Gerenciar provedores de modelos para entrar novamente.",
+    "via": "via"
+}

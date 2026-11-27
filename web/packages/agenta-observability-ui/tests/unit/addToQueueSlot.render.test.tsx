@@ -53,9 +53,6 @@ vi.mock("@agenta/observability/traceDrawer", () => ({
 }))
 vi.mock("@agenta/shared/state", () => ({projectIdAtom: atom("project-1")}))
 vi.mock("@agenta/ui/components/presentational", () => ({
-    EnhancedButton: ({children, ...rest}: {children?: ReactNode}) => (
-        <button {...(rest as object)}>{children}</button>
-    ),
     Tag: ({label}: {label: ReactNode}) => <span>{label}</span>,
 }))
 vi.mock("@agenta/ui/copy-tooltip", () => ({
@@ -67,6 +64,7 @@ vi.mock("@agenta/ui/ui", () => ({
     DropdownMenu: ({children}: {children: ReactNode}) => <>{children}</>,
     DropdownMenuContent: () => null,
     DropdownMenuTrigger: ({children}: {children: ReactNode}) => <>{children}</>,
+    SimpleTooltip: ({children}: {children: ReactNode}) => <>{children}</>,
 }))
 
 import AddActionsDropdown from "../../src/actions"
@@ -129,7 +127,7 @@ it("The trace header renders the registered add to queue picker", async () => {
     expect(picker).not.toBeNull()
     expect(picker?.getAttribute("data-type")).toBe("traces")
     expect(picker?.getAttribute("data-ids")).toBe("trace-1")
-    expect(picker?.textContent).toContain("Add annotation queue")
+    expect(picker?.textContent).toContain("Add to queue")
     expect(node.querySelector('[data-testid="default-picker"]')).toBeNull()
 })
 

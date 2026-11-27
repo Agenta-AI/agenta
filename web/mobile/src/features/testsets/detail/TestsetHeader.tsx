@@ -29,7 +29,7 @@ import type {RevisionsList} from "./useRevisionsList"
 
 /** Shown when a test set has no description. It tells a new reader what the columns are for. */
 export const DEFAULT_DESCRIPTION =
-    "Specify column names similar to the Input parameters. A column with 'correct_answer' name will be treated as a ground truth column."
+    "Name the columns after the prompt's input variables. A column named 'correct_answer' holds the expected output."
 
 export interface TestsetHeaderProps {
     header: TestsetRevisionHeader | null
@@ -82,7 +82,7 @@ export const TestsetHeader = ({
     return (
         <div className="flex min-w-0 flex-col gap-2">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <h1 className="m-0 min-w-0 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
+                <h1 className="m-0 min-w-0 truncate text-heading text-foreground">
                     {name || "Test set"}
                 </h1>
                 {isNew ? null : (
@@ -108,10 +108,10 @@ export const TestsetHeader = ({
                                 variant="ghost"
                                 aria-label="Test set actions"
                             >
-                                <DotsThreeVertical aria-hidden size={16} weight="bold" />
+                                <DotsThreeVertical aria-hidden size={16} />
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className="w-[220px]">
+                        <DropdownMenuContent align="start" className="w-60">
                             {canEdit ? (
                                 <DropdownMenuItem onSelect={() => setEditing(true)}>
                                     <PencilSimple aria-hidden size={14} />
@@ -148,7 +148,7 @@ export const TestsetHeader = ({
                                         Archive revision
                                     </DropdownMenuItem>
                                     {archiveDisabledReason ? (
-                                        <p className="m-0 px-2 pb-1.5 text-xs text-muted-foreground">
+                                        <p className="m-0 px-2 pb-1.5 text-meta text-muted-foreground">
                                             {archiveDisabledReason}
                                         </p>
                                     ) : null}
@@ -159,7 +159,7 @@ export const TestsetHeader = ({
                 ) : null}
             </div>
             <div className="flex min-w-0 items-start gap-1.5">
-                <p className="m-0 min-w-0 text-[13px] leading-5 text-muted-foreground">
+                <p className="m-0 min-w-0 text-label leading-5 text-muted-foreground">
                     {header?.description || DEFAULT_DESCRIPTION}
                 </p>
                 {isNew || !header ? null : <TestsetDetailsPopover header={header} />}
@@ -212,7 +212,7 @@ const TestsetDetailsPopover = ({header}: {header: TestsetRevisionHeader}) => {
                 </Button>
             </PopoverTrigger>
             <PopoverContent align="start" className="w-[min(340px,90vw)]">
-                <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-sm">
+                <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-body">
                     {rows.map((row) => (
                         <div key={row.label} className="contents">
                             <dt className="text-muted-foreground">{row.label}</dt>

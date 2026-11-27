@@ -1,0 +1,19 @@
+{
+    "noParameters": "No hay parámetros que mostrar",
+    "viewForm": "Formulario",
+    "variant": "Variante",
+    "type": "Tipo",
+    "slug": "Slug",
+    "deployment": "Despliegue",
+    "details": "Detalles",
+    "dateCreated": "Fecha de creación",
+    "createdBy": "Creado por",
+    "note": "Nota",
+    "loadError": "No se pudo cargar esta revisión",
+    "notAvailable": "Esta revisión ya no está disponible.",
+    "titleRevision": "Revisión",
+    "titleDeployment": "Despliegue",
+    "titleEvaluator": "Evaluador",
+    "previousRevision": "Revisión anterior",
+    "nextRevision": "Revisión siguiente"
+}

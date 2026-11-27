@@ -1,6 +1,8 @@
 import {memo, useCallback, useEffect, useRef, useState} from "react"
 
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
+import {richText, useT} from "@agenta/i18n"
+import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
 import {HeightCollapse} from "@agenta/ui"
 import {formatLabel} from "@agenta/ui/drill-in"
 import {SharedEditor} from "@agenta/ui/shared-editor"
@@ -24,6 +26,7 @@ export const AdvancedConfigFields = memo(function AdvancedConfigFields({
     disabled,
     defaultOpen = false,
 }: AdvancedConfigFieldsProps) {
+    const t = useT(playgroundConfigCatalog)
     const [isAdvancedOpen, setIsAdvancedOpen] = useState(defaultOpen)
     const rootRef = useRef<HTMLDivElement>(null)
     const didMountRef = useRef(false)
@@ -54,7 +57,7 @@ export const AdvancedConfigFields = memo(function AdvancedConfigFields({
         <div ref={rootRef} className="flex flex-col gap-3">
             <button
                 type="button"
-                className="flex items-center gap-1 border-0 bg-transparent p-0 text-left text-[var(--ag-rgba-051729-45)] cursor-pointer"
+                className="flex items-center gap-1 border-0 bg-transparent p-0 text-left text-muted-foreground cursor-pointer"
                 onClick={() => setIsAdvancedOpen((prev) => !prev)}
                 disabled={disabled}
             >
@@ -63,7 +66,9 @@ export const AdvancedConfigFields = memo(function AdvancedConfigFields({
                 ) : (
                     <CaretRight size={14} weight="bold" />
                 )}
-                <span className="font-medium text-xs">Advanced</span>
+                <span className="font-medium text-label">
+                    {t("entityUi.playgroundConfig.advanced")}
+                </span>
             </button>
             <HeightCollapse open={isAdvancedOpen}>
                 <div className="flex flex-col gap-4 pl-5">
@@ -102,6 +107,7 @@ const AdvancedJsonField = memo(function AdvancedJsonField({
     onChange: (key: string, next: unknown) => void
     disabled?: boolean
 }) {
+    const t = useT(playgroundConfigCatalog)
     const externalEditorValue = value == null ? "" : JSON.stringify(value, null, 2)
 
     // Stabilize the schema reference by structural equality. Without this,
@@ -154,18 +160,20 @@ const AdvancedJsonField = memo(function AdvancedJsonField({
     return (
         <div className="flex flex-col gap-1">
             <div className="flex flex-col gap-0.5">
-                <span className="font-medium text-xs">{label}</span>
-                <span className="text-xs leading-snug text-colorTextDescription">
-                    Provider-specific chat template options sent with the model request in JSON
-                    format.{" "}
-                    <a
-                        href="https://agenta.ai/docs/prompt-engineering/playground/chat-template-kwargs"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-gray-500 underline decoration-dotted underline-offset-2"
-                    >
-                        Learn more
-                    </a>
+                <span className="font-medium text-label">{label}</span>
+                <span className="text-meta leading-snug text-muted-foreground">
+                    {richText(t("entityUi.playgroundConfig.chatTemplateKwargs"), {
+                        link: (text) => (
+                            <a
+                                href="https://agenta.ai/docs/prompt-engineering/playground/chat-template-kwargs"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-muted-foreground underline decoration-dotted underline-offset-2"
+                            >
+                                {text}
+                            </a>
+                        ),
+                    })}
                 </span>
             </div>
             <SharedEditor
@@ -176,7 +184,7 @@ const AdvancedJsonField = memo(function AdvancedJsonField({
                 handleChange={validateAndEmit}
                 disabled={disabled}
                 disableDebounce
-                className="min-h-[96px] overflow-hidden"
+                className="min-h-24 overflow-hidden"
                 editorProps={{
                     codeOnly: true,
                     language: "json",

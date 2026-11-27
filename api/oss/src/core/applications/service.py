@@ -36,7 +36,8 @@ from oss.src.core.git.types import (
 )
 from oss.src.core.workflows.service import (
     WorkflowsService,
-    _reject_unreadable_agent_instructions,
+    _reject_unrunnable_agent,
+    new_agent_policy,
 )
 
 # Resolution is now handled by EmbedsService
@@ -1096,7 +1097,12 @@ class SimpleApplicationsService:
     ) -> Optional[SimpleApplication]:
         # Before the artifact exists: refusing only at the final commit would leave the
         # artifact, variant, and blank revision behind.
-        _reject_unreadable_agent_instructions(simple_application_create.data)
+        _reject_unrunnable_agent(simple_application_create.data)
+        await self.applications_service.workflows_service.reject_unusable_agent_drives(
+            project_id=project_id,
+            data=simple_application_create.data,
+            new_agent_policy=new_agent_policy(None, is_agent=False),
+        )
 
         simple_application_flags = (
             SimpleApplicationFlags(**_dump_flags(simple_application_create.flags))
@@ -1337,7 +1343,7 @@ class SimpleApplicationsService:
         first_agent_owner_user_id: Optional[UUID] = None,
     ) -> Optional[SimpleApplication]:
         # Before any write: a refusal at the final commit would leave earlier writes behind.
-        _reject_unreadable_agent_instructions(simple_application_edit.data)
+        _reject_unrunnable_agent(simple_application_edit.data)
 
         application = await self.applications_service.fetch_application(
             project_id=project_id,
@@ -1347,6 +1353,48 @@ class SimpleApplicationsService:
 
         if application is None:
             return None
+
+        application_variant = await self.applications_service.fetch_application_variant(
+            project_id=project_id,
+            #
+            application_ref=Reference(id=application.id),
+        )
+
+        if application_variant is None:
+            return None
+
+        should_commit_revision = bool(simple_application_edit.model_fields_set - {"id"})
+
+        # The data the commit stores, chosen once and checked before the first write.
+        application_revision_data: Optional[ApplicationRevisionData] = None
+        if should_commit_revision:
+            if simple_application_edit.data:
+                application_revision_data = ApplicationRevisionData(
+                    **simple_application_edit.data.model_dump(mode="json"),
+                )
+            else:
+                latest_application_revision = (
+                    await self.applications_service.fetch_application_revision(
+                        project_id=project_id,
+                        #
+                        application_variant_ref=Reference(id=application_variant.id),
+                    )
+                )
+
+                if latest_application_revision is None:
+                    return None
+
+                application_revision_data = latest_application_revision.data
+
+                # The commit below carries the stored data, so it is refused for the same
+                # reason. Refuse it here, before the artifact write.
+                _reject_unrunnable_agent(application_revision_data)
+
+            await self.applications_service.workflows_service.reject_unusable_agent_drives(
+                project_id=project_id,
+                data=application_revision_data,
+                artifact_id=application.id,
+            )
 
         application_edit = ApplicationEdit(
             id=simple_application_edit.id,
@@ -1381,37 +1429,8 @@ class SimpleApplicationsService:
         if application is None:
             return None
 
-        application_variant = await self.applications_service.fetch_application_variant(
-            project_id=project_id,
-            #
-            application_ref=Reference(id=application.id),
-        )
-
-        if application_variant is None:
-            return None
-
-        should_commit_revision = bool(simple_application_edit.model_fields_set - {"id"})
-
         if should_commit_revision:
             application_revision_slug = uuid4().hex[-12:]
-
-            if simple_application_edit.data:
-                application_revision_data = ApplicationRevisionData(
-                    **simple_application_edit.data.model_dump(mode="json"),
-                )
-            else:
-                latest_application_revision = (
-                    await self.applications_service.fetch_application_revision(
-                        project_id=project_id,
-                        #
-                        application_variant_ref=Reference(id=application_variant.id),
-                    )
-                )
-
-                if latest_application_revision is None:
-                    return None
-
-                application_revision_data = latest_application_revision.data
 
             application_revision_commit = ApplicationRevisionCommit(
                 slug=application_revision_slug,

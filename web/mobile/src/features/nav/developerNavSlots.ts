@@ -7,14 +7,14 @@ import {
 } from "../developer/developerNavItems"
 import type {DeveloperView} from "../developer/developerViews"
 
-import {observabilityNavItems} from "./observabilityNavItems"
+import {observabilityNavItems, tNow, type NavTranslate} from "./observabilityNavItems"
 
 /** The Prompts row's key: the prompt apps load under it when it opens. */
 export const PROMPTS_ROW_KEY = developerRowKey("prompts")
 
 /** The developer rows, by where they go in the main rail. */
 export interface DeveloperNavSlots {
-    /** Right after Home. */
+    /** After Home and Builder. */
     afterHome: SidebarConfig[]
     /** After Sessions, at the end of the main section. */
     afterSessions: SidebarConfig[]
@@ -29,11 +29,12 @@ export const developerNavSlots = (
     views: readonly DeveloperView[],
     developerMode: boolean,
     promptsChildren: SidebarConfig[] = [],
+    t: NavTranslate = tNow,
 ): DeveloperNavSlots => {
     if (!developerMode) {
-        return {afterHome: [], afterSessions: developerNavItems(projectURL, views)}
+        return {afterHome: [], afterSessions: developerNavItems(projectURL, views, t)}
     }
-    const rail = developerRailItems(projectURL, views)
+    const rail = developerRailItems(projectURL, views, t)
     return {
         // Collapsed, Prompts opens its page rather than a flyout of apps, as in the old app.
         afterHome: rail.lead.map((row) =>
@@ -41,6 +42,6 @@ export const developerNavSlots = (
                 ? {...row, submenu: promptsChildren, hideChildrenWhenCollapsed: true}
                 : row,
         ),
-        afterSessions: [...rail.evaluation, ...observabilityNavItems(projectURL, true)],
+        afterSessions: [...rail.evaluation, ...observabilityNavItems(projectURL, true, t)],
     }
 }

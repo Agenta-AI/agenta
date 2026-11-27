@@ -6,7 +6,9 @@ Readers run on `engine.session()`, one statement each. Writers run in
 - agent writes lock `workflow_artifacts (project_id, id) FOR UPDATE`, then write
   `agent_access` and `channel_agents`;
 - session writes lock one `session_streams` row `FOR UPDATE`, then write the row and
-  `session_grants`.
+  `session_grants`;
+- a child session insert locks its calling session's row `FOR SHARE`, then writes the
+  child's `session_grants` (`copy_calling_session_grants`).
 
 A connection restore (`ChannelsDAO.unarchive_connection`) locks its `channel_connections`
 row first, then the artifacts in id order, then its `channel_agents` rows. No path takes
@@ -15,7 +17,7 @@ policy with the caller's `expected` and raises `SharingConflict(current)` on a m
 which rolls the transaction back.
 """
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 from uuid import UUID
 
 from sqlalchemy import text
@@ -24,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from oss.src.core.sharing.dtos import (
     AccessPolicy,
     AgentPolicyWriteResult,
+    MountVisibility,
     SessionGrant,
     SessionGrantInput,
     SessionPolicyState,
@@ -34,6 +37,7 @@ from oss.src.core.sharing.dtos import (
     Visibility,
 )
 from oss.src.core.sharing.interfaces import SharingDAOInterface
+from oss.src.core.mounts.types import RESERVED_AGENT_SLUG_PREFIX
 from oss.src.core.sharing.types import SharedItemNotFound, SharingConflict
 from oss.src.core.workflows.dtos import AGENT_REFERENCE_KEYS
 from oss.src.dbs.postgres.sharing.mappings import (
@@ -85,6 +89,128 @@ SET visibility = EXCLUDED.visibility,
     owner_user_id = EXCLUDED.owner_user_id,
     updated_at = now(),
     updated_by_id = :user_id
+"""
+
+
+# -- drives -----------------------------------------------------------------------------
+
+_FETCH_MOUNT_VISIBILITY_SQL = """
+SELECT m.id AS mount_id, m.slug, m.session_id, m.agent_id,
+       v.visibility, v.owner_user_id
+FROM mounts m
+LEFT JOIN mount_visibility v
+    ON v.project_id = m.project_id AND v.mount_id = m.id
+WHERE m.project_id = :project_id AND m.id = :mount_id
+"""
+
+# The agent lists the drive: the latest revision of one of its active variants names
+# the drive's slug in `drives`, or the drive is the agent's own and that revision states
+# no `drives` (the read fill lists the own drive). An entry may name an agent's drive by
+# its reserved slug (`fetch_mount_by_slug` resolves it by agent id).
+_AGENT_LISTS_DRIVE_SQL = """
+WITH latest AS (
+    SELECT DISTINCT ON (r.variant_id)
+        json_extract_path(r.data, 'parameters', 'agent', 'drives') AS drives
+    FROM workflow_revisions r
+    JOIN workflow_variants v
+      ON v.project_id = r.project_id AND v.id = r.variant_id
+    WHERE r.project_id = :project_id
+      AND r.artifact_id = :artifact_id
+      AND r.deleted_at IS NULL
+      AND v.deleted_at IS NULL
+    ORDER BY r.variant_id, r.created_at DESC
+)
+SELECT EXISTS (
+    SELECT 1
+    FROM latest l
+    WHERE (
+        json_typeof(l.drives) = 'array'
+        AND EXISTS (
+            SELECT 1 FROM json_array_elements(l.drives) e
+            WHERE e ->> 'slug' = :slug
+               OR (
+                   CAST(:mount_agent_id AS text) IS NOT NULL
+                   AND starts_with(
+                       e ->> 'slug',
+                       :reserved_prefix || CAST(:mount_agent_id AS text) || '__'
+                   )
+               )
+        )
+    )
+    OR (
+        :is_own
+        AND json_typeof(l.drives) IS DISTINCT FROM 'array'
+    )
+)
+"""
+
+_FETCH_AGENT_DRIVE_POLICY_SQL = """
+SELECT v.visibility, v.owner_user_id
+FROM mounts m
+JOIN mount_visibility v
+    ON v.project_id = m.project_id AND v.mount_id = m.id
+WHERE m.project_id = :project_id
+  AND m.agent_id = :agent_id
+  AND m.deleted_at IS NULL
+"""
+
+# The share write locks the agent it changes and the agents whose drives (without their
+# own row) it gives a row, in one statement and in id order, so two share writes lock in
+# the same order. `transfer_agent` takes the same lock.
+_LOCK_SHARING_AGENTS_SQL = """
+SELECT a.id
+FROM workflow_artifacts a
+WHERE a.project_id = :project_id
+  AND (
+    a.id = :artifact_id
+    OR a.id::text IN (
+        SELECT m.agent_id
+        FROM mounts m
+        WHERE m.project_id = :project_id
+          AND m.id = ANY(CAST(:mount_ids AS uuid[]))
+          AND m.agent_id IS NOT NULL
+    )
+  )
+ORDER BY a.id
+FOR UPDATE OF a
+"""
+
+# Read after the lock, in its own statement, so it sees a transfer that committed while
+# the lock waited.
+_FETCH_DRIVE_AGENT_POLICIES_SQL = """
+SELECT x.visibility, x.owner_user_id
+FROM mounts m
+JOIN workflow_artifacts a
+    ON a.project_id = m.project_id AND a.id::text = m.agent_id
+LEFT JOIN agent_access x
+    ON x.project_id = a.project_id AND x.artifact_id = a.id
+WHERE m.project_id = :project_id
+  AND m.id = ANY(CAST(:mount_ids AS uuid[]))
+  AND NOT EXISTS (
+      SELECT 1 FROM mount_visibility v
+      WHERE v.project_id = m.project_id AND v.mount_id = m.id
+  )
+"""
+
+# The owner stays: a shared drive keeps the person who owns it. A drive without its row
+# (an agent's drive before release 2, which follows its agent) gets one, owned by the
+# acting owner, whom the service checked is the drive's owner.
+_SHARE_MOUNTS_SQL = """
+WITH shared AS (
+    INSERT INTO mount_visibility AS v
+        (project_id, mount_id, visibility, owner_user_id, created_by_id)
+    SELECT m.project_id, m.id, 'project', :owner_user_id, :user_id
+    FROM mounts m
+    WHERE m.project_id = :project_id
+      AND m.id = ANY(CAST(:mount_ids AS uuid[]))
+    ON CONFLICT (project_id, mount_id) DO UPDATE
+    SET visibility = 'project', updated_at = now(), updated_by_id = :user_id
+    WHERE v.visibility = 'private' AND v.owner_user_id = :owner_user_id
+    RETURNING v.mount_id
+)
+SELECT m.slug
+FROM shared s
+JOIN mounts m ON m.project_id = :project_id AND m.id = s.mount_id
 """
 
 
@@ -221,6 +347,24 @@ WHERE project_id = :project_id
   AND user_id = ANY(CAST(:user_ids AS uuid[]))
 """
 
+# A child session's lock on its calling session: FOR SHARE, so a sharing write on the
+# calling session (FOR UPDATE) either committed before the copy or waits for it.
+_LOCK_CALLING_SESSION_STATE_SQL = f"""
+SELECT {_SESSION_STATE_COLUMNS}
+FROM session_streams s
+WHERE s.project_id = :project_id AND s.session_id = :session_id
+FOR SHARE OF s
+"""
+
+_COPY_GRANTS_SQL = f"""
+INSERT INTO session_grants AS g
+    (project_id, stream_id, user_id, role, created_at, created_by_id)
+SELECT :project_id, :stream_id, c.user_id, c.role, now(), :user_id
+FROM session_grants c
+WHERE c.project_id = :project_id AND c.stream_id = :calling_stream_id
+RETURNING {_GRANT_COLUMNS}
+"""
+
 _UPSERT_GRANTS_SQL = f"""
 INSERT INTO session_grants AS g
     (project_id, stream_id, user_id, role, created_at, created_by_id)
@@ -297,9 +441,17 @@ class SharingDAO(SharingDAOInterface):
         policy: AccessPolicy,
         #
         user_id: UUID,
+        #
+        share_mount_ids: Sequence[UUID] = (),
+        check_agent_drive: bool = False,
+        expected_agent_drive_policy: Optional[AccessPolicy] = None,
     ) -> AgentPolicyWriteResult:
         params = {"project_id": project_id, "artifact_id": artifact_id}
+        drives_made_shared: List[str] = []
+        share_params = {**params, "mount_ids": list(share_mount_ids)}
         async with self.engine.transaction() as connection:
+            if share_mount_ids:
+                await connection.execute(text(_LOCK_SHARING_AGENTS_SQL), share_params)
             locked = (
                 await connection.execute(text(_LOCK_AGENT_ARTIFACT_SQL), params)
             ).first()
@@ -312,6 +464,16 @@ class SharingDAO(SharingDAOInterface):
             current = map_agent_access_dbe_to_dto(row) if row is not None else None
             if current != expected:
                 raise SharingConflict(current=current)
+            if check_agent_drive:
+                own_row = (
+                    await connection.execute(
+                        text(_FETCH_AGENT_DRIVE_POLICY_SQL),
+                        {"project_id": project_id, "agent_id": str(artifact_id)},
+                    )
+                ).first()
+                own = map_agent_access_dbe_to_dto(own_row) if own_row else None
+                if own != expected_agent_drive_policy:
+                    raise SharingConflict(current=current)
 
             await connection.execute(
                 text(_UPSERT_AGENT_POLICY_SQL),
@@ -322,8 +484,101 @@ class SharingDAO(SharingDAOInterface):
                     "user_id": user_id,
                 },
             )
+            if share_mount_ids:
+                for drive_agent in (
+                    await connection.execute(
+                        text(_FETCH_DRIVE_AGENT_POLICIES_SQL), share_params
+                    )
+                ).all():
+                    if (
+                        drive_agent.visibility != Visibility.PRIVATE.value
+                        or drive_agent.owner_user_id != policy.owner_user_id
+                    ):
+                        # The drive's agent changed owner since the decision.
+                        raise SharingConflict(current=current)
+                drives_made_shared = list(
+                    (
+                        await connection.execute(
+                            text(_SHARE_MOUNTS_SQL),
+                            {
+                                "project_id": project_id,
+                                "mount_ids": list(share_mount_ids),
+                                "owner_user_id": policy.owner_user_id,
+                                "user_id": user_id,
+                            },
+                        )
+                    ).scalars()
+                )
 
-        return AgentPolicyWriteResult(policy=policy)
+        return AgentPolicyWriteResult(
+            policy=policy, drives_made_shared=sorted(drives_made_shared)
+        )
+
+    # -- drives -------------------------------------------------------------------------
+
+    async def fetch_agent_drive_policy(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: UUID,
+    ) -> Optional[AccessPolicy]:
+        async with self.engine.session() as session:
+            row = (
+                await session.execute(
+                    text(_FETCH_AGENT_DRIVE_POLICY_SQL),
+                    {"project_id": project_id, "agent_id": str(artifact_id)},
+                )
+            ).first()
+        return map_agent_access_dbe_to_dto(row) if row is not None else None
+
+    async def fetch_mount_visibility(
+        self,
+        *,
+        project_id: UUID,
+        mount_id: UUID,
+    ) -> Optional[MountVisibility]:
+        async with self.engine.session() as session:
+            row = (
+                await session.execute(
+                    text(_FETCH_MOUNT_VISIBILITY_SQL),
+                    {"project_id": project_id, "mount_id": mount_id},
+                )
+            ).first()
+        if row is None:
+            return None
+        return MountVisibility(
+            mount_id=row.mount_id,
+            slug=row.slug,
+            session_id=row.session_id,
+            agent_id=row.agent_id,
+            policy=(
+                map_agent_access_dbe_to_dto(row) if row.visibility is not None else None
+            ),
+        )
+
+    async def agent_lists_drive(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: UUID,
+        mount: MountVisibility,
+    ) -> bool:
+        async with self.engine.session() as session:
+            return bool(
+                (
+                    await session.execute(
+                        text(_AGENT_LISTS_DRIVE_SQL),
+                        {
+                            "project_id": project_id,
+                            "artifact_id": artifact_id,
+                            "slug": mount.slug,
+                            "mount_agent_id": mount.agent_id,
+                            "reserved_prefix": RESERVED_AGENT_SLUG_PREFIX,
+                            "is_own": mount.agent_id == str(artifact_id),
+                        },
+                    )
+                ).scalar()
+            )
 
     # -- sessions -----------------------------------------------------------------------
 
@@ -567,6 +822,48 @@ async def guard_agent_activation(
         and (user_id is None or policy.owner_user_id != user_id)
     ):
         raise SharedItemNotFound()
+
+
+async def copy_calling_session_grants(
+    session,
+    *,
+    project_id: UUID,
+    calling_session_id: str,
+    stream_id: UUID,
+    expected: AccessPolicy,
+    user_id: Optional[UUID],
+) -> List[SessionGrant]:
+    """Inside the transaction that inserts a child session row (`session` is an ORM
+    session or a connection): lock the calling session's row FOR SHARE, check that its
+    policy is still `expected` (`SharingConflict(current)` otherwise, which rolls the
+    insert back), then give the row `stream_id` the calling session's grants as they are
+    now, with their roles. The row and its grants commit together, and a grant that a
+    sharing write removed before the copy is not copied. `SharedItemNotFound` when the
+    calling session has no row."""
+
+    locked = (
+        await session.execute(
+            text(_LOCK_CALLING_SESSION_STATE_SQL),
+            _session_params(project_id=project_id, session_id=calling_session_id),
+        )
+    ).first()
+    if locked is None:
+        raise SharedItemNotFound()
+    calling = map_session_state_row_to_dto(locked)
+    if calling.policy != expected:
+        raise SharingConflict(current=calling.policy)
+    rows = (
+        await session.execute(
+            text(_COPY_GRANTS_SQL),
+            {
+                "project_id": project_id,
+                "stream_id": stream_id,
+                "calling_stream_id": calling.stream_id,
+                "user_id": user_id,
+            },
+        )
+    ).all()
+    return [map_session_grant_dbe_to_dto(row) for row in rows]
 
 
 async def _assign_legacy(

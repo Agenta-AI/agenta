@@ -54,6 +54,46 @@ describe("describeRunError", () => {
         expect(describeRunError('400: {"message":"Unknown field credits."}').remedy).toBeUndefined()
     })
 
+    it("reads the runner's refused-credential sentence as a key failure", () => {
+        const text =
+            "pi_core: model authentication failed — add the project's OpenAI key to the project vault, or log in (OAuth)."
+        const error = formatRunError(text)
+
+        expect(error.kind).toBe("key")
+        expect(error.paragraphs[0]).toBe("The model provider rejected the OpenAI key.")
+        expect(error.provider?.kind).toBe("openai")
+        // The runner's sentence stays in the fold, not under the headline.
+        expect(error.quote).toBeNull()
+        expect(error.raw).toBe(text)
+        // The connection form of a custom route has no provider name in the sentence.
+        expect(
+            formatRunError(
+                "pi_core: model authentication failed — add the model connection's API key to the project vault, or log in (OAuth).",
+            ).kind,
+        ).toBe("key")
+    })
+
+    it.each([
+        [
+            "Anthropic",
+            "pi_core: model authentication failed — add the project's Anthropic key to the project vault, or log in (OAuth).",
+        ],
+        [
+            "Gemini",
+            "pi_core: model authentication failed — add the project's Gemini key to the project vault, or log in (OAuth).",
+        ],
+    ])("reads the runner sentence for %s as a key failure", (_name, text) => {
+        expect(formatRunError(text).kind).toBe("key")
+    })
+
+    it("still lets a failure that is not about a key fall through", () => {
+        // A provider name and the word "key" alone are not a key failure.
+        const error = formatRunError("The sandbox went away before the OpenAI key was used.")
+
+        expect(error.kind).toBeUndefined()
+        expect(error.paragraphs).toEqual(["The sandbox went away before the OpenAI key was used."])
+    })
+
     it("never shows an empty headline", () => {
         expect(describeRunError("   ").headline).toBe("Something went wrong.")
     })
@@ -76,6 +116,14 @@ describe("formatRunError", () => {
         expect(formatRunError("Model is not available here.").paragraphs).toEqual([
             "Model is not available here.",
         ])
+    })
+
+    it("shows a plain sentence for a system message and keeps its text for the fold", () => {
+        const text = "No user message to send (prompt/messages empty)."
+        const error = formatRunError(text)
+
+        expect(error.paragraphs).toEqual(["Something went wrong."])
+        expect(error.raw).toBe(text)
     })
 
     it("keeps no raw text when the message only gained a period", () => {

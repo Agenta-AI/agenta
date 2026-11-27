@@ -1,7 +1,10 @@
 import * as React from "react"
 
-import {X} from "@phosphor-icons/react"
-import {ChevronDown, ChevronRight, LoaderCircle} from "lucide-react"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
+import {CaretDownIcon, CaretRightIcon, CircleNotchIcon, X} from "@phosphor-icons/react"
 
 import {Popover, PopoverAnchor, PopoverContent} from "./popover"
 import {selectTriggerVariants, type SelectTriggerProps} from "./select"
@@ -133,8 +136,8 @@ export function Cascader({
     changeOnSelect = false,
     expandTrigger = "click",
     displayRender,
-    placeholder = "Select",
-    emptyText = "No data",
+    placeholder: placeholderProp,
+    emptyText: emptyTextProp,
     allowClear = false,
     showSearch = false,
     disabled = false,
@@ -153,6 +156,9 @@ export function Cascader({
     "aria-label": ariaLabel,
     "aria-labelledby": ariaLabelledby,
 }: CascaderProps) {
+    const t = useT(uiControlsCatalog, listControlsCatalog, commonCatalog)
+    const placeholder = placeholderProp ?? t("ui.listControls.select")
+    const emptyText = emptyTextProp ?? t("ui.controls.noData")
     const [open, setOpen] = React.useState(defaultOpen)
     const [query, setQuery] = React.useState("")
     const [activePath, setActivePath] = React.useState<string[]>(value ?? [])
@@ -379,7 +385,7 @@ export function Cascader({
     }
 
     // antd greys only the placeholder/arrow, and turns the whole control red on error.
-    const adornmentColor = invalid ? "text-error" : "text-placeholder"
+    const adornmentColor = invalid ? "text-destructive" : "text-muted-foreground"
     const showClear = allowClear && selectedValues.length > 0 && !disabled && !loading
     const hasValue = selectedValues.length > 0
 
@@ -410,9 +416,9 @@ export function Cascader({
             "flex w-full cursor-pointer select-none items-center justify-between gap-2 box-border min-h-control-sm rounded-control-sm px-3 py-1 text-field-md",
             // antd: selected row = controlItemBgActive (always); a non-selected active/hovered
             // row = controlItemBgHover.
-            opts.selected ? "bg-controlItemBgActive font-semibold" : "",
+            opts.selected ? "bg-selected" : "",
             !opts.selected && opts.active ? "bg-muted" : "",
-            opts.disabled && "pointer-events-none text-disabled",
+            opts.disabled && "pointer-events-none text-muted-foreground",
         )
 
     return (
@@ -439,7 +445,7 @@ export function Cascader({
                         // The trigger is a div, so the variant's `disabled:` classes (which only
                         // fire on real form controls) don't apply — set the disabled skin here.
                         disabled &&
-                            "pointer-events-none cursor-not-allowed border-disabled-border bg-disabled-bg text-disabled",
+                            "pointer-events-none cursor-not-allowed border-border-muted bg-secondary text-muted-foreground",
                         loading && "pointer-events-none",
                         className,
                     )}
@@ -492,14 +498,14 @@ export function Cascader({
                         />
                     </div>
                     {loading ? (
-                        <LoaderCircle
+                        <CircleNotchIcon
                             className={cn("size-3 shrink-0 animate-spin", adornmentColor)}
                         />
                     ) : (
                         // antd `.ant-select-clear` is opacity 0 at rest and cross-fades over the
                         // arrow on hover; focus-within keeps it keyboard-reachable.
                         <span className="relative flex shrink-0 items-center">
-                            <ChevronDown
+                            <CaretDownIcon
                                 className={cn(
                                     "size-3 shrink-0 transition-opacity",
                                     showClear && "group-hover:opacity-0",
@@ -511,7 +517,7 @@ export function Cascader({
                                     type="button"
                                     data-cascader-clear
                                     tabIndex={-1}
-                                    aria-label="Clear selection"
+                                    aria-label={t("common.clearSelection")}
                                     className={cn(
                                         "absolute inset-0 flex cursor-pointer items-center justify-center border-0 bg-transparent p-0 opacity-0 transition-opacity hover:text-foreground",
                                         "group-hover:opacity-100 group-focus-within:opacity-100",
@@ -533,7 +539,7 @@ export function Cascader({
             <PopoverContent
                 align="start"
                 container={container}
-                aria-label={ariaLabel ?? "Options"}
+                aria-label={ariaLabel ?? t("ui.controls.options")}
                 onOpenAutoFocus={(e) => e.preventDefault()}
                 onCloseAutoFocus={(e) => e.preventDefault()}
                 className={cn("p-0 font-portal", contentClassName)}
@@ -542,12 +548,12 @@ export function Cascader({
                     {searching ? (
                         <div
                             role="listbox"
-                            aria-label={ariaLabel ?? "Search results"}
+                            aria-label={ariaLabel ?? t("ui.listControls.searchResults")}
                             style={{...columnStyle, maxWidth: undefined}}
                             className="overflow-y-auto p-1"
                         >
                             {searchHits.length === 0 ? (
-                                <div className="py-4 text-center text-field-sm text-placeholder">
+                                <div className="py-4 text-center text-field-sm text-muted-foreground">
                                     {emptyText}
                                 </div>
                             ) : (
@@ -594,11 +600,11 @@ export function Cascader({
                                     )}
                                 >
                                     {column.items.length === 0 ? (
-                                        <div className="flex items-center justify-center gap-2 py-4 text-field-sm text-placeholder">
+                                        <div className="flex items-center justify-center gap-2 py-4 text-field-sm text-muted-foreground">
                                             {isPending ? (
-                                                <LoaderCircle
+                                                <CircleNotchIcon
                                                     className="size-3 animate-spin"
-                                                    aria-label="Loading"
+                                                    aria-label={t("common.loading")}
                                                 />
                                             ) : (
                                                 emptyText
@@ -642,7 +648,7 @@ export function Cascader({
                                                         {option.label ?? option.value}
                                                     </span>
                                                     {branch ? (
-                                                        <ChevronRight className="size-3 shrink-0 text-placeholder" />
+                                                        <CaretRightIcon className="size-3 shrink-0 text-muted-foreground" />
                                                     ) : null}
                                                 </div>
                                             )

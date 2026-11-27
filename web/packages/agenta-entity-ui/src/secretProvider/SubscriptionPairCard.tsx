@@ -14,11 +14,14 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
+    subscriptionPairModelRows,
     subscriptionPairModels,
     subscriptionPairModelsAtom,
     type SubscriptionPair,
 } from "@agenta/entities/secret"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
+import {richText, useT} from "@agenta/i18n"
+import providerDrawerCatalog from "@agenta/i18n/catalogs/entityUi.providerDrawer"
 import {Tag} from "@agenta/ui"
 import {Checkbox} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -46,6 +49,7 @@ const SubscriptionPairCard = ({
     onDone,
     onSaveStateChange,
 }: SubscriptionPairCardProps) => {
+    const t = useT(providerDrawerCatalog)
     const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(HARNESS_CATALOG_KEY))
     const savedByPair = useAtomValue(subscriptionPairModelsAtom)
     const saveSelection = useSetAtom(subscriptionPairModelsAtom)
@@ -71,11 +75,12 @@ const SubscriptionPairCard = ({
     const [checked, setChecked] = useState<string[] | null>(savedByPair[pair.key] ?? null)
     const effective = checked ?? preselected
 
-    // Recommended first, then the rest in the order the harness published them.
+    // Recommended first, then the rest, then saved ids the plan no longer runs, so they can be
+    // unticked. The saved list, not `effective`: an unticked row stays until Done.
+    const saved = savedByPair[pair.key]
     const ordered = useMemo(
-        () =>
-            [...models].sort((a, b) => Number(defaults.includes(b)) - Number(defaults.includes(a))),
-        [models, defaults],
+        () => subscriptionPairModelRows({models, defaults, saved}),
+        [models, defaults, saved],
     )
 
     // The drawer draws the footer, so the card hands it a stable submit. The ref keeps `submit`
@@ -95,11 +100,11 @@ const SubscriptionPairCard = ({
     }, [onSaveStateChange, submit])
 
     return (
-        <div className="flex min-h-full flex-1 flex-col gap-4 text-xs">
+        <div className="flex min-h-full flex-1 flex-col gap-4 text-meta">
             <div className="flex items-start justify-between gap-3">
-                <span className="flex items-center gap-1.5 text-colorSuccess">
-                    <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-colorSuccess" />
-                    Detected — {pair.name}
+                <span className="flex items-center gap-1.5 text-success">
+                    <span aria-hidden className="size-1.5 shrink-0 rounded-round bg-success" />
+                    {t("entityUi.providerDrawer.detected", {name: pair.name})}
                 </span>
                 <a
                     href={docsUrl}
@@ -107,29 +112,32 @@ const SubscriptionPairCard = ({
                     rel="noreferrer"
                     className="shrink-0 text-field-sm text-btn-link hover:text-btn-link-hover"
                 >
-                    How detection works
+                    {t("entityUi.providerDrawer.howDetectionWorks")}
                 </a>
             </div>
 
             <section className="flex min-h-0 flex-1 flex-col gap-2">
-                <span className="font-medium text-colorText">
-                    Active models{" "}
-                    <span className="font-normal text-colorTextTertiary">— fixed by the plan</span>
+                <span className="font-medium text-foreground">
+                    {richText(t("entityUi.providerDrawer.activeModelsFixed"), {
+                        muted: (text) => (
+                            <span className="font-normal text-muted-foreground">{text}</span>
+                        ),
+                    })}
                 </span>
 
-                <div className="flex min-h-0 flex-col overflow-hidden rounded-md border border-solid border-colorBorderSecondary">
+                <div className="flex min-h-0 flex-col overflow-hidden rounded-md border border-solid border-border-muted">
                     {ordered.length === 0 ? (
-                        <p className="m-0 px-3 py-3 text-colorTextSecondary">
-                            This harness publishes no models for {pair.name} yet.
+                        <p className="m-0 px-3 py-3 text-muted-foreground">
+                            {t("entityUi.providerDrawer.noModelsForPlan", {name: pair.name})}
                         </p>
                     ) : (
                         ordered.map((id, index) => (
                             <label
                                 key={id}
-                                className={`flex cursor-pointer items-center gap-2 px-3 py-1.5 hover:bg-colorFillQuaternary ${
+                                className={`flex cursor-pointer items-center gap-2 px-3 py-1.5 hover:bg-accent ${
                                     index === ordered.length - 1
                                         ? ""
-                                        : "border-0 border-b border-solid border-colorSplit"
+                                        : "border-0 border-b border-solid border-border-muted"
                                 }`}
                             >
                                 <Checkbox
@@ -142,19 +150,23 @@ const SubscriptionPairCard = ({
                                         )
                                     }
                                 />
-                                <span className="min-w-0 flex-1 truncate font-mono text-field-sm text-colorText">
+                                <span className="min-w-0 flex-1 truncate font-mono text-field-sm text-foreground">
                                     {id}
                                 </span>
                                 {defaults.includes(id) ? (
-                                    <Tag size="small" tone="default" label="recommended" />
+                                    <Tag
+                                        size="small"
+                                        tone="default"
+                                        label={t("entityUi.providerDrawer.recommendedTag")}
+                                    />
                                 ) : null}
                             </label>
                         ))
                     )}
                 </div>
 
-                <span className="text-[11px] text-colorTextTertiary">
-                    The plan defines the list — you only choose what shows in the picker.
+                <span className="text-caption text-muted-foreground">
+                    {t("entityUi.providerDrawer.planDefinesList")}
                 </span>
             </section>
         </div>

@@ -33,4 +33,15 @@ describe("trace CSV export contract", () => {
             expect(row, `"${header}" has no value in the exported row`).toHaveProperty(header)
         }
     })
+
+    it("keeps the cost's full precision, not the rounded display value", () => {
+        const row = createTraceObject({
+            span_id: "s1",
+            trace_id: "t1",
+            span_name: "span",
+            attributes: {ag: {metrics: {costs: {cumulative: {total: 1.234567}}}}},
+        } as never)
+
+        expect(row.Cost).toBe("$1.234567")
+    })
 })

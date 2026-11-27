@@ -5,8 +5,18 @@ import {
     triggerSubscriptionDrawerAtom,
 } from "@agenta/entities/gatewayTrigger"
 import {workflowMolecule} from "@agenta/entities/workflow"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button, LoadingButton} from "@agenta/ui/ui"
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
+import {
+    Button,
+    cn,
+    LoadingButton,
+    Sheet,
+    SheetContent,
+    SheetFooter,
+    SheetHeader,
+    SheetTitle,
+} from "@agenta/ui/ui"
 import {useAtom, useAtomValue} from "jotai"
 
 import {AutomationCreateBody} from "./AutomationCreateBody"
@@ -82,6 +92,7 @@ export const AutomationDrawer = () => {
             playgroundEntityId={rendered.playgroundEntityId}
             defaultAgentName={rendered.defaultBoundLabel}
             defaultReferences={rendered.defaultReferences}
+            fixedKind={rendered.fixedKind}
         />
     )
 }
@@ -109,36 +120,55 @@ const AutomationDrawerShell = ({
     )
 
     return (
-        <EnhancedDrawer
-            rootClassName="ag-drawer-elevated"
+        <Sheet
             open={open}
-            onClose={onClose}
-            afterOpenChange={onAfterOpenChange}
-            title={
-                <span className="flex min-w-0 items-baseline gap-1.5">
-                    <span>{title}</span>
-                    {boundAgentName ? (
-                        <>
-                            <span className="text-[var(--ag-colorTextQuaternary)]">·</span>
-                            <span className="min-w-0 truncate text-sm font-normal text-[var(--ag-colorTextDescription)]">
-                                {boundAgentName}
-                            </span>
-                        </>
-                    ) : null}
-                </span>
-            }
-            width={640}
-            footer={footer}
-            styles={{
-                body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
+            onOpenChange={(next) => {
+                if (!next) onClose()
             }}
         >
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-4">{children}</div>
-            {/* The event picker's "Connect another app" opens the catalog by atom, so the
-                catalog has to be mounted wherever this drawer is — the screens mount their own,
-                and this shell renders nothing when closed, so the two never collide. */}
-            <AutomationTriggerDrawers />
-        </EnhancedDrawer>
+            <SheetContent
+                side="right"
+                className="ag-drawer-elevated"
+                style={{width: 640, maxWidth: "calc(100% - 1rem)"}}
+                onOpenAutoFocus={(e) => {
+                    if ((e.currentTarget as HTMLElement | null)?.contains(document.activeElement))
+                        e.preventDefault()
+                }}
+                onCloseAutoFocus={() => onAfterOpenChange(false)}
+            >
+                <SheetHeader>
+                    <SheetTitle className="min-w-0">
+                        <span className="flex min-w-0 items-baseline gap-1.5">
+                            <span>{title}</span>
+                            {boundAgentName ? (
+                                <>
+                                    <span className="text-muted-foreground">·</span>
+                                    <span className="min-w-0 truncate text-body text-muted-foreground">
+                                        {boundAgentName}
+                                    </span>
+                                </>
+                            ) : null}
+                        </span>
+                    </SheetTitle>
+                </SheetHeader>
+                <div
+                    className={cn(
+                        "flex min-h-0 flex-1 flex-col overflow-hidden text-field-md text-foreground",
+                        footer == null && "rounded-b-[inherit]",
+                    )}
+                >
+                    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-4">
+                        {children}
+                    </div>
+                    {/* The event picker's "Connect another app" opens the catalog by atom, so the
+                        catalog has to be mounted wherever this drawer is. The screens mount their
+                        own and this shell renders nothing when closed; the panel's Automations tab
+                        drops its copy while a drawer atom is set. */}
+                    <AutomationTriggerDrawers />
+                </div>
+                {footer != null ? <SheetFooter>{footer}</SheetFooter> : null}
+            </SheetContent>
+        </Sheet>
     )
 }
 
@@ -156,6 +186,7 @@ const AutomationEditDrawer = ({
     onAfterOpenChange: (isOpen: boolean) => void
     playgroundEntityId?: string
 }) => {
+    const t = useT(automationsEditorCatalog)
     const editor = useAutomationEditor(automationId)
 
     return (
@@ -164,7 +195,7 @@ const AutomationEditDrawer = ({
             onClose={onClose}
             onAfterOpenChange={onAfterOpenChange}
             playgroundEntityId={playgroundEntityId}
-            title="Automation"
+            title={t("automations.editor.drawerTitle")}
             // The bar stands whether or not there is an edit, disabled until there is — a footer
             // that appears mid-edit moves the ground under the cursor.
             footer={
@@ -180,8 +211,8 @@ const AutomationEditDrawer = ({
             {editor.loading ? (
                 <AutomationDetailSkeleton />
             ) : !editor.automation || !editor.preview ? (
-                <p className="m-0 py-16 text-center text-[13px] text-muted-foreground">
-                    This automation no longer exists.
+                <p className="m-0 py-16 text-center text-label text-muted-foreground">
+                    {t("automations.editor.noLongerExists")}
                 </p>
             ) : (
                 <AutomationDetailBody
@@ -223,6 +254,7 @@ const AutomationCreateDrawer = ({
     playgroundEntityId,
     defaultAgentName,
     defaultReferences,
+    fixedKind,
 }: {
     kind: AutomationKind
     open: boolean
@@ -231,7 +263,9 @@ const AutomationCreateDrawer = ({
     playgroundEntityId?: string
     defaultAgentName?: string
     defaultReferences?: Record<string, {id?: string; slug?: string}>
+    fixedKind?: boolean
 }) => {
+    const t = useT(automationsEditorCatalog)
     const state = useAutomationCreate({
         defaultKind: kind,
         // The agent panel knows the agent by its REVISION id. The draft needs the agent's own
@@ -248,26 +282,20 @@ const AutomationCreateDrawer = ({
             onClose={onClose}
             onAfterOpenChange={onAfterOpenChange}
             playgroundEntityId={playgroundEntityId}
-            title="New automation"
+            title={t("automations.editor.newAutomation")}
             footer={
                 <div className="flex items-center justify-end gap-2.5">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        className="font-normal"
-                        onClick={onClose}
-                    >
-                        Cancel
+                    <Button type="button" variant="outline" onClick={onClose}>
+                        {t("automations.editor.cancel")}
                     </Button>
                     {/* Always pressable. A press with something missing does not create; it
                         turns the missing fields red, which is how the reader learns what to do. */}
                     <LoadingButton
                         type="button"
-                        className="font-normal"
                         loading={state.saving}
                         onClick={() => void state.create().then((made) => made && onClose())}
                     >
-                        Create automation
+                        {t("automations.editor.createAutomation")}
                     </LoadingButton>
                 </div>
             }
@@ -277,6 +305,7 @@ const AutomationCreateDrawer = ({
                 // The agent is the panel this drawer opened from — offering to change it here
                 // would let the reader move an automation off the agent they are looking at.
                 showAgentField={!playgroundEntityId}
+                fixedKind={fixedKind}
             />
         </AutomationDrawerShell>
     )

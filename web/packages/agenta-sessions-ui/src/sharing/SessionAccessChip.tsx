@@ -1,3 +1,5 @@
+import type {ReactNode} from "react"
+
 import type {SessionSharingState} from "@agenta/entities/sharing"
 import {Alert, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {EyeIcon, PaperPlaneTiltIcon} from "@phosphor-icons/react"
@@ -11,6 +13,8 @@ export interface SessionAccessChipProps {
     owner?: SharingPerson | null
     /** An ownerless chat that comes from a channel (Slack, Telegram). */
     fromChannel?: boolean
+    /** A trigger to draw in place of the chip (a header icon button); it opens the same popover. */
+    trigger?: ReactNode
 }
 
 /** What a person who is not the owner sees in place of "Share": their role and who has access. */
@@ -18,6 +22,7 @@ export const SessionAccessChip = ({
     sharing,
     owner,
     fromChannel = false,
+    trigger,
 }: SessionAccessChipProps) => {
     const ownerless = !sharing.policy.owner_user_id
     const ownerName = personName(owner) || sharing.policy.owner_user_id || ""
@@ -39,26 +44,30 @@ export const SessionAccessChip = ({
     return (
         <Popover>
             <PopoverTrigger asChild>
-                <button
-                    type="button"
-                    className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border-0 bg-muted px-2 text-xs font-medium text-foreground [font-family:inherit] hover:bg-accent"
-                >
-                    {canSend ? (
-                        <PaperPlaneTiltIcon size={12} aria-hidden />
-                    ) : (
-                        <EyeIcon size={12} aria-hidden />
-                    )}
-                    {canSend ? copy.chipCanSend : copy.chipViewOnly}
-                </button>
+                {trigger ?? (
+                    <button
+                        type="button"
+                        className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-md border-0 bg-secondary px-2 text-label text-foreground [font-family:inherit] hover:bg-accent"
+                    >
+                        {canSend ? (
+                            <PaperPlaneTiltIcon size={12} aria-hidden />
+                        ) : (
+                            <EyeIcon size={12} aria-hidden />
+                        )}
+                        {canSend ? copy.chipCanSend : copy.chipViewOnly}
+                    </button>
+                )}
             </PopoverTrigger>
-            <PopoverContent align="end" className="flex w-[300px] flex-col gap-2.5 p-3.5">
-                <span className="text-sm font-semibold">{copy.panelTitle}</span>
+            <PopoverContent align="end" className="flex w-80 flex-col gap-3 p-4">
+                <span className="text-label font-semibold">{copy.panelTitle}</span>
                 {owner && !ownerless && !fromChannel ? (
                     <div className="flex items-center gap-2">
                         <PersonAvatar person={owner} />
                         <div className="flex flex-col">
-                            <span className="text-sm font-medium">{personName(owner)}</span>
-                            <span className="text-xs text-muted-foreground">{copy.panelOwner}</span>
+                            <span className="text-label">{personName(owner)}</span>
+                            <span className="text-meta text-muted-foreground">
+                                {copy.panelOwner}
+                            </span>
                         </div>
                     </div>
                 ) : null}
@@ -66,7 +75,7 @@ export const SessionAccessChip = ({
                     <>
                         <Alert type="info" showIcon role="note" message={lines[0]} />
                         {lines.slice(1).map((line) => (
-                            <p key={line} className="m-0 text-sm text-muted-foreground">
+                            <p key={line} className="m-0 text-body text-muted-foreground">
                                 {line}
                             </p>
                         ))}
@@ -76,7 +85,9 @@ export const SessionAccessChip = ({
                         <p
                             key={line}
                             className={
-                                index === 0 ? "m-0 text-sm" : "m-0 text-sm text-muted-foreground"
+                                index === 0
+                                    ? "m-0 text-body"
+                                    : "m-0 text-body text-muted-foreground"
                             }
                         >
                             {line}

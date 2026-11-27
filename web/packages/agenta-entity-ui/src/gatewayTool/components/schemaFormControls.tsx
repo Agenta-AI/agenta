@@ -9,6 +9,8 @@
  */
 import {useEffect, useId, useMemo, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import schemaFormCatalog from "@agenta/i18n/catalogs/entityUi.schemaForm"
 import {dayjs} from "@agenta/shared/utils"
 import {
     Badge,
@@ -66,6 +68,7 @@ export function SelectControl({
     "aria-label"?: string
     "aria-labelledby"?: string
 }) {
+    const t = useT(schemaFormCatalog)
     const showClear = !!allowClear && value != null && value !== "" && !disabled
     return (
         <span className="group/select relative block w-full">
@@ -95,12 +98,12 @@ export function SelectControl({
             {showClear && (
                 <button
                     type="button"
-                    aria-label="Clear selection"
+                    aria-label={t("entityUi.schemaForm.clearSelection")}
                     onClick={(e) => {
                         e.stopPropagation()
                         onChange?.(undefined)
                     }}
-                    className="absolute right-2 top-1/2 hidden -translate-y-1/2 cursor-pointer border-0 bg-colorBgContainer p-0 text-colorTextTertiary hover:text-colorTextSecondary group-hover/select:block"
+                    className="absolute right-2 top-1/2 hidden -translate-y-1/2 cursor-pointer border-0 bg-background p-0 text-muted-foreground hover:text-muted-foreground group-hover/select:block"
                 >
                     <XCircle size={12} weight="fill" />
                 </button>
@@ -112,11 +115,12 @@ export function SelectControl({
 // antd `.ant-select-selection-item` chip skin, measured (getComputedStyle): h 24,
 // `colorFillSecondary` fill, radius 6 (= control-sm), pad 0 4px 0 8px, block margin 2px.
 const SELECT_CHIP_CLS =
-    "h-6 my-0.5 rounded-control-sm pl-2 pr-1 bg-colorFillSecondary text-xs leading-none"
+    "h-6 my-0.5 rounded-control-sm pl-2 pr-1 bg-secondary text-meta leading-none"
 
 // antd `.ant-select-multiple` box, measured: h 30 (24 chip + 2×2 margin + border),
 // padding 0 11px 0 1px; the arrow is absolutely positioned (it must not wrap).
-const MULTI_BOX_CLS = "relative h-auto min-h-[30px] flex-wrap justify-start gap-x-1 py-0 pl-px pr-6"
+const MULTI_BOX_CLS =
+    "relative h-auto min-h-control flex-wrap justify-start gap-x-1 py-0 pl-px pr-6"
 
 /** Removable chip (antd closable `Tag` / select selection-item). */
 export function Chip({
@@ -130,6 +134,7 @@ export function Chip({
     disabled?: boolean
     className?: string
 }) {
+    const t = useT(schemaFormCatalog)
     return (
         <Badge variant="default" className={cn("max-w-full", className)}>
             <span className="truncate">{label}</span>
@@ -138,12 +143,12 @@ export function Chip({
                 // button and a tabbable control there is an axe nested-interactive violation.
                 <span
                     role="button"
-                    aria-label={`Remove ${label}`}
+                    aria-label={t("entityUi.schemaForm.removeLabel", {label})}
                     onClick={(e) => {
                         e.stopPropagation()
                         onRemove()
                     }}
-                    className="inline-flex cursor-pointer border-0 bg-transparent p-0 text-colorIcon hover:text-colorText"
+                    className="inline-flex cursor-pointer border-0 bg-transparent p-0 text-muted-foreground hover:text-foreground"
                 >
                     <X size={10} />
                 </span>
@@ -191,7 +196,7 @@ export function MultiSelect({
                     )}
                 >
                     {selected.length === 0 ? (
-                        <span className="pl-2.5 text-placeholder">{placeholder}</span>
+                        <span className="pl-2.5 text-muted-foreground">{placeholder}</span>
                     ) : (
                         selected.map((v) => (
                             <Chip
@@ -205,7 +210,7 @@ export function MultiSelect({
                     )}
                     <CaretDown
                         size={12}
-                        className="absolute right-[11px] top-1/2 -translate-y-1/2 text-placeholder"
+                        className="absolute right-[11px] top-1/2 -translate-y-1/2 text-muted-foreground"
                     />
                 </button>
             </DropdownMenuTrigger>
@@ -258,6 +263,7 @@ export function ChipsInput({
     /** Suggested values, offered in a dropdown. Typing a value not in the list still works. */
     options?: string[]
 }) {
+    const t = useT(schemaFormCatalog)
     const [draft, setDraft] = useState("")
     const [open, setOpen] = useState(false)
     const [activeIndex, setActiveIndex] = useState(0)
@@ -399,7 +405,7 @@ export function ChipsInput({
             {hasSuggestions && (
                 <CaretDown
                     size={12}
-                    className="absolute right-[11px] top-1/2 -translate-y-1/2 text-placeholder"
+                    className="absolute right-[11px] top-1/2 -translate-y-1/2 text-muted-foreground"
                 />
             )}
         </div>
@@ -412,7 +418,7 @@ export function ChipsInput({
             <PopoverAnchor asChild>{box}</PopoverAnchor>
             <PopoverContent
                 align="start"
-                aria-label="Suggestions"
+                aria-label={t("entityUi.schemaForm.suggestions")}
                 // Focus stays in the input — the list is driven by aria-activedescendant.
                 onOpenAutoFocus={(e) => e.preventDefault()}
                 onCloseAutoFocus={(e) => e.preventDefault()}
@@ -425,8 +431,8 @@ export function ChipsInput({
                     id={listId}
                     ref={listRef}
                     role="listbox"
-                    aria-label="Suggestions"
-                    className="max-h-[300px] overflow-y-auto"
+                    aria-label={t("entityUi.schemaForm.suggestions")}
+                    className="max-h-75 overflow-y-auto"
                 >
                     {matches.map((o, index) => (
                         <div
@@ -494,8 +500,8 @@ export function DateTimeInput({
                 onChange?.(next ? dayjs(next) : undefined)
             }}
             // Native date controls add intrinsic height; clamp to the measured antd
-            // picker box (30px) so the row lines up with the other fields.
-            className="h-[30px] w-full"
+            // picker box (control-md) so the row lines up with the other fields.
+            className="h-control w-full"
         />
     )
 }

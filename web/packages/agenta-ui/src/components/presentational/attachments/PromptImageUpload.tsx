@@ -21,6 +21,9 @@
 
 import {useEffect, useMemo, useRef, useState} from "react"
 
+import {createT, richText, useT} from "@agenta/i18n"
+import uiChatCatalog from "@agenta/i18n/catalogs/ui.chat"
+import uiChatActionsCatalog from "@agenta/i18n/catalogs/ui.chatActions"
 import {generateId} from "@agenta/shared/utils"
 import {Image as ImageIcon, MinusCircle} from "@phosphor-icons/react"
 import clsx from "clsx"
@@ -33,6 +36,8 @@ import {Spinner} from "../../ui/spinner"
 import ImagePreview from "./ImagePreview"
 import {usePromptFileUpload} from "./usePromptFileUpload"
 import {resolveSafeImagePreviewSrc} from "./utils"
+
+const tNow = createT(uiChatCatalog, uiChatActionsCatalog)
 
 // ============================================================================
 // TYPES
@@ -95,6 +100,7 @@ const PromptImageUpload = ({
     handleUploadFileChange,
     imageFile,
 }: PromptImageUploadProps) => {
+    const t = useT(uiChatCatalog, uiChatActionsCatalog)
     const fileUploadRef = useRef(false)
 
     const [draftValue, setDraftValue] = useState<string | null>(null)
@@ -110,9 +116,9 @@ const PromptImageUpload = ({
         isDragging,
     } = usePromptFileUpload({
         maxSize: MAX_SIZE,
-        sizeError: "Image size must be less than 5MB.",
+        sizeError: t("ui.chat.imageTooLarge"),
         isTypeAllowed: (file) => ALLOWED_TYPES.includes(file.type),
-        typeError: "Unsupported image format. Use JPEG, PNG, WebP, or GIF.",
+        typeError: t("ui.chat.unsupportedImage"),
         disabled,
         onAccepted: (file, dataUrl) => {
             const previewUrl = URL.createObjectURL(file)
@@ -158,7 +164,7 @@ const PromptImageUpload = ({
         }
 
         if (!isValidImageUrl(val)) {
-            setError("Invalid URL format.")
+            setError(tNow("ui.chat.invalidUrl"))
             setIsValidPreview(false)
             return
         }
@@ -183,7 +189,7 @@ const PromptImageUpload = ({
 
         img.onerror = () => {
             setIsValidPreview(false)
-            setError("Preview failed due to CORS or invalid image URL.")
+            setError(tNow("ui.chat.previewFailed"))
         }
     }
 
@@ -217,28 +223,35 @@ const PromptImageUpload = ({
                 ) : isValidPreview ? (
                     <ImagePreview
                         src={displayValue}
-                        alt="Preview"
+                        alt={t("ui.chatActions.preview")}
                         size={48}
                         isValidPreview={isValidPreview}
                     />
                 ) : (
                     <ImageIcon
                         size={48}
-                        className={clsx(error ? "text-colorError" : "text-colorTextTertiary")}
+                        className={clsx(error ? "text-destructive" : "text-muted-foreground")}
                     />
                 )}
 
                 <div className="flex flex-col w-full items-start">
-                    <span className="text-xs">
-                        Drag an image here or{" "}
-                        <Button variant="link" className="p-0 underline" onClick={triggerUpload}>
-                            upload a file
-                        </Button>
+                    <span className="text-meta">
+                        {richText(t("ui.chat.dragImage"), {
+                            link: (text) => (
+                                <Button
+                                    variant="link"
+                                    className="p-0 underline"
+                                    onClick={triggerUpload}
+                                >
+                                    {text}
+                                </Button>
+                            ),
+                        })}
                     </span>
 
                     {!isUploading && (
                         <InputAffix
-                            placeholder="(Optionally) Enter a valid URL"
+                            placeholder={t("ui.chat.optionalUrl")}
                             value={displayValue}
                             onValueChange={(next) => {
                                 setDraftValue(next)
@@ -253,7 +266,7 @@ const PromptImageUpload = ({
                         <Progress size="small" percent={imageFile?.percent} showInfo={false} />
                     )}
 
-                    {error && <span className="mt-1 text-xs text-colorError">{error}</span>}
+                    {error && <span className="mt-1 text-meta text-destructive">{error}</span>}
                 </div>
             </div>
         )
@@ -278,8 +291,8 @@ const PromptImageUpload = ({
                     // and border add to `w-full` and the row overflows its container by 14px
                     // (antd's own reset gave the Dragger border-box for free).
                     "w-full box-border flex items-center gap-4 py-2 pr-1 pl-2 rounded-md border border-solid",
-                    error ? "border-colorError" : "border-colorBorder",
-                    isDragging && !disabled && "border-colorPrimary",
+                    error ? "border-destructive" : "border-border",
+                    isDragging && !disabled && "border-primary",
                     disabled ? "cursor-not-allowed" : "cursor-pointer",
                 )}
             >

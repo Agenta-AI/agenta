@@ -1,18 +1,24 @@
 import {useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import drawerCatalog from "@agenta/i18n/catalogs/observabilityUi.traceDrawer"
 import type {TraceSpanNode} from "@agenta/observability"
 import type {TracesWithAnnotations} from "@agenta/observability/dto"
 import {useTraceDrawer} from "@agenta/observability/traceDrawer"
-import {Accordion, AccordionContent, AccordionItem, AccordionTrigger} from "@agenta/ui/ui"
-
-import {SkeletonBlock} from "../primitives/SkeletonBlock"
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+    SkeletonBlock,
+} from "@agenta/ui/ui"
 
 import TraceAnnotations from "./TraceAnnotations"
 import TraceDetails from "./TraceDetails"
 import TraceLinkedSpans from "./TraceLinkedSpans"
 import TraceReferences from "./TraceReferences"
 
-const collapseItemLabelClass = "text-xs font-medium leading-[1.6666666666666667]"
+const collapseItemLabelClass = "text-label"
 
 const TraceSidePanel = ({
     activeTrace,
@@ -23,6 +29,7 @@ const TraceSidePanel = ({
     activeTraceId?: string
     isLoading?: boolean
 }) => {
+    const t = useT(drawerCatalog)
     const {getTraceById} = useTraceDrawer()
     const derived = activeTrace || getTraceById(activeTraceId)
 
@@ -33,7 +40,7 @@ const TraceSidePanel = ({
             <div className="flex flex-col gap-2">
                 {/* antd `Skeleton paragraph={{rows: 4}}` */}
                 {[0, 1, 2, 3].map((row) => (
-                    <SkeletonBlock key={row} />
+                    <SkeletonBlock key={row} className="max-w-[160px]" />
                 ))}
             </div>
         </div>
@@ -41,7 +48,7 @@ const TraceSidePanel = ({
 
     const emptyState = (message: string) => (
         <div className="px-3 py-4">
-            <span className="text-colorTextSecondary text-sm">{message}</span>
+            <span className="text-muted-foreground text-body">{message}</span>
         </div>
     )
 
@@ -50,7 +57,7 @@ const TraceSidePanel = ({
     ) : derived ? (
         <TraceAnnotations annotations={derived?.annotations || []} />
     ) : (
-        emptyState("Select a span to view annotations.")
+        emptyState(t("observabilityUi.traceDrawer.selectSpanAnnotations"))
     )
 
     const detailsContent = showLoading ? (
@@ -58,7 +65,7 @@ const TraceSidePanel = ({
     ) : derived ? (
         <TraceDetails activeTrace={derived as TraceSpanNode} />
     ) : (
-        emptyState("Select a span to view trace details.")
+        emptyState(t("observabilityUi.traceDrawer.selectSpanDetails"))
     )
 
     const linkedContent = showLoading ? (
@@ -66,7 +73,7 @@ const TraceSidePanel = ({
     ) : derived ? (
         <TraceLinkedSpans />
     ) : (
-        emptyState("No linked spans found.")
+        emptyState(t("observabilityUi.traceDrawer.noLinkedSpans"))
     )
 
     const referencesContent = showLoading ? (
@@ -74,33 +81,49 @@ const TraceSidePanel = ({
     ) : derived ? (
         <TraceReferences />
     ) : (
-        emptyState("No references found.")
+        emptyState(t("observabilityUi.traceDrawer.noReferences"))
     )
 
     const items = useMemo(
         () => [
             {
                 key: "annotations",
-                label: <span className={collapseItemLabelClass}>Annotations</span>,
+                label: (
+                    <span className={collapseItemLabelClass}>
+                        {t("observabilityUi.traceDrawer.tabAnnotations")}
+                    </span>
+                ),
                 children: annotationsContent,
             },
             {
                 key: "details",
-                label: <span className={collapseItemLabelClass}>Trace info</span>,
+                label: (
+                    <span className={collapseItemLabelClass}>
+                        {t("observabilityUi.traceDrawer.traceInfo")}
+                    </span>
+                ),
                 children: detailsContent,
             },
             {
                 key: "references",
-                label: <span className={collapseItemLabelClass}>References</span>,
+                label: (
+                    <span className={collapseItemLabelClass}>
+                        {t("observabilityUi.traceDrawer.references")}
+                    </span>
+                ),
                 children: referencesContent,
             },
             {
                 key: "linked",
-                label: <span className={collapseItemLabelClass}>Linked spans</span>,
+                label: (
+                    <span className={collapseItemLabelClass}>
+                        {t("observabilityUi.traceDrawer.linkedSpansSection")}
+                    </span>
+                ),
                 children: linkedContent,
             },
         ],
-        [activeTrace, derived],
+        [activeTrace, derived, t],
     )
 
     return (
@@ -110,14 +133,12 @@ const TraceSidePanel = ({
             className="transition-all duration-300 ease-[ease] max-w-full overflow-hidden opacity-100 rounded-none border-0"
         >
             {items.map((item) => (
-                <AccordionItem
-                    key={item.key}
-                    value={item.key}
-                    className="border-[var(--ag-colorSplit)]"
-                >
-                    {/* antd's header padding was 10.5px; the panel body was 12px. */}
-                    <AccordionTrigger className="!py-[10.5px]">{item.label}</AccordionTrigger>
-                    <AccordionContent className="p-3 border-[var(--ag-colorSplit)]">
+                <AccordionItem key={item.key} value={item.key} className="border-border-muted">
+                    {/* Section headers on the row scale: row-single (ROW-01). */}
+                    <AccordionTrigger className="box-border h-row-single !items-center !py-0">
+                        {item.label}
+                    </AccordionTrigger>
+                    <AccordionContent className="p-3 border-border-muted">
                         {item.children}
                     </AccordionContent>
                 </AccordionItem>

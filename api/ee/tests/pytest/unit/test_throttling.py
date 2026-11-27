@@ -120,6 +120,7 @@ async def test_throttle_still_counts_browser_ingest_and_other_routes(
         ("GET", "/sessions/streams/"),
         ("GET", "/sessions/attachments/attachment-1/content"),
         ("POST", "/sessions/mounts/sign"),
+        ("POST", "/mounts/sign"),
         ("GET", "/access/permissions/check"),
         ("POST", "/secrets/secret-1/subscription-login/failure"),
     ],
@@ -253,3 +254,63 @@ async def test_platform_bookkeeping_over_its_budget_gets_a_429_with_retry_after(
     assert response.status_code == 429
     assert response.headers["Retry-After"] == "2"
     call_next.assert_not_awaited()
+
+
+@pytest.mark.parametrize("plan", ["self_hosted_community", None])
+async def test_self_hosted_plan_without_throttles_is_not_throttled(plan):
+    request = _request("/evaluations/runs/query")
+    call_next = AsyncMock(return_value=Response(status_code=200))
+
+    with (
+        patch(
+            "ee.src.middlewares.throttling._get_plan",
+            new_callable=AsyncMock,
+            return_value=plan,
+        ),
+        patch("ee.src.middlewares.throttling.is_cloud", return_value=False),
+        patch(
+            "ee.src.middlewares.throttling.check_throttles", new_callable=AsyncMock
+        ) as check_throttles,
+    ):
+        for _ in range(200):
+            response = await throttling_middleware(request, call_next)
+            assert response.status_code == 200
+
+    check_throttles.assert_not_awaited()
+
+
+async def test_cloud_plan_without_throttles_falls_back_to_the_free_plan():
+    request = _request("/evaluations/runs/query")
+    call_next = AsyncMock(return_value=Response(status_code=200))
+    standard = Throttle(
+        categories=[Category.STANDARD],
+        mode=Mode.INCLUDE,
+        bucket=Bucket(capacity=10, rate=10),
+    )
+    allowed = SimpleNamespace(allow=True, tokens_remaining=9, retry_after_seconds=0)
+
+    def entitlements(plan):
+        return {Tracker.THROTTLES: [standard]} if plan == "free-plan" else {}
+
+    with (
+        patch(
+            "ee.src.middlewares.throttling._get_plan",
+            new_callable=AsyncMock,
+            return_value="no-throttles-plan",
+        ),
+        patch("ee.src.middlewares.throttling.is_cloud", return_value=True),
+        patch("ee.src.middlewares.throttling.get_free_plan", return_value="free-plan"),
+        patch(
+            "ee.src.middlewares.throttling.get_plan_entitlements",
+            side_effect=entitlements,
+        ),
+        patch(
+            "ee.src.middlewares.throttling.check_throttles",
+            new_callable=AsyncMock,
+            return_value=[allowed],
+        ) as check_throttles,
+    ):
+        await throttling_middleware(request, call_next)
+
+    (checks,), _ = check_throttles.await_args
+    assert checks and all(key["plan"] == "free-plan" for key, _, _ in checks)

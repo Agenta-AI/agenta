@@ -7,9 +7,18 @@
  */
 import {lazy, Suspense, useRef} from "react"
 
+import {useT} from "@agenta/i18n"
+import customProviderFormCatalog from "@agenta/i18n/catalogs/entityUi.customProviderForm"
 import type {LlmProvider} from "@agenta/shared/types"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button, Spinner} from "@agenta/ui/ui"
+import {
+    Button,
+    Sheet,
+    SheetContent,
+    SheetFooter,
+    SheetHeader,
+    SheetTitle,
+    Spinner,
+} from "@agenta/ui/ui"
 import {LinkSimple} from "@phosphor-icons/react"
 
 import type {CustomProviderFormHandle} from "./CustomProviderForm"
@@ -28,17 +37,22 @@ export interface ConfigureProviderDrawerProps {
     initialProviderKind?: string
 }
 
-const ConfigureProviderDrawerTitle = () => (
-    <div className="flex items-center justify-between">
-        <span className="text-sm font-medium">Configure provider</span>
-        <Button variant="link" size="sm" asChild>
-            <a href={HOW_TO_USE_URL} target="_blank" rel="noreferrer" className="no-underline">
-                <LinkSimple size={14} />
-                How to use
-            </a>
-        </Button>
-    </div>
-)
+const ConfigureProviderDrawerTitle = () => {
+    const t = useT(customProviderFormCatalog)
+    return (
+        <div className="flex items-center justify-between">
+            <span className="text-label font-medium">
+                {t("entityUi.customProviderForm.configureProvider")}
+            </span>
+            <Button variant="link" size="sm" asChild>
+                <a href={HOW_TO_USE_URL} target="_blank" rel="noreferrer" className="no-underline">
+                    <LinkSimple size={14} />
+                    {t("entityUi.customProviderForm.howToUse")}
+                </a>
+            </Button>
+        </div>
+    )
+}
 
 export const ConfigureProviderDrawer = ({
     open,
@@ -46,6 +60,7 @@ export const ConfigureProviderDrawer = ({
     selectedProvider,
     initialProviderKind,
 }: ConfigureProviderDrawerProps) => {
+    const t = useT(customProviderFormCatalog)
     const formRef = useRef<CustomProviderFormHandle | null>(null)
 
     const handleClose = () => {
@@ -54,31 +69,40 @@ export const ConfigureProviderDrawer = ({
     }
 
     return (
-        <EnhancedDrawer
+        <Sheet
             open={open}
-            title={<ConfigureProviderDrawerTitle />}
-            width={480}
-            onClose={handleClose}
-            footer={
-                <div className="flex justify-end items-center gap-2 py-2 px-3">
-                    <Button variant="outline" onClick={handleClose}>
-                        Cancel
-                    </Button>
-                    <Button variant="default" onClick={() => formRef.current?.submit()}>
-                        Submit
-                    </Button>
-                </div>
-            }
+            onOpenChange={(next) => {
+                if (!next) handleClose()
+            }}
         >
-            <Suspense fallback={<Spinner className="m-4" />}>
-                <CustomProviderForm
-                    formRef={formRef}
-                    selectedProvider={selectedProvider}
-                    initialProviderKind={initialProviderKind}
-                    onClose={handleClose}
-                />
-            </Suspense>
-        </EnhancedDrawer>
+            <SheetContent side="right" style={{width: 480, maxWidth: "calc(100% - 1rem)"}}>
+                <SheetHeader>
+                    <SheetTitle className="min-w-0">
+                        <ConfigureProviderDrawerTitle />
+                    </SheetTitle>
+                </SheetHeader>
+                <div className="min-h-0 flex-1 overflow-y-auto p-4 text-field-md text-foreground">
+                    <Suspense fallback={<Spinner className="m-4" />}>
+                        <CustomProviderForm
+                            formRef={formRef}
+                            selectedProvider={selectedProvider}
+                            initialProviderKind={initialProviderKind}
+                            onClose={handleClose}
+                        />
+                    </Suspense>
+                </div>
+                <SheetFooter>
+                    <div className="flex justify-end items-center gap-2 py-2 px-3">
+                        <Button variant="outline" onClick={handleClose}>
+                            {t("entityUi.customProviderForm.cancel")}
+                        </Button>
+                        <Button variant="default" onClick={() => formRef.current?.submit()}>
+                            {t("entityUi.customProviderForm.submit")}
+                        </Button>
+                    </div>
+                </SheetFooter>
+            </SheetContent>
+        </Sheet>
     )
 }
 

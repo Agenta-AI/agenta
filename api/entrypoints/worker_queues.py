@@ -17,7 +17,10 @@ taskiq.receiver.Receiver.listen(finish_event), a plain coroutine; start_listen
 awaits exactly that after all the process/signal/executor setup. This
 entrypoint does that setup itself (once, for the whole process) and drives one
 Receiver per selected broker as a sibling asyncio task. See
-docs/designs/workers-sprawl/specs.md for the full writeup.
+docs/design/workers-sprawl/specs.md for the full writeup.
+
+When channels-inbox is selected, the process also runs the Discord socket loop
+as a sibling task (oss/src/tasks/asyncio/channels/discord_socket.py).
 
 Replaces the removed single-broker queue entrypoints; this is now the sole
 queue-consumer entrypoint.
@@ -39,6 +42,7 @@ from entrypoints.access import bootstrap_access
 from oss.src.core.access.service import get_access_service
 from oss.src.core.sharing.admission import RunAdmission
 from oss.src.core.sessions.commands.delivery import (
+    deliver_continue_input,
     deliver_continue_interaction,
 )
 from oss.src.utils import heartbeat
@@ -62,6 +66,7 @@ from oss.src.core.evaluators.service import EvaluatorsService, SimpleEvaluatorsS
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.sessions.commands.service import SessionCommandsService
 from oss.src.core.sessions.inputs.service import SessionInputsService
+from oss.src.core.sessions.starts.service import SessionStartsService
 from oss.src.core.sessions.context import make_session_context_resolver
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.records.service import RecordsService
@@ -71,6 +76,9 @@ from oss.src.core.testcases.service import TestcasesService
 from oss.src.core.testsets.service import SimpleTestsetsService, TestsetsService
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.workflows.service import WorkflowsService
+from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
+from oss.src.core.mounts.service import MountsService
+from oss.src.dbs.postgres.mounts.dao import MountsDAO
 from oss.src.dbs.postgres.blobs.dao import BlobsDAO
 from oss.src.dbs.postgres.environments.dbes import (
     EnvironmentArtifactDBE,
@@ -124,6 +132,7 @@ from oss.src.core.channels.queue import ChannelSessionQueue
 from oss.src.core.channels.service import ChannelsService
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
 from oss.src.dbs.postgres.channels.identity_dao import ChannelIdentityDAO
+from oss.src.tasks.asyncio.channels.discord_socket import DiscordSocketLoop
 from oss.src.tasks.asyncio.channels.inbox import InboxDispatcher
 from oss.src.tasks.asyncio.sessions.interactions_dispatcher import (
     InteractionsDispatcher,
@@ -166,6 +175,9 @@ MAXLEN_QUEUES_CHANNELS_INBOX = 100_000
 
 _WORKER_ID = str(uuid4())
 _worker_heartbeat_task: "asyncio.Task | None" = None
+# The channels-inbox builder's service, with the dispatch task of the worker it
+# builds. The Discord socket loop stores and enqueues through it.
+_channels_inbox_service: "ChannelsService | None" = None
 
 
 def _selected_queues() -> List[str]:
@@ -179,6 +191,13 @@ def _selected_queues() -> List[str]:
             f"expected a subset of {ALL_QUEUES}"
         )
     return selected
+
+
+def _install_mount_lookup(workflows_service: WorkflowsService) -> None:
+    """Let a worker's ``WorkflowsService`` check and fill agent drives, as the API does."""
+    workflows_service.set_mount_lookup(
+        MountsService(mounts_dao=MountsDAO(), workflows_service=workflows_service)
+    )
 
 
 def _install_session_context_resolver(
@@ -216,6 +235,82 @@ def _run_admission(workflows_service: WorkflowsService) -> RunAdmission:
     return RunAdmission(
         access_service=get_access_service(),
         workflows_service=workflows_service,
+    )
+
+
+def _build_session_starts_service(
+    *,
+    workflows_service: WorkflowsService,
+    run_admission: RunAdmission,
+    transactions_engine,
+    dispatch_fn,
+) -> SessionStartsService:
+    """The session queue the API composition has, for a worker that puts a server
+    input into an existing session (a schedule's fire into a session). The commands
+    service gives the recoverable-continuation check and the Stop-versus-Steer read, as
+    in the API."""
+
+    streams_dao = SessionStreamsDAO(engine=transactions_engine)
+    streams_service = SessionStreamsService(
+        streams_dao=streams_dao,
+        lock_engine=get_lock_engine(),
+    )
+    executions_dao = SessionExecutionsDAO(engine=transactions_engine)
+    inputs_dao = SessionInputsDAO(engine=transactions_engine)
+    interactions_dao = SessionInteractionsDAO(engine=transactions_engine)
+    turns_dao = SessionTurnsDAO(engine=transactions_engine)
+    turns_service = SessionTurnsService(turns_dao=turns_dao)
+    interactions_dispatcher = InteractionsDispatcher(
+        workflows_service=workflows_service,
+        run_admission=run_admission,
+        interactions_service=SessionInteractionsService(
+            interactions_dao=interactions_dao,
+            watch_publisher=SessionsWatchPublisher(),
+        ),
+        records_service=RecordsService(
+            records_dao=RecordsDAO(engine=get_analytics_engine()),
+        ),
+        turns_service=turns_service,
+        streams_service=streams_service,
+        dispatch_fn=dispatch_fn,
+    )
+    commands_service = SessionCommandsService(
+        commands_dao=SessionCommandsDAO(engine=transactions_engine),
+        streams_service=streams_service,
+        interactions_service=interactions_dispatcher.interactions_service,
+        lock_engine=get_lock_engine(),
+        delivery=DirectControlDelivery(
+            continue_interaction=lambda command: deliver_continue_interaction(
+                command=command,
+                interactions_dispatcher=interactions_dispatcher,
+            ),
+            continue_input=lambda command: deliver_continue_input(
+                command=command,
+                workflows_service=workflows_service,
+                run_admission=run_admission,
+            ),
+        ),
+        executions_dao=executions_dao,
+        inputs_dao=inputs_dao,
+        streams_dao=streams_dao,
+        turns_dao=turns_dao,
+    )
+    return SessionStartsService(
+        inputs_service=SessionInputsService(
+            inputs_dao=inputs_dao,
+            interactions_dao=interactions_dao,
+            streams_service=streams_service,
+            executions_dao=executions_dao,
+            continuation_resumer=commands_service.resume_recoverable_continuation,
+        ),
+        run_admission=run_admission,
+        executions_dao=executions_dao,
+        streams_dao=streams_dao,
+        inputs_dao=inputs_dao,
+        turns_dao=turns_dao,
+        cancelled_by_steer=commands_service.cancelled_by_steer,
+        workflows_service=workflows_service,
+        lock_engine=get_lock_engine(),
     )
 
 
@@ -257,8 +352,10 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
     )
     workflows_service = WorkflowsService(
         workflows_dao=workflows_dao,
+        static_catalog=StaticWorkflowCatalog(),
         watch_publisher=SessionsWatchPublisher(),
     )
+    _install_mount_lookup(workflows_service)
     environments_service = EnvironmentsService(environments_dao=environments_dao)
     embeds_service = EmbedsService(
         workflows_service=workflows_service,
@@ -291,12 +388,19 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
     # The delivery now settles at 202/dispatched. That is honest but incomplete: nothing writes
     # the run's terminal outcome afterwards, so a delivery stays "dispatched" for good. The
     # durable completion callback that would close it is still to come.
+    run_admission = _run_admission(workflows_service)
     triggers_dispatcher = TriggersDispatcher(
         triggers_dao=triggers_dao,
         session_claims_dao=session_streams_dao,
         workflows_service=workflows_service,
-        run_admission=_run_admission(workflows_service),
+        run_admission=run_admission,
         dispatch_fn=_dispatch_detached_run,
+        session_starts_service=_build_session_starts_service(
+            workflows_service=workflows_service,
+            run_admission=run_admission,
+            transactions_engine=transactions_engine,
+            dispatch_fn=_dispatch_detached_run,
+        ),
     )
     TriggersWorker(
         broker=broker, dispatcher=triggers_dispatcher, triggers_dao=triggers_dao
@@ -336,7 +440,11 @@ def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
         VariantDBE=EnvironmentVariantDBE,
         RevisionDBE=EnvironmentRevisionDBE,
     )
-    workflows_service = WorkflowsService(workflows_dao=workflows_dao)
+    workflows_service = WorkflowsService(
+        workflows_dao=workflows_dao,
+        static_catalog=StaticWorkflowCatalog(),
+    )
+    _install_mount_lookup(workflows_service)
     environments_service = EnvironmentsService(environments_dao=environments_dao)
     embeds_service = EmbedsService(
         workflows_service=workflows_service,
@@ -425,8 +533,9 @@ def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
         ),
     )
 
+    channels_service = _build_channels_service()
     dispatcher = InboxDispatcher(
-        channels_service=_build_channels_service(),
+        channels_service=channels_service,
         run_admission=run_admission,
         workflows_service=workflows_service,
         identity_service=ChannelIdentityService(
@@ -442,7 +551,10 @@ def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
             workflows_service=workflows_service
         ),
     )
-    ChannelsInboxWorker(broker=broker, dispatcher=dispatcher)
+    worker = ChannelsInboxWorker(broker=broker, dispatcher=dispatcher)
+    channels_service.inbox_dispatch_task = worker.dispatch_inbox_event
+    global _channels_inbox_service
+    _channels_inbox_service = channels_service
     return broker, 50  # max_async_tasks
 
 
@@ -470,8 +582,10 @@ def _build_interactions_broker() -> tuple[AsyncBroker, int]:
     )
     workflows_service = WorkflowsService(
         workflows_dao=workflows_dao,
+        static_catalog=StaticWorkflowCatalog(),
         watch_publisher=SessionsWatchPublisher(),
     )
+    _install_mount_lookup(workflows_service)
     environments_service = EnvironmentsService(environments_dao=environments_dao)
     embeds_service = EmbedsService(
         workflows_service=workflows_service,
@@ -550,8 +664,10 @@ def _build_evaluations_broker() -> tuple[AsyncBroker, int]:
     SimpleTestsetsService(testsets_service=testsets_service)
     workflows_service = WorkflowsService(
         workflows_dao=workflows_dao,
+        static_catalog=StaticWorkflowCatalog(),
         watch_publisher=SessionsWatchPublisher(),
     )
+    _install_mount_lookup(workflows_service)
     evaluators_service = EvaluatorsService(workflows_service=workflows_service)
     simple_evaluators_service = SimpleEvaluatorsService(
         evaluators_service=evaluators_service
@@ -646,6 +762,11 @@ async def main_async() -> int:
         validate_required_env_vars()
 
         if is_ee():
+            from ee.src.core.licenses.cloud import (  # noqa: PLC0415
+                validate_cloud_license,
+            )
+
+            validate_cloud_license()
             bootstrap_entitlements_services()
 
         bootstrap_access()
@@ -659,6 +780,14 @@ async def main_async() -> int:
         for name in queues:
             broker, max_async_tasks = _BUILDERS[name]()
             tasks.append(_run_receiver(name, broker, max_async_tasks, shutdown_event))
+
+        # Discord delivers only over its Gateway socket, so the process that
+        # consumes channels-inbox also holds the Discord sockets, under one lock.
+        if "channels-inbox" in queues:
+            # Set by the channels-inbox builder, which ran in the loop above.
+            assert _channels_inbox_service is not None
+            sockets = DiscordSocketLoop(channels_service=_channels_inbox_service)
+            tasks.append(sockets.run(shutdown_event))
 
         # taskiq owns the receive loop, so there is no per-turn place to report from
         # here as there is in the stream consumers. This sibling task reports on an

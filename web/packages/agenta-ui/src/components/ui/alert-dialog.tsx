@@ -1,13 +1,17 @@
 import * as React from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import {XIcon} from "@phosphor-icons/react"
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
-import {X} from "lucide-react"
 
 import {Button, buttonVariants} from "./button"
+import {useDialogScope} from "./dialog-scope"
 import {cn} from "./utils"
 
 /**
- * AlertDialog — the shadcn confirm dialog on Radix; shares Dialog's chrome at a 384px width.
+ * AlertDialog — the shadcn confirm dialog on Radix: the title and text, then the buttons in a
+ * muted footer band, the same band as DialogFooter.
  * Replaces antd Modal.confirm: Action = primary Button, Cancel = outline Button.
  */
 
@@ -32,7 +36,7 @@ function AlertDialogOverlay({
             data-slot="alert-dialog-overlay"
             className={cn(
                 // Same mask as Dialog.
-                "fixed inset-0 isolate z-50 bg-black/10 supports-[backdrop-filter]:backdrop-blur-[4px]",
+                "fixed inset-0 isolate z-50 bg-overlay",
                 "data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out",
                 className,
             )}
@@ -43,7 +47,7 @@ function AlertDialogOverlay({
 
 function AlertDialogContent({
     className,
-    container,
+    container: containerProp,
     children,
     showCloseButton = false,
     ...props
@@ -51,9 +55,13 @@ function AlertDialogContent({
     /** Portal target; defaults to document.body. A given container (positioned) is the dialog's
      * whole world: mask and dialog cover it, not the window. */
     container?: HTMLElement | null
-    /** No close X by default (an alert forces a choice); opting in makes dismiss = cancel. */
+    /** No close XIcon by default (an alert forces a choice); opting in makes dismiss = cancel. */
     showCloseButton?: boolean
 }) {
+    const t = useT(commonCatalog)
+    // Opened inside a DialogScope (a side pane), it covers that region, not the window.
+    const scope = useDialogScope()
+    const container = containerProp ?? scope
     return (
         <AlertDialogPortal container={container}>
             <AlertDialogOverlay className={container ? "absolute" : undefined} />
@@ -70,9 +78,8 @@ function AlertDialogContent({
                     className={cn(
                         // Same chrome as DialogContent.
                         "relative pointer-events-auto font-portal",
-                        "box-border flex max-h-full w-full max-w-sm flex-col gap-4 overflow-y-auto",
-                        "rounded-xl bg-popover p-4 text-sm text-popover-foreground outline-none",
-                        "ring-1 ring-[color:color-mix(in_srgb,var(--ag-colorText)_10%,transparent)]",
+                        "box-border flex max-h-full w-full max-w-[400px] flex-col gap-2 overflow-y-auto",
+                        "rounded-xl bg-popover p-5 text-body text-popover-foreground outline-none shadow-modal",
                         "data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out",
                         className,
                     )}
@@ -84,11 +91,11 @@ function AlertDialogContent({
                         <AlertDialogPrimitive.Cancel data-slot="alert-dialog-close-x" asChild>
                             <Button
                                 variant="ghost"
-                                size="icon-sm"
+                                size="icon-compact"
                                 className="absolute right-2 top-2"
-                                aria-label="Close"
+                                aria-label={t("common.close")}
                             >
-                                <X />
+                                <XIcon />
                             </Button>
                         </AlertDialogPrimitive.Cancel>
                     ) : null}
@@ -102,7 +109,7 @@ function AlertDialogHeader({className, ...props}: React.ComponentProps<"div">) {
     return (
         <div
             data-slot="alert-dialog-header"
-            className={cn("flex flex-col gap-2", className)}
+            className={cn("flex flex-col gap-1", className)}
             {...props}
         />
     )
@@ -112,11 +119,13 @@ function AlertDialogFooter({className, ...props}: React.ComponentProps<"div">) {
     return (
         <div
             data-slot="alert-dialog-footer"
-            // Same band as DialogFooter.
+            // Full-bleed muted band (-m undoes the content's p-5), as in DialogFooter.
+            // border-0 first: preflight is off, so `border-solid` alone would paint every side.
             className={cn(
-                "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl p-4 sm:flex-row sm:justify-end",
-                "border-0 border-t border-solid border-border",
-                "bg-[color:color-mix(in_srgb,var(--ag-colorFillTertiary)_50%,transparent)]",
+                "-mx-5 -mb-5 mt-3 flex flex-col-reverse gap-2 rounded-b-xl px-5 py-4",
+                "sm:flex-row sm:justify-end",
+                "border-0 border-t border-solid border-border-muted",
+                "bg-[color:color-mix(in_srgb,var(--secondary)_50%,transparent)]",
                 className,
             )}
             {...props}
@@ -132,7 +141,7 @@ function AlertDialogTitle({
         <AlertDialogPrimitive.Title
             data-slot="alert-dialog-title"
             // m-0 resets the UA <h2> margin (preflight off).
-            className={cn("m-0 text-base font-medium leading-none", className)}
+            className={cn("m-0 text-title", className)}
             {...props}
         />
     )
@@ -146,7 +155,7 @@ function AlertDialogDescription({
         <AlertDialogPrimitive.Description
             data-slot="alert-dialog-description"
             // m-0 resets the UA <p> margin (preflight off).
-            className={cn("m-0 text-sm text-muted-foreground", className)}
+            className={cn("m-0 text-body text-muted-foreground", className)}
             {...props}
         />
     )

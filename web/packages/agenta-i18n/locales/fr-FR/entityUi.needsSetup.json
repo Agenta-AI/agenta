@@ -1,0 +1,12 @@
+{
+    "agentTitle": "Cet agent doit être configuré",
+    "label": "Configuration requise",
+    "modelMessage": "Le modèle doit être configuré avant que cet agent puisse s’exécuter.",
+    "modelPlaceholder": "Configurez le modèle pour envoyer des messages",
+    "reasonNotAvailable": "N’est plus disponible",
+    "reasonNotChosen": "Aucun compte choisi",
+    "reasonNotFound": "Introuvable dans ce projet",
+    "reasonNotShared": "Non partagé avec ce projet",
+    "reasonSignInExpired": "Connexion expirée",
+    "reasonTurnedOff": "Désactivé"
+}

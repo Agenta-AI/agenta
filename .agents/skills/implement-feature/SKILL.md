@@ -178,6 +178,7 @@ When the feature works and stays green, write it up. Spin a docs subagent.
   subjects, active voice, old-before-new, cut the throat-clearing, land the strong word last).
 - Carry anything you could not finish into `defer-todo` format so it is not lost.
 - Draft the PR body now, while the change is fresh. Use the `write-pr-description` skill. The body MUST include: a **Context** section (the symptom + why), a **Scope / risk** section (what was not touched, what could regress), and a **How to QA** section with prerequisites, numbered steps, expected result, the exact test command to run, and edge cases. These are the things reviewers always ask for — they belong in the first draft, not after a review round.
+- When the feature changes the UI, take the before and after screenshots while the stack runs and put them in the body. The `write-pr-description` skill ("Screenshots for UI changes") says how.
 
 ## Phase 6: Stacked branch (GitButler)
 

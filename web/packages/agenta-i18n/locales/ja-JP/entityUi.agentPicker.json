@@ -1,0 +1,14 @@
+{
+    "untitledAgent": "無題のエージェント",
+    "noDescription": "説明なし",
+    "searchAgents": "エージェントを検索",
+    "newAgent": "新しいエージェント",
+    "noAgentsYet": "エージェントはまだありません",
+    "noAgentsYetBody": "作業を行うのはエージェントです。作成するとここに表示されます。",
+    "noAgentsMatch": "「{{query}}」に一致するエージェントはありません",
+    "searchCovers": "検索対象は各エージェントの名前と役割です。",
+    "clearSearch": "検索をクリア",
+    "pickAnAgent": "エージェントを選択",
+    "agent": "エージェント",
+    "startBlank": "空白から開始"
+}

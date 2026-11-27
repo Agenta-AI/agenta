@@ -5,13 +5,22 @@ import {
     fetchTriggerConnection,
     useTriggerConnectionsQuery,
 } from "@agenta/entities/gatewayTrigger"
+import {createT, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import triggerConnectCatalog from "@agenta/i18n/catalogs/entityUi.triggerConnect"
 import {getAgentaApiUrl, getAgentaWebUrl, getHostQueryClient} from "@agenta/shared/api"
 import {defaultConnectionName, generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
-import {EnhancedModal, message, ModalContent, ModalFooter} from "@agenta/ui"
+import {message} from "@agenta/ui"
 import {
+    Button,
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
     Divider,
     Field,
     Input,
+    LoadingButton,
     Select,
     SelectContent,
     SelectItem,
@@ -27,6 +36,9 @@ import Image from "next/image"
 import {consentPopupFeatures} from "../../shared/consentPopupFeatures"
 
 const DEFAULT_PROVIDER = "composio"
+
+// The popup warning fires from the submit handler, outside render.
+const tNow = createT(triggerConnectCatalog)
 
 type AuthMode = "oauth" | "api_key"
 
@@ -91,6 +103,8 @@ export default function TriggerConnectDrawer({
     onSuccess,
     container = null,
 }: Props) {
+    const t = useT(triggerConnectCatalog)
+    const tCommon = useT(commonCatalog)
     const [loading, setLoading] = useState(false)
     const nameTouchedRef = useRef(false)
     const slugSuffixRef = useRef(randomAlphanumeric(3))
@@ -103,7 +117,8 @@ export default function TriggerConnectDrawer({
     const seedName = defaultConnectionName(integrationName, existingCount)
 
     const [name, setName] = useState(seedName)
-    const [nameError, setNameError] = useState<string | null>(null)
+    // A flag, not the message: the text is translated where it renders.
+    const [nameMissing, setNameMissing] = useState(false)
     const slug = generateDefaultSlug(
         name || integrationName || integrationKey,
         slugSuffixRef.current,
@@ -116,7 +131,7 @@ export default function TriggerConnectDrawer({
     useEffect(() => {
         if (!open) return
         nameTouchedRef.current = false
-        setNameError(null)
+        setNameMissing(false)
     }, [open, integrationKey])
     useEffect(() => {
         if (!nameTouchedRef.current) setName(seedName)
@@ -126,7 +141,7 @@ export default function TriggerConnectDrawer({
         nameTouchedRef.current = false
         slugSuffixRef.current = randomAlphanumeric(3)
         setName(seedName)
-        setNameError(null)
+        setNameMissing(false)
         setLoading(false)
         onClose()
     }, [seedName, onClose])
@@ -134,10 +149,10 @@ export default function TriggerConnectDrawer({
     const handleSubmit = useCallback(async () => {
         // The name is now the only authored field, so it carries the validation the slug used to.
         if (!name.trim() || !slug.trim()) {
-            setNameError("Required")
+            setNameMissing(true)
             return
         }
-        setNameError(null)
+        setNameMissing(false)
         try {
             setLoading(true)
 
@@ -167,7 +182,7 @@ export default function TriggerConnectDrawer({
                 )
                 if (!popup) {
                     setLoading(false)
-                    message.warning("Popup blocked. Redirecting in this tab.")
+                    message.warning(tNow("entityUi.triggerConnect.popupBlocked"))
                     window.location.assign(redirectUrl)
                     return
                 }
@@ -226,17 +241,18 @@ export default function TriggerConnectDrawer({
     }, [slug, name, selectedMode, integrationKey, handleClose, onSuccess])
 
     return (
-        <EnhancedModal
-            open={open}
-            onCancel={handleClose}
-            title={`Connect to ${integrationName}`}
-            footer={null}
-            width={480}
-            destroyOnClose
-            getContainer={container ?? false}
-            contained={!!container}
-        >
-            <ModalContent>
+        // Contained runs non-modal: the host drawer already traps focus.
+        <Dialog open={open} onOpenChange={(next) => !next && handleClose()} modal={!container}>
+            <DialogContent
+                container={container ?? undefined}
+                contained={!!container}
+                className="max-w-[480px]"
+            >
+                <DialogHeader>
+                    <DialogTitle>
+                        {t("entityUi.triggerConnect.connectTo", {name: integrationName})}
+                    </DialogTitle>
+                </DialogHeader>
                 <div className="flex items-center gap-3">
                     {integrationLogo && (
                         <Image
@@ -251,7 +267,7 @@ export default function TriggerConnectDrawer({
                     <div className="flex flex-col min-w-0">
                         <span className="font-semibold leading-snug">{integrationName}</span>
                         {integrationDescription && (
-                            <span className="text-xs line-clamp-2 text-[var(--ag-colorTextDescription)]">
+                            <span className="text-meta line-clamp-2 text-muted-foreground">
                                 {integrationDescription}
                             </span>
                         )}
@@ -262,24 +278,31 @@ export default function TriggerConnectDrawer({
 
                 <div className="flex flex-col gap-4">
                     <Field
-                        label={<LabelTooltip label="Name" tip="Display name for this connection" />}
+                        label={
+                            <LabelTooltip
+                                label={t("entityUi.triggerConnect.name")}
+                                tip={t("entityUi.triggerConnect.nameTip")}
+                            />
+                        }
                         required
-                        error={nameError}
+                        error={nameMissing ? t("entityUi.triggerConnect.required") : null}
                     >
                         <Input
-                            placeholder={`e.g. My ${integrationName} Account`}
+                            placeholder={t("entityUi.triggerConnect.namePlaceholder", {
+                                name: integrationName,
+                            })}
                             value={name}
-                            aria-invalid={nameError ? true : undefined}
+                            aria-invalid={nameMissing ? true : undefined}
                             onChange={(e) => {
                                 nameTouchedRef.current = true
                                 setName(e.target.value)
-                                if (nameError && e.target.value.trim()) setNameError(null)
+                                if (nameMissing && e.target.value.trim()) setNameMissing(false)
                             }}
                         />
                     </Field>
 
                     {availableModes.length > 1 && (
-                        <Field label="Auth Method">
+                        <Field label={t("entityUi.triggerConnect.authMethod")}>
                             <Select
                                 value={selectedMode}
                                 onValueChange={(v) => setSelectedMode(v as AuthMode)}
@@ -290,7 +313,11 @@ export default function TriggerConnectDrawer({
                                 <SelectContent>
                                     {availableModes.map((m) => (
                                         <SelectItem key={m} value={m}>
-                                            {m === "oauth" ? "OAuth" : "API Key"}
+                                            {/* "OAuth" is the protocol name, the same in every language. */}
+                                            {/* eslint-disable-next-line agenta-i18n/no-hardcoded-text */}
+                                            {m === "oauth"
+                                                ? "OAuth"
+                                                : t("entityUi.triggerConnect.apiKey")}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
@@ -301,13 +328,15 @@ export default function TriggerConnectDrawer({
 
                 <Divider className="m-0" />
 
-                <ModalFooter
-                    onCancel={handleClose}
-                    onConfirm={handleSubmit}
-                    confirmLabel="Connect"
-                    isLoading={loading}
-                />
-            </ModalContent>
-        </EnhancedModal>
+                <div className="flex w-full items-center justify-end gap-2">
+                    <Button variant="outline" onClick={handleClose} disabled={loading}>
+                        {tCommon("common.cancel")}
+                    </Button>
+                    <LoadingButton loading={loading} onClick={handleSubmit}>
+                        {t("entityUi.triggerConnect.connect")}
+                    </LoadingButton>
+                </div>
+            </DialogContent>
+        </Dialog>
     )
 }

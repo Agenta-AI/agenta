@@ -2,6 +2,8 @@
 import {useState, type ReactNode} from "react"
 
 import {type AppAccess} from "@agenta/entities/drive"
+import {createT, richText, useT} from "@agenta/i18n"
+import driveAppCatalog from "@agenta/i18n/catalogs/entityUi.driveApp"
 import {
     Button,
     Dialog,
@@ -14,24 +16,24 @@ import {
     RadioGroupItem,
 } from "@agenta/ui/ui"
 
+// `accessLabel` is called while a menu renders, outside this file's components.
+const tNow = createT(driveAppCatalog)
+
 /** How a stored level reads in the UI; null is "never answered". */
 export const accessLabel = (level: AppAccess | null): string =>
     level === "read-write"
-        ? "Read and write"
+        ? tNow("entityUi.driveApp.accessReadWrite")
         : level === "read"
-          ? "Read"
+          ? tNow("entityUi.driveApp.accessRead")
           : level === "none"
-            ? "None"
-            : "Not set"
+            ? tNow("entityUi.driveApp.accessNone")
+            : tNow("entityUi.driveApp.accessNotSet")
 
 const FolderCode = ({dir}: {dir: string}) => (
-    <code className="rounded bg-colorFillSecondary px-1 py-0.5 text-[11px] text-colorText">
+    <code className="rounded bg-secondary px-1 py-0.5 text-caption text-foreground">
         {dir || "/"}
     </code>
 )
-
-const TRUST_NOTE =
-    "The app never receives your login. Agenta makes the file calls for it. Only allow apps you trust: the app's code can read these files and may be able to send what it reads outside Agenta."
 
 /** The dialog frame both share: page-modal, or confined to `container` with the page live. */
 const AccessDialog = ({
@@ -55,7 +57,7 @@ const AccessDialog = ({
         <DialogContent
             container={container}
             contained={!!container}
-            className="max-w-sm gap-4 text-xs"
+            className="max-w-sm gap-4 text-body"
             showCloseButton={showCloseButton}
         >
             {children}
@@ -83,13 +85,14 @@ export interface AccessQuestionProps {
     onCancel: () => void
 }
 
+/** The question and its reason, as catalog keys, by what the app needs. */
 const QUESTION = {
-    read: {verb: "read", reason: "The app wants to read the files in this folder."},
-    write: {
-        verb: "change",
-        reason: "The app wants to create, change or delete files in this folder.",
+    read: {title: "entityUi.driveApp.letAppRead", reason: "entityUi.driveApp.reasonRead"},
+    write: {title: "entityUi.driveApp.letAppChange", reason: "entityUi.driveApp.reasonWrite"},
+    "read-write": {
+        title: "entityUi.driveApp.letAppReadChange",
+        reason: "entityUi.driveApp.reasonReadWrite",
     },
-    "read-write": {verb: "read and change", reason: "This app needs to save your edits."},
 } as const
 
 /** "Let X read / change / read and change files in dir?" with the answers that fit. */
@@ -103,34 +106,40 @@ export function AccessQuestion({
     onAnswer,
     onCancel,
 }: AccessQuestionProps) {
-    const {verb, reason} = QUESTION[need]
+    const t = useT(driveAppCatalog)
+    const {title, reason} = QUESTION[need]
     return (
         <AccessDialog open={open} container={container} onDismiss={onCancel} showCloseButton>
             <DialogHeader className="gap-1">
-                <DialogTitle className="pr-6 text-sm">
-                    Let {appName} {verb} files in <FolderCode dir={dir} />?
+                <DialogTitle className="pr-6 text-title">
+                    {richText(t(title, {app: appName, dir: dir || "/"}), {
+                        dir: (text) => <FolderCode dir={text} />,
+                    })}
                 </DialogTitle>
-                <DialogDescription className="text-xs text-colorTextSecondary">
-                    {reason}
+                <DialogDescription className="text-body text-muted-foreground">
                     {need === "read" && writeUnavailable
-                        ? " This app needs write access, but you can only read here."
-                        : null}
+                        ? t("entityUi.driveApp.reasonReadWriteUnavailable")
+                        : t(reason)}
                 </DialogDescription>
             </DialogHeader>
 
-            <p className="m-0 text-xs text-colorTextTertiary">{TRUST_NOTE}</p>
+            <p className="m-0 text-meta text-muted-foreground">
+                {t("entityUi.driveApp.trustNote")}
+            </p>
 
             <DialogFooter className="gap-2">
                 <Button variant="outline" size="sm" onClick={() => onAnswer("deny")}>
-                    Don't allow
+                    {t("entityUi.driveApp.dontAllow")}
                 </Button>
                 {need === "read-write" ? (
                     <Button variant="outline" size="sm" onClick={() => onAnswer("readOnly")}>
-                        Read only
+                        {t("entityUi.driveApp.readOnly")}
                     </Button>
                 ) : null}
                 <Button size="sm" onClick={() => onAnswer("allow")}>
-                    {need === "read-write" ? "Allow read and write" : "Allow"}
+                    {need === "read-write"
+                        ? t("entityUi.driveApp.allowReadWrite")
+                        : t("entityUi.driveApp.allow")}
                 </Button>
             </DialogFooter>
         </AccessDialog>
@@ -164,6 +173,7 @@ export function GrantSheet({
     onCancel,
     onSave,
 }: GrantSheetProps) {
+    const t = useT(driveAppCatalog)
     const [level, setLevel] = useState<AppAccess | null>(current)
 
     return (
@@ -174,13 +184,17 @@ export function GrantSheet({
             showCloseButton={false}
         >
             <DialogHeader className="gap-1">
-                <DialogTitle className="text-sm">File access for {appName}</DialogTitle>
-                <DialogDescription className="text-xs text-colorTextSecondary">
-                    What the app may do with the files in <FolderCode dir={dir} />
+                <DialogTitle className="text-title">
+                    {t("entityUi.driveApp.fileAccessFor", {app: appName})}
+                </DialogTitle>
+                <DialogDescription className="text-body text-muted-foreground">
+                    {richText(t("entityUi.driveApp.whatAppMayDo", {dir: dir || "/"}), {
+                        dir: (text) => <FolderCode dir={text} />,
+                    })}
                 </DialogDescription>
             </DialogHeader>
 
-            <section aria-label="File access" data-slot="grant-sheet-access">
+            <section aria-label={t("entityUi.driveApp.fileAccess")} data-slot="grant-sheet-access">
                 <RadioGroup
                     value={level ?? ""}
                     onValueChange={(v) => setLevel(v as AppAccess)}
@@ -188,29 +202,31 @@ export function GrantSheet({
                 >
                     <label className="flex cursor-pointer items-center gap-2">
                         <RadioGroupItem value="read" />
-                        Read files
+                        {t("entityUi.driveApp.readFiles")}
                     </label>
                     {canWrite ? (
                         <label className="flex cursor-pointer items-center gap-2">
                             <RadioGroupItem value="read-write" />
-                            Read and write files
+                            {t("entityUi.driveApp.readWriteFiles")}
                         </label>
                     ) : null}
                     <label className="flex cursor-pointer items-center gap-2">
                         <RadioGroupItem value="none" />
-                        None
+                        {t("entityUi.driveApp.none")}
                     </label>
                 </RadioGroup>
             </section>
 
-            <p className="m-0 text-xs text-colorTextTertiary">{TRUST_NOTE}</p>
+            <p className="m-0 text-meta text-muted-foreground">
+                {t("entityUi.driveApp.trustNote")}
+            </p>
 
             <DialogFooter className="gap-2">
                 <Button variant="outline" size="sm" onClick={onCancel}>
-                    Cancel
+                    {t("entityUi.driveApp.cancel")}
                 </Button>
                 <Button size="sm" disabled={level === null} onClick={() => level && onSave(level)}>
-                    Save
+                    {t("entityUi.driveApp.save")}
                 </Button>
             </DialogFooter>
         </AccessDialog>

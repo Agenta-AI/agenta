@@ -84,7 +84,7 @@ export const ShortcutKeys = ({
             <Caps faces={shortcutFaces(primary, mac)} tone={tone} size={size} />
             {mirror ? (
                 <>
-                    <span className="text-[var(--ag-colorTextSecondary)] opacity-50">/</span>
+                    <span className="text-muted-foreground opacity-50">/</span>
                     <Caps faces={shortcutFaces(mirror, mac)} tone={tone} size={size} />
                 </>
             ) : null}

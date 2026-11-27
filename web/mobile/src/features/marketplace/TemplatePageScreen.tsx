@@ -3,6 +3,8 @@ import {
     agentTemplatesAtom,
     refetchAgentTemplatesAtom,
 } from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import marketplaceCatalog from "@agenta/i18n/catalogs/marketplace.page"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {LoadingButton} from "@agenta/ui/ui"
@@ -15,7 +17,7 @@ import {useScrollFade} from "@/lib/useScrollFade"
 import {useNewAgentAction} from "../agents/useNewAgentAction"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
-import {NavDrawer} from "../nav/NavDrawer"
+import {PageBackBar} from "../page-layout/PageBackBar"
 
 import {TemplateNotFound} from "./states/TemplateNotFound"
 import {TemplatePageSkeleton} from "./states/TemplatePageSkeleton"
@@ -34,6 +36,7 @@ export const TemplatePageScreen = ({
     templateKey: string
 }) => {
     useBindProjectContext(projectId)
+    const t = useT(marketplaceCatalog)
     const base = `/w/${workspaceId}/p/${projectId}`
     const marketplaceHref = `${base}/templates`
     const newAgent = useNewAgentAction(base)
@@ -48,16 +51,17 @@ export const TemplatePageScreen = ({
 
     return (
         <>
-            <PageTitle title="Agent Marketplace" context={template?.name} />
+            <PageTitle title={t("marketplace.page.title")} context={template?.name} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     scrollRef={fade.ref}
                     onScroll={fade.onScroll}
                     scrollStyle={fade.style}
                     header={
-                        <div className="box-border flex shrink-0 items-center gap-2 px-4 pb-1 pt-3 lg:hidden">
-                            <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                        </div>
+                        <PageBackBar
+                            back={{label: t("marketplace.page.title"), href: marketplaceHref}}
+                            column={`box-border px-4 ${PAGE_FRAME}`}
+                        />
                     }
                     footer={
                         template ? (
@@ -67,13 +71,13 @@ export const TemplatePageScreen = ({
                                     onClick={use}
                                     className="w-full"
                                 >
-                                    Use this template
+                                    {t("marketplace.page.useTemplate")}
                                 </LoadingButton>
                             </div>
                         ) : undefined
                     }
                 >
-                    <div className={`min-w-0 px-4 pb-12 pt-3 lg:pt-14 ${PAGE_FRAME}`}>
+                    <div className={`min-w-0 px-4 pb-12 pt-6 lg:pt-14 ${PAGE_FRAME}`}>
                         {template ? (
                             <TemplatePage
                                 template={template}
@@ -85,7 +89,7 @@ export const TemplatePageScreen = ({
                         ) : lookup.status === "error" ? (
                             <LoadError
                                 framed
-                                title="Could not load this template"
+                                title={t("marketplace.page.templateLoadError")}
                                 onRetry={refetchTemplates}
                             />
                         ) : lookup.status === "missing" ? (

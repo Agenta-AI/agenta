@@ -7,10 +7,14 @@
 
 import {Fragment, useCallback, useMemo} from "react"
 
+import {createT} from "@agenta/i18n"
+import drillInCatalog from "@agenta/i18n/catalogs/entityUi.drillIn"
 import type {BreadcrumbSlotProps} from "@agenta/ui/drill-in"
-import {ArrowLeft, ChevronRight} from "lucide-react"
+import {ArrowLeftIcon, CaretRightIcon} from "@phosphor-icons/react"
 
 import {useDrillIn} from "./MoleculeDrillInContext"
+
+const t = createT(drillInCatalog)
 
 // ============================================================================
 // COMPONENT
@@ -52,9 +56,9 @@ export function MoleculeDrillInBreadcrumb() {
                         type="button"
                         onClick={navigateBack}
                         className={`${classNames.breadcrumbBack} border-0 bg-transparent cursor-pointer`}
-                        aria-label="Go back"
+                        aria-label={t("entityUi.drillIn.goBack")}
                     >
-                        <ArrowLeft size={16} />
+                        <ArrowLeftIcon size={16} />
                     </button>
                 )}
 
@@ -72,7 +76,7 @@ export function MoleculeDrillInBreadcrumb() {
                 {currentPath.map((segment, index) => (
                     <Fragment key={`${segment}-${index}`}>
                         <span className={classNames.breadcrumbSeparator}>
-                            <ChevronRight size={14} />
+                            <CaretRightIcon size={14} />
                         </span>
                         <button
                             type="button"

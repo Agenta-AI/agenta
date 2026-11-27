@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from re import compile as re_compile
 from uuid import UUID
 from datetime import datetime, timezone
@@ -161,6 +161,12 @@ _PUBLIC_ENDPOINTS = (
     "/api/channels/whatsapp/events/",
     "/preview/channels/whatsapp/events/",
     "/api/preview/channels/whatsapp/events/",
+    # Teams: the Bot Framework JWT, checked in the adapter, authorises each
+    # activity.
+    "/channels/teams/events/",
+    "/api/channels/teams/events/",
+    "/preview/channels/teams/events/",
+    "/api/preview/channels/teams/events/",
     "/channels/bridge/events/",
     "/api/channels/bridge/events/",
     "/preview/channels/bridge/events/",
@@ -198,6 +204,28 @@ _PUBLIC_ENDPOINTS = (
 )
 
 _ADMIN_ENDPOINT_IDENTIFIER = "/admin/"
+# The reads a signed-in person without an organization may make: their profile,
+# their (empty) project list, their (empty) organization list and the instance's
+# telemetry setting (not organization data). Sign-up skips the personal organization
+# when the instance is at its organization limit; with these the app can tell that
+# the person has no organization, show the invitation screen and accept an invitation.
+_ORGANIZATIONLESS_READ_PATHS = frozenset(
+    {
+        "/profile",
+        "/profile/",
+        "/api/profile",
+        "/projects",
+        "/projects/",
+        "/api/projects",
+        "/api/projects/",
+        "/organizations",
+        "/organizations/",
+        "/api/organizations",
+        "/api/organizations/",
+        "/instance/telemetry",
+        "/api/instance/telemetry",
+    }
+)
 _INVITE_ACCEPT_ENDPOINT_IDENTIFIER = "/invite/accept"
 _INVITATION_POLICY_ENDPOINT_IDENTIFIERS = (
     _INVITE_ACCEPT_ENDPOINT_IDENTIFIER,
@@ -544,10 +572,47 @@ def _build_request_access_from_state(request: Request) -> Optional[RequestAccess
             acting_user_id=UUID(str(user_id)),
             envelope=getattr(state, "run_envelope", None),
             run_accounts=getattr(state, "run_accounts", None) or (),
+            run_agent_id=run_agent_id_of_request(request),
+            run_session_id=run_session_id_of_request(request),
         )
     except (TypeError, ValueError, ValidationError):
         log.warning("[auth] request access could not be built", exc_info=True)
         return None
+
+
+def _run_agent_id_from_claim(value: Any) -> Optional[UUID]:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError("run_agent_id must be a string")
+    return UUID(value)
+
+
+def run_agent_id_of_request(request: Request) -> Optional[UUID]:
+    """The agent the presenting run credential executes (its `run_agent_id` claim). None
+    for every caller that is not an agent run, and for a credential minted before the
+    claim existed."""
+
+    value = getattr(request.state, "run_agent_id", None)
+    return value if isinstance(value, UUID) else None
+
+
+def _run_session_id_from_claim(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value:
+        raise ValueError("run_session_id must be a non-empty string")
+    return value
+
+
+def run_session_id_of_request(request: Request) -> Optional[str]:
+    """The session the presenting run credential runs in (its `run_session_id` claim).
+    None for every caller that is not an agent run, for a run the mint could not bind
+    to a session (`bind_run_session`), and for a credential minted before the claim
+    existed."""
+
+    value = getattr(request.state, "run_session_id", None)
+    return value if isinstance(value, str) and value else None
 
 
 def request_run_envelope(request: Request) -> Optional[RunEnvelope]:
@@ -1073,7 +1138,20 @@ async def verify_bearer_token(
                 user_id=user_id,
             )
             if default_ref is None:
-                raise NoResultFound(f"No organization membership for user {user_id}")
+                if (
+                    request.method == "GET"
+                    and request.url.path in _ORGANIZATIONLESS_READ_PATHS
+                ):
+                    request.state.user_id = user_id
+                    request.state.user_email = user_email
+                    request.state.project_id = None
+                    request.state.workspace_id = None
+                    request.state.organization_id = None
+                    request.state.organization_name = None
+                    return
+                # Not cached: a cached denial would also refuse the two reads above.
+                _deny("membership", "no organization membership")
+                raise HTTPException(status_code=401, detail="Unauthorized")
 
             default = await db_manager.fetch_default_project(
                 organization_id=default_ref,
@@ -1492,6 +1570,18 @@ async def verify_secret_token(
             )
         except InvalidRunClaims as exc:
             raise DecodeError("Secret token carries invalid run accounts.") from exc
+        try:
+            request.state.run_agent_id = _run_agent_id_from_claim(
+                auth_context.get("run_agent_id")
+            )
+        except ValueError as exc:
+            raise DecodeError("Secret token carries an invalid run agent.") from exc
+        try:
+            request.state.run_session_id = _run_session_id_from_claim(
+                auth_context.get("run_session_id")
+            )
+        except ValueError as exc:
+            raise DecodeError("Secret token carries an invalid run session.") from exc
         request.state.gateway_platform_run = (
             audience == GATEWAY_TOKEN_AUDIENCE
             and auth_context.get("gateway_platform_run") is True
@@ -1588,11 +1678,21 @@ async def sign_secret_token(
     *,
     envelope: RunEnvelope,
     run_accounts: Optional[List[dict]] = None,
+    run_agent_id: Optional[UUID] = None,
+    run_session_id: Optional[str] = None,
 ):
     """Mint a secret token. `expires_in` overrides the default lifetime, in seconds.
 
     `run_accounts` is the run's `run_accounts` claim (the ready accounts of its "user"
     items, by id), written only when set. It is not an envelope claim.
+
+    `run_agent_id` is the run's `run_agent_id` claim: the agent the run executes, as
+    the invoke resolved it. Written only when set; `run_agent_id_of_request` reads it.
+
+    `run_session_id` is the run's `run_session_id` claim: the session the run belongs
+    to. Pass only the value `bind_run_session` returned, or the claim of the run
+    credential being renewed. Written only when set; `run_session_id_of_request` reads
+    it.
 
     `envelope` is required: every run credential carries its principal, authority and
     run context as claims (`principal`, `restrictions`, `authority`, `run`, `sender`,
@@ -1669,6 +1769,12 @@ async def sign_secret_token(
         if run_accounts:
             auth_context["run_accounts"] = list(run_accounts)
 
+        if run_agent_id is not None:
+            auth_context["run_agent_id"] = str(run_agent_id)
+
+        if run_session_id is not None:
+            auth_context["run_session_id"] = run_session_id
+
         auth_context.update(envelope_to_claims(envelope=envelope))
 
         secret_token = encode(
@@ -1711,7 +1817,8 @@ async def _check_organization_policy(request: Request):
     # This prevents SSO logins from being blocked by the default org policy
     # before the frontend can redirect to the intended SSO org.
     if (
-        request.url.path in {"/api/profile", "/api/organizations"}
+        request.url.path
+        in {"/api/profile", "/api/organizations", "/api/instance/telemetry"}
         or request.url.path.startswith("/api/projects")
         or request.url.path.startswith("/api/organizations/")
     ):

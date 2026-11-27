@@ -1,6 +1,8 @@
 import {memo} from "react"
 
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
+import {useT} from "@agenta/i18n"
+import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
 import {formatLabel} from "@agenta/ui/drill-in"
 
 import {NumberSliderControl} from "../../SchemaControls/NumberSliderControl"
@@ -40,16 +42,16 @@ export const RetryConfigTab = memo(function RetryConfigTab({
     onConfigFieldChange,
     disabled,
 }: RetryConfigTabProps) {
+    const t = useT(playgroundConfigCatalog)
     const policyTitle = formatLabel(retryPolicySchema?.title || "retry_policy")
     const policyDescription =
-        retryPolicySchema?.description ||
-        "Choose which failure types should trigger another request attempt."
+        retryPolicySchema?.description || t("entityUi.playgroundConfig.retryPolicyDescription")
     const retryConfigProperties =
         resolveAnyOfSchema(retryConfigSchema)?.properties ??
         ({} as Record<string, EntitySchemaProperty>)
     const isRetryEnabled = typeof maxRetries === "number" && maxRetries > 0
     const isPolicyEnabled = !disabled && isRetryEnabled
-    const retryRequiredMessage = "Set max retries first."
+    const retryRequiredMessage = t("entityUi.playgroundConfig.retryRequired")
 
     const renderNumberField = (
         key: "max_retries" | "base_delay",
@@ -79,25 +81,25 @@ export const RetryConfigTab = memo(function RetryConfigTab({
             {renderNumberField(
                 "max_retries",
                 maxRetries,
-                "Each model is retried this many times before moving to the next.",
+                t("entityUi.playgroundConfig.maxRetriesHint"),
             )}
             {renderNumberField(
                 "base_delay",
                 baseDelay,
-                "Base delay (ms) before the first retry; doubles on each subsequent attempt.",
+                t("entityUi.playgroundConfig.baseDelayHint"),
             )}
             <div className="flex flex-col gap-1">
                 <div className="flex flex-col gap-0.5">
-                    <span className="font-medium text-xs">{policyTitle}</span>
-                    <span className="text-xs leading-snug text-colorTextDescription">
+                    <span className="font-medium text-label">{policyTitle}</span>
+                    <span className="text-meta leading-snug text-muted-foreground">
                         {policyDescription}{" "}
                         <a
                             href="https://agenta.ai/docs/prompt-engineering/integrating-prompts/fallback-models-and-retry"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-gray-500 underline decoration-dotted underline-offset-2"
+                            className="text-muted-foreground underline decoration-dotted underline-offset-2"
                         >
-                            Learn more
+                            {t("entityUi.playgroundConfig.learnMore")}
                         </a>
                     </span>
                 </div>
@@ -109,7 +111,11 @@ export const RetryConfigTab = memo(function RetryConfigTab({
                             value={retryPolicy ?? null}
                             onChange={onPolicyChange}
                             options={retryPolicyOptions}
-                            placeholder={isPolicyEnabled ? "Select one" : retryRequiredMessage}
+                            placeholder={
+                                isPolicyEnabled
+                                    ? t("entityUi.playgroundConfig.selectOne")
+                                    : retryRequiredMessage
+                            }
                             disabled={!isPolicyEnabled}
                             // The visible title above; the placeholder is generic/state-dependent.
                             aria-label={policyTitle}

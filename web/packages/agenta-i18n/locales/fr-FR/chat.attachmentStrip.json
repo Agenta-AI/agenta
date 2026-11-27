@@ -1,0 +1,8 @@
+{
+    "pause": "Mettre {{name}} en pause",
+    "play": "Lire {{name}}",
+    "view": "Afficher {{name}}",
+    "viewMore_one": "Afficher {{count}} fichier de plus",
+    "viewMore_many": "Afficher {{count}} fichiers de plus",
+    "viewMore_other": "Afficher {{count}} fichiers de plus"
+}

@@ -1,6 +1,8 @@
 import {memo} from "react"
 
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
+import {useT} from "@agenta/i18n"
+import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
 import {formatLabel} from "@agenta/ui/drill-in"
 import {Button} from "@agenta/ui/ui"
 import {CaretRight, X} from "@phosphor-icons/react"
@@ -40,24 +42,26 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
     onRemoveFallbackModel,
     disabled,
 }: FallbackConfigTabProps) {
+    const t = useT(playgroundConfigCatalog)
     const policyTitle = formatLabel(fallbackPolicySchema?.title || "fallback_policy")
     const policyDescription =
         fallbackPolicySchema?.description ||
-        "Choose which failure types should try the fallback model list."
+        t("entityUi.playgroundConfig.fallbackPolicyDescription")
     const fallbackConfigsTitle = formatLabel(
         fallbackConfigsSchema?.title?.replace("Configs", "Models") || "fallback_models",
     )
     const fallbackConfigsDescription =
-        fallbackConfigsSchema?.description || "Add fallback models for the selected policy."
+        fallbackConfigsSchema?.description ||
+        t("entityUi.playgroundConfig.fallbackConfigsDescription")
     const isModelSelectionEnabled = !disabled && Boolean(fallbackPolicy)
-    const policyRequiredMessage = "Select a fallback policy first."
+    const policyRequiredMessage = t("entityUi.playgroundConfig.fallbackPolicyRequired")
 
     return (
         <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-1">
                 <div className="flex flex-col gap-0.5">
-                    <span className="font-medium text-xs">{policyTitle}</span>
-                    <span className="text-xs leading-snug text-colorTextDescription">
+                    <span className="font-medium text-label">{policyTitle}</span>
+                    <span className="text-meta leading-snug text-muted-foreground">
                         {policyDescription}
                     </span>
                 </div>
@@ -67,7 +71,7 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
                     value={fallbackPolicy ?? null}
                     onChange={onPolicyChange}
                     options={fallbackPolicyOptions}
-                    placeholder="Select one"
+                    placeholder={t("entityUi.playgroundConfig.selectOne")}
                     disabled={disabled}
                     // The visible title above; the shared "Select one" placeholder names nothing.
                     aria-label={policyTitle}
@@ -75,16 +79,16 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
             </div>
             <div className="flex flex-col gap-2">
                 <div className="flex flex-col gap-0.5">
-                    <span className="font-medium text-xs">{fallbackConfigsTitle}</span>
-                    <span className="text-xs leading-snug text-colorTextDescription">
+                    <span className="font-medium text-label">{fallbackConfigsTitle}</span>
+                    <span className="text-meta leading-snug text-muted-foreground">
                         {fallbackConfigsDescription}{" "}
                         <a
                             href="https://agenta.ai/docs/prompt-engineering/integrating-prompts/fallback-models-and-retry"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-gray-500 underline decoration-dotted underline-offset-2"
+                            className="text-muted-foreground underline decoration-dotted underline-offset-2"
                         >
-                            Learn more
+                            {t("entityUi.playgroundConfig.learnMore")}
                         </a>
                     </span>
                 </div>
@@ -103,10 +107,14 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
                                     disabled={!isModelSelectionEnabled}
                                     className="flex w-full min-w-0 items-center justify-between overflow-hidden"
                                     onClick={() => onEditFallbackModel(index)}
-                                    title={(config.model as string) || "Select model"}
+                                    title={
+                                        (config.model as string) ||
+                                        t("entityUi.playgroundConfig.selectModel")
+                                    }
                                 >
                                     <span className="min-w-0 flex-1 truncate text-left">
-                                        {(config.model as string) || "Select model"}
+                                        {(config.model as string) ||
+                                            t("entityUi.playgroundConfig.selectModel")}
                                     </span>
                                     <CaretRight size={12} className="shrink-0" />
                                 </Button>
@@ -118,7 +126,7 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
                             onClick={() => onRemoveFallbackModel(index)}
                             disabled={!isModelSelectionEnabled}
                             className="shrink-0"
-                            aria-label="Remove fallback model"
+                            aria-label={t("entityUi.playgroundConfig.removeFallbackModel")}
                         >
                             <X size={14} />
                         </Button>
@@ -133,10 +141,14 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
                             disabled={!isModelSelectionEnabled}
                             className="w-full"
                         >
-                            + Add model
+                            {t("entityUi.playgroundConfig.addModel")}
                         </Button>
                     </span>
                 </HintTooltip>
+                {/* The reason shows on screen too: a disabled button gives no hover hint on touch. */}
+                {!disabled && !fallbackPolicy ? (
+                    <span className="text-meta text-muted-foreground">{policyRequiredMessage}</span>
+                ) : null}
             </div>
         </div>
     )

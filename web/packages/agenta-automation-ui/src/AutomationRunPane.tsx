@@ -1,19 +1,16 @@
 import {type ReactNode} from "react"
 
 import {type TriggerDelivery} from "@agenta/entities/gatewayTrigger"
-import {ArrowLeft} from "@phosphor-icons/react"
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
+import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
+import automationsRunHistoryCatalog from "@agenta/i18n/catalogs/automations.runHistory"
+import {Button, IconTile, ItemViewTitle, SimpleTooltip} from "@agenta/ui/ui"
+import {PaneHeader} from "@agenta/ui/view-stack"
+import {ArrowSquareOut, Play} from "@phosphor-icons/react"
 
-import {ICON_LINK} from "./lib/interactive"
-import {cn} from "./lib/utils"
-import {
-    runDotClass,
-    runDuration,
-    runError,
-    runLabel,
-    runOutcomeLabel,
-    runSessionId,
-    runWhenLabel,
-} from "./runModel"
+import {AutomationRunStatusBadge} from "./AutomationRunStatusBadge"
+import {runDuration, runError, runLabel, runSessionId, runWhenLabel} from "./runModel"
 import {AutomationRunNoConversation} from "./states/AutomationRunStates"
 
 /**
@@ -31,14 +28,21 @@ import {AutomationRunNoConversation} from "./states/AutomationRunStates"
 export const AutomationRunPane = ({
     delivery,
     renderConversation,
+    sessionHref,
     onBack,
+    phone = false,
 }: {
     delivery: TriggerDelivery
     /** The run's transcript, given its session — the host's chat surface. */
     renderConversation: (sessionId: string) => ReactNode
-    /** Narrow layout only — the list is off screen, so the pane owns the way back to it. */
+    /** The run's session page; given, an icon opens it in a new tab. */
+    sessionHref?: (sessionId: string) => string
+    /** Narrow layout with no host back (the page) — the pane owns the way back to the list. */
     onBack?: () => void
+    /** Phone: when and how long go on the line under the name, so the name keeps its room. */
+    phone?: boolean
 }) => {
+    const t = useT(automationsEditorCatalog, automationsModelCatalog, automationsRunHistoryCatalog)
     const sessionId = runSessionId(delivery)
     const label = runLabel(delivery)
     // The same day-and-time vocabulary the rows speak, so the header names the row you picked.
@@ -46,42 +50,58 @@ export const AutomationRunPane = ({
     // No duration field on a delivery — see `runDuration`. When it cannot be derived the clause
     // is dropped rather than printed as zero.
     const took = runDuration(delivery)
-    const meta = [when, took ? `took ${took}` : ""].filter(Boolean).join(" · ")
+    const meta = [when, took ? t("automations.editor.took", {duration: took}) : ""]
+        .filter(Boolean)
+        .join(" · ")
 
     return (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="flex shrink-0 items-center gap-2.5 px-3.5 py-3">
-                {onBack ? (
-                    <button
-                        type="button"
-                        onClick={onBack}
-                        aria-label="Back to the run list"
-                        className={cn(
-                            "-ml-1 flex shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-1 text-muted-foreground",
-                            ICON_LINK,
-                        )}
-                    >
-                        <ArrowLeft aria-hidden size={15} />
-                    </button>
-                ) : null}
-                <span
-                    aria-hidden
-                    className={cn("size-2 shrink-0 rounded-full", runDotClass(delivery))}
-                />
-                {/* One line: the run's name and when it ran are one fact, and stacking them
-                    made a two-line header for two short strings. */}
-                <span className="flex min-w-0 flex-1 items-baseline gap-2">
-                    <span className="shrink-0 text-[14px] font-medium text-foreground">
-                        {label}
-                        <span className="sr-only"> — {runOutcomeLabel(delivery)}</span>
-                    </span>
-                    {meta ? (
-                        <span className="min-w-0 truncate text-xs text-muted-foreground">
-                            {meta}
-                        </span>
-                    ) : null}
-                </span>
-            </div>
+            {/* Narrow, with no host back: the pane header leads back to the list. */}
+            {onBack ? (
+                <PaneHeader back={{title: t("automations.editor.runHistory"), onBack}} />
+            ) : null}
+            {/* One line: the run's Mark and name, its status, when and how long, and open. */}
+            <ItemViewTitle
+                className="shrink-0 border-0 border-b border-solid border-border-muted px-4 pb-3 pt-4"
+                mark={
+                    <IconTile size={24}>
+                        <Play />
+                    </IconTile>
+                }
+                title={label}
+                description={phone && meta ? meta : undefined}
+                status={
+                    <>
+                        <AutomationRunStatusBadge delivery={delivery} />
+                        {meta && !phone ? (
+                            <span className="min-w-0 shrink truncate text-meta tabular-nums text-muted-foreground">
+                                {meta}
+                            </span>
+                        ) : null}
+                    </>
+                }
+                actions={
+                    sessionId && sessionHref ? (
+                        <SimpleTooltip title={t("automations.runHistory.openRunInNewTab")}>
+                            <Button
+                                asChild
+                                variant="ghost"
+                                size="icon-compact"
+                                className="-mr-1.5"
+                                aria-label={t("automations.runHistory.openRunInNewTab")}
+                            >
+                                <a
+                                    href={sessionHref(sessionId)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    <ArrowSquareOut aria-hidden />
+                                </a>
+                            </Button>
+                        </SimpleTooltip>
+                    ) : null
+                }
+            />
             <div className="flex min-h-0 flex-1 flex-col">
                 {sessionId ? (
                     renderConversation(sessionId)

@@ -159,6 +159,9 @@ def _workspace_path(value: str) -> str:
             "unsafe_workspace_path",
             "Workspace paths must remain inside the agent mount.",
         )
+    # The files land in the home drive itself, which the agent sees at agent-files/.
+    if path.parts[0] == "agent-files" and len(path.parts) > 1:
+        path = PurePosixPath(*path.parts[1:])
     if path.parts[0].lower() in _RESERVED_WORKSPACE_ROOTS:
         raise _package_error(
             "reserved_workspace_path",

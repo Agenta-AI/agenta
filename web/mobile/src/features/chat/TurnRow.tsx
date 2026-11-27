@@ -1,6 +1,8 @@
-import {memo, useCallback, useEffect, useMemo, useRef} from "react"
+import {memo, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode} from "react"
 
 import {
+    type ChildUpdate,
+    getMessageChildUpdate,
     getMessageTraceId,
     getMessageUsage,
     isMessageRunErrorTransport,
@@ -12,6 +14,7 @@ import {
     ActivityTimeline,
     AttachmentStrip,
     type AttachmentStripFile,
+    ChildUpdateNotice,
     CollapsibleMessageBody,
     McpServerNoticeCard,
     TurnFooter,
@@ -21,10 +24,15 @@ import {readableTraceError, splitTurnActivity, type TurnViewModel} from "@agenta
 import {messageBodyKey} from "@agenta/chat/state"
 import {canViewSpansAtom} from "@agenta/entities/access"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
+import {useDriveHomeSlug} from "@agenta/entity-ui/drive"
+import {useT} from "@agenta/i18n"
+import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
+import chatMobileTurnCatalog from "@agenta/i18n/catalogs/chat.mobileTurn"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap} from "@agenta/playground/agent-chat"
 import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
+import {BuilderIcon} from "@agenta/ui/agent-icon"
 import {
     ChatBubble,
     turnToolbarClass,
@@ -38,6 +46,8 @@ import {cn} from "@/lib/utils"
 
 import {AnswerReveal} from "./AnswerReveal"
 import {AssistantMarkdown, UserMarkdown} from "./AssistantMarkdown"
+import {useIsBuilderChat} from "./builderChat"
+import {ChangeResults} from "./ChangeResults"
 import {isLiveTextItem} from "./markdownStream"
 import {quotedMessageParts} from "./quotedMessageParts"
 import {describeRunFailure, type RunFailureView} from "./RunErrorMessage"
@@ -47,8 +57,15 @@ import {turnFiles} from "./turnFileList"
 import {TurnFiles} from "./TurnFiles"
 import {mobileTurnRowClass} from "./turnRowClass"
 import {TurnRunFailure} from "./TurnRunFailure"
+import {UserMessageAccessoryContext} from "./userMessageAccessory"
 import {UserQuoteBlock} from "./UserQuoteBlock"
 import {ARRIVED_ANSWER_ATTR, LAST_TURN_ATTR} from "./useTranscriptAutoScroll"
+
+/**
+ * An assistant turn clips its overflow. On a phone the clip starts 6px above the text, so the
+ * turn's first control ("Worked for") keeps its 44px tap area. Nothing moves.
+ */
+const ASSISTANT_CLIP_ROOM = "max-md:-mt-1.5 max-md:pt-1.5"
 
 /** The byte size the transcript replay records on an attachment part, when it has one. */
 const attachmentSize = (metadata: unknown): number | undefined => {
@@ -72,6 +89,7 @@ const TurnRowInner = ({
     resuming = false,
     runId,
     runStartedAt,
+    renderChildSession,
 }: {
     turn: TurnViewModel
     /** Settles a browser-fulfilled tool (elicitation, connect) back into the run. Optional because
@@ -92,7 +110,11 @@ const TurnRowInner = ({
     runId?: string
     /** When the server saved the user message that started this run: the clock counts from it. */
     runStartedAt?: number
+    /** Names and links the child session of a child update row. */
+    renderChildSession?: (update: ChildUpdate) => ReactNode
 }) => {
+    const t = useT(chatMobileTurnCatalog, builderPageCatalog)
+    const builderChat = useIsBuilderChat()
     const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
     // A reader whose role has no trace access gets no trace action and no trace read.
     const canViewSpans = useAtomValue(canViewSpansAtom)
@@ -171,7 +193,7 @@ const TurnRowInner = ({
     // account ids; only its sanitized sentence may reach the screen, as on the desktop.
     const traceError = answerless ? readableTraceError(traceSummary.error) : null
     const errorText = turn.status.showError
-        ? (turn.status.errorText ?? "Something went wrong.")
+        ? (turn.status.errorText ?? t("chat.mobileTurn.somethingWentWrong"))
         : traceError
     const runFailure = errorText
         ? {
@@ -238,14 +260,16 @@ const TurnRowInner = ({
                 : [],
         [turn.isUser, turn.items],
     )
+    const homeSlug = useDriveHomeSlug()
     const writtenFiles = useMemo(
         () =>
             // Once settled, `messages` holds only the answer; an open run's text is still interim.
             turnFiles(
                 activity.steps,
                 runOpen ? [] : activity.messages.map((message) => message.part.text),
+                homeSlug,
             ),
-        [activity.steps, activity.messages, runOpen],
+        [activity.steps, activity.messages, runOpen, homeSlug],
     )
 
     // The turn's meta line sits under the answer, revealed on hover or focus like the desktop's;
@@ -296,14 +320,32 @@ const TurnRowInner = ({
                 streamedHere={streamedHereRef.current}
                 runStartedAt={runStartedAt}
                 renderClientTool={renderClientTool}
+                // The builder signs its answer on the timeline's row (S03, M05).
+                leading={
+                    builderChat ? (
+                        <>
+                            <BuilderIcon size={12} aria-hidden />
+                            {t("builder.page.builder")}
+                        </>
+                    ) : undefined
+                }
                 failure={
                     runFailure
                         ? describeRunFailure({...runFailure, can: NO_WAYS_OUT}).failure
                         : undefined
                 }
             />
+            {/* What each answered change call came to; outside the fold, which starts closed. */}
+            <ChangeResults parts={turn.message.parts} finished={!runOpen} latest={turn.isLast} />
             {answered ? (
                 <div {...quoteProps} className="flex min-w-0 flex-col gap-3">
+                    {/* No timeline row (no step, run settled, no failure): sign the answer here. */}
+                    {builderChat && !activity.steps.length && !runOpen && !runFailure ? (
+                        <div className="-mb-2 flex items-center gap-1.5 text-meta text-muted-foreground">
+                            <BuilderIcon size={12} aria-hidden />
+                            {t("builder.page.builder")}
+                        </div>
+                    ) : null}
                     {activity.messages.map((message, at) => (
                         <AnswerReveal
                             key={message.index}
@@ -326,13 +368,15 @@ const TurnRowInner = ({
             {runFailure ? (
                 <TurnRunFailure failure={runFailure} renderFooter={renderMetaLine} />
             ) : answerless && !traceSummary.isPending ? (
-                <span className="text-xs italic text-colorTextSecondary">
-                    No response — the agent ended its turn without answering.
+                <span className="text-meta italic text-muted-foreground">
+                    {t("chat.mobileTurn.noResponse")}
                 </span>
             ) : turn.status.stopped && !answered && !live ? (
                 // Keyed on the answer the row shows, not on `hasAnswer`: a stop interrupts the
                 // running call, the fold hides that failed call, and the turn would read empty.
-                <span className="text-xs italic text-colorTextSecondary">Stopped</span>
+                <span className="text-meta italic text-muted-foreground">
+                    {t("chat.mobileTurn.stopped")}
+                </span>
             ) : null}
             {runFailure ? null : renderMetaLine()}
         </div>
@@ -354,9 +398,12 @@ const TurnRowInner = ({
             ),
         [turn.items],
     )
-    const header = files.length ? (
+    const readAccessory = useContext(UserMessageAccessoryContext)
+    const accessory = turn.isUser && readAccessory ? readAccessory(turn.message.id) : null
+    const attachmentStrip = files.length ? (
         <AttachmentStrip files={files} align={turn.isUser ? "end" : "start"} />
     ) : null
+    const header = attachmentStrip
     // Attachments with no words paint no bubble; an assistant turn always paints its fold line.
     const hasBubbleContent =
         !turn.isUser ||
@@ -378,11 +425,7 @@ const TurnRowInner = ({
     // A send the server refused after the composer had already cleared. The row keeps the text so
     // it is not lost; this says why it is sitting there with no answer coming.
     const failureNote = isPendingSendFailed(turn.message) ? (
-        <div
-            data-pending-send-failed="true"
-            role="status"
-            className="mt-1 text-[11px] leading-4 opacity-80"
-        >
+        <div data-pending-send-failed="true" role="status" className="mt-1 text-meta opacity-80">
             {PENDING_SEND_FAILED_NOTE}
         </div>
     ) : null
@@ -397,7 +440,18 @@ const TurnRowInner = ({
 
     if (turn.hidden) return null
 
-    return (
+    // A turn a child update started: a notice, not the person's message. Only the server part on
+    // the stored record makes it one; its text is for the model and never shows here.
+    const childUpdate = turn.isUser ? getMessageChildUpdate(turn.message) : null
+    if (childUpdate) {
+        return (
+            <div className={`${mobileTurnRowClass} justify-start`} {...rowMarkers}>
+                <ChildUpdateNotice update={childUpdate} renderChildSession={renderChildSession} />
+            </div>
+        )
+    }
+
+    const row = (
         <div
             className={`${mobileTurnRowClass} ${turn.isUser ? "justify-end" : "justify-start"}`}
             {...rowMarkers}
@@ -405,18 +459,20 @@ const TurnRowInner = ({
             <ChatBubble
                 placement={turn.isUser ? "end" : "start"}
                 variant={turn.isUser && hasBubbleContent ? "filled" : "borderless"}
-                // No avatar column; the 85% inset is what reads as a user bubble.
-                className={
-                    turn.isUser ? "min-w-0 max-w-[85%]" : "min-w-0 max-w-full sm:max-w-[85%]"
-                }
+                // No avatar column; the 85% inset is what reads as a user bubble. The agent's
+                // answers take the whole column, as wide as the composer (KIT-11, LAYOUT-02).
+                className={turn.isUser ? "min-w-0 max-w-[85%]" : "min-w-0 max-w-full"}
                 classNames={{
                     content: turn.isUser
                         ? cn(
                               userBubbleContentClass,
-                              "rounded-xl rounded-br-sm bg-muted text-xs sm:px-3.5 sm:py-2.5",
+                              "rounded-lg rounded-br-xs bg-secondary px-3.5 py-2.5 text-body",
                           )
-                        : "min-w-0 max-w-full overflow-hidden text-xs",
-                    body: "min-w-0 max-w-full overflow-hidden",
+                        : cn("min-w-0 max-w-full overflow-hidden text-body", ASSISTANT_CLIP_ROOM),
+                    body: cn(
+                        "min-w-0 max-w-full overflow-hidden",
+                        !turn.isUser && ASSISTANT_CLIP_ROOM,
+                    ),
                 }}
                 // A refused file-only send has no words to paint, but its failure still has to be
                 // said, or the cards sit there looking like an upload that worked.
@@ -438,6 +494,15 @@ const TurnRowInner = ({
                 </div>
             ) : null}
         </div>
+    )
+    // The host's accessory (the builder's context divider) sits in the transcript column, above the turn.
+    return accessory ? (
+        <>
+            {accessory}
+            {row}
+        </>
+    ) : (
+        row
     )
 }
 

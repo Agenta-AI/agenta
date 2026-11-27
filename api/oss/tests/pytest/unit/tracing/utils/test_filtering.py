@@ -1,6 +1,7 @@
 from re import escape
 
 import pytest
+from sqlalchemy.dialects import postgresql
 
 from oss.src.core.tracing.dtos import (
     ComparisonOperator,
@@ -23,6 +24,7 @@ from oss.src.core.tracing.utils.filtering import (
     parse_ingest,
     parse_query,
 )
+from oss.src.dbs.postgres.tracing.utils import filter as build_filter
 
 
 TRACE_HEX = "31d6cfe04b9011ec800142010a8000b0"
@@ -185,6 +187,25 @@ def test_parse_condition_for_enum_timestamp_uuid_and_string_fields():
     assert span_name.value == "123"
     assert start_time.value is not None
     assert created_by.value == TRACE_UUID
+
+
+def test_parse_condition_and_filter_handle_turn_id_as_a_string_column():
+    condition = Condition(
+        field=Fields.TURN_ID,
+        operator=ComparisonOperator.IS,
+        value=123,
+    )
+
+    parse_condition(condition)
+
+    assert Fields("turn_id") is Fields.TURN_ID
+    assert condition.value == "123"
+
+    clauses = build_filter([condition])
+    assert len(clauses) == 1
+    compiled = clauses[0].compile(dialect=postgresql.dialect())
+    assert "spans.turn_id" in str(compiled)
+    assert list(compiled.params.values()) == ["123"]
 
 
 def test_parse_condition_ignores_unknown_field_instead_of_raising():

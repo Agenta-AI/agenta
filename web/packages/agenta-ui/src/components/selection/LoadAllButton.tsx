@@ -20,7 +20,9 @@
 
 import React from "react"
 
-import {Download} from "lucide-react"
+import {useT} from "@agenta/i18n"
+import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
+import {DownloadSimpleIcon} from "@phosphor-icons/react"
 
 import type {EntityListCounts} from "../../InfiniteVirtualTable/paginated"
 import {cn, flexLayouts, gapClasses, linkColors, textColors} from "../../utils/styles"
@@ -107,14 +109,17 @@ export function LoadAllButton({
     onLoadAll,
     isLoading = false,
     hasMore: hasMoreProp = true,
-    label = "Load all",
-    loadingLabel = "Loading all...",
+    label: labelProp,
+    loadingLabel: loadingLabelProp,
     totalCount: totalCountProp,
     loadedCount: loadedCountProp,
     size = "sm",
     className = "",
     block = false,
 }: LoadAllButtonProps) {
+    const t = useT(listControlsCatalog)
+    const label = labelProp ?? t("ui.listControls.loadAll")
+    const loadingLabel = loadingLabelProp ?? t("ui.listControls.loadingAll")
     // Use counts object if provided, otherwise fall back to individual props
     const hasMore = counts?.hasMore ?? hasMoreProp
     const totalCount = counts?.totalCount ?? totalCountProp
@@ -146,19 +151,13 @@ export function LoadAllButton({
                 onClick={handleClick}
                 disabled={isLoading || !hasMore}
             >
-                {isLoading ? <Spinner size="small" /> : <Download className="w-3 h-3" />}
+                {isLoading ? <Spinner size="small" /> : <DownloadSimpleIcon className="w-3 h-3" />}
                 {isLoading ? loadingLabel : label}
             </Button>
 
             {/* Progress indicator when loading */}
             {isLoading && progressPercent !== undefined && (
-                <Progress
-                    type="circle"
-                    percent={progressPercent}
-                    size={20}
-                    strokeWidth={10}
-                    showInfo={false}
-                />
+                <Progress type="circle" percent={progressPercent} size={20} showInfo={false} />
             )}
 
             {/* Count display */}
@@ -190,9 +189,11 @@ export function LoadAllInline({
     onLoadAll,
     isLoading = false,
     hasMore = true,
-    label = "Load all",
+    label: labelProp,
     className = "",
 }: LoadAllInlineProps) {
+    const t = useT(listControlsCatalog)
+    const label = labelProp ?? t("ui.listControls.loadAll")
     if (!hasMore && !isLoading) {
         return null
     }
@@ -210,7 +211,7 @@ export function LoadAllInline({
             {isLoading ? (
                 <span className={cn(textColors.tertiary, flexLayouts.rowCenter, gapClasses.xs)}>
                     <Spinner size="small" />
-                    Loading...
+                    {t("ui.listControls.loadingDots")}
                 </span>
             ) : (
                 <button

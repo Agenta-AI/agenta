@@ -1,11 +1,24 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {message} from "@agenta/ui/app-message"
 import {LoadError} from "@agenta/ui/components/presentational"
-import {ListTableColumnsMenu, ListTableToolbar} from "@agenta/ui/list-table"
-import {Button} from "@agenta/ui/ui"
-import {Spinner} from "@phosphor-icons/react"
+import {ListTableColumnsMenu} from "@agenta/ui/list-table"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+    PageToolbar,
+    Spinner,
+} from "@agenta/ui/ui"
 import dynamic from "next/dynamic"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -69,8 +82,16 @@ export const EvaluationsScreen = ({
     useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const filters = useEvaluationRunsFilters()
-    const {kind, appId, search, panel} = filters
-    const list = useEvaluationRunsList({projectId, kind, appId, search, panel})
+    const {kind, appId, evaluatorId, scopePending, search, panel} = filters
+    const list = useEvaluationRunsList({
+        projectId,
+        kind,
+        appId,
+        evaluatorId,
+        scopePending,
+        search,
+        panel,
+    })
     const [panelOpen, setPanelOpen] = useState(false)
     // The choices load when the panel opens, or when a chip needs the names of its ids.
     const filterOptions = useRunFilterOptions({
@@ -79,6 +100,7 @@ export const EvaluationsScreen = ({
         enabled: panelOpen || REFERENCE_FILTERS.some((key) => panel.references[key].length > 0),
     })
     const actions = useRunRowActions({projectId, base: `/w/${workspaceId}/p/${projectId}`})
+    const t = useT(commonCatalog)
     const [revisionId] = useRevisionParam()
     const searchField = useDebouncedAtomSearch(filters.setSearch, 300, search)
     const filtered = search.trim() !== "" || countRunFilters(panel) > 0
@@ -124,7 +146,7 @@ export const EvaluationsScreen = ({
                         >
                             <div className="flex min-w-0 flex-wrap items-center gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px]">
+                                <h1 className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
                                     Evaluations
                                 </h1>
                                 {filters.appFromPath ? null : (
@@ -152,7 +174,7 @@ export const EvaluationsScreen = ({
                                 onChange={filters.setKind}
                             />
                         </div>
-                        <ListTableToolbar
+                        <PageToolbar
                             search={searchField.value}
                             onSearchChange={searchField.onChange}
                             searchPlaceholder="Search evaluations"
@@ -224,7 +246,7 @@ export const EvaluationsScreen = ({
                                                           <Button
                                                               type="button"
                                                               size="sm"
-                                                              variant="destructive"
+                                                              variant="destructive-ghost"
                                                               disabled={bulkBusy}
                                                               onClick={() =>
                                                                   actions.removeRuns(
@@ -245,21 +267,7 @@ export const EvaluationsScreen = ({
                                         ) : filtered ? (
                                             <EvaluationsNoMatch onClear={filters.clearFilters} />
                                         ) : (
-                                            <EvaluationsEmpty
-                                                kind={kind}
-                                                onCreate={canCreate ? onCreate : undefined}
-                                                createKinds={createKinds}
-                                                createMenu={
-                                                    canCreate && onCreate ? (
-                                                        <CreateEvaluationMenu
-                                                            tab="all"
-                                                            onCreate={onCreate}
-                                                            kinds={createKinds}
-                                                            label="Start evaluation"
-                                                        />
-                                                    ) : null
-                                                }
-                                            />
+                                            <EvaluationsEmpty kind={kind} />
                                         )
                                     }
                                 />
@@ -272,7 +280,7 @@ export const EvaluationsScreen = ({
                                             onClick={() => void loadMore()}
                                         >
                                             {list.isFetchingNextPage ? (
-                                                <Spinner aria-hidden className="animate-spin" />
+                                                <Spinner aria-hidden />
                                             ) : null}
                                             Load more
                                         </Button>
@@ -283,7 +291,58 @@ export const EvaluationsScreen = ({
                     </div>
                 </ScreenScaffold>
             </AppShell>
-            {actions.modal}
+            <AlertDialog
+                open={Boolean(actions.confirmDialog.request)}
+                onOpenChange={(next) => {
+                    if (!next && !actions.confirmDialog.pending) actions.confirmDialog.close()
+                }}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {actions.confirmDialog.request?.title ?? ""}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {actions.confirmDialog.request?.message ?? ""}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {actions.confirmDialog.error ? (
+                        <p className="m-0 text-body text-destructive">
+                            {actions.confirmDialog.error}
+                        </p>
+                    ) : null}
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                variant="outline"
+                                onClick={actions.confirmDialog.close}
+                                disabled={actions.confirmDialog.pending}
+                            >
+                                {actions.confirmDialog.request?.cancelText ?? t("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant={
+                                    actions.confirmDialog.request?.danger === false
+                                        ? "default"
+                                        : "destructive"
+                                }
+                                disabled={actions.confirmDialog.pending}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    void actions.confirmDialog.runConfirm()
+                                }}
+                            >
+                                {actions.confirmDialog.pending
+                                    ? t("common.working")
+                                    : (actions.confirmDialog.request?.okText ??
+                                      t("common.confirm"))}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
             {revisionId ? <RevisionDrawerHost kind="variant" /> : null}
         </>
     )

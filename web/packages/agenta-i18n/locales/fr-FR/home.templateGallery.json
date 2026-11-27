@@ -1,0 +1,14 @@
+{
+    "title": "Modèles",
+    "subtitle": "Partez d'un Agent éprouvé : consultez ce qu'il fait, connectez ce dont il a besoin et ouvrez le playground.",
+    "searchPlaceholder": "Rechercher des modèles…",
+    "all": "Tous",
+    "loadError": "Impossible de charger les modèles",
+    "sectionCount_one": "{{count}} modèle",
+    "sectionCount_many": "{{count}} modèles",
+    "sectionCount_other": "{{count}} modèles",
+    "noMatch": "Aucun modèle ne correspond à « {{query}} ».",
+    "noneInCategory": "Aucun modèle dans {{category}}.",
+    "clearSearch": "Effacer la recherche",
+    "showAll": "Afficher tous les modèles"
+}

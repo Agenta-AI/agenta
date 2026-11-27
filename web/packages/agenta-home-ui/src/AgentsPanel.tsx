@@ -1,6 +1,8 @@
 import {useMemo, type ReactNode} from "react"
 
 import {AgentCard, type AgentCardData} from "@agenta/entity-ui/agent"
+import {useT} from "@agenta/i18n"
+import agentsPanelCatalog from "@agenta/i18n/catalogs/home.agentsPanel"
 import {PANEL_ACTION_CLASS, PanelSection} from "@agenta/ui/components/presentational"
 import {ArrowRightIcon} from "@phosphor-icons/react"
 import Link from "next/link"
@@ -72,18 +74,19 @@ export const AgentsPanel = ({
         [entries, limit],
     )
     const waitingByAgent = useWaitingByAgent()
+    const t = useT(agentsPanelCatalog)
 
     return (
         <PanelSection
             sticky
-            title="Your agents"
+            title={t("home.agentsPanel.title")}
             bodyClassName="flex flex-col gap-1 px-2 pb-3"
             extra={
                 <div className="flex shrink-0 items-center gap-3">
                     {/* An arrow means the action leaves the page. In-place reveals
                         ("View all 28", "Expand") deliberately don't carry one. */}
                     <Link href={allAgentsHref} className={PANEL_ACTION_CLASS}>
-                        All agents
+                        {t("home.agentsPanel.all")}
                         <ArrowRightIcon size={12} />
                     </Link>
                 </div>
@@ -92,10 +95,7 @@ export const AgentsPanel = ({
             {loading ? (
                 <div className="flex flex-col gap-2 px-4 pb-4">
                     {[0, 1, 2].map((row) => (
-                        <div
-                            key={row}
-                            className="h-12 animate-pulse rounded bg-colorFillTertiary"
-                        />
+                        <div key={row} className="h-12 animate-pulse rounded bg-secondary" />
                     ))}
                 </div>
             ) : shown.length === 0 ? (

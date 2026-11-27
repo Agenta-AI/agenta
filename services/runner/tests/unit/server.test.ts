@@ -8,6 +8,7 @@
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/server.test.ts)
  */
 import { turnLogUnmoved } from "../utils/turn-log.ts";
+import { driveSigns } from "../utils/drive-sign.ts";
 import { afterEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 import * as http from "node:http";
@@ -147,6 +148,33 @@ describe("createAgentServer", () => {
       const body = (await res.json()) as { ok: boolean; output: string };
       assert.equal(body.ok, true);
       assert.equal(body.output, "hi");
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /run accepts a field it does not know and passes the drive fields to the engine", async () => {
+    // An older runner must keep running requests from a newer agent service (drive sharing).
+    let seen: Record<string, unknown> | undefined;
+    const s = await listen(async (request) => {
+      seen = request as Record<string, unknown>;
+      return { ok: true, output: "hi", events: [] };
+    });
+    try {
+      const res = await fetch(`${s.url}/run`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({
+          harness: "pi_core",
+          aFieldFromTheFuture: { nested: true },
+          drives: [{ kind: "agent" }, { kind: "project", slug: "notes", access: "read" }],
+          hasSessionDrive: false,
+        }),
+      });
+      assert.equal(res.status, 200);
+      assert.deepEqual(seen?.aFieldFromTheFuture, { nested: true });
+      assert.deepEqual(seen?.drives, [{ kind: "agent" }, { kind: "project", slug: "notes", access: "read" }]);
+      assert.equal(seen?.hasSessionDrive, false);
     } finally {
       await s.close();
     }
@@ -726,6 +754,7 @@ describe("createAgentServer", () => {
         return { ok: true, output: "must not run" };
       },
       readLatestTurnIndex: turnLogUnmoved,
+      signDrive: driveSigns,
       async runCold() {
         return { ok: false, error: "must not run cold fallback" };
       },
@@ -857,6 +886,7 @@ describe("createAgentServer", () => {
         return { ok: true, output: "must not run" };
       },
       readLatestTurnIndex: turnLogUnmoved,
+      signDrive: driveSigns,
       async runCold() {
         return { ok: false, error: "must not run cold fallback" };
       },
@@ -1257,6 +1287,7 @@ describe("createAgentServer", () => {
         return { ok: true, output: "must not run" };
       },
       readLatestTurnIndex: turnLogUnmoved,
+      signDrive: driveSigns,
       async runCold() {
         return { ok: false, error: "must not run cold fallback" };
       },
@@ -1632,14 +1663,20 @@ describe("createAgentServer", () => {
   });
 
   for (const testCase of [
-    { name: "durable continuation", continuation: true, clientGone: false },
-    { name: "session-owned turn", continuation: false, clientGone: true },
+    {
+      name: "durable continuation",
+      suffix: "c",
+      fields: { controlCommandId: "command-close" },
+      clientGone: false,
+    },
+    { name: "detached session turn", suffix: "d", fields: { detached: true }, clientGone: false },
+    { name: "session-owned turn", suffix: "s", fields: {}, clientGone: true },
   ]) {
     it(`a ${testCase.name} whose caller closes mid-turn reports clientGone=${testCase.clientGone} to the park decision`, async () => {
       // The api dispatches an answered approval detached and closes the stream once the first
       // record arrives. That close must not read as a lost client, or the resumed warm sandbox is
-      // destroyed at turn end and the next message starts cold. Any other session-owned turn
-      // keeps "disconnect means destroy, never park".
+      // destroyed at turn end and the next message starts cold. A detached turn closes the same
+      // way on purpose. Any other session-owned turn keeps "disconnect means destroy, never park".
       vi.stubEnv("AGENTA_API_URL", "https://api.example.test/api");
       let markStarted: (() => void) | undefined;
       const started = new Promise<void>((resolve) => {
@@ -1691,12 +1728,10 @@ describe("createAgentServer", () => {
         request.end(
           JSON.stringify({
             harness: "pi_core",
-            sessionId: `session-close-${testCase.continuation ? "c" : "s"}`,
-            turnId: `turn-close-${testCase.continuation ? "c" : "s"}`,
+            sessionId: `session-close-${testCase.suffix}`,
+            turnId: `turn-close-${testCase.suffix}`,
             projectId: "project-1",
-            ...(testCase.continuation
-              ? { controlCommandId: "command-close", detached: true }
-              : {}),
+            ...testCase.fields,
             messages: [{ role: "user", content: "approved" }],
           }),
         );

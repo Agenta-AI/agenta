@@ -1,12 +1,15 @@
-import {useCallback, useRef, useState} from "react"
+import {Suspense, useCallback, useRef, useState} from "react"
 
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@agenta/ui/ui"
+import {useT, type CatalogKey} from "@agenta/i18n"
+import channelsPanelCatalog from "@agenta/i18n/catalogs/channels.panel"
+import {message} from "@agenta/ui/app-message"
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner} from "@agenta/ui/ui"
+import {ViewStep} from "@agenta/ui/view-stack"
 import {Broadcast, ChatCircleText, Code} from "@phosphor-icons/react"
 
 import {ChannelAgentPicker} from "./ChannelAgentPicker"
-import {ChannelConnectFlow} from "./ChannelConnectFlow"
 import {ChannelConnectionList} from "./ChannelConnectionList"
-import {ChannelManagePanel} from "./ChannelManagePanel"
+import {ChannelConnectSkeleton} from "./ChannelConnectSkeleton"
 import {ChannelsHubView} from "./ChannelsHubView"
 import {
     agentConnectionsOf,
@@ -16,6 +19,8 @@ import {
     platformLabel,
 } from "./helpers"
 import {platformLogo} from "./icons"
+import {lazyPanel} from "./lazyPanel"
+import {PanelLoadBoundary} from "./PanelLoadBoundary"
 import type {
     ChannelConnection,
     ChannelConnections,
@@ -24,7 +29,32 @@ import type {
     ChannelsActions,
     ChannelsPanelAgent,
 } from "./types"
-import {ViewTransition} from "./ViewTransition"
+
+/** The title of the connect flow when the agent already has a connection on the platform. */
+const ADD_ANOTHER_TITLES: Record<ChannelPlatform, CatalogKey<typeof channelsPanelCatalog>> = {
+    slack: "channels.panel.addSlackWorkspace",
+    telegram: "channels.panel.addTelegramBot",
+    whatsapp: "channels.panel.addWhatsAppNumber",
+    discord: "channels.panel.addDiscordBot",
+    teams: "channels.panel.addTeamsBot",
+}
+
+const connectFlowPanel = lazyPanel(() =>
+    import("./ChannelConnectFlow").then((m) => m.ChannelConnectFlow),
+)
+const managePanel = lazyPanel(() =>
+    import("./ChannelManagePanel").then((m) => m.ChannelManagePanel),
+)
+
+/** A lazy view's place while its code loads: the connect flow's shape, else a spinner. */
+const PanelLoading = ({route}: {route: ChannelsRoute}) =>
+    route.view === "connect" ? (
+        <ChannelConnectSkeleton />
+    ) : (
+        <div className="flex justify-center py-10">
+            <Spinner />
+        </div>
+    )
 
 export interface ChannelsPanelRenderProps {
     open: boolean
@@ -84,8 +114,6 @@ export interface UseChannelPanelOptions {
     agents?: ChannelsPanelAgent[]
     /** Switch the panel to another agent; it reopens on that agent's hub. */
     onAgentChange?: (agentId: string) => void
-    /** The project's name, for the agent step's audience note. */
-    projectName?: string
 }
 
 export interface EmbedViewProps {
@@ -141,9 +169,9 @@ const findConnection = (
 /** The Publish / channels panel every entry point opens: a stack of views with a back button. */
 export const useChannelPanel = ({
     agentId,
-    agentName = "your agent",
+    agentName: agentNameOption,
     agentDescription,
-    workspaceName = "your workspace",
+    workspaceName: workspaceNameOption,
     connections = EMPTY_CONNECTIONS,
     loading = false,
     loadError = null,
@@ -154,8 +182,10 @@ export const useChannelPanel = ({
     embed,
     agents,
     onAgentChange,
-    projectName,
 }: UseChannelPanelOptions) => {
+    const t = useT(channelsPanelCatalog)
+    const agentName = agentNameOption ?? t("channels.panel.yourAgent")
+    const workspaceName = workspaceNameOption ?? t("channels.panel.yourWorkspace")
     const [stack, setStack] = useState<ChannelsRoute[]>([])
     // Closing keeps the stack, so the last view stays mounted while the drawer animates out.
     const [isOpen, setIsOpen] = useState(false)
@@ -224,6 +254,26 @@ export const useChannelPanel = ({
         [connections, connectRoute],
     )
 
+    /** Another agent's platform: its list, or connect when it has none there. */
+    const platformRouteFor = useCallback(
+        (id: string, platform: ChannelPlatform): ChannelsRoute => {
+            const all = connections.allConnections
+            const theirs = all?.filter(
+                (c) => c.platform === platform && c.agent?.id === id && c.status !== "pending",
+            )
+            if (theirs && theirs.length === 0) {
+                return {
+                    view: "connect",
+                    platform,
+                    mode: "hosted",
+                    known: knownIds(connections, platform),
+                }
+            }
+            return {view: "platform", platform}
+        },
+        [connections],
+    )
+
     const open = useCallback(
         (platform: ChannelPlatform) => openRoute(entryRoute(platform)),
         [openRoute, entryRoute],
@@ -281,6 +331,7 @@ export const useChannelPanel = ({
                 !agentConnectionsOf(next, platform).some((c) => c.connectionId === connectionId)
             if (!gone) throw failure
         }
+        message.success(t("channels.panel.disconnected", {platform: platformLabel(platform)}))
         if (stack.length > 1) {
             setDirection(-1)
             setStack((s) => s.slice(0, -1))
@@ -328,12 +379,13 @@ export const useChannelPanel = ({
                         onAdd={() => push(connectRoute(route.platform))}
                     />
                 )
-            case "connect":
+            case "connect": {
+                const ChannelConnectFlow = connectFlowPanel()
                 return (
                     <ChannelConnectFlow
                         key={`${route.platform}-${route.mode}`}
                         platform={route.platform}
-                        agentName={agentName}
+                        agentName={agentNameOption}
                         agentDescription={agentDescription}
                         workspaceName={workspaceName}
                         hostedHandle={hostedHandle}
@@ -350,7 +402,9 @@ export const useChannelPanel = ({
                         onConnected={() => onConnected(route)}
                     />
                 )
+            }
             case "manage": {
+                const ChannelManagePanel = managePanel()
                 const connection = findConnection(connections, route.platform, route.connectionId)
                 if (!connection) return null
                 return (
@@ -375,20 +429,20 @@ export const useChannelPanel = ({
                         }
                         onConnectHere={async () => {
                             if (!connection.connectionId) {
-                                throw new Error("This connection has no id yet.")
+                                throw new Error(t("channels.panel.noIdYet"))
                             }
                             await actions.connectHere(route.platform, connection.connectionId)
                             await actions.reload()
                         }}
                         onDisconnect={async () => {
                             if (!connection.connectionId) {
-                                throw new Error("This connection has no id yet.")
+                                throw new Error(t("channels.panel.noIdYet"))
                             }
                             await onDisconnect(route.platform, connection.connectionId)
                         }}
                         onTurnOn={async () => {
                             if (!connection.connectionId) {
-                                throw new Error("This connection has no id yet.")
+                                throw new Error(t("channels.panel.noIdYet"))
                             }
                             await actions.turnOn(route.platform, connection.connectionId)
                             await actions.reload()
@@ -412,12 +466,11 @@ export const useChannelPanel = ({
                         agents={agents ?? []}
                         connections={connections}
                         platform={route.platform}
-                        projectName={projectName}
                         onSelect={(id) => {
                             onAgentChange?.(id)
                             push(
                                 route.platform
-                                    ? {view: "platform", platform: route.platform}
+                                    ? platformRouteFor(id, route.platform)
                                     : {view: "hub"},
                             )
                         }}
@@ -429,23 +482,25 @@ export const useChannelPanel = ({
     const headerOf = (route: ChannelsRoute): {title: string; icon: React.ReactNode} => {
         switch (route.view) {
             case "hub":
-                return {title: "Publish", icon: <Broadcast size={18} />}
+                return {title: t("channels.panel.publish"), icon: <Broadcast size={18} />}
             case "api":
-                return {title: "API", icon: <Code size={18} weight="bold" />}
+                return {title: t("channels.panel.api"), icon: <Code size={18} />}
             case "embed":
-                return {title: "Embed", icon: <ChatCircleText size={18} />}
+                return {
+                    title: t("channels.panel.embed"),
+                    icon: <ChatCircleText size={18} />,
+                }
             case "agents":
-                return {title: "Connect a channel", icon: <Broadcast size={18} />}
+                return {
+                    title: t("channels.panel.connectChannel"),
+                    icon: <Broadcast size={18} />,
+                }
             case "connect": {
                 const label = platformLabel(route.platform)
                 const hasAny = agentConnectionsOf(connections, route.platform).length > 0
                 const title = !hasAny
-                    ? `Connect ${label}`
-                    : route.platform === "slack"
-                      ? "Add a Slack workspace"
-                      : route.platform === "whatsapp"
-                        ? "Add a WhatsApp number"
-                        : "Add a Telegram bot"
+                    ? t("channels.panel.connectPlatform", {platform: label})
+                    : t(ADD_ANOTHER_TITLES[route.platform])
                 return {title, icon: platformLogo(route.platform, 18)}
             }
             default:
@@ -460,8 +515,13 @@ export const useChannelPanel = ({
         reloadAfterConnect()
         onAgentChange?.(id)
         setDirection(1)
-        // A picked agent keeps the picker under its hub, so back still offers the others.
-        setStack((s) => (s[0]?.view === "agents" ? [s[0], {view: "hub"}] : [{view: "hub"}]))
+        // Keep the open platform; the picker stays under the hub so back still offers the others.
+        const platform = top && top.view !== "agents" && "platform" in top ? top.platform : null
+        setStack((s) => [
+            ...(s[0]?.view === "agents" ? [s[0]] : []),
+            {view: "hub"},
+            ...(platform ? [platformRouteFor(id, platform)] : []),
+        ])
     }
 
     const subtitle =
@@ -470,8 +530,8 @@ export const useChannelPanel = ({
                 <SelectTrigger
                     variant="ghost"
                     size="sm"
-                    aria-label="Agent"
-                    className="h-auto w-auto max-w-full px-0 text-xs text-muted-foreground"
+                    aria-label={t("channels.panel.agent")}
+                    className="h-auto w-auto max-w-full px-0 text-meta text-muted-foreground"
                     data-testid="channels-panel-agent"
                 >
                     <SelectValue />
@@ -481,14 +541,19 @@ export const useChannelPanel = ({
                         const live = liveCountOf(connections, agent.id)
                         return (
                             <SelectItem key={agent.id} value={agent.id}>
-                                {live ? `${agent.name} · ${live} live` : agent.name}
+                                {live
+                                    ? t("channels.panel.agentLive", {
+                                          name: agent.name,
+                                          count: live,
+                                      })
+                                    : agent.name}
                             </SelectItem>
                         )
                     })}
                 </SelectContent>
             </Select>
         ) : top?.view === "agents" ? (
-            "Choose the agent that answers"
+            t("channels.panel.chooseAgent")
         ) : (
             agentName
         )
@@ -504,9 +569,19 @@ export const useChannelPanel = ({
                   onBack: stack.length > 1 ? back : undefined,
                   onClose: close,
                   children: (
-                      <ViewTransition viewKey={routeKey(top, stack.length)} direction={direction}>
-                          {renderView(top)}
-                      </ViewTransition>
+                      <ViewStep
+                          step={routeKey(top, stack.length)}
+                          direction={direction < 0 ? "back" : "forward"}
+                          className="flex min-h-full flex-1 flex-col"
+                      >
+                          <PanelLoadBoundary>
+                              {() => (
+                                  <Suspense fallback={<PanelLoading route={top} />}>
+                                      {renderView(top)}
+                                  </Suspense>
+                              )}
+                          </PanelLoadBoundary>
+                      </ViewStep>
                   ),
               })
             : null

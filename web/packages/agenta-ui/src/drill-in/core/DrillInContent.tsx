@@ -20,6 +20,10 @@
 
 import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiDrillInCatalog from "@agenta/i18n/catalogs/ui.drillIn"
+
 import type {
     DataType,
     DrillInContentProps,
@@ -42,6 +46,8 @@ import {DrillInBreadcrumb} from "./DrillInBreadcrumb"
 import {DrillInControls} from "./DrillInControls"
 import {DrillInFieldHeader} from "./DrillInFieldHeader"
 
+const tNow = createT(uiDrillInCatalog)
+
 // Re-export types for backward compatibility
 export type {PathItem, SchemaInfo, DrillInContentProps} from "../coreTypes"
 
@@ -52,8 +58,8 @@ const DefaultFieldRenderer: FieldRendererComponent = ({value, editable}) => {
     const displayValue = typeof value === "string" ? value : JSON.stringify(value, null, 2)
     return (
         <pre
-            className={`text-xs font-mono whitespace-pre-wrap break-words m-0 p-3 bg-gray-50 rounded-md max-h-[200px] overflow-auto ${
-                editable ? "text-gray-700" : "text-[var(--ag-c-9D4EDD)]"
+            className={`text-code-sm font-mono whitespace-pre-wrap break-words m-0 p-3 bg-muted rounded-md max-h-50 overflow-auto ${
+                editable ? "text-foreground" : "text-data-4"
             }`}
         >
             {displayValue}
@@ -147,6 +153,7 @@ export function DrillInContent({
     drillInEnabled = true,
     ContextProvider,
 }: DrillInContentWithRenderersProps) {
+    const t = useT(uiDrillInCatalog, commonCatalog)
     const resolvedShowFieldCollapse = showFieldCollapse ?? showCollapse
 
     // Parse initialPath to array format, removing rootTitle prefix if present
@@ -415,9 +422,10 @@ export function DrillInContent({
             const strValue = valueToString(value)
             try {
                 const parsed = JSON.parse(strValue)
-                if (Array.isArray(parsed)) return `${parsed.length} items`
+                if (Array.isArray(parsed))
+                    return tNow("ui.drillIn.itemsCount", {count: parsed.length})
                 if (typeof parsed === "object" && parsed !== null)
-                    return `${Object.keys(parsed).length} properties`
+                    return tNow("ui.drillIn.propertiesCount", {count: Object.keys(parsed).length})
             } catch {
                 // Not JSON
             }
@@ -538,7 +546,7 @@ export function DrillInContent({
     const outerWrapperClass = isFlatVariant ? "flex flex-col" : "flex flex-col gap-2"
     const fieldsWrapperClass = isFlatVariant ? "flex flex-col" : "flex flex-col gap-2"
     const fieldWrapperClass = isFlatVariant
-        ? "flex flex-col border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]"
+        ? "flex flex-col border-0 border-b border-solid border-border-muted"
         : "flex flex-col gap-2"
     const fieldBodyClass = isFlatVariant ? "px-4 pb-2 pt-2" : "px-4 pt-2"
 
@@ -577,7 +585,9 @@ export function DrillInContent({
 
             {/* Current level items */}
             {filteredLevelItems.length === 0 && (
-                <div className="text-gray-500 text-sm">No items to display</div>
+                <div className="text-muted-foreground text-body">
+                    {t("ui.drillIn.noItemsToDisplay")}
+                </div>
             )}
 
             <div className={fieldsWrapperClass}>

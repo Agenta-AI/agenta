@@ -32,7 +32,10 @@ export interface RunSummaryInput {
     references: RunReferences | null
     metrics: readonly OverviewMetric[]
     metricsPending: boolean
-    names: Pick<OverviewNames, "testsets" | "application" | "variant">
+    names: Pick<
+        OverviewNames,
+        "testsets" | "application" | "variant" | "testsetVersions" | "revisionVersion"
+    >
     /** Links to the test set and variant pages; without them the chips are plain. */
     links?: RunReferenceLinks
     /** A live run's query: its filtering and sampling rate. Undefined while it loads. */
@@ -86,7 +89,7 @@ function metricValue(stats: MetricStats | null): ReactNode {
             {bars.map((bar) => (
                 <span
                     key={bar.category}
-                    className="rounded-control-sm border border-solid border-border px-1.5 text-xs"
+                    className="rounded-control-sm border border-solid border-border px-1.5 text-meta"
                 >
                     {bar.category} ({bar.value})
                 </span>
@@ -97,7 +100,7 @@ function metricValue(stats: MetricStats | null): ReactNode {
 
 const metricRowLabel = (metric: OverviewMetric) => (
     <span className="flex flex-col">
-        <span className="text-xs text-muted-foreground">{metric.evaluatorName ?? "--"}</span>
+        <span className="text-meta text-muted-foreground">{metric.evaluatorName ?? "--"}</span>
         <span>
             {humanizeMetricLabel(metric.label)}
             {metric.stats?.mean !== undefined ? " (mean)" : ""}
@@ -128,7 +131,7 @@ export function buildRunSummaryRows({
                             key={`${testset.testsetId}-${index}`}
                             icon={<Database size={14} />}
                             label={names.testsets[index] ?? testset.testsetId}
-                            version={testset.version}
+                            version={testset.version ?? names.testsetVersions?.[index] ?? null}
                             href={testset.revisionId ? links?.testset(testset.revisionId) : null}
                         />
                     ))}
@@ -178,7 +181,7 @@ export function buildRunSummaryRows({
                 <RunReferenceChip
                     icon={<GitCommit size={14} />}
                     label={names.variant}
-                    version={references.revisionVersion}
+                    version={references.revisionVersion ?? names.revisionVersion ?? null}
                     href={revisionId ? links?.variant(applicationId, revisionId) : null}
                 />
             ) : (

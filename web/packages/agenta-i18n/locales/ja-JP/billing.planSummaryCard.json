@@ -1,0 +1,11 @@
+{
+    "cancelSubscription": "サブスクリプションをキャンセル",
+    "changePlan": "プランを変更",
+    "contactUs": "プランについてお問い合わせ",
+    "creditsAMonth": "毎月 {{credits}} クレジット",
+    "currentPlan": "現在のプラン",
+    "renews": "{{date}} に更新",
+    "trialEnded": "トライアルは {{date}} に終了しました",
+    "trialEnds": "トライアルは {{date}} に終了します",
+    "upgradePlan": "プランをアップグレード"
+}

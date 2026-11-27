@@ -106,7 +106,7 @@ const PlaygroundFiles = ({narrow = false}: {narrow?: boolean}) => {
     const [open, setOpen] = useState(true)
     const [expanded, setExpanded] = useState(false)
     return (
-        <div data-vrt-subject className={`h-[320px] ${narrow ? "w-[390px]" : "w-[1000px]"}`}>
+        <div className={`h-[320px] ${narrow ? "w-[390px]" : "w-[1000px]"}`}>
             <div className="flex h-12 items-center gap-2 px-4">
                 Recent files
                 <span className="ml-auto" title="Total files">

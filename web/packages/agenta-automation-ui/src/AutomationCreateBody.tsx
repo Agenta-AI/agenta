@@ -1,11 +1,15 @@
 import {type ReactNode} from "react"
 
-import {Switch} from "@agenta/ui/ui"
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
+import {ItemViewTitle, Switch} from "@agenta/ui/ui"
 
 import {AutomationAgentField} from "./AutomationAgentField"
 import {AutomationInstructionField} from "./AutomationInstructionField"
+import {AutomationKindTile} from "./AutomationKindTile"
+import {generatedAutomationLabel} from "./automationModel"
 import {AutomationRunsWhenField} from "./AutomationRunsWhenField"
-import {AutomationTitle} from "./AutomationTitle"
+import {AutomationTitle, useAutomationTitleEditable} from "./AutomationTitle"
 import {type AutomationCreateState} from "./useAutomationCreate"
 
 /**
@@ -20,6 +24,7 @@ export const AutomationCreateBody = ({
     state,
     autoEditName = true,
     showAgentField = true,
+    fixedKind = false,
     footer,
 }: {
     state: AutomationCreateState
@@ -27,41 +32,78 @@ export const AutomationCreateBody = ({
     autoEditName?: boolean
     /** False where the host already bound the agent — the playground's own panel. */
     showAgentField?: boolean
+    /** The kind was chosen before the form opened ("Add automation"), so it offers no switch. */
+    fixedKind?: boolean
     footer?: ReactNode
 }) => {
-    const {draft, preview, agentName, generatedName, errors} = state
+    const t = useT(automationsEditorCatalog)
+    const {draft, preview, agentName, errors} = state
+    const fallbackName =
+        state.eventName ||
+        generatedAutomationLabel(preview, agentName, t("automations.editor.untitledAutomation"))
+    const nameField = useAutomationTitleEditable({
+        name: draft.name,
+        onRename: state.setName,
+        autoEdit: fixedKind && autoEditName,
+        placeholder: fallbackName,
+    })
+    const activeSwitch = (
+        <Switch
+            size="sm"
+            checked={draft.isActive}
+            onCheckedChange={state.setActive}
+            // Names the setting, not the pending action: `role="switch"` already
+            // announces the state, so a label that inverts reads "…switched off, on".
+            aria-label={t("automations.editor.createSwitchedOnAria")}
+        />
+    )
 
     return (
         <>
-            {/* The switch sits where the saved screen puts Run now — the title line's right
-                end — so the same corner always carries the automation's own control. */}
-            <div className="flex min-w-0 items-center gap-3">
-                <div className="min-w-0 flex-1">
-                    <AutomationTitle
-                        name={draft.name}
-                        description=""
-                        onRename={state.setName}
-                        autoEdit={autoEditName}
-                        placeholder="Automation name"
-                        fallback={generatedName}
-                    />
-                </div>
-                <span className="hidden shrink-0 items-center gap-[9px] lg:flex">
-                    <Switch
-                        size="sm"
-                        checked={draft.isActive}
-                        onCheckedChange={state.setActive}
-                        // Names the setting, not the pending action: `role="switch"` already
-                        // announces the state, so a label that inverts reads "…switched off, on".
-                        aria-label="Create this automation switched on"
-                    />
-                    <span className="text-[14px] text-foreground">
-                        {draft.isActive ? "On" : "Off"}
+            {fixedKind ? (
+                // The pane's item title; an empty name shows the name it is saved under.
+                <ItemViewTitle
+                    mark={<AutomationKindTile kind={draft.kind} />}
+                    title={draft.name}
+                    editable={nameField}
+                    actions={
+                        <>
+                            <span className="text-meta text-muted-foreground">
+                                {draft.isActive
+                                    ? t("automations.editor.on")
+                                    : t("automations.editor.off")}
+                            </span>
+                            {activeSwitch}
+                        </>
+                    }
+                />
+            ) : (
+                // The switch sits where the saved screen puts Run now: the title line's right end.
+                <div className="flex min-w-0 items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                        <AutomationTitle
+                            name={draft.name}
+                            description=""
+                            onRename={state.setName}
+                            autoEdit={autoEditName}
+                            placeholder={t("automations.editor.namePlaceholder")}
+                            // The heading in the reader's language; for an event, the event's own
+                            // name, the same one `create` saves (see `defaultAutomationName`).
+                            fallback={fallbackName}
+                        />
+                    </div>
+                    <span className="hidden shrink-0 items-center gap-2 lg:flex">
+                        {activeSwitch}
+                        <span className="text-body text-foreground">
+                            {draft.isActive
+                                ? t("automations.editor.on")
+                                : t("automations.editor.off")}
+                        </span>
                     </span>
-                </span>
-            </div>
+                </div>
+            )}
 
-            <div className="mt-[26px] flex flex-col gap-[22px]">
+            <div className={`flex flex-col ${fixedKind ? "mt-4 gap-4" : "mt-6 gap-6"}`}>
                 {showAgentField ? (
                     <AutomationAgentField
                         agentId={draft.agentId}
@@ -73,7 +115,8 @@ export const AutomationCreateBody = ({
                 <AutomationRunsWhenField
                     automation={preview}
                     onChangeCron={state.setCron}
-                    onChangeKind={state.setKind}
+                    onChangeKind={fixedKind ? undefined : state.setKind}
+                    inline={fixedKind}
                     onSelectEvent={state.setEvent}
                     error={errors.runsWhen}
                 />

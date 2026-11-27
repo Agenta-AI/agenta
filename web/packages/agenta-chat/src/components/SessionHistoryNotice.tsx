@@ -1,18 +1,9 @@
-import {cn} from "@agenta/ui/ui"
-import {CircleNotch, WarningCircle} from "@phosphor-icons/react"
+import {useT} from "@agenta/i18n"
+import chatSessionHistoryNoticeCatalog from "@agenta/i18n/catalogs/chat.sessionHistoryNotice"
+import {cn, Spinner} from "@agenta/ui/ui"
+import {WarningCircle} from "@phosphor-icons/react"
 
 export type SessionHistoryNoticeState = "reconnecting" | "incomplete"
-
-const COPY: Record<SessionHistoryNoticeState, {title: string; detail: string}> = {
-    reconnecting: {
-        title: "Reconnecting to this session",
-        detail: "Restoring the durable transcript before live updates resume.",
-    },
-    incomplete: {
-        title: "Some earlier history is unavailable",
-        detail: "New activity will keep updating, but this transcript may be missing older events.",
-    },
-}
 
 /** User-visible reconnect/history integrity states shared by desktop and mobile chat surfaces. */
 export const SessionHistoryNotice = ({
@@ -22,36 +13,36 @@ export const SessionHistoryNotice = ({
     state: SessionHistoryNoticeState
     className?: string
 }) => {
-    const copy = COPY[state]
+    const t = useT(chatSessionHistoryNoticeCatalog)
+    const copy =
+        state === "reconnecting"
+            ? {
+                  title: t("chat.sessionHistoryNotice.reconnectingTitle"),
+                  detail: t("chat.sessionHistoryNotice.reconnectingDetail"),
+              }
+            : {
+                  title: t("chat.sessionHistoryNotice.incompleteTitle"),
+                  detail: t("chat.sessionHistoryNotice.incompleteDetail"),
+              }
     const reconnecting = state === "reconnecting"
 
     return (
         <div
             className={cn(
                 "box-border flex items-start gap-2 rounded-lg border border-solid px-3 py-2",
-                reconnecting
-                    ? "border-colorBorder bg-colorFillQuaternary"
-                    : "border-colorWarningBorder bg-colorWarningBg",
+                reconnecting ? "border-border bg-secondary" : "border-warning/30 bg-warning/10",
                 className,
             )}
             role="status"
         >
             {reconnecting ? (
-                <CircleNotch
-                    aria-hidden
-                    className="text-colorInfo mt-0.5 shrink-0 animate-spin"
-                    size={16}
-                />
+                <Spinner aria-hidden className="text-info mt-0.5" />
             ) : (
-                <WarningCircle
-                    aria-hidden
-                    className="text-colorWarning mt-0.5 shrink-0"
-                    size={16}
-                />
+                <WarningCircle aria-hidden className="text-warning mt-0.5 shrink-0" size={16} />
             )}
             <span className="min-w-0">
-                <span className="text-colorText block text-xs font-medium">{copy.title}</span>
-                <span className="text-colorTextSecondary block text-xs">{copy.detail}</span>
+                <span className="text-foreground block text-label">{copy.title}</span>
+                <span className="text-muted-foreground block text-meta">{copy.detail}</span>
             </span>
         </div>
     )

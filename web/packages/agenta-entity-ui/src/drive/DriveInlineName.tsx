@@ -2,6 +2,8 @@
 import {useEffect, useState} from "react"
 
 import {nameOf} from "@agenta/entities/drive"
+import {useT} from "@agenta/i18n"
+import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 
 import {DriveNameField} from "./DriveNameField"
 import {DriveTypeMark} from "./DriveTypeMark"
@@ -16,6 +18,7 @@ export const DriveInlineName = ({
     /** Absent = read-only. */
     onRename?: (name: string) => Promise<boolean>
 }) => {
+    const t = useT(driveExplorerCatalog)
     const name = nameOf(path)
     const [editing, setEditing] = useState(false)
     useEffect(() => setEditing(false), [path])
@@ -33,19 +36,19 @@ export const DriveInlineName = ({
                         return ok
                     }}
                     onCancel={() => setEditing(false)}
-                    className="h-[22px] w-[240px] max-w-full px-1.5 text-[13px]"
+                    className="h-control-xs w-60 max-w-full px-1.5 text-label"
                 />
             ) : onRename ? (
                 <button
                     type="button"
-                    title="Rename"
+                    title={t("entityUi.driveExplorer.rename")}
                     onClick={() => setEditing(true)}
-                    className="cursor-text truncate rounded border-0 bg-transparent px-1 py-0.5 text-[13px] font-medium text-colorText hover:bg-accent"
+                    className="h-control-xs cursor-text truncate rounded-sm border-0 bg-transparent px-1 py-0 text-label font-medium text-foreground hover:bg-accent"
                 >
                     {name}
                 </button>
             ) : (
-                <span className="truncate px-1 text-[13px] font-medium text-colorText" title={path}>
+                <span className="truncate px-1 text-label font-medium text-foreground" title={path}>
                     {name}
                 </span>
             )}

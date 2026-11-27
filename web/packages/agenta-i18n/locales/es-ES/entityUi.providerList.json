@@ -1,0 +1,11 @@
+{
+    "addProviderOrSubscription": "Añadir un proveedor o una suscripción",
+    "agenta": "Agenta",
+    "apiKeys": "Claves de API",
+    "builtIn": "Integrado",
+    "loadFailed": "Agenta no pudo cargar los proveedores de modelos.",
+    "providedByAgenta": "Proporcionada por Agenta",
+    "saveConnection": "Guardar conexión",
+    "signInNeeded": "Requiere iniciar sesión",
+    "subscriptions": "Suscripciones"
+}

@@ -349,10 +349,11 @@ Slack and ends up gated.
     the *harness* session is a live process inside the sandbox, and the park in step 6
     destroyed it. Nothing server-side holds harness state between turns; each turn is a
     cold replay of the transcript into a new harness session. Before the replay, the
-    runner pre-extracts all `{approved}` envelopes from the incoming messages into a
-    decision map (`extractApprovalDecisions`, `responder.ts:306-343`), keyed by tool name
+    runner reads the session's answered interaction rows, claims them, and builds a
+    decision map (`TurnApprovalRows`, `sessions/interactions.ts`), keyed by tool name
     plus canonicalized arguments (never by name alone, so approving one call does not
-    approve a different call to the same tool).
+    approve a different call to the same tool). The `{approved}` envelope in the messages
+    is not read as a decision.
 12. Claude replays the transcript in the new session. The transcript shows it wanted to
     call `SEND_MESSAGE` and never got a result, so Claude issues the call again, and the
     gate rises again exactly like in step 5; the approval message in the conversation is
@@ -450,7 +451,7 @@ today, end to end.
 There is a second, newer **interactions plane**: a `session_interactions` table plus
 `/sessions/interactions` endpoints in the API (create, query, transition, respond;
 `api/oss/src/apis/fastapi/sessions/router.py:591-882`). The vision (spec:
-`docs/designs/sessions/interactions/extend/specs.md`) is durable approvals: a parked run
+`docs/design/sessions/interactions/extend/specs.md`) is durable approvals: a parked run
 leaves a pending record that anyone can answer later from any surface, without holding a
 chat open. In that future flow, the park creates the row (as it already does), a respond
 from any surface records the decision, and a resume replays the conversation with the

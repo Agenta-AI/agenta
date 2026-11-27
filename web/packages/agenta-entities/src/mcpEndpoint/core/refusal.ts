@@ -173,7 +173,12 @@ export function isNameTakenRefusal(error: unknown): boolean {
  */
 export const gatewayRefusalStatus = (error: unknown): number | null => {
     if (error instanceof McpProtocolError) return error.status
-    const status = (error as {response?: {status?: unknown}} | null | undefined)?.response?.status
+    // Axios keeps the status on `response.status`, the generated client on `statusCode`.
+    const failure = error as
+        | {response?: {status?: unknown}; statusCode?: unknown}
+        | null
+        | undefined
+    const status = failure?.response?.status ?? failure?.statusCode
     return typeof status === "number" && status > 0 ? status : null
 }
 
@@ -186,9 +191,6 @@ const CREDENTIAL_REFUSED = new Set([401, 403])
 /** The sentence our own middleware answers an unauthorised request with, verbatim. */
 const OUR_UNAUTHORISED = "Unauthorized"
 
-const bodyOf = (error: unknown): unknown =>
-    (error as {response?: {data?: unknown}} | null | undefined)?.response?.data
-
 /**
  * Whether an unauthorised answer is OUR middleware's rather than the chosen server's.
  *
@@ -200,7 +202,7 @@ const bodyOf = (error: unknown): unknown =>
  * with, and the wrapped form carrying a message beside an operation id.
  */
 const isOurUnauthorised = (error: unknown): boolean => {
-    const detail = (bodyOf(error) as {detail?: unknown} | null | undefined)?.detail
+    const detail = refusalBody(error)?.detail
     if (detail === OUR_UNAUTHORISED) return true
     if (detail && typeof detail === "object") {
         const {message, operation_id: operationId} = detail as {

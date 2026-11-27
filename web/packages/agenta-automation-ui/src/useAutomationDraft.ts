@@ -14,6 +14,8 @@ import {
     EMPTY_BINDING,
     parseStoredBinding,
 } from "@agenta/entity-ui/gatewayTrigger"
+import {createT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {message} from "@agenta/ui/app-message"
 import {useAtomValue} from "jotai"
 
@@ -44,6 +46,8 @@ interface DraftState {
 type SaveAutomation = (
     body: AutomationEditBody,
 ) => Promise<TriggerSchedule | TriggerSubscription | null>
+
+const tNow = createT(automationsEditorCatalog)
 
 const EMPTY_DRAFT: AutomationConfigDraft = {
     agentId: null,
@@ -116,14 +120,15 @@ export const useAutomationDraft = (automation: Automation | null, edit: SaveAuto
         setState((current) => ({...current, draft: current.baseline}))
     }, [])
 
-    const save = useCallback(async () => {
-        if (!automation || saving || !dirty) return
+    // True only when the edit landed: the view stack reads it for "Save changes".
+    const save = useCallback(async (): Promise<boolean> => {
+        if (!automation || saving || !dirty) return false
         const rebinding = Boolean(draft.agentId && draft.agentId !== baseline.agentId)
         // The variant list is what "latest" binds; saving before it lands would write an
         // artifact-only reference and call it the same binding.
         if (rebinding && variants.isPending) {
-            message.error("Still loading that agent — try Save again in a moment")
-            return
+            message.error(tNow("automations.editor.stillLoadingAgent"))
+            return false
         }
 
         setSaving(true)
@@ -157,16 +162,19 @@ export const useAutomationDraft = (automation: Automation | null, edit: SaveAuto
                 }),
             )
             if (!saved) {
-                message.error("Couldn't save this automation")
-                return
+                message.error(tNow("automations.editor.saveFailed"))
+                return false
             }
             // The edit is the new baseline immediately: waiting for the refetch would leave the
             // footer standing over changes that are already saved.
-            setState((current) => ({baseline: current.draft, draft: current.draft}))
-            message.success("Changes saved")
+            // The baseline is what was sent: an edit typed while the request ran stays unsaved.
+            setState((current) => ({baseline: draft, draft: current.draft}))
+            message.success(tNow("automations.editor.changesSaved"))
+            return true
         } catch {
             // The draft is untouched, so the footer stays and nothing typed is lost.
-            message.error("Couldn't save this automation")
+            message.error(tNow("automations.editor.saveFailed"))
+            return false
         } finally {
             setSaving(false)
         }

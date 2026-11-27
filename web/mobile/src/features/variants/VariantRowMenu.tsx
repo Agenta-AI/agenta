@@ -39,17 +39,11 @@ export const VariantRowMenu = ({
 }) => (
     <DropdownMenu>
         <DropdownMenuTrigger asChild>
-            <Button
-                type="button"
-                size="icon-xs"
-                variant="ghost"
-                aria-label="Revision actions"
-                className="hover:bg-foreground/10 dark:hover:bg-foreground/15"
-            >
-                <DotsThreeVertical aria-hidden className="size-3.5" weight="bold" />
+            <Button type="button" size="icon-xs" variant="ghost" aria-label="Revision actions">
+                <DotsThreeVertical aria-hidden className="size-3.5" />
             </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-[200px]">
+        <DropdownMenuContent align="end" className="w-60">
             <DropdownMenuItem onSelect={() => onOpen(row)}>
                 <Eye aria-hidden size={14} />
                 View details
@@ -89,7 +83,7 @@ export const VariantRowMenu = ({
             {row.variantSlug ? (
                 <DropdownMenuItem onSelect={() => void copyToClipboard(row.variantSlug ?? "")}>
                     <Copy aria-hidden size={14} />
-                    Copy Slug
+                    Copy slug
                 </DropdownMenuItem>
             ) : null}
         </DropdownMenuContent>

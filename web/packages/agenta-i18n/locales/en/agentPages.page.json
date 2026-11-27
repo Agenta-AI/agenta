@@ -1,0 +1,5 @@
+{
+    "analyticsDescription": "Cost, runs and success rate of this agent.",
+    "configurationDescription": "What the agent runs on, what it can use, and who can see it.",
+    "sessionsDescription": "Every conversation people and automations have had with this agent."
+}

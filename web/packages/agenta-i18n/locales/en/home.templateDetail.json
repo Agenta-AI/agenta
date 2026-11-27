@@ -1,0 +1,16 @@
+{
+    "loadError": "Could not load this template",
+    "notFound": "Template not found",
+    "allTemplates": "All templates",
+    "use": "Use this template",
+    "slotOr": "{{first}} or {{second}}",
+    "connectionsUsed": "Connections it uses",
+    "optionalConnections": "Optional connections",
+    "alsoIncluded": "Also included",
+    "trigger": "Trigger",
+    "exampleSession": "Example session",
+    "exampleSteps": "{{name}} · {{total}} steps",
+    "exampleNote": "An example of how this template runs — not a recorded session.",
+    "instructions": "Instructions · AGENTS.md",
+    "tools": "Tools it can call"
+}

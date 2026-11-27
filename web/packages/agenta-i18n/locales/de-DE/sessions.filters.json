@@ -1,0 +1,19 @@
+{
+    "agent": "Agent",
+    "all": "Alle",
+    "allAgents": "Alle Agents",
+    "allSessions": "Alle Sitzungen",
+    "archived": "Archiviert",
+    "archivedTooltip": "Archivierte Sitzungen sind ausgeblendet, aber wiederherstellbar",
+    "automationRuns": "Automatisierungsläufe",
+    "automationRunsTooltip": "Von einer Automatisierung gestartete Läufe statt der von Ihnen gestarteten Sitzungen",
+    "filterByStatus": "Sitzungen nach Status filtern",
+    "filters": "Filter",
+    "include": "Einschließen",
+    "live": "Live",
+    "searchSessions": "Sitzungen durchsuchen",
+    "show": "Anzeigen",
+    "waiting": "Wartend",
+    "waitingCount": "Wartend {{count}}",
+    "waitingOnYou": "Wartet auf Sie"
+}

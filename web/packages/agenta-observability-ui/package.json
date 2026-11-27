@@ -20,6 +20,7 @@
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",
+        "@agenta/i18n": "workspace:../agenta-i18n",
         "@agenta/observability": "workspace:../agenta-observability",
         "@agenta/shared": "workspace:../agenta-shared",
         "@agenta/ui": "workspace:../agenta-ui",
@@ -27,7 +28,6 @@
         "clsx": "^2.1.1",
         "papaparse": "^5.5.3",
         "@agenta/annotation-ui": "workspace:../agenta-annotation-ui",
-        "lucide-react": "^0.479.0",
         "usehooks-ts": "^3.1.1",
         "json5": "^2.2.3",
         "js-yaml": "^4.3.1",

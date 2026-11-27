@@ -222,7 +222,7 @@ contracts; this design workspace should retain the history and tradeoffs.
 | Typed domain errors | `api/oss/src/core/tools/exceptions.py`, `agents/errors.py` | Raise domain errors with structured context; translate them at boundaries. |
 | Registry/dispatch | `core/tools/registry.py`, `engines/running/registry.py` | Use a registry only when multiple implementations exist; do not begin with conditionals spread across callers. |
 | Wire contract | `agents/utils/wire.py` + `services/agent/src/protocol.ts` | Keep Python names idiomatic and perform camelCase serialization at one boundary. |
-| Tests by boundary | `docs/designs/testing/testing.structure.specs.md` | Keep pure parsing/resolution tests in SDK unit tests and HTTP gateway behavior in service integration tests. |
+| Tests by boundary | `docs/design/testing/testing.structure.specs.md` | Keep pure parsing/resolution tests in SDK unit tests and HTTP gateway behavior in service integration tests. |
 
 Patterns not worth copying include the 622-line `agents/dtos.py`, the 569-line API
 `core/tools/service.py`, broad `utils.py` modules, and legacy SDK modules that print HTTP

@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import chatAttachmentDropOverlayCatalog from "@agenta/i18n/catalogs/chat.attachmentDropOverlay"
 import {DownloadSimple} from "@phosphor-icons/react"
 
 export interface AttachmentDropOverlayProps {
@@ -20,20 +22,21 @@ export const AttachmentDropOverlay = ({
     hint,
     className,
 }: AttachmentDropOverlayProps) => {
+    const t = useT(chatAttachmentDropOverlayCatalog)
     if (!active) return null
     return (
         <div
             className={`pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed ${
-                atMax
-                    ? "border-colorError bg-colorErrorBg"
-                    : "border-colorWarning bg-colorWarningBg"
+                atMax ? "border-destructive bg-destructive/10" : "border-warning bg-warning/10"
             } ${className ?? ""}`}
         >
-            <DownloadSimple size={24} className={atMax ? "text-colorError" : "text-colorText"} />
-            <span className={`text-sm font-medium ${atMax ? "text-colorError" : "text-colorText"}`}>
-                {atMax ? "Attachment limit reached" : "Drop to attach"}
+            <DownloadSimple size={24} className={atMax ? "text-destructive" : "text-foreground"} />
+            <span className={`text-label ${atMax ? "text-destructive" : "text-foreground"}`}>
+                {atMax
+                    ? t("chat.attachmentDropOverlay.limitReached")
+                    : t("chat.attachmentDropOverlay.dropToAttach")}
             </span>
-            {hint && <span className="text-xs text-colorTextSecondary">{hint}</span>}
+            {hint && <span className="text-meta text-muted-foreground">{hint}</span>}
         </div>
     )
 }

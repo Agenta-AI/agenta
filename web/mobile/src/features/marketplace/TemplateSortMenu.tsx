@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import marketplaceCatalog from "@agenta/i18n/catalogs/marketplace.page"
 import {
     Button,
     DropdownMenu,
@@ -17,26 +19,32 @@ export const TemplateSortMenu = ({
 }: {
     value: MarketplaceSort
     onChange: (value: MarketplaceSort) => void
-}) => (
-    <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
-                <span className="text-muted-foreground">Sort</span>
-                {SORT_LABELS[value]}
-                <CaretDownIcon data-icon="inline-end" />
-            </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-[var(--radix-dropdown-menu-trigger-width)]">
-            <DropdownMenuRadioGroup
-                value={value}
-                onValueChange={(next) => onChange(next as MarketplaceSort)}
+}) => {
+    const t = useT(marketplaceCatalog)
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                    <span className="text-muted-foreground">{t("marketplace.page.sort")}</span>
+                    {t(SORT_LABELS[value])}
+                    <CaretDownIcon data-icon="inline-end" />
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+                align="end"
+                className="w-[var(--radix-dropdown-menu-trigger-width)]"
             >
-                {(Object.keys(SORT_LABELS) as MarketplaceSort[]).map((key) => (
-                    <DropdownMenuRadioItem key={key} value={key}>
-                        {SORT_LABELS[key]}
-                    </DropdownMenuRadioItem>
-                ))}
-            </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-    </DropdownMenu>
-)
+                <DropdownMenuRadioGroup
+                    value={value}
+                    onValueChange={(next) => onChange(next as MarketplaceSort)}
+                >
+                    {(Object.keys(SORT_LABELS) as MarketplaceSort[]).map((key) => (
+                        <DropdownMenuRadioItem key={key} value={key}>
+                            {t(SORT_LABELS[key])}
+                        </DropdownMenuRadioItem>
+                    ))}
+                </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+        </DropdownMenu>
+    )
+}

@@ -3,6 +3,7 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/sandbox-agent-orchestration.test.ts)
  */
+import { TurnApprovalRows } from "../../src/sessions/interactions.ts";
 import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 
@@ -1150,6 +1151,32 @@ describe("runSandboxAgent orchestration", () => {
     rmSync(skill, { recursive: true, force: true });
   });
 
+  it("starts a Claude session in the default permission mode, and leaves Pi alone", async () => {
+    // claude-agent-acp starts a session in `auto` unless told otherwise; `auto` lets Claude Code
+    // approve tool calls without asking the runner's permission plan.
+    const claude = fakeHarness();
+    const claudeResult = await runSandboxAgent(
+      { harness: "claude", messages: [{ role: "user", content: "hello" }] },
+      undefined,
+      undefined,
+      claude.deps,
+    );
+    assert.equal(claudeResult.ok, true);
+    assert.deepEqual(claude.calls.createSessionOptions.sessionInit.configOptions, [
+      { configId: "mode", value: "default" },
+    ]);
+
+    const pi = fakeHarness();
+    const piResult = await runSandboxAgent(
+      { harness: "pi_core", messages: [{ role: "user", content: "hello" }] },
+      undefined,
+      undefined,
+      pi.deps,
+    );
+    assert.equal(piResult.ok, true);
+    assert.equal(pi.calls.createSessionOptions.sessionInit.configOptions, undefined);
+  });
+
   it("advertises durable agent storage only after a confirmed local mount", async () => {
     const cwd = join(
       tmpdir(),
@@ -1185,7 +1212,8 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(result.ok, true);
     assert.equal(
       (calls.providerArgs[1] as Record<string, string>).AGENTA_AGENT_MOUNT_DIR,
-      `${cwd}-agent`,
+      undefined,
+      "the mount folder variable is not set any more",
     );
     assert.match(
       calls.createSessionOptions.sessionInit._meta.systemPrompt.append,
@@ -1194,7 +1222,7 @@ describe("runSandboxAgent orchestration", () => {
     rmSync(cwd, { recursive: true, force: true });
   });
 
-  it("removes a safe failed agent mountpoint without advertising it to Pi", async () => {
+  it("removes a safe failed agent mountpoint and tells Pi the home drive is not available", async () => {
     const cwd = join(
       tmpdir(),
       `agenta-agent-mount-failure-${process.pid}-${Date.now()}`,
@@ -1230,7 +1258,11 @@ describe("runSandboxAgent orchestration", () => {
       (calls.providerArgs[1] as Record<string, string>).AGENTA_AGENT_MOUNT_DIR,
       undefined,
     );
-    assert.equal(calls.workspacePlan.prompt.appendSystemPrompt, undefined);
+    assert.match(
+      calls.workspacePlan.prompt.appendSystemPrompt ?? "",
+      /durable agent folder is not available/,
+    );
+    assert.doesNotMatch(calls.workspacePlan.prompt.appendSystemPrompt ?? "", /absolute path/);
     assert.equal(existsSync(`${cwd}-agent`), false);
     rmSync(cwd, { recursive: true, force: true });
   });
@@ -1270,9 +1302,9 @@ describe("runSandboxAgent orchestration", () => {
     const guidance = platformGuidanceAppendix({
       acpAgent: "codex",
       isPi: false,
-      agentMountedPath: undefined,
-      agentMountSkipped: false,
+      homeDrive: undefined,
       toolNames: ["commit_revision"],
+      // No artifact id, so the run has no home drive and the citation sentence leaves out agent-files.
     });
     assert.ok(guidance);
     assert.equal(
@@ -3887,6 +3919,23 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
       undefined,
       undefined,
       deps,
+      {
+        // The person's answer, as the API stored it on the gate's row.
+        approvalRows: new TurnApprovalRows(
+          [
+            {
+              token: "perm-1",
+              kind: "user_approval",
+              status: "responded",
+              data: {
+                request: { tool: "edit", args: {} },
+                resolution: { approved: true },
+              },
+            },
+          ],
+          async () => true,
+        ),
+      },
     );
     await flushPromises();
 

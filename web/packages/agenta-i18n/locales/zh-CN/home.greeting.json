@@ -1,0 +1,5 @@
+{
+    "morning": "早上好，{{name}}",
+    "afternoon": "下午好，{{name}}",
+    "evening": "晚上好，{{name}}"
+}

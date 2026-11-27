@@ -8,6 +8,8 @@ import type {
     CommitCreateFieldsConfig,
     CommitDeployOption,
 } from "@agenta/entity-ui/modals"
+import {createT, useT} from "@agenta/i18n"
+import commitCatalog from "@agenta/i18n/catalogs/playground.commit"
 import {playgroundController} from "@agenta/playground"
 import {environmentColors} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
@@ -15,12 +17,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {CommitVariantChangesModalProps} from "./types"
 
-const EVALUATOR_CREATE_FIELDS: CommitCreateFieldsConfig = {nameLabel: "Evaluator name"}
-const APP_CREATE_FIELDS: CommitCreateFieldsConfig = {nameLabel: "App name"}
-const VARIANT_CREATE_FIELDS: CommitCreateFieldsConfig = {
-    modes: ["variant"],
-    nameLabel: "Variant name",
-}
+const tNow = createT(commitCatalog)
 
 const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     variantId,
@@ -33,6 +30,24 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     ...props
 }) => {
     const {onCancel, open} = props
+    const t = useT(commitCatalog)
+    const EVALUATOR_CREATE_FIELDS = useMemo<CommitCreateFieldsConfig>(
+        () => ({nameLabel: t("playground.commit.evaluatorName")}),
+        [t],
+    )
+    const AGENT_CREATE_FIELDS = useMemo<CommitCreateFieldsConfig>(
+        () => ({nameLabel: t("playground.commit.agentName")}),
+        [t],
+    )
+    // The template's type ("Chat") is not a name: the user names a new prompt.
+    const PROMPT_CREATE_FIELDS = useMemo<CommitCreateFieldsConfig>(
+        () => ({nameLabel: t("playground.commit.promptName"), defaultName: ""}),
+        [t],
+    )
+    const VARIANT_CREATE_FIELDS = useMemo<CommitCreateFieldsConfig>(
+        () => ({modes: ["variant"], nameLabel: t("playground.commit.variantName")}),
+        [t],
+    )
 
     const runnableData = useAtomValue(workflowMolecule.selectors.data(variantId || ""))
     const isEphemeral = useAtomValue(workflowMolecule.selectors.isEphemeral(variantId || ""))
@@ -100,10 +115,20 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
             const succeeded = deployEnvironments.filter((_, i) => results[i].status === "fulfilled")
             const failed = deployEnvironments.filter((_, i) => results[i].status === "rejected")
             if (succeeded.length) {
-                message.success(`Published ${label} to ${succeeded.join(", ")}`)
+                message.success(
+                    tNow("playground.commit.published", {
+                        label,
+                        environments: succeeded.join(", "),
+                    }),
+                )
             }
             if (failed.length) {
-                message.error(`Couldn't publish ${label} to ${failed.join(", ")}`)
+                message.error(
+                    tNow("playground.commit.publishFailed", {
+                        label,
+                        environments: failed.join(", "),
+                    }),
+                )
             }
         },
         [publish, runnableData, appId, appSlug],
@@ -134,7 +159,9 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                     return {
                         success: false,
                         error:
-                            "error" in result ? result.error.message : "Failed to create workflow",
+                            "error" in result
+                                ? result.error.message
+                                : tNow("playground.commit.failedToCreateWorkflow"),
                         errorStatus,
                     }
                 }
@@ -150,7 +177,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
             if (selectedMode === "variant") {
                 const variantNameToCreate = editedName?.trim()
                 if (!variantNameToCreate) {
-                    return {success: false, error: "Variant name is required"}
+                    return {success: false, error: tNow("playground.commit.variantNameRequired")}
                 }
 
                 const result = await createVariant({
@@ -169,7 +196,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                 if (!result.success || !result.newRevisionId) {
                     return {
                         success: false,
-                        error: result.error || "Failed to create a new variant",
+                        error: result.error || tNow("playground.commit.failedToCreateVariant"),
                         errorStatus: result.errorStatus,
                     }
                 }
@@ -196,7 +223,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
             if (!result.success || !result.newRevisionId) {
                 return {
                     success: false,
-                    error: result.error || "Failed to commit revision",
+                    error: result.error || tNow("playground.commit.failedToCommit"),
                 }
             }
 
@@ -242,23 +269,28 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     const commitModes = useMemo(
         () =>
             isEvaluator
-                ? [{id: "version", label: "As a new version"}]
+                ? [{id: "version", label: t("playground.commit.asNewVersion")}]
                 : [
-                      {id: "version", label: `Update ${variantName}`},
-                      {id: "variant", label: "Save as a new variant"},
+                      {
+                          id: "version",
+                          label: t("playground.commit.updateName", {name: variantName}),
+                      },
+                      {id: "variant", label: t("playground.commit.saveAsNewVariant")},
                   ],
-        [isEvaluator, variantName],
+        [isEvaluator, variantName, t],
     )
 
     // For ephemeral entities, render a simplified "Create" modal with editable name.
     // Branch the labels on the entity's type flag — evaluator-create flows show
-    // "Evaluator name", app-create flows show "App name", everything else
+    // "Evaluator name", prompt and agent creates name their kind, everything else
     // (variant-from-base) keeps the evaluator default for backward compat.
     if (isEphemeral) {
         const createFields = isEvaluator
             ? EVALUATOR_CREATE_FIELDS
             : isApplication
-              ? APP_CREATE_FIELDS
+              ? runnableData?.flags?.is_agent
+                  ? AGENT_CREATE_FIELDS
+                  : PROMPT_CREATE_FIELDS
               : EVALUATOR_CREATE_FIELDS
         // The drawer wrapper (`useDrawerCreateCommitCallback`) toasts
         // "App created successfully" / "Evaluator created successfully"
@@ -266,7 +298,8 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
         // would surface two identical notifications. For unrecognized
         // ephemeral flows (no evaluator / no application flag) we keep
         // the modal toast as a fallback.
-        const successMessage = isEvaluator || isApplication ? null : "Created successfully"
+        const successMessage =
+            isEvaluator || isApplication ? null : t("playground.commit.createdSuccessfully")
         return (
             <EntityCommitModal
                 open={open}
@@ -277,7 +310,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                     name: variantName,
                 }}
                 onSubmit={handleSubmit}
-                actionLabel="Create"
+                actionLabel={t("playground.commit.create")}
                 createEntityFields={createFields}
                 successMessage={successMessage}
             />
@@ -304,7 +337,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
             }}
             createEntityFields={VARIANT_CREATE_FIELDS}
             onSubmit={handleSubmit}
-            submitLabel="Commit"
+            submitLabel={t("playground.commit.commit")}
         />
     )
 }

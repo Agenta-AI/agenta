@@ -30,7 +30,7 @@ const WIDE_COLUMNS = [
     NAME,
     {key: "kind", label: "Kind", width: "minmax(70px,1fr)"},
     TYPE,
-    {key: "created", label: "Created At", width: "minmax(150px,1fr)"},
+    {key: "created", label: "Date created", width: "minmax(150px,1fr)"},
 ]
 const NARROW_COLUMNS = [PICK, {...NAME, width: "minmax(120px,2fr)"}, TYPE]
 
@@ -80,7 +80,7 @@ export const AppSection = ({
                         onValueChange={(value) => setTypeFilter(value as AppTypeFilter)}
                         disabled={disabled}
                     >
-                        <SelectTrigger aria-label="Filter by type" className="w-[160px]">
+                        <SelectTrigger aria-label="Filter by type" className="w-40">
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -98,7 +98,7 @@ export const AppSection = ({
                     aria-label="Search applications"
                     disabled={disabled}
                     onChange={(event) => setSearch(event.target.value)}
-                    className="w-full sm:w-[260px]"
+                    className="w-full sm:w-65"
                 />
             </div>
             <RadioGroup
@@ -133,7 +133,7 @@ export const AppSection = ({
                                 <span className="flex min-w-0 items-center gap-2">
                                     <Icon size={16} className="shrink-0 text-muted-foreground" />
                                     <span
-                                        className="truncate text-[14px] font-medium text-foreground"
+                                        className="truncate text-body font-medium text-foreground"
                                         title={name}
                                     >
                                         {name}
@@ -148,7 +148,7 @@ export const AppSection = ({
                                     <WorkflowTypeTag isEvaluator={false} workflowType={type} />
                                 </span>
                                 {narrow ? null : (
-                                    <span className="block truncate text-[13px] text-muted-foreground">
+                                    <span className="block truncate text-label text-muted-foreground">
                                         <FormattedDate date={app.created_at} fallback="—" />
                                     </span>
                                 )}
@@ -158,7 +158,7 @@ export const AppSection = ({
                 />
             </RadioGroup>
             {selectedId || locked ? null : (
-                <p className="m-0 text-sm text-muted-foreground">
+                <p className="m-0 text-body text-muted-foreground">
                     Please select an application to continue configuring the evaluation.
                 </p>
             )}

@@ -40,12 +40,15 @@ export const ScenarioFocusBody = ({
     labels,
     onRetry,
     view,
+    awaitingRun = false,
 }: {
     row: ScenarioRow
     groups: RunColumnGroup[]
     labels: Record<string, string>
     onRetry: () => void
     view?: ScenarioSectionsView
+    /** A human run's scenario whose app nobody ran yet: no output, and nothing is running. */
+    awaitingRun?: boolean
 }) => {
     const openTrace = useSetAtom(openTraceDrawerAtom)
     const cellsOf = (kind: string) =>
@@ -109,7 +112,7 @@ export const ScenarioFocusBody = ({
         <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4 pt-2">
             {row.valuesFailed ? <ScenarioValuesError onRetry={onRetry} /> : null}
             {row.otherErrors.map((message, index) => (
-                <p key={index} role="alert" className="m-0 break-words text-sm text-destructive">
+                <p key={index} role="alert" className="m-0 break-words text-body text-destructive">
                     {message}
                 </p>
             ))}
@@ -137,7 +140,7 @@ export const ScenarioFocusBody = ({
                       stepKey: outputKey,
                       heading: (
                           <div className="flex items-center justify-between gap-2">
-                              <h4 className="m-0 text-sm font-medium">Outputs</h4>
+                              <h4 className="m-0 text-label">Outputs</h4>
                               {traceId ? (
                                   <Button
                                       variant="outline"
@@ -150,13 +153,20 @@ export const ScenarioFocusBody = ({
                           </div>
                       ),
                       children: failed ? (
-                          <p role="alert" className="m-0 text-sm text-destructive">
+                          <p role="alert" className="m-0 text-body text-destructive">
                               {outputError ?? "This run did not produce an output"}
                           </p>
                       ) : (
                           <div className="flex flex-col gap-2">
                               {outputs.map((cell) =>
-                                  cell.value === undefined && open ? (
+                                  cell.value === undefined && awaitingRun ? (
+                                      <p
+                                          key={cell.path || cell.name}
+                                          className="m-0 text-body text-muted-foreground"
+                                      >
+                                          No output yet
+                                      </p>
+                                  ) : cell.value === undefined && open ? (
                                       <SkeletonBlock
                                           key={cell.path || cell.name}
                                           active
@@ -186,7 +196,7 @@ export const ScenarioFocusBody = ({
                     label: `${name} metrics`,
                     title: name,
                     stepKey: group.key,
-                    heading: <h4 className="m-0 text-sm font-medium">{name}</h4>,
+                    heading: <h4 className="m-0 text-label">{name}</h4>,
                     children: <ScenarioMetricsBlock cells={cells} error={error} />,
                 })
             })}

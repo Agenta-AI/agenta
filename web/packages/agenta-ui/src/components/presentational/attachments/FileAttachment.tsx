@@ -20,6 +20,8 @@
 
 import React from "react"
 
+import {useT} from "@agenta/i18n"
+import uiChatCatalog from "@agenta/i18n/catalogs/ui.chat"
 import {FileArchive, X} from "@phosphor-icons/react"
 
 import {
@@ -82,6 +84,7 @@ export function FileAttachment({
     icon,
     className,
 }: FileAttachmentProps) {
+    const t = useT(uiChatCatalog)
     return (
         <div
             className={cn(
@@ -118,7 +121,7 @@ export function FileAttachment({
                                 {<X size={12} />}
                             </Button>
                         </TooltipTrigger>
-                        <TooltipContent side="top">Remove file</TooltipContent>
+                        <TooltipContent side="top">{t("ui.chat.removeFile")}</TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
             )}

@@ -1,0 +1,11 @@
+{
+    "cancel": "Cancelar",
+    "couldNotIdentifyRun": "No se pudo identificar la ejecución que detener. Inténtalo de nuevo.",
+    "couldNotLoadEarlier": "No se pudieron cargar los mensajes anteriores de esta sesión.",
+    "couldNotStopRun": "No se pudo detener la ejecución. Puede que siga en marcha.",
+    "rewindAnyway": "Retroceder de todos modos",
+    "rewindBody": "{{tools}} ya se ejecutó. Retroceder vuelve a ejecutar la conversación desde aquí, pero NO lo deshará.",
+    "rewindTitle": "¿Retroceder más allá de una herramienta que ya se ejecutó?",
+    "runAlreadyFinished": "Esa ejecución ya había terminado. La sesión está ejecutando otra cosa ahora.",
+    "tryAgain": "Intentar de nuevo"
+}

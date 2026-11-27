@@ -1,11 +1,6 @@
 import {ObjectSchemaControl, SchemaPropertyRenderer} from "@agenta/entity-ui/drill-in"
 import type {Meta, StoryObj} from "@storybook/nextjs"
-import {Typography} from "antd"
-import clsx from "clsx"
 
-// ObjectSchemaControl — renders every property of an object inline through
-// SchemaPropertyRenderer. antd surface: `Typography.Text` (labels + placeholders) and
-// `Tooltip` (the schema description on the header).
 const meta = {
     title: "@agenta/entity-ui/DrillIn/ObjectSchemaControl",
     component: ObjectSchemaControl,
@@ -14,7 +9,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "Inline object renderer. antd `Typography.Text` → `<span>` + tokens, antd `Tooltip` → Radix `Tooltip`.",
+                    "Renders every property of an object inline through SchemaPropertyRenderer.",
             },
         },
     },
@@ -106,79 +101,29 @@ export const DisabledInline: Story = {
     },
 }
 
-// ---------------------------------------------------------------------------
-// Parity: the migrated antd surfaces
-// ---------------------------------------------------------------------------
-
-const Row = ({
-    label,
-    a,
-    s,
-    expected,
-}: {
-    label: string
-    a: React.ReactNode
-    s: React.ReactNode
-    expected?: string
-}) => (
-    <div
-        className="grid grid-cols-[12rem_1fr_1fr] items-start gap-4 border-b border-colorBorderSecondary py-3"
-        data-vrt-expected={expected}
-    >
+const Row = ({label, children}: {label: string; children: React.ReactNode}) => (
+    <div className="grid grid-cols-[12rem_1fr] items-start gap-4 border-b border-colorBorderSecondary py-3">
         <div className="text-xs text-colorTextSecondary">{label}</div>
-        <div className="flex items-center gap-2">
-            <span className="w-8 shrink-0 text-[10px] text-colorTextSecondary">antd</span>
-            <div data-vrt-subject className="flex-1">
-                {a}
-            </div>
-        </div>
-        <div className="flex items-center gap-2">
-            <span className="w-8 shrink-0 text-[10px] text-colorTextSecondary">agenta</span>
-            <div data-vrt-subject className="flex-1">
-                {s}
-            </div>
-        </div>
+        <div>{children}</div>
     </div>
 )
 
-/** Pre-migration "no properties" branch, verbatim. */
-function AntdNoProperties({label}: {label: string}) {
-    return (
-        <div className={clsx("flex flex-col gap-1")}>
-            <Typography.Text className="text-sm font-medium">{label}</Typography.Text>
-            <Typography.Text type="secondary" className="text-xs">
-                No properties defined
-            </Typography.Text>
-        </div>
-    )
-}
-
-export const AntdVsAgenta: Story = {
+export const Variants: Story = {
     args: {schema: LLM_CONFIG_SCHEMA, label: "LLM configuration", value: {}, onChange: noop},
     render: () => (
-        <div className="flex max-w-[1000px] flex-col">
-            <Row
-                label="no properties"
-                a={<AntdNoProperties label="Empty object" />}
-                s={
-                    <ObjectSchemaControl
-                        schema={{type: "object", properties: {}}}
-                        label="Empty object"
-                        value={{}}
-                        onChange={noop}
-                        SchemaPropertyRenderer={SchemaPropertyRenderer}
-                    />
-                }
-            />
-            <Row
-                label="header label"
-                a={
-                    <Typography.Text className="text-sm font-medium">
-                        LLM configuration
-                    </Typography.Text>
-                }
-                s={<span className="text-sm font-medium text-colorText">LLM configuration</span>}
-            />
+        <div className="flex max-w-[640px] flex-col">
+            <Row label="no properties">
+                <ObjectSchemaControl
+                    schema={{type: "object", properties: {}}}
+                    label="Empty object"
+                    value={{}}
+                    onChange={noop}
+                    SchemaPropertyRenderer={SchemaPropertyRenderer}
+                />
+            </Row>
+            <Row label="header label">
+                <span className="text-sm font-medium text-colorText">LLM configuration</span>
+            </Row>
         </div>
     ),
 }

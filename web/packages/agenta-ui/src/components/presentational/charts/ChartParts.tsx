@@ -111,7 +111,7 @@ function ChartTooltip({
         <div
             id={id}
             role="tooltip"
-            className="pointer-events-none absolute z-10 rounded-md border bg-popover px-2 py-1 text-xs text-popover-foreground shadow-md"
+            className="pointer-events-none absolute z-10 rounded-lg bg-popover px-2 py-1 text-meta text-popover-foreground shadow-overlay"
             style={{
                 ...side,
                 top: Math.max(0, tooltip.y - TOOLTIP_OFFSET),
@@ -139,7 +139,7 @@ function ChartTooltip({
 export function ChartLegend({series}: {series: readonly ChartSeries[]}) {
     if (series.length < 2) return null
     return (
-        <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-colorTextSecondary">
+        <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-meta text-muted-foreground">
             {series.map((item, index) => (
                 <li key={item.key} className="flex min-w-0 items-center gap-1.5" title={item.name}>
                     <span
@@ -160,34 +160,37 @@ export interface ChartTable {
 }
 
 function VisuallyHiddenDataTable({caption, table}: {caption: string; table: ChartTable}) {
+    // A table ignores the sr-only 1px width, so the div hides it.
     return (
-        <table className="sr-only">
-            <caption>{caption}</caption>
-            <thead>
-                <tr>
-                    {table.columns.map((column, index) => (
-                        <th key={index} scope="col">
-                            {column}
-                        </th>
-                    ))}
-                </tr>
-            </thead>
-            <tbody>
-                {table.rows.map((row) => (
-                    <tr key={row.key}>
-                        {row.cells.map((cell, index) =>
-                            index === 0 ? (
-                                <th key={index} scope="row">
-                                    {cell}
-                                </th>
-                            ) : (
-                                <td key={index}>{cell}</td>
-                            ),
-                        )}
+        <div className="sr-only">
+            <table>
+                <caption>{caption}</caption>
+                <thead>
+                    <tr>
+                        {table.columns.map((column, index) => (
+                            <th key={index} scope="col">
+                                {column}
+                            </th>
+                        ))}
                     </tr>
-                ))}
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    {table.rows.map((row) => (
+                        <tr key={row.key}>
+                            {row.cells.map((cell, index) =>
+                                index === 0 ? (
+                                    <th key={index} scope="row">
+                                        {cell}
+                                    </th>
+                                ) : (
+                                    <td key={index}>{cell}</td>
+                                ),
+                            )}
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
     )
 }
 
@@ -263,7 +266,7 @@ export function ChartFrame({
                         aria-label={title}
                         aria-describedby={tooltip ? tooltipId : undefined}
                         tabIndex={0}
-                        className="block rounded-sm outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                        className="block rounded-sm outline-none focus-ring"
                         onFocus={() => onActiveChange(active ?? 0)}
                         onBlur={() => onActiveChange(null)}
                         onKeyDown={onKeyDown}

@@ -83,7 +83,7 @@ describe("the runner-local copy's lifetime", () => {
       conversationId: "conv-1",
       projectId: "project",
       cwd: t.cwd,
-      drive: [{ root: t.cwd, credentials: () => TEST_CREDENTIALS }],
+      roots: [{ root: t.cwd, credentials: () => TEST_CREDENTIALS }],
       skillModes: new Map(),
       signTranscriptMount: async () => TEST_TRANSCRIPT_CREDENTIALS,
     });

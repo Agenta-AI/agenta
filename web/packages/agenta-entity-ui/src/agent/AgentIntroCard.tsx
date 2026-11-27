@@ -1,7 +1,10 @@
-import {useMemo} from "react"
+import {useMemo, type ReactNode} from "react"
 
 import {harnessCapabilitiesAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
-import {Robot} from "@phosphor-icons/react"
+import {createT, useT} from "@agenta/i18n"
+import agentIntroCatalog from "@agenta/i18n/catalogs/entityUi.agentIntro"
+import {IconTile, SimpleTooltip} from "@agenta/ui/ui"
+import {Compass, Cpu, HardDrives, Robot, Wrench} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {
@@ -38,17 +41,43 @@ export const agentModelLabel = (
     return model ? modelDisplayName(capabilities, agentHarness(config), model) : null
 }
 
-/** The first line of the agent's instructions, as a one-line summary. */
-const agentSummary = (config: unknown): string | null => {
+/** The first line of the agent's instructions that is not its name, as a one-line summary. */
+const agentSummary = (config: unknown, name?: string | null): string | null => {
     const md = (config as {agent?: {instructions?: {agents_md?: unknown}}} | null)?.agent
         ?.instructions?.agents_md
     if (typeof md !== "string" || !md.trim()) return null
     const line = md
-        .trim()
-        .split("\n")[0]
-        .replace(/^#+\s*/, "")
-    return line.length > 140 ? `${line.slice(0, 140)}…` : line
+        .split("\n")
+        .map((l) => l.replace(/^#+\s*/, "").trim())
+        .find((l) => l && l !== name?.trim())
+    if (!line) return null
+    return line.length > 160 ? `${line.slice(0, 160)}…` : line
 }
+
+/** Counts of what the agent can reach, each its own chip. */
+const agentCounts = (config: unknown) => {
+    const a = (config as {agent?: {tools?: unknown[]; skills?: unknown[]; mcps?: unknown[]}} | null)
+        ?.agent
+    return {
+        tools: Array.isArray(a?.tools)
+            ? a!.tools!.filter((tool) => !isHarnessBuiltinTool(tool)).length
+            : 0,
+        mcps: Array.isArray(a?.mcps) ? a!.mcps!.length : 0,
+        skills: Array.isArray(a?.skills) ? a!.skills!.length : 0,
+    }
+}
+
+/** One fact about the agent: a 14px icon and a short label on a quiet chip. */
+const Chip = ({icon, children, title}: {icon: ReactNode; children: ReactNode; title?: string}) => (
+    <SimpleTooltip title={title}>
+        <span className="inline-flex h-6 items-center gap-1.5 rounded-md bg-secondary px-2 text-meta text-muted-foreground [&_svg]:size-3.5 [&_svg]:shrink-0">
+            {icon}
+            {children}
+        </span>
+    </SimpleTooltip>
+)
+
+const tNow = createT(agentIntroCatalog)
 
 /** "2 tools · 1 skill", or null when the agent has neither. */
 export const capabilityLabel = (config: unknown): string | null => {
@@ -58,29 +87,30 @@ export const capabilityLabel = (config: unknown): string | null => {
         ? a!.tools!.filter((tool) => !isHarnessBuiltinTool(tool)).length
         : 0
     const skills = Array.isArray(a?.skills) ? a!.skills!.length : 0
-    const parts: string[] = []
-    if (tools) parts.push(`${tools} tool${tools === 1 ? "" : "s"}`)
-    if (skills) parts.push(`${skills} skill${skills === 1 ? "" : "s"}`)
-    return parts.length ? parts.join(" · ") : null
+    if (tools && skills) {
+        return tNow("entityUi.agentIntro.toolsAndSkills", {
+            tools: tNow("entityUi.agentIntro.toolsCount", {count: tools}),
+            skills: tNow("entityUi.agentIntro.skillsCount", {count: skills}),
+        })
+    }
+    if (tools) return tNow("entityUi.agentIntro.toolsCount", {count: tools})
+    if (skills) return tNow("entityUi.agentIntro.skillsCount", {count: skills})
+    return null
 }
 
 const HARNESS_CATALOG_KEY = "agenta:agent-intro-card"
 
-const Bot = ({size = 34, workflowId}: {size?: number; workflowId?: string | null}) => {
-    const glyph = Math.round(size * 0.5)
+/** The agent's own icon and tile color, or a grey Robot. */
+const AgentMark = ({workflowId}: {workflowId?: string | null}) => {
     const chrome = useAgentIconChrome(workflowId, {
-        size: glyph,
-        fallbackGlyph: <Robot size={glyph} className="text-colorTextSecondary" />,
-        fallbackClassName: "border border-solid border-colorBorderSecondary bg-colorBgContainer",
+        size: 20,
+        fallbackGlyph: <Robot />,
+        fallbackClassName: "bg-secondary text-muted-foreground",
     })
-
     return (
-        <span
-            className={`flex shrink-0 items-center justify-center rounded-lg ${chrome.className}`}
-            style={{width: size, height: size, ...chrome.style}}
-        >
+        <IconTile size={40} aria-hidden className={chrome.className} style={chrome.style}>
             {chrome.glyph}
-        </span>
+        </IconTile>
     )
 }
 
@@ -96,6 +126,7 @@ const Bot = ({size = 34, workflowId}: {size?: number; workflowId?: string | null
  * they both have and cannot disagree about the shape underneath.
  */
 export const AgentIntroCard = ({entityId, className}: {entityId: string; className?: string}) => {
+    const t = useT(agentIntroCatalog)
     const name = useAtomValue(workflowMolecule.selectors.artifactName(entityId))
     const config = useAtomValue(
         useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
@@ -104,43 +135,43 @@ export const AgentIntroCard = ({entityId, className}: {entityId: string; classNa
     const harnessCapabilities = useAtomValue(harnessCapabilitiesAtomFamily(HARNESS_CATALOG_KEY))
     const model = agentModel(config)
     const modelLabel = agentModelLabel(config, harnessCapabilities)
-    const capabilities = capabilityLabel(config)
-    const summary = agentSummary(config)
+    const counts = agentCounts(config)
+    const label = name || t("entityUi.agentIntro.agent")
+    const summary = agentSummary(config, name)
 
+    // Centered, with no card: the empty conversation's own welcome.
     return (
-        <div
-            className={`flex flex-col gap-3 rounded-xl border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-4 ${
-                className ?? ""
-            }`}
-        >
-            <div className="flex items-center gap-2.5">
-                <Bot workflowId={workflowId} />
-                <div className="min-w-0">
-                    <span
-                        className="block truncate text-sm font-medium text-colorText"
-                        title={name || "Agent"}
-                    >
-                        {name || "Agent"}
-                    </span>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                        {model ? (
-                            <span
-                                className="rounded-full border border-solid border-colorBorderSecondary bg-colorBgContainer px-1.5 py-px font-mono text-xs text-colorTextSecondary"
-                                title={model}
-                            >
-                                {modelLabel}
-                            </span>
-                        ) : null}
-                        {capabilities ? (
-                            <span className="rounded-full border border-solid border-colorBorderSecondary bg-colorBgContainer px-1.5 py-px text-xs text-colorTextSecondary">
-                                {capabilities}
-                            </span>
-                        ) : null}
-                    </div>
-                </div>
+        <div className={`flex flex-col items-center gap-3 text-center ${className ?? ""}`}>
+            <AgentMark workflowId={workflowId} />
+            <div className="flex flex-col items-center gap-1">
+                <span className="text-title text-foreground">{label}</span>
+                {summary ? (
+                    <span className="max-w-[28rem] text-body text-muted-foreground">{summary}</span>
+                ) : null}
             </div>
-            {summary ? (
-                <span className="text-xs leading-relaxed text-colorTextSecondary">{summary}</span>
+            {model || counts.tools || counts.mcps || counts.skills ? (
+                <div className="flex flex-wrap items-center justify-center gap-1.5">
+                    {model ? (
+                        <Chip icon={<Cpu />} title={model !== modelLabel ? model : undefined}>
+                            {modelLabel}
+                        </Chip>
+                    ) : null}
+                    {counts.tools ? (
+                        <Chip icon={<Wrench />}>
+                            {t("entityUi.agentIntro.toolsCount", {count: counts.tools})}
+                        </Chip>
+                    ) : null}
+                    {counts.mcps ? (
+                        <Chip icon={<HardDrives />}>
+                            {t("entityUi.agentIntro.mcpCount", {count: counts.mcps})}
+                        </Chip>
+                    ) : null}
+                    {counts.skills ? (
+                        <Chip icon={<Compass />}>
+                            {t("entityUi.agentIntro.skillsCount", {count: counts.skills})}
+                        </Chip>
+                    ) : null}
+                </div>
             ) : null}
         </div>
     )

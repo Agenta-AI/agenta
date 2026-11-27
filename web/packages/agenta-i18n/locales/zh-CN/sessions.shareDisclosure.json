@@ -1,0 +1,14 @@
+{
+    "back": "返回",
+    "bodyAgent": "{{project}} 中的所有人都可以运行此 Agent，并让它使用其已连接的账号：{{accounts}}。",
+    "bodyAgentNoAccounts": "{{project}} 中的所有人都可以查看并运行此 Agent。",
+    "bodySession": "他们将看到此对话中的所有内容，并且任何可以发送消息的人都可以让 Agent 使用其已连接的账号：{{accounts}}。",
+    "bodySessionNoAccounts": "他们将看到此对话中的所有内容。",
+    "cancel": "取消",
+    "personalAccount": "每个人自己的 {{account}}",
+    "share": "共享",
+    "shareWithProject": "与项目共享",
+    "titleAgent": "与项目共享 {{agent}}？",
+    "titlePeople": "与 {{names}} 共享？",
+    "titleProject": "与 {{project}} 中的所有人共享？"
+}

@@ -4,10 +4,23 @@
  * Three states: loading, load error (retryable), and the list. Every version is selectable —
  * each one is diffed against its predecessor, so the newest has something to show too.
  */
+import {formatRelativeTime, useT} from "@agenta/i18n"
+import versionCatalog from "@agenta/i18n/catalogs/playground.versionHistory"
 import type {AgentVersionRow} from "@agenta/playground/state"
-import {timeAgo} from "@agenta/shared/utils"
 import {cn, textColors} from "@agenta/ui/styles"
 import {Button} from "@agenta/ui/ui"
+
+/** A version's age in words, as the canvas writes it (S06): "2 hours ago", "1 day ago". */
+const versionAge = (iso: string): string => {
+    const seconds = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000))
+    const long = {style: "long", numeric: "always"} as const
+    if (seconds < 60) return formatRelativeTime(0, "second", {style: "long", numeric: "auto"})
+    const minutes = Math.round(seconds / 60)
+    if (minutes < 60) return formatRelativeTime(-minutes, "minute", long)
+    const hours = Math.round(minutes / 60)
+    if (hours < 24) return formatRelativeTime(-hours, "hour", long)
+    return formatRelativeTime(-Math.round(hours / 24), "day", long)
+}
 
 const SKELETON_ROWS = [
     {title: "38%", body: "88%"},
@@ -19,10 +32,8 @@ const SKELETON_ROWS = [
 const Pulse = ({width, tone}: {width: string; tone: "strong" | "faint"}) => (
     <div
         className={cn(
-            "h-3 animate-pulse rounded-[3px]",
-            tone === "strong"
-                ? "bg-[var(--ag-colorFillSecondary)]"
-                : "h-2.5 bg-[var(--ag-colorFillTertiary)]",
+            "h-3 animate-pulse rounded-sm",
+            tone === "strong" ? "bg-secondary" : "h-2.5 bg-secondary",
         )}
         style={{width}}
     />
@@ -30,8 +41,8 @@ const Pulse = ({width, tone}: {width: string; tone: "strong" | "faint"}) => (
 
 const Notice = ({title, body, action}: {title: string; body: string; action?: React.ReactNode}) => (
     <div className="px-3 py-6 text-center">
-        <div className="mb-1 text-xs font-semibold text-colorText">{title}</div>
-        <p className={cn("mb-3 text-[11.5px] leading-relaxed", textColors.tertiary)}>{body}</p>
+        <div className="mb-1 text-label font-semibold text-foreground">{title}</div>
+        <p className={cn("mb-3 text-caption leading-relaxed", textColors.tertiary)}>{body}</p>
         {action}
     </div>
 )
@@ -55,83 +66,79 @@ export const VersionList = ({
     onRetry,
     onSelect,
     disabled,
-}: VersionListProps) => (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-        {isLoading ? (
-            <>
-                {SKELETON_ROWS.map((row, i) => (
-                    <div key={i} className="flex flex-col gap-1.5 px-2.5 py-2.5">
-                        <Pulse width={row.title} tone="strong" />
-                        <Pulse width={row.body} tone="faint" />
-                    </div>
-                ))}
-            </>
-        ) : isError ? (
-            <Notice
-                title="Couldn't load versions"
-                body="The request failed. Nothing was changed."
-                action={
-                    <Button variant="outline" size="sm" onClick={onRetry}>
-                        Retry
-                    </Button>
-                }
-            />
-        ) : rows.length === 0 ? (
-            <Notice
-                title="No versions yet"
-                body="This agent has nothing committed to compare or restore."
-            />
-        ) : (
-            rows.map((row) => (
-                <div
-                    key={row.id}
-                    className={cn(
-                        "mb-px flex items-center gap-1 rounded-md",
-                        row.id === selectedId
-                            ? "bg-[var(--ag-colorFillSecondary)]"
-                            : "hover:bg-[var(--ag-colorFillQuaternary)]",
-                    )}
-                >
-                    <button
-                        type="button"
-                        disabled={!!disabled}
-                        aria-current={row.id === selectedId}
-                        onClick={() => onSelect(row.id)}
+}: VersionListProps) => {
+    const t = useT(versionCatalog)
+    return (
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+            {isLoading ? (
+                <>
+                    {SKELETON_ROWS.map((row, i) => (
+                        <div key={i} className="flex flex-col gap-1.5 px-2.5 py-2.5">
+                            <Pulse width={row.title} tone="strong" />
+                            <Pulse width={row.body} tone="faint" />
+                        </div>
+                    ))}
+                </>
+            ) : isError ? (
+                <Notice
+                    title={t("playground.versionHistory.couldNotLoadVersions")}
+                    body={t("playground.versionHistory.requestFailed")}
+                    action={
+                        <Button variant="outline" size="sm" onClick={onRetry}>
+                            {t("playground.versionHistory.retry")}
+                        </Button>
+                    }
+                />
+            ) : rows.length === 0 ? (
+                <Notice
+                    title={t("playground.versionHistory.noVersions")}
+                    body={t("playground.versionHistory.noVersionsBody")}
+                />
+            ) : (
+                rows.map((row) => (
+                    <div
+                        key={row.id}
                         className={cn(
-                            "flex min-w-0 flex-1 flex-col gap-1 rounded-md border-0 bg-transparent px-2.5 py-2 text-left font-[inherit]",
-                            disabled ? "cursor-default" : "cursor-pointer",
+                            "mb-px flex items-center gap-1 rounded-md",
+                            row.id === selectedId ? "bg-secondary" : "hover:bg-accent",
                         )}
                     >
-                        <span className="flex items-center gap-1.5">
-                            <span className="text-xs font-medium text-colorText">
-                                v{row.version}
-                            </span>
-                            {/* One tag, one meaning: the newest revision. */}
-                            {row.isLatest ? (
-                                <span className="rounded bg-[var(--ag-colorInfoBg)] px-1.5 py-px text-[10px] font-medium text-[var(--ag-colorInfo)]">
-                                    Latest
-                                </span>
-                            ) : null}
-                            <span
-                                className={cn(
-                                    "ml-auto whitespace-nowrap text-[10.5px]",
-                                    textColors.tertiary,
-                                )}
-                            >
-                                {row.createdAt ? timeAgo(Date.parse(row.createdAt)) : ""}
-                            </span>
-                        </span>
-                        <span
+                        <button
+                            type="button"
+                            disabled={!!disabled}
+                            aria-current={row.id === selectedId}
+                            onClick={() => onSelect(row.id)}
                             className={cn(
-                                "line-clamp-2 text-xs leading-snug",
-                                textColors.secondary,
+                                "flex min-w-0 flex-1 flex-col gap-1 rounded-md border-0 bg-transparent px-2.5 py-2 text-left font-[inherit]",
+                                disabled ? "cursor-default" : "cursor-pointer",
                             )}
                         >
-                            {row.message || "No commit message"}
-                        </span>
-                    </button>
-                </div>
-            ))
-        )}
-    </div>
-)
+                            <span className="flex items-center gap-1.5">
+                                <span className="text-meta font-medium text-foreground">
+                                    v{row.version}
+                                </span>
+                                {/* One tag, one meaning: the newest revision. */}
+                                {row.isLatest ? (
+                                    <span className="rounded bg-info/10 px-1.5 py-px text-caption font-medium text-info">
+                                        {t("playground.versionHistory.latest")}
+                                    </span>
+                                ) : null}
+                                <span
+                                    className={cn(
+                                        "ml-auto whitespace-nowrap text-caption",
+                                        textColors.tertiary,
+                                    )}
+                                >
+                                    {row.createdAt ? versionAge(row.createdAt) : ""}
+                                </span>
+                            </span>
+                            <span className={cn("line-clamp-2 text-meta", textColors.secondary)}>
+                                {row.message || t("playground.versionHistory.noCommitMessage")}
+                            </span>
+                        </button>
+                    </div>
+                ))
+            )}
+        </div>
+    )
+}

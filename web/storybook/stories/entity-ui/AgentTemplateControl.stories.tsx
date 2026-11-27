@@ -13,30 +13,22 @@ import {
     FileText,
     Compass,
     HardDrives,
-    Plus,
     PuzzlePiece,
     Robot,
     SlidersHorizontal,
 } from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
-import {Button as AntButton, Tooltip as AntTooltip, Typography as AntTypography} from "antd"
 
 import type {StoryScope} from "../../.storybook/decorators/withAgentaData"
 import {integrationQueries, GITHUB_WORK, SLACK_OPS} from "../../fixtures/gatewayIntegration"
 
 // AgentTemplateControl — the agent playground's left config panel and the composition root of
-// `SchemaControls/agentTemplate/*`. Its own antd surface was small (three `Tooltip` + icon
-// `Button` header actions and one `Typography.Text`), so the migration split the markup out of
-// the 1199-line container into three prop-driven siblings:
+// `SchemaControls/agentTemplate/*`. The markup is split into prop-driven siblings:
 //
-//   • SectionAddButton         — antd `Tooltip title` + `Button type="text" icon` →
-//                                Radix Tooltip + `Button variant="ghost" size="icon"`.
-//                                forwardRef + prop spread so it can BE a Popover trigger.
-//   • SectionTitleBadge        — the "No model" / "Unavailable" / "Connect key" pill (pure move,
-//                                no antd involved; extracted so the state matrix is storiable).
-//   • AgentTemplateSectionList — the accordion list + the empty note
-//                                (antd `Typography.Text type="secondary"` → `<span>` on
-//                                `colorTextDescription`, antd's Typography line-height).
+//   • SectionAddButton         — the header `+` (Radix Tooltip + ghost icon Button); forwardRef
+//                                + prop spread so it can BE a Popover trigger.
+//   • SectionTitleBadge        — the "No model" / "Unavailable" / "Connect key" pill.
+//   • AgentTemplateSectionList — the accordion list + the empty note.
 //
 // The container keeps every atom read (open-section request, draft-change signal, jotai store)
 // and builds the section descriptors; the list renders them.
@@ -215,9 +207,7 @@ const agentQueries = (scope: StoryScope): [readonly unknown[], unknown][] => [
 const renderPanel = (schema: unknown, value: unknown, disabled?: boolean) => (
     // The panel lives inside PlaygroundConfigSection's `px-4` field wrapper; the expanded
     // header band bleeds to those edges, so the story reproduces the padding.
-    // Showcase (no antd half), so there is no `.grid` parity layout — `data-vrt-subject` is
-    // what the a11y/VRT harness waits on to know the story has rendered.
-    <div data-vrt-subject className="max-w-[520px] px-4">
+    <div className="max-w-[520px] px-4">
         <SchemaPropertyRenderer
             schema={schema as SchemaProperty}
             label="Agent"
@@ -381,7 +371,7 @@ export const SectionList: Story = {
         onChange: noop,
     },
     render: () => (
-        <div data-vrt-subject className="flex max-w-[520px] flex-col px-4">
+        <div className="flex max-w-[520px] flex-col px-4">
             <AgentTemplateSectionList
                 sections={SECTIONS}
                 controlledKeys={new Set(["tools", "subagents", "mcp", "skills"])}
@@ -396,94 +386,24 @@ export const SectionList: Story = {
 export const SectionListEmpty: Story = {
     args: {schema: EMPTY_SCHEMA as SchemaProperty, label: "Agent", value: {}, onChange: noop},
     render: () => (
-        <div data-vrt-subject className="flex max-w-[520px] flex-col">
+        <div className="flex max-w-[520px] flex-col">
             <AgentTemplateSectionList sections={[]} />
         </div>
     ),
 }
 
 // ---------------------------------------------------------------------------
-// Pre-migration markup, verbatim (antd baseline)
+// Variants
 // ---------------------------------------------------------------------------
 
-/** `headerAddButton` before the migration. */
-const AntdHeaderAddButton = ({label}: {label: string}) => (
-    <AntTooltip title={label}>
-        <AntButton type="text" icon={<Plus size={16} />} onClick={noop} aria-label={label} />
-    </AntTooltip>
-)
-
-/** The Instructions section's inert `+` — a disabled button swallows hover, hence the span. */
-const AntdDisabledAddButton = () => (
-    <AntTooltip title="Multiple instruction files coming soon">
-        <span>
-            <AntButton
-                type="text"
-                icon={<Plus size={16} />}
-                disabled
-                aria-label="Add instruction file"
-            />
-        </span>
-    </AntTooltip>
-)
-
-/** The title pill, before it moved into SectionTitleBadge (markup unchanged). */
-const AntdTitlePill = ({label, tone}: {label: string; tone: "warning" | "error"}) => (
-    <span
-        className={[
-            "whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium leading-none",
-            tone === "error"
-                ? "bg-[var(--ag-colorErrorBg)] text-[var(--ag-colorError)]"
-                : "bg-[var(--ag-colorWarningBg)] text-[var(--ag-colorWarning)]",
-        ].join(" ")}
-    >
-        {label}
-    </span>
-)
-
-/** The "no agent fields" note. */
-const AntdEmptyNote = () => (
-    <AntTypography.Text type="secondary" className="text-xs">
-        No agent configuration fields are available for this schema.
-    </AntTypography.Text>
-)
-
-// ---------------------------------------------------------------------------
-// Parity grid
-// ---------------------------------------------------------------------------
-
-const Row = ({
-    label,
-    a,
-    s,
-    expected,
-}: {
-    label: string
-    a: ReactNode
-    s: ReactNode
-    expected?: string
-}) => (
-    <div
-        className="grid grid-cols-[12rem_1fr_1fr] items-start gap-4 border-b border-colorBorderSecondary py-3"
-        data-vrt-expected={expected}
-    >
+const Row = ({label, children}: {label: string; children: ReactNode}) => (
+    <div className="grid grid-cols-[12rem_1fr] items-start gap-4 border-b border-colorBorderSecondary py-3">
         <div className="text-xs text-colorTextSecondary">{label}</div>
-        <div className="flex items-center gap-2">
-            <span className="w-8 shrink-0 text-[10px] text-colorTextSecondary">antd</span>
-            <div data-vrt-subject className="flex flex-1 items-center">
-                {a}
-            </div>
-        </div>
-        <div className="flex items-center gap-2">
-            <span className="w-8 shrink-0 text-[10px] text-colorTextSecondary">agenta</span>
-            <div data-vrt-subject className="flex flex-1 items-center">
-                {s}
-            </div>
-        </div>
+        <div className="flex items-center">{children}</div>
     </div>
 )
 
-export const AntdVsAgenta: Story = {
+export const Variants: Story = {
     args: {
         schema: AGENT_SCHEMA as SchemaProperty,
         label: "Agent",
@@ -492,37 +412,25 @@ export const AntdVsAgenta: Story = {
     },
     render: () => (
         <div className="flex max-w-[1100px] flex-col">
-            <Row
-                label="header + (enabled)"
-                a={<AntdHeaderAddButton label="Add MCP server" />}
-                s={<SectionAddButton label="Add MCP server" onClick={noop} />}
-            />
-            <Row
-                label="header + (disabled)"
-                a={<AntdDisabledAddButton />}
-                s={
-                    <SectionAddButton
-                        label="Add instruction file"
-                        tooltip="Multiple instruction files coming soon"
-                        disabled
-                    />
-                }
-            />
-            <Row
-                label="title pill — error"
-                a={<AntdTitlePill label="No model" tone="error" />}
-                s={<SectionTitleBadge label="No model" tone="error" />}
-            />
-            <Row
-                label="title pill — warning"
-                a={<AntdTitlePill label="Connect key" tone="warning" />}
-                s={<SectionTitleBadge label="Connect key" tone="warning" />}
-            />
-            <Row
-                label="empty note"
-                a={<AntdEmptyNote />}
-                s={<AgentTemplateSectionList sections={[]} />}
-            />
+            <Row label="header + (enabled)">
+                <SectionAddButton label="Add MCP server" onClick={noop} />
+            </Row>
+            <Row label="header + (disabled)">
+                <SectionAddButton
+                    label="Add instruction file"
+                    tooltip="Multiple instruction files coming soon"
+                    disabled
+                />
+            </Row>
+            <Row label="title pill — error">
+                <SectionTitleBadge label="No model" tone="error" />
+            </Row>
+            <Row label="title pill — warning">
+                <SectionTitleBadge label="Connect key" tone="warning" />
+            </Row>
+            <Row label="empty note">
+                <AgentTemplateSectionList sections={[]} />
+            </Row>
         </div>
     ),
 }

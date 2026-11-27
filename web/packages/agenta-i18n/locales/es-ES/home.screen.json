@@ -1,0 +1,8 @@
+{
+    "title": "Inicio",
+    "loading": "Cargando el inicio",
+    "untitledAgent": "Agente sin título",
+    "templatesError": "No se han podido cargar las plantillas",
+    "agentsEmpty": "Los agentes que crees aparecerán aquí.",
+    "agentsError": "No se han podido cargar tus agentes"
+}

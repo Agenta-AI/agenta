@@ -2,7 +2,8 @@
 // Design: docs/design/hosted-subscription-connections/implementation-contract.md §4.
 
 import {getHostQueryClient} from "@agenta/shared/api"
-import {projectIdAtom} from "@agenta/shared/state"
+import {projectIdAtom, userAtom} from "@agenta/shared/state"
+import type {LlmProvider} from "@agenta/shared/types"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -141,8 +142,8 @@ export const buildSubscriptionSecretPayload = (provider: string, name: string): 
 /**
  * Create the subscription connection. Returns its record id.
  *
- * An organization connection is created without a name, so the API's default says whose it is
- * ("ChatGPT (Organization)"), and for every project unless `projects` narrows it.
+ * An organization connection is created for every project unless `projects` narrows it. It
+ * keeps the given name: an empty one would make the API add the owner ("ChatGPT (Organization)").
  */
 export const createSubscriptionConnectionAtom = atom(
     null,
@@ -169,7 +170,7 @@ export const createSubscriptionConnectionAtom = atom(
             scope === "organization"
                 ? await createOrganizationSecret({
                       projectId,
-                      payload: buildSubscriptionSecretPayload(provider, ""),
+                      payload: buildSubscriptionSecretPayload(provider, name),
                       projects,
                   })
                 : await get(createVaultSecretMutationAtom).mutateAsync({
@@ -247,4 +248,27 @@ export const refreshVaultSecretsAtom = atom(null, async () => {
         queryClient.invalidateQueries({queryKey: ["vault", "secrets"]}),
         queryClient.invalidateQueries({queryKey: ["vault", "organization-secrets"]}),
     ])
+})
+
+/** Refresh the connection lists; true when a refreshed list shows `secretId` signed in. */
+export const refreshSignedInAtom = atom(null, async (get, set, secretId: string) => {
+    const started = Date.now()
+    await set(refreshVaultSecretsAtom)
+    const queryClient = getHostQueryClient()
+    const owner = [get(userAtom)?.id, get(projectIdAtom)]
+    const keys = ["secrets", "organization-secrets"].map((list) => ["vault", list, ...owner])
+    // The invalidation refetches only lists a page reads; fetch the other one here too.
+    await Promise.all(
+        keys.map((queryKey) =>
+            queryClient.refetchQueries({queryKey, exact: true, type: "inactive"}),
+        ),
+    )
+    // Read the cache (list atoms update later), and only a list that this refresh read.
+    return keys.some((key) => {
+        const state = queryClient.getQueryState(key)
+        if (state?.status !== "success" || state.dataUpdatedAt < started) return false
+        return (queryClient.getQueryData<LlmProvider[]>(key) ?? []).some(
+            (row) => row.id === secretId && row.subscription?.loginState === "ready",
+        )
+    })
 })

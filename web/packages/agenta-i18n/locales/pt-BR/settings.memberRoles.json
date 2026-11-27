@@ -1,0 +1,9 @@
+{
+    "admin": "Administrador",
+    "annotator": "Anotador",
+    "developer": "Desenvolvedor",
+    "editor": "Editor",
+    "member": "Membro",
+    "owner": "Proprietário",
+    "viewer": "Visualizador"
+}

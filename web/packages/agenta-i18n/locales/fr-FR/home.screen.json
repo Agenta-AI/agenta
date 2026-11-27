@@ -1,0 +1,8 @@
+{
+    "title": "Accueil",
+    "loading": "Chargement de l'accueil",
+    "untitledAgent": "Agent sans titre",
+    "templatesError": "Impossible de charger les modèles",
+    "agentsEmpty": "Les Agents que vous créez apparaîtront ici.",
+    "agentsError": "Impossible de charger vos Agents"
+}

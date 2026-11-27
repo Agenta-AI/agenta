@@ -50,7 +50,6 @@ vi.mock("@/components/PageTitle", () => ({
 }))
 vi.mock("@agenta/auth-ui", () => ({NotFoundScreen: () => null}))
 
-import {DEVELOPER_VIEWS} from "@/features/developer/developerViews"
 import EvaluationRunPage from "@/pages/w/[workspace_id]/p/[project_id]/evaluations/results/[evaluation_id]"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
@@ -99,7 +98,7 @@ function serveRun(overrides: Record<string, unknown> = {}) {
         status: "evaluation_finished",
         version: "2025.07.14",
         flags: {is_live: false, is_active: false, is_closed: false, has_testsets: true},
-        tags: ["geography"],
+        tags: {topic: "geography"},
         meta: {owner: "team"},
         data: storedData,
         created_at: "2026-10-01T09:30:00Z",
@@ -178,7 +177,7 @@ describe("run summary card", () => {
         expect(host.textContent).toContain("Evaluation Finished")
         expect(host.textContent).toContain("Capitals check")
         expect(host.textContent).toContain("Checks capitals")
-        expect(host.textContent).toContain("geography")
+        expect(host.textContent).toContain("topic: geography")
         expect(host.textContent).toContain(id)
         expect(host.querySelector('[aria-label="Copy run ID"]')).not.toBeNull()
     })
@@ -210,9 +209,5 @@ describe("run summary card", () => {
                 .map((call) => String(call[0]))
                 .filter((url) => !url.endsWith("/query")),
         ).toEqual([])
-    })
-
-    it("The evaluations view is still hidden by default", () => {
-        expect(DEVELOPER_VIEWS.find((view) => view.id === "evaluations")?.stage).toBe("hidden")
     })
 })

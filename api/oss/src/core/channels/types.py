@@ -101,6 +101,16 @@ class ChannelSignatureInvalid(ChannelsError):
         super().__init__(f"Invalid signature for channel: {channel}")
 
 
+class ChannelSignatureUnavailable(ChannelsError):
+    """The signature cannot be checked now because a key source on our side
+    failed, for example the platform's signing keys did not load. A temporary
+    error, not a bad signature: ingress answers 503 so the platform retries."""
+
+    def __init__(self, *, channel: str):
+        self.channel = channel
+        super().__init__(f"Signature check unavailable for channel: {channel}")
+
+
 class ChannelConnectionNotFound(ChannelsError):
     def __init__(self, *, connection_id: UUID):
         self.connection_id = connection_id
@@ -160,6 +170,18 @@ class ChannelDeliveryHeld(ChannelsError):
         self.channel = channel
         self.reason = reason
         super().__init__(f"{channel}: delivery held ({reason})")
+
+
+class ChannelInboxEnqueueFailed(ChannelsError):
+    """The event is stored, but its dispatch could not be enqueued. The HTTP
+    ingress answers 503 so the platform retries; the Discord socket loop
+    retries the same event itself. Either retry finds the stored row and
+    enqueues again."""
+
+    def __init__(self, *, channel: str, external_id: str):
+        self.channel = channel
+        self.external_id = external_id
+        super().__init__(f"Failed to enqueue channel inbox event: {channel}")
 
 
 class ChannelConnectionVerificationFailed(ChannelsError):

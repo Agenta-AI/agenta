@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import billingTopupsCatalog from "@agenta/i18n/catalogs/billing.topups"
 import {Alert} from "@agenta/ui/ui"
 
 import {TopUpPaymentNotice} from "./TopUpPaymentNotice"
@@ -13,6 +15,7 @@ export const TopUpReturnNotice = ({
     topUpReturn: Exclude<TopUpReturn, null>
     onClose: () => void
 }) => {
+    const t = useT(billingTopupsCatalog)
     if (topUpReturn.result === "cancelled")
         return (
             <Alert
@@ -20,7 +23,7 @@ export const TopUpReturnNotice = ({
                 showIcon
                 closable
                 onClose={onClose}
-                message="Checkout cancelled. You were not charged."
+                message={t("billing.topups.checkoutCancelled")}
             />
         )
 
@@ -32,8 +35,8 @@ export const TopUpReturnNotice = ({
                 showIcon
                 closable
                 onClose={onClose}
-                message="Payment received"
-                description="Your credits will appear here shortly."
+                message={t("billing.topups.paymentReceived")}
+                description={t("billing.topups.creditsSoon")}
             />
         )
 

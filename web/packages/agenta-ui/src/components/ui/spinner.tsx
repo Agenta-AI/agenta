@@ -1,12 +1,14 @@
 import * as React from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import {CircleNotchIcon} from "@phosphor-icons/react"
 import {cva, type VariantProps} from "class-variance-authority"
-import {LoaderCircle} from "lucide-react"
 
 import {cn} from "./utils"
 
 /**
- * Spinner — shadcn's spinner (lucide LoaderCircle, inherits currentColor), keeping antd's
+ * Spinner — shadcn's spinner (Phosphor CircleNotch, inherits currentColor), keeping antd's
  * `size` (14/16/24px) and `tip`. Without `tip` it is the bare svg; with it, a centred column.
  */
 const spinnerVariants = cva("shrink-0 animate-spin", {
@@ -37,11 +39,13 @@ export function Spinner({
     className,
     size = "default",
     tip,
-    "aria-label": ariaLabel = "Loading",
+    "aria-label": ariaLabelProp,
     ...props
 }: SpinnerProps) {
+    const t = useT(commonCatalog)
+    const ariaLabel = ariaLabelProp ?? t("common.loading")
     const icon = (
-        <LoaderCircle
+        <CircleNotchIcon
             data-slot="spinner"
             role="status"
             aria-label={ariaLabel}
@@ -56,7 +60,7 @@ export function Spinner({
             className={cn("box-border inline-flex flex-col items-center gap-3", className)}
         >
             {icon}
-            <span data-slot="spinner-tip" className="text-sm leading-none">
+            <span data-slot="spinner-tip" className="text-label leading-none">
                 {tip}
             </span>
         </span>

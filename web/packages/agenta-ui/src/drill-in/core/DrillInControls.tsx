@@ -6,6 +6,9 @@
 
 import {useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiDrillInCatalog from "@agenta/i18n/catalogs/ui.drillIn"
 import {Plus} from "@phosphor-icons/react"
 
 import {Button} from "../../components/ui/button"
@@ -30,12 +33,12 @@ export interface DrillInControlsProps {
 }
 
 const propertyTypeOptions = [
-    {label: "String", value: "string" as const},
-    {label: "Number", value: "number" as const},
-    {label: "Boolean", value: "boolean" as const},
-    {label: "Object", value: "object" as const},
-    {label: "Array", value: "array" as const},
-]
+    {labelKey: "ui.drillIn.typeString", value: "string"},
+    {labelKey: "ui.drillIn.typeNumber", value: "number"},
+    {labelKey: "ui.drillIn.typeBoolean", value: "boolean"},
+    {labelKey: "ui.drillIn.typeObject", value: "object"},
+    {labelKey: "ui.drillIn.typeArray", value: "array"},
+] as const
 
 /**
  * Controls for adding items/properties when drilling into arrays/objects.
@@ -48,6 +51,7 @@ export function DrillInControls({
     onAddArrayItem,
     onAddObjectProperty,
 }: DrillInControlsProps) {
+    const t = useT(uiDrillInCatalog, commonCatalog)
     const [showAddProperty, setShowAddProperty] = useState(false)
     const [newPropertyName, setNewPropertyName] = useState("")
     const [newPropertyType, setNewPropertyType] = useState<PropertyType>("string")
@@ -84,7 +88,7 @@ export function DrillInControls({
                                     {<Plus size={14} />}
                                 </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Add item</TooltipContent>
+                            <TooltipContent>{t("ui.drillIn.addItem")}</TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
                 )}
@@ -101,7 +105,7 @@ export function DrillInControls({
                                     {<Plus size={14} />}
                                 </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Add property</TooltipContent>
+                            <TooltipContent>{t("ui.drillIn.addProperty")}</TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
                 )}
@@ -110,7 +114,7 @@ export function DrillInControls({
             {/* Add property input form - with smooth transition */}
             {currentPathDataType === "object" && (
                 <div
-                    className={`flex items-center gap-2 px-2 bg-blue-50 rounded-md border border-solid border-blue-200 overflow-hidden transition-all duration-200 ease-in-out ${
+                    className={`flex items-center gap-2 px-2 bg-muted rounded-md border border-solid border-border-muted overflow-hidden transition-all duration-200 ease-in-out ${
                         showAddProperty
                             ? "max-h-20 py-2 opacity-100"
                             : "max-h-0 py-0 opacity-0 border-transparent"
@@ -119,7 +123,7 @@ export function DrillInControls({
                     <Input
                         value={newPropertyName}
                         onChange={(e) => setNewPropertyName(e.target.value)}
-                        placeholder="Property name"
+                        placeholder={t("ui.drillIn.propertyName")}
                         size="default"
                         className="flex-1"
                         autoFocus
@@ -141,7 +145,7 @@ export function DrillInControls({
                         <SelectContent>
                             {propertyTypeOptions.map((option) => (
                                 <SelectItem key={option.value} value={option.value}>
-                                    {option.label}
+                                    {t(option.labelKey)}
                                 </SelectItem>
                             ))}
                         </SelectContent>
@@ -152,10 +156,10 @@ export function DrillInControls({
                         onClick={handleAddProperty}
                         disabled={!newPropertyName.trim()}
                     >
-                        Add
+                        {t("common.add")}
                     </Button>
                     <Button variant="ghost" size="default" onClick={handleCancelAddProperty}>
-                        Cancel
+                        {t("common.cancel")}
                     </Button>
                 </div>
             )}

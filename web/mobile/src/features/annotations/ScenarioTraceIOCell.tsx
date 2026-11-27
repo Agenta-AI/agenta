@@ -1,14 +1,15 @@
 import {annotationSessionController} from "@agenta/annotation"
 import {extractAgData, traceRootSpanAtomFamily} from "@agenta/entities/trace"
+import {getSpanDisplayOutputs, type TraceSpanNode} from "@agenta/observability"
 import {sanitizeDataWithBlobUrls} from "@agenta/shared/utils"
 import {LastInputMessageCell, SmartCellContent} from "@agenta/ui/cell-renderers"
 import {useAtomValue} from "jotai"
 
-const CELL_CLASS = "max-h-[88px] overflow-hidden"
+const CELL_CLASS = "max-h-22 overflow-hidden"
 
 /**
  * A trace item's inputs or outputs, as the traces table shows them: the last input message (or
- * the inputs), and the reply (or the outputs). Read from the trace's root span.
+ * the inputs), and the reply (or the outputs). Read from the trace's root span and its agent span.
  */
 export const ScenarioTraceIOCell = ({
     scenarioId,
@@ -21,8 +22,13 @@ export const ScenarioTraceIOCell = ({
         annotationSessionController.selectors.scenarioTraceRef(scenarioId),
     )
     const rootSpan = useAtomValue(traceRootSpanAtomFamily(traceId || null))
-    const value = rootSpan ? (extractAgData(rootSpan)[part] ?? null) : null
-    if (value === null) return <span className="text-[13px] text-muted-foreground">—</span>
+    // A root agent span often has no outputs; use the reply the traces table shows.
+    const value = !rootSpan
+        ? null
+        : part === "outputs"
+          ? (getSpanDisplayOutputs(rootSpan as TraceSpanNode) ?? null)
+          : (extractAgData(rootSpan)[part] ?? null)
+    if (value === null) return <span className="text-label text-muted-foreground">—</span>
     const {data} = sanitizeDataWithBlobUrls(value)
     return part === "inputs" ? (
         <LastInputMessageCell

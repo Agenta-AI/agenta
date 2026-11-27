@@ -2,7 +2,7 @@
 
 Every table with lifecycle columns has all six, fully nullable, and the
 actor (*_by_id) columns never carry FKs. See
-docs/designs/oss-ee-convergence/db-integrity-audit.md.
+docs/design/oss-ee-convergence/db-integrity-audit.md.
 """
 
 import importlib
@@ -39,6 +39,11 @@ PARTIAL_LIFECYCLE = {
     "session_trace_tombstones": {"deleted_at"},
 }
 
+# Single-row instance tables, not scoped rows: `instances` (the installation id, written
+# by its migration) and `licenses` (the license key, replaced by the instance admin). Rows
+# are never edited by a user or soft-deleted, so they keep only the columns they need.
+INSTANCE_TABLES = {"instances", "licenses"}
+
 LIFECYCLE = (
     "created_at",
     "updated_at",
@@ -58,6 +63,8 @@ def _register_tables():
 
 def test_lifecycle_columns_complete_and_nullable():
     for table in Base.metadata.tables.values():
+        if table.name in INSTANCE_TABLES:
+            continue
         columns = set(table.columns.keys())
         if not columns & set(LIFECYCLE):
             continue

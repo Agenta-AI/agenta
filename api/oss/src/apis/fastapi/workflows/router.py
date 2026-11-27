@@ -29,7 +29,6 @@ from oss.src.core.workflows.service import (
     WorkflowsService,
     SimpleWorkflowsService,
 )
-from oss.src.core.workflows.types import InvalidAgentHarnessError
 from oss.src.core.environments.service import (
     EnvironmentsService,
 )
@@ -1947,8 +1946,12 @@ class WorkflowsRouter:
                 status_code=400,
                 detail="workflow_revision.workflow_variant_id is required when committing a workflow revision.",
             )
-        # The agent comes from the variant, never from the body's own workflow id.
-        if not await self._allow_variant_agent(
+        # The agent comes from the variant, never from the body's own workflow id. A static
+        # workflow with editable fields is visible to the whole project and has no owner,
+        # and its variant has no row before the project's first commit.
+        if not self.workflows_service.static_editable_paths(
+            variant_id
+        ) and not await self._allow_variant_agent(
             request,
             action=Permission.EDIT_WORKFLOWS,
             workflow_variant_id=variant_id,
@@ -2044,10 +2047,6 @@ class WorkflowsRouter:
             )
         except RevisionConflictError as e:
             raise HTTPException(status_code=409, detail=e.to_detail()) from e
-        except InvalidAgentHarnessError as e:
-            # 422, the same status every other "your change is not committable" answer on this
-            # route uses: the request is well-formed, the configuration in it is not.
-            raise HTTPException(status_code=422, detail=e.to_detail()) from e
         except ChangeSetError as e:
             raise HTTPException(status_code=422, detail=e.to_detail()) from e
         except EmbedReferenceInconsistentError as e:

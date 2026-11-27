@@ -1,0 +1,11 @@
+{
+    "popupBlocked": "Popup blocked. Redirecting in this tab.",
+    "connectName": "Connect {{name}}",
+    "name": "Name",
+    "required": "Required",
+    "namePlaceholder": "e.g. My {{name}} Account",
+    "authMethod": "Auth method",
+    "apiKey": "API Key",
+    "submitFailed": "Couldn't start the connection — the server rejected it. Try again; if it keeps failing, this deployment's connections provider isn't configured.",
+    "connect": "Connect"
+}

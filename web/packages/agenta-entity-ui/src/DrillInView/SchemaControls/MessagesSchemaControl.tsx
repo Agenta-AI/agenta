@@ -13,6 +13,8 @@
 import {memo, useCallback, useMemo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
+import {useT} from "@agenta/i18n"
+import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import type {SimpleChatMessage} from "@agenta/shared/types"
 import {ChatMessageList} from "@agenta/ui/chat-message"
 import clsx from "clsx"
@@ -159,6 +161,7 @@ export const MessagesSchemaControl = memo(function MessagesSchemaControl({
     showControls = true,
     allowFileUpload = false,
 }: MessagesSchemaControlProps) {
+    const t = useT(schemaControlsCatalog)
     // Normalize messages to SimpleChatMessage format
     const normalizedMessages = useMemo(() => normalizeMessages(value), [value])
 
@@ -174,25 +177,25 @@ export const MessagesSchemaControl = memo(function MessagesSchemaControl({
     if (disabled && (!value || (Array.isArray(value) && value.length === 0))) {
         return (
             <div className={clsx("flex flex-col gap-1", className)}>
-                {label && <span className="text-sm font-medium text-colorText">{label}</span>}
-                <span className="text-xs text-colorTextDescription">No messages</span>
+                {label && <span className="text-label font-medium text-foreground">{label}</span>}
+                <span className="text-meta text-muted-foreground">
+                    {t("entityUi.schemaControls.noMessages")}
+                </span>
             </div>
         )
     }
 
     return (
         <div className={clsx("flex flex-col gap-2", className)}>
-            {label && <span className="text-sm font-medium text-colorText">{label}</span>}
-            {description && (
-                <span className="text-xs text-colorTextDescription">{description}</span>
-            )}
+            {label && <span className="text-label font-medium text-foreground">{label}</span>}
+            {description && <span className="text-meta text-muted-foreground">{description}</span>}
             <ChatMessageList
                 messages={normalizedMessages}
                 onChange={handleChange}
                 disabled={disabled}
                 showControls={showControls}
                 allowFileUpload={allowFileUpload}
-                placeholder="Enter message..."
+                placeholder={t("entityUi.schemaControls.enterMessage")}
                 enableTokens={true}
                 templateFormat="curly"
                 defaultMinimized={disabled}

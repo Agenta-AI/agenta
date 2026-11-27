@@ -1,0 +1,9 @@
+{
+    "checkAgain": "重新检查",
+    "noOrganizationBody": "此实例有一个组织。请让它的管理员邀请你。邀请到达后会在这里打开。",
+    "noOrganizationTitle": "你还没有加入任何组织",
+    "noProjects": "未找到项目。",
+    "retry": "重试",
+    "signedInAs": "当前登录：{{email}}",
+    "somethingWrong": "出了点问题。"
+}

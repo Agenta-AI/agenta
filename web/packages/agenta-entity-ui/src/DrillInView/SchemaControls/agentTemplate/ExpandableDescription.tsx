@@ -1,7 +1,8 @@
 /** A description that clamps, and toggles open on click only when clamping really hid something. */
 import {useId, useLayoutEffect, useState} from "react"
 
-import {touchTargetExpansion} from "@agenta/ui/ui"
+import {useT} from "@agenta/i18n"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {CaretDown} from "@phosphor-icons/react"
 
 import {isDescriptionTruncatable} from "../integrationPolicy"
@@ -12,8 +13,12 @@ const CLAMP: Record<number, string> = {
     2: "line-clamp-2",
 }
 
-const TEXT_CLASS = "text-xs text-[var(--ag-colorTextTertiary)]"
-const EXPANDED_CLASS = "whitespace-pre-line leading-relaxed text-[var(--ag-colorTextSecondary)]"
+const TEXT_CLASS = "text-meta text-muted-foreground"
+// 12px meta: `text-xs` is 13px in /m.
+const CANVAS_TEXT_CLASS = "text-meta leading-5 text-muted-foreground"
+/** The whole text a phone shows (M09): 12/16, as the canvas draws a wrapped line. */
+const CANVAS_FULL_TEXT_CLASS = "text-meta text-muted-foreground"
+const EXPANDED_CLASS = "whitespace-pre-line leading-relaxed text-muted-foreground"
 
 export interface ExpandableDescriptionProps {
     description?: string
@@ -23,6 +28,13 @@ export interface ExpandableDescriptionProps {
     onExpandedChange?: (expanded: boolean) => void
     /** Names what the toggle expands, so a list of Show more buttons stays distinguishable. */
     label?: string
+    /**
+     * The canvas tool line (F02 f6): 12/20, and the line itself is the toggle, with no caret.
+     * Absent, the description keeps today's size and caret.
+     */
+    canvas?: boolean
+    /** Show the whole text, with no clamp and no toggle (a phone, M09: "its line shows in full"). */
+    full?: boolean
 }
 
 export function ExpandableDescription({
@@ -30,7 +42,10 @@ export function ExpandableDescription({
     lines = 1,
     onExpandedChange,
     label,
+    canvas = false,
+    full = false,
 }: ExpandableDescriptionProps) {
+    const t = useT(configItemsCatalog)
     const textId = useId()
     const [expanded, setExpandedState] = useState(false)
     const [preview, setPreview] = useState<HTMLSpanElement | null>(null)
@@ -43,7 +58,7 @@ export function ExpandableDescription({
             setOverflows(false)
             return
         }
-        if (!preview || expanded) return
+        if (!preview || expanded || full) return
         const measure = () =>
             setOverflows(
                 lines > 1
@@ -57,7 +72,7 @@ export function ExpandableDescription({
         const observer = new ResizeObserver(measure)
         observer.observe(preview)
         return () => observer.disconnect()
-    }, [preview, expanded, text, lines])
+    }, [preview, expanded, text, lines, full])
 
     const setExpanded = (next: boolean) => {
         setExpandedState(next)
@@ -69,9 +84,10 @@ export function ExpandableDescription({
     const truncatable = isDescriptionTruncatable(text, overflows)
     const clamp = CLAMP[lines] ?? CLAMP[1]
 
-    const textClass = `${TEXT_CLASS} ${expanded ? EXPANDED_CLASS : clamp}`
+    const base = canvas ? (full ? CANVAS_FULL_TEXT_CLASS : CANVAS_TEXT_CLASS) : TEXT_CLASS
+    const textClass = `${base} ${full ? "whitespace-pre-line" : expanded ? EXPANDED_CLASS : clamp}`
 
-    if (!truncatable) {
+    if (full || !truncatable) {
         return (
             <span id={textId} ref={setPreview} className={textClass}>
                 {text}
@@ -86,30 +102,36 @@ export function ExpandableDescription({
             aria-expanded={expanded}
             aria-controls={textId}
             aria-label={
-                label ? `${expanded ? "Show less" : "Show more"} about ${label}` : undefined
+                label
+                    ? expanded
+                        ? t("entityUi.configItems.showLessAbout", {label})
+                        : t("entityUi.configItems.showMoreAbout", {label})
+                    : undefined
             }
             onClick={(event) => {
                 // Rows whose whole surface is clickable must not also toggle on this.
                 event.stopPropagation()
                 setExpanded(!expanded)
             }}
-            // The invisible expansion carries the 24px floor to the 44px touch minimum.
-            className={`group/desc flex min-h-control-xs w-full min-w-0 cursor-pointer gap-1 border-0 bg-transparent p-0 text-left font-[inherit] ${expanded ? "items-start" : "items-center"} ${touchTargetExpansion({height: 24, border: 0})}`}
+            // The canvas line is 20 px (F02 f6: a 63 px tool row).
+            className={`group/desc flex w-full min-w-0 cursor-pointer gap-1 border-0 bg-transparent p-0 text-left font-[inherit] ${canvas ? "min-h-5" : "min-h-control-xs"} ${expanded ? "items-start" : "items-center"}`}
         >
             <span
                 id={textId}
                 ref={setPreview}
-                className={`min-w-0 flex-1 transition-colors group-hover/desc:text-[var(--ag-colorTextSecondary)] ${textClass}`}
+                className={`min-w-0 flex-1 transition-colors group-hover/desc:text-muted-foreground ${textClass}`}
             >
                 {text}
             </span>
-            <CaretDown
-                aria-hidden
-                size={10}
-                className={`shrink-0 text-[var(--ag-colorTextTertiary)] transition-transform ${
-                    expanded ? "mt-[3px] rotate-180" : ""
-                }`}
-            />
+            {canvas ? null : (
+                <CaretDown
+                    aria-hidden
+                    size={10}
+                    className={`shrink-0 text-muted-foreground transition-transform ${
+                        expanded ? "mt-[3px] rotate-180" : ""
+                    }`}
+                />
+            )}
         </button>
     )
 }

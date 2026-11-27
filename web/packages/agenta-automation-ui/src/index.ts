@@ -21,13 +21,18 @@ export * from "./runListView"
 // Data: the entity hooks, already scoped to a project by the host's binding.
 export {useAutomation} from "./useAutomation"
 export {useAutomations} from "./useAutomations"
-export {useAutomationRuns} from "./useAutomationRuns"
+export {useAutomationRunPages, useRecentAutomationRuns} from "./useAutomationRuns"
 export {useAutomationDraft} from "./useAutomationDraft"
 
 // One drawer for both kinds — what the playground mounts in place of its two forms.
 export {AutomationDrawer} from "./AutomationDrawer"
 export {AutomationCreateBody} from "./AutomationCreateBody"
-export {useAutomationCreate, DEFAULT_CRON, DRAFT_ID} from "./useAutomationCreate"
+export {
+    useAutomationCreate,
+    defaultAutomationName,
+    DEFAULT_CRON,
+    DRAFT_ID,
+} from "./useAutomationCreate"
 export type {AutomationCreateState, AutomationDraft} from "./useAutomationCreate"
 export {useAutomationEditor} from "./useAutomationEditor"
 
@@ -37,19 +42,12 @@ export {AutomationField} from "./AutomationField"
 export {AutomationAgentField} from "./AutomationAgentField"
 export {AutomationRunsWhenField} from "./AutomationRunsWhenField"
 export {AutomationInstructionField} from "./AutomationInstructionField"
-export {AutomationTitle} from "./AutomationTitle"
+export {AutomationTitle, useAutomationTitleEditable} from "./AutomationTitle"
 export {AutomationMetaRow} from "./AutomationMetaRow"
 export {AutomationSaveBar} from "./AutomationSaveBar"
-export {AutomationBackLink} from "./AutomationBackLink"
 export {AutomationLastRunCell} from "./AutomationLastRunCell"
 export {AutomationFailureBanner} from "./AutomationFailureBanner"
-export {AutomationRunHistoryCard} from "./AutomationRunHistoryCard"
 export {AutomationRunHistoryView} from "./AutomationRunHistoryView"
-export {AutomationRunHistoryDrawer} from "./AutomationRunHistoryDrawer"
-export {
-    automationRunHistoryDrawerAtom,
-    type AutomationRunHistoryDrawerState,
-} from "./runHistoryDrawerAtom"
 export {AutomationTriggerDrawers} from "./AutomationTriggerDrawers"
 
 // Run history.
@@ -64,5 +62,5 @@ export {PickerOverlay} from "./pickers/PickerOverlay"
 export * from "./states/AutomationStates"
 export * from "./states/AutomationRunStates"
 // The run person notice beside the save bar.
-export {AutomationRunPersonNotice, RUN_PERSON_COPY} from "./AutomationRunPersonNotice"
+export {AutomationRunPersonNotice} from "./AutomationRunPersonNotice"
 export * from "./runPersonNotice"

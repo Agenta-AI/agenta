@@ -1,0 +1,23 @@
+{
+    "channelActions": "Actions du canal",
+    "connectHere": "Connecter ici",
+    "connectPlatform": "Connecter {{platform}}",
+    "disconnectMessage": "{{name}} cesse de répondre sur {{platform}}. Vous pourrez le reconnecter plus tard.",
+    "disconnectTitle": "Déconnecter le canal",
+    "discordDescription": "Discutez avec un agent sur votre serveur Discord",
+    "finishLinking": "Terminer la liaison",
+    "intro": "Parlez à {{agent}} depuis les outils de messagerie que votre équipe utilise déjà.",
+    "loading": "Chargement…",
+    "messagingPlatforms": "Plateformes de messagerie",
+    "noAgent": "Aucun agent",
+    "noAgentYet": "Aucun agent pour le moment",
+    "notLinkedYet": "Pas encore lié",
+    "slackDescription": "Mentionnez un agent ou envoyez-lui un message direct dans Slack",
+    "teamsDescription": "Discutez avec un agent dans Microsoft Teams",
+    "telegramDescription": "Discutez avec un agent via un bot hébergé ou votre propre bot",
+    "title": "Canaux",
+    "unknownAgent": "Agent inconnu",
+    "whatsappDescription": "Laissez vos clients écrire à un agent sur WhatsApp",
+    "yourAgent": "votre agent",
+    "yourWorkspace": "votre espace de travail"
+}

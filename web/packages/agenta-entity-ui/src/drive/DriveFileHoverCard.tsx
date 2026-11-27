@@ -8,6 +8,8 @@ import {
     type DriveFileKind,
 } from "@agenta/entities/drive"
 import {mountFileContentQueryFamily} from "@agenta/entities/session"
+import {useT} from "@agenta/i18n"
+import drivePreviewCatalog from "@agenta/i18n/catalogs/entityUi.drivePreview"
 import {SkeletonBlock} from "@agenta/ui/ui"
 import {Image as ImageIcon} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -38,10 +40,12 @@ const NO_FILE = {mountId: "", path: ""}
 const Footer = ({path, size}: {path: string; size: string}) => (
     <div className="flex min-w-0 items-center gap-2.5 px-3.5 py-2.5">
         <span className="flex shrink-0 items-center">{driveFileIcon(path, 18)}</span>
-        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-popover-foreground">
+        <span className="min-w-0 flex-1 truncate text-label font-medium text-popover-foreground">
             {path.split("/").pop() ?? path}
         </span>
-        {size ? <span className="shrink-0 text-xs text-muted-foreground">{size}</span> : null}
+        {size ? (
+            <span className="shrink-0 text-meta tabular-nums text-muted-foreground">{size}</span>
+        ) : null}
     </div>
 )
 
@@ -54,19 +58,24 @@ const Frame = ({children, path, size}: {children: ReactNode; path: string; size:
 )
 
 /** A file with nothing to show: its tinted kind square, the name, and why there is no preview. */
-const NoPreview = ({path, size}: {path: string; size: string}) => (
-    <div className="flex w-64 min-w-0 items-center gap-3 p-3">
-        <DriveFileGlyph path={path} />
-        <span className="flex min-w-0 flex-col">
-            <span className="truncate text-[13px] font-medium text-popover-foreground">
-                {path.split("/").pop() ?? path}
+const NoPreview = ({path, size}: {path: string; size: string}) => {
+    const t = useT(drivePreviewCatalog)
+    return (
+        <div className="flex w-64 min-w-0 items-center gap-3 p-3">
+            <DriveFileGlyph path={path} />
+            <span className="flex min-w-0 flex-col">
+                <span className="truncate text-label font-medium text-popover-foreground">
+                    {path.split("/").pop() ?? path}
+                </span>
+                <span className="truncate text-meta text-muted-foreground">
+                    {size
+                        ? t("entityUi.drivePreview.noPreviewSize", {size})
+                        : t("entityUi.drivePreview.noPreview")}
+                </span>
             </span>
-            <span className="truncate text-xs text-muted-foreground">
-                {size ? `No preview · ${size}` : "No preview"}
-            </span>
-        </span>
-    </div>
-)
+        </div>
+    )
+}
 
 /** The image alone, its name over a soft fade at the foot, as the inline reply image shows it. */
 const Photo = ({src, path}: {src: string | null; path: string}) => (
@@ -77,7 +86,7 @@ const Photo = ({src, path}: {src: string | null; path: string}) => (
         ) : (
             <SkeletonBlock className="h-40 w-full rounded-none" />
         )}
-        <div className="absolute inset-x-0 bottom-0 flex min-w-0 items-center gap-1.5 bg-gradient-to-t from-black/60 to-transparent px-3 pb-2.5 pt-6 text-xs text-white">
+        <div className="absolute inset-x-0 bottom-0 flex min-w-0 items-center gap-1.5 bg-gradient-to-t from-black/60 to-transparent px-3 pb-2.5 pt-6 text-label text-white">
             <ImageIcon size={13} className="shrink-0" />
             <span className="min-w-0 truncate font-medium">{path.split("/").pop() ?? path}</span>
         </div>
@@ -87,7 +96,7 @@ const Photo = ({src, path}: {src: string | null; path: string}) => (
 /** A page tucked into the bed's corner, fading out at its foot. */
 const Sheet = ({children}: {children: ReactNode}) => (
     <div className="h-full pl-4 pt-3">
-        <div className="h-[calc(100%+12px)] overflow-hidden rounded-tl-md bg-background px-3.5 py-3 shadow-sm ring-1 ring-border/60 [mask-image:linear-gradient(black_55%,transparent)]">
+        <div className="h-[calc(100%+12px)] overflow-hidden rounded-tl-md bg-background px-3.5 py-3 ring-1 ring-border-muted [mask-image:linear-gradient(black_55%,transparent)]">
             {children}
         </div>
     </div>
@@ -119,12 +128,12 @@ const MarkdownSheet = ({text}: {text: string}) => (
                 return heading ? (
                     <span
                         key={at}
-                        className={`font-semibold text-foreground ${at === 0 ? "text-[12.5px]" : "mt-1 text-[11px]"}`}
+                        className={`font-semibold text-foreground ${at === 0 ? "text-label" : "mt-1 text-caption"}`}
                     >
                         {plain}
                     </span>
                 ) : (
-                    <span key={at} className="text-[10.5px] leading-snug text-muted-foreground">
+                    <span key={at} className="text-caption leading-snug text-muted-foreground">
                         {plain}
                     </span>
                 )
@@ -133,7 +142,7 @@ const MarkdownSheet = ({text}: {text: string}) => (
 )
 
 const CodeSheet = ({text}: {text: string}) => (
-    <pre className="m-0 whitespace-pre font-mono text-[10px] leading-[1.5] text-muted-foreground">
+    <pre className="m-0 whitespace-pre font-mono text-caption leading-[1.5] text-muted-foreground">
         {text || " "}
     </pre>
 )

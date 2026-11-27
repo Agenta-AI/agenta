@@ -1,6 +1,8 @@
 import type {ReactNode} from "react"
 
 import {isDeferredByRunner, useIntegrationIdentity} from "@agenta/entity-ui/clientTools"
+import {useT} from "@agenta/i18n"
+import chatActivityCatalog from "@agenta/i18n/catalogs/chat.activity"
 import type {ToolUIPart} from "ai"
 
 import {partToolName} from "../../model"
@@ -31,6 +33,7 @@ export const ActivityClientStep = ({
     part: ToolUIPart
     render?: (part: ToolUIPart) => ReactNode
 }) => {
+    const t = useT(chatActivityCatalog)
     const name = partToolName(part)
     const display = resolveToolDisplay(name, (part as {input?: unknown}).input)
     // A runner-deferred ask is waiting for next turn, not failed: keep the app's mark on the node.
@@ -41,7 +44,7 @@ export const ActivityClientStep = ({
     const widget = render?.(part)
     // min-h-9: the height of a StepRow step, so a widget row (24px, or 32px with Retry) keeps the rail's rhythm.
     return (
-        <div className="flex min-h-9 min-w-0 items-center gap-3.5">
+        <div className="flex min-h-9 min-w-0 items-center gap-2">
             <AppNode
                 sourceKey={display.sourceKey}
                 icon={display.icon}
@@ -50,9 +53,11 @@ export const ActivityClientStep = ({
             />
             <div className="min-w-0 flex-1">
                 {widget ?? (
-                    <span className={`text-sm ${failed ? "text-colorError" : "text-colorText"}`}>
+                    <span
+                        className={`text-label ${failed ? "text-destructive" : "text-foreground"}`}
+                    >
                         {failed
-                            ? `${display.activity.running} failed`
+                            ? t("chat.activity.actionFailed", {action: display.activity.running})
                             : settled
                               ? display.activity.done
                               : display.activity.running}

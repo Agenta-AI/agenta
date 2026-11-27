@@ -4,11 +4,11 @@
     right: 0.25rem;
     font-size: 1rem;
     z-index: 20;
-    color: #dc2626;
+    color: var(--destructive);
     cursor: help;
-    background: rgba(254, 226, 226, 0.9);
-    border: 1px solid rgba(220, 38, 38, 0.3);
-    border-radius: 50%;
+    background: color-mix(in oklab, var(--destructive) 10%, var(--background));
+    border: 1px solid color-mix(in oklab, var(--destructive) 30%, transparent);
+    border-radius: 4px;
     width: 20px;
     height: 20px;
     display: flex;
@@ -19,31 +19,23 @@
 }
 
 .code-block-error-icon:hover {
-    background: rgba(254, 226, 226, 1);
-    border-color: rgba(220, 38, 38, 0.5);
-    transform: scale(1.1);
-    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.2);
+    border-color: var(--destructive);
 }
 
 .code-block-error-tooltip {
     position: absolute;
     top: 1.5rem;
     right: 0;
-    background-color: #fff8f8;
-    color: #d00000;
-    border: 1px solid #faa;
-    border-radius: 6px;
+    background-color: var(--popover);
+    color: var(--destructive);
+        border-radius: 8px;
     padding: 0.75rem;
-    font-size: 0.875rem;
+    font-size: 12px;
     white-space: pre-wrap;
     max-width: 320px;
     min-width: 200px;
-    box-shadow:
-        0 8px 24px rgba(0, 0, 0, 0.15),
-        0 4px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-overlay);
     z-index: 9999;
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(220, 38, 38, 0.2);
     font-weight: 500;
     line-height: 1.4;
 }
@@ -58,18 +50,13 @@
 .editor-code-highlight {
     /* Validation error highlighting for individual tokens */
     &:global(.validation-error) {
-        /* Subtle background with gradient */
-        background: linear-gradient(
-            135deg,
-            rgba(220, 38, 38, 0.08) 0%,
-            rgba(220, 38, 38, 0.12) 100%
-        );
+        background: color-mix(in oklab, var(--destructive) 10%, transparent);
 
         /* Enhanced wavy underline */
-        border-bottom: 2px wavy #dc2626;
+        border-bottom: 1px wavy var(--destructive);
 
         /* Subtle text color adjustment */
-        color: #b91c1c;
+        color: var(--destructive);
 
         /* Positioning for pseudo-elements */
         position: relative;

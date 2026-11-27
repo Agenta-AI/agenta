@@ -2,6 +2,8 @@
 import {useEffect, useState} from "react"
 
 import {type ProviderConnection} from "@agenta/entities/secret"
+import {useT} from "@agenta/i18n"
+import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 import {Button, Spinner} from "@agenta/ui/ui"
 
 import {SubscriptionTokenSteps} from "./SubscriptionTokenSteps"
@@ -17,6 +19,7 @@ const SubscriptionTokenCard = ({
     provider = "claude",
     connection = null,
 }: SubscriptionTokenCardProps) => {
+    const t = useT(subscriptionSignInCatalog)
     const token = useSubscriptionToken({provider, connection})
     const {name, connected} = token
     const [open, setOpen] = useState(false)
@@ -29,21 +32,21 @@ const SubscriptionTokenCard = ({
     const showSteps = open && !connected
 
     return (
-        <section className="flex flex-col gap-3 rounded-md border border-solid border-colorBorderSecondary p-4 text-xs">
+        <section className="flex flex-col gap-3 rounded-md border border-solid border-border-muted p-4 text-meta">
             <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-col gap-0.5">
-                    <span className="text-sm font-medium text-colorText">{name}</span>
+                    <span className="text-label font-medium text-foreground">{name}</span>
                     {connected ? (
-                        <span className="flex items-center gap-1.5 text-colorSuccess">
+                        <span className="flex items-center gap-1.5 text-success">
                             <span
                                 aria-hidden
-                                className="size-1.5 shrink-0 rounded-full bg-colorSuccess"
+                                className="size-1.5 shrink-0 rounded-round bg-success"
                             />
-                            Connected
+                            {t("entityUi.subscriptionSignIn.connectedStatus")}
                         </span>
                     ) : (
-                        <span className="text-colorTextSecondary">
-                            Paste a token to run agents on your Pro or Max plan.
+                        <span className="text-muted-foreground">
+                            {t("entityUi.subscriptionSignIn.pasteToken")}
                         </span>
                     )}
                 </div>
@@ -58,17 +61,17 @@ const SubscriptionTokenCard = ({
                             setOpen(true)
                         }}
                     >
-                        Replace token
+                        {t("entityUi.subscriptionSignIn.replaceToken")}
                     </Button>
                 ) : (
                     <Button size="sm" className="shrink-0" onClick={() => setOpen(true)}>
-                        Connect {name}
+                        {t("entityUi.subscriptionSignIn.connectName", {name})}
                     </Button>
                 )}
             </div>
 
             {showSteps ? (
-                <div className="flex flex-col gap-3 rounded-md bg-colorFillQuaternary p-3">
+                <div className="flex flex-col gap-3 rounded-md bg-secondary p-3">
                     <SubscriptionTokenSteps token={token} />
                     <div className="flex items-center gap-2">
                         <Button
@@ -79,10 +82,10 @@ const SubscriptionTokenCard = ({
                             {token.checking ? (
                                 <>
                                     <Spinner className="size-3" />
-                                    Checking…
+                                    {t("entityUi.subscriptionSignIn.checking")}
                                 </>
                             ) : (
-                                "Connect"
+                                t("entityUi.subscriptionSignIn.connect")
                             )}
                         </Button>
                         <Button
@@ -95,7 +98,7 @@ const SubscriptionTokenCard = ({
                                 setOpen(false)
                             }}
                         >
-                            Cancel
+                            {t("entityUi.subscriptionSignIn.cancel")}
                         </Button>
                     </div>
                 </div>

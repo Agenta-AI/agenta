@@ -25,15 +25,12 @@ import {
     templateConnections,
     type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import detailCatalog from "@agenta/i18n/catalogs/home.templateDetail"
 import {pageContentWidthClass, pageGutterClass} from "@agenta/ui/components/page-width"
-import {
-    EnhancedButton,
-    FilterRailLayout,
-    LoadError,
-    Tag,
-} from "@agenta/ui/components/presentational"
+import {FilterRailLayout, LoadError, Tag} from "@agenta/ui/components/presentational"
 import {useMediaQuery} from "@agenta/ui/hooks"
-import {EmptyState, SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
+import {EmptyState, LoadingButton, SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
 import {ArrowLeftIcon, ArrowRightIcon, CheckCircleIcon, LightningIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -65,20 +62,18 @@ export interface TemplateDetailProps {
 }
 
 const SectionLabel = ({children}: {children: ReactNode}) => (
-    <h2 className="m-0 text-xs font-semibold uppercase tracking-wide text-colorTextTertiary">
-        {children}
-    </h2>
+    <h2 className="m-0 text-label text-muted-foreground">{children}</h2>
 )
 
 /** One boxed row — a connection, or the trigger. Label left, its scope truncated right. */
 const DetailRow = ({icon, label, detail}: {icon?: ReactNode; label: string; detail?: string}) => (
-    <div className="box-border flex items-center gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorBgElevated px-3 py-2">
+    <div className="box-border flex items-center gap-2 rounded-lg border border-solid border-border-muted bg-background px-3 py-2">
         {icon}
-        <span className="shrink-0 text-sm text-colorText">{label}</span>
+        <span className="shrink-0 text-body text-foreground">{label}</span>
         {/* A scope line is optional in the catalogue — no line, no empty tooltip. */}
         {detail ? (
             <SimpleTooltip title={detail}>
-                <span className="ml-auto min-w-0 truncate text-right text-xs text-colorTextTertiary">
+                <span className="ml-auto min-w-0 truncate text-right text-meta text-muted-foreground">
                     {detail}
                 </span>
             </SimpleTooltip>
@@ -95,6 +90,7 @@ export const TemplateDetail = ({
     layout = "toolbar",
 }: TemplateDetailProps) => {
     // Which shell to BUILD. Declared above the early return, because hooks cannot follow one.
+    const t = useT(detailCatalog)
     const wide = useMediaQuery("(min-width: 1024px)")
     // An absent template only means "unknown key" once the catalogue has loaded; before that it
     // means "not yet", and after a failed read it means "could not tell".
@@ -120,7 +116,7 @@ export const TemplateDetail = ({
         return (
             <div className="flex min-h-0 flex-1 items-center justify-center p-6">
                 <LoadError
-                    title="Could not load this template"
+                    title={t("home.templateDetail.loadError")}
                     onRetry={() => refetchTemplates()}
                 />
             </div>
@@ -130,7 +126,7 @@ export const TemplateDetail = ({
     if (!template) {
         return (
             <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-                <EmptyState image="simple" description="Template not found" />
+                <EmptyState image="simple" description={t("home.templateDetail.notFound")} />
             </div>
         )
     }
@@ -145,10 +141,10 @@ export const TemplateDetail = ({
     const backLink = (
         <Link
             href={allTemplatesHref}
-            className="inline-flex w-fit items-center gap-1 text-xs !text-colorTextSecondary"
+            className="inline-flex w-fit items-center gap-1 text-meta !text-muted-foreground"
         >
             <ArrowLeftIcon size={14} />
-            All templates
+            {t("home.templateDetail.allTemplates")}
         </Link>
     )
 
@@ -156,13 +152,13 @@ export const TemplateDetail = ({
         <div className="flex flex-col gap-3">
             <span
                 aria-hidden
-                className="flex size-12 items-center justify-center rounded-full text-base font-semibold text-white"
+                className="flex size-12 items-center justify-center rounded-md text-body font-semibold text-white"
                 style={{backgroundColor: template.color}}
             >
                 {template.initials}
             </span>
-            <h1 className="m-0 text-2xl font-semibold text-colorText">{template.name}</h1>
-            <p className="m-0 text-sm leading-relaxed text-colorTextSecondary">
+            <h1 className="m-0 text-heading text-foreground">{template.name}</h1>
+            <p className="m-0 text-body leading-relaxed text-muted-foreground">
                 {template.overview || template.description}
             </p>
             <div className="flex flex-wrap items-center gap-1.5">
@@ -172,23 +168,24 @@ export const TemplateDetail = ({
         </div>
     )
 
-    const renderUseButton = (block?: boolean) => (
-        <EnhancedButton
-            type="primary"
-            size="large"
-            block={block}
+    const renderUseButton = () => (
+        <LoadingButton
+            variant="default"
+            size="lg"
             loading={busy}
             onClick={() => onUseTemplate(template)}
         >
-            Use this template
+            {t("home.templateDetail.use")}
             <ArrowRightIcon size={14} />
-        </EnhancedButton>
+        </LoadingButton>
     )
 
     const providerLabel = (slug: string) => PROVIDERS[slug]?.label ?? slug
     /** "GitHub or GitLab" — the slot named by everything that satisfies it. */
     const slotLabel = (slot: (typeof slots)[number]) =>
-        [slot.primary.slug, ...(slot.alternatives ?? [])].map(providerLabel).join(" or ")
+        [slot.primary.slug, ...(slot.alternatives ?? [])]
+            .map(providerLabel)
+            .reduce((first, second) => t("home.templateDetail.slotOr", {first, second}))
 
     const requiredSlots = slots.filter((slot) => slot.required)
     const optionalSlots = slots.filter((slot) => !slot.required)
@@ -197,7 +194,7 @@ export const TemplateDetail = ({
         <>
             {requiredSlots.length ? (
                 <section className="flex flex-col gap-2">
-                    <SectionLabel>Connections it uses</SectionLabel>
+                    <SectionLabel>{t("home.templateDetail.connectionsUsed")}</SectionLabel>
                     {requiredSlots.map((slot) => (
                         <DetailRow
                             key={slot.primary.slug}
@@ -212,7 +209,7 @@ export const TemplateDetail = ({
 
             {optionalSlots.length ? (
                 <section className="flex flex-col gap-2">
-                    <SectionLabel>Optional connections</SectionLabel>
+                    <SectionLabel>{t("home.templateDetail.optionalConnections")}</SectionLabel>
                     {optionalSlots.map((slot) => (
                         <DetailRow
                             key={slot.primary.slug}
@@ -225,16 +222,16 @@ export const TemplateDetail = ({
 
             {template.triggerDescription ? (
                 <section className="flex flex-col gap-2">
-                    <SectionLabel>Also included</SectionLabel>
+                    <SectionLabel>{t("home.templateDetail.alsoIncluded")}</SectionLabel>
                     <DetailRow
                         icon={
                             <LightningIcon
                                 size={14}
                                 weight="fill"
-                                className="shrink-0 text-colorTextTertiary"
+                                className="shrink-0 text-muted-foreground"
                             />
                         }
-                        label="Trigger"
+                        label={t("home.templateDetail.trigger")}
                         detail={template.triggerDescription}
                     />
                 </section>
@@ -250,38 +247,38 @@ export const TemplateDetail = ({
         <div className="flex min-w-0 flex-col gap-6">
             {template.example ? (
                 <section className="flex flex-col gap-2">
-                    <SectionLabel>Example session</SectionLabel>
-                    <div className="box-border flex flex-col gap-3 rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated p-4">
-                        <span className="w-fit self-end rounded-lg bg-colorFillTertiary px-3 py-1.5 text-sm text-colorText">
+                    <SectionLabel>{t("home.templateDetail.exampleSession")}</SectionLabel>
+                    <div className="box-border flex flex-col gap-3 rounded-xl border border-solid border-border-muted bg-background p-4">
+                        <span className="w-fit self-end rounded-lg bg-secondary px-3 py-1.5 text-body text-foreground">
                             {template.example.prompt}
                         </span>
 
-                        <span className="text-xs text-colorTextTertiary">
-                            {template.name} · {template.example.steps.length} steps
+                        <span className="text-meta text-muted-foreground">
+                            {t("home.templateDetail.exampleSteps", {
+                                name: template.name,
+                                total: template.example.steps.length,
+                            })}
                         </span>
                         <ol className="m-0 flex list-none flex-col gap-1.5 p-0">
                             {template.example.steps.map((step) => (
                                 <li
                                     key={step}
-                                    className="flex items-center gap-2 text-sm text-colorTextSecondary"
+                                    className="flex items-center gap-2 text-body text-muted-foreground"
                                 >
-                                    <CheckCircleIcon
-                                        size={14}
-                                        className="shrink-0 text-colorSuccess"
-                                    />
+                                    <CheckCircleIcon size={14} className="shrink-0 text-success" />
                                     {step}
                                 </li>
                             ))}
                         </ol>
 
-                        <p className="m-0 text-sm leading-relaxed text-colorText">
+                        <p className="m-0 text-body leading-relaxed text-foreground">
                             {template.example.reply}
                         </p>
 
                         {template.example.artifacts?.length || template.example.status ? (
                             <div className="flex flex-wrap items-center gap-2">
                                 {template.example.artifacts?.map((artifact) => (
-                                    <Tag key={artifact} className="!m-0 font-mono !text-xs">
+                                    <Tag key={artifact} className="!m-0 font-mono !text-code-sm">
                                         {artifact}
                                     </Tag>
                                 ))}
@@ -294,8 +291,8 @@ export const TemplateDetail = ({
                         ) : null}
                     </div>
                     {/* Say what it is. */}
-                    <span className="text-xs text-colorTextTertiary">
-                        An example of how this template runs — not a recorded session.
+                    <span className="text-meta text-muted-foreground">
+                        {t("home.templateDetail.exampleNote")}
                     </span>
                 </section>
             ) : null}
@@ -307,14 +304,14 @@ export const TemplateDetail = ({
                 )}
             >
                 <section className="flex min-w-0 flex-col gap-2">
-                    <SectionLabel>Instructions · AGENTS.md</SectionLabel>
+                    <SectionLabel>{t("home.templateDetail.instructions")}</SectionLabel>
                     {/* The cap is a desktop concern; a scroller nested in a phone's own scroll is
                         a trap, and the instructions are short enough to read inline there. */}
-                    <div className="box-border rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated p-4 lg:max-h-[420px] lg:overflow-auto">
+                    <div className="box-border rounded-xl border border-solid border-border-muted bg-background p-4 lg:max-h-105 lg:overflow-auto">
                         {renderMarkdown ? (
                             renderMarkdown(template.instructions)
                         ) : (
-                            <pre className="m-0 whitespace-pre-wrap break-words font-mono text-[13px] text-colorText">
+                            <pre className="m-0 whitespace-pre-wrap break-words font-mono text-label text-foreground">
                                 {template.instructions}
                             </pre>
                         )}
@@ -323,17 +320,17 @@ export const TemplateDetail = ({
 
                 {tools.length ? (
                     <section className="flex min-w-0 flex-col gap-2">
-                        <SectionLabel>Tools it can call</SectionLabel>
-                        <div className="box-border flex flex-col rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated p-2">
+                        <SectionLabel>{t("home.templateDetail.tools")}</SectionLabel>
+                        <div className="box-border flex flex-col rounded-xl border border-solid border-border-muted bg-background p-2">
                             {tools.map((tool) => (
                                 <div
                                     key={`${tool.provider}-${tool.name}`}
                                     className="flex items-center gap-2 rounded-lg px-2 py-2"
                                 >
-                                    <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-colorText">
+                                    <span className="min-w-0 flex-1 truncate font-mono text-label text-foreground">
                                         {tool.name}
                                     </span>
-                                    <span className="shrink-0 text-xs text-colorTextTertiary">
+                                    <span className="shrink-0 text-meta text-muted-foreground">
                                         {PROVIDERS[tool.provider]?.label ?? tool.provider}
                                     </span>
                                 </div>
@@ -354,15 +351,15 @@ export const TemplateDetail = ({
     if (!wide) {
         return (
             <div className="flex min-h-0 flex-1 flex-col">
-                <div className="box-border flex shrink-0 items-center gap-2 border-x-0 border-b border-t-0 border-solid border-colorBorderSecondary px-3 py-2">
+                <div className="box-border flex shrink-0 items-center gap-2 border-x-0 border-b border-t-0 border-solid border-border-muted px-3 py-2">
                     <Link
                         href={allTemplatesHref}
-                        aria-label="All templates"
-                        className="flex size-8 shrink-0 items-center justify-center !text-colorTextSecondary"
+                        aria-label={t("home.templateDetail.allTemplates")}
+                        className="flex size-8 shrink-0 items-center justify-center !text-muted-foreground"
                     >
                         <ArrowLeftIcon size={18} />
                     </Link>
-                    <span className="min-w-0 flex-1 truncate text-sm font-semibold text-colorText">
+                    <span className="min-w-0 flex-1 truncate text-label font-semibold text-foreground">
                         {template.name}
                     </span>
                 </div>
@@ -371,8 +368,8 @@ export const TemplateDetail = ({
                     {meta}
                     {renderBody()}
                 </div>
-                <div className="box-border shrink-0 border-x-0 border-b-0 border-t border-solid border-colorBorderSecondary bg-colorBgContainer px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3">
-                    {renderUseButton(true)}
+                <div className="box-border shrink-0 border-x-0 border-b-0 border-t border-solid border-border-muted bg-background px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3">
+                    {renderUseButton()}
                 </div>
             </div>
         )
@@ -410,12 +407,12 @@ export const TemplateDetail = ({
                     <div className="flex min-w-0 items-center gap-3">
                         <span
                             aria-hidden
-                            className="flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
+                            className="flex size-10 shrink-0 items-center justify-center rounded-md text-label font-semibold text-white"
                             style={{backgroundColor: template.color}}
                         >
                             {template.initials}
                         </span>
-                        <h1 className="m-0 truncate text-2xl font-semibold text-colorText">
+                        <h1 className="m-0 truncate text-heading text-foreground">
                             {template.name}
                         </h1>
                     </div>
@@ -433,7 +430,7 @@ export const TemplateDetail = ({
                             agent overview uses, on one background. */}
                 <aside className="box-border flex w-full shrink-0 flex-col gap-6 lg:order-last lg:w-1/3 lg:min-w-[280px] lg:max-w-[340px]">
                     <div className="flex flex-col gap-3">
-                        <p className="m-0 text-sm leading-relaxed text-colorTextSecondary">
+                        <p className="m-0 text-body leading-relaxed text-muted-foreground">
                             {template.overview || template.description}
                         </p>
                         <div className="flex flex-wrap items-center gap-1.5">

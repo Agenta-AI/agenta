@@ -1,0 +1,19 @@
+{
+    "notUsedByAnyAgent": "Not used by any agent",
+    "reload": "Reload",
+    "renameFailed": "Couldn't rename this",
+    "rowActions": "Row actions",
+    "seePlans": "See plans",
+    "usedBy": "Used by {{names}}",
+    "yours": "Personal",
+    "yoursEmptyBody": "Accounts you add here are used in all your projects, when an agent uses each person's own account.",
+    "yoursEmptyBodyCount": "Accounts you add here are used in all {{projectCount}} of your projects, when an agent uses each person's own account.",
+    "yoursEmptyTitle": "No accounts of your own yet",
+    "owner": "Owner",
+    "ownerAll": "All",
+    "filterCategory": "Category",
+    "noMatchTitle": "Nothing matches",
+    "noMatchBody": "Try another search, or reset the filters.",
+    "resetFilters": "Reset filters",
+    "noMatchSearchBody": "Try another search."
+}

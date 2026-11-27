@@ -2,7 +2,7 @@ from typing import Optional, List, Tuple
 from uuid import UUID
 from datetime import datetime
 
-from sqlalchemy import delete, func, literal, select, text, tuple_, bindparam
+from sqlalchemy import delete, func, literal, not_, or_, select, text, tuple_, bindparam
 from sqlalchemy.sql import any_
 from sqlalchemy.dialects.postgresql import ARRAY, UUID as PG_UUID
 
@@ -45,34 +45,6 @@ CORE_PROJECTS_PAGE_SQL = text(
     bindparam("max_projects"),
 )
 
-TRACING_DELETE_SQL = text(
-    """
-        WITH expired_traces AS (
-          SELECT sp.project_id, sp.trace_id
-          FROM public.spans sp
-          WHERE sp.parent_id IS NULL
-            AND sp.project_id = ANY(:project_ids)
-            AND sp.created_at < :cutoff
-          ORDER BY sp.created_at
-          LIMIT :max_traces
-        ),
-        expired_spans AS (
-          DELETE FROM public.spans sp
-          USING expired_traces et
-          WHERE sp.project_id = et.project_id
-            AND sp.trace_id   = et.trace_id
-          RETURNING 1
-        )
-        SELECT
-          (SELECT count(*) FROM expired_traces) AS traces_selected,
-          (SELECT count(*) FROM expired_spans)  AS spans_deleted;
-        """
-).bindparams(
-    bindparam("project_ids", type_=ARRAY(PG_UUID(as_uuid=True))),
-    bindparam("cutoff"),
-    bindparam("max_traces"),
-)
-
 
 class TracingRetentionDAO:
     def __init__(
@@ -111,35 +83,6 @@ class TracingRetentionDAO:
             rows = result.fetchall()
 
             return [row[0] for row in rows]
-
-    async def _delete_traces_before_cutoff(
-        self,
-        *,
-        cutoff: datetime,
-        project_ids: List[UUID],
-        max_traces: int,
-    ) -> Tuple[int, int]:
-        if not project_ids:
-            return (0, 0)
-
-        async with self.analytics_engine.session() as session:
-            result = await session.execute(
-                TRACING_DELETE_SQL,
-                {
-                    "project_ids": project_ids,
-                    "cutoff": cutoff,
-                    "max_traces": max_traces,
-                },
-            )
-
-            row = result.fetchone()
-
-            await session.commit()
-
-            traces_selected = int(row[0]) if row and row[0] is not None else 0
-            spans_deleted = int(row[1]) if row and row[1] is not None else 0
-
-            return (traces_selected, spans_deleted)
 
     # ------------------- #
     # SQLAlchemy versions
@@ -200,6 +143,11 @@ class TracingRetentionDAO:
                     SpanDBE.parent_id.is_(None),
                     SpanDBE.project_id == any_(project_ids_param),
                     SpanDBE.created_at < bindparam("cutoff", value=cutoff),
+                    # Annotations are kept until the project is deleted.
+                    or_(
+                        SpanDBE.attributes.is_(None),
+                        not_(SpanDBE.attributes.contains({"ag": {"annotation": {}}})),
+                    ),
                 )
                 .order_by(SpanDBE.created_at)
                 .limit(bindparam("max_traces", value=max_traces))

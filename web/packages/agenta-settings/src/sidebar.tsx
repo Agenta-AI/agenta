@@ -1,65 +1,72 @@
 import type {ReactNode} from "react"
 
+import {createT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import type {SidebarConfig, SidebarSection, SidebarSlotContext} from "@agenta/navigation"
 import {
     Broadcast,
     Buildings,
+    Certificate,
     ChartLineUp,
-    Coins,
     ClockCounterClockwise,
+    Coins,
+    Cpu,
     FolderSimple,
     HardDrives,
     Key,
-    Link,
+    Plugs,
     Receipt,
     ShieldCheck,
     SlidersHorizontal,
-    Sparkle,
     User,
     UsersThree,
     Vault,
-    Wrench,
+    WebhooksLogo,
 } from "@phosphor-icons/react"
 
 import {SETTINGS_SCOPES, type SettingsScopeKey, type SettingsTabKey} from "./navigation"
+
+const t = createT(navigationCatalog)
 
 /** The one tab→icon map. A new tab fails the exhaustive check here until it has an icon. */
 export const getSettingsSidebarIcon = (key: SettingsTabKey): ReactNode => {
     switch (key) {
         case "apiKeys":
-            return <Key size={14} />
+            return <Key size={16} />
         case "secrets":
-            return <Vault size={14} />
+            return <Vault size={16} />
         case "llms":
-            return <Sparkle size={14} />
+            return <Cpu size={16} />
         case "analytics":
-            return <ChartLineUp size={14} />
+            return <ChartLineUp size={16} />
         case "tools":
-            return <Wrench size={14} />
+            return <Plugs size={16} />
         case "channels":
-            return <Broadcast size={14} />
+            return <Broadcast size={16} />
         case "webhooks":
-            return <Link size={14} />
+            return <WebhooksLogo size={16} />
         case "mcpEndpoints":
-            return <HardDrives size={14} />
+            return <HardDrives size={16} />
         case "workspace":
-            return <UsersThree size={14} />
+            return <UsersThree size={16} />
         case "organizationGeneral":
-            return <Buildings size={14} />
+            return <Buildings size={16} />
         case "organization":
-            return <ShieldCheck size={14} />
+            return <ShieldCheck size={16} />
         case "auditLog":
-            return <ClockCounterClockwise size={14} />
+            return <ClockCounterClockwise size={16} />
+        case "license":
+            return <Certificate size={16} />
         case "billing":
-            return <Receipt size={14} />
+            return <Receipt size={16} />
         case "credits":
-            return <Coins size={14} />
+            return <Coins size={16} />
         case "account":
-            return <User size={14} />
+            return <User size={16} />
         case "preferences":
-            return <SlidersHorizontal size={14} />
+            return <SlidersHorizontal size={16} />
         case "projects":
-            return <FolderSimple size={14} />
+            return <FolderSimple size={16} />
         default: {
             const exhaustiveCheck: never = key
             return exhaustiveCheck
@@ -105,21 +112,23 @@ export const buildSettingsSidebarSections = (
         })
     })
 
-    return SETTINGS_SCOPES.map(({key, title}, index) => ({
+    return SETTINGS_SCOPES.map(({key, titleKey}, index) => ({
         key: `settings-${key}`,
         items: itemsByScope[key],
         // Groups are separated by whitespace, not a rule.
         dividerBefore: false,
         before: ({collapsed}: SidebarSlotContext) =>
-            collapsed ? null : (
-                // pl-[22px] = menu items' mx-2 + pl-3 (20px), nudged 2px right.
+            collapsed ? (
+                <div className="my-1 h-px w-full shrink-0 bg-border-muted" />
+            ) : (
+                // pl-4: a label with no icon starts on the nav icons' line (16px).
                 <div
                     className={[
-                        "pl-[22px] pr-3 pb-1 text-xs font-medium text-colorTextTertiary",
+                        "pl-4 pr-3 pb-1 text-meta text-muted-foreground",
                         index === 0 ? "pt-1" : "pt-4",
                     ].join(" ")}
                 >
-                    {title}
+                    {t(titleKey)}
                 </div>
             ),
     }))

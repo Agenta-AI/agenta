@@ -8,12 +8,12 @@
 
 .other h2 {
     font-size: 18px;
-    color: #444;
+    color: var(--foreground);
     margin-bottom: 7px;
 }
 
 .other a {
-    color: #777;
+    color: var(--muted-foreground);
     text-decoration: underline;
     font-size: 14px;
 }
@@ -39,7 +39,7 @@
     margin-left: 0px;
     border-radius: 2px;
     max-width: 100%;
-    color: #000;
+    color: var(--foreground);
     position: relative;
     line-height: 20px;
     font-weight: 400;
@@ -62,7 +62,7 @@
        which read as dark-on-dark in dark mode — invisible for the user.
        Affects all `.editor-input` instances: chat-message editors, the
        FormView leaf editors, the prompt template, etc. */
-    caret-color: var(--ag-colorText);
+    caret-color: var(--foreground);
     position: relative;
     tab-size: 1;
     outline: 0;
@@ -70,7 +70,7 @@
 }
 
 .editor-placeholder {
-    color: #999;
+    color: var(--muted-foreground);
     overflow: hidden;
     position: absolute;
     text-overflow: ellipsis;
@@ -102,21 +102,21 @@
 }
 
 .editor-text-code {
-    background-color: rgb(240, 242, 245);
+    background-color: var(--muted);
     padding: 1px 0.25rem;
     font-family: Menlo, Consolas, Monaco, monospace;
     font-size: 94%;
 }
 
 .editor-link {
-    color: rgb(33, 111, 219);
+    color: var(--link);
     text-decoration: none;
 }
 
 .tree-view-output {
     display: block;
-    background: #222;
-    color: #fff;
+    background: var(--foreground);
+    color: var(--background);
     padding: 5px;
     font-size: 12px;
     white-space: pre-wrap;
@@ -130,7 +130,7 @@
 }
 
 .code-only .editor-code {
-    background-color: rgb(240, 242, 245);
+    background-color: var(--muted);
     font-family: Menlo, Consolas, Monaco, monospace;
     display: block;
     padding: 8px 8px 8px 52px;
@@ -145,36 +145,32 @@
     position: relative;
 }
 
-.editor-tokenComment {
-    color: slategray;
-}
-
+/* Syntax colors come from the theme (code-* in theme.config.ts), in light and dark. */
+.editor-tokenComment,
 .editor-tokenPunctuation {
-    color: #999;
+    color: var(--muted-foreground);
 }
 
-.editor-tokenProperty {
-    color: #905;
+.editor-tokenProperty,
+.editor-tokenAttr {
+    color: var(--code-property, currentColor);
 }
 
 .editor-tokenSelector {
-    color: #690;
+    color: var(--code-string, currentColor);
 }
 
 .editor-tokenOperator {
-    color: #9a6e3a;
-}
-
-.editor-tokenAttr {
-    color: #07a;
+    color: var(--code-keyword, currentColor);
 }
 
 .editor-tokenVariable {
-    color: #e90;
+    color: var(--code-number, currentColor);
 }
 
-.editor-tokenFunction {
-    color: #dd4a68;
+.editor-tokenFunction,
+.editor-tokenClassName {
+    color: var(--code-function, currentColor);
 }
 
 .editor-paragraph {
@@ -193,7 +189,7 @@
 .editor-heading-h4,
 .editor-heading-h5,
 .editor-heading-h6 {
-    color: rgb(5, 5, 5);
+    color: var(--foreground);
     font-weight: 600;
     margin: 0;
     margin-top: 16px;
@@ -224,15 +220,15 @@
 
 .editor-heading-h6 {
     font-size: 13px;
-    color: rgb(101, 103, 107);
+    color: var(--muted-foreground);
 }
 
 .editor-quote {
     margin: 0;
     margin-left: 20px;
     font-size: 15px;
-    color: rgb(101, 103, 107);
-    border-left-color: rgb(206, 208, 212);
+    color: var(--muted-foreground);
+    border-left-color: var(--border-strong);
     border-left-width: 4px;
     border-left-style: solid;
     padding-left: 16px;
@@ -288,23 +284,23 @@
 }
 .editor-list-item-unchecked:focus:before,
 .editor-list-item-checked:focus:before {
-    box-shadow: 0 0 0 2px #a6cdfe;
+    outline: 2px solid var(--ring);
     border-radius: 2px;
 }
 .editor-list-item-unchecked:before {
-    border: 1px solid #999;
+    border: 1px solid var(--border-strong);
     border-radius: 2px;
 }
 .editor-list-item-checked:before {
-    border: 1px solid rgb(61, 135, 245);
+    border: 1px solid var(--foreground);
     border-radius: 2px;
-    background-color: #3d87f5;
+    background-color: var(--foreground);
     background-repeat: no-repeat;
 }
 .editor-list-item-checked:after {
     content: "";
     cursor: pointer;
-    border-color: #fff;
+    border-color: var(--background);
     border-style: solid;
     position: absolute;
     display: block;
@@ -346,7 +342,7 @@ pre::-webkit-scrollbar-thumb {
     border: 0;
     background: none;
     flex: 1;
-    color: #fff;
+    color: var(--background);
     font-size: 12px;
 }
 
@@ -362,7 +358,7 @@ pre::-webkit-scrollbar-thumb {
     right: 15px;
     position: absolute;
     background: none;
-    color: #fff;
+    color: var(--background);
 }
 
 .debug-timetravel-button:hover {
@@ -372,7 +368,7 @@ pre::-webkit-scrollbar-thumb {
 .toolbar {
     display: flex;
     margin-bottom: 1px;
-    background: #fff;
+    background: var(--background);
     padding: 4px;
     border-top-left-radius: 10px;
     border-top-right-radius: 10px;
@@ -413,7 +409,7 @@ pre::-webkit-scrollbar-thumb {
 }
 
 .toolbar button.toolbar-item.active {
-    background-color: rgba(223, 232, 250, 0.3);
+    background-color: var(--selected);
 }
 
 .toolbar button.toolbar-item.active i {
@@ -421,12 +417,12 @@ pre::-webkit-scrollbar-thumb {
 }
 
 .toolbar .toolbar-item:hover:not([disabled]) {
-    background-color: #eee;
+    background-color: var(--accent);
 }
 
 .toolbar .divider {
     width: 1px;
-    background-color: #eee;
+    background-color: var(--border-muted);
     margin: 0 4px;
 }
 
@@ -436,7 +432,7 @@ pre::-webkit-scrollbar-thumb {
     width: 200px;
     vertical-align: middle;
     font-size: 14px;
-    color: #777;
+    color: var(--muted-foreground);
     text-overflow: ellipsis;
     width: 70px;
     overflow: hidden;
@@ -487,14 +483,14 @@ pre::-webkit-scrollbar-thumb {
 }
 .editor-tableFrozenRow tr:nth-of-type(1) > td {
     overflow: clip;
-    background-color: #ffffff;
+    background-color: var(--background);
     position: sticky;
     z-index: 2;
     top: 44px;
 }
 .editor-tableFrozenRow tr:nth-of-type(1) > th {
     overflow: clip;
-    background-color: #f2f3f5;
+    background-color: var(--muted);
     position: sticky;
     z-index: 2;
     top: 44px;
@@ -506,16 +502,16 @@ pre::-webkit-scrollbar-thumb {
     left: 0;
     bottom: 0;
     width: 100%;
-    border-bottom: 1px solid #bbb;
+    border-bottom: 1px solid var(--border);
 }
 .editor-tableFrozenColumn tr > td:first-child {
-    background-color: #ffffff;
+    background-color: var(--background);
     position: sticky;
     z-index: 2;
     left: 0;
 }
 .editor-tableFrozenColumn tr > th:first-child {
-    background-color: #f2f3f5;
+    background-color: var(--muted);
     position: sticky;
     z-index: 2;
     left: 0;
@@ -527,23 +523,23 @@ pre::-webkit-scrollbar-thumb {
     top: 0;
     right: 0;
     height: 100%;
-    border-right: 1px solid #bbb;
+    border-right: 1px solid var(--border);
 }
 .editor-tableRowStriping tr:nth-child(even),
 .editor-tableFrozenColumn
     .editor-table.editor-tableRowStriping
     tr:nth-child(even)
     > td:first-child {
-    background-color: #f2f5fb;
+    background-color: var(--muted);
 }
 .editor-tableSelection *::selection {
     background-color: transparent;
 }
 .editor-tableSelected {
-    outline: 2px solid rgb(60, 132, 244);
+    outline: 2px solid var(--ring);
 }
 .editor-tableCell {
-    border: 1px solid #bbb;
+    border: 1px solid var(--border-muted);
     min-width: 75px;
     vertical-align: top;
     text-align: start;
@@ -569,7 +565,7 @@ pre::-webkit-scrollbar-thumb {
     top: 0;
 }
 .editor-tableCellHeader {
-    background-color: #f2f3f5;
+    background-color: var(--muted);
     text-align: start;
 }
 .editor-tableCellSelected {
@@ -588,7 +584,7 @@ pre::-webkit-scrollbar-thumb {
 }
 .editor-tableAddColumns {
     position: absolute;
-    background-color: #eee;
+    background-color: var(--secondary);
     height: 100%;
     animation: table-controls 0.2s ease;
     border: 0;
@@ -610,12 +606,12 @@ pre::-webkit-scrollbar-thumb {
 }
 .editor-tableAddColumns:hover,
 .editor-tableAddRows:hover {
-    background-color: #c9dbf0;
+    background-color: var(--accent);
 }
 .editor-tableAddRows {
     position: absolute;
     width: calc(100% - 25px);
-    background-color: #eee;
+    background-color: var(--secondary);
     animation: table-controls 0.2s ease;
     border: 0;
     cursor: pointer;
@@ -646,7 +642,7 @@ pre::-webkit-scrollbar-thumb {
     display: block;
     position: absolute;
     width: 1px;
-    background-color: rgb(60, 132, 244);
+    background-color: var(--ring);
     height: 100%;
     top: 0;
 }
@@ -660,17 +656,17 @@ pre::-webkit-scrollbar-thumb {
     height: 20px;
 }
 .editor-tableCellActionButton {
-    background-color: #eee;
+    background-color: var(--secondary);
     display: block;
     border: 0;
     border-radius: 20px;
     width: 20px;
     height: 20px;
-    color: #222;
+    color: var(--foreground);
     cursor: pointer;
 }
 .editor-tableCellActionButton:hover {
-    background-color: #ddd;
+    background-color: var(--accent);
 }
 .TableCellResizer__resizer {
     position: absolute;
@@ -678,103 +674,112 @@ pre::-webkit-scrollbar-thumb {
 }
 @media (pointer: coarse) {
     .TableCellResizer__resizer {
-        background-color: #adf;
+        background-color: var(--ring);
         mix-blend-mode: color;
     }
 }
 
-/* === Dark theme overrides === */
-.dark .editor-container {
-    color: rgba(255, 255, 255, 0.85);
+/* ------------------------------------------------------------------------- *
+ * Document look (skill editor): opt in with `md-doc` on an ancestor of `md-prose`.
+ * ------------------------------------------------------------------------- */
+.md-doc .md-prose .editor-input:not(.markdown-view) {
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
 }
-.dark .editor-text-code,
-.dark .code-only .editor-code {
-    background-color: #1f1f1f;
-    color: rgba(255, 255, 255, 0.85);
+.md-doc .md-prose .editor-paragraph {
+    margin: 0 0 12px;
+    line-height: inherit;
 }
-.dark .toolbar {
-    background: #141414;
+/* A placeholder can hold a short example on several lines. */
+.md-doc .md-prose .editor-placeholder {
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    white-space: pre-line;
 }
-.dark .toolbar .toolbar-item:hover:not([disabled]) {
-    background-color: #2a2a2a;
+/* An empty document keeps a full line, so the caret is as tall as the text (not the 8px gap line). */
+.md-doc .md-prose .editor-input:not(.markdown-view) > .editor-paragraph:only-child:has(> br:only-child) {
+    line-height: inherit;
 }
-.dark .toolbar .divider {
-    background-color: #303030;
+/* Headings stay below the page title: weight shows rank, not size. */
+.md-doc .md-prose .editor-heading-h1,
+.md-doc .md-prose .editor-heading-h2,
+.md-doc .md-prose .editor-heading-h3 {
+    color: var(--foreground);
+    font-weight: 600;
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    margin: 16px 0 8px;
 }
-.dark .toolbar .toolbar-item .text,
-.dark .other a {
-    color: rgba(255, 255, 255, 0.65);
+.md-doc .md-prose .editor-heading-h1 {
+    font-size: var(--text-title);
+    margin-top: 0;
 }
-.dark .editor-heading-h1,
-.dark .editor-heading-h2,
-.dark .editor-heading-h3,
-.dark .editor-heading-h4,
-.dark .editor-heading-h5 {
-    color: rgba(255, 255, 255, 0.85);
+.md-doc .md-prose .editor-heading-h3 {
+    margin: 12px 0 4px;
 }
-.dark .editor-heading-h6,
-.dark .editor-quote {
-    color: rgba(255, 255, 255, 0.65);
+.md-doc .md-prose .editor-list-ol,
+.md-doc .md-prose .editor-list-ul {
+    margin: 0 0 12px;
 }
-.dark .editor-quote {
-    border-left-color: #424242;
+.md-doc .md-prose .editor-list-item {
+    margin: 4px 0;
 }
-.dark .editor-placeholder {
-    color: rgba(255, 255, 255, 0.45);
+.md-doc .md-prose .editor-quote {
+    margin: 0 0 12px;
+    padding: 0 0 0 12px;
+    border-left: 1px solid var(--border-strong);
+    border-radius: 0;
+    background: transparent;
+    color: var(--muted-foreground);
+    font-size: inherit;
+    font-style: normal;
 }
-.dark .editor-link {
-    color: #79c0ff;
+.md-doc .md-prose .editor-text-code {
+    font-family: var(--font-mono);
+    font-size: var(--text-code);
+    padding: 1px 4px;
+    border-radius: var(--radius-sm);
+    background: var(--muted);
+    border: 0;
 }
-.dark .editor-tableFrozenRow tr:nth-of-type(1) > td,
-.dark .editor-tableFrozenColumn tr > td:first-child {
-    background-color: #141414;
+.md-doc .md-prose .editor-input:not(.markdown-view) .editor-code {
+    border: 0;
+    border-radius: var(--radius-lg);
+    background: var(--muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-code);
+    line-height: var(--text-code--line-height);
+    margin: 0 0 12px;
 }
-.dark .editor-tableFrozenRow tr:nth-of-type(1) > th,
-.dark .editor-tableFrozenColumn tr > th:first-child,
-.dark .editor-tableCellHeader {
-    background-color: #1f1f1f;
+.md-doc .md-prose .editor-link {
+    color: var(--link);
+    text-decoration: underline;
+    text-underline-offset: 3px;
 }
-.dark .editor-tableRowStriping tr:nth-child(even) {
-    background-color: #1a1a1a;
+/* Rows, not a grid: 36px rows split by quiet dividers, no header fill, no row hover. */
+.md-doc .md-prose .editor-table {
+    border-collapse: collapse;
+    border: 0;
+    margin: 0 0 12px;
+    font-size: var(--text-body-sm);
+    line-height: var(--text-body-sm--line-height);
 }
-.dark .editor-tableCell {
-    border-color: #424242;
+.md-doc .md-prose .editor-tableCell {
+    border: 0;
+    border-bottom: 1px solid var(--border-muted);
+    padding: 8px 12px;
+    background: transparent;
 }
-.dark .editor-tableFrozenRow tr:nth-of-type(1) > th:after,
-.dark .editor-tableFrozenRow tr:nth-of-type(1) > td:after,
-.dark .editor-tableFrozenColumn tr > :first-child::after {
-    border-color: #424242;
+.md-doc .md-prose tr:last-child > .editor-tableCell {
+    border-bottom: 0;
 }
-.dark .editor-tableAddColumns,
-.dark .editor-tableAddRows,
-.dark .editor-tableCellActionButton {
-    background-color: #2a2a2a;
+.md-doc .md-prose .editor-tableCellHeader {
+    background: transparent;
+    color: var(--muted-foreground);
+    font-weight: 500;
 }
-.dark .editor-tableCellActionButton {
-    color: rgba(255, 255, 255, 0.85);
-}
-.dark .editor-tableAddColumns:hover,
-.dark .editor-tableAddRows:hover,
-.dark .editor-tableCellActionButton:hover {
-    background-color: #383838;
-}
-.dark .editor-tokenComment {
-    color: #8b949e;
-}
-.dark .editor-tokenProperty,
-.dark .editor-tokenFunction {
-    color: #d2a8ff;
-}
-.dark .editor-tokenSelector {
-    color: #7ee787;
-}
-.dark .editor-tokenOperator,
-.dark .editor-tokenVariable,
-.dark .editor-tokenClassName {
-    color: #ffa657;
-}
-.dark .editor-tokenAttr {
-    color: #79c0ff;
+.md-doc .md-prose .editor-tableCell .editor-paragraph {
+    margin: 0;
 }
 
 /* ------------------------------------------------------------------------- *
@@ -791,13 +796,18 @@ pre::-webkit-scrollbar-thumb {
     margin-bottom: 10px;
     line-height: 1.6;
 }
+/* Blank lines in the markdown become empty paragraphs; render them as a small gap, not a full line. */
+.md-prose .editor-input:not(.markdown-view) > .editor-paragraph:has(> br:only-child) {
+    margin: 0;
+    line-height: 8px;
+}
 .md-prose .editor-heading-h1,
 .md-prose .editor-heading-h2,
 .md-prose .editor-heading-h3,
 .md-prose .editor-heading-h4,
 .md-prose .editor-heading-h5,
 .md-prose .editor-heading-h6 {
-    color: var(--ant-color-text);
+    color: var(--foreground);
     font-weight: 600;
     line-height: 1.3;
     margin-top: 18px;
@@ -816,7 +826,7 @@ pre::-webkit-scrollbar-thumb {
 .md-prose .editor-heading-h5,
 .md-prose .editor-heading-h6 {
     font-size: 13px;
-    color: var(--ant-color-text-secondary);
+    color: var(--muted-foreground);
 }
 
 /* Lists — the shared theme gives ol/ul different left margins and 8px-tall items, so the
@@ -875,17 +885,20 @@ pre::-webkit-scrollbar-thumb {
 .md-prose .editor-quote {
     font-size: 13px;
     font-style: italic;
-    color: var(--ant-color-text-secondary);
-    border-left: 3px solid var(--ant-color-border);
+    color: var(--muted-foreground);
+    border-left: 1px solid var(--border-strong);
     margin-left: 2px;
     padding-left: 14px;
 }
+/* Inline code: text-code-sm on a translucent fill (KIT-07, TYPE-01). */
 .md-prose .editor-text-code {
-    background-color: var(--ant-color-fill-tertiary);
-    border: 0.5px solid var(--ant-color-border-secondary);
-    border-radius: 4px;
-    padding: 1px 5px;
-    font-size: 86%;
+    background-color: var(--secondary);
+    border: 0;
+    border-radius: var(--radius-sm);
+    padding: 1px 4px;
+    font-family: var(--font-mono);
+    font-size: var(--text-code-sm);
+    font-weight: var(--text-code-sm--font-weight);
 }
 /* The shared `.editor-inner:not(.code-editor) .editor-code` rule (specificity 0-3-0) sets an 8px
    padding + light fill and would beat a plain `.md-prose .editor-code` (0-2-0). Scope this to the
@@ -899,20 +912,114 @@ pre::-webkit-scrollbar-thumb {
 .md-prose .editor-input:not(.markdown-view) .editor-code {
     display: block;
     position: relative;
-    background-color: var(--ant-color-fill-quaternary);
-    border: 0.5px solid var(--ant-color-border-secondary);
-    border-radius: 8px;
+    background-color: var(--muted);
+    border: 1px solid var(--border-muted);
+    border-radius: var(--radius-lg);
     /* Extra top padding leaves room for the floating language picker pinned to the block's top. */
-    padding: 40px 14px 12px;
-    margin: 10px 0;
-    font-family: Menlo, Consolas, Monaco, monospace;
-    font-size: 12px;
-    line-height: 1.6;
+    padding: 40px 12px 12px;
+    margin: 8px 0;
+    font-family: var(--font-mono);
+    font-size: var(--text-code);
+    line-height: var(--text-code--line-height);
     white-space: pre-wrap;
     tab-size: 2;
     overflow-x: auto;
 }
 .md-prose .editor-link {
-    color: var(--ant-color-primary);
+    color: var(--link);
     text-decoration: underline;
+}
+
+/* Read-only message editors (a revision's config, a run's prompt): size to the text, and show
+   the message as text, not as markdown source in a code face. */
+.agenta-rich-text-editor.disabled .editor-input {
+    min-height: 0;
+}
+.agenta-rich-text-editor.disabled .editor-input.markdown-view .editor-code {
+    font-family: inherit;
+    font-size: inherit;
+}
+
+/* ------------------------------------------------------------------------- *
+ * Panel scale (canvas F01 f3, F07): text-body-sm body, text-style headings, 16px inset
+ * (15px padding + the 1px editor border). Opt in with a `md-prose-panel` ancestor.
+ * A blank source line is an empty 8px paragraph; headings carry their own margins.
+ * ------------------------------------------------------------------------- */
+.md-prose-panel .md-prose .agenta-shared-editor {
+    padding: 15px;
+}
+.md-prose-panel .md-prose .editor-container {
+    color: var(--foreground);
+    font-size: var(--text-body-sm);
+    line-height: var(--text-body-sm--line-height);
+}
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-paragraph {
+    margin: 0;
+    line-height: var(--text-body-sm--line-height);
+}
+/* Rank by weight first: H1 text-title, H2-H3 text-body at 600, H4-H6 the body line at 600 (as md-doc). */
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-heading-h1,
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-heading-h2,
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-heading-h3,
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-heading-h4,
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-heading-h5,
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-heading-h6 {
+    color: var(--foreground);
+    font-size: var(--text-body-sm);
+    font-weight: var(--text-subtitle--font-weight);
+    line-height: var(--text-body-sm--line-height);
+    margin: 16px 0 4px;
+}
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-heading-h1 {
+    font-size: var(--text-title);
+    letter-spacing: var(--text-title--letter-spacing);
+    line-height: var(--text-title--line-height);
+}
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-heading-h2,
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-heading-h3 {
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+}
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) > :is(h1, h2, h3, h4, h5, h6):first-child {
+    margin-top: 0;
+}
+/* A blank line next to a heading adds no gap: the heading's own margins set it (SPACE-01). */
+.md-prose-panel
+    .md-prose
+    .editor-input:not(.markdown-view)
+    > :is(h1, h2, h3, h4, h5, h6)
+    + .editor-paragraph:has(> br:only-child),
+.md-prose-panel
+    .md-prose
+    .editor-input:not(.markdown-view)
+    > .editor-paragraph:has(> br:only-child):has(+ :is(h1, h2, h3, h4, h5, h6)) {
+    line-height: 0;
+}
+/* Bold leads in the panel stop at 600, the heaviest weight the text styles use. */
+.md-prose-panel .md-prose .editor-text-bold {
+    font-weight: 600;
+}
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-list-ol,
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-list-ul {
+    margin: 0;
+}
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-list-item {
+    margin: 0;
+}
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-quote {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+/* The placeholder keeps its line breaks ("# My skill", a blank line, then the steps; F07 f13). */
+.md-prose-panel .md-prose .editor-placeholder {
+    white-space: pre-wrap;
+    font-size: var(--text-body-sm);
+    line-height: var(--text-body-sm--line-height);
+    color: var(--muted-foreground);
+}
+
+/* The import keeps each source line as its own paragraph: lines with no blank line between them
+   are one paragraph wrapped by hand, so they sit together. A blank line holds only a <br>. */
+.md-prose .editor-input:not(.markdown-view) > .editor-paragraph:has(+ .editor-paragraph > :not(br)) {
+    margin-bottom: 0;
 }

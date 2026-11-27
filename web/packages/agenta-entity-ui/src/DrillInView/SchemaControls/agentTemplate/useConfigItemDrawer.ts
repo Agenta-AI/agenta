@@ -5,10 +5,14 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {stableStringify} from "@agenta/entities/workflow/commitDiff"
+import {createT} from "@agenta/i18n"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 
 import {cloneItem} from "./agentTemplateUtils"
 import {ITEM_KINDS, type ItemKind, type ItemKindDef} from "./itemKinds"
 import {applyItemToList, removeItemFromList} from "./itemListOps"
+
+const t = createT(configItemsCatalog)
 
 export interface EditingState {
     kind: ItemKind
@@ -80,7 +84,9 @@ export function useConfigItemDrawer({
             try {
                 item = await prepareCommit(editing.kind, draft)
             } catch (error) {
-                setCommitError((error as Error)?.message || "Could not save this item.")
+                setCommitError(
+                    (error as Error)?.message || t("entityUi.configItems.couldNotSaveItem"),
+                )
                 setCommitting(false)
                 return
             }

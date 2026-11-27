@@ -8,5 +8,4 @@
  */
 export interface SignAgentMountCredentialsRequest {
     artifact_id: string;
-    name?: string;
 }

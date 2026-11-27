@@ -3,6 +3,8 @@
  * subscription "Choose a trigger" chooser AND the tools "Third-party integration" catalog), so
  * the app grid looks identical across triggers and tools. Dark-safe (`--ag-color*` tokens).
  */
+import {useT} from "@agenta/i18n"
+import catalogAppCardCatalog from "@agenta/i18n/catalogs/entityUi.catalogAppCard"
 import {EntityCard} from "@agenta/ui"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {Lightning, Plugs} from "@phosphor-icons/react"
@@ -46,7 +48,7 @@ function formatCategoryLabel(raw: string): string {
 
 /** An app's logo (catalog `integration.logo`), with a neutral plug fallback. */
 export function AppLogo({logo, size = 20}: {logo?: string | null; size?: number}) {
-    if (!logo) return <Plugs size={size} className="shrink-0 text-[var(--ag-colorTextSecondary)]" />
+    if (!logo) return <Plugs size={size} className="shrink-0 text-muted-foreground" />
     return (
         <Image
             src={logo}
@@ -83,6 +85,7 @@ export function AppCard({
     /** "subtle" drops the rest border for a fill-based tile (agent playground catalog). */
     variant?: "bordered" | "subtle"
 }) {
+    const t = useT(catalogAppCardCatalog)
     const shownCategories = (categories ?? []).filter(Boolean).slice(0, 2).map(formatCategoryLabel)
     return (
         <EntityCard
@@ -95,19 +98,21 @@ export function AppCard({
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <span className="size-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
+                                <span className="size-1.5 shrink-0 rounded-round bg-success" />
                             </TooltipTrigger>
-                            <TooltipContent>Connected</TooltipContent>
+                            <TooltipContent>
+                                {t("entityUi.catalogAppCard.connected")}
+                            </TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
                 ) : pending ? (
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <span className="size-1.5 shrink-0 rounded-full bg-[var(--ag-colorWarning)]" />
+                                <span className="size-1.5 shrink-0 rounded-round bg-warning" />
                             </TooltipTrigger>
                             <TooltipContent>
-                                Connection pending — finish or retry connecting
+                                {t("entityUi.catalogAppCard.connectionPending")}
                             </TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
@@ -117,7 +122,7 @@ export function AppCard({
             tags={shownCategories}
             meta={
                 typeof actionsCount === "number" && actionsCount > 0 ? (
-                    <span className="flex items-center gap-1 text-[12px] text-[var(--ag-colorTextTertiary)]">
+                    <span className="flex items-center gap-1 text-meta text-muted-foreground">
                         <Lightning size={11} weight="fill" />
                         {actionsCount}
                     </span>

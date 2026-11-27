@@ -4,6 +4,8 @@
  */
 import type {CSSProperties, ReactNode, RefObject} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiChatInputCatalog from "@agenta/i18n/catalogs/ui.chatInput"
 import {CaretRight} from "@phosphor-icons/react"
 import clsx from "clsx"
 
@@ -46,6 +48,7 @@ export function PalettePanel({
     floatingRef,
     floatingStyles,
 }: PalettePanelProps) {
+    const t = useT(uiChatInputCatalog)
     let rowIndex = -1
     const isEmpty = sections.every((section) => section.items.length === 0)
 
@@ -60,21 +63,21 @@ export function PalettePanel({
             // box-border for the same reason: `size()` sets the ANCHOR's width, and with no
             // preflight reset the default content-box would add the 1px borders on top, leaving the
             // menu wider than the composer and nudged off-anchor by `shift`.
-            className="z-[1050] box-border overflow-hidden rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgElevated)] font-portal shadow-overlay"
+            className="z-[1050] box-border overflow-hidden rounded-lg bg-popover font-portal shadow-overlay"
         >
             {header ? (
-                <div className="flex items-center gap-2 border-0 border-b border-solid border-[var(--ag-colorBorderSecondary)] px-[15px] py-[9px] text-xs text-[var(--ag-colorText)]">
+                <div className="flex items-center gap-2 border-0 border-b border-solid border-border-muted px-3 py-2 text-label text-foreground">
                     {header}
                 </div>
             ) : null}
             {/* ~8 rows: enough to browse a level, short enough to leave the transcript readable. */}
-            <div className="max-h-[220px] overflow-y-auto py-1.5">
+            <div className="max-h-55 overflow-y-auto py-1.5">
                 {isEmpty && loading ? (
                     <ShimmerRows />
                 ) : isEmpty ? (
-                    <div className="px-4 py-[26px] text-center">
-                        <div className="text-xs text-[var(--ag-colorTextSecondary)]">
-                            {emptyText ?? `No match for “${query}”`}
+                    <div className="px-4 py-6 text-center">
+                        <div className="text-meta text-muted-foreground">
+                            {emptyText ?? t("ui.chatInput.noMatchFor", {query})}
                         </div>
                     </div>
                 ) : (
@@ -82,7 +85,7 @@ export function PalettePanel({
                         <div key={section.key} className="group">
                             {/* The list's own inset already spaces the first heading off the header. */}
                             {section.title ? (
-                                <div className="px-[15px] pb-[5px] pt-[10px] text-[9.5px] font-medium uppercase leading-none tracking-[.1em] text-[var(--ag-colorTextTertiary)] group-first:pt-1">
+                                <div className="px-3 pb-1 pt-2.5 text-meta font-medium leading-none text-muted-foreground group-first:pt-1">
                                     {section.title}
                                 </div>
                             ) : null}
@@ -111,7 +114,7 @@ export function PalettePanel({
                 {!isEmpty && loading ? <ShimmerRows rows={2} /> : null}
             </div>
             {footer ? (
-                <div className="flex items-center gap-4 overflow-hidden border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] px-[15px] py-[7px] text-[10.5px] text-[var(--ag-colorTextTertiary)]">
+                <div className="flex items-center gap-4 overflow-hidden border-0 border-t border-solid border-border-muted bg-muted px-3 py-2 text-caption text-muted-foreground">
                     {footer}
                 </div>
             ) : null}
@@ -126,14 +129,9 @@ function ShimmerRows({rows = 3}: {rows?: number}) {
     return (
         <>
             {SHIMMER_WIDTHS.slice(0, rows).map((width) => (
-                <div key={width} className="flex items-center gap-2.5 px-[15px] py-[7px]">
-                    <span className="h-3.5 w-3.5 shrink-0 animate-pulse rounded bg-[var(--ag-colorFillSecondary)]" />
-                    <span
-                        className={clsx(
-                            "h-2.5 animate-pulse rounded bg-[var(--ag-colorFillSecondary)]",
-                            width,
-                        )}
-                    />
+                <div key={width} className="flex items-center gap-2 px-3 py-2">
+                    <span className="h-3.5 w-3.5 shrink-0 animate-pulse rounded bg-secondary" />
+                    <span className={clsx("h-2.5 animate-pulse rounded bg-secondary", width)} />
                 </div>
             ))}
         </>
@@ -159,6 +157,7 @@ function PaletteRow({
     onSelect: () => void
     onDrillIn: () => void
 }) {
+    const t = useT(uiChatInputCatalog)
     const parts = matchLabel(item.label, query)
     return (
         <div
@@ -176,8 +175,8 @@ function PaletteRow({
                 onSelect()
             }}
             className={clsx(
-                "mx-1.5 flex cursor-pointer items-center gap-2.5 rounded-md px-[9px] py-1.5",
-                active && "bg-[var(--ag-colorFillTertiary)]",
+                "mx-1 flex min-h-8 cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5",
+                active && "bg-accent",
             )}
         >
             {/* No reserved slot when nothing supplies an icon — an empty one just reads as a
@@ -186,24 +185,20 @@ function PaletteRow({
                 <span
                     className={clsx(
                         "flex w-4 shrink-0 justify-start",
-                        active
-                            ? "text-[var(--ag-colorTextSecondary)]"
-                            : "text-[var(--ag-colorTextDisabled)]",
+                        active ? "text-muted-foreground" : "text-muted-foreground",
                     )}
                 >
                     {item.icon}
                 </span>
             ) : null}
-            <span className="whitespace-nowrap font-mono text-[12.5px] font-medium leading-tight text-[var(--ag-colorText)]">
+            <span className="whitespace-nowrap font-mono text-label font-medium leading-tight text-foreground">
                 {parts ? (
                     <>
                         {parts.before}
                         {parts.match ? (
                             // A primary tint, not colorInfoBg — that token sits within a hair of
                             // the row background, so the match read as unmarked.
-                            <span className="rounded-[2px] bg-[color-mix(in_srgb,var(--ag-colorPrimary)_22%,transparent)]">
-                                {parts.match}
-                            </span>
+                            <span className="rounded-xs bg-primary/20">{parts.match}</span>
                         ) : null}
                         {parts.after}
                     </>
@@ -212,12 +207,12 @@ function PaletteRow({
                 )}
             </span>
             {item.secondary ? (
-                <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[11.5px] text-[var(--ag-colorTextTertiary)]">
+                <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-caption text-muted-foreground">
                     {item.secondary}
                 </span>
             ) : null}
             {item.description ? (
-                <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[11.5px] text-[var(--ag-colorTextTertiary)]">
+                <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-caption text-muted-foreground">
                     {item.description}
                 </span>
             ) : null}
@@ -228,7 +223,7 @@ function PaletteRow({
                 // off the row's own reference action.
                 <button
                     type="button"
-                    aria-label={`Open ${item.label}`}
+                    aria-label={t("ui.chatInput.openItem", {item: item.label})}
                     // mousedown only guards the caret and the row beneath; the action hangs off
                     // click, which a pointer and the keyboard both raise.
                     onMouseDown={(e) => {
@@ -240,13 +235,13 @@ function PaletteRow({
                         onDrillIn()
                     }}
                     // p-0: the UA button padding would inset the meta text past the plain rows'.
-                    className="ml-auto flex shrink-0 cursor-pointer items-center gap-1 rounded border-0 bg-transparent p-0 pl-2.5 text-[10px] text-[var(--ag-colorTextTertiary)]"
+                    className="ml-auto flex shrink-0 cursor-pointer items-center gap-1 rounded border-0 bg-transparent p-0 pl-2.5 text-caption text-muted-foreground"
                 >
                     <span className="whitespace-nowrap">{item.tail}</span>
                     <CaretRight size={11} className="shrink-0" />
                 </button>
             ) : (
-                <span className="ml-auto whitespace-nowrap pl-2.5 text-[10px] text-[var(--ag-colorTextTertiary)]">
+                <span className="ml-auto whitespace-nowrap pl-2.5 text-caption text-muted-foreground">
                     {item.tail}
                 </span>
             )}
@@ -257,8 +252,8 @@ function PaletteRow({
 /** One `key + label` footer hint, e.g. `↵ reference`. */
 export function HintKey({keys, label}: {keys: string; label: string}) {
     return (
-        <span className="flex shrink-0 items-center gap-[5px] whitespace-nowrap">
-            <span className="inline-flex h-[15px] min-w-[15px] items-center justify-center rounded-[3px] bg-[var(--ag-colorFillTertiary)] px-1 font-mono text-[9.5px] font-medium text-[var(--ag-colorTextSecondary)]">
+        <span className="flex shrink-0 items-center gap-1 whitespace-nowrap">
+            <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-sm bg-secondary px-1 font-mono text-caption font-medium text-muted-foreground">
                 {keys}
             </span>
             {label}

@@ -22,6 +22,8 @@
  */
 import {type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Badge, type BadgeProps, Button} from "@agenta/ui/ui"
 
@@ -117,6 +119,7 @@ export function ConfigItemDrawer({
     contentFlush = false,
     loadingBody = <FormDrawerSkeleton />,
 }: ConfigItemDrawerProps) {
+    const t = useT(configItemsCatalog)
     // Flush layout only helps the form; keep the JSON editor padded and independently scrollable.
     const flushForm = contentFlush && !jsonOnly
 
@@ -135,20 +138,20 @@ export function ConfigItemDrawer({
                 // One line: title · subtitle. Stacked, the subtitle doubled the header height for
                 // a few muted words, and the leading icon repeated the row the drawer opened from.
                 <div className="flex min-w-0 items-center gap-2">
-                    <span className="min-w-0 truncate text-sm font-medium">{title}</span>
+                    <span className="min-w-0 truncate text-label font-medium">{title}</span>
                     {badge ? (
                         <Badge
                             variant={badgeVariantFor(badge.color)}
                             // `text-xs` displaces Badge's `text-badge-md` and brings no
                             // line-height; antd Tag keeps its absolute tagLineHeight
                             // (lineHeightSM x fontSizeSM = 22.4px).
-                            className="shrink-0 text-xs font-normal leading-[22.4px]"
+                            className="shrink-0 text-meta font-normal leading-[22.4px]"
                         >
                             {badge.text}
                         </Badge>
                     ) : null}
                     {subtitle ? (
-                        <span className="min-w-0 truncate text-xs font-normal text-[var(--ag-zinc-5)]">
+                        <span className="min-w-0 truncate text-meta font-normal text-muted-foreground">
                             · {subtitle}
                         </span>
                     ) : null}
@@ -160,25 +163,29 @@ export function ConfigItemDrawer({
                 // actions and a left-hand note lands beside Cancel.
                 <div className="flex w-full min-w-0 items-center justify-between gap-3">
                     {error ? (
-                        <span role="alert" className="min-w-0 text-xs text-[var(--ag-colorError)]">
+                        <span role="alert" className="min-w-0 text-meta text-destructive">
                             {error}
                         </span>
                     ) : footerNote ? (
-                        <span className="min-w-0 truncate text-xs text-[var(--ag-zinc-5)]">
+                        <span className="min-w-0 truncate text-meta text-muted-foreground">
                             {footerNote}
                         </span>
                     ) : null}
                     {/* ml-auto keeps the actions right-aligned when there is no footer note. */}
                     <div className="ml-auto flex shrink-0 items-center gap-2">
                         <Button variant="outline" onClick={onCancel}>
-                            Cancel
+                            {t("entityUi.configItems.cancel")}
                         </Button>
                         <Button
                             variant="default"
                             onClick={onSave}
                             disabled={disabled || saveDisabled || saving}
                         >
-                            {saving ? "Saving…" : mode === "create" ? "Create" : "Save"}
+                            {saving
+                                ? t("entityUi.configItems.saving")
+                                : mode === "create"
+                                  ? t("entityUi.configItems.create")
+                                  : t("entityUi.configItems.save")}
                         </Button>
                     </div>
                 </div>

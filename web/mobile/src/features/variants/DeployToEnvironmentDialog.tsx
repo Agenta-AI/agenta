@@ -96,30 +96,38 @@ export const DeployToEnvironmentDialog = ({
                     <DialogDescription>
                         {pickedRow
                             ? `This will deploy the following revision to ${environment.name}.`
-                            : `Select a revision from the table to deploy to ${environment.name}.`}
+                            : `Select a revision from the list to deploy to ${environment.name}.`}
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="grid min-h-0 grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="flex min-w-0 flex-col gap-3">
-                        {pickedRow ? (
-                            <div className="flex flex-col gap-1 text-sm">
-                                <span>
-                                    {environment.deployedLabel ?? "No deployment"} →{" "}
-                                    {pickedRow.variantName} v{pickedRow.version}
+                        {/* Always on screen, so a pick does not move the message box. */}
+                        <div className="flex min-h-15 flex-col gap-1 text-body">
+                            {pickedRow ? (
+                                <>
+                                    <span>
+                                        {environment.deployedLabel ?? "No deployment"} →{" "}
+                                        {pickedRow.variantName} v{pickedRow.version}
+                                    </span>
+                                    {pickedRow.model ? (
+                                        <span className="text-muted-foreground">
+                                            Model: {pickedRow.model}
+                                        </span>
+                                    ) : null}
+                                    {alreadyDeployed ? (
+                                        <span className="text-warning">
+                                            This revision is already deployed to {environment.name}.
+                                        </span>
+                                    ) : null}
+                                </>
+                            ) : (
+                                <span className="text-muted-foreground">
+                                    {environment.deployedLabel ?? "No deployment"} → no revision
+                                    selected
                                 </span>
-                                {pickedRow.model ? (
-                                    <span className="text-muted-foreground">
-                                        Model: {pickedRow.model}
-                                    </span>
-                                ) : null}
-                                {alreadyDeployed ? (
-                                    <span className="text-colorWarningText">
-                                        This revision is already deployed to {environment.name}.
-                                    </span>
-                                ) : null}
-                            </div>
-                        ) : null}
+                            )}
+                        </div>
                         <CommitMessageInput
                             value={note}
                             onChange={setNote}
@@ -138,11 +146,11 @@ export const DeployToEnvironmentDialog = ({
                             {revisions.isPending ? (
                                 <Skeleton className="h-24 w-full" />
                             ) : revisions.isError ? (
-                                <p className="m-0 text-sm text-destructive">
+                                <p className="m-0 text-body text-destructive">
                                     Couldn't load the revisions
                                 </p>
                             ) : revisions.rows.length === 0 ? (
-                                <p className="m-0 text-sm text-muted-foreground">
+                                <p className="m-0 text-body text-muted-foreground">
                                     No variants available
                                 </p>
                             ) : (
@@ -160,7 +168,7 @@ export const DeployToEnvironmentDialog = ({
                                     {revisions.rows.map((row) => (
                                         <label
                                             key={row.revisionId}
-                                            className="flex cursor-pointer items-center gap-2 rounded-md border border-solid border-border px-3 py-2 text-sm"
+                                            className="flex cursor-pointer items-center gap-2 rounded-md border border-solid border-border px-3 py-2 text-label"
                                         >
                                             <RadioGroupItem
                                                 value={row.revisionId}
@@ -179,7 +187,7 @@ export const DeployToEnvironmentDialog = ({
                                                         showStable
                                                         showLatestTag={false}
                                                     />
-                                                    <span className="truncate text-xs text-muted-foreground">
+                                                    <span className="truncate text-meta text-muted-foreground">
                                                         {row.model || "—"}
                                                     </span>
                                                 </span>
@@ -188,7 +196,7 @@ export const DeployToEnvironmentDialog = ({
                                                     {row.variantName} v{row.version}
                                                 </span>
                                             )}
-                                            <span className="text-xs text-muted-foreground">
+                                            <span className="text-meta text-muted-foreground">
                                                 <FormattedDate
                                                     date={row.createdAt}
                                                     format="MMM D, YYYY"

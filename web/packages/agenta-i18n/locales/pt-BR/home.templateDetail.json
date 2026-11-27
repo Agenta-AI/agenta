@@ -1,0 +1,16 @@
+{
+    "loadError": "Não foi possível carregar este modelo",
+    "notFound": "Modelo não encontrado",
+    "allTemplates": "Todos os modelos",
+    "use": "Usar este modelo",
+    "slotOr": "{{first}} ou {{second}}",
+    "connectionsUsed": "Conexões que ele usa",
+    "optionalConnections": "Conexões opcionais",
+    "alsoIncluded": "Também inclui",
+    "trigger": "Gatilho",
+    "exampleSession": "Sessão de exemplo",
+    "exampleSteps": "{{name}} · {{total}} etapas",
+    "exampleNote": "Um exemplo de como este modelo é executado; não é uma sessão gravada.",
+    "instructions": "Instruções · AGENTS.md",
+    "tools": "Ferramentas que ele pode chamar"
+}

@@ -1,0 +1,17 @@
+{
+    "seeLess": "weniger anzeigen",
+    "seeMore": "mehr anzeigen",
+    "browseActions": "Aktionen durchsuchen",
+    "browseIntegrations": "Integrationen durchsuchen",
+    "searchIntegrations": "Integrationen durchsuchen…",
+    "integrationsCount_one": "{{count}} Integration",
+    "integrationsCount_other": "{{count}} Integrationen",
+    "noIntegrationsFound": "Keine Integrationen gefunden",
+    "goBack": "Zurück",
+    "connect": "Verbinden",
+    "openConnections": "Verbindungen öffnen",
+    "searchActions": "Aktionen durchsuchen…",
+    "actionsCount_one": "{{count}} Aktion",
+    "actionsCount_other": "{{count}} Aktionen",
+    "noActionsFound": "Keine Aktionen gefunden"
+}

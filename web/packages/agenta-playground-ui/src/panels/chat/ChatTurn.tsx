@@ -1,5 +1,7 @@
 import {Fragment, memo, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import panelsCatalog from "@agenta/i18n/catalogs/playground.panels"
 import type {SimpleChatMessage} from "@agenta/playground"
 
 import {hasToolCalls, useChatTurn} from "../../hooks/useChatTurn"
@@ -29,6 +31,7 @@ export interface ChatTurnProps {
  */
 export const ChatTurn = memo(
     ({entityId, turnId, isLastTurn, hideUserMessage, renderTraceFooter}: ChatTurnProps) => {
+        const t = useT(panelsCatalog)
         const {
             isRunning,
             result,
@@ -68,7 +71,9 @@ export const ChatTurn = memo(
                     <RunningIndicator />
                 ) : hasAssistantContent ? (
                     <>
-                        {isRerunning ? <RunningIndicator label="Re-running..." /> : null}
+                        {isRerunning ? (
+                            <RunningIndicator label={t("playground.panels.rerunning")} />
+                        ) : null}
                         {replies.map((reply, index) => {
                             const isLastReply = index === replies.length - 1
                             return (

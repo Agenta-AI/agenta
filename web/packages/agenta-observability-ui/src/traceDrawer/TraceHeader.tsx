@@ -7,6 +7,10 @@ import {
     transformTracesResponseToTree,
     transformTracingResponse,
 } from "@agenta/entities/trace"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import analyticsCatalog from "@agenta/i18n/catalogs/observabilityUi.analytics"
+import drawerCatalog from "@agenta/i18n/catalogs/observabilityUi.traceDrawer"
 import type {TraceSpanNode} from "@agenta/observability"
 import {buildTraceUrlParams as buildTraceQueryParams} from "@agenta/observability"
 import {observabilityScopeAtom, useObservability} from "@agenta/observability"
@@ -22,8 +26,9 @@ import {
     toISOString,
 } from "@agenta/observability/traceDrawer"
 import {projectIdAtom} from "@agenta/shared/state"
-import {EnhancedButton, Tag} from "@agenta/ui/components/presentational"
+import {Tag} from "@agenta/ui/components/presentational"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {ArrowLeft, CaretDown, CaretUp} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -47,6 +52,7 @@ const TraceHeader = ({
     activeTraceIndex: _activeTraceIndex,
     setSelected,
 }: TraceHeaderProps) => {
+    const t = useT(drawerCatalog, commonCatalog, analyticsCatalog)
     const {traces: tableTracesRaw, hasMoreTraces, fetchMoreTraces} = useObservability()
     // `selectedAppIdAtom` in the app; the package reads the same value through its host seam.
     const appId = useAtomValue(observabilityScopeAtom).appId
@@ -472,37 +478,56 @@ const TraceHeader = ({
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">
                     {backTarget && (
-                        <EnhancedButton
-                            type="default"
-                            size="small"
-                            onClick={handleBackToOrigin}
-                            icon={<ArrowLeft size={14} />}
-                        />
+                        <SimpleTooltip title={t("common.back")}>
+                            <Button
+                                variant="outline"
+                                size="icon"
+                                aria-label={t("common.back")}
+                                onClick={handleBackToOrigin}
+                            >
+                                <ArrowLeft size={14} />
+                            </Button>
+                        </SimpleTooltip>
                     )}
                     {!isLinkedView && (
                         <div className="flex shrink-0">
-                            <EnhancedButton
-                                onClick={handlePrevTrace}
-                                type="text"
-                                disabled={isPrevDisabled}
-                                icon={<CaretUp size={16} />}
-                            />
-                            <EnhancedButton
-                                onClick={handleNextTrace}
-                                type="text"
-                                disabled={isNextDisabled}
-                                icon={<CaretDown size={16} />}
-                            />
+                            <SimpleTooltip title={t("observabilityUi.analytics.previous")}>
+                                <Button
+                                    onClick={handlePrevTrace}
+                                    variant="ghost"
+                                    size="icon"
+                                    aria-label={t("observabilityUi.analytics.previous")}
+                                    disabled={isPrevDisabled}
+                                >
+                                    <CaretUp size={16} />
+                                </Button>
+                            </SimpleTooltip>
+                            <SimpleTooltip title={t("observabilityUi.analytics.next")}>
+                                <Button
+                                    onClick={handleNextTrace}
+                                    variant="ghost"
+                                    size="icon"
+                                    aria-label={t("observabilityUi.analytics.next")}
+                                    disabled={isNextDisabled}
+                                >
+                                    <CaretDown size={16} />
+                                </Button>
+                            </SimpleTooltip>
                         </div>
                     )}
 
-                    <span className="shrink-0 text-sm font-medium">Trace</span>
-                    <TooltipWithCopyAction copyText={displayTraceId} title="Copy trace id">
+                    <span className="shrink-0 text-label">
+                        {t("observabilityUi.traceDrawer.trace")}
+                    </span>
+                    <TooltipWithCopyAction
+                        copyText={displayTraceId}
+                        title={t("observabilityUi.traceDrawer.copyTraceId")}
+                    >
                         {/* min-w-0 + truncate: a 32-char id ends in an ellipsis on a narrow
                             panel rather than widening the row. */}
                         <Tag
-                            className="min-w-0 font-mono bg-[var(--ag-c-0517290F)]"
-                            label={<span className="truncate">{`# ${displayTraceId || "-"}`}</span>}
+                            className="min-w-0 font-mono bg-secondary"
+                            label={<span className="truncate">{`# ${displayTraceId || "—"}`}</span>}
                         />
                     </TooltipWithCopyAction>
                 </div>
@@ -511,9 +536,9 @@ const TraceHeader = ({
                     itemIds={activeTraceKey ? [activeTraceKey] : []}
                     disabled={!activeTraceKey}
                 >
-                    <EnhancedButton size="small" disabled={!activeTraceKey}>
-                        Add annotation queue
-                    </EnhancedButton>
+                    <Button variant="outline" size="sm" disabled={!activeTraceKey}>
+                        {t("observabilityUi.traceDrawer.addAnnotationQueue")}
+                    </Button>
                 </AddToQueuePopover>
             </div>
         </>

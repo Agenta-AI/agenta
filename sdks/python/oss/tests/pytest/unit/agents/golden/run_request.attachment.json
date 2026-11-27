@@ -41,5 +41,6 @@
     "deployment": "direct",
     "credentialMode": "runtime_provided",
     "credentials": []
-  }
+  },
+  "hasSessionDrive": true
 }

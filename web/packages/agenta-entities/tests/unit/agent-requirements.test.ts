@@ -5,7 +5,6 @@ import {
     canFixRequirement,
     isPersonalRequirement,
     modelRequirement,
-    needsSetupReasonLabel,
     requirementAtPath,
     requirementForItem,
     type AgentRequirementItem,
@@ -100,13 +99,7 @@ describe("modelRequirement", () => {
     })
 })
 
-describe("needsSetupReasonLabel and canFixRequirement", () => {
-    it("words known reasons and drops unknown ones", () => {
-        expect(needsSetupReasonLabel("not_available")).toBe("No longer available")
-        expect(needsSetupReasonLabel("needs_sign_in")).toBe("Sign-in expired")
-        expect(needsSetupReasonLabel("needs_your_account")).toBeNull()
-    })
-
+describe("canFixRequirement", () => {
     it("lets a viewer act only with edit or sign-in rights", () => {
         expect(canFixRequirement(model)).toBe(true)
         expect(canFixRequirement(linear)).toBe(true)

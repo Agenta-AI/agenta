@@ -3,8 +3,8 @@
 Scope: everything under `web/`. Active frontend work lives in two places: `web/mobile` (the
 app, served at `/m`; its own rules are in `web/mobile/AGENTS.md`) and `web/packages` (the
 shared `@agenta/*` packages). `web/oss` and `web/ee` are the abandoned desktop app: do not
-edit, run, or copy from them. The one exception is the theme source in
-`web/oss/src/styles/theme/` (see below). This file loads when you work in the frontend. The
+edit, run, or copy from them. The one exception is the legacy palette in
+`web/oss/src/styles/theme/` (see "Styling"). This file loads when you work in the frontend. The
 repo-wide root conventions live in `/AGENTS.md`.
 
 Exception (M3 sharing): `/w` sends `visibility: "project"` on new chats and agents. Do not add
@@ -25,12 +25,10 @@ the detail this file only summarizes.
 - A change to any `@agenta/*` package gets a smoke check on `/m` before the PR is done.
   `web/mobile` depends on 22 of the packages directly and the rest through them. Type
   checks can pass while `/m` renders nothing; this has happened before.
-- Theme colors have a single source of truth: `oss/src/styles/theme/palette.ts` (semantic
-  roles with `{light, dark}` values). This theme folder is the one part of `web/oss` still
-  in use. To change any color, edit `palette.ts`, run `pnpm generate:tailwind-tokens`, and
-  commit the regenerated files (`packages/agenta-ui/src/styles/theme-variables.css`,
-  `mobile/src/styles/theme.generated.css`, `oss/src/styles/theme/antd-overrides.generated.ts`).
-  Never hand-edit the generated files. See the "Styling" section below.
+- A PR that changes what a user sees (a screen, a component, a label, a state) shows before
+  and after screenshots in its body. The `write-pr-description` skill says how.
+- Theme and design changes: see `DESIGN.md`, "Working with the system", and the "Styling"
+  section below.
 - The Fern-generated `@agentaai/api-client` ships as a compiled `dist/` (entry
   `./dist/index.js`). `pnpm install` runs the package's `prepare` script which builds
   `dist/` automatically, so a fresh checkout works out of the box. If you regenerate the
@@ -317,17 +315,15 @@ class (evaluators showing "default", SDK-created apps showing "--" or hex slugs)
 
 When adding or changing UI elements, implement appearance and interaction states for both light and dark themes, and verify both before considering the work complete.
 
-**Theme colors.** All theme-aware colors flow from one source of truth,
-`oss/src/styles/theme/palette.ts` — semantic roles (surface / text / border / fill /
-accent / semantic / scales / feature families), each a `{light, dark}` pair. The generator
-(`pnpm generate:tailwind-tokens`) turns it into `@agenta/ui`'s `theme-variables.css`, the
-mobile shadcn tokens (`mobile/scripts/generate-shadcn-tokens.ts` →
-`mobile/src/styles/theme.generated.css`), the antd dark overrides, and the `--ag-c-*`
-compatibility shim. In `web/mobile` and the `@agenta/ui/ui` kit, use the shadcn semantic
-tokens (`bg-background`, `text-muted-foreground`, `border-border`). Older package code uses
-antd-derived tokens (`bg-colorBgContainer`, `var(--ag-color*)`); match the file you are in.
-Never use raw hex or `--ag-c-*` literals. To change a color, edit `palette.ts` and
-regenerate — never hand-edit the generated files.
+**Theme and design rules.** `web/mobile` (and every package screen rendered at `/m`) takes its
+values from `packages/agenta-ui/src/design/theme.config.ts` and its rules from `rules.json` in the same
+folder; `DESIGN.md` (in `web/`) has the principles and the layout. Use the
+theme variable names (`bg-muted`, `text-label`, `border-border-muted`), never raw hex. Old
+antd-era names (`bg-colorBgContainer`, `var(--ag-color*)`) still resolve through `globals.css`;
+replace them when you touch the code. `oss/src/styles/theme/palette.ts` feeds only legacy
+generated files: `@agenta/ui`'s `theme-variables.css`, the website demo frame's
+`theme.generated.css` and the antd overrides (`pnpm generate:tailwind-tokens`; never hand-edit
+the output).
 
 Always prefer Tailwind utility classes over CSS-in-JS or separate CSS files.
 

@@ -12,30 +12,29 @@ import {
     isDefaultAutomationListView,
     runsWhenLabel,
     useAutomations,
+    useAutomationText,
 } from "@agenta/automation-ui"
 import {AgentChip} from "@agenta/entity-ui/agent"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
+import {useT} from "@agenta/i18n"
+import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {
+    LIST_COLUMN_WIDTH,
     ListTable,
-    ListTableToolbar,
+    ListTableNameCell,
     ListTableViewToggle,
     type ListTableColumn,
 } from "@agenta/ui/list-table"
-import {Button} from "@agenta/ui/ui"
+import {Button, PageToolbar} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
-
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {FeatureOnboarding} from "../education/FeatureOnboarding"
 import {HowThisWorksButton} from "../education/HowThisWorksButton"
-import {AppShell} from "../nav/AppShell"
-import {NavDrawer} from "../nav/NavDrawer"
+import {PageLayout} from "../page-layout/PageLayout"
 
 import {AutomationActionsMenu} from "./AutomationActionsMenu"
 import {AutomationAgentStarters} from "./AutomationAgentStarters"
@@ -45,48 +44,55 @@ import {AutomationKindMark} from "./AutomationKindMark"
 import {AutomationStatusMark} from "./AutomationStatusMark"
 
 /**
- * The four columns, shared by the header row and every body row so the two can never drift.
+ * The columns, shared by the header row and every body row so the two can never drift.
  *
- * Identity takes twice the share of the other three, which split the rest equally — status held
- * a fixed 118 before, so the gap after it grew while the others' did not and the three read as
- * unevenly spaced. The last column is the row's kebab, fixed at the button's own width so the
- * reading columns keep their proportions. The minima plus gaps sum to 572 — the width below
+ * Identity takes the largest share and carries Runs when as its meta line. The last
+ * column is the row's kebab, fixed at the button's own width so the reading columns keep their
+ * proportions. The minima plus gaps sum to 688 — the width below
  * which the table scrolls sideways rather than crushing five columns into a phone.
  */
-/**
- * The page column, shared with the sessions page: same max width, same gutters, so a reader
- * moving between the two nav entries sees one page frame rather than two.
- */
-const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
 
-const NAME_COLUMN: ListTableColumn = {key: "name", label: "Automation", width: "minmax(140px,2fr)"}
-const LAST_RUN_COLUMN: ListTableColumn = {
-    key: "lastRun",
-    label: "Last run",
-    width: "minmax(110px,0.9fr)",
-}
-const ACTIONS_COLUMN: ListTableColumn = {
-    key: "actions",
-    label: "Actions",
-    srOnly: true,
-    width: "24px",
-}
+type ScreenText = ReturnType<typeof useT<[typeof automationsScreensCatalog]>>
 
-const WIDE_COLUMNS: ListTableColumn[] = [
-    NAME_COLUMN,
-    {key: "status", label: "Status", width: "minmax(100px,0.8fr)"},
-    {key: "runsWhen", label: "Runs when", width: "minmax(130px,1fr)"},
-    LAST_RUN_COLUMN,
-    {key: "agent", label: "Agent", width: "minmax(120px,1fr)"},
-    ACTIONS_COLUMN,
+const wideColumns = (t: ScreenText): ListTableColumn[] => [
+    nameColumn(t),
+    {key: "agent", label: t("automations.screens.columnAgent"), width: LIST_COLUMN_WIDTH.name},
+    {
+        key: "status",
+        label: t("automations.screens.columnStatus"),
+        width: LIST_COLUMN_WIDTH.secondary,
+    },
+    lastRunColumn(t),
+    actionsColumn(t),
 ]
 // A phone keeps the name and whether it is doing anything; the kind tile already says schedule
 // or event, and status, cadence and agent wait on the detail screen.
-const NARROW_COLUMNS: ListTableColumn[] = [NAME_COLUMN, LAST_RUN_COLUMN, ACTIONS_COLUMN]
+const narrowColumns = (t: ScreenText): ListTableColumn[] => [
+    nameColumn(t),
+    // "2d ago" fits; the run count under it truncates, so the name keeps the width.
+    lastRunColumn(t, "76px"),
+    actionsColumn(t),
+]
+const nameColumn = (t: ScreenText): ListTableColumn => ({
+    key: "name",
+    label: t("automations.screens.columnAutomation"),
+    width: LIST_COLUMN_WIDTH.primary,
+})
+const lastRunColumn = (t: ScreenText, width = "128px"): ListTableColumn => ({
+    key: "lastRun",
+    label: t("automations.screens.columnLastRun"),
+    width,
+})
+const actionsColumn = (t: ScreenText): ListTableColumn => ({
+    key: "actions",
+    label: t("automations.screens.columnActions"),
+    srOnly: true,
+    width: LIST_COLUMN_WIDTH.actions,
+})
 
 /** The sessions table's line, so the two nav entries slim down at the same width. */
 const WIDE_QUERY = "(min-width: 640px)"
-const WIDE_MIN_WIDTH = 680
+const WIDE_MIN_WIDTH = 690
 const NARROW_MIN_WIDTH = 300
 
 /**
@@ -111,6 +117,8 @@ export const AutomationListScreen = ({
     projectId: string
 }) => {
     useBindProjectContext(projectId)
+    const t = useT(automationsScreensCatalog)
+    useAutomationText()
     const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
     const [search, setSearch] = useState("")
@@ -167,15 +175,20 @@ export const AutomationListScreen = ({
     const projectEmpty = isEmpty && !term
     const groups = useMemo(
         () => deriveAutomationList(automations, view, agentNames),
-        [agentNames, automations, view],
+        // The group headings are text, so the groups are cut again when the language changes.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [agentNames, automations, t, view],
     )
 
     const body = (() => {
-        if (error) return <LoadError framed title="Could not load automations" onRetry={refetch} />
+        if (error)
+            return (
+                <LoadError framed title={t("automations.screens.loadFailed")} onRetry={refetch} />
+            )
 
         return (
             <ListTable
-                columns={narrow ? NARROW_COLUMNS : WIDE_COLUMNS}
+                columns={narrow ? narrowColumns(t) : wideColumns(t)}
                 minWidth={narrow ? NARROW_MIN_WIDTH : WIDE_MIN_WIDTH}
                 view={view.mode}
                 // A card holds a status line, a cadence and an agent; narrower than this the
@@ -191,6 +204,7 @@ export const AutomationListScreen = ({
                 onOpenRow={(automation) => void router.push(`${base}/automations/${automation.id}`)}
                 collapsedKeys={collapsed}
                 onToggleGroup={toggleGroup}
+                showGroupCount
                 empty={
                     // The project has automations; the search or the filters hid them.
                     <AutomationListNoMatch
@@ -225,28 +239,11 @@ export const AutomationListScreen = ({
 
                     return (
                         <>
-                            <span className="flex min-w-0 items-center gap-2">
-                                <AutomationKindMark kind={automation.kind} />
-                                <span
-                                    className="truncate text-[14px] text-foreground"
-                                    title={automation.name}
-                                >
-                                    {automation.name}
-                                </span>
-                            </span>
-
-                            {narrow ? null : <AutomationStatusMark status={status} />}
-
-                            {narrow ? null : (
-                                <span
-                                    className="block truncate text-[13px] text-muted-foreground"
-                                    title={runsWhen}
-                                >
-                                    {runsWhen}
-                                </span>
-                            )}
-
-                            <AutomationLastRunCell automation={automation} />
+                            <ListTableNameCell
+                                mark={<AutomationKindMark kind={automation.kind} size={32} />}
+                                title={automation.name}
+                                meta={runsWhen}
+                            />
 
                             {narrow ? null : name ? (
                                 <span className="flex min-w-0 items-center gap-1.5">
@@ -260,15 +257,19 @@ export const AutomationListScreen = ({
                                         glyph={13}
                                     />
                                     <span
-                                        className="truncate text-[13px] text-foreground"
+                                        className="truncate text-body-sm text-foreground"
                                         title={name}
                                     >
                                         {name}
                                     </span>
                                 </span>
                             ) : (
-                                <span className="text-[13px] text-muted-foreground">—</span>
+                                <span className="text-body-sm text-muted-foreground">—</span>
                             )}
+
+                            {narrow ? null : <AutomationStatusMark status={status} />}
+
+                            <AutomationLastRunCell automation={automation} />
 
                             {/* The menu's own clicks are not the row's: without this every menu
                                 press would also open the detail screen. */}
@@ -292,82 +293,49 @@ export const AutomationListScreen = ({
 
     return (
         <>
-            <PageTitle title="Automations" />
-            <AppShell workspaceId={workspaceId} projectId={projectId}>
-                <ScreenScaffold
-                    header={
-                        // The same frame the sessions bar uses, so the two pages line up at every
-                        // width: page column, 16px gutters on a phone, 64px and a deeper top
-                        // from `lg`.
-                        <div
-                            className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${PAGE_FRAME}`}
-                        >
-                            <div className="flex min-w-0 items-center gap-2">
-                                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
-                                    Automations
-                                </h1>
-                                {/* Hidden on a phone, where the title needs the width. */}
-                                {projectEmpty ? null : (
-                                    <HowThisWorksButton
-                                        guide="automations"
-                                        className="max-sm:hidden"
-                                    />
-                                )}
-                                <Button
-                                    aria-label="New automation"
-                                    // Square icon button on a phone, where the label is hidden.
-                                    className="max-sm:size-8 max-sm:px-0"
-                                    onClick={() => void router.push(`${base}/automations/new`)}
-                                >
-                                    <Plus />
-                                    {/* The label costs more than it earns at phone width: it
-                                        pushed the page's own title into an ellipsis. */}
-                                    <span className="hidden sm:inline">New automation</span>
-                                </Button>
-                            </div>
-                        </div>
-                    }
-                >
-                    <div className={`min-w-0 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>
-                        {projectEmpty ? (
-                            <FeatureOnboarding guideKey="automations" base={base}>
-                                <AutomationAgentStarters base={base} />
-                            </FeatureOnboarding>
-                        ) : (
-                            <>
-                                {/* Search belongs to the list, not to the page: it sits on the
-                                    table's own left edge so it reads as the control that narrows
-                                    what is below it. */}
-                                {/* One control beside the field, not three: sort and group are rows
-                                    inside it, so the bar stays a search bar. The view switch takes
-                                    the far edge, where it changes how the results are drawn rather
-                                    than which ones are. */}
-                                <ListTableToolbar
-                                    search={search}
-                                    onSearchChange={setSearch}
-                                    searchPlaceholder="Search automations"
-                                    actions={
-                                        <>
-                                            <AutomationFilterMenu
-                                                view={view}
-                                                onChange={setView}
-                                                agents={agents}
-                                            />
-                                            <ListTableViewToggle
-                                                value={view.mode}
-                                                onChange={setMode}
-                                                className="ml-auto"
-                                            />
-                                        </>
-                                    }
+            <PageLayout
+                workspaceId={workspaceId}
+                projectId={projectId}
+                title={t("automations.screens.pageTitle")}
+                description={t("automations.screens.pageDescription")}
+                toolbar={
+                    projectEmpty ? undefined : (
+                        <PageToolbar
+                            search={search}
+                            onSearchChange={setSearch}
+                            searchPlaceholder={t("automations.screens.searchPlaceholder")}
+                            actions={
+                                <AutomationFilterMenu
+                                    view={view}
+                                    onChange={setView}
+                                    agents={agents}
                                 />
-                                {body}
-                            </>
+                            }
+                            end={<ListTableViewToggle value={view.mode} onChange={setMode} />}
+                        />
+                    )
+                }
+                actions={
+                    <>
+                        {/* Hidden on a phone, where the title needs the width. */}
+                        {projectEmpty ? null : (
+                            <HowThisWorksButton guide="automations" className="max-sm:hidden" />
                         )}
-                    </div>
-                </ScreenScaffold>
-            </AppShell>
+                        <Button onClick={() => void router.push(`${base}/automations/new`)}>
+                            <Plus />
+                            {t("automations.screens.newAutomation")}
+                        </Button>
+                    </>
+                }
+            >
+                {projectEmpty ? (
+                    <FeatureOnboarding guideKey="automations" base={base}>
+                        <AutomationAgentStarters base={base} />
+                    </FeatureOnboarding>
+                ) : (
+                    body
+                )}
+            </PageLayout>
         </>
     )
 }

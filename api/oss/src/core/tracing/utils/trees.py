@@ -226,28 +226,34 @@ def promote_identity_by_trace(
     span_dtos: List[OTelFlatSpan],
 ) -> List[OTelFlatSpan]:
     """
-    Lift session/user/agent identity from the root span's attributes onto its
-    own session_id/user_id/agent_id columns.
+    Lift identity from span attributes onto the identity columns.
 
-    Root-only: ingestion is span-by-span / partial-batch, so there is no cheap
-    way to propagate identity from a root to children arriving in a different
-    request. Children are left untouched (nullable columns).
+    session_id and turn_id come from each span's own ag.session.id and
+    ag.turn.id, on every span, so a child never needs its root.
+
+    user_id and agent_id stay root-only: ingestion is span-by-span /
+    partial-batch, so there is no cheap way to propagate identity from a root
+    to children arriving in a different request.
     """
     if not span_dtos:
         return span_dtos
 
     for span_dto in span_dtos:
-        if span_dto.parent_id is not None:
-            continue
-
         attributes = span_dto.attributes or {}
         ag = attributes.get("ag") or {}
 
         session = ag.get("session") or {}
+        turn = ag.get("turn") or {}
+
+        span_dto.session_id = session.get("id") if isinstance(session, dict) else None
+        span_dto.turn_id = turn.get("id") if isinstance(turn, dict) else None
+
+        if span_dto.parent_id is not None:
+            continue
+
         user = ag.get("user") or {}
         agent = ag.get("agent") or {}
 
-        span_dto.session_id = session.get("id") if isinstance(session, dict) else None
         span_dto.user_id = user.get("id") if isinstance(user, dict) else None
         span_dto.agent_id = agent.get("id") if isinstance(agent, dict) else None
 

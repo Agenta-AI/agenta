@@ -4,6 +4,30 @@ import type {ReactNode} from "react"
  * One column of the frame. The label is the consumer's — this package never learns what an
  * automation or a session is, only that a list has columns of some width in some order.
  */
+/**
+ * Column widths for a list. The first column takes all the free width; the others are fixed, so
+ * they sit together at the row's right end instead of spreading across it.
+ */
+export const LIST_COLUMN_WIDTH = {
+    /** The first column: the Mark, the title and the meta line. */
+    primary: "minmax(160px,1fr)",
+    /** A short value: a status, an owner, a count. */
+    secondary: "112px",
+    /** A name: an agent, a source. */
+    name: "176px",
+    /** A time: "6d ago", "Never". */
+    time: "88px",
+    /** A time on a phone, right-aligned against the menu. */
+    timeCompact: "56px",
+    /** The row menu. */
+    actions: "24px",
+    /** The row menu with one icon control beside it. */
+    actionsWide: "52px",
+} as const
+
+/** The narrowest card in a grid view of a list with descriptions (agents, automations, skills). */
+export const LIST_CARD_MIN_WIDTH = 300
+
 export interface ListTableColumn {
     key: string
     /** Header text. Set `srOnly` when the column carries controls rather than a heading. */
@@ -41,11 +65,14 @@ export interface ListTableCsvColumn<Row> {
 /**
  * A run of rows under one heading. `label: null` is the ungrouped case — the frame draws no
  * heading at all, so a list with grouping switched off is byte-for-byte the list without it.
+ * A node label (a switch) must not sit in a folding heading, which is itself a button.
  */
 export interface ListTableGroup<Row> {
     key: string
-    label: string | null
+    label: ReactNode | null
     rows: Row[]
+    /** The number beside the label under `showGroupCount`. `rows.length` by default; set it when rows are paged. */
+    count?: number
 }
 
 /** How the rows are drawn: cells under a column header, or cards in a grid. */
@@ -82,7 +109,7 @@ export type ListTableProps<Row> = ListTableBaseProps<Row> & ListTableViewProps<R
  * the consumer's bulk actions. The selection is the consumer's state: the frame only reports
  * what the reader ticked, by `rowKey`.
  *
- * The list view only: a card grid has no column for a checkbox.
+ * The checkbox column is the list view's only; `markAsCheckbox` selects in both views.
  */
 export interface ListTableSelection<Row> {
     selectedKeys: ReadonlySet<string>
@@ -93,6 +120,12 @@ export interface ListTableSelection<Row> {
     rowLabel: (row: Row) => string
     /** Drawn at the right of the "N selected" bar: Archive, Delete, Export. */
     bulkActions?: (selectedKeys: ReadonlySet<string>) => ReactNode
+    /**
+     * The row's Mark is its checkbox, in the list and the grid: wrap the Mark in
+     * `ListTableSelectMark`. No checkbox column and no header bar; the caller draws
+     * `ListTableSelectionToolbar` in place of its toolbar.
+     */
+    markAsCheckbox?: boolean
 }
 
 export interface ListTableBaseProps<Row> {
@@ -134,6 +167,8 @@ export interface ListTableBaseProps<Row> {
      */
     loading?: boolean
     skeletonRows?: number
+    /** Skeleton shape: `mark` draws a 32px Mark and two lines in the first cell, `heading` a group heading bar. */
+    skeleton?: {mark?: boolean; heading?: boolean}
     /** Drawn in place of the rows when every group is empty. */
     empty?: ReactNode
     /**
@@ -146,7 +181,12 @@ export interface ListTableBaseProps<Row> {
      */
     stickyHeader?: boolean
     /**
-     * Keep the column names for screen readers only. For a list whose surroundings already say
+     * The first rows start right under the sticky header's line, with no 4 px of padding above
+     * them. For a list whose design draws them flush (the Sessions and Agents tables, A02, A03).
+     */
+    flushFirstRows?: boolean
+    /**
+     * Keep the column names for screen readers only. True by default: show them with `false`. For a list whose surroundings already say
      * what the rows are — a tab named "Sessions" over a single-column list — where a header row
      * only repeats the tab. Ignored with `selection`, whose controls live in the header row.
      */
@@ -157,6 +197,19 @@ export interface ListTableBaseProps<Row> {
      * reader scans once.
      */
     density?: "default" | "compact"
+    /**
+     * The group heading's caret: `fill` (default) is the filled caret that turns; `chevron` is the
+     * light down chevron the agent pages draw (A02), turned to the right when collapsed.
+     */
+    groupCaret?: "fill" | "chevron"
+    /** Show each group's row count beside its label. */
+    showGroupCount?: boolean
+    /** Extra classes for each list row, merged over its defaults (the Agents list, A03). */
+    rowClassName?: string
+    /** Extra classes for the column header row, merged over its defaults. */
+    headerClassName?: string
+    /** Rows and cards to flash once (just created): a `selected` fill that fades out. */
+    flashKeys?: ReadonlySet<string>
     /** Row selection with a select-all and a bulk bar. Absent ⇒ no checkbox column. */
     selection?: ListTableSelection<Row>
     className?: string

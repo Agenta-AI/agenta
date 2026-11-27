@@ -13,6 +13,8 @@
 import {useMemo, useState} from "react"
 
 import type {ChangeSection} from "@agenta/entities/workflow/commitDiff"
+import {useT} from "@agenta/i18n"
+import changesSummaryCatalog from "@agenta/i18n/catalogs/entityUi.changesSummary"
 import {DiffView} from "@agenta/ui/editor"
 import {cn, textColors} from "@agenta/ui/styles"
 import {ArrowLeft, Code, PencilSimple} from "@phosphor-icons/react"
@@ -64,6 +66,7 @@ export default function AgentChangesSummary({
     size = "default",
     defaultOpen = false,
 }: AgentChangesSummaryProps) {
+    const t = useT(changesSummaryCatalog)
     const [view, setView] = useState<View>({kind: "summary"})
     // Only what the user explicitly toggled; `defaultOpen` decides the rest (see isSectionOpen).
     const [openOverrides, setOpenOverrides] = useState<Record<string, boolean>>({})
@@ -112,28 +115,28 @@ export default function AgentChangesSummary({
                 {isDetail ? (
                     <button
                         type="button"
-                        className={cn("text-xs", LINK_BTN, textColors.primary)}
+                        className={cn("text-label", LINK_BTN, textColors.primary)}
                         onClick={() => setView({kind: "summary"})}
                     >
                         <ArrowLeft />
-                        Changes
+                        {t("entityUi.changesSummary.changes")}
                     </button>
                 ) : (
-                    <span className="text-xs font-semibold text-colorText">
-                        What&apos;s changing
+                    <span className="text-label font-semibold text-foreground">
+                        {t("entityUi.changesSummary.whatsChanging")}
                         <span className={cn("ml-1.5 font-normal", textColors.tertiary)}>
-                            {totalChanges} {totalChanges === 1 ? "change" : "changes"}
+                            {t("entityUi.changesSummary.changeCount", {count: totalChanges})}
                         </span>
                     </span>
                 )}
                 {view.kind === "summary" && !compact ? (
                     <button
                         type="button"
-                        className={cn("text-xs", LINK_BTN)}
+                        className={cn("text-label", LINK_BTN)}
                         onClick={() => setView({kind: "json"})}
                     >
                         <Code style={{fontSize: 13}} />
-                        View as JSON
+                        {t("entityUi.changesSummary.viewAsJson")}
                     </button>
                 ) : null}
             </div>
@@ -143,7 +146,7 @@ export default function AgentChangesSummary({
             <div
                 className={cn(
                     "overflow-auto",
-                    compact ? "max-h-80 rounded-[10px]" : "min-h-0 flex-1 px-4 pb-4",
+                    compact ? "max-h-80 rounded-lg" : "min-h-0 flex-1 px-4 pb-4",
                 )}
             >
                 {view.kind === "summary" ? (
@@ -170,8 +173,8 @@ export default function AgentChangesSummary({
                                 <span className={textColors.secondary}>
                                     {SECTION_ICON.instructions}
                                 </span>
-                                <span className={cn("flex-1", small ? "text-xs" : "text-[13px]")}>
-                                    Instructions
+                                <span className={cn("flex-1", small ? "text-meta" : "text-label")}>
+                                    {t("entityUi.changesSummary.instructions")}
                                 </span>
                                 <StatusTags tags={activeSection.tags} small={small} />
                             </>
@@ -187,12 +190,12 @@ export default function AgentChangesSummary({
                         onCollapse={collapseDetail}
                         head={
                             <>
-                                <PencilSimple style={{color: "var(--ag-colorWarning)"}} />
-                                <span className={cn("flex-1", small ? "text-xs" : "text-[13px]")}>
+                                <PencilSimple style={{color: "var(--warning)"}} />
+                                <span className={cn("flex-1", small ? "text-meta" : "text-label")}>
                                     {activeTool.label}
                                 </span>
                                 {activeTool.rawKey ? (
-                                    <span className={cn("font-mono text-xs", textColors.tertiary)}>
+                                    <span className={cn(" text-code-sm", textColors.tertiary)}>
                                         {activeTool.rawKey}
                                     </span>
                                 ) : null}
@@ -202,19 +205,14 @@ export default function AgentChangesSummary({
                         <div className="px-3.5 py-3">
                             {activeTool.descriptionDiff ? (
                                 <>
-                                    <div
-                                        className={cn(
-                                            "mb-1.5 text-[12px] uppercase tracking-wide",
-                                            textColors.tertiary,
-                                        )}
-                                    >
-                                        Description
+                                    <div className={cn("mb-1.5 text-meta", textColors.tertiary)}>
+                                        {t("entityUi.changesSummary.description")}
                                     </div>
-                                    <div className="font-mono text-xs leading-[1.8]">
-                                        <div style={{color: "var(--ag-colorError)"}}>
+                                    <div className=" text-code-sm leading-[1.8]">
+                                        <div style={{color: "var(--destructive)"}}>
                                             − {activeTool.descriptionDiff.before}
                                         </div>
-                                        <div style={{color: "var(--ag-colorSuccess)"}}>
+                                        <div style={{color: "var(--success)"}}>
                                             + {activeTool.descriptionDiff.after}
                                         </div>
                                     </div>
@@ -223,12 +221,9 @@ export default function AgentChangesSummary({
                             {activeTool.fieldChanges?.some((f) => f.field !== "description") ? (
                                 <>
                                     <div
-                                        className={cn(
-                                            "mb-1.5 mt-3 text-[12px] uppercase tracking-wide",
-                                            textColors.tertiary,
-                                        )}
+                                        className={cn("mb-1.5 mt-3 text-meta", textColors.tertiary)}
                                     >
-                                        Parameters
+                                        {t("entityUi.changesSummary.parameters")}
                                     </div>
                                     {activeTool.fieldChanges
                                         .filter((f) => f.field !== "description")
@@ -243,9 +238,9 @@ export default function AgentChangesSummary({
                                                 >
                                                     {kindIcon(f.kind)}
                                                 </span>
-                                                <span className="font-mono text-xs">{f.field}</span>
+                                                <span className=" text-code-sm">{f.field}</span>
                                                 <span
-                                                    className={cn("text-xs", textColors.tertiary)}
+                                                    className={cn("text-meta", textColors.tertiary)}
                                                 >
                                                     · {f.detail}
                                                 </span>

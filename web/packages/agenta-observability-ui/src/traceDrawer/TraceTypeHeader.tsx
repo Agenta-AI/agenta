@@ -1,6 +1,10 @@
 import {type ReactNode, useCallback, useMemo, useState} from "react"
 
 import {extractAgData} from "@agenta/entities/trace"
+import {richText, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import drawerCatalog from "@agenta/i18n/catalogs/observabilityUi.traceDrawer"
+import spanCatalog from "@agenta/i18n/catalogs/observabilityUi.traceSpan"
 import type {TraceSpanNode} from "@agenta/observability"
 import {closeTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {
@@ -9,15 +13,14 @@ import {
     traceDrawerNavigate,
 } from "@agenta/observability/traceDrawer"
 import {getTraceIdFromNode} from "@agenta/observability/traceDrawer"
-import {EnhancedButton, Tag} from "@agenta/ui/components/presentational"
+import {Tag} from "@agenta/ui/components/presentational"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
-import {SimpleTooltip} from "@agenta/ui/ui"
+import {Button, LoadingButton, SimpleTooltip} from "@agenta/ui/ui"
 import {Trash} from "@phosphor-icons/react"
 import {Play, SidebarSimple} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import DeleteTraceModal from "../delete"
 import {deleteTraceModalAtom} from "../delete/store/atom"
 
 import {getTraceDrawerReferences} from "./referenceSlots"
@@ -48,6 +51,7 @@ const TraceTypeHeader = ({
     setIsAnnotationsSectionOpen,
     isAnnotationsSectionOpen,
 }: TraceTypeHeaderProps) => {
+    const t = useT(spanCatalog, commonCatalog, drawerCatalog)
     const {AddToTestsetButton, AnnotateDrawerButton} = getTraceDrawerReferences()
     const {openTraceInPlayground, openWorkflowRevisionDrawer, hasAppReference, buildPlaygroundUrl} =
         getTraceDrawerPlaygroundActions()
@@ -65,7 +69,7 @@ const TraceTypeHeader = ({
 
     const openInPlaygroundState = useMemo<{enabled: boolean; reason?: ReactNode}>(() => {
         if (!activeTrace) {
-            return {enabled: false, reason: "No trace span is selected."}
+            return {enabled: false, reason: t("observabilityUi.traceSpan.noSpanSelected")}
         }
         const spanType = activeTrace.span_type
         if (!spanType) {
@@ -73,15 +77,18 @@ const TraceTypeHeader = ({
                 enabled: false,
                 reason: (
                     <>
-                        The type of this span (<code>ag.type</code> namespace) is not set.{" "}
-                        <a
-                            href="https://agenta.ai/docs/observability/trace-with-opentelemetry/semantic-conventions#agtype"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                        >
-                            Learn more
-                        </a>
-                        .
+                        {richText(t("observabilityUi.traceSpan.typeNotSet"), {
+                            code: (text) => <code>{text}</code>,
+                            link: (text) => (
+                                <a
+                                    href="https://agenta.ai/docs/observability/trace-with-opentelemetry/semantic-conventions#agtype"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    {text}
+                                </a>
+                            ),
+                        })}
                     </>
                 ),
             }
@@ -107,26 +114,26 @@ const TraceTypeHeader = ({
         if (!hasApp && !hasExtractableData) {
             return {
                 enabled: false,
-                reason: "This span has no workflow reference or captured inputs to replay in the playground.",
+                reason: t("observabilityUi.traceSpan.noWorkflowOrInputs"),
             }
         }
         if (!hasApp) {
             return {
                 enabled: false,
-                reason: `"${spanType}" spans need a workflow, variant, or revision reference to be opened in the playground.`,
+                reason: t("observabilityUi.traceSpan.needsWorkflowRef", {spanType}),
             }
         }
         if (!hasExtractableData) {
             return {
                 enabled: false,
-                reason: "This span has a workflow reference but no captured parameters or inputs to open.",
+                reason: t("observabilityUi.traceSpan.noParamsOrInputs"),
             }
         }
         return {
             enabled: false,
-            reason: `"${spanType}" spans can't be replayed in the playground — open the parent workflow, task, agent, or chain span instead.`,
+            reason: t("observabilityUi.traceSpan.cannotReplay", {spanType}),
         }
-    }, [activeTrace])
+    }, [activeTrace, t])
 
     const canOpenInPlayground = openInPlaygroundState.enabled
 
@@ -207,22 +214,27 @@ const TraceTypeHeader = ({
     return (
         // min-h-10 matches the tree's search row beside it; on a phone-width panel the actions
         // wrap under the span name instead of squeezing it to nothing.
-        <div className="box-border min-h-10 px-4 py-1 flex shrink-0 flex-wrap items-center justify-between gap-2 border-0 border-b border-solid border-colorSplit">
-            <SimpleTooltip side="top" title={activeTrace?.span_name || (error ? "Error" : "")}>
-                <span className={clsx("truncate text-nowrap flex-1 min-w-32 text-sm font-medium")}>
-                    {activeTrace?.span_name || (error ? "Error" : "")}
+        <div className="box-border min-h-10 px-4 py-1 flex shrink-0 flex-wrap items-center justify-between gap-2 border-0 border-b border-solid border-border-muted">
+            <SimpleTooltip
+                side="top"
+                title={
+                    activeTrace?.span_name || (error ? t("observabilityUi.traceSpan.error") : "")
+                }
+            >
+                <span className={clsx("truncate text-nowrap flex-1 min-w-32 text-label")}>
+                    {activeTrace?.span_name || (error ? t("observabilityUi.traceSpan.error") : "")}
                 </span>
             </SimpleTooltip>
 
             <div className="flex min-w-0 flex-wrap gap-2">
                 <TooltipWithCopyAction
                     copyText={activeTrace?.span_id || ""}
-                    title="Copy span id"
+                    title={t("observabilityUi.traceSpan.copySpanId")}
                     tooltipProps={{placement: "bottom", arrow: true}}
                 >
                     <Tag
-                        className="font-mono truncate bg-[var(--ag-c-0517290F)]"
-                        label={`# ${activeTrace?.span_id || "-"}`}
+                        className="font-mono truncate bg-secondary"
+                        label={`# ${activeTrace?.span_id || "—"}`}
                     />
                 </TooltipWithCopyAction>
                 {/* Like the slotted actions, the button exists only when the host binds the
@@ -232,26 +244,26 @@ const TraceTypeHeader = ({
                         title={!canOpenInPlayground ? openInPlaygroundState.reason : undefined}
                         side="bottom"
                     >
-                        <EnhancedButton
-                            type="default"
-                            size="small"
-                            icon={<Play size={14} />}
+                        <LoadingButton
+                            variant="outline"
+                            size="sm"
                             loading={isOpening}
                             disabled={!canOpenInPlayground || isOpening}
                             onClick={handleOpenInPlayground}
                         >
-                            Playground
-                        </EnhancedButton>
+                            <Play size={14} />
+                            {t("observabilityUi.traceSpan.playground")}
+                        </LoadingButton>
                     </SimpleTooltip>
                 )}
                 <AddToTestsetButton
-                    label="Add to testset"
+                    label={t("observabilityUi.traceSpan.addToTestset")}
                     size="small"
                     spanIds={spanIds}
                     disabled={!activeTrace?.span_id}
                 />
                 <AnnotateDrawerButton
-                    label="Annotate"
+                    label={t("observabilityUi.traceSpan.annotate")}
                     size="small"
                     data={activeTrace?.annotations || []}
                     traceSpanIds={{
@@ -262,32 +274,40 @@ const TraceTypeHeader = ({
                     data-tour="annotate-button"
                 />
 
-                <EnhancedButton
-                    icon={<Trash size={14} />}
-                    onClick={() =>
-                        setDeleteModalState({
-                            isOpen: true,
-                            traceIds: [getTraceIdFromNode(displayTrace) || ""],
-                            onClose: () => {
-                                if (setSelectedTraceId) setSelectedTraceId("")
-                            },
-                        })
-                    }
-                    disabled={!displayTrace}
-                    size="small"
-                />
+                <SimpleTooltip title={t("common.delete")}>
+                    <Button
+                        variant="outline"
+                        size="icon-sm"
+                        aria-label={t("common.delete")}
+                        onClick={() =>
+                            setDeleteModalState({
+                                isOpen: true,
+                                traceIds: [getTraceIdFromNode(displayTrace) || ""],
+                                onClose: () => {
+                                    if (setSelectedTraceId) setSelectedTraceId("")
+                                },
+                            })
+                        }
+                        disabled={!displayTrace}
+                    >
+                        <Trash size={14} />
+                    </Button>
+                </SimpleTooltip>
                 {setIsAnnotationsSectionOpen && (
-                    <EnhancedButton
-                        icon={<SidebarSimple size={14} />}
-                        type={isAnnotationsSectionOpen ? "default" : "primary"}
-                        className="shrink-0 flex items-center justify-center"
-                        onClick={() => setIsAnnotationsSectionOpen((prev) => !prev)}
-                        size="small"
-                    />
+                    <SimpleTooltip title={t("observabilityUi.traceDrawer.tabAnnotations")}>
+                        <Button
+                            variant={isAnnotationsSectionOpen ? "outline" : "default"}
+                            size="icon-sm"
+                            className="shrink-0"
+                            aria-label={t("observabilityUi.traceDrawer.tabAnnotations")}
+                            aria-pressed={isAnnotationsSectionOpen}
+                            onClick={() => setIsAnnotationsSectionOpen((prev) => !prev)}
+                        >
+                            <SidebarSimple size={14} />
+                        </Button>
+                    </SimpleTooltip>
                 )}
             </div>
-
-            <DeleteTraceModal />
         </div>
     )
 }

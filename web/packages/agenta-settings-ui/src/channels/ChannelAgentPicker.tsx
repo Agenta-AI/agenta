@@ -1,5 +1,7 @@
+import {useT} from "@agenta/i18n"
+import channelsAgentPickerCatalog from "@agenta/i18n/catalogs/channels.agentPicker"
 import {Alert, Button} from "@agenta/ui/ui"
-import {CaretRight, Users} from "@phosphor-icons/react"
+import {CaretRight} from "@phosphor-icons/react"
 
 import {AgentMark} from "./AgentMark"
 import {liveCountOf, platformLabel, ROW_BUTTON} from "./helpers"
@@ -12,8 +14,6 @@ export interface ChannelAgentPickerProps {
     onSelect: (agentId: string) => void
     /** The platform being connected; the audience note names it. No note without it. */
     platform?: ChannelPlatform
-    /** The project's name, for the audience note. No note without it. */
-    projectName?: string
 }
 
 /** The first step of a connection made outside an agent's page: which agent answers there. */
@@ -22,23 +22,24 @@ export const ChannelAgentPicker = ({
     connections,
     onSelect,
     platform,
-    projectName,
 }: ChannelAgentPickerProps) => {
+    const t = useT(channelsAgentPickerCatalog)
     const label = platform ? platformLabel(platform) : null
 
     return (
         <div className="flex flex-col gap-2.5" data-testid="channels-agent-picker">
-            {label && projectName ? (
+            {label ? (
                 <Alert
                     type="info"
                     showIcon
                     role="note"
-                    icon={<Users />}
-                    message={copy.audienceNote(projectName, label)}
+                    message={copy.audienceNote(label)}
                     data-testid="channels-picker-audience"
                 />
             ) : null}
-            <span className="px-0.5 text-[13px] font-semibold text-foreground">Agents</span>
+            <span className="px-0.5 text-label font-semibold text-foreground">
+                {t("channels.agentPicker.agents")}
+            </span>
             {agents.length ? (
                 <div className="flex flex-col">
                     {agents.map((agent) => {
@@ -49,17 +50,19 @@ export const ChannelAgentPicker = ({
                                 variant="ghost"
                                 onClick={() => onSelect(agent.id)}
                                 data-testid={`channels-agent-${agent.id}`}
-                                className={`${ROW_BUTTON} w-full gap-3 px-1 py-3`}
+                                className={`${ROW_BUTTON} box-border min-h-row-double w-full gap-3 px-1 py-1`}
                             >
                                 <AgentMark agentId={agent.id} />
                                 <span className="flex min-w-0 flex-1 flex-col gap-px">
-                                    <span className="truncate text-sm font-medium text-foreground">
+                                    <span className="truncate text-label text-foreground">
                                         {agent.name}
                                     </span>
-                                    <span className="truncate text-[12.5px] text-muted-foreground">
+                                    <span className="truncate text-meta text-muted-foreground">
                                         {live
-                                            ? `${live} channel${live > 1 ? "s" : ""} live`
-                                            : "No channels yet"}
+                                            ? t("channels.agentPicker.channelsLive", {
+                                                  count: live,
+                                              })
+                                            : t("channels.agentPicker.noChannels")}
                                     </span>
                                 </span>
                                 <CaretRight size={12} className="flex-none text-muted-foreground" />
@@ -68,8 +71,8 @@ export const ChannelAgentPicker = ({
                     })}
                 </div>
             ) : (
-                <p className="m-0 px-0.5 text-sm text-muted-foreground">
-                    This project has no agents yet. Create one, then connect it here.
+                <p className="m-0 px-0.5 text-body text-muted-foreground">
+                    {t("channels.agentPicker.noAgents")}
                 </p>
             )}
         </div>

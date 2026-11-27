@@ -1314,6 +1314,39 @@ async def test_resume_is_admitted_on_the_session_and_dispatches_the_admitted_req
     assert dispatch_fn.await_args.kwargs["request"] is admitted["request"]
 
 
+@pytest.mark.parametrize("session_turn_id", ["turn-start", None])
+async def test_respond_many_sends_the_session_turn_id_in_meta(session_turn_id):
+    interaction = _make_interaction()
+    interactions_service = MagicMock()
+    interactions_service.fetch_interaction = AsyncMock(return_value=interaction)
+    dispatch_fn = AsyncMock(return_value="run-1")
+    dispatcher = InteractionsDispatcher(
+        run_admission=NoopRunAdmission(),
+        workflows_service=MagicMock(),
+        interactions_service=interactions_service,
+        dispatch_fn=dispatch_fn,
+    )
+    control_command_id = uuid4()
+    await dispatcher.respond_many(
+        project_id=interaction.project_id,
+        user_id=uuid4(),
+        interaction_answers=[(interaction.id, {"value": 1})],
+        envelope=make_envelope(),
+        control_command_id=control_command_id,
+        continuation_execution_id="resume-1",
+        session_turn_id=session_turn_id,
+    )
+
+    kwargs = dispatch_fn.await_args.kwargs
+    meta = kwargs["request"].meta
+    assert kwargs["run_id"] == "resume-1"
+    assert meta["control_command_id"] == str(control_command_id)
+    if session_turn_id is None:
+        assert "session_turn_id" not in meta
+    else:
+        assert meta["session_turn_id"] == "turn-start"
+
+
 async def test_refused_resume_raises_for_the_command_delivery_and_dispatches_nothing():
     """`respond_many` (the command path) lets `AdmissionDenied` up, so the delivery
     settles the command terminally."""
@@ -1370,3 +1403,56 @@ async def test_refused_resume_through_respond_cancels_the_turn(
         session_id=interaction.session_id,
         only_turn_id="turn-1",
     )
+
+
+def _run_credential_approval():
+    from oss.src.core.access.dtos import PrincipalKind, PrincipalRef, RunApproval
+
+    user_id = uuid4()
+    return RunApproval(
+        principal=PrincipalRef(kind=PrincipalKind.HUMAN, id=user_id),
+        user_id=user_id,
+        is_run_credential=True,
+    )
+
+
+async def test_respond_refuses_an_answer_sent_with_a_run_credential():
+    """The channel path reaches `respond` without the route. A run credential's answer
+    changes nothing: the interaction is not read, cancelled or resumed."""
+    interaction = _make_interaction(kind=SessionInteractionKind.user_approval)
+    dispatch_fn = AsyncMock()
+    worker = _dispatcher_with(interaction, [], dispatch_fn)
+    worker.interactions_service.cancel_session_pending = AsyncMock()
+    worker.interactions_service.transition_interaction = AsyncMock()
+
+    await worker.respond(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        interaction_id=interaction.id,
+        answer={"approved": True},
+        approved_by=_run_credential_approval(),
+    )
+
+    worker.interactions_service.fetch_interaction.assert_not_called()
+    worker.interactions_service.cancel_session_pending.assert_not_called()
+    worker.interactions_service.transition_interaction.assert_not_called()
+    dispatch_fn.assert_not_called()
+
+
+async def test_respond_many_refuses_an_envelope_approved_with_a_run_credential():
+    from oss.src.core.access.types import AccessDenied
+
+    interaction = _make_interaction(kind=SessionInteractionKind.user_approval)
+    dispatch_fn = AsyncMock()
+    worker = _dispatcher_with(interaction, [], dispatch_fn)
+
+    with pytest.raises(AccessDenied):
+        await worker.respond_many(
+            project_id=uuid4(),
+            user_id=uuid4(),
+            interaction_answers=[(interaction.id, {"approved": True})],
+            envelope=make_envelope(approved_by=_run_credential_approval()),
+        )
+
+    worker.interactions_service.fetch_interaction.assert_not_called()
+    dispatch_fn.assert_not_called()

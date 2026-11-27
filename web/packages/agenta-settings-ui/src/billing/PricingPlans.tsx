@@ -5,18 +5,27 @@
  * current plan; picking one is the host's — checkout, switch and cancel are all its calls.
  */
 
+import {useT, createT} from "@agenta/i18n"
+import billingPageCatalog from "@agenta/i18n/catalogs/billing.page"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Button, Spinner} from "@agenta/ui/ui"
 
 import type {BillingPlanOption} from "./types"
+
+const tNow = createT(billingPageCatalog, commonCatalog)
 
 const CONTACT_URL = "https://cal.com/mahmoud-mabrouk-ogzgey/demo"
 
 const formatPrice = (plan: BillingPlanOption) => {
     // A priced plan whose base amount is missing rendered "$undefined /month".
     const amount = plan.price?.base?.amount
-    if (amount == null) return "Contact us"
-    const prefix = plan.price?.base?.starting_at ? "Starts at " : ""
-    return `${prefix}$${amount} /month`
+    if (amount == null) return tNow("billing.page.contactUs")
+    return tNow(
+        plan.price?.base?.starting_at ? "billing.page.priceStartsAt" : "billing.page.price",
+        {
+            amount,
+        },
+    )
 }
 
 export interface PricingPlansProps {
@@ -41,6 +50,7 @@ const PricingCard = ({
     pendingPlan,
     onSelectPlan,
 }: {plan: BillingPlanOption} & Omit<PricingPlansProps, "plans" | "loading">) => {
+    const t = useT(billingPageCatalog, commonCatalog)
     const isPending = pendingPlan === plan.plan
     const isThisPlanCustom = plan.type === "custom"
     const isThisPlanFree = Boolean(freePlanSlug) && plan.plan === freePlanSlug
@@ -57,7 +67,7 @@ const PricingCard = ({
             disabled={isDisabled}
             onClick={() => window.open(CONTACT_URL, "_blank")}
         >
-            {isCurrentPlanCustom ? "Current plan" : "Talk to us"}
+            {isCurrentPlanCustom ? t("billing.page.currentPlan") : t("billing.page.talkToUs")}
         </Button>
     ) : (
         <Button
@@ -67,45 +77,46 @@ const PricingCard = ({
             onClick={() => onSelectPlan?.(plan)}
         >
             {isCurrent
-                ? "Current plan"
+                ? t("billing.page.currentPlan")
                 : isPending
-                  ? "Working…"
+                  ? t("common.working")
                   : isThisPlanFree
-                    ? `Move to ${plan.title}`
-                    : `Upgrade to ${plan.title}`}
+                    ? t("billing.page.moveTo", {plan: plan.title})
+                    : t("billing.page.upgradeTo", {plan: plan.title})}
         </Button>
     )
 
     return (
-        <div className="flex w-full flex-col rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer md:min-w-0 md:flex-1">
-            <div className="border-0 border-b border-solid border-colorBorderSecondary p-3 font-medium text-colorText">
+        <div className="flex w-full flex-col rounded-lg border border-solid border-border-muted bg-background md:min-w-0 md:flex-1">
+            <div className="border-0 border-b border-solid border-border-muted p-3 font-medium text-foreground">
                 {plan.title}
             </div>
 
             <div className="flex flex-1 flex-col gap-1 p-3">
-                <span className="text-base font-bold text-colorText">{formatPrice(plan)}</span>
-                <span className="text-xs font-medium text-colorText">{plan.description}</span>
+                <span className="text-label font-semibold text-foreground">
+                    {formatPrice(plan)}
+                </span>
+                <span className="text-label text-foreground">{plan.description}</span>
 
                 <ul className="mt-2 list-disc pl-4">
                     {plan.features?.map((feature, index) => (
-                        <li className="text-colorTextSecondary" key={index}>
+                        <li className="text-muted-foreground" key={index}>
                             {feature}
                         </li>
                     ))}
                 </ul>
             </div>
 
-            <div className="border-0 border-t border-solid border-colorBorderSecondary p-3">
-                {action}
-            </div>
+            <div className="border-0 border-t border-solid border-border-muted p-3">{action}</div>
         </div>
     )
 }
 
 export const PricingPlans = ({plans, loading = false, ...cardProps}: PricingPlansProps) => {
+    const t = useT(billingPageCatalog, commonCatalog)
     if (loading) {
         return (
-            <div className="flex h-[400px] w-full items-center justify-center">
+            <div className="flex h-100 w-full items-center justify-center">
                 <Spinner />
             </div>
         )
@@ -113,7 +124,7 @@ export const PricingPlans = ({plans, loading = false, ...cardProps}: PricingPlan
 
     return (
         <section className="mx-auto mt-4 flex flex-col gap-2">
-            <span className="font-medium text-colorText">Choose your plan</span>
+            <span className="font-medium text-foreground">{t("billing.page.choosePlan")}</span>
             <div className="flex flex-col gap-4 md:flex-row">
                 {plans?.map((plan) => (
                     <PricingCard key={plan.title} plan={plan} {...cardProps} />

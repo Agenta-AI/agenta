@@ -1,6 +1,8 @@
-import {Html, Head, Main, NextScript} from "next/document"
+import {languageInitScript, languagePendingStyle} from "@agenta/i18n/document"
+import {Html, Head, Main, NextScript, type DocumentProps} from "next/document"
 import Script from "next/script"
 
+import {isEmbedPath} from "@/features/embed/embedRoute"
 import {mobileGateScript} from "@/lib/mobileGateScript"
 
 // Runs synchronously before paint to apply the persisted theme, preventing a
@@ -9,7 +11,9 @@ import {mobileGateScript} from "@/lib/mobileGateScript"
 // user's theme follows them between /m and the desktop app.
 const themeInitScript = `(function(){try{var r=localStorage.getItem('agenta-theme');var m=r?(r.charAt(0)==='"'?JSON.parse(r):r):'system';var d=m==='dark'||(m==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d){document.documentElement.classList.add('dark');document.documentElement.style.colorScheme='dark';}}catch(e){}})();`
 
-export default function Document() {
+export default function Document({__NEXT_DATA__}: DocumentProps) {
+    // The embed widget never mounts LanguageSync, so nothing would show its page again.
+    const hidesUntilTranslated = !isEmbedPath(__NEXT_DATA__.page)
     return (
         <Html lang="en" className="antialiased">
             <Head>
@@ -36,6 +40,13 @@ export default function Document() {
                 {/* Before anything else: it may leave the page. */}
                 <script dangerouslySetInnerHTML={{__html: mobileGateScript}} />
                 <script dangerouslySetInnerHTML={{__html: themeInitScript}} />
+                {/* Pages are prerendered, so the language cookie is applied before paint. */}
+                {hidesUntilTranslated && (
+                    <>
+                        <style dangerouslySetInnerHTML={{__html: languagePendingStyle}} />
+                        <script dangerouslySetInnerHTML={{__html: languageInitScript}} />
+                    </>
+                )}
             </Head>
             <body>
                 <Main />

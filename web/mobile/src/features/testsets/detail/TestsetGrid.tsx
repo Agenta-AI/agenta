@@ -4,8 +4,9 @@ import {testcaseDataController, type TestcaseTableRow} from "@agenta/entities/te
 import {TestcaseTable, type EntityColumnHeader} from "@agenta/entity-ui/testcase"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {message} from "@agenta/ui/app-message"
-import {ListTableToolbar} from "@agenta/ui/list-table"
+import {useMediaQuery} from "@agenta/ui/hooks"
 import type {ColumnDefs} from "@agenta/ui/table"
+import {PageToolbar} from "@agenta/ui/ui"
 import {copyToClipboard} from "@agenta/ui/utils"
 import {useAtomValue} from "jotai"
 
@@ -28,8 +29,8 @@ type GridEditor = Pick<
 
 const deletedRowsMessage = (count: number) =>
     count === 1
-        ? "Deleted testcase. Save to apply changes."
-        : `Deleted ${count} testcase(s). Save to apply changes.`
+        ? "Deleted test case. Save to apply changes."
+        : `Deleted ${count} test cases. Save to apply changes.`
 
 /**
  * The testcase grid of a test set page, laid out as in the old app: one row with the search on
@@ -56,6 +57,8 @@ export const TestsetGrid = ({
     actions?: (queueItemIds: string[]) => ReactNode
 }) => {
     const {tableConfig, readOnly, deleteRows} = editor
+    // On a phone a sticky actions column covers the cells beside it, so it scrolls with them.
+    const wide = useMediaQuery("(min-width: 640px)")
     const [selected, setSelected] = useState<string[]>([])
     const [step, setStep] = useState<ColumnDialogStep | null>(null)
     // Search narrows the grid only. The editor keeps reading every row, because the save
@@ -114,7 +117,7 @@ export const TestsetGrid = ({
                 ),
                 // Room for Add column and the settings button in the header.
                 width: canEdit ? 72 : 48,
-                fixed: "right",
+                fixed: wide ? "right" : undefined,
                 render: (_value, row) => (
                     <TestcaseRowMenu
                         rowId={row.id}
@@ -137,7 +140,7 @@ export const TestsetGrid = ({
                 ),
             },
         ],
-        [canEdit, deleteRows, editor.columnEditBlocked, onOpenRow, readOnly],
+        [canEdit, deleteRows, editor.columnEditBlocked, onOpenRow, readOnly, wide],
     )
 
     const renderColumnHeader = useCallback(
@@ -187,10 +190,10 @@ export const TestsetGrid = ({
     return (
         <>
             {/* Outside the table, so a search with no match can still be cleared. */}
-            <ListTableToolbar
+            <PageToolbar
                 search={search.value}
                 onSearchChange={search.onChange}
-                searchPlaceholder="Search testcases..."
+                searchPlaceholder="Search test cases..."
                 actions={
                     <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
                         {actions?.(queueItemIds)}
@@ -204,24 +207,26 @@ export const TestsetGrid = ({
                     </div>
                 }
             />
-            <TestcaseTable
-                config={gridConfig}
-                selectable={canEdit}
-                selectedIds={selected}
-                onSelectionChange={setSelected}
-                selectionDisabled={readOnly}
-                onRowClick={(row) => {
-                    if (!row.__isSkeleton) onOpenRow(row.id)
-                }}
-                appendColumns={appendColumns}
-                renderColumnHeader={canEdit ? renderColumnHeader : undefined}
-                settingsDelete={settingsDelete}
-                // Export is in the page header, as in the old app.
-                canExportData={false}
-                columnSettings
-                cellPopover
-                markEditedRows={canEdit}
-            />
+            <div className="flex min-h-0 flex-1 flex-col">
+                <TestcaseTable
+                    config={gridConfig}
+                    selectable={canEdit}
+                    selectedIds={selected}
+                    onSelectionChange={setSelected}
+                    selectionDisabled={readOnly}
+                    onRowClick={(row) => {
+                        if (!row.__isSkeleton) onOpenRow(row.id)
+                    }}
+                    appendColumns={appendColumns}
+                    renderColumnHeader={canEdit ? renderColumnHeader : undefined}
+                    settingsDelete={settingsDelete}
+                    // Export is in the page header.
+                    canExportData={false}
+                    columnSettings
+                    cellPopover
+                    markEditedRows={canEdit}
+                />
+            </div>
             <ColumnDialog
                 step={step}
                 onClose={() => setStep(null)}

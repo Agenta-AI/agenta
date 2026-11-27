@@ -1,6 +1,8 @@
 /** The roster's grid SHELL — geometry, the "New agent" cell, loading/empty. Cards are children. */
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import agentPickerCatalog from "@agenta/i18n/catalogs/entityUi.agentPicker"
 import {EmptyState, SkeletonBlock} from "@agenta/ui/ui"
 import {PlusIcon} from "@phosphor-icons/react"
 
@@ -27,19 +29,23 @@ export const AgentCardGrid = ({
     isLoading = false,
     count,
     onCreate,
-    createLabel = "New agent",
+    createLabel: createLabelProp,
     // What the cell actually does on every surface: creates an empty agent and opens it. Picking a
     // template is the separate templates route, not this cell.
-    createHint = "start blank",
-    emptyText = "No agents yet",
+    createHint: createHintProp,
+    emptyText: emptyTextProp,
 }: AgentCardGridProps) => {
+    const t = useT(agentPickerCatalog)
+    const createLabel = createLabelProp ?? t("entityUi.agentPicker.newAgent")
+    const createHint = createHintProp ?? t("entityUi.agentPicker.startBlank")
+    const emptyText = emptyTextProp ?? t("entityUi.agentPicker.noAgentsYet")
     // The SAME grid the cards land in, at the card's own height — a column of thin bars described
     // a list, so the page re-flowed from list to grid on the first painted card.
     if (isLoading && count === 0) {
         return (
             <div className={GRID_CLASS}>
                 {[0, 1, 2, 3, 4, 5].map((i) => (
-                    <SkeletonBlock key={i} active className="h-[148px] w-full rounded-xl" />
+                    <SkeletonBlock key={i} active className="h-37 w-full rounded-xl" />
                 ))}
             </div>
         )
@@ -56,11 +62,11 @@ export const AgentCardGrid = ({
                 <button
                     type="button"
                     onClick={onCreate}
-                    className="box-border flex h-full min-h-[148px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-colorBorder bg-transparent p-5 text-center transition-colors hover:border-colorPrimary"
+                    className="box-border flex h-full min-h-37 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border bg-transparent p-5 text-center transition-colors hover:border-primary"
                 >
-                    <PlusIcon size={18} className="text-colorTextTertiary" />
-                    <span className="text-sm text-colorText">{createLabel}</span>
-                    <span className="text-xs text-colorTextTertiary">{createHint}</span>
+                    <PlusIcon size={18} className="text-muted-foreground" />
+                    <span className="text-label text-foreground">{createLabel}</span>
+                    <span className="text-meta text-muted-foreground">{createHint}</span>
                 </button>
             ) : null}
 
@@ -68,7 +74,7 @@ export const AgentCardGrid = ({
                 <div className="col-span-full">
                     <EmptyState
                         image="simple"
-                        description={<span className="text-xs">{emptyText}</span>}
+                        description={<span className="text-meta">{emptyText}</span>}
                     />
                 </div>
             ) : null}

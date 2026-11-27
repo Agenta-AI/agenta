@@ -1,4 +1,8 @@
+import {createT} from "@agenta/i18n"
+import billingBillingFormatCatalog from "@agenta/i18n/catalogs/billing.billingFormat"
 import type {BillingPlanOption, BillingSubscription} from "@agenta/settings-ui"
+
+const t = createT(billingBillingFormatCatalog)
 
 export const CONTACT_URL = "https://cal.com/mahmoud-mabrouk-ogzgey/demo"
 
@@ -8,9 +12,10 @@ export const planName = (plan?: string | null) => (plan ? (plan.split("_").pop()
 export const planPrice = (plan?: BillingPlanOption | null): string | null => {
     const amount = plan?.price?.base?.amount
     if (amount == null) return null
-    return amount === 0
-        ? "Free"
-        : `${plan?.price?.base?.starting_at ? "From " : ""}$${amount} / month`
+    if (amount === 0) return t("billing.billingFormat.free")
+    return plan?.price?.base?.starting_at
+        ? t("billing.billingFormat.fromPerMonth", {amount})
+        : t("billing.billingFormat.perMonth", {amount})
 }
 
 /** The period boundary the backend sent, absent on plans that never renew. */

@@ -112,6 +112,7 @@ const groupedChildren = (
             isDynamic: true,
             isCollapsed,
             groupAdd: entity.groupAddLink?.(group, projectURL),
+            groupEnter: entity.groupEnter?.(group, projectURL),
             dragItem:
                 groupZone && groupId ? {kind: "group", id: groupId, zone: groupZone} : undefined,
             onClick: entity.toggleGroupAtom
@@ -120,7 +121,9 @@ const groupedChildren = (
         })
         if (isCollapsed) continue
         const rowZone = source.reorder?.rowZone?.(group.key)
-        children.push(...groupRefs.map((ref) => toRow(ref, rowZone)))
+        const max = entity.groupMaxItems?.(group)
+        const shown = max === undefined ? groupRefs : groupRefs.slice(0, max)
+        children.push(...shown.map((ref) => toRow(ref, rowZone)))
     }
     return children
 }
@@ -230,7 +233,8 @@ export const resolveChildren = (
         link: entity.childLink(ref, projectURL),
         // A row can own more routes than it navigates to.
         matchLinks: entity.childMatchLinks?.(ref, projectURL),
-        icon: entity.getIcon?.(ref) ?? icon(),
+        // `getIcon` may answer null: a row with no leading glyph.
+        icon: entity.getIcon ? entity.getIcon(ref) : icon(),
         rowClassName: entity.getRowClassName?.(ref),
         isDynamic: true,
         onClick: entity.getOnClick?.(ref),

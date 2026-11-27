@@ -4,6 +4,8 @@ import {loadableController} from "@agenta/entities/loadable"
 import {testcaseMolecule} from "@agenta/entities/testcase"
 import {revisionMolecule} from "@agenta/entities/testset"
 import type {CommitSubmitParams, CommitSubmitResult} from "@agenta/entity-ui/modals"
+import {createT} from "@agenta/i18n"
+import runsCatalog from "@agenta/i18n/catalogs/playground.runs"
 import {playgroundController, type ConnectToTestsetPayload} from "@agenta/playground"
 import {
     clearAllRunsMutationAtom,
@@ -81,7 +83,7 @@ export interface TestsetMenuModel {
     canSyncSubmit: (params: {mode?: string; entityName?: string}) => boolean
 }
 
-const SAVE_FAILED = "Couldn't save the test set"
+const tNow = createT(runsCatalog)
 
 const noLoadableAtom = atom(() => null)
 const falseAtom = atom(() => false)
@@ -157,7 +159,10 @@ export const useTestsetMenuModel = (): TestsetMenuModel => {
 
     const isConnected = mode === "connected"
     const connectedRevisionId = isConnected ? (connectedSource?.id ?? null) : null
-    const label = isConnected && connectedSource?.name ? connectedSource.name : "Test set"
+    const label =
+        isConnected && connectedSource?.name
+            ? connectedSource.name
+            : tNow("playground.runs.testSetLabel")
     // A commit reads the test set id from the connected revision: keep that revision loaded.
     useAtomValue(
         useMemo(() => revisionMolecule.queryOptional(connectedRevisionId), [connectedRevisionId]),
@@ -354,12 +359,12 @@ export const useTestsetMenuModel = (): TestsetMenuModel => {
                 await store.set(loadableController.actions.commitChanges, loadableId)
             } catch (error) {
                 console.error("Saving the test set failed", error)
-                message.error(SAVE_FAILED)
+                message.error(tNow("playground.runs.saveFailed"))
                 setSaving(false)
                 return
             }
             setSaving(false)
-            message.success("Test set updated")
+            message.success(tNow("playground.runs.testSetUpdated"))
             // Changing the test set keeps the saved one connected until a new one is confirmed.
             if (changing) {
                 open({kind: "load"})
@@ -380,7 +385,7 @@ export const useTestsetMenuModel = (): TestsetMenuModel => {
             entityName,
             entitySlug,
         }: CommitSubmitParams) => {
-            if (!loadableId) return {success: false, error: SAVE_FAILED}
+            if (!loadableId) return {success: false, error: tNow("playground.runs.saveFailed")}
             if (submitMode !== "save-new") {
                 try {
                     await store.set(
@@ -391,12 +396,12 @@ export const useTestsetMenuModel = (): TestsetMenuModel => {
                     return {success: true}
                 } catch (error) {
                     console.error("Committing the test set failed", error)
-                    return {success: false, error: SAVE_FAILED}
+                    return {success: false, error: tNow("playground.runs.saveFailed")}
                 }
             }
 
             const name = entityName?.trim()
-            if (!name) return {success: false, error: "Test set name is required"}
+            if (!name) return {success: false, error: tNow("playground.runs.testSetNameRequired")}
             // The rows as shown: the save clears the edits from the store.
             const shownRows = store
                 .get(loadableController.selectors.rows(loadableId))
@@ -415,7 +420,11 @@ export const useTestsetMenuModel = (): TestsetMenuModel => {
                 store.set(loadableController.actions.setName, loadableId, null)
                 const status = (result.error as {response?: {status?: number}} | undefined)
                     ?.response?.status
-                return {success: false, error: SAVE_FAILED, errorStatus: status}
+                return {
+                    success: false,
+                    error: tNow("playground.runs.saveFailed"),
+                    errorStatus: status,
+                }
             }
             store.set(loadableController.actions.setName, loadableId, null)
             // The playground moves to the new test set. If its rows do not all load, they stay in

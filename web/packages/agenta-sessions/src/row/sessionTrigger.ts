@@ -1,5 +1,9 @@
 import type {SessionStream, SessionTriggerKind} from "@agenta/entities/session"
+import {createT} from "@agenta/i18n"
+import sessionsStatusCatalog from "@agenta/i18n/catalogs/sessions.status"
 import {isValidUUID} from "@agenta/shared/utils"
+
+const tNow = createT(sessionsStatusCatalog)
 
 export interface SessionAutomationVm {
     id: string
@@ -28,10 +32,14 @@ export function isAutomationSession(row: SessionStream): boolean {
 }
 
 export function sessionAutomationKindLabel(kind: SessionTriggerKind): string {
-    return kind === "schedule" ? "Schedule" : "Event subscription"
+    return kind === "schedule"
+        ? tNow("sessions.status.schedule")
+        : tNow("sessions.status.eventSubscription")
 }
 
 export function sessionAutomationTitle(automation: SessionAutomationVm): string {
     if (automation.name) return automation.name
-    return automation.kind === "schedule" ? "Missing schedule" : "Missing event subscription"
+    return automation.kind === "schedule"
+        ? tNow("sessions.status.missingSchedule")
+        : tNow("sessions.status.missingEventSubscription")
 }

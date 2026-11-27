@@ -1,0 +1,5 @@
+{
+    "deleteOrganizationDescription": "Los agentes que usen esta conexión necesitarán configuración, en todos los proyectos que la usen.",
+    "deleteProjectDescription": "Esta acción no es reversible. Los agentes y los prompts que usen esta conexión dejarán de funcionar.",
+    "deleteTitle": "¿Eliminar {{name}}?"
+}

@@ -18,6 +18,9 @@
         "test:unit": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",
+        "generate:theme": "tsx scripts/generate-theme.ts",
+        "theme:check": "tsx scripts/generate-theme.ts --check",
+        "design:ratchet": "tsx scripts/design-ratchet.ts --check",
         "generate:icons": "tsx scripts/generate-catalog.ts && prettier --write src/agent-icon/catalog.generated.ts"
     },
     "exports": {
@@ -40,6 +43,13 @@
         "./drill-in": "./src/drill-in/index.ts",
         "./editor": "./src/Editor/index.ts",
         "./editor-theme.css": "./src/styles/editor-theme.css",
+        "./design/theme": "./src/design/theme.config.ts",
+        "./design/contrast": "./src/design/contrast.ts",
+        "./design/rules.json": "./src/design/rules.json",
+        "./design/theme.css": "./src/design/theme.css",
+        "./design/theme.tailwind.css": "./src/design/theme.tailwind.css",
+        "./focus.css": "./src/styles/focus.css",
+        "./touch.css": "./src/styles/touch.css",
         "./filter-menu": "./src/filter-menu/index.ts",
         "./height-collapse": "./src/components/HeightCollapse.tsx",
         "./hooks": "./src/hooks/index.ts",
@@ -58,8 +68,10 @@
         "./type-chip": "./src/type-chip/index.ts",
         "./ui": "./src/components/ui/index.ts",
         "./utils": "./src/utils/index.ts",
+        "./view-stack": "./src/view-stack/index.ts",
         "./agent-icon": "./src/agent-icon/index.ts",
         "./page-title": "./src/page-title/index.tsx",
+        "./phone": "./src/phone/index.ts",
         "./github-mark": "./src/github-mark.tsx",
         "./config-accordion": "./src/components/presentational/section/ConfigAccordionSection.tsx"
     },
@@ -88,6 +100,7 @@
         "uuid": ">=9.0.0"
     },
     "dependencies": {
+        "@agenta/i18n": "workspace:../agenta-i18n",
         "@agenta/shared": "workspace:../agenta-shared",
         "@ant-design/icons": "^6.1.0",
         "@cloudflare/stream-react": "^1.9.3",
@@ -142,7 +155,6 @@
         "js-yaml": "^4.3.1",
         "json5": "^2.2.3",
         "lexical": "^0.46.0",
-        "lucide-react": "^0.479.0",
         "marked": "^17.0.4",
         "motion": "^12.0.0",
         "prismjs": "^1.30.0",

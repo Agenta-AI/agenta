@@ -1,0 +1,15 @@
+{
+    "connectionDeleted": "Conexión eliminada",
+    "connectionRevoked": "Conexión revocada",
+    "default": "Predeterminada",
+    "deleteConnectionFailed": "No se ha podido eliminar la conexión",
+    "deleteConnectionMessage": "Los agentes que usan esta conexión dejan de funcionar. No se puede deshacer.",
+    "deleteConnectionTitle": "¿Eliminar {{name}}?",
+    "loadConnectionsFailed": "No hemos podido cargar tus conexiones.",
+    "makeDefault": "Establecer como predeterminada",
+    "makeDefaultFailed": "No se ha podido establecer como tu conexión predeterminada. Inténtalo de nuevo.",
+    "revokeConnectionFailed": "No se ha podido revocar la conexión",
+    "revokeConnectionMessage": "Esto marcará la conexión como no válida. Puedes actualizarla más adelante para reactivarla.",
+    "revokeConnectionTitle": "¿Revocar {{name}}?",
+    "searchTools": "Buscar herramientas"
+}

@@ -64,15 +64,15 @@ const AllCaughtUp = memo(function AllCaughtUp({
 
     return (
         <div className="flex flex-col flex-1 items-center justify-center gap-4 min-h-0">
-            <div className="flex items-center justify-center size-20 rounded-full bg-[var(--ant-color-fill-quaternary)]">
-                <Check size={32} className="text-[var(--ant-color-text-secondary)]" />
+            <div className="flex items-center justify-center size-20 rounded-md bg-muted">
+                <Check size={32} className="text-muted-foreground" />
             </div>
 
             <div className="flex flex-col items-center gap-2 text-center">
-                <Typography.Text strong className="!text-base">
+                <Typography.Text strong className="!text-title">
                     You&apos;re all caught up
                 </Typography.Text>
-                <Typography.Text type="secondary" className="text-sm">
+                <Typography.Text type="secondary" className="text-body">
                     All runs in this queue have been annotated.
                     <br />
                     {isTraces ? "Add more from Tracing." : "Add more from Test Sets."}
@@ -175,7 +175,7 @@ const FocusView = memo(function FocusView({queueId, onCompleted, onViewChange}: 
     if (scenariosQuery.isPending) {
         return (
             <div className="flex flex-col flex-1 min-h-0">
-                <div className="flex-1 bg-[var(--ag-c-F5F7FA)] p-2 flex items-center justify-center">
+                <div className="flex-1 bg-muted p-2 flex items-center justify-center">
                     <Skeleton active paragraph={{rows: 6}} className="max-w-2xl w-full" />
                 </div>
             </div>
@@ -185,7 +185,7 @@ const FocusView = memo(function FocusView({queueId, onCompleted, onViewChange}: 
     if (scenariosQuery.isError) {
         return (
             <div className="flex flex-col flex-1 min-h-0">
-                <div className="flex-1 bg-[var(--ag-c-F5F7FA)] flex items-center justify-center">
+                <div className="flex-1 bg-muted flex items-center justify-center">
                     <Typography.Text type="secondary">
                         Failed to load annotation scenarios
                     </Typography.Text>
@@ -197,7 +197,7 @@ const FocusView = memo(function FocusView({queueId, onCompleted, onViewChange}: 
     if (scenarios.length === 0) {
         return (
             <div className="flex flex-col flex-1 min-h-0">
-                <div className="flex-1 bg-[var(--ag-c-F5F7FA)] flex items-center justify-center">
+                <div className="flex-1 bg-muted flex items-center justify-center">
                     <Typography.Text type="secondary">No scenarios available</Typography.Text>
                 </div>
             </div>
@@ -211,10 +211,10 @@ const FocusView = memo(function FocusView({queueId, onCompleted, onViewChange}: 
     if (focusScenarioIds.length === 0 && !currentScenarioId) {
         return (
             <div className="flex flex-col flex-1 min-h-0">
-                <div className="flex-1 bg-[var(--ag-c-F5F7FA)] flex items-center justify-center">
+                <div className="flex-1 bg-muted flex items-center justify-center">
                     <div className="flex flex-col items-center gap-2 text-center">
                         <Typography.Text strong>No scenarios available</Typography.Text>
-                        <Typography.Text type="secondary" className="text-sm">
+                        <Typography.Text type="secondary" className="text-body">
                             Adjust the focus switches to continue annotating.
                         </Typography.Text>
                     </div>
@@ -226,7 +226,7 @@ const FocusView = memo(function FocusView({queueId, onCompleted, onViewChange}: 
     return (
         <div className="flex flex-col flex-1 min-h-0">
             {/* Main content area */}
-            <div className="flex-1 bg-[var(--ag-c-F5F7FA)] p-2 overflow-hidden min-h-0 flex flex-col">
+            <div className="flex-1 bg-muted p-2 overflow-hidden min-h-0 flex flex-col">
                 <div className="flex flex-col md:flex-row h-full gap-4 overflow-hidden min-h-0">
                     {/* Scenario content */}
                     <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
@@ -239,14 +239,14 @@ const FocusView = memo(function FocusView({queueId, onCompleted, onViewChange}: 
                     </div>
 
                     {/* Annotation panel */}
-                    <div className="w-full md:w-[300px] lg:w-[400px] xl:w-[450px] shrink-0 border border-solid border-[var(--ag-rgba-051729-06)] rounded-lg overflow-hidden bg-[var(--ag-c-FFFFFF)] flex flex-col">
+                    <div className="w-full md:w-[300px] lg:w-[400px] xl:w-[450px] shrink-0 border border-solid border-border-muted rounded-lg overflow-hidden bg-background flex flex-col">
                         <AnnotationPanel scenarioId={currentScenarioId ?? ""} />
                     </div>
                 </div>
             </div>
 
             {/* Footer navigation bar */}
-            <div className="shrink-0 bg-[var(--ag-c-FFFFFF)] border-0 border-t border-solid border-[var(--ag-rgba-051729-06)] px-4 h-[55px] flex items-center">
+            <div className="shrink-0 bg-background border-0 border-t border-solid border-border-muted px-4 h-14 flex items-center">
                 <SessionNavigation
                     scenarioId={currentScenarioId ?? ""}
                     queueId={queueId}

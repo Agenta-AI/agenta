@@ -1,0 +1,6 @@
+{
+    "audienceNote": "Toute personne de ce projet peut lire les discussions {{platform}} d'un agent partagé, y compris les messages directs. Les nouvelles discussions avec un agent privé ne sont visibles que par son propriétaire.",
+    "off": "Désactivé",
+    "offIn": "Désactivé · dans {{places}}",
+    "turnOn": "Activer"
+}

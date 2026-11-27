@@ -9,6 +9,8 @@
 
 import React, {useCallback, useId, useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import selectionCatalog from "@agenta/i18n/catalogs/entityUi.selection"
 import {
     EntityBreadcrumb,
     EntityListItem,
@@ -18,9 +20,10 @@ import {
 import {LoadAllButton, LoadMoreButton} from "@agenta/ui/components/selection"
 import {cn} from "@agenta/ui/styles"
 import {Button, EmptyState, Spinner} from "@agenta/ui/ui"
-import {ArrowLeft} from "lucide-react"
+import {ArrowLeftIcon} from "@phosphor-icons/react"
 
 import {useBreadcrumbMode} from "../../../hooks"
+import {adapterText, labelInSentence} from "../../../text"
 import type {EntitySelectionResult} from "../../../types"
 import type {BreadcrumbVariantProps} from "../types"
 
@@ -67,6 +70,7 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
     showLoadAll = false,
     estimatedItemHeight = 48,
 }: BreadcrumbVariantProps<TSelection>) {
+    const t = useT(selectionCatalog)
     const generatedId = useId()
     const instanceId = providedInstanceId ?? generatedId
 
@@ -107,8 +111,16 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
     })
 
     // Get display messages
-    const displayEmptyMessage = emptyMessage ?? resolvedAdapter.emptyMessage ?? "No items found"
-    const displayLoadingMessage = loadingMessage ?? resolvedAdapter.loadingMessage ?? "Loading..."
+    const displayEmptyMessage =
+        emptyMessage ??
+        (resolvedAdapter.emptyMessage
+            ? adapterText(resolvedAdapter.emptyMessage)
+            : t("entityUi.selection.noItemsFound"))
+    const displayLoadingMessage =
+        loadingMessage ??
+        (resolvedAdapter.loadingMessage
+            ? adapterText(resolvedAdapter.loadingMessage)
+            : t("entityUi.selection.loading"))
 
     // Handle item click
     const handleItemClick = useCallback(
@@ -185,7 +197,7 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
                             <EntityBreadcrumb
                                 path={breadcrumbPath}
                                 onNavigate={handleBreadcrumbNavigate}
-                                rootLabel={rootLabel ?? "All"}
+                                rootLabel={rootLabel ?? t("entityUi.selection.all")}
                             />
                         </div>
                         {breadcrumbActions && <div className="shrink-0">{breadcrumbActions}</div>}
@@ -193,7 +205,7 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
                 )}
                 <div className="flex items-center justify-center py-8">
                     <Spinner size="default" />
-                    <span className="ml-2 text-colorTextSecondary">{displayLoadingMessage}</span>
+                    <span className="ml-2 text-muted-foreground">{displayLoadingMessage}</span>
                 </div>
             </div>
         )
@@ -203,7 +215,7 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
     if (error) {
         return (
             <div className={cn("flex flex-col", className)}>
-                <div className="flex items-center justify-center py-8 text-colorError">
+                <div className="flex items-center justify-center py-8 text-destructive">
                     Error: {error.message}
                 </div>
             </div>
@@ -224,14 +236,14 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
                                 onClick={navigateUp}
                                 disabled={disabled}
                             >
-                                <ArrowLeft size={16} />
+                                <ArrowLeftIcon size={16} />
                             </Button>
                         )}
                         <div className="min-w-0 flex-1">
                             <EntityBreadcrumb
                                 path={breadcrumbPath}
                                 onNavigate={handleBreadcrumbNavigate}
-                                rootLabel={rootLabel ?? "All"}
+                                rootLabel={rootLabel ?? t("entityUi.selection.all")}
                             />
                         </div>
                     </div>
@@ -245,7 +257,9 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
                     <SearchInput
                         value={searchTerm}
                         onChange={setSearchTerm}
-                        placeholder={`Search ${currentLevelLabel.toLowerCase()}...`}
+                        placeholder={t("entityUi.selection.searchLevel", {
+                            label: labelInSentence(currentLevelLabel),
+                        })}
                         disabled={disabled}
                     />
                 </div>
@@ -282,7 +296,7 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
 
             {/* Load more / Load all buttons */}
             {infiniteScroll && hasNextPage && (
-                <div className="box-border flex items-center justify-center gap-2 border-0 border-t border-solid border-colorBorderSecondary py-2">
+                <div className="box-border flex items-center justify-center gap-2 border-0 border-t border-solid border-border-muted py-2">
                     {loadMoreButton && (
                         <LoadMoreButton
                             onClick={fetchNextPage}
@@ -304,7 +318,7 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
             {isFetchingNextPage && !loadMoreButton && (
                 <div className="flex items-center justify-center py-2">
                     <Spinner size="small" />
-                    <span className="ml-2 text-xs text-colorTextSecondary">Loading more...</span>
+                    <span className="ml-2 text-meta text-muted-foreground">Loading more...</span>
                 </div>
             )}
         </div>

@@ -1,0 +1,11 @@
+{
+    "agent": "Agent",
+    "loadingConversation": "Unterhaltung wird geladen",
+    "noMessages": "Keine Nachrichten: Diese Sitzung hat keinen wiedergebbaren Verlauf.",
+    "readOnlyNoAgent": "Nur Lesezugriff: Diese Sitzung hat noch keinen Agent, an den Nachrichten gesendet werden können.",
+    "readOnlyNoRevision": "Nur Lesezugriff: Dieser Agent hat noch keine Revision, an die Nachrichten gesendet werden können.",
+    "running": "läuft",
+    "tryAgain": "Erneut versuchen",
+    "unreachableDescription": "Der Server hat nicht geantwortet. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
+    "unreachableTitle": "Diese Sitzung konnte nicht geladen werden"
+}

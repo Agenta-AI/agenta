@@ -3,14 +3,13 @@ import type {ReactNode} from "react"
 import {cn} from "@agenta/ui/ui"
 import {CaretRight} from "@phosphor-icons/react"
 
-const HEADING = "m-0 text-[13px] font-medium leading-[18px] text-muted-foreground"
+const HEADING = "m-0 text-label font-medium text-muted-foreground"
 
-const FOCUS_RING =
-    "outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-[-2px]"
+const FOCUS_RING = "outline-none focus-ring"
 
 const Count = ({count}: {count: number | null}) =>
     count === null ? null : (
-        <span className="text-[13px] font-normal text-muted-foreground/60">{count}</span>
+        <span className="text-label font-normal text-muted-foreground/60">{count}</span>
     )
 
 export interface SettingsGroupHeadingProps {

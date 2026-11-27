@@ -1,0 +1,13 @@
+{
+    "cannotListen": "Este modelo não consegue ouvir áudio",
+    "hintAudio": "Gravar uma mensagem de voz",
+    "hintTranscribe": "Ditar a mensagem",
+    "holdToDictate": "Mantenha {{key}} pressionado para ditar",
+    "limitReached": "Limite de anexos atingido: remova um arquivo para gravar uma mensagem de voz",
+    "modeAudio": "Mensagem de voz",
+    "modeTranscribe": "Voz para texto",
+    "stopDictation": "Parar o ditado",
+    "stopVoiceInput": "Parar a entrada de voz",
+    "voiceInputMode": "Modo de entrada de voz",
+    "waitingPrompt": "Aguardando o aviso de microfone do navegador…"
+}

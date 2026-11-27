@@ -1,0 +1,13 @@
+{
+    "organizationLimitInfo": "Eine zweite Organisation benötigt eine Enterprise-Lizenz. Um mit den Personen zu arbeiten, die schon hier sind, bitten Sie den Inhaber einer bestehenden Organisation um eine Einladung.",
+    "projectLimitAskAdmin": "Bitten Sie den Administrator Ihrer Instanz, diese Instanz zu registrieren, um weitere Projekte zu erhalten.",
+    "projectLimitCloud": "Der Hobby-Tarif umfasst 1 Projekt. Wechseln Sie zu Starter für unbegrenzte Projekte.",
+    "projectLimitRegister": "Registrieren Sie diese Instanz kostenlos, um weitere Projekte zu erstellen.",
+    "projectsUsage": "Diese Organisation nutzt {{count}} von {{limit}} Projekten. Registrieren Sie diese Instanz kostenlos, um weitere zu erstellen.",
+    "projectsUsageOverLimit_one": "Diese Organisation nutzt {{count}} Projekt, Limit {{limit}}. Registrieren Sie diese Instanz kostenlos, um weitere zu erstellen.",
+    "projectsUsageOverLimit_other": "Diese Organisation nutzt {{count}} Projekte, Limit {{limit}}. Registrieren Sie diese Instanz kostenlos, um weitere zu erstellen.",
+    "register": "Registrieren",
+    "registerInstance": "Diese Instanz registrieren",
+    "registerTitle": "Registrieren, um weitere Projekte zu erstellen",
+    "upgradePlan": "Tarif upgraden"
+}

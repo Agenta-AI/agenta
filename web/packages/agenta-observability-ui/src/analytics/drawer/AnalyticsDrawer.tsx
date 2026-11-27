@@ -1,5 +1,7 @@
 import {useMemo, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import analyticsCatalog from "@agenta/i18n/catalogs/observabilityUi.analytics"
 import {
     bucketStarts,
     bucketWindow,
@@ -9,13 +11,10 @@ import {
     sharePercent,
     successRate,
     sum,
-    analyticsDrawerAtom,
-    analyticsGroupAtom,
-    analyticsFiltersAtom,
-    analyticsRangeLabelAtom,
-    analyticsWindowAtom,
+    type AnalyticsDimension,
     type AnalyticsMetric,
     type AnalyticsPoint,
+    useAnalyticsViewAtoms,
 } from "@agenta/observability/analytics"
 import {useScrollFadeEdges} from "@agenta/ui/hooks"
 import {Button, Sheet, SheetContent, SheetDescription, SheetTitle, cn} from "@agenta/ui/ui"
@@ -26,7 +25,7 @@ import {stackSeries} from "../cards/GroupedCard"
 import {ChartTooltipPanel} from "../charts/ChartTooltipPanel"
 import {TimeChart} from "../charts/TimeChart"
 import {analyticsColor} from "../colors"
-import {bucketUnit, fullLabel, groupKeyLabel, shortLabel} from "../labels"
+import {bucketUnit, fullLabel, groupKeyLabel, shortLabel, unitLabel} from "../labels"
 import {
     SPLIT_KEYS,
     useAnalyticsSplit,
@@ -34,27 +33,39 @@ import {
     useAnalyticsWindowData,
     type KeyColor,
 } from "../useAnalyticsData"
+import {useRangeLabel} from "../useRangeLabel"
 
 import {DrawerBreakdown} from "./DrawerBreakdown"
 import {DrawerRuns} from "./DrawerRuns"
 
-const METRIC_LABEL: Record<AnalyticsMetric, string> = {
-    cost: "Cost",
-    runs: "Runs",
-    success: "Success rate",
-    tokens: "Tokens",
-    tools: "Tool calls",
-    avgcost: "Avg cost per run",
-}
+const METRIC_LABEL = {
+    cost: "observabilityUi.analytics.metricCost",
+    runs: "observabilityUi.analytics.metricRuns",
+    success: "observabilityUi.analytics.metricSuccess",
+    tokens: "observabilityUi.analytics.metricTokens",
+    tools: "observabilityUi.analytics.metricTools",
+    avgcost: "observabilityUi.analytics.metricAvgCost",
+} as const satisfies Record<AnalyticsMetric, string>
+
+const METRIC_LOWER = {
+    cost: "observabilityUi.analytics.lowerCost",
+    runs: "observabilityUi.analytics.lowerRuns",
+    success: "observabilityUi.analytics.lowerSuccess",
+    tokens: "observabilityUi.analytics.lowerTokens",
+    tools: "observabilityUi.analytics.lowerTools",
+    avgcost: "observabilityUi.analytics.lowerAvgCost",
+} as const satisfies Record<AnalyticsMetric, string>
+
+const LOCKED_AGENT_DIMS: readonly AnalyticsDimension[] = ["model"]
 
 const TILES: AnalyticsMetric[] = ["cost", "runs", "success", "tokens", "avgcost", "tools"]
 
 /** Tile labels stay on one line in a sixth of the drawer. */
-const TILE_LABEL: Record<AnalyticsMetric, string> = {
+const TILE_LABEL = {
     ...METRIC_LABEL,
-    success: "Success",
-    avgcost: "Avg / run",
-}
+    success: "observabilityUi.analytics.tileSuccess",
+    avgcost: "observabilityUi.analytics.tileAvgCost",
+} as const satisfies Record<AnalyticsMetric, string>
 
 const STACKABLE: AnalyticsMetric[] = ["cost", "runs", "tokens"]
 
@@ -77,12 +88,12 @@ const pointValue = (metric: AnalyticsMetric, p: AnalyticsPoint, tools: number): 
     }
 }
 
-const UNIT_VIEW: Record<string, string> = {
-    week: "Week by week",
-    day: "Day by day",
-    hour: "Hour by hour",
-    "5 minutes": "5-minute view",
-}
+const UNIT_VIEW = {
+    week: "observabilityUi.analytics.viewWeek",
+    day: "observabilityUi.analytics.viewDay",
+    hour: "observabilityUi.analytics.viewHour",
+    "5 minutes": "observabilityUi.analytics.view5Minutes",
+} as const
 
 export interface AnalyticsDrawerProps {
     agentName: (id: string) => string
@@ -92,7 +103,7 @@ export interface AnalyticsDrawerProps {
 }
 
 export const AnalyticsDrawer = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) => {
-    const [state, setState] = useAtom(analyticsDrawerAtom)
+    const [state, setState] = useAtom(useAnalyticsViewAtoms().drawer)
     return (
         <Sheet open={state !== null} onOpenChange={(open) => !open && setState(null)}>
             <SheetContent
@@ -113,10 +124,14 @@ export const AnalyticsDrawer = ({agentName, keyColor, onOpenTrace}: AnalyticsDra
 }
 
 const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) => {
-    const [state, setState] = useAtom(analyticsDrawerAtom)
-    const pageWindow = useAtomValue(analyticsWindowAtom)
-    const rangeLabel = useAtomValue(analyticsRangeLabelAtom)
-    const [filters, setFilters] = useAtom(analyticsFiltersAtom)
+    const t = useT(analyticsCatalog)
+    const view = useAnalyticsViewAtoms()
+    const [state, setState] = useAtom(view.drawer)
+    const pageWindow = useAtomValue(view.window)
+    const {label: rangeLabel} = useRangeLabel()
+    const [readerFilters, setFilters] = useAtom(view.filters)
+    // The data reads the page's filters with its locked agent; the reader edits only their own.
+    const filters = useAtomValue(view.queryFilters)
     const [hovered, setHovered] = useState<number | null>(null)
     const scrollRef = useRef<HTMLDivElement>(null)
     useScrollFadeEdges(scrollRef)
@@ -136,7 +151,7 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
         [data.starts, tools],
     )
     // The page's group stacks the chart too, unless the drawer is on one key of it.
-    const group = useAtomValue(analyticsGroupAtom)
+    const group = useAtomValue(view.group)
     const stackDim = group !== "none" && focus?.dim !== group ? group : null
     const stackSplit = useAnalyticsSplit(
         stackDim ?? "agent",
@@ -147,6 +162,9 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
         focus,
     )
     if (!state) return null
+    // The page of one agent breaks down by model only: by agent is one row, and tool calls carry
+    // no agent, so they would count every agent's.
+    const breakdownDim = view.lockedAgentId ? "model" : state.dim
     // Tool spans carry no agent or model, so a narrowed drawer cannot count them.
     const narrowed = Boolean(focus) || filters.agent.length > 0 || filters.model.length > 0
     const metric = narrowed && state.metric === "tools" ? "runs" : state.metric
@@ -187,12 +205,31 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
             : null
 
     const title = bucket !== null ? fullLabel(pageWindow, pageStarts[bucket]) : rangeLabel
-    const sub = `${UNIT_VIEW[unit]} · ${formatCount(totals.runs)} runs`
+    const sub = t("observabilityUi.analytics.drawerSub", {
+        view: t(UNIT_VIEW[unit as keyof typeof UNIT_VIEW]),
+        runs: formatCount(totals.runs),
+    })
     const focusName = focus ? (focus.dim === "agent" ? agentName(focus.key) : focus.key) : null
-    const focusLabel = focus ? `${focus.dim === "agent" ? "Agent" : "Model"}: ${focusName}` : null
+    const focusLabel = focus
+        ? t(
+              focus.dim === "agent"
+                  ? "observabilityUi.analytics.filterAgent"
+                  : "observabilityUi.analytics.filterModel",
+              {names: focusName ?? ""},
+          )
+        : null
+    // The reader's own filters: the locked agent is the page, not a filter.
     const pageChips = [
-        filters.agent.length ? `Agent: ${filters.agent.map(agentName).join(", ")}` : null,
-        filters.model.length ? `Model: ${filters.model.join(", ")}` : null,
+        readerFilters.agent.length
+            ? t("observabilityUi.analytics.filterAgent", {
+                  names: readerFilters.agent.map(agentName).join(", "),
+              })
+            : null,
+        readerFilters.model.length
+            ? t("observabilityUi.analytics.filterModel", {
+                  names: readerFilters.model.join(", "),
+              })
+            : null,
     ].filter((c): c is string => Boolean(c))
 
     const go = (next: number) => setState({...state, bucket: next})
@@ -205,7 +242,7 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                         <Button
                             variant="outline"
                             size="icon-xs"
-                            aria-label="Previous"
+                            aria-label={t("observabilityUi.analytics.previous")}
                             disabled={bucket <= 0}
                             onClick={() => go(bucket - 1)}
                         >
@@ -214,7 +251,7 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                         <Button
                             variant="outline"
                             size="icon-xs"
-                            aria-label="Next"
+                            aria-label={t("observabilityUi.analytics.next")}
                             disabled={bucket >= pageStarts.length - 1}
                             onClick={() => go(bucket + 1)}
                         >
@@ -223,17 +260,17 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                     </div>
                 ) : null}
                 <div className="flex min-w-0 flex-1 items-baseline gap-2">
-                    <SheetTitle className="shrink-0 text-lg font-semibold">
+                    <SheetTitle className="shrink-0 text-title">
                         {focus && bucket === null ? focusName : title}
                     </SheetTitle>
-                    <SheetDescription className="truncate text-xs text-muted-foreground">
+                    <SheetDescription className="truncate text-meta text-muted-foreground">
                         {sub}
                     </SheetDescription>
                 </div>
                 <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label="Close"
+                    aria-label={t("observabilityUi.analytics.close")}
                     onClick={() => setState(null)}
                 >
                     <X />
@@ -247,17 +284,17 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                             {pageChips.map((chip) => (
                                 <span
                                     key={chip}
-                                    className="inline-flex h-6 items-center rounded-md bg-muted px-2 text-xs"
+                                    className="inline-flex h-6 items-center rounded-sm bg-secondary px-2 text-meta"
                                 >
                                     {chip}
                                 </span>
                             ))}
                             {focusLabel ? (
-                                <span className="inline-flex h-6 items-center gap-1 rounded-md bg-accent pl-2 pr-1 text-xs">
+                                <span className="inline-flex h-6 items-center gap-1 rounded-sm bg-accent pl-2 pr-1 text-meta">
                                     {focusLabel}
                                     <button
                                         type="button"
-                                        aria-label="Remove"
+                                        aria-label={t("observabilityUi.analytics.remove")}
                                         onClick={() =>
                                             setState({
                                                 ...state,
@@ -265,22 +302,23 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                                                 dim: focus?.dim === "model" ? "model" : "agent",
                                             })
                                         }
-                                        className="grid size-4 cursor-pointer place-items-center rounded border-0 bg-transparent text-muted-foreground hover:text-foreground"
+                                        className="grid size-4 cursor-pointer place-items-center rounded-sm border-0 bg-transparent text-muted-foreground hover:text-foreground focus-ring"
                                     >
                                         <X size={10} />
                                     </button>
                                 </span>
                             ) : null}
-                            {focus ? (
+                            {/* The page of one agent has no Agent filter to apply. */}
+                            {focus && !(focus.dim === "agent" && view.lockedAgentId) ? (
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        setFilters({...filters, [focus.dim]: [focus.key]})
+                                        setFilters({...readerFilters, [focus.dim]: [focus.key]})
                                         setState(null)
                                     }}
-                                    className="h-6 cursor-pointer border-0 bg-transparent px-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                                    className="h-6 cursor-pointer border-0 bg-transparent px-1 text-meta text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
                                 >
-                                    Apply as filter
+                                    {t("observabilityUi.analytics.applyAsFilter")}
                                 </button>
                             ) : null}
                         </div>
@@ -288,7 +326,7 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
 
                     <div
                         className={cn(
-                            "grid grid-cols-3 gap-1 rounded-xl bg-muted p-1",
+                            "grid grid-cols-3 gap-1 rounded-lg bg-muted p-1",
                             narrowed ? "sm:grid-cols-5" : "sm:grid-cols-6",
                         )}
                     >
@@ -299,18 +337,21 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                                 type="button"
                                 onClick={() => setState({...state, metric: m})}
                                 className={cn(
-                                    "flex min-w-0 cursor-pointer flex-col gap-1 rounded-lg border-0 px-3 py-2.5 text-left disabled:cursor-default disabled:opacity-50",
-                                    m === metric ? "bg-background shadow-sm" : "bg-transparent",
+                                    // A control: row-double tall, its value at the label weight (TYPE-05).
+                                    "box-border flex h-row-double min-w-0 cursor-pointer flex-col justify-center gap-0.5 rounded-md border-0 px-3 text-left disabled:cursor-default disabled:opacity-50",
+                                    m === metric
+                                        ? "bg-background shadow-raised"
+                                        : "bg-transparent hover:bg-accent",
                                 )}
                             >
-                                <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                                <span className="flex min-w-0 items-center gap-1.5 text-meta text-muted-foreground">
                                     <span
-                                        className="size-1.5 shrink-0 rounded-full"
+                                        className="size-1.5 shrink-0 rounded-xs"
                                         style={{background: analyticsColor(m)}}
                                     />
-                                    <span className="truncate">{TILE_LABEL[m]}</span>
+                                    <span className="truncate">{t(TILE_LABEL[m])}</span>
                                 </span>
-                                <span className="truncate text-base font-semibold tabular-nums">
+                                <span className="truncate text-label tabular-nums">
                                     {m === "tools"
                                         ? formatCount(totalTools)
                                         : formatMetric(m, tileValue(m))}
@@ -321,13 +362,16 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
 
                     <section className="rounded-xl bg-muted px-4 py-3">
                         <div className="flex items-center justify-between gap-2">
-                            <span className="text-sm font-medium">
-                                {METRIC_LABEL[metric]} by {unit}
+                            <span className="text-label">
+                                {t("observabilityUi.analytics.chartTitle", {
+                                    metric: t(METRIC_LABEL[metric]),
+                                    unit: unitLabel(unit),
+                                })}
                             </span>
-                            <span className="text-[11px] text-muted-foreground">
+                            <span className="text-caption text-muted-foreground">
                                 {bucket === null
-                                    ? "Click a bar to zoom in"
-                                    : "Hover a bar for details"}
+                                    ? t("observabilityUi.analytics.clickToZoom")
+                                    : t("observabilityUi.analytics.hoverForDetails")}
                             </span>
                         </div>
                         <TimeChart
@@ -337,7 +381,7 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                                 stacked ?? [
                                     {
                                         key: metric,
-                                        label: METRIC_LABEL[metric],
+                                        label: t(METRIC_LABEL[metric]),
                                         color: analyticsColor(metric),
                                         values,
                                     },
@@ -346,7 +390,14 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                             formatTick={(v) => formatMetric(metric, v, true)}
                             average={{
                                 value: average,
-                                label: `avg ${formatMetric(metric, average, true)}${additive(metric) ? ` / ${unit}` : ""}`,
+                                label: additive(metric)
+                                    ? t("observabilityUi.analytics.avgPerUnit", {
+                                          value: formatMetric(metric, average, true),
+                                          unit: unitLabel(unit),
+                                      })
+                                    : t("observabilityUi.analytics.avgValue", {
+                                          value: formatMetric(metric, average, true),
+                                      }),
                             }}
                             yMin={
                                 metric === "success"
@@ -376,8 +427,13 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                                 return (
                                     <ChartTooltipPanel
                                         title={fullLabels[i]}
-                                        runs={`${formatCount(p.runs)} runs`}
-                                        value={`${formatMetric(metric, v)} ${METRIC_LABEL[metric].toLowerCase()}`}
+                                        runs={t("observabilityUi.analytics.runsCount", {
+                                            value: formatCount(p.runs),
+                                        })}
+                                        value={t("observabilityUi.analytics.tooltipMetric", {
+                                            value: formatMetric(metric, v),
+                                            metric: t(METRIC_LOWER[metric]),
+                                        })}
                                         rows={stacked
                                             ?.filter((row) => (row.values[i] ?? 0) > 0)
                                             .sort((a, b) => (b.values[i] ?? 0) - (a.values[i] ?? 0))
@@ -389,7 +445,7 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                                             }))}
                                         facts={[
                                             {
-                                                label: "vs average",
+                                                label: t("observabilityUi.analytics.vsAverage"),
                                                 value:
                                                     v !== null && average
                                                         ? `${v >= average ? "+" : ""}${Math.round(((v - average) / average) * 100)}%`
@@ -397,23 +453,39 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                                             },
                                             metric === "cost"
                                                 ? {
-                                                      label: "Avg cost per run",
+                                                      label: t(
+                                                          "observabilityUi.analytics.factAvgCost",
+                                                      ),
                                                       value: formatMoney(
                                                           p.runs ? p.cost / p.runs : null,
                                                       ),
                                                   }
-                                                : {label: "Cost", value: formatMoney(p.cost)},
-                                            {label: "Failed runs", value: formatCount(p.failed)},
+                                                : {
+                                                      label: t(
+                                                          "observabilityUi.analytics.factCost",
+                                                      ),
+                                                      value: formatMoney(p.cost),
+                                                  },
+                                            {
+                                                label: t(
+                                                    "observabilityUi.analytics.factFailedRuns",
+                                                ),
+                                                value: formatCount(p.failed),
+                                            },
                                             ...(focus?.dim === "model"
                                                 ? []
                                                 : [
                                                       {
-                                                          label: "Most used model",
+                                                          label: t(
+                                                              "observabilityUi.analytics.mostUsedModel",
+                                                          ),
                                                           value: topModel?.n ? topModel.k : "—",
                                                       },
                                                   ]),
                                             {
-                                                label: "Busiest agent",
+                                                label: t(
+                                                    "observabilityUi.analytics.factBusiestAgent",
+                                                ),
                                                 value: busiest?.n ? agentName(busiest.k) : "—",
                                             },
                                         ]}
@@ -428,7 +500,8 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                         window={window}
                         filters={filters}
                         focus={focus}
-                        dim={state.dim}
+                        dim={breakdownDim}
+                        dims={view.lockedAgentId ? LOCKED_AGENT_DIMS : undefined}
                         metric={metric}
                         agentName={agentName}
                         keyColor={keyColor}

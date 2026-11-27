@@ -1,0 +1,6 @@
+{
+    "audienceNote": "Everyone in this project can read a shared agent's {{platform}} chats, including direct messages. New chats with a private agent are visible only to its owner.",
+    "off": "Off",
+    "offIn": "Off · in {{places}}",
+    "turnOn": "Turn on"
+}

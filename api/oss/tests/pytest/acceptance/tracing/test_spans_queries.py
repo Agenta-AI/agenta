@@ -1,5 +1,5 @@
 import time
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -483,4 +483,105 @@ class TestSpansQueries:
         response = response.json()
         assert response["count"] == 1
         assert len(response["spans"]) == 1
+        # ----------------------------------------------------------------------
+
+
+@pytest.fixture(scope="class")
+def turn_data(authed_api):
+    run = uuid4().hex[:8]
+    session_id = f"session-{run}"
+    turn_id = f"turn-{run}"
+    first_trace_id = uuid4().hex
+    second_trace_id = uuid4().hex
+    now = int(time.time())
+    ag = {"session": {"id": session_id}, "turn": {"id": turn_id}}
+
+    def _span(trace_id, span_id, parent_id=None):
+        span = {
+            "trace_id": trace_id,
+            "span_id": span_id,
+            "span_name": f"turn_{run}_{span_id}",
+            "span_kind": "SPAN_KIND_INTERNAL",
+            "start_time": now - 60,
+            "end_time": now,
+            "status_code": "STATUS_CODE_OK",
+            "attributes": {"ag": ag},
+        }
+        if parent_id:
+            span["parent_id"] = parent_id
+        return span
+
+    # A root and two children, then a second trace of the same turn, as after
+    # an approval resume.
+    spans = [
+        _span(first_trace_id, "aaaaaaaaaaaaaaaa"),
+        _span(first_trace_id, "bbbbbbbbbbbbbbbb", "aaaaaaaaaaaaaaaa"),
+        _span(first_trace_id, "cccccccccccccccc", "aaaaaaaaaaaaaaaa"),
+        _span(second_trace_id, "dddddddddddddddd"),
+    ]
+
+    response = authed_api(
+        "POST",
+        "/tracing/spans/ingest",
+        json={"spans": spans},
+    )
+    assert response.status_code == 202
+    assert response.json()["count"] == len(spans)
+
+    wait_response = wait_for_response(
+        authed_api,
+        "POST",
+        "/tracing/spans/query",
+        json={
+            "focus": "span",
+            "filter": {
+                "conditions": [
+                    {"field": "turn_id", "operator": "is", "value": turn_id},
+                ]
+            },
+        },
+        condition_fn=lambda r: r.json().get("count", 0) >= len(spans),
+    )
+    assert wait_response.status_code == 200
+
+    return {
+        "session_id": session_id,
+        "turn_id": turn_id,
+        "trace_ids": {first_trace_id, second_trace_id},
+        "count": len(spans),
+    }
+
+
+class TestSpansQueriesBySessionAndTurn:
+    @pytest.mark.parametrize("field", ["turn_id", "session_id"])
+    def test_query_returns_every_span_with_both_ids(self, authed_api, turn_data, field):
+        # ACT ------------------------------------------------------------------
+        response = authed_api(
+            "POST",
+            "/tracing/spans/query",
+            json={
+                "focus": "span",
+                "filter": {
+                    "conditions": [
+                        {
+                            "field": field,
+                            "operator": "is",
+                            "value": turn_data[field],
+                        }
+                    ]
+                },
+            },
+        )
+        # ----------------------------------------------------------------------
+
+        # ASSERT ---------------------------------------------------------------
+        assert response.status_code == 200
+        response = response.json()
+        assert response["count"] == turn_data["count"]
+        spans = response["spans"]
+        assert {UUID(span["trace_id"]).hex for span in spans} == turn_data["trace_ids"]
+        assert sum(1 for span in spans if span.get("parent_id")) == 2
+        for span in spans:
+            assert span["session_id"] == turn_data["session_id"]
+            assert span["turn_id"] == turn_data["turn_id"]
         # ----------------------------------------------------------------------

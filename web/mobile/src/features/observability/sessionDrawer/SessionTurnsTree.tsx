@@ -1,5 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import sessionCatalog from "@agenta/i18n/catalogs/observability.sessionDrawer"
 import type {TraceSpanNode} from "@agenta/observability"
 import {TraceRow} from "@agenta/observability-ui"
 import {CustomTreeComponent, TraceTreeSettings} from "@agenta/observability-ui/traceDrawer"
@@ -20,12 +22,15 @@ interface SessionTurnsTreeProps {
 
 /** The "Session" root over one "Trace n" node per trace, with a search and the row settings. */
 export const SessionTurnsTree = ({traces, stats, selectedKey, onSelect}: SessionTurnsTreeProps) => {
+    const t = useT(sessionCatalog)
     const [search, setSearch] = useState("")
     const [settings, setSettings] = useAtom(observabilitySessionTreeSettingsAtom)
     const tree = useMemo(() => buildSessionTree(traces, stats, search), [traces, stats, search])
 
     const renderLabel = useCallback(
-        (node: SessionTreeNode) => <TraceRow span={node} metrics={settings} className="text-xs" />,
+        (node: SessionTreeNode) => (
+            <TraceRow span={node} metrics={settings} className="text-meta" />
+        ),
         [settings],
     )
 
@@ -34,18 +39,22 @@ export const SessionTurnsTree = ({traces, stats, selectedKey, onSelect}: Session
             <div className="box-border flex h-10 shrink-0 items-center gap-2 border-0 border-b border-solid border-border pl-4 pr-2">
                 <MagnifyingGlass size={14} className="shrink-0 text-muted-foreground" />
                 <Input
-                    placeholder="Search in session"
+                    placeholder={t("observability.sessionDrawer.searchInSession")}
                     className="w-full border-0 bg-transparent shadow-none focus-visible:ring-0"
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                 />
                 <Popover>
                     <PopoverTrigger asChild>
-                        <Button variant="ghost" size="icon-sm" aria-label="Tree settings">
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={t("observability.sessionDrawer.treeSettings")}
+                        >
                             <SlidersHorizontal size={14} />
                         </Button>
                     </PopoverTrigger>
-                    <PopoverContent side="bottom" align="end" className="!p-0 w-[240px]">
+                    <PopoverContent side="bottom" align="end" className="!p-0 w-60">
                         <TraceTreeSettings settings={settings} setSettings={setSettings} />
                     </PopoverContent>
                 </Popover>

@@ -2,7 +2,7 @@
 memberships_check - one-off operator job for the membership resolver release (M1).
 
 Run it from a checkout of the release branch, with the target database in the
-environment (`POSTGRES_URI_CORE`) and `AGENTA_LICENSE` set to the edition:
+environment (`POSTGRES_URI_CORE`, or `AGENTA_LICENSE` for the default database names):
 
     cd api
     uv run --no-sync python -m entrypoints.memberships_check --report [--out DIR]
@@ -768,7 +768,7 @@ async def _run_command(args) -> int:
         return 0
 
     if not is_ee():
-        print("--materialize runs only on EE (AGENTA_LICENSE=ee).")
+        print("--materialize needs the ee code in this image.")
         return 1
     result = await run_materialize()
     print(f"materialize: inserted={result['inserted']} updated={result['updated']}")

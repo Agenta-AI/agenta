@@ -1,5 +1,8 @@
 import {memo, useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiStatusCatalog from "@agenta/i18n/catalogs/ui.status"
+
 import {JSON_HIGHLIGHT_CLASS} from "./constants"
 import {getPrettyJsonEntries, safeJsonStringify, truncateContent} from "./utils"
 
@@ -33,6 +36,7 @@ const JsonCellContent = memo(
         truncate = true,
         pretty = false,
     }: JsonCellContentProps) => {
+        const t = useT(uiStatusCatalog)
         const prettyEntries = useMemo(
             () => (pretty ? getPrettyJsonEntries(value) : null),
             [pretty, value],
@@ -49,17 +53,18 @@ const JsonCellContent = memo(
                 : prettyEntries
 
             return (
-                <div className="flex flex-col gap-1 text-xs">
+                <div className="flex flex-col gap-1 text-meta">
                     {visibleEntries.map((entry) => (
                         <div key={entry.key} className="flex flex-col gap-0.5">
-                            <span className="font-medium text-blue-6">{entry.key}</span>
+                            <span className="font-medium text-foreground">{entry.key}</span>
                             <span className="whitespace-pre-wrap break-words">{entry.value}</span>
                         </div>
                     ))}
                     {truncate && prettyEntries.length > visibleEntries.length && (
                         <span className="italic">
-                            +{prettyEntries.length - visibleEntries.length} more field
-                            {prettyEntries.length - visibleEntries.length > 1 ? "s" : ""}
+                            {t("ui.status.moreFields", {
+                                count: prettyEntries.length - visibleEntries.length,
+                            })}
                         </span>
                     )}
                 </div>
@@ -68,7 +73,7 @@ const JsonCellContent = memo(
 
         return (
             <pre
-                className={`text-xs font-mono whitespace-pre-wrap break-words m-0 overflow-hidden ${JSON_HIGHLIGHT_CLASS}`}
+                className={`text-code-sm font-mono whitespace-pre-wrap break-words m-0 overflow-hidden ${JSON_HIGHLIGHT_CLASS}`}
             >
                 {displayString}
             </pre>

@@ -1,0 +1,9 @@
+{
+    "automations": "自動化",
+    "recentFiles": "最近のファイル",
+    "addAutomation": "自動化を追加",
+    "automationStarter": "次のような自動化がほしい:",
+    "createManually": "手動で作成",
+    "runOnScheduleOrEvent": "スケジュールまたはイベントで実行",
+    "workingFilesHint": "エージェントの作業ファイルです。実行中に読み書きするすべてのものが含まれます。会話を開くとここで閲覧できます。エージェント単位のストレージが導入されると、エージェントの永続フォルダーがサブフォルダーとして表示されます。"
+}

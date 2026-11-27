@@ -1,0 +1,13 @@
+{
+    "agentIcon": "Ícone do agente",
+    "backToPalette": "Voltar à paleta",
+    "couldNotLoad": "Não foi possível carregar os ícones",
+    "customColour": "Cor personalizada",
+    "hex": "Hex",
+    "hexColour": "Cor hexadecimal",
+    "noIconsFound": "Nenhum ícone encontrado",
+    "nothingMatches": "Nada corresponde a “{{search}}”",
+    "reset": "Redefinir",
+    "savesAsYouPick": "Salva ao escolher",
+    "searchIcons": "Pesquisar ícones"
+}

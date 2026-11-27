@@ -21,7 +21,7 @@ export const LiveEvaluatorSection = ({
     picked: Workflow | undefined
     error: string | null
     disabled?: boolean
-    /** Where "Open evaluator registry" goes. Null while the evaluators view is off: no link then. */
+    /** Where "Open evaluators" goes. Null while the evaluators view is off: no link then. */
     evaluatorsHref: string | null
     onPick: (evaluator: Workflow) => void
 }) => {
@@ -63,17 +63,17 @@ export const LiveEvaluatorSection = ({
             </Field>
             {list.noneSupported ? (
                 <div className="flex flex-col items-start gap-1">
-                    <p className="m-0 text-sm text-muted-foreground">
-                        No supported evaluators are available. Add an evaluator configured as
-                        Custom, LLM-as-a-judge, Code, Regex test, or Webhook test to continue.
+                    <p className="m-0 text-body text-muted-foreground">
+                        No evaluator can run on live traffic yet. Create an LLM-as-a-judge, code,
+                        regex, webhook, or custom evaluator to continue.
                     </p>
                     {evaluatorsHref ? (
                         <Link
                             href={evaluatorsHref}
                             prefetch={false}
-                            className="text-sm font-medium text-foreground underline"
+                            className="text-label text-foreground underline"
                         >
-                            Open evaluator registry
+                            Open evaluators
                         </Link>
                     ) : null}
                 </div>

@@ -4,6 +4,8 @@ import {
     workflowDetailQueryAtomFamily,
     workflowLatestRevisionIdAtomFamily,
 } from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import type {
     SidebarConfig,
     SidebarScope,
@@ -12,17 +14,13 @@ import type {
     SidebarSlotContext,
 } from "@agenta/navigation"
 import {SidebarBackButton, SidebarToggleButton} from "@agenta/navigation-ui"
-import {
-    TreeViewIcon,
-    DesktopIcon,
-    FlaskIcon,
-    LightningIcon,
-    RocketIcon,
-} from "@phosphor-icons/react"
+import {SkeletonBlock} from "@agenta/ui/ui"
+import {TreeViewIcon, DesktopIcon, FlaskIcon, RocketIcon, StackIcon} from "@phosphor-icons/react"
 import {atom, useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
+import {AgentSidebarHeader} from "../agent-sidebar/AgentSidebarHeader"
 import {useEnabledDeveloperViews} from "../developer/developerViewAccess"
 import type {DeveloperView} from "../developer/developerViews"
 import {evaluatorPlaygroundHref} from "../playground/playgroundUrl"
@@ -30,6 +28,7 @@ import {CreditsRemainingWidget} from "../wallet/CreditsRemainingWidget"
 
 import {lastMainRailPathAtom} from "./appRoute"
 import {DrawerProjectSwitcher} from "./DrawerProjectSwitcher"
+import {tNow, type NavTranslate} from "./observabilityNavItems"
 import {useMobileBottomNavItems} from "./useMobileNavItems"
 
 /** The app menu's scope id: its own open-groups bucket, apart from the main rail's. */
@@ -59,6 +58,7 @@ export const appNavItems = (
     appId: string,
     views: readonly DeveloperView[],
     evaluator: AppNavEvaluator | null = null,
+    t: NavTranslate = tNow,
 ): SidebarConfig[] => {
     const appURL = `${projectURL}/apps/${encodeURIComponent(appId)}`
     const playground: [viewId: string, link: string] = evaluator
@@ -75,7 +75,7 @@ export const appNavItems = (
             "app-overview",
             {
                 key: "app-overview",
-                title: "Overview",
+                title: t("navigation.items.overview"),
                 icon: <DesktopIcon size={16} />,
                 link: `${appURL}/overview`,
             },
@@ -84,7 +84,7 @@ export const appNavItems = (
             playground[0],
             {
                 key: "app-playground",
-                title: "Playground",
+                title: t("navigation.items.playground"),
                 icon: <RocketIcon size={16} />,
                 link: playground[1],
             },
@@ -93,8 +93,8 @@ export const appNavItems = (
             "variants",
             {
                 key: "app-registry",
-                title: "Registry",
-                icon: <LightningIcon size={16} />,
+                title: t("navigation.items.registry"),
+                icon: <StackIcon size={16} />,
                 link: `${appURL}/variants`,
             },
         ],
@@ -102,7 +102,7 @@ export const appNavItems = (
             "evaluations",
             {
                 key: "app-evaluations",
-                title: "Evaluations",
+                title: t("navigation.items.evaluations"),
                 icon: <FlaskIcon size={16} />,
                 link: `${appURL}/evaluations`,
             },
@@ -111,7 +111,7 @@ export const appNavItems = (
             null,
             {
                 key: "app-observability",
-                title: "Observability",
+                title: t("navigation.items.observability"),
                 icon: <TreeViewIcon size={16} />,
                 link: `${appURL}/traces`,
             },
@@ -129,7 +129,7 @@ export const appNavItems = (
 /** The switcher reads the app catalog, so its code and data load only inside an app. */
 const AppSwitcher = dynamic(() => import("./AppSwitcher").then((m) => m.AppSwitcher), {
     ssr: false,
-    loading: () => <span className="block h-8 w-full" aria-hidden />,
+    loading: () => <SkeletonBlock active className="h-row-dense w-full" />,
 })
 
 const ROUTE_SELECTION: SidebarSelection = {mode: "route"}
@@ -146,12 +146,16 @@ export const createMobileAppNavScope = (
         const views = useEnabledDeveloperViews()
         const bottomItems = useMobileBottomNavItems(projectURL)
         const evaluator = useAppNavEvaluator(appId)
+        const t = useT(navigationCatalog)
+        // Read into hook scope so the memo reruns when the shell swaps in another app's scope.
+        const scopeProjectURL = projectURL
+        const scopeAppId = appId
         return useMemo(
             () => [
-                {key: "app", items: appNavItems(projectURL, appId, views, evaluator)},
+                {key: "app", items: appNavItems(scopeProjectURL, scopeAppId, views, evaluator, t)},
                 {key: "bottom", items: bottomItems, placement: "bottom", mode: "vertical"},
             ],
-            [bottomItems, views, evaluator],
+            [bottomItems, views, evaluator, scopeProjectURL, scopeAppId, t],
         )
     }
 
@@ -164,24 +168,15 @@ export const createMobileAppNavScope = (
                 onBack={() => void router.push(lastPath ?? `${projectURL}/prompts`)}
             />
         )
-        const toggle = <SidebarToggleButton onDismiss={onDismiss} />
-        const row =
-            "flex w-full shrink-0 items-center border-0 border-b border-solid border-[var(--ag-shell-line)]"
         return (
-            <>
-                {/* Collapsed, the toggle keeps the spot every collapsed rail gives it, and Back
-                    takes the next row; expanded, Back and the toggle share one row. */}
-                <div
-                    className={`${row} h-[45px] ${collapsed ? "justify-center" : "justify-between px-1.5"}`}
-                >
-                    {collapsed ? toggle : back}
-                    {!collapsed && toggle}
-                </div>
-                {collapsed && <div className={`${row} h-[45px] justify-center`}>{back}</div>}
-                <div className={`${row} h-[45px] ${collapsed ? "justify-center" : "px-2"}`}>
+            <AgentSidebarHeader
+                collapsed={collapsed}
+                back={back}
+                toggle={<SidebarToggleButton onDismiss={onDismiss} />}
+                switcher={
                     <AppSwitcher projectURL={projectURL} appId={appId} collapsed={collapsed} />
-                </div>
-            </>
+                }
+            />
         )
     }
 

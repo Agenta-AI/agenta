@@ -1,5 +1,7 @@
 import {type ReactNode, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import drivePreviewCatalog from "@agenta/i18n/catalogs/entityUi.drivePreview"
 import {
     frameRectToRoot,
     PreviewCommentLayer,
@@ -53,6 +55,7 @@ export function OfficeViewerFrame({
     /** The file comments and pins belong to. */
     target: PreviewCommentTarget
 }) {
+    const t = useT(drivePreviewCatalog)
     const frameRef = useRef<HTMLIFrameElement>(null)
     const rootRef = useRef<HTMLDivElement>(null)
     const [script, setScript] = useState<string | null>(null)
@@ -238,7 +241,11 @@ export function OfficeViewerFrame({
                     ref={frameRef}
                     srcDoc={srcdoc}
                     sandbox={OFFICE_VIEWER_SANDBOX}
-                    title={kind === "document" ? "Document preview" : "Presentation preview"}
+                    title={
+                        kind === "document"
+                            ? t("entityUi.drivePreview.documentPreview")
+                            : t("entityUi.drivePreview.presentationPreview")
+                    }
                     // Same color scheme as the frame document, so the browser keeps its canvas transparent.
                     className={`min-h-0 w-full flex-1 border-0 [color-scheme:light] ${
                         state.status === "rendered" ? "" : "invisible"
@@ -264,23 +271,23 @@ export function OfficeViewerFrame({
                 />
             ) : null}
             {slides ? (
-                <div className="flex shrink-0 items-center justify-between gap-2 border-0 border-t border-solid border-colorBorderSecondary px-2 py-1">
+                <div className="flex shrink-0 items-center justify-between gap-2 border-0 border-t border-solid border-border-muted px-2 py-1">
                     <Button
                         variant="ghost"
                         size="icon"
-                        aria-label="Previous slide"
+                        aria-label={t("entityUi.drivePreview.previousSlide")}
                         disabled={slides.index <= 0}
                         onClick={() => step(-1)}
                     >
                         <CaretLeft />
                     </Button>
-                    <span className="min-w-12 text-center text-xs tabular-nums text-colorTextSecondary">
+                    <span className="min-w-12 text-center text-meta tabular-nums text-muted-foreground">
                         {slides.index + 1} / {slides.slideCount}
                     </span>
                     <Button
                         variant="ghost"
                         size="icon"
-                        aria-label="Next slide"
+                        aria-label={t("entityUi.drivePreview.nextSlide")}
                         disabled={slides.index >= slides.slideCount - 1}
                         onClick={() => step(1)}
                     >
@@ -289,20 +296,23 @@ export function OfficeViewerFrame({
                 </div>
             ) : null}
             {pages ? (
-                <div className="flex shrink-0 items-center justify-between gap-2 border-0 border-t border-solid border-colorBorderSecondary px-3 py-1">
-                    <span className="text-xs tabular-nums text-colorTextSecondary">
+                <div className="flex shrink-0 items-center justify-between gap-2 border-0 border-t border-solid border-border-muted px-3 py-1">
+                    <span className="text-meta tabular-nums text-muted-foreground">
                         {reflow || !pages.slideCount
                             ? ""
-                            : `Page ${pages.index + 1} of ${pages.slideCount}`}
+                            : t("entityUi.drivePreview.pageOf", {
+                                  page: pages.index + 1,
+                                  total: pages.slideCount,
+                              })}
                     </span>
                     <Segmented
                         size="sm"
-                        aria-label="Layout"
+                        aria-label={t("entityUi.drivePreview.layout")}
                         value={reflow ? "reflow" : "pages"}
                         onChange={(v) => layout(v === "reflow")}
                         options={[
-                            {value: "reflow", label: "Reflow"},
-                            {value: "pages", label: "Pages"},
+                            {value: "reflow", label: t("entityUi.drivePreview.reflow")},
+                            {value: "pages", label: t("entityUi.drivePreview.pages")},
                         ]}
                     />
                 </div>

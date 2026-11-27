@@ -1,0 +1,7 @@
+{
+    "title": "Describe your agent",
+    "subtitle": "Say what it should do and when. It starts working on this as its first task.",
+    "starters": "Message ideas",
+    "modelMissing": "Your agent needs a model to run.",
+    "modelMissingAction": "Choose one"
+}

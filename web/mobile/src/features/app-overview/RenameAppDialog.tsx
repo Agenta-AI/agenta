@@ -22,7 +22,7 @@ import {useAtomValue} from "jotai"
 import {useAppRename} from "./useAppRename"
 
 const Detail = ({label, children}: {label: string; children: ReactNode}) => (
-    <div className="flex min-w-0 items-center justify-between gap-3 text-sm">
+    <div className="flex min-w-0 items-center justify-between gap-3 text-body">
         <span className="shrink-0 text-muted-foreground">{label}</span>
         <span className="flex min-w-0 items-center gap-1">{children}</span>
     </div>
@@ -95,7 +95,7 @@ export const RenameAppDialog = ({
                     className="flex min-w-0 flex-col gap-4"
                     onSubmit={(event) => void submit(event)}
                 >
-                    <label className="flex flex-col gap-1.5 text-sm font-medium">
+                    <label className="flex flex-col gap-1.5 text-label">
                         Name
                         <Input
                             value={name}
@@ -103,15 +103,15 @@ export const RenameAppDialog = ({
                             onChange={(event) => setNameDraft(event.target.value)}
                         />
                         {nameError ? (
-                            <span role="alert" className="text-sm font-normal text-destructive">
+                            <span role="alert" className="text-body text-destructive">
                                 {nameError}
                             </span>
                         ) : null}
                     </label>
-                    <label className="flex flex-col gap-1.5 text-sm font-medium">
+                    <label className="flex flex-col gap-1.5 text-label">
                         Description
                         {loadingDescription ? (
-                            <Skeleton className="h-[72px] w-full" />
+                            <Skeleton className="h-18 w-full" />
                         ) : (
                             <Textarea
                                 value={description}

@@ -1,3 +1,5 @@
+import {useT, createT} from "@agenta/i18n"
+import billingPlanSummaryCardCatalog from "@agenta/i18n/catalogs/billing.planSummaryCard"
 import type {BillingPlanOption, BillingSubscription} from "@agenta/settings-ui"
 import {Button} from "@agenta/ui/ui"
 import {Coins} from "@phosphor-icons/react"
@@ -7,15 +9,29 @@ import {formatCredits, formatDate} from "../wallet/walletFormat"
 import {CONTACT_URL, periodEnd, planName, planPrice} from "./billingFormat"
 import {creditsLine} from "./planCatalog"
 
-/** The trial's state, else when the plan renews; nothing for a plan that never renews. */
-const renewal = (subscription: BillingSubscription | null | undefined, isOnFreePlan: boolean) => {
+const tNow = createT(billingPlanSummaryCardCatalog)
+
+/**
+ * The trial's state, else when the plan renews; nothing for a plan that never renews. A
+ * self-hosted plan does not renew: a paid key's expiry is on the License tab.
+ */
+const renewal = (
+    subscription: BillingSubscription | null | undefined,
+    isOnFreePlan: boolean,
+    selfHosted: boolean,
+) => {
     const end = periodEnd(subscription)
-    if (!end || isOnFreePlan) return null
+    if (!end || isOnFreePlan || selfHosted) return null
     if (subscription?.free_trial)
         return end > new Date()
-            ? `Trial ends ${formatDate(end.toISOString())}`
-            : `Trial ended ${formatDate(end.toISOString())}`
-    return `Renews ${formatDate(end.toISOString())}`
+            ? tNow("billing.planSummaryCard.trialEnds", {date: formatDate(end.toISOString())})
+            : tNow("billing.planSummaryCard.trialEnded", {
+                  date: formatDate(end.toISOString()),
+              })
+    // A period end already behind us is stale; a past "Renews" date would be false.
+    return end > new Date()
+        ? tNow("billing.planSummaryCard.renews", {date: formatDate(end.toISOString())})
+        : null
 }
 
 /** The plan the organization is on, what it costs and grants, and the ways to change it. */
@@ -25,6 +41,7 @@ export const PlanSummaryCard = ({
     monthlyCreditsMusd,
     isOnFreePlan,
     isCustomPlan,
+    selfHosted = false,
     onChangePlan,
     onCancel,
 }: {
@@ -35,37 +52,40 @@ export const PlanSummaryCard = ({
     monthlyCreditsMusd: number | null
     isOnFreePlan: boolean
     isCustomPlan: boolean
+    /** The install is self-hosted: its plan comes from the license key, not from billing. */
+    selfHosted?: boolean
     onChangePlan?: () => void
     onCancel?: () => void
 }) => {
+    const t = useT(billingPlanSummaryCardCatalog)
     const name = plan?.title ?? planName(subscription?.plan) ?? "—"
-    const renews = renewal(subscription, isOnFreePlan)
+    const renews = renewal(subscription, isOnFreePlan, selfHosted)
 
     const price = planPrice(plan)
     // The wallet's live grant wins; the catalog's line covers plans the wallet does not grant.
     const credits = monthlyCreditsMusd
-        ? `${formatCredits(monthlyCreditsMusd)} credits a month`
+        ? t("billing.planSummaryCard.creditsAMonth", {credits: formatCredits(monthlyCreditsMusd)})
         : plan
           ? creditsLine(plan)
           : null
 
     // Scoped to `.dark` so the card reads as the design's dark card in both themes.
     return (
-        <section className="dark bg-card text-foreground ring-border box-border flex min-h-[176px] min-w-0 flex-col gap-3 rounded-2xl px-5 py-[18px] ring-1 ring-inset">
+        <section className="dark bg-card text-foreground ring-border box-border flex min-h-44 min-w-0 flex-col gap-3 rounded-lg px-5 py-5 ring-1 ring-inset">
             <div className="flex items-center justify-between gap-3">
-                <span className="text-muted-foreground text-[13px]">Current plan</span>
+                <span className="text-muted-foreground text-label">
+                    {t("billing.planSummaryCard.currentPlan")}
+                </span>
                 {renews ? (
-                    <span className="text-muted-foreground truncate text-xs">{renews}</span>
+                    <span className="text-muted-foreground truncate text-meta">{renews}</span>
                 ) : null}
             </div>
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-2.5">
-                <span className="truncate text-[30px] font-semibold capitalize leading-9 tracking-[-0.02em]">
-                    {name}
-                </span>
+                <span className="truncate text-heading capitalize">{name}</span>
                 {price ? <span className="text-muted-foreground">{price}</span> : null}
             </div>
             {credits ? (
-                <span className="bg-hero-action/15 text-hero-action inline-flex h-[26px] items-center gap-1.5 self-start whitespace-nowrap rounded-full px-2.5 text-[13px]">
+                <span className="bg-brand/15 text-brand inline-flex h-control-sm items-center gap-1.5 self-start whitespace-nowrap rounded-md px-2.5 text-label">
                     <Coins size={14} />
                     {credits}
                 </span>
@@ -75,9 +95,9 @@ export const PlanSummaryCard = ({
                     href={CONTACT_URL}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-muted-foreground hover:text-foreground mt-auto text-[13px]"
+                    className="text-muted-foreground hover:text-foreground mt-auto text-label"
                 >
-                    Contact us about your plan
+                    {t("billing.planSummaryCard.contactUs")}
                 </a>
             ) : onChangePlan ? (
                 <div className="mt-auto flex flex-wrap items-center gap-3.5">
@@ -86,15 +106,17 @@ export const PlanSummaryCard = ({
                         className="bg-foreground text-background hover:bg-foreground/90"
                         onClick={onChangePlan}
                     >
-                        {isOnFreePlan ? "Upgrade plan" : "Change plan"}
+                        {isOnFreePlan
+                            ? t("billing.planSummaryCard.upgradePlan")
+                            : t("billing.planSummaryCard.changePlan")}
                     </Button>
                     {!isOnFreePlan && onCancel ? (
                         <button
                             type="button"
-                            className="text-muted-foreground hover:text-foreground cursor-pointer border-0 bg-transparent p-0 text-[13px]"
+                            className="text-muted-foreground hover:text-foreground cursor-pointer border-0 bg-transparent p-0 text-label"
                             onClick={onCancel}
                         >
-                            Cancel subscription
+                            {t("billing.planSummaryCard.cancelSubscription")}
                         </button>
                     ) : null}
                 </div>

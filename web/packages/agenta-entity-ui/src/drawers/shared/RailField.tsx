@@ -11,6 +11,8 @@
  */
 import {createContext, useContext, type ReactNode} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import drawerSharedCatalog from "@agenta/i18n/catalogs/entityUi.drawerShared"
 import {cn} from "@agenta/ui/styles"
 import {
     Button,
@@ -26,6 +28,8 @@ import {ArrowCounterClockwise, Info} from "@phosphor-icons/react"
 
 import {useChangedDetail, useChangedPath, useRevertPath} from "./ChangedPathsContext"
 import {useIsPathVisible} from "./FocusPathsContext"
+
+const tNow = createT(drawerSharedCatalog)
 
 /** How a {@link RailField} lays its label out: two-column rail, or label above the control. */
 const FieldLayoutContext = createContext<"rail" | "stacked">("rail")
@@ -66,7 +70,7 @@ export const railInfoLabel = (label: ReactNode, hint: ReactNode): ReactNode => (
         <TooltipProvider>
             <Tooltip>
                 <TooltipTrigger asChild>
-                    <Info size={13} className="shrink-0 text-[var(--ag-colorTextTertiary)]" />
+                    <Info size={13} className="shrink-0 text-muted-foreground" />
                 </TooltipTrigger>
                 <TooltipContent>{hint}</TooltipContent>
             </Tooltip>
@@ -77,7 +81,7 @@ export const railInfoLabel = (label: ReactNode, hint: ReactNode): ReactNode => (
 // Unpack the classifier's JSON.stringify'd scalar back to what the field shows (one rule per line),
 // naming the empty cases rather than printing wire syntax like `[]`.
 export function formatCommitted(before: string | undefined): {text: string; muted: boolean} {
-    if (before === undefined) return {text: "Not set", muted: true}
+    if (before === undefined) return {text: tNow("entityUi.drawerShared.notSet"), muted: true}
     let value: unknown = before
     try {
         value = JSON.parse(before)
@@ -87,15 +91,17 @@ export function formatCommitted(before: string | undefined): {text: string; mute
     if (Array.isArray(value)) {
         return value.length
             ? {text: value.map((entry) => String(entry)).join("\n"), muted: false}
-            : {text: "Empty", muted: true}
+            : {text: tNow("entityUi.drawerShared.empty"), muted: true}
     }
     if (value && typeof value === "object") {
         return Object.keys(value).length
             ? {text: JSON.stringify(value, null, 2), muted: false}
-            : {text: "Empty", muted: true}
+            : {text: tNow("entityUi.drawerShared.empty"), muted: true}
     }
     const text = String(value ?? "")
-    return text.trim() ? {text, muted: false} : {text: "Empty", muted: true}
+    return text.trim()
+        ? {text, muted: false}
+        : {text: tNow("entityUi.drawerShared.empty"), muted: true}
 }
 
 // The committed value ("changed from what?") and its undo on one surface: the value shown IS the
@@ -107,25 +113,26 @@ function ChangedDetail({
     before: string | undefined
     onRevert: (() => void) | null
 }) {
+    const t = useT(drawerSharedCatalog)
     const {text, muted} = formatCommitted(before)
     return (
         <div className="flex w-[200px] flex-col gap-2">
-            <div className="text-xs uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                Committed value
+            <div className="text-meta text-muted-foreground">
+                {t("entityUi.drawerShared.committedValue")}
             </div>
             <div
-                className={`max-h-28 overflow-auto whitespace-pre-wrap break-words rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] px-2 py-1 text-xs ${
-                    muted
-                        ? "italic text-[var(--ag-colorTextTertiary)]"
-                        : "font-mono text-[var(--ag-colorText)]"
+                className={`max-h-28 overflow-auto whitespace-pre-wrap break-words rounded border border-solid border-border-muted bg-secondary px-2 py-1 text-meta ${
+                    muted ? "italic text-muted-foreground" : "font-mono text-foreground"
                 }`}
             >
                 {text}
             </div>
             {onRevert ? (
-                <Button variant="outline" onClick={onRevert} className="w-full text-xs">
+                <Button variant="outline" onClick={onRevert} className="w-full text-meta">
                     <ArrowCounterClockwise size={13} />
-                    {before === undefined ? "Remove change" : "Restore"}
+                    {before === undefined
+                        ? t("entityUi.drawerShared.removeChange")
+                        : t("entityUi.drawerShared.restore")}
                 </Button>
             ) : null}
         </div>
@@ -148,7 +155,7 @@ export function RailField({label, align = "top", path, wide, children}: RailFiel
                 {/* A real button, so the keyboard can reach the change detail and its Restore. */}
                 <button
                     type="button"
-                    className="cursor-pointer border-0 bg-transparent p-0 font-[inherit] text-inherit underline decoration-[var(--ag-colorInfo)] decoration-dotted underline-offset-4 outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                    className="cursor-pointer border-0 bg-transparent p-0 font-[inherit] text-inherit underline decoration-info decoration-dotted underline-offset-4 outline-none focus-ring"
                 >
                     {label}
                 </button>
@@ -167,11 +174,7 @@ export function RailField({label, align = "top", path, wide, children}: RailFiel
         return (
             <div className="flex flex-col gap-1.5">
                 <span
-                    className={`text-xs ${
-                        changed
-                            ? "text-[var(--ag-colorText)]"
-                            : "text-[var(--ag-colorTextDescription)]"
-                    }`}
+                    className={`text-meta ${changed ? "text-foreground" : "text-muted-foreground"}`}
                 >
                     {labelNode}
                 </span>
@@ -184,15 +187,15 @@ export function RailField({label, align = "top", path, wide, children}: RailFiel
         // Below sm the 116px label column left the control a few dozen px, so the label stacks.
         <div className="flex flex-col gap-1.5 sm:flex-row sm:gap-3">
             <div
-                className={`box-border w-full px-0 text-xs sm:w-[116px] sm:shrink-0 sm:px-2.5 ${
+                className={`box-border w-full px-0 text-meta sm:w-[116px] sm:shrink-0 sm:px-2.5 ${
                     align === "center" ? "sm:self-center" : "sm:pt-1.5"
-                } ${changed ? "text-[var(--ag-colorText)]" : "text-[var(--ag-colorTextSecondary)]"}`}
+                } ${changed ? "text-foreground" : "text-muted-foreground"}`}
             >
                 {labelNode}
             </div>
             <div
                 className={cn(
-                    "flex min-w-0 flex-1 flex-col border-0 border-solid border-[var(--ag-colorBorderSecondary)] sm:border-l sm:pl-3",
+                    "flex min-w-0 flex-1 flex-col border-0 border-solid border-border-muted sm:border-l sm:pl-3",
                     !wide && "max-w-prose",
                 )}
             >

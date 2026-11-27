@@ -8,6 +8,8 @@ import {
 } from "@agenta/chat/components"
 import {useVoiceComposer, type useComposerAttachments} from "@agenta/chat/hooks"
 import {AgentPicker} from "@agenta/entity-ui/agent"
+import {useT} from "@agenta/i18n"
+import composerCatalog from "@agenta/i18n/catalogs/home.composer"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {Button} from "@agenta/ui/ui"
 import {XIcon} from "@phosphor-icons/react"
@@ -84,9 +86,6 @@ export interface HomeTaskComposerProps {
     ring?: boolean
 }
 
-const TASK_PLACEHOLDER = "Describe the task, or start the conversation…"
-const CREATE_PLACEHOLDER = "Describe the agent you want — what it does, when it runs…"
-
 /** What the composer is aimed at, named under the input. One shape for an agent and a template —
  * only the tile differs, and two copies of this row is how they stop matching. */
 const DockLabel = ({
@@ -101,7 +100,7 @@ const DockLabel = ({
     clearLabel?: string
 }) => (
     <>
-        <span className="flex min-w-0 items-center gap-1.5 pl-1 text-[12px] text-foreground">
+        <span className="flex min-w-0 items-center gap-1.5 pl-1 text-meta text-foreground">
             {tile}
             <span className="min-w-0 truncate">{name}</span>
         </span>
@@ -155,6 +154,7 @@ export const HomeTaskComposer = ({
     hideDock,
     ring = true,
 }: HomeTaskComposerProps) => {
+    const t = useT(composerCatalog)
     const effectiveAgentId = fixedAgentId ?? agentId ?? null
     const creating = mode === "create"
     const ringed = creating && ring
@@ -179,7 +179,7 @@ export const HomeTaskComposer = ({
         <DockLabel
             tile={
                 <span
-                    className="flex size-5 shrink-0 items-center justify-center rounded-control-sm text-[10px] font-medium text-white"
+                    className="flex size-5 shrink-0 items-center justify-center rounded-control-sm text-caption font-medium text-white"
                     style={{background: template.color}}
                 >
                     {template.initials}
@@ -187,7 +187,7 @@ export const HomeTaskComposer = ({
             }
             name={template.name}
             onClear={onClear}
-            clearLabel="Clear this template"
+            clearLabel={t("home.composer.clearTemplate")}
         />
     ) : fixedAgentId ? null : (
         // The app's one AgentPicker, not a label. A name that only READ as text gave no sign it
@@ -203,13 +203,13 @@ export const HomeTaskComposer = ({
             trigger="pill"
             density="compact"
             value={creating ? null : effectiveAgentId}
-            placeholder="New agent"
+            placeholder={t("home.composer.newAgent")}
             onChange={(id) => onAgentChange?.(id)}
             disabled={!onAgentChange}
             onCreateAgent={creating ? undefined : onClear}
-            triggerAriaLabel="Agent"
+            triggerAriaLabel={t("home.composer.agent")}
             // The dock is already a surface; a filled pill on it is a box within a box.
-            triggerClassName="bg-transparent px-1 text-[12px] font-normal hover:bg-accent"
+            triggerClassName="bg-transparent px-1 hover:bg-accent"
         />
     )
 
@@ -235,7 +235,7 @@ export const HomeTaskComposer = ({
                             className="animate-composer-ring absolute left-1/2 top-1/2 w-[170%] pb-[170%]"
                             style={{
                                 background:
-                                    "conic-gradient(from 0deg, transparent 0 58%, color-mix(in oklab, var(--ag-colorText) 50%, transparent) 80%, transparent 100%)",
+                                    "conic-gradient(from 0deg, transparent 0 58%, color-mix(in oklab, var(--foreground) 50%, transparent) 80%, transparent 100%)",
                             }}
                         />
                     </div>
@@ -245,7 +245,7 @@ export const HomeTaskComposer = ({
                 <div
                     className={
                         ringed
-                            ? "relative flex flex-col overflow-hidden rounded-lg bg-[var(--ag-colorBgContainer)]"
+                            ? "relative flex flex-col overflow-hidden rounded-lg bg-background"
                             : "relative flex flex-col"
                     }
                 >
@@ -273,7 +273,10 @@ export const HomeTaskComposer = ({
                         }}
                         attachments={attachments}
                         placeholder={
-                            placeholder ?? (creating ? CREATE_PLACEHOLDER : TASK_PLACEHOLDER)
+                            placeholder ??
+                            (creating
+                                ? t("home.composer.createPlaceholder")
+                                : t("home.composer.taskPlaceholder"))
                         }
                         initialMarkdown={initialMarkdown}
                         onChange={onChange}
@@ -302,11 +305,7 @@ export const HomeTaskComposer = ({
                         // RichChatInput composes with clsx, so a plain class would be left to
                         // stylesheet order against its own `focus-within:border-*`.
                         className={
-                            ringed
-                                ? "!border-transparent"
-                                : creating
-                                  ? "!bg-[var(--ag-colorBgContainer)]"
-                                  : undefined
+                            ringed ? "!border-transparent" : creating ? "!bg-background" : undefined
                         }
                     />
                 </div>
@@ -320,17 +319,9 @@ export const HomeTaskComposer = ({
                     </div>
                 ) : null}
             </div>
-            {/* Docked UNDER the composer, not inside its footer: what the message is aimed at is a
-                standing fact about the composer, and in the footer it competed for the same row as
-                the actions you take on this one message.
-                
-                It slides BEHIND the composer — transparent, the divider step for a border, inset
-                1px to match the ring wrapper's own padding — so the composer keeps its shape and
-                only the dock's sides and foot show. No top border: the composer's fill is 4%
-                opaque, so a line tucked under it shows straight THROUGH rather than behind, and
-                its own bottom edge is the rule between them. */}
+            {/* Docked under the composer, 1px wider on each side so its edges meet the composer's outer edge. */}
             {dock ? (
-                <div className="-mt-6 mx-px flex items-center gap-2 rounded-b-lg border border-t-0 border-solid border-[var(--ag-colorSplit)] bg-transparent px-2.5 pb-1 pt-7">
+                <div className="-mt-6 flex items-center gap-2 rounded-b-lg border border-t-0 border-solid border-border-muted bg-transparent px-2.5 pb-1 pt-7">
                     {dock}
                 </div>
             ) : null}

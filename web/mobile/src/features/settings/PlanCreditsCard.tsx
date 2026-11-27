@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import billingPlanCreditsCardCatalog from "@agenta/i18n/catalogs/billing.planCreditsCard"
 import {analyticsColor} from "@agenta/observability-ui/analytics"
 
 import {AnimatedNumber} from "@/components/AnimatedNumber"
@@ -13,36 +15,50 @@ export const PlanCreditsCard = ({
     monthly: WalletCredit | null
     balanceMusd: number
 }) => {
+    const t = useT(billingPlanCreditsCardCatalog)
     const color = analyticsColor(monthly ? "series4" : "series1")
     const left = monthly ? (monthly.remaining_musd / monthly.amount_musd) * 100 : null
     return (
-        <section className="bg-muted box-border flex min-h-[176px] min-w-0 flex-col rounded-2xl px-5 py-[18px]">
-            <span className="text-muted-foreground flex items-center gap-2 text-[13px]">
-                <span className="size-2 shrink-0 rounded-full" style={{background: color}} />
-                {monthly ? "Monthly credits left" : "Credits left"}
+        <section className="bg-muted box-border flex min-h-44 min-w-0 flex-col rounded-lg px-5 py-5">
+            <span className="text-muted-foreground flex items-center gap-2 text-label">
+                <span className="size-2 shrink-0 rounded-xs" style={{background: color}} />
+                {monthly
+                    ? t("billing.planCreditsCard.monthlyCreditsLeft")
+                    : t("billing.planCreditsCard.creditsLeft")}
             </span>
             <span className="mt-auto flex min-w-0 items-baseline gap-2 whitespace-nowrap">
-                <span className="text-[30px] font-semibold leading-9 tracking-[-0.02em]">
+                <span className="text-heading">
                     <AnimatedNumber
                         value={formatCredits(monthly ? monthly.remaining_musd : balanceMusd)}
                     />
                 </span>
                 <span className="text-muted-foreground tabular-nums">
-                    {monthly ? `of ${formatCredits(monthly.amount_musd)}` : "credits"}
+                    {monthly
+                        ? t("billing.planCreditsCard.ofTotal", {
+                              total: formatCredits(monthly.amount_musd),
+                          })
+                        : t("billing.planCreditsCard.credits")}
                 </span>
             </span>
             {left === null ? null : (
-                <span className="bg-accent mb-2 mt-2.5 block h-1.5 overflow-hidden rounded-full">
+                <span className="bg-accent mb-2 mt-2.5 block h-1.5 overflow-hidden rounded-sm">
                     <span
-                        className="block h-full rounded-full"
+                        className="block h-full rounded-md"
                         style={{width: `${Math.min(100, left)}%`, background: color}}
                     />
                 </span>
             )}
-            <span className="text-muted-foreground text-[13px]">
+            <span className="text-muted-foreground text-label">
                 {monthly
-                    ? `${monthly.end_time ? `Resets ${formatDate(monthly.end_time)} · ` : ""}total balance ${formatCredits(balanceMusd)} credits`
-                    : "Every credit your organization can spend right now."}
+                    ? monthly.end_time
+                        ? t("billing.planCreditsCard.resetsAndBalance", {
+                              date: formatDate(monthly.end_time),
+                              balance: formatCredits(balanceMusd),
+                          })
+                        : t("billing.planCreditsCard.totalBalance", {
+                              balance: formatCredits(balanceMusd),
+                          })
+                    : t("billing.planCreditsCard.everyCredit")}
             </span>
         </section>
     )

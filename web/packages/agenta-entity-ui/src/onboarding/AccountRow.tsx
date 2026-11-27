@@ -29,6 +29,8 @@ import {
     useToolIntegrationDetail,
 } from "@agenta/entities/gatewayTool"
 import {PROVIDERS, type DetectedAccount} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import onboardingCatalog from "@agenta/i18n/catalogs/entityUi.onboarding"
 import {Button} from "@agenta/ui/ui"
 import {CheckCircle, Plugs} from "@phosphor-icons/react"
 import clsx from "clsx"
@@ -87,6 +89,7 @@ const AccountRow = ({
     open = false,
     onToggle,
 }: AccountRowProps) => {
+    const t = useT(onboardingCatalog)
     // The provider this row is currently about. Everything below follows it.
     const active = selectedSlug ?? satisfiedVia ?? account.slug
     const {integration: detail} = useToolIntegrationDetail(active)
@@ -100,7 +103,6 @@ const AccountRow = ({
      * no "will use, connect next" limbo, and no revert bookkeeping.
      */
     const [drawerSlug, setDrawerSlug] = useState<string | null>(null)
-    const {integration: drawerDetail} = useToolIntegrationDetail(drawerSlug ?? active)
 
     useEffect(() => {
         // Report the provider the row is acting as, so gating counts the actual choice — and
@@ -125,10 +127,7 @@ const AccountRow = ({
         <ConnectDrawer
             open={connectOpen}
             integrationKey={drawerFor}
-            integrationName={drawerDetail?.name ?? providerLabel(drawerFor)}
-            integrationLogo={drawerDetail?.logo ?? PROVIDERS[drawerFor]?.logo ?? undefined}
-            integrationDescription={account.why}
-            authSchemes={drawerDetail?.auth_schemes ?? ["oauth"]}
+            description={account.why}
             onClose={() => {
                 setConnectOpen(false)
                 setDrawerSlug(null)
@@ -165,8 +164,8 @@ const AccountRow = ({
                             label={providerLabel(slug)}
                             sublabel={
                                 optionConnected ? (
-                                    <span className="text-[10px] text-[var(--ag-colorSuccess)]">
-                                        Connected
+                                    <span className="text-caption text-success">
+                                        {t("entityUi.onboarding.connected")}
                                     </span>
                                 ) : null
                             }
@@ -187,7 +186,11 @@ const AccountRow = ({
         ) : null
 
     if (accordion) {
-        const stateText = connected ? "Connected" : account.required ? "Required" : "Optional"
+        const stateText = connected
+            ? t("entityUi.onboarding.connected")
+            : account.required
+              ? t("entityUi.onboarding.required")
+              : t("entityUi.onboarding.optional")
         return (
             <SetupSection
                 icon={connected ? "done" : blocking ? "warning" : "idle"}
@@ -204,7 +207,7 @@ const AccountRow = ({
                 after={connectDrawer}
             >
                 {account.why ? (
-                    <p className="m-0 text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
+                    <p className="m-0 text-meta leading-snug text-muted-foreground">
                         {account.why}
                     </p>
                 ) : null}
@@ -215,7 +218,7 @@ const AccountRow = ({
                 {!connected && !providerCards ? (
                     <div className="flex items-center gap-1">
                         <Button variant="outline" size="sm" onClick={() => setConnectOpen(true)}>
-                            Connect
+                            {t("entityUi.onboarding.connect")}
                         </Button>
                     </div>
                 ) : null}
@@ -228,14 +231,14 @@ const AccountRow = ({
             className={clsx(
                 "rounded-lg border border-solid p-3 transition-colors",
                 connected
-                    ? "border-[var(--ag-colorSuccessBorder)] bg-[var(--ag-colorSuccessBg)]"
+                    ? "border-success/30 bg-success/10"
                     : blocking
-                      ? "border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)]"
-                      : "border-[var(--ag-colorBorderSecondary)]",
+                      ? "border-warning/30 bg-warning/10"
+                      : "border-border-muted",
             )}
         >
             <div className="flex items-center gap-3">
-                <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgContainer)]">
+                <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-solid border-border-muted bg-background">
                     {logo ? (
                         <Image
                             src={logo}
@@ -246,36 +249,37 @@ const AccountRow = ({
                             className="object-contain"
                         />
                     ) : (
-                        <Plugs size={18} className="text-[var(--ag-colorTextSecondary)]" />
+                        <Plugs size={18} className="text-muted-foreground" />
                     )}
                 </span>
 
                 <div className="min-w-0 flex-1">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
-                        <span className="truncate text-xs font-medium text-[var(--ag-colorText)]">
+                        <span className="truncate text-label font-medium text-foreground">
                             {name}
                         </span>
                         {/* Static fallback for hosts without selection (the drawer): the choice is
                             at least stated, even where it cannot be taken. */}
                         {!onSelect && !connected && options.length ? (
-                            <span className="shrink-0 text-[10px] text-[var(--ag-colorTextTertiary)]">
-                                or{" "}
-                                {options
-                                    .filter((slug) => slug !== active)
-                                    .map(providerLabel)
-                                    .join(" or ")}
+                            <span className="shrink-0 text-caption text-muted-foreground">
+                                {t("entityUi.onboarding.orProviders", {
+                                    providers: options
+                                        .filter((slug) => slug !== active)
+                                        .map(providerLabel)
+                                        .join(t("entityUi.onboarding.orSeparator")),
+                                })}
                             </span>
                         ) : null}
                         {account.required ? (
-                            <span className="shrink-0 rounded-full border border-solid border-[var(--ag-colorWarningBorder)] px-1.5 text-[10px] font-medium text-[var(--ag-colorWarning)]">
-                                Required
+                            <span className="shrink-0 rounded-md border border-solid border-warning/30 px-1.5 text-caption font-medium text-warning">
+                                {t("entityUi.onboarding.required")}
                             </span>
                         ) : null}
                     </div>
                     {/* Only a template row carries a scope line; a detected one has nothing
                         per-account to say, so it gets no second line at all. */}
                     {account.why ? (
-                        <div className="truncate text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
+                        <div className="truncate text-meta leading-snug text-muted-foreground">
                             {account.why}
                         </div>
                     ) : null}
@@ -283,13 +287,13 @@ const AccountRow = ({
 
                 <div className="flex shrink-0 items-center gap-1">
                     {connected ? (
-                        <span className="flex items-center gap-1 text-xs font-medium text-[var(--ag-colorSuccess)]">
+                        <span className="flex items-center gap-1 text-label font-medium text-success">
                             <CheckCircle size={13} weight="fill" />
-                            Connected
+                            {t("entityUi.onboarding.connected")}
                         </span>
                     ) : (
                         <Button variant="outline" size="sm" onClick={() => setConnectOpen(true)}>
-                            Connect
+                            {t("entityUi.onboarding.connect")}
                         </Button>
                     )}
                 </div>

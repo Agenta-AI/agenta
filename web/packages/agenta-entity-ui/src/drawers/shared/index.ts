@@ -6,7 +6,6 @@
 export {RailField, FieldLayoutProvider, railInfoLabel, type RailFieldProps} from "./RailField"
 export {SectionRail, type SectionRailItem, type SectionRailProps} from "./SectionRail"
 export {DrawerFooter} from "./DrawerFooter"
-export {RowRemoveButton} from "./RowRemoveButton"
 export {AddItemMenu, type AddItemGroup, type AddItemMenuItem} from "./AddItemMenu"
 export {AppCard, AppLogo} from "./CatalogAppCard"
 export {CatalogChooser, type CatalogChooserProps, type CatalogItemState} from "./CatalogChooser"

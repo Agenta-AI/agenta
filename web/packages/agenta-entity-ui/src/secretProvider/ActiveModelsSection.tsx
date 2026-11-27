@@ -1,30 +1,32 @@
 /** A connection's model list, with one field that searches it and adds IDs it lacks. */
 import {useMemo, useState} from "react"
 
-import {
-    activeModelsCount,
-    modelListView,
-    relativeFetchTime,
-    type ModelOption,
-} from "@agenta/entities/secret"
+import {modelListView, type ModelOption} from "@agenta/entities/secret"
+import {richText, useT} from "@agenta/i18n"
+import providerConnectionCatalog from "@agenta/i18n/catalogs/entityUi.providerConnection"
+import providerKeyFormCatalog from "@agenta/i18n/catalogs/entityUi.providerKeyForm"
 import {Tag} from "@agenta/ui"
 import {Button, Checkbox, InputAffix} from "@agenta/ui/ui"
-import {ArrowClockwise, MagnifyingGlass, Plus} from "@phosphor-icons/react"
+import {ArrowClockwise, ClockCounterClockwise, MagnifyingGlass, Plus} from "@phosphor-icons/react"
 
+import {activeModelsCount, relativeFetchTime} from "./providerCardText"
 import ScrollScrim from "./ScrollScrim"
 
 export interface ActiveModelsSectionProps {
     options: ModelOption[]
     onToggle: (id: string, checked: boolean) => void
     onSelectAll: () => void
-    onClear: () => void
     onAddManual: (id: string) => void
     /** What the manual row offers to add against — the API's list, or one endpoint's. */
     manualPlaceholder: string
-    /** Set only when a live fetch answered — drives the timestamp line and the re-fetch action. */
+    /** Set only when a live fetch answered: drives "List updated …" and "Update". */
     fetchedAt?: string | null
-    onRefetch?: () => void
-    refetching?: boolean
+    /** "Update": fetch the list again without touching the key field. */
+    onRefresh?: () => void
+    /** A fetch with the stored key runs: the line under the list reads "Updating the list…". */
+    refreshing?: boolean
+    /** The last fetch with the stored key did not come back; the saved list stays. */
+    unreachableNote?: string | null
     /** Locked: the list shows what is active, and nothing can be checked, cleared or added. */
     readOnly?: boolean
 }
@@ -35,14 +37,15 @@ const ActiveModelsSection = ({
     options,
     onToggle,
     onSelectAll,
-    onClear,
     onAddManual,
     manualPlaceholder,
     fetchedAt,
-    onRefetch,
-    refetching,
+    onRefresh,
+    refreshing,
+    unreachableNote,
     readOnly = false,
 }: ActiveModelsSectionProps) => {
+    const t = useT(providerConnectionCatalog, providerKeyFormCatalog)
     const [search, setSearch] = useState("")
     const [showAll, setShowAll] = useState(false)
 
@@ -69,6 +72,37 @@ const ActiveModelsSection = ({
                 option.id.toLowerCase() === term.toLowerCase() ||
                 option.name?.toLowerCase() === term.toLowerCase(),
         )
+    // One line under the list: the fetch that runs, the one that did not come back, or when the
+    // list was last fetched. "Update" sits beside the last two.
+    const updateButton = onRefresh ? (
+        <Button
+            variant="link"
+            size="sm"
+            className="h-auto px-0"
+            onClick={onRefresh}
+            disabled={refreshing}
+        >
+            {t("entityUi.providerKeyForm.update")}
+        </Button>
+    ) : null
+    const listLine = refreshing ? (
+        <span className="flex items-center gap-1 text-muted-foreground" role="status">
+            <ArrowClockwise size={13} className="animate-spin" />
+            {t("entityUi.providerKeyForm.updatingList")}
+        </span>
+    ) : unreachableNote ? (
+        <span className="flex min-w-0 items-center gap-1 text-muted-foreground">
+            <span className="min-w-0">{unreachableNote}</span>
+            {updateButton}
+        </span>
+    ) : fetchedAt ? (
+        <span className="flex items-center gap-1 text-muted-foreground">
+            <ClockCounterClockwise size={12} aria-hidden className="shrink-0" />
+            {t("entityUi.providerKeyForm.listUpdated", {time: relativeFetchTime(fetchedAt)})}
+            {updateButton}
+        </span>
+    ) : null
+
     const addTerm = () => {
         if (!canAdd) return
         onAddManual(term)
@@ -78,26 +112,27 @@ const ActiveModelsSection = ({
     return (
         <section className="flex shrink-0 flex-col gap-2">
             <div className="flex shrink-0 items-baseline justify-between gap-2">
-                <span className="font-medium text-colorText">
-                    Active models{" "}
-                    <span className="font-normal text-colorTextTertiary">
-                        — {activeModelsCount(activeCount, options.length)}
-                    </span>
+                <span className="font-medium text-foreground">
+                    {richText(
+                        t("entityUi.providerKeyForm.activeModelsHeading", {
+                            summary: activeModelsCount(activeCount, options.length),
+                        }),
+                        {
+                            muted: (text) => (
+                                <span className="font-normal text-muted-foreground">{text}</span>
+                            ),
+                        },
+                    )}
                 </span>
-                {readOnly ? null : (
-                    <div className="flex items-center gap-2 text-field-sm">
-                        <Button
-                            variant="link"
-                            size="sm"
-                            className="h-auto px-0"
-                            onClick={onSelectAll}
-                        >
-                            Select all
-                        </Button>
-                        <Button variant="link" size="sm" className="h-auto px-0" onClick={onClear}>
-                            Clear
-                        </Button>
-                    </div>
+                {readOnly || !options.length ? null : (
+                    <Button
+                        variant="link"
+                        size="sm"
+                        className="h-auto px-0 text-field-sm no-underline"
+                        onClick={onSelectAll}
+                    >
+                        {t("entityUi.providerConnection.selectAll")}
+                    </Button>
                 )}
             </div>
 
@@ -106,10 +141,12 @@ const ActiveModelsSection = ({
                     className="shrink-0"
                     placeholder={
                         options.length
-                            ? `Search ${options.length} models or add an ID`
+                            ? t("entityUi.providerConnection.searchModels", {
+                                  count: options.length,
+                              })
                             : manualPlaceholder
                     }
-                    prefix={<MagnifyingGlass size={14} className="text-colorTextTertiary" />}
+                    prefix={<MagnifyingGlass size={14} className="text-muted-foreground" />}
                     allowClear
                     value={search}
                     onValueChange={setSearch}
@@ -124,25 +161,28 @@ const ActiveModelsSection = ({
             {/* Sized to its rows, so a short list leaves no empty box; a long one scrolls. */}
             <div className="flex max-h-[min(320px,45vh)] flex-col overflow-hidden">
                 {canAdd ? (
-                    <button
+                    <Button
                         type="button"
+                        variant="ghost"
                         onClick={addTerm}
-                        className="flex shrink-0 cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 py-2 text-left text-field-sm text-colorText hover:bg-colorFillQuaternary"
+                        className="w-full shrink-0 justify-start gap-2 px-2 text-field-sm"
                     >
-                        <Plus size={14} className="shrink-0 text-colorTextTertiary" />
+                        <Plus size={14} className="shrink-0 text-muted-foreground" />
                         <span className="min-w-0 truncate">
-                            Add <span className="font-mono">{term}</span>
+                            {richText(t("entityUi.providerConnection.addTerm", {term}), {
+                                mono: (text) => <span className="font-mono">{text}</span>,
+                            })}
                         </span>
-                        <span className="ml-auto shrink-0 text-field-xs text-colorTextTertiary">
-                            Enter
+                        <span className="ml-auto shrink-0 text-field-xs text-muted-foreground">
+                            {t("entityUi.providerConnection.enterKey")}
                         </span>
-                    </button>
+                    </Button>
                 ) : null}
 
                 {visible.length === 0 ? (
                     canAdd ? null : (
-                        <p className="m-0 px-2 py-3 text-colorTextSecondary">
-                            No models yet. Type a model ID above to add it.
+                        <p className="m-0 px-2 py-3 text-muted-foreground">
+                            {t("entityUi.providerConnection.noModelsYet")}
                         </p>
                     )
                 ) : (
@@ -150,7 +190,7 @@ const ActiveModelsSection = ({
                         {visible.map((option) => (
                             <label
                                 key={option.id}
-                                className="flex cursor-pointer items-center gap-2.5 rounded px-2 py-2 hover:bg-colorFillQuaternary"
+                                className="flex cursor-pointer items-center gap-2.5 rounded px-2 py-2 transition-colors duration-[var(--duration-fast)] hover:bg-accent"
                             >
                                 <Checkbox
                                     disabled={readOnly}
@@ -158,22 +198,26 @@ const ActiveModelsSection = ({
                                     onCheckedChange={(next) => onToggle(option.id, next === true)}
                                 />
                                 <span className="min-w-0 flex-1">
-                                    <span className="block truncate text-field-sm text-colorText">
+                                    <span className="block truncate text-field-sm text-foreground">
                                         {option.name ?? option.id}
                                     </span>
                                     {option.name ? (
-                                        <span className="block truncate font-mono text-field-xs text-colorTextTertiary">
+                                        <span className="block truncate font-mono text-field-xs text-muted-foreground">
                                             {option.id}
                                         </span>
                                     ) : null}
                                 </span>
                                 {option.isDefault ? (
-                                    <span className="shrink-0 text-field-xs text-colorTextTertiary">
-                                        Recommended
+                                    <span className="shrink-0 text-field-xs text-muted-foreground">
+                                        {t("entityUi.providerConnection.recommended")}
                                     </span>
                                 ) : null}
                                 {option.unavailable ? (
-                                    <Tag size="small" tone="warning" label="unavailable" />
+                                    <Tag
+                                        size="small"
+                                        tone="warning"
+                                        label={t("entityUi.providerConnection.unavailable")}
+                                    />
                                 ) : null}
                             </label>
                         ))}
@@ -181,7 +225,7 @@ const ActiveModelsSection = ({
                 )}
 
                 <div
-                    className={`shrink-0 items-center justify-between gap-2 py-1 pl-2 pr-1 text-field-sm ${truncated || fetchedAt ? "flex" : "hidden"}`}
+                    className={`shrink-0 items-center justify-between gap-2 py-1 pl-2 pr-1 text-field-sm ${truncated || listLine ? "flex" : "hidden"}`}
                 >
                     {truncated ? (
                         <Button
@@ -190,28 +234,12 @@ const ActiveModelsSection = ({
                             className="h-auto px-0"
                             onClick={() => setShowAll(true)}
                         >
-                            Show all {matching.length}
+                            {t("entityUi.providerConnection.showAll", {total: matching.length})}
                         </Button>
                     ) : (
                         <span />
                     )}
-                    {fetchedAt ? (
-                        <span className="flex items-center gap-1 text-colorTextTertiary">
-                            <ArrowClockwise size={13} />
-                            Fetched {relativeFetchTime(fetchedAt)} ·
-                            {onRefetch ? (
-                                <Button
-                                    variant="link"
-                                    size="sm"
-                                    className="h-auto px-0"
-                                    onClick={onRefetch}
-                                    disabled={refetching}
-                                >
-                                    Re-fetch
-                                </Button>
-                            ) : null}
-                        </span>
-                    ) : null}
+                    {listLine}
                 </div>
             </div>
         </section>

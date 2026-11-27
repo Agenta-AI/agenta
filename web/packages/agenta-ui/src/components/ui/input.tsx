@@ -17,25 +17,29 @@ const inputVariants = cva(
         // CONTROL_RESET — see button.tsx. Without preflight (/w), `border` sets only the width,
         // an <input> keeps the UA font and a <textarea> keeps monospace.
         "box-border border-solid font-[inherit]",
-        "w-full min-w-0 border text-base text-foreground transition-colors outline-none md:text-sm",
+        "w-full min-w-0 border text-field-md text-foreground transition-colors outline-none",
         "placeholder:text-muted-foreground",
-        "file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground",
-        "disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-[color:color-mix(in_srgb,var(--ag-colorBorder)_50%,transparent)] disabled:opacity-50 dark:disabled:bg-[color:color-mix(in_srgb,var(--ag-colorBorder)_80%,transparent)]",
-        "aria-[invalid=true]:border-destructive aria-[invalid=true]:ring-[3px] aria-[invalid=true]:ring-[color:color-mix(in_srgb,var(--ag-colorError)_20%,transparent)]",
-        "dark:aria-[invalid=true]:border-[color:color-mix(in_srgb,var(--ag-colorError)_50%,transparent)] dark:aria-[invalid=true]:ring-[color:color-mix(in_srgb,var(--ag-colorError)_40%,transparent)]",
+        "file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-label file:text-foreground",
+        "disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-[color:color-mix(in_srgb,var(--border)_50%,transparent)] disabled:opacity-50 dark:disabled:bg-[color:color-mix(in_srgb,var(--border)_80%,transparent)]",
+        "aria-[invalid=true]:border-destructive",
+        "dark:aria-[invalid=true]:border-[color:color-mix(in_srgb,var(--destructive)_50%,transparent)]",
     ],
     {
         variants: {
             variant: {
                 default:
-                    "border-input bg-transparent focus-within:border-ring focus-within:ring-[3px] focus-within:ring-[color:var(--ag-controlOutline)] dark:bg-[color:color-mix(in_srgb,var(--ag-colorBorder)_30%,transparent)]",
-                filled: "border-transparent bg-muted focus-within:border-ring focus-within:bg-background focus-within:ring-[3px] focus-within:ring-[color:var(--ag-controlOutline)]",
+                    "border-input bg-transparent focus-ring-field dark:bg-[color:color-mix(in_srgb,var(--border)_30%,transparent)]",
+                filled: "border-transparent bg-muted focus-ring-field focus-within:bg-background",
                 ghost: "border-transparent bg-transparent",
             },
             size: {
-                sm: "h-7 rounded-md px-2 py-0.5",
-                default: "h-8 rounded-lg px-2.5 py-1",
-                lg: "h-9 rounded-lg px-3 py-1.5",
+                // Heights read the control scale, so fields match buttons.
+                sm: "h-control-sm rounded-control-sm px-2 py-0.5",
+                default: "h-control rounded-control px-2.5 py-1",
+                lg: "h-control-lg rounded-control-lg px-3 py-1.5",
+                // Canvas form field and search field; touch.css makes text 16px on touch.
+                compact: "h-control rounded-control px-2.5 py-0",
+                "compact-search": "h-control-sm rounded-control px-2 py-0",
             },
         },
         defaultVariants: {variant: "default", size: "default"},

@@ -128,42 +128,14 @@ afterEach(() => {
     assign.mockReset()
 })
 
-describe("beta developer mode switch", () => {
-    it("shows only while Developer Mode is on", () => {
-        const {switchFor} = renderPreferences({developerMode: false, beta: false})
-        expect(switchFor(BETA)).toBeNull()
-
-        act(() => switchFor("Developer Mode")!.click())
-        expect(switchFor(BETA)).not.toBeNull()
-
-        act(() => switchFor("Developer Mode")!.click())
-        expect(switchFor(BETA)).toBeNull()
-    })
-
-    it("sits right under Developer Mode, before the preview switches", () => {
-        const {switchFor} = renderPreferences({developerMode: true, beta: false})
-        expect(switchFor(BETA)).not.toBeNull()
-        const rows = Array.from(
-            host!.querySelectorAll('[data-section="feature-flags"] [role=switch]'),
-        ).map((row) => row.getAttribute("aria-label"))
-        expect(rows).toEqual(["Developer Mode", BETA, "Lab preview", "Lab gate"])
-    })
-})
-
 describe("with Developer Mode and beta developer mode on", () => {
-    it("turns on every developer view, whatever its stage, and lists each in the nav", () => {
+    it("turns on every developer view and lists each page in the nav", () => {
         const {store, switchFor} = renderPreferences({developerMode: true, beta: true})
         expect(switchFor(BETA)!.getAttribute("aria-checked")).toBe("true")
         expect(store.get(enabledDeveloperViewsAtom)).toEqual(TEST_DEVELOPER_VIEWS)
 
         const [section] = developerNavItems("/p", store.get(enabledDeveloperViewsAtom)!)
-        expect(section.submenu?.map((item) => item.link)).toEqual([
-            "/p/lab-hidden",
-            "/p/lab-preview",
-            "/p/lab-on",
-        ])
-        // Every view is already on: a preview switch would change nothing.
-        expect(switchFor("Lab preview")).toBeNull()
+        expect(section.submenu?.map((item) => item.link)).toEqual(["/p/lab-one", "/p/lab-two"])
     })
 
     it("stays in /m: the gate cookie says 0, so the next load of /m is not sent to /w", () => {
@@ -182,57 +154,20 @@ describe("with Developer Mode and beta developer mode on", () => {
         expect(readGateCookie()).toBe("0")
         expect(nextLoadOfM()).toEqual({kind: "pass"})
     })
-
-    it("turning Developer Mode on with beta stored on stays in /m", () => {
-        const {switchFor} = renderPreferences({developerMode: false, beta: true, cookie: "0"})
-        act(() => switchFor("Developer Mode")!.click())
-        expect(assign).not.toHaveBeenCalled()
-        expect(nextLoadOfM()).toEqual({kind: "pass"})
-    })
 })
 
 describe("with beta developer mode off", () => {
-    it("turning Developer Mode on sends the user to /w, as before", () => {
-        const {switchFor} = renderPreferences({developerMode: false, beta: false, cookie: "0"})
-        act(() => switchFor("Developer Mode")!.click())
-        expect(assign).toHaveBeenCalledWith("/w")
-        expect(readGateCookie()).toBe("1")
-        expect(nextLoadOfM()).toEqual({kind: "redirect", location: "/w"})
-    })
-
     it("turning beta off sends the user to /w with Developer Mode on", () => {
         const {store, switchFor} = renderPreferences({developerMode: true, beta: true})
         act(() => switchFor(BETA)!.click())
         expect(assign).toHaveBeenCalledWith("/w")
         expect(readGateCookie()).toBe("1")
         expect(localStorage.getItem("agenta:onboarding:u1:nav-simplified-override")).toBe("false")
-        expect(store.get(enabledDeveloperViewsAtom)?.map((view) => view.id)).toEqual(["lab-on"])
+        expect(store.get(enabledDeveloperViewsAtom)).toEqual([])
     })
 })
 
 describe("when the deployment does not offer beta developer mode", () => {
-    it("hides the switch, even with Developer Mode on", () => {
-        const {switchFor} = renderPreferences({developerMode: true, beta: false, offered: false})
-        expect(switchFor("Developer Mode")).not.toBeNull()
-        expect(switchFor(BETA)).toBeNull()
-    })
-
-    it("ignores a beta switch the user stored on: Developer Mode sends them to /w, as before", () => {
-        const {store, switchFor} = renderPreferences({
-            developerMode: false,
-            beta: true,
-            cookie: "0",
-            offered: false,
-        })
-        act(() => switchFor("Developer Mode")!.click())
-        expect(assign).toHaveBeenCalledWith("/w")
-        expect(readGateCookie()).toBe("1")
-        expect(nextLoadOfM()).toEqual({kind: "redirect", location: "/w"})
-        // The views follow their stage again, not "every view".
-        expect(store.get(enabledDeveloperViewsAtom)?.map((view) => view.id)).toEqual(["lab-on"])
-        expect(switchFor(BETA)).toBeNull()
-    })
-
     it("publishes 1 for Developer Mode with beta stored on, so /m sends the user to /w", () => {
         renderPreferences({developerMode: true, beta: true, offered: false})
         expect(readGateCookie()).toBe("1")

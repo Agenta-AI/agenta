@@ -1,0 +1,16 @@
+{
+    "apiAlwaysOn": "Siempre activa para las versiones guardadas",
+    "apiSaveFirst": "Guarda el agente para llamarlo",
+    "botsConnected_one": "{{count}} bot conectado",
+    "botsConnected_many": "{{count}} de bots conectados",
+    "botsConnected_other": "{{count}} bots conectados",
+    "embed": "Incrustar",
+    "embedDescription": "Un chat en tu sitio web",
+    "numbersConnected_one": "{{count}} número conectado",
+    "numbersConnected_many": "{{count}} de números conectados",
+    "numbersConnected_other": "{{count}} números conectados",
+    "thisAgent": "Este agente",
+    "workspacesConnected_one": "{{count}} espacio de trabajo conectado",
+    "workspacesConnected_many": "{{count}} de espacios de trabajo conectados",
+    "workspacesConnected_other": "{{count}} espacios de trabajo conectados"
+}

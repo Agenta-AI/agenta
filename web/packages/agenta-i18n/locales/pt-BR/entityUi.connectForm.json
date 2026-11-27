@@ -1,0 +1,11 @@
+{
+    "popupBlocked": "Pop-up bloqueado. Redirecionando nesta aba.",
+    "connectName": "Conectar {{name}}",
+    "name": "Nome",
+    "required": "Obrigatório",
+    "namePlaceholder": "ex.: Minha conta do {{name}}",
+    "authMethod": "Método de autenticação",
+    "apiKey": "Chave de API",
+    "submitFailed": "Não foi possível iniciar a conexão: o servidor a recusou. Tente novamente; se continuar falhando, o provedor de conexões desta implantação não está configurado.",
+    "connect": "Conectar"
+}

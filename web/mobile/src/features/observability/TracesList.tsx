@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import screenCatalog from "@agenta/i18n/catalogs/observability.screen"
 import {useObservability} from "@agenta/observability"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {ObservabilityList, TraceRow} from "@agenta/observability-ui"
@@ -18,6 +20,7 @@ import {
  * the same time.
  */
 export const TracesList = () => {
+    const t = useT(screenCatalog)
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const {
         traces,
@@ -44,7 +47,9 @@ export const TracesList = () => {
                 <div
                     role="button"
                     tabIndex={0}
-                    className="border-0 border-b border-solid border-border px-4 py-3 cursor-pointer"
+                    // row-double (ROW-01); the list hangs into the gutter, so the type icon
+                    // sits on the title's line (ALIGN-01).
+                    className="box-border flex h-row-double cursor-pointer flex-col justify-center border-0 border-b border-solid border-border-muted px-4"
                     onClick={() =>
                         openTraceDrawer({
                             traceId: span.trace_id || span.span_id || "",
@@ -61,7 +66,7 @@ export const TracesList = () => {
                         }
                     }}
                 >
-                    <TraceRow span={span} />
+                    <TraceRow span={span} resolveAppName />
                 </div>
             )}
             isLoading={isLoading}
@@ -71,7 +76,7 @@ export const TracesList = () => {
             error={
                 isRateLimited ? (
                     <LoadError
-                        title={rateLimitMessage ?? "Too many requests."}
+                        title={rateLimitMessage ?? t("observability.screen.tooManyRequests")}
                         onRetry={fetchTraces}
                     />
                 ) : undefined

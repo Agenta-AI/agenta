@@ -12,6 +12,8 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {selectedOptionLabel} from "@agenta/entities/secret"
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
+import {createT} from "@agenta/i18n"
+import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
 import {getOptionsFromSchema} from "@agenta/shared/utils"
 import type {DrillInUIComponents} from "@agenta/ui/drill-in"
 import {formatLabel} from "@agenta/ui/drill-in"
@@ -39,9 +41,9 @@ import type {ConfigureTabKey, FallbackDetailState, PathSchema} from "./types"
 
 // antd's nav overrides, as classes: equal-width tabs across the header fill, no nav margin,
 // and the scrolling pane inset that used to live on `.ant-tabs-content-holder`.
-const CONFIGURE_TAB_LIST_CLS = "mb-0 flex w-full gap-0 bg-[var(--ag-c-F6F8FA)]"
+const CONFIGURE_TAB_LIST_CLS = "mb-0 flex w-full gap-0 bg-muted"
 const CONFIGURE_TAB_CLS = "flex-1 basis-0 justify-center"
-const CONFIGURE_PANE_CLS = "max-h-[452px] overflow-y-auto px-3 py-3"
+const CONFIGURE_PANE_CLS = "max-h-113 overflow-y-auto px-3 py-3"
 
 interface UseModelConfigurePopoverParams {
     activeData: {parameters?: Record<string, unknown>} | null
@@ -53,6 +55,8 @@ interface UseModelConfigurePopoverParams {
     schema: PathSchema | null
     serverData: {parameters?: Record<string, unknown>} | null
 }
+
+const tNow = createT(playgroundConfigCatalog)
 
 export function useModelConfigurePopover({
     activeData,
@@ -592,8 +596,8 @@ export function useModelConfigurePopover({
 
     const configurePopoverContent = useMemo(
         () => (
-            <div className="w-[320px] max-h-[550px] overflow-hidden rounded bg-[var(--ag-c-FFFFFF)]">
-                <div className="flex items-center justify-between gap-3 border-0 border-b border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-c-F6F8FA)] px-3 py-2">
+            <div className="w-[320px] max-h-[550px] overflow-hidden rounded-lg bg-popover">
+                <div className="flex items-center justify-between gap-3 border-0 border-b border-solid border-border-muted bg-muted px-3 py-2">
                     <div className="flex items-center gap-2 min-w-0">
                         {fallbackDetail && (
                             <Button
@@ -601,21 +605,21 @@ export function useModelConfigurePopover({
                                 variant="ghost"
                                 onClick={handleCommitFallbackDetail}
                                 disabled={disabled}
-                                aria-label="Back to fallback models"
+                                aria-label={tNow("entityUi.playgroundConfig.backToFallbackModels")}
                             >
                                 <ArrowLeft size={16} />
                             </Button>
                         )}
-                        <span className="truncate text-sm font-medium">
+                        <span className="truncate text-label font-medium">
                             {fallbackDetail
                                 ? fallbackDetail.mode === "new"
-                                    ? "Add Fallback Model"
-                                    : "Edit Fallback Model"
-                                : "Configure"}
+                                    ? tNow("entityUi.playgroundConfig.addFallbackModel")
+                                    : tNow("entityUi.playgroundConfig.editFallbackModel")
+                                : tNow("entityUi.playgroundConfig.configure")}
                         </span>
                         {fallbackDetail?.mode === "new" && (
-                            <span className="rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-600">
-                                new
+                            <span className="rounded-sm bg-info/10 px-1.5 py-0.5 text-caption text-info">
+                                {tNow("entityUi.playgroundConfig.newBadge")}
                             </span>
                         )}
                     </div>
@@ -625,7 +629,7 @@ export function useModelConfigurePopover({
                         onClick={handleActiveConfigureReset}
                         disabled={disabled}
                     >
-                        Reset to default
+                        {tNow("entityUi.playgroundConfig.resetToDefault")}
                     </Button>
                 </div>
 
@@ -647,15 +651,15 @@ export function useModelConfigurePopover({
                     <Tabs value={activeConfigureTab} onValueChange={handleConfigureTabChange}>
                         <TabsList className={CONFIGURE_TAB_LIST_CLS}>
                             <TabsTrigger value="model" className={CONFIGURE_TAB_CLS}>
-                                Model
+                                {tNow("entityUi.playgroundConfig.tabModel")}
                             </TabsTrigger>
                             {hasPromptExtensionFields && (
                                 <>
                                     <TabsTrigger value="fallback" className={CONFIGURE_TAB_CLS}>
-                                        Fallback
+                                        {tNow("entityUi.playgroundConfig.tabFallback")}
                                     </TabsTrigger>
                                     <TabsTrigger value="retry" className={CONFIGURE_TAB_CLS}>
-                                        Retry
+                                        {tNow("entityUi.playgroundConfig.tabRetry")}
                                     </TabsTrigger>
                                 </>
                             )}

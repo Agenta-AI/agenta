@@ -6,10 +6,15 @@
  * unique per project, so a suggestion that collides is disambiguated here rather than
  * bounced back at the person as a validation error on a field they never filled in.
  *
- * `serverInfo.name` is preferred when the probe got one, and the hostname is the fallback:
+ * `serverInfo.name` is preferred when the probe got one, and the address is the fallback:
  * an authenticated server may refuse to say anything about itself before consent, which is
- * exactly when the person is being asked for a name.
+ * exactly when the person is being asked for a name. The address gives the service's own
+ * name, made readable ("Linear" for `https://mcp.linear.app/sse`).
  */
+
+import {skillDisplayName} from "@agenta/shared/utils"
+
+import {PROVIDERS} from "../../workflow/agentTemplates"
 
 /** The ordinals the integrations flow uses, so both surfaces read the same. */
 const ORDINALS = ["main", "secondary"]
@@ -38,6 +43,49 @@ export const normalizeConnectionName = (name: string): string =>
 
 const normalize = normalizeConnectionName
 
+/** Host labels that name the endpoint, not the service: `mcp.linear.app` is Linear's. */
+const ENDPOINT_LABELS = new Set(["www", "mcp", "api", "server"])
+/** Second-level labels under a country code: `acme.co.uk` is Acme's, not "co". */
+const SECOND_LEVEL_LABELS = new Set(["co", "com", "org", "net", "gov", "ac", "edu"])
+
+/**
+ * The service a URL points at: the first host label that does not name the endpoint, without
+ * the top-level domain ("linear" for `https://mcp.linear.app/sse`, "my-tools" for
+ * `https://my-tools.workers.dev`). A single-label host (a container name, `localhost`) and an
+ * IP address stay as they are.
+ */
+export function serverAddressLabel(url: string): string {
+    const host = hostnameLabel(url)
+    if (!host || /^[\d.]+$/.test(host) || host.includes(":")) return host
+    const labels = host.split(".").filter(Boolean)
+    if (labels.length < 2) return host
+    labels.pop()
+    if (labels.length > 1 && SECOND_LEVEL_LABELS.has(labels[labels.length - 1])) labels.pop()
+    const named = labels.filter((label) => !ENDPOINT_LABELS.has(label))
+    return named[0] ?? labels[labels.length - 1] ?? host
+}
+
+/** Known brands by their bare slug, longest first: "githubcopilot" reads as GitHub + copilot. */
+const BRANDS = Object.entries(PROVIDERS)
+    .map(([slug, {label}]) => [slug.replace(/_/g, ""), label] as const)
+    .sort((a, b) => b[0].length - a[0].length)
+
+const readableWord = (word: string): string => {
+    const lower = word.toLowerCase()
+    for (const [slug, label] of BRANDS) {
+        if (lower === slug) return label
+        if (lower.startsWith(slug) && lower.length - slug.length >= 3)
+            return `${label} ${readableWord(lower.slice(slug.length))}`
+    }
+    return skillDisplayName(word)
+}
+
+/** The address label as words: "githubcopilot" → "GitHub Copilot"; an IP stays as it is. */
+export function readableServerLabel(label: string): string {
+    if (!label || /^[\d.]+$/.test(label) || label.includes(":")) return label
+    return label.split(/[-_]+/).filter(Boolean).map(readableWord).join(" ") || label
+}
+
 /**
  * A display name for a new connection that no existing connection already uses.
  *
@@ -56,7 +104,8 @@ export function suggestConnectionName({
     url: string
     existingNames?: (string | null | undefined)[]
 }): string {
-    const base = (serverName || "").trim() || hostnameLabel(url) || "MCP server"
+    const base =
+        (serverName || "").trim() || readableServerLabel(serverAddressLabel(url)) || "MCP server"
     const taken = new Set(existingNames.filter((name): name is string => !!name).map(normalize))
 
     if (!taken.has(normalize(base))) return base

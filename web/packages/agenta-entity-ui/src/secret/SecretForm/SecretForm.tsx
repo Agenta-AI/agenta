@@ -2,20 +2,27 @@
  * SecretForm — presentational body for creating/editing a named secret.
  *
  * Pure view over a `SecretFormController` (see `useSecretForm`). The surrounding chrome
- * (Settings `EnhancedModal` or the MCP `CreateSecretDrawer`) owns the Save button; this
+ * (a Settings dialog or the MCP `CreateSecretDrawer`) owns the Save button; this
  * component renders no action buttons of its own.
  *
  * `@agenta/ui` (shadcn) primitives, NOT antd: both chromes portal to <body>, landing outside
  * the antd ConfigProvider token scope, so antd controls fall back to their default LIGHT
  * palette and render as white boxes in dark mode. The shared set reads `--ag-*` off <html>.
  */
+import {useState} from "react"
+
 import {CustomSecretFormat} from "@agenta/entities/secret"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import secretFormCatalog from "@agenta/i18n/catalogs/entityUi.secretForm"
 import {TypeChip} from "@agenta/ui/type-chip"
 import {
     Button,
+    Field,
     Input,
     Segmented,
     Select,
+    SimpleTooltip,
     SelectContent,
     SelectItem,
     SelectTrigger,
@@ -43,16 +50,20 @@ export interface SecretFormProps {
      * (the attach and create drawers sit at 1000 and 1100) hides them unless told the layer.
      */
     popupZIndex?: number
+    /** A short note behind a "?" beside the Name label. */
+    nameHelp?: string
 }
 
-const formatOptions = [
-    {label: "Text", value: CustomSecretFormat.Text},
+type SecretFormT = ReturnType<typeof useT<[typeof secretFormCatalog, typeof commonCatalog]>>
+
+const formatOptions = (t: SecretFormT) => [
+    {label: t("entityUi.secretForm.formatText"), value: CustomSecretFormat.Text},
     {label: "JSON", value: CustomSecretFormat.Json},
 ]
 
-const jsonViewOptions = [
-    {label: "Pretty", value: "grid"},
-    {label: "Editor", value: "json"},
+const jsonViewOptions = (t: SecretFormT) => [
+    {label: t("entityUi.secretForm.jsonViewPretty"), value: "grid"},
+    {label: t("entityUi.secretForm.jsonViewEditor"), value: "json"},
 ]
 
 /** antd `Typography.Text` stand-ins — the token classes, no component needed. */
@@ -70,7 +81,7 @@ const FieldLabel = ({
     // what tells a screen reader which field it is reading.
     const Tag = htmlFor ? "label" : "span"
     return (
-        <Tag className="font-medium text-colorText" htmlFor={htmlFor} id={id}>
+        <Tag className="font-medium text-foreground" htmlFor={htmlFor} id={id}>
             {children}
         </Tag>
     )
@@ -99,17 +110,22 @@ const SECRET_VALUE_LABEL_ID = "secret-form-value-label"
  * are in and not which row. A row whose key is still empty falls back to its position, so
  * every control has a name from the moment it appears.
  */
-const rowValueLabel = (key: string, index: number): string =>
-    key.trim() ? `Value for ${key.trim()}` : `Value ${index + 1}`
+const rowValueLabel = (t: SecretFormT, key: string, index: number): string =>
+    key.trim()
+        ? t("entityUi.secretForm.rowValueFor", {key: key.trim()})
+        : t("entityUi.secretForm.rowValueNumbered", {number: index + 1})
 
 const HintText = ({children}: {children: React.ReactNode}) => (
-    <span className="text-xs text-colorTextSecondary">{children}</span>
+    <span className="text-meta text-muted-foreground">{children}</span>
 )
 
-export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFormProps) {
+export function SecretForm({controller, textOnly = false, popupZIndex, nameHelp}: SecretFormProps) {
+    const t = useT(secretFormCatalog, commonCatalog)
+    const [slugOpen, setSlugOpen] = useState(false)
     const popupStyle = popupZIndex != null ? {zIndex: popupZIndex} : undefined
     const {
         isEditing,
+        personal,
         name,
         slug,
         format,
@@ -122,6 +138,7 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
         duplicateKeys,
         duplicateKeyError,
         defaultEnvError,
+        slugError,
         valueHidden,
         keyPreview,
         onChangeName,
@@ -136,57 +153,83 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
         onSwitchToGrid,
         setJsonText,
     } = controller
+    // A taken slug opens the slug field so the person can fix it there.
+    const slugShown = slugOpen || Boolean(slugError)
 
     /** The one string the label shows and the control is named by, so the two cannot drift. */
     const valueLabel = valueHidden
-        ? "Replace content"
+        ? t("entityUi.secretForm.replaceContent")
         : format === CustomSecretFormat.Text
-          ? "Value"
-          : "Content"
+          ? t("entityUi.secretForm.value")
+          : t("entityUi.secretForm.content")
 
     return (
         <div className="flex flex-col gap-4 ph-no-capture">
-            <div className="flex flex-col gap-1">
-                <FieldLabel>Name</FieldLabel>
+            <Field
+                label={t("entityUi.secretForm.name")}
+                tooltip={nameHelp || undefined}
+                labelEnd={
+                    // The slug follows the name: it shows here and opens only on Edit.
+                    !slugShown && (slug || !isEditing) ? (
+                        <span className="flex min-w-0 items-center gap-1.5 text-meta text-muted-foreground">
+                            {slug ? (
+                                <span className="truncate font-mono" title={slug}>
+                                    {slug}
+                                </span>
+                            ) : null}
+                            {isEditing ? null : (
+                                <Button
+                                    variant="link"
+                                    size="sm"
+                                    className="h-auto shrink-0 p-0 text-meta"
+                                    onClick={() => setSlugOpen(true)}
+                                >
+                                    {t("common.edit")}
+                                </Button>
+                            )}
+                        </span>
+                    ) : null
+                }
+            >
                 <Input
-                    placeholder="e.g. GITHUB_TOKEN"
+                    autoFocus={!isEditing}
+                    placeholder={t("entityUi.secretForm.namePlaceholder")}
                     value={name}
                     onChange={(e) => onChangeName(e.target.value)}
                 />
-            </div>
+            </Field>
 
-            <div className="flex flex-col gap-1">
-                <FieldLabel>Slug</FieldLabel>
-                <Input
-                    className="font-mono"
-                    placeholder="github-token"
-                    value={slug}
-                    disabled={isEditing}
-                    onChange={(e) => onChangeSlug(e.target.value)}
-                />
-                <HintText>
-                    {isEditing
-                        ? "Slugs are immutable and cannot be changed after creation."
-                        : "URL-safe, unique per project. Leave blank to derive it from the name."}
-                </HintText>
-            </div>
+            {slugShown ? (
+                <Field
+                    label={t("entityUi.secretForm.slug")}
+                    error={slugError || undefined}
+                    tooltip={
+                        isEditing
+                            ? t("entityUi.secretForm.slugImmutable")
+                            : personal
+                              ? t("entityUi.secretForm.slugHintPersonal")
+                              : t("entityUi.secretForm.slugHint")
+                    }
+                >
+                    <Input
+                        className="font-mono"
+                        placeholder="github-token"
+                        value={slug}
+                        disabled={isEditing}
+                        onChange={(e) => onChangeSlug(e.target.value)}
+                    />
+                </Field>
+            ) : null}
 
             {textOnly ? null : (
                 <div className="flex flex-col gap-1">
-                    <FieldLabel>Format</FieldLabel>
-                    <div className="flex items-center gap-3">
-                        <Segmented
-                            className="w-fit"
-                            options={formatOptions}
-                            value={format}
-                            onChange={(v) => onChangeFormat(v as typeof format)}
-                        />
-                        <HintText>
-                            {format === CustomSecretFormat.Text
-                                ? "Any opaque string — stored verbatim as text"
-                                : "Key-value pairs — stored formatted as json"}
-                        </HintText>
-                    </div>
+                    <FieldLabel>{t("entityUi.secretForm.format")}</FieldLabel>
+                    <Segmented
+                        block
+                        options={formatOptions(t)}
+                        value={format}
+                        onChange={(v) => onChangeFormat(v as typeof format)}
+                    />
                 </div>
             )}
 
@@ -202,15 +245,15 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
                             {valueLabel}
                         </FieldLabel>
                         {duplicateKeyError && (
-                            <span className="text-xs text-error">
-                                Duplicate keys are not allowed.
+                            <span className="text-meta text-destructive">
+                                {t("entityUi.secretForm.duplicateKeys")}
                             </span>
                         )}
                     </div>
                     {format === CustomSecretFormat.Json && (
                         <Segmented
                             size="sm"
-                            options={jsonViewOptions}
+                            options={jsonViewOptions(t)}
                             value={jsonView}
                             onChange={(v) => (v === "json" ? onSwitchToJson() : onSwitchToGrid())}
                         />
@@ -220,8 +263,10 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
                 {valueHidden ? (
                     <HintText>
                         {keyPreview
-                            ? `Value configured (${keyPreview}). Leave blank to keep it.`
-                            : "Value configured. Leave blank to keep it."}
+                            ? t("entityUi.secretForm.valueConfiguredPreview", {
+                                  preview: keyPreview,
+                              })
+                            : t("entityUi.secretForm.valueConfigured")}
                     </HintText>
                 ) : null}
 
@@ -229,17 +274,17 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
                     <div className="flex flex-col gap-4">
                         <Textarea
                             id={SECRET_VALUE_ID}
-                            rows={4}
-                            className="font-mono"
+                            rows={2}
+                            className="min-h-0 font-mono"
                             aria-label={valueLabel}
                             value={textValue}
                             onChange={(e) => setTextValue(e.target.value)}
                         />
                         <div className="flex flex-col gap-1">
-                            <FieldLabel>Default environment variable</FieldLabel>
+                            <FieldLabel>{t("entityUi.secretForm.defaultEnvVar")}</FieldLabel>
                             <Input
                                 className="font-mono"
-                                placeholder="For example, GITHUB_TOKEN"
+                                placeholder={t("entityUi.secretForm.envPlaceholder")}
                                 value={defaultEnvVar}
                                 onChange={(e) => setDefaultEnvVar(e.target.value)}
                                 autoComplete="off"
@@ -247,13 +292,11 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
                                 aria-invalid={defaultEnvError || undefined}
                             />
                             {defaultEnvError ? (
-                                <span className="text-xs text-error">
-                                    Use letters, digits, and underscores; do not start with a digit.
+                                <span className="text-meta text-destructive">
+                                    {t("entityUi.secretForm.envInvalid")}
                                 </span>
                             ) : (
-                                <HintText>
-                                    Optional. Suggested when you attach this secret to an agent.
-                                </HintText>
+                                <HintText>{t("entityUi.secretForm.defaultEnvHint")}</HintText>
                             )}
                         </div>
                     </div>
@@ -280,14 +323,16 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
                             value={jsonText}
                             onChange={(e) => setJsonText(e.target.value)}
                         />
-                        {jsonError && <span className="text-xs text-error">{jsonError}</span>}
+                        {jsonError && (
+                            <span className="text-meta text-destructive">{jsonError}</span>
+                        )}
                     </div>
                 ) : (
                     <div className="flex flex-col gap-2">
                         <div className="grid grid-cols-[1fr_1fr_120px_32px] gap-2">
-                            <HintText>Key</HintText>
-                            <HintText>Value</HintText>
-                            <HintText>Type</HintText>
+                            <HintText>{t("entityUi.secretForm.columnKey")}</HintText>
+                            <HintText>{t("entityUi.secretForm.value")}</HintText>
+                            <HintText>{t("entityUi.secretForm.columnType")}</HintText>
                             <span />
                         </div>
                         {kvRows.map((row, idx) => {
@@ -299,8 +344,10 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
                                 >
                                     <Input
                                         className="font-mono"
-                                        placeholder="key"
-                                        aria-label={`Key ${idx + 1}`}
+                                        placeholder={t("entityUi.secretForm.keyPlaceholder")}
+                                        aria-label={t("entityUi.secretForm.keyNumbered", {
+                                            number: idx + 1,
+                                        })}
                                         aria-invalid={
                                             duplicateKeys.has(row.key.trim()) || undefined
                                         }
@@ -311,7 +358,7 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
                                         <Input
                                             disabled
                                             className="font-mono"
-                                            aria-label={rowValueLabel(row.key, idx)}
+                                            aria-label={rowValueLabel(t, row.key, idx)}
                                             value="null"
                                         />
                                     ) : type === "boolean" ? (
@@ -323,7 +370,7 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
                                         >
                                             <SelectTrigger
                                                 className="font-mono"
-                                                aria-label={rowValueLabel(row.key, idx)}
+                                                aria-label={rowValueLabel(t, row.key, idx)}
                                             >
                                                 <SelectValue />
                                             </SelectTrigger>
@@ -335,8 +382,8 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
                                     ) : (
                                         <Input
                                             className="font-mono"
-                                            placeholder="value"
-                                            aria-label={rowValueLabel(row.key, idx)}
+                                            placeholder={t("entityUi.secretForm.valuePlaceholder")}
+                                            aria-label={rowValueLabel(t, row.key, idx)}
                                             type={type === "number" ? "number" : "text"}
                                             value={valueToText(row.value)}
                                             onChange={(e) =>
@@ -348,41 +395,48 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
                                     )}
                                     <Select
                                         value={type}
-                                        onValueChange={(t) =>
+                                        onValueChange={(next) =>
                                             updateRow(idx, {
-                                                value: coerceToType(row.value, t as PrimitiveType),
+                                                value: coerceToType(
+                                                    row.value,
+                                                    next as PrimitiveType,
+                                                ),
                                             })
                                         }
                                     >
-                                        <SelectTrigger aria-label="Type">
+                                        <SelectTrigger
+                                            aria-label={t("entityUi.secretForm.columnType")}
+                                        >
                                             {/* Value's children replace the selected label. */}
                                             <SelectValue>
                                                 <TypeChip variant={type} />
                                             </SelectValue>
                                         </SelectTrigger>
                                         <SelectContent style={popupStyle}>
-                                            {PRIMITIVE_TYPES.map((t) => (
-                                                <SelectItem key={t} value={t}>
-                                                    {t}
+                                            {PRIMITIVE_TYPES.map((primitive) => (
+                                                <SelectItem key={primitive} value={primitive}>
+                                                    {primitive}
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon-sm"
-                                        aria-label="Remove field"
-                                        disabled={kvRows.length === 1}
-                                        onClick={() => removeRow(idx)}
-                                    >
-                                        <Trash />
-                                    </Button>
+                                    <SimpleTooltip title={t("entityUi.secretForm.removeField")}>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon-sm"
+                                            aria-label={t("entityUi.secretForm.removeField")}
+                                            disabled={kvRows.length === 1}
+                                            onClick={() => removeRow(idx)}
+                                        >
+                                            <Trash />
+                                        </Button>
+                                    </SimpleTooltip>
                                 </div>
                             )
                         })}
-                        <Button variant="dashed" size="sm" className="w-full" onClick={addRow}>
+                        <Button variant="outline" size="sm" className="w-full" onClick={addRow}>
                             <Plus size={14} />
-                            Add field
+                            {t("entityUi.secretForm.addField")}
                         </Button>
                     </div>
                 )}

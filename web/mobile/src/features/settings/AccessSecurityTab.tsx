@@ -7,6 +7,9 @@ import {
     type OrganizationFlags,
     type OrganizationProvider,
 } from "@agenta/entities/organization"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsAccessSecurityTabCatalog from "@agenta/i18n/catalogs/settings.accessSecurityTab"
 import {
     AccessControlsSection,
     type AccessFeature,
@@ -16,38 +19,50 @@ import {
     SsoProvidersSection,
     useEntitlements,
 } from "@agenta/settings-ui"
+import {isBillingEnabled} from "@agenta/shared/api"
 import {LoadError} from "@agenta/ui/components/presentational"
-import {Button} from "@agenta/ui/ui"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
 import {useQuery} from "@tanstack/react-query"
 
 import {useProjectPermission} from "../context/useProjectPermission"
 
 import {plainAccessError} from "./accessErrors"
 import {AddDomainDialog} from "./AddDomainDialog"
-import {ConfirmModal} from "./ConfirmModal"
 import {DomainDnsInstructions} from "./DomainDnsInstructions"
+import {LockedEnterpriseFeatures} from "./LockedEnterpriseFeatures"
 import {OrganizationSlugField} from "./OrganizationSlugField"
+import {SeePlansButton} from "./SeePlansButton"
 import type {SettingsTabProps} from "./settingsTabProps"
-import {useMobileSettingsAccess} from "./settingsTabs"
 import {SsoProviderDialog, type SsoProviderFormValues} from "./SsoProviderDialog"
 import {OrganizationLoading, OrganizationNoFlags} from "./states/OrganizationStates"
 import {useSettingsOrg} from "./useSettingsOrg"
 
 /** Settings > Access & Security: sign-in policy, verified domains and SSO, each gated by plan. */
 export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) => {
-    const access = useMobileSettingsAccess()
+    const t = useT(commonCatalog, settingsAccessSecurityTabCatalog)
     const {organizationId, org, loading, failed, retry} = useSettingsOrg(workspaceId)
+    const entitlements = useEntitlements({projectId})
+    // A locked section never calls the routes it stands in for.
     const domains = useQuery({
         queryKey: ["organization-domains", organizationId, projectId],
         queryFn: () => organizationAccessApi.fetchOrganizationDomains(projectId),
-        enabled: Boolean(organizationId && projectId),
+        enabled: Boolean(organizationId && projectId) && entitlements.hasDomains,
     })
     const providers = useQuery({
         queryKey: ["organization-providers", organizationId, projectId],
         queryFn: () => organizationAccessApi.fetchOrganizationProviders(projectId),
-        enabled: Boolean(organizationId && projectId),
+        enabled: Boolean(organizationId && projectId) && entitlements.hasSSO,
     })
-    const entitlements = useEntitlements({projectId, enabled: access.isEE})
     const canEdit = useProjectPermission(projectId, "edit_workspace")
 
     const [savingFlag, setSavingFlag] = useState<AuthFlagKey | null>(null)
@@ -81,7 +96,7 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
             await org.refetch()
             setLastSavedFlag(flag)
         } catch (error) {
-            setFlagError(plainAccessError(error, "Couldn't save that setting — try again"))
+            setFlagError(plainAccessError(error, t("settings.accessSecurityTab.saveFlagError")))
         } finally {
             setSavingFlag(null)
         }
@@ -94,7 +109,9 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
             await organizationAccessApi.verifyOrganizationDomain(projectId, domain.id)
             await domains.refetch()
         } catch (error) {
-            setDomainError(plainAccessError(error, "Could not verify the domain"))
+            setDomainError(
+                plainAccessError(error, t("settings.accessSecurityTab.verifyDomainError")),
+            )
         } finally {
             setDomainBusy(null)
         }
@@ -107,10 +124,17 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
             await organizationAccessApi.refreshOrganizationDomainToken(projectId, domain.id)
             await domains.refetch()
         } catch (error) {
-            setDomainError(plainAccessError(error, "Could not refresh the token"))
+            setDomainError(
+                plainAccessError(error, t("settings.accessSecurityTab.refreshTokenError")),
+            )
         } finally {
             setDomainBusy(null)
         }
+    }
+
+    const closeDeleteDomain = () => {
+        setDeletingDomain(null)
+        setDomainError(null)
     }
 
     const deleteDomain = async () => {
@@ -122,7 +146,9 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
             await domains.refetch()
             setDeletingDomain(null)
         } catch (error) {
-            setDomainError(plainAccessError(error, "Could not delete the domain"))
+            setDomainError(
+                plainAccessError(error, t("settings.accessSecurityTab.deleteDomainError")),
+            )
         } finally {
             setDomainBusy(null)
         }
@@ -137,16 +163,14 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
                 providerDialog.provider.id,
                 values,
             )
-            setProviderNotice(
-                "Provider saved. Editing settings clears validation, so enable it again.",
-            )
+            setProviderNotice(t("settings.accessSecurityTab.providerSavedNotice"))
         } else {
             if (!values.slug) return
             await organizationAccessApi.createOrganizationProvider(projectId, {
                 ...values,
                 slug: values.slug,
             })
-            setProviderNotice("Provider added. Enable it to verify and activate it.")
+            setProviderNotice(t("settings.accessSecurityTab.providerAddedNotice"))
         }
         await providers.refetch()
     }
@@ -166,17 +190,22 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
                     provider.id,
                 )
                 if (!tested?.flags?.is_valid) {
-                    setProviderError(
-                        "We could not connect to the provider. Check the issuer URL and client details, then try again.",
-                    )
+                    setProviderError(t("settings.accessSecurityTab.providerConnectError"))
                 }
             }
             await providers.refetch()
         } catch (error) {
-            setProviderError(plainAccessError(error, "Could not enable the provider"))
+            setProviderError(
+                plainAccessError(error, t("settings.accessSecurityTab.enableProviderError")),
+            )
         } finally {
             setProviderBusy(null)
         }
+    }
+
+    const closeDeleteProvider = () => {
+        setDeletingProvider(null)
+        setProviderError(null)
     }
 
     const deleteProvider = async () => {
@@ -188,27 +217,41 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
             await providers.refetch()
             setDeletingProvider(null)
         } catch (error) {
-            setProviderError(plainAccessError(error, "Could not delete the provider"))
+            setProviderError(
+                plainAccessError(error, t("settings.accessSecurityTab.deleteProviderError")),
+            )
         } finally {
             setProviderBusy(null)
         }
     }
 
     // Entitlements gate every section; rendering before they land flashes the locked state.
-    if (loading || entitlements.isLoading) return <OrganizationLoading />
+    if (entitlements.isLoading) return <OrganizationLoading />
+    const locked = [
+        !entitlements.hasAccessControl && "access",
+        !entitlements.hasDomains && "domains",
+        !entitlements.hasSSO && "sso",
+    ].filter(Boolean) as AccessFeature[]
+    // Self-hosted shows one box with the upgrade actions; demand is still measured per feature.
+    const lockedNotices = isBillingEnabled() ? (
+        <AccessUpgradeNotice
+            locked={locked}
+            action={<SeePlansButton workspaceId={workspaceId} projectId={projectId} />}
+        />
+    ) : (
+        <LockedEnterpriseFeatures features={locked} screen="organization" />
+    )
+    // With nothing included there is no organization setting to read.
+    if (locked.length === 3) return <div className="flex flex-col gap-8">{lockedNotices}</div>
+    if (loading) return <OrganizationLoading />
     if (failed)
-        return <LoadError title="Could not load this organization's settings" onRetry={retry} />
+        return <LoadError title={t("settings.accessSecurityTab.loadError")} onRetry={retry} />
     const flags = org.data?.flags as OrganizationFlags | undefined
     if (!flags) return <OrganizationNoFlags />
 
     const domainList = domains.data ?? []
     const providerList = providers.data ?? []
     const orgSlug = org.data?.slug
-    const locked = [
-        !entitlements.hasAccessControl && "access",
-        !entitlements.hasDomains && "domains",
-        !entitlements.hasSSO && "sso",
-    ].filter(Boolean) as AccessFeature[]
 
     return (
         <div className="flex flex-col gap-8">
@@ -229,7 +272,7 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
             {entitlements.hasDomains ? (
                 <div className="flex flex-col gap-2">
                     {domainError ? (
-                        <p role="alert" className="text-destructive m-0 text-xs">
+                        <p role="alert" className="text-destructive m-0 text-meta">
                             {domainError}
                         </p>
                     ) : null}
@@ -264,12 +307,12 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
             {entitlements.hasSSO ? (
                 <div className="flex flex-col gap-2">
                     {providerError ? (
-                        <p role="alert" className="text-destructive m-0 text-xs">
+                        <p role="alert" className="text-destructive m-0 text-meta">
                             {providerError}
                         </p>
                     ) : null}
                     {providerNotice ? (
-                        <p role="status" className="m-0 text-xs text-muted-foreground">
+                        <p role="status" className="m-0 text-meta text-muted-foreground">
                             {providerNotice}
                         </p>
                     ) : null}
@@ -290,7 +333,11 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
                                   }
                                 : undefined
                         }
-                        addLabel={orgSlug ? "Add provider" : "Add provider (set slug first)"}
+                        addLabel={
+                            orgSlug
+                                ? t("settings.accessSecurityTab.addProvider")
+                                : t("settings.accessSecurityTab.addProviderSetSlug")
+                        }
                         onEdit={
                             canEdit
                                 ? (provider) => {
@@ -325,14 +372,16 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
                             <div className="mt-2 flex flex-col gap-2">
                                 {canEdit ? (
                                     <div>
-                                        <Button disabled title="Set an organization slug first">
-                                            Add provider
+                                        <Button
+                                            disabled
+                                            title={t("settings.accessSecurityTab.setSlugFirst")}
+                                        >
+                                            {t("settings.accessSecurityTab.addProvider")}
                                         </Button>
                                     </div>
                                 ) : null}
-                                <p className="m-0 text-xs text-muted-foreground">
-                                    Set an organization slug before adding a provider. The callback
-                                    URL cannot be formed without it.
+                                <p className="m-0 text-meta text-muted-foreground">
+                                    {t("settings.accessSecurityTab.setSlugHint")}
                                 </p>
                             </div>
                         ) : null}
@@ -340,7 +389,7 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
                 </div>
             ) : null}
 
-            <AccessUpgradeNotice locked={locked} />
+            {lockedNotices}
 
             <AddDomainDialog
                 open={addDomainOpen}
@@ -351,20 +400,57 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
                 }}
             />
 
-            <ConfirmModal
+            <AlertDialog
                 open={Boolean(deletingDomain)}
-                title="Delete domain"
-                description="This cannot be undone."
-                body={`Removes ${deletingDomain?.slug ?? "this domain"} from this organization.`}
-                confirmLabel="Delete domain"
-                pending={domainBusy === "delete"}
-                error={deletingDomain ? domainError : null}
-                onClose={() => {
-                    setDeletingDomain(null)
-                    setDomainError(null)
+                onOpenChange={(next) => {
+                    if (!next && domainBusy !== "delete") closeDeleteDomain()
                 }}
-                onConfirm={() => void deleteDomain()}
-            />
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {t("settings.accessSecurityTab.deleteDomain")}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t("common.thisCannotBeUndone")}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="text-body">
+                        {t("settings.accessSecurityTab.deleteDomainBody", {
+                            name:
+                                deletingDomain?.slug ?? t("settings.accessSecurityTab.thisDomain"),
+                        })}
+                    </div>
+                    {deletingDomain && domainError ? (
+                        <p className="m-0 text-body text-destructive">{domainError}</p>
+                    ) : null}
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                variant="outline"
+                                onClick={closeDeleteDomain}
+                                disabled={domainBusy === "delete"}
+                            >
+                                {t("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant="destructive"
+                                disabled={domainBusy === "delete"}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    void deleteDomain()
+                                }}
+                            >
+                                {domainBusy === "delete"
+                                    ? t("common.working")
+                                    : t("settings.accessSecurityTab.deleteDomain")}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             <SsoProviderDialog
                 open={Boolean(providerDialog)}
@@ -373,20 +459,58 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
                 onSubmit={saveProvider}
             />
 
-            <ConfirmModal
+            <AlertDialog
                 open={Boolean(deletingProvider)}
-                title="Delete SSO provider"
-                description="This cannot be undone."
-                body={`Removes ${deletingProvider?.slug ?? "this provider"} and its stored secret.`}
-                confirmLabel="Delete provider"
-                pending={providerBusy === "delete"}
-                error={deletingProvider ? providerError : null}
-                onClose={() => {
-                    setDeletingProvider(null)
-                    setProviderError(null)
+                onOpenChange={(next) => {
+                    if (!next && providerBusy !== "delete") closeDeleteProvider()
                 }}
-                onConfirm={() => void deleteProvider()}
-            />
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {t("settings.accessSecurityTab.deleteProviderTitle")}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t("common.thisCannotBeUndone")}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="text-body">
+                        {t("settings.accessSecurityTab.deleteProviderBody", {
+                            name:
+                                deletingProvider?.slug ??
+                                t("settings.accessSecurityTab.thisProvider"),
+                        })}
+                    </div>
+                    {deletingProvider && providerError ? (
+                        <p className="m-0 text-body text-destructive">{providerError}</p>
+                    ) : null}
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                variant="outline"
+                                onClick={closeDeleteProvider}
+                                disabled={providerBusy === "delete"}
+                            >
+                                {t("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant="destructive"
+                                disabled={providerBusy === "delete"}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    void deleteProvider()
+                                }}
+                            >
+                                {providerBusy === "delete"
+                                    ? t("common.working")
+                                    : t("settings.accessSecurityTab.deleteProvider")}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }

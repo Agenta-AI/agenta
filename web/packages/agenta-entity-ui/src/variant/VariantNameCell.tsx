@@ -6,12 +6,16 @@ import {
     workflowMolecule,
     workflowVariantsListDataAtomFamily,
 } from "@agenta/entities/workflow"
+import {createT, useT} from "@agenta/i18n"
+import variantCatalog from "@agenta/i18n/catalogs/entityUi.variant"
 import {message} from "@agenta/ui/app-message"
 import {Badge} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import type {VariantStatusInfo} from "./types"
 import VariantDetailsWithStatus from "./VariantDetailsWithStatus"
+
+const tNow = createT(variantCatalog)
 
 export interface VariantNameCellProps {
     revisionId?: string
@@ -29,6 +33,7 @@ const VariantNameCell = memo(
         showStable = false,
         hideDiscard = false,
     }: VariantNameCellProps) => {
+        const t = useT(variantCatalog)
         const currentRevisionId = revisionId || ""
         const workflowData = useAtomValue(
             useMemo(() => workflowMolecule.selectors.data(currentRevisionId), [currentRevisionId]),
@@ -51,15 +56,15 @@ const VariantNameCell = memo(
             if (!currentRevisionId) return
             try {
                 discard(currentRevisionId)
-                message.success("Draft changes discarded")
+                message.success(tNow("entityUi.variant.draftDiscarded"))
             } catch (e) {
-                message.error("Failed to discard draft changes")
+                message.error(tNow("entityUi.variant.discardFailed"))
                 console.error(e)
             }
         }, [currentRevisionId, discard])
 
         if (!workflowData) {
-            return <Badge className="-ml-1">No deployment</Badge>
+            return <Badge className="-ml-1">{t("entityUi.variant.noDeployment")}</Badge>
         }
 
         const variantEntity = variants.find((v) => v.id === workflowData.workflow_variant_id)

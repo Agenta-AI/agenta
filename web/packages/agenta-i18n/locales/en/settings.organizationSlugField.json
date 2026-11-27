@@ -1,0 +1,12 @@
+{
+    "hint": "Set it once. It is used in SSO callback URLs and cannot be changed later.",
+    "invalid": "Use 1–64 lowercase letters (a-z) and hyphens (-)",
+    "label": "Organization slug",
+    "lockedHint": "This slug is used in SSO callback URLs and cannot be changed.",
+    "noSlug": "No slug is set.",
+    "save": "Save slug",
+    "saveFailed": "Could not save the organization slug",
+    "saving": "Saving…",
+    "setBeforeSso": "Set the slug before adding an SSO provider. The callback URL needs it.",
+    "taken": "That slug is already taken. Choose another."
+}

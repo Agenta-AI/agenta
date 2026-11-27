@@ -7,8 +7,9 @@
 
 import {memo, useState, useMemo, useEffect} from "react"
 
-import {EnhancedModal} from "@agenta/ui/components/modal"
-import {Button} from "@agenta/ui/ui"
+import {useT} from "@agenta/i18n"
+import presetModalCatalog from "@agenta/i18n/catalogs/entityUi.presetModal"
+import {Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "@agenta/ui/ui"
 
 import {PresetContent} from "./PresetContent"
 import type {LoadEvaluatorPresetModalProps} from "./types"
@@ -19,8 +20,8 @@ export const LoadEvaluatorPresetModal = memo(function LoadEvaluatorPresetModal({
     onLoadPreset,
     open,
     onCancel,
-    ...modalProps
 }: LoadEvaluatorPresetModalProps) {
+    const t = useT(presetModalCatalog)
     const [selectedPresetKey, setSelectedPresetKey] = useState<string>("")
 
     // Reset selection when modal opens
@@ -38,40 +39,33 @@ export const LoadEvaluatorPresetModal = memo(function LoadEvaluatorPresetModal({
     const handleLoadPreset = () => {
         if (!selectedPreset) return
         onLoadPreset(selectedPreset)
-        onCancel?.({} as React.MouseEvent<HTMLButtonElement>)
+        onCancel?.()
     }
 
-    const footer = (
-        <div className="flex items-center justify-end gap-2">
-            <Button
-                variant="outline"
-                onClick={(e) => onCancel?.(e as React.MouseEvent<HTMLButtonElement>)}
-            >
-                Cancel
-            </Button>
-            <Button disabled={!selectedPreset} onClick={handleLoadPreset}>
-                Load Preset
-            </Button>
-        </div>
-    )
-
     return (
-        <EnhancedModal
-            width={1150}
-            title="Load Preset"
-            footer={footer}
-            open={open}
-            onCancel={onCancel}
-            styles={{body: {height: 600}}}
-            {...modalProps}
-        >
-            <PresetContent
-                presets={presets}
-                selectedPresetKey={selectedPresetKey}
-                onSelectPreset={setSelectedPresetKey}
-                selectedPreset={selectedPreset}
-            />
-        </EnhancedModal>
+        <Dialog open={open} onOpenChange={(next) => !next && onCancel?.()}>
+            <DialogContent className="max-w-[1150px]">
+                <DialogHeader>
+                    <DialogTitle>{t("entityUi.presetModal.loadPreset")}</DialogTitle>
+                </DialogHeader>
+                <div className="h-150 min-h-0 overflow-y-auto">
+                    <PresetContent
+                        presets={presets}
+                        selectedPresetKey={selectedPresetKey}
+                        onSelectPreset={setSelectedPresetKey}
+                        selectedPreset={selectedPreset}
+                    />
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onCancel?.()}>
+                        {t("entityUi.presetModal.cancel")}
+                    </Button>
+                    <Button disabled={!selectedPreset} onClick={handleLoadPreset}>
+                        {t("entityUi.presetModal.loadPreset")}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     )
 })
 

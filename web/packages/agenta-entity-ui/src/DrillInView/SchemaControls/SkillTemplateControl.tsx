@@ -17,6 +17,8 @@
  */
 import {memo, useCallback, useEffect, useRef, useState} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import skillFormCatalog from "@agenta/i18n/catalogs/entityUi.skillTemplate"
 import {isPlainObject, safeStringify} from "@agenta/shared/utils"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {
@@ -29,6 +31,8 @@ import {
 } from "@agenta/ui/ui"
 import {MinusCircle} from "@phosphor-icons/react"
 import clsx from "clsx"
+
+const tNow = createT(skillFormCatalog)
 
 export interface SkillTemplateControlProps {
     /** Skill value (object or JSON string). An inline package or an `@ag.embed` reference. */
@@ -119,8 +123,8 @@ export function parseSkillEditorText(text: string): Record<string, unknown> | nu
 /** Header label for a skill entry: its `name`, or a generic label for an embed/empty entry. */
 function skillLabel(skill: Record<string, unknown>): string {
     if (typeof skill.name === "string" && skill.name) return skill.name
-    if (isEmbedRef(skill)) return "Skill reference"
-    return "Skill"
+    if (isEmbedRef(skill)) return tNow("entityUi.skillTemplate.skillReference")
+    return tNow("entityUi.skillTemplate.skill")
 }
 
 export const SkillTemplateControl = memo(function SkillTemplateControl({
@@ -130,6 +134,7 @@ export const SkillTemplateControl = memo(function SkillTemplateControl({
     disabled = false,
     className,
 }: SkillTemplateControlProps) {
+    const t = useT(skillFormCatalog)
     const {SharedEditor} = useDrillInUI()
     const skillObj = toSkillObj(value)
     const name = skillLabel(skillObj)
@@ -165,8 +170,8 @@ export const SkillTemplateControl = memo(function SkillTemplateControl({
     const header = (
         <div className="w-full flex items-center justify-between gap-2 py-1">
             <div className="flex items-center gap-2 min-w-0">
-                <span className="text-sm font-semibold truncate">{name}</span>
-                {embed && <Badge variant="blue">@ag.embed</Badge>}
+                <span className="text-label truncate">{name}</span>
+                {embed && <Badge variant="info">@ag.embed</Badge>}
             </div>
             {!disabled && onDelete && (
                 <TooltipProvider>
@@ -175,14 +180,14 @@ export const SkillTemplateControl = memo(function SkillTemplateControl({
                             <Button
                                 variant="ghost"
                                 size="icon-sm"
-                                aria-label="Remove"
+                                aria-label={t("entityUi.skillTemplate.remove")}
                                 onClick={onDelete}
                                 className="invisible group-hover/skill:visible shrink-0"
                             >
                                 <MinusCircle size={14} />
                             </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Remove</TooltipContent>
+                        <TooltipContent>{t("entityUi.skillTemplate.remove")}</TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
             )}
@@ -202,17 +207,15 @@ export const SkillTemplateControl = memo(function SkillTemplateControl({
                 )}
             >
                 <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-sm font-semibold truncate">{name}</span>
-                    <Badge>Static skill</Badge>
+                    <span className="text-label truncate">{name}</span>
+                    <Badge>{t("entityUi.skillTemplate.staticSkill")}</Badge>
                     {version && <Badge>{version}</Badge>}
                 </div>
                 {slug && (
-                    <span className="text-xs font-mono truncate text-colorTextDescription">
-                        {slug}
-                    </span>
+                    <span className="text-code-sm truncate text-muted-foreground">{slug}</span>
                 )}
-                <span className="text-xs text-colorTextDescription">
-                    Provided by Agenta. This skill cannot be edited or removed.
+                <span className="text-meta text-muted-foreground">
+                    {t("entityUi.skillTemplate.staticSkillHint")}
                 </span>
             </div>
         )
@@ -225,8 +228,8 @@ export const SkillTemplateControl = memo(function SkillTemplateControl({
             >
                 {header}
                 <textarea
-                    aria-label="Skill template"
-                    className="font-mono text-xs p-2 border rounded min-h-[120px] resize-y w-full"
+                    aria-label={t("entityUi.skillTemplate.skillTemplate")}
+                    className=" text-code-sm p-2 border rounded min-h-30 resize-y w-full"
                     value={editorText}
                     onChange={(e) => handleEditorChange(e.target.value)}
                     readOnly={disabled}

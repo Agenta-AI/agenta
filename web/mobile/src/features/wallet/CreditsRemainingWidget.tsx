@@ -1,12 +1,14 @@
 import {useEffect, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import walletCreditsCatalog from "@agenta/i18n/catalogs/wallet.credits"
 import {isWalletsEnabled} from "@agenta/shared/api"
-import {AlertTriangle, XCircle, type LucideIcon} from "lucide-react"
+import {type Icon, WarningIcon, XCircleIcon} from "@phosphor-icons/react"
 import Link from "next/link"
 
 import {creditAlert, type CreditAlert} from "./creditAlert"
 import {useWalletSummary} from "./useWalletSummary"
-import {formatCredits} from "./walletFormat"
+import {formatCredits, formatCreditsShort} from "./walletFormat"
 
 /**
  * Sidebar meter: spendable credits against the original total of the credits active now. Shown
@@ -30,16 +32,21 @@ export const CreditsRemainingWidget = ({
 interface MeterTone {
     text: string
     bar: string
-    Icon: LucideIcon | null
+    Icon: Icon | null
 }
 
-const DEFAULT_TONE: MeterTone = {text: "text-foreground", bar: "bg-primary", Icon: null}
+const DEFAULT_TONE: MeterTone = {
+    text: "text-muted-foreground",
+    bar: "bg-border-strong",
+    Icon: null,
+}
 const METER_TONES: Partial<Record<CreditAlert["kind"], MeterTone>> = {
-    low: {text: "text-colorWarningText", bar: "bg-colorWarning", Icon: AlertTriangle},
-    empty: {text: "text-colorErrorText", bar: "bg-colorError", Icon: XCircle},
+    low: {text: "text-warning", bar: "bg-warning", Icon: WarningIcon},
+    empty: {text: "text-destructive", bar: "bg-destructive", Icon: XCircleIcon},
 }
 
 const CreditsMeter = ({projectId, settingsURL}: {projectId: string; settingsURL: string}) => {
+    const t = useT(walletCreditsCatalog)
     // The docked rail stays mounted under `display: none` on narrow screens; poll only on screen.
     const ref = useRef<HTMLDivElement>(null)
     const [onScreen, setOnScreen] = useState(false)
@@ -69,18 +76,31 @@ const CreditsMeter = ({projectId, settingsURL}: {projectId: string; settingsURL:
             {data && (
                 <Link
                     href={`${settingsURL}?tab=credits`}
-                    className="hover:bg-accent/50 mx-2 mb-1 flex flex-col gap-1.5 rounded-md px-2 py-2 text-xs no-underline"
+                    title={t("wallet.credits.remainingOfTotal", {
+                        remaining: formatCredits(remaining),
+                        total: formatCredits(total),
+                    })}
+                    className="focus-ring hover:bg-accent mx-2 mb-1 flex flex-col gap-1 rounded-md px-2 py-1 text-meta no-underline"
                 >
                     <span className="flex items-center justify-between gap-2">
-                        <span className="text-muted-foreground">Credits remaining</span>
-                        <span className={`flex items-center gap-1 tabular-nums ${tone.text}`}>
-                            {tone.Icon ? <tone.Icon className="size-3" /> : null}
-                            {formatCredits(remaining)} of {formatCredits(total)}
+                        <span className="min-w-0 truncate text-muted-foreground">
+                            {t("wallet.credits.remainingTitle")}
+                        </span>
+                        <span
+                            className={`flex shrink-0 items-center gap-1 whitespace-nowrap tabular-nums ${tone.text}`}
+                        >
+                            {tone.Icon ? <tone.Icon className="size-3 shrink-0" /> : null}
+                            <span>
+                                {t("wallet.credits.remainingOfTotal", {
+                                    remaining: formatCreditsShort(remaining),
+                                    total: formatCreditsShort(total),
+                                })}
+                            </span>
                         </span>
                     </span>
-                    <span className="bg-muted block h-1 overflow-hidden rounded-full">
+                    <span className="block h-1 overflow-hidden rounded-xs bg-border">
                         <span
-                            className={`block h-full rounded-full ${tone.bar}`}
+                            className={`block h-full rounded-xs ${tone.bar}`}
                             style={{width: `${ratio * 100}%`}}
                         />
                     </span>

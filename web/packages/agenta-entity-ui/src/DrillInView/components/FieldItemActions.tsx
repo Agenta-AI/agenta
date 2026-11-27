@@ -2,15 +2,17 @@
  * FieldItemActions Component
  *
  * Renders the action buttons for a drill-in field item:
- * - Copy button
+ * - CopyIcon button
  * - Delete button
  * - Add button (for arrays/objects)
  */
 
 import {useCallback} from "react"
 
+import {useT} from "@agenta/i18n"
+import drillInCatalog from "@agenta/i18n/catalogs/entityUi.drillIn"
 import {copyToClipboard} from "@agenta/ui/utils"
-import {Copy, Trash2, Plus} from "lucide-react"
+import {CopyIcon, PlusIcon, TrashIcon} from "@phosphor-icons/react"
 
 // ============================================================================
 // TYPES
@@ -88,6 +90,7 @@ export function FieldItemActions({
     classNames,
     styles,
 }: FieldItemActionsProps) {
+    const t = useT(drillInCatalog)
     const handleCopy = useCallback(async () => {
         if (onCopy) {
             onCopy()
@@ -100,15 +103,15 @@ export function FieldItemActions({
 
     return (
         <div className={classNames.fieldHeaderActions} style={styles?.fieldHeaderActions}>
-            {/* Copy button */}
+            {/* CopyIcon button */}
             {canCopy && (
                 <button
                     type="button"
                     onClick={handleCopy}
-                    className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-gray-700 border-0 bg-transparent cursor-pointer"
-                    aria-label="Copy value"
+                    className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground border-0 bg-transparent cursor-pointer"
+                    aria-label={t("entityUi.drillIn.copyValue")}
                 >
-                    <Copy size={14} />
+                    <CopyIcon size={14} />
                 </button>
             )}
 
@@ -117,10 +120,10 @@ export function FieldItemActions({
                 <button
                     type="button"
                     onClick={onDelete}
-                    className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-red-600 border-0 bg-transparent cursor-pointer"
-                    aria-label="Delete field"
+                    className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-destructive border-0 bg-transparent cursor-pointer"
+                    aria-label={t("entityUi.drillIn.deleteField")}
                 >
-                    <Trash2 size={14} />
+                    <TrashIcon size={14} />
                 </button>
             )}
 
@@ -129,10 +132,10 @@ export function FieldItemActions({
                 <button
                     type="button"
                     onClick={onAdd}
-                    className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-green-600 border-0 bg-transparent cursor-pointer"
-                    aria-label="Add item"
+                    className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-success border-0 bg-transparent cursor-pointer"
+                    aria-label={t("entityUi.drillIn.addItem")}
                 >
-                    <Plus size={14} />
+                    <PlusIcon size={14} />
                 </button>
             )}
         </div>

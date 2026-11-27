@@ -1,6 +1,9 @@
 import type {ReactNode} from "react"
 import {useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+
 import {cn} from "../../utils/styles"
 
 /**
@@ -52,6 +55,7 @@ export function Pagination({
     size = "default",
     className,
 }: PaginationProps) {
+    const t = useT(uiControlsCatalog)
     const totalPages = Math.max(1, Math.ceil(total / Math.max(1, pageSize)))
     const page = Math.min(Math.max(1, current), totalPages)
     const items = useMemo(() => getPageItems(page, totalPages), [page, totalPages])
@@ -61,29 +65,29 @@ export function Pagination({
         Math.min(page * pageSize, total),
     ]
 
-    const box = size === "small" ? "h-6 min-w-6 text-xs" : "h-8 min-w-8 text-field-md"
+    const box = size === "small" ? "h-6 min-w-6 text-label" : "h-8 min-w-8 text-label"
     const step = (next: number) => () => {
         if (next >= 1 && next <= totalPages && next !== page) onChange(next, pageSize)
     }
 
     return (
         <nav
-            aria-label="Pagination"
-            className={cn("flex items-center gap-2 text-colorText", className)}
+            aria-label={t("ui.controls.pagination")}
+            className={cn("flex items-center gap-2 text-foreground", className)}
         >
             {showTotal ? (
-                <span className="text-colorTextSecondary">{showTotal(total, range)}</span>
+                <span className="text-muted-foreground">{showTotal(total, range)}</span>
             ) : null}
 
             <button
                 type="button"
-                aria-label="Previous page"
+                aria-label={t("ui.controls.previousPage")}
                 disabled={page <= 1}
                 onClick={step(page - 1)}
                 className={cn(
                     box,
-                    "box-border cursor-pointer rounded border border-solid border-colorBorder bg-colorBgContainer px-2",
-                    "disabled:cursor-not-allowed disabled:text-colorTextDisabled",
+                    "box-border cursor-pointer rounded border border-solid border-border bg-background px-2",
+                    "disabled:cursor-not-allowed disabled:text-muted-foreground",
                 )}
             >
                 ‹
@@ -92,22 +96,22 @@ export function Pagination({
             {items.map((item, index) =>
                 item === null ? (
                     // Gaps repeat, so the index is the only stable key available.
-                    <span key={`gap-${index}`} className="px-1 text-colorTextSecondary">
+                    <span key={`gap-${index}`} className="px-1 text-muted-foreground">
                         …
                     </span>
                 ) : (
                     <button
                         key={item}
                         type="button"
-                        aria-label={`Page ${item}`}
+                        aria-label={t("ui.controls.page", {page: item})}
                         aria-current={item === page ? "page" : undefined}
                         onClick={step(item)}
                         className={cn(
                             box,
                             "box-border cursor-pointer rounded border border-solid px-2",
                             item === page
-                                ? "border-colorPrimary text-colorPrimary"
-                                : "border-colorBorder bg-colorBgContainer",
+                                ? "border-primary text-primary"
+                                : "border-border bg-background",
                         )}
                     >
                         {item}
@@ -117,13 +121,13 @@ export function Pagination({
 
             <button
                 type="button"
-                aria-label="Next page"
+                aria-label={t("ui.controls.nextPage")}
                 disabled={page >= totalPages}
                 onClick={step(page + 1)}
                 className={cn(
                     box,
-                    "box-border cursor-pointer rounded border border-solid border-colorBorder bg-colorBgContainer px-2",
-                    "disabled:cursor-not-allowed disabled:text-colorTextDisabled",
+                    "box-border cursor-pointer rounded border border-solid border-border bg-background px-2",
+                    "disabled:cursor-not-allowed disabled:text-muted-foreground",
                 )}
             >
                 ›

@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import sessionsMobileListCatalog from "@agenta/i18n/catalogs/sessions.mobileList"
 import {
     Button,
     Empty,
@@ -7,7 +9,7 @@ import {
     EmptyMedia,
     EmptyTitle,
 } from "@agenta/ui/ui"
-import {Filter, Search} from "lucide-react"
+import {FunnelIcon, MagnifyingGlassIcon} from "@phosphor-icons/react"
 
 /** The project has sessions, but the search or filters hid them; offers the way back. */
 export const SessionsNoMatch = ({
@@ -17,25 +19,34 @@ export const SessionsNoMatch = ({
     /** The search that matched nothing. Absent ⇒ the filters are what narrowed it. */
     term?: string
     onClear?: () => void
-}) => (
-    <Empty className="py-14">
-        <EmptyHeader>
-            <EmptyMedia variant="icon">{term ? <Search /> : <Filter />}</EmptyMedia>
-            <EmptyTitle>
-                {term ? `Nothing matches “${term}”` : "No session matches these filters"}
-            </EmptyTitle>
-            <EmptyDescription>
-                {term
-                    ? "Try a shorter search, or check the filters — they narrow this list too."
-                    : "Every session is hidden by the filters on this list."}
-            </EmptyDescription>
-        </EmptyHeader>
-        {onClear ? (
-            <EmptyContent>
-                <Button size="sm" variant="outline" onClick={onClear}>
-                    {term ? "Clear search" : "Reset filters"}
-                </Button>
-            </EmptyContent>
-        ) : null}
-    </Empty>
-)
+}) => {
+    const t = useT(sessionsMobileListCatalog)
+    return (
+        <Empty className="py-14">
+            <EmptyHeader>
+                <EmptyMedia variant="icon">
+                    {term ? <MagnifyingGlassIcon /> : <FunnelIcon />}
+                </EmptyMedia>
+                <EmptyTitle>
+                    {term
+                        ? t("sessions.mobileList.nothingMatches", {term})
+                        : t("sessions.mobileList.noMatchFilters")}
+                </EmptyTitle>
+                <EmptyDescription>
+                    {term
+                        ? t("sessions.mobileList.tryShorter")
+                        : t("sessions.mobileList.allHidden")}
+                </EmptyDescription>
+            </EmptyHeader>
+            {onClear ? (
+                <EmptyContent>
+                    <Button size="sm" variant="outline" onClick={onClear}>
+                        {term
+                            ? t("sessions.mobileList.clearSearch")
+                            : t("sessions.mobileList.resetFilters")}
+                    </Button>
+                </EmptyContent>
+            ) : null}
+        </Empty>
+    )
+}

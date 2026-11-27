@@ -3,7 +3,6 @@ import {useState, type ReactNode} from "react"
 import {Button} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
-import {Button as AntButton} from "antd"
 
 // Imported from source: the DrillInView barrel does not re-export the parameter editor.
 import {
@@ -16,14 +15,9 @@ import type {
 } from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/schemaPaths"
 
 // ParameterTree — the left rail of the tool-parameter master/detail editor: a nesting,
-// selectable tree over a function tool's JSON-Schema `parameters`. Everything except the
-// header "+ Add" affordance was already antd-free, so the parity pair is that button; the
-// BRANCH MATRIX stories below are the real inventory value — every node kind (scalar, scalar
-// array, object, array-of-object) at every nesting level, plus the empty and disabled states.
-//
-// antd swap: `Button type="link" icon={<Plus/>} className="!h-auto !p-0"` → `@agenta/ui`
-// `Button variant="link" className="h-auto p-0"` with the icon as a child (the primitive has
-// no `icon` prop; tailwind-merge makes the `!` overrides unnecessary).
+// selectable tree over a function tool's JSON-Schema `parameters`. The BRANCH MATRIX stories
+// below are the real inventory value — every node kind (scalar, scalar array, object,
+// array-of-object) at every nesting level, plus the empty and disabled states.
 const meta = {
     title: "@agenta/entity-ui/DrillIn/ParameterTree",
     component: ParameterTree,
@@ -225,42 +219,14 @@ export const Disabled: Story = {
     render: () => <TreeBox schema={DEEP} selectedPath={[{p: "filter"}]} disabled />,
 }
 
-// ---------------------------------------------------------------------------
-// Parity grid — the one migrated control
-// ---------------------------------------------------------------------------
-
-const Row = ({
-    label,
-    a,
-    s,
-    expected,
-}: {
-    label: string
-    a: ReactNode
-    s: ReactNode
-    expected?: string
-}) => (
-    <div
-        className="grid grid-cols-[12rem_1fr_1fr] items-start gap-4 border-b border-colorBorderSecondary py-3"
-        data-vrt-expected={expected}
-    >
+const Row = ({label, children}: {label: string; children: ReactNode}) => (
+    <div className="grid grid-cols-[12rem_1fr] items-start gap-4 border-b border-colorBorderSecondary py-3">
         <div className="text-xs text-colorTextSecondary">{label}</div>
-        <div className="flex items-center gap-2">
-            <span className="w-8 shrink-0 text-[10px] text-colorTextSecondary">antd</span>
-            <div data-vrt-subject className="flex flex-1 items-center">
-                {a}
-            </div>
-        </div>
-        <div className="flex items-center gap-2">
-            <span className="w-8 shrink-0 text-[10px] text-colorTextSecondary">agenta</span>
-            <div data-vrt-subject className="flex flex-1 items-center">
-                {s}
-            </div>
-        </div>
+        <div>{children}</div>
     </div>
 )
 
-// The migrated affordance, in the same header strip the component renders it in.
+// The same header strip the component renders the "+ Add" button in.
 const Header = ({children}: {children: ReactNode}) => (
     <div className="flex shrink-0 items-center justify-between gap-2">
         <span className="text-[11px] font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
@@ -270,51 +236,26 @@ const Header = ({children}: {children: ReactNode}) => (
     </div>
 )
 
-/** The header "+ Add" button — the only antd control the tree carried. */
-export const AntdVsAgenta: Story = {
+/** The header "+ Add" button. */
+export const Variants: Story = {
     render: () => (
         <div className="flex max-w-[900px] flex-col">
-            <Row
-                label='header "+ Add"'
-                a={
-                    <Header>
-                        <AntButton type="link" className="!h-auto !p-0" icon={<Plus size={13} />}>
-                            Add
-                        </AntButton>
-                    </Header>
-                }
-                s={
-                    <Header>
-                        <Button variant="link" className="h-auto p-0">
-                            <Plus size={13} />
-                            Add
-                        </Button>
-                    </Header>
-                }
-            />
-            <Row
-                label='header "+ Add" · disabled'
-                a={
-                    <Header>
-                        <AntButton
-                            type="link"
-                            className="!h-auto !p-0"
-                            icon={<Plus size={13} />}
-                            disabled
-                        >
-                            Add
-                        </AntButton>
-                    </Header>
-                }
-                s={
-                    <Header>
-                        <Button variant="link" className="h-auto p-0" disabled>
-                            <Plus size={13} />
-                            Add
-                        </Button>
-                    </Header>
-                }
-            />
+            <Row label='header "+ Add"'>
+                <Header>
+                    <Button variant="link" className="h-auto p-0">
+                        <Plus size={13} />
+                        Add
+                    </Button>
+                </Header>
+            </Row>
+            <Row label='header "+ Add" · disabled'>
+                <Header>
+                    <Button variant="link" className="h-auto p-0" disabled>
+                        <Plus size={13} />
+                        Add
+                    </Button>
+                </Header>
+            </Row>
         </div>
     ),
 }

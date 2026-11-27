@@ -9,11 +9,13 @@
  * escape hatch for shapes the form can't express (enums, unions, tuples).
  *
  * Built to match the sibling drawers (WorkflowReferenceSelector, trigger drawers): 240px rail with a
- * right border, independent scroll, shared `RowRemoveButton`, semantic `--ag-color*` tokens (dark-safe).
+ * right border, independent scroll, shared `RowRemoveAction`, semantic `--ag-color*` tokens (dark-safe).
  */
 import {useMemo, useState} from "react"
 
 import {useToolActionDetail, type ToolCatalogActionDetails} from "@agenta/entities/gatewayTool"
+import {useT, type CatalogKey} from "@agenta/i18n"
+import toolFormCatalog from "@agenta/i18n/catalogs/entityUi.toolForm"
 import {buildGatewayToolSlug, safeStringify} from "@agenta/shared/utils"
 import {
     AutosizeTextarea,
@@ -54,11 +56,14 @@ export interface ToolFormViewProps {
 type ToolPermission = "allow" | "ask" | "deny"
 type ToolPermissionSelection = ToolPermission | "inherit"
 
-const PERMISSION_OPTIONS: {value: ToolPermissionSelection; label: string}[] = [
-    {value: "allow", label: "Allow"},
-    {value: "ask", label: "Ask"},
-    {value: "deny", label: "Deny"},
-    {value: "inherit", label: "Inherit"},
+const PERMISSION_OPTIONS: {
+    value: ToolPermissionSelection
+    label: CatalogKey<typeof toolFormCatalog>
+}[] = [
+    {value: "allow", label: "entityUi.toolForm.permissionAllow"},
+    {value: "ask", label: "entityUi.toolForm.permissionAsk"},
+    {value: "deny", label: "entityUi.toolForm.permissionDeny"},
+    {value: "inherit", label: "entityUi.toolForm.permissionInherit"},
 ]
 
 function isPermission(value: unknown): value is ToolPermission {
@@ -79,6 +84,7 @@ function ToolBasics({
     onChange: (next: Record<string, unknown>) => void
     disabled?: boolean
 }) {
+    const t = useT(toolFormCatalog)
     const fn = (tool.function ?? {}) as Record<string, unknown>
     const setFn = (fieldKey: string, fieldValue: unknown) => {
         const nextFn = {...fn}
@@ -108,63 +114,66 @@ function ToolBasics({
 
     return (
         <div className="flex flex-col gap-4">
-            <div className="text-xs font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                Tool details
+            <div className="text-meta font-medium text-muted-foreground">
+                {t("entityUi.toolForm.toolDetails")}
             </div>
 
             <div className="flex flex-col gap-3">
-                <RailField label="Name" align="center">
+                <RailField label={t("entityUi.toolForm.name")} align="center">
                     <Input
                         value={(fn.name as string | undefined) ?? ""}
                         onChange={(e) => setFn("name", e.target.value)}
                         placeholder="get_weather"
-                        aria-label="Name"
+                        aria-label={t("entityUi.toolForm.name")}
                         disabled={disabled}
                     />
                 </RailField>
 
-                <RailField label="Description">
+                <RailField label={t("entityUi.toolForm.descriptionLabel")}>
                     <AutosizeTextarea
                         value={(fn.description as string | undefined) ?? ""}
                         onChange={(e) => setFn("description", e.target.value)}
                         autoSize={{minRows: 2, maxRows: 6}}
-                        placeholder="What the tool does and when to use it"
-                        aria-label="Description"
+                        placeholder={t("entityUi.toolForm.toolDescriptionPlaceholder")}
+                        aria-label={t("entityUi.toolForm.descriptionLabel")}
                         disabled={disabled}
                     />
                 </RailField>
 
-                <RailField label="Permission" align="center">
+                <RailField label={t("entityUi.toolForm.permission")} align="center">
                     <Select
                         value={permission ?? "inherit"}
                         onValueChange={(next) => setPermission(next as ToolPermissionSelection)}
                         disabled={disabled}
                     >
-                        <SelectTrigger className="w-full" aria-label="Permission">
+                        <SelectTrigger
+                            className="w-full"
+                            aria-label={t("entityUi.toolForm.permission")}
+                        >
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                             {PERMISSION_OPTIONS.map((option) => (
                                 <SelectItem key={option.value} value={option.value}>
-                                    {option.label}
+                                    {t(option.label)}
                                 </SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
                 </RailField>
 
-                <RailField label="Allow extra properties" align="center">
+                <RailField label={t("entityUi.toolForm.allowExtraProperties")} align="center">
                     <div className="flex items-center gap-2">
                         <Switch
                             checked={additionalProperties}
                             onCheckedChange={setAdditionalProperties}
-                            aria-label="Allow extra properties"
+                            aria-label={t("entityUi.toolForm.allowExtraProperties")}
                             disabled={disabled}
                         />
-                        <span className="text-xs text-[var(--ag-colorTextTertiary)]">
+                        <span className="text-meta text-muted-foreground">
                             {additionalProperties
-                                ? "Inputs may include keys not listed above."
-                                : "Only the listed parameters are accepted."}
+                                ? t("entityUi.toolForm.extraPropertiesOn")
+                                : t("entityUi.toolForm.extraPropertiesOff")}
                         </span>
                     </div>
                 </RailField>
@@ -178,27 +187,20 @@ function ToolBasics({
                 const noParams = Object.keys(getProps(params as Schema)).length === 0
                 if (gateway && noParams) {
                     return (
-                        <div className="flex items-start gap-2 rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] px-3 py-2 text-xs text-[var(--ag-colorWarningText)]">
-                            <Code
-                                size={14}
-                                className="mt-0.5 shrink-0 text-[var(--ag-colorWarning)]"
-                            />
+                        <div className="flex items-start gap-2 rounded border border-solid border-border-muted bg-secondary px-3 py-2 text-meta text-warning">
+                            <Code size={14} className="mt-0.5 shrink-0 text-warning" />
                             <span>
-                                Couldn&apos;t load {gateway.integration}&apos;s input schema for
-                                this action. Add the parameters it expects on the left (or paste
-                                them via JSON) so the model knows what to send.
+                                {t("entityUi.toolForm.schemaNotLoaded", {
+                                    integration: gateway.integration,
+                                })}
                             </span>
                         </div>
                     )
                 }
                 return (
-                    <div className="flex items-start gap-2 rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] px-3 py-2 text-xs text-[var(--ag-colorTextSecondary)]">
+                    <div className="flex items-start gap-2 rounded border border-solid border-border-muted bg-secondary px-3 py-2 text-meta text-muted-foreground">
                         <Code size={14} className="mt-0.5 shrink-0" />
-                        <span>
-                            A schema-only tool — the model emits a call and your application
-                            executes it. Define the inputs it provides in the parameters on the
-                            left.
-                        </span>
+                        <span>{t("entityUi.toolForm.schemaOnlyTool")}</span>
                     </div>
                 )
             })()}
@@ -239,6 +241,7 @@ function CanonicalGatewayToolForm({
     onChange: (next: Record<string, unknown>) => void
     disabled?: boolean
 }) {
+    const t = useT(toolFormCatalog)
     const {action, isLoading} = useToolActionDetail(view.integration, view.action)
     const resolved = !isLoading && !!action
     const legacyValue = useMemo(() => {
@@ -272,17 +275,11 @@ function CanonicalGatewayToolForm({
         // raw JSON plus a warning; the drawer's JSON toggle stays the editable view.
         return (
             <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4">
-                <div className="flex items-start gap-2 rounded border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-3 py-2 text-xs text-[var(--ag-colorWarningText)]">
-                    <WarningCircle
-                        size={14}
-                        className="mt-0.5 shrink-0 text-[var(--ag-colorWarning)]"
-                    />
-                    <span>
-                        Couldn&apos;t resolve this tool. The action or connection may have been
-                        renamed or removed. Use the JSON view to inspect the raw tool.
-                    </span>
+                <div className="flex items-start gap-2 rounded border border-solid border-warning/30 bg-warning/10 px-3 py-2 text-meta text-warning">
+                    <WarningCircle size={14} className="mt-0.5 shrink-0 text-warning" />
+                    <span>{t("entityUi.toolForm.toolNotResolved")}</span>
                 </div>
-                <pre className="m-0 overflow-auto rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] p-2 font-mono text-xs text-[var(--ag-colorTextSecondary)]">
+                <pre className="m-0 overflow-auto rounded border border-solid border-border-muted bg-secondary p-2 text-code-sm text-muted-foreground">
                     {safeStringify(value)}
                 </pre>
             </div>

@@ -8,11 +8,18 @@
 
 import {memo, useCallback, useMemo, useState} from "react"
 
-import {EnhancedModal, ModalFooter} from "@agenta/ui/components/modal"
+import {useT, type CatalogKey} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {
     Button,
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
     Select,
     SelectContent,
     SelectItem,
@@ -45,10 +52,10 @@ export interface ResponseFormatControlViewProps {
 }
 
 const RESPONSE_FORMAT_OPTIONS = [
-    {label: "Output type: Text", value: "text"},
-    {label: "Output type: JSON", value: "json_object"},
-    {label: "Output type: JSON Schema", value: "json_schema"},
-]
+    {label: "entityUi.schemaControls.outputTypeText", value: "text"},
+    {label: "entityUi.schemaControls.outputTypeJson", value: "json_object"},
+    {label: "entityUi.schemaControls.outputTypeJsonSchema", value: "json_schema"},
+] as const satisfies readonly {label: CatalogKey<typeof schemaControlsCatalog>; value: string}[]
 
 export const DEFAULT_JSON_SCHEMA = {
     name: "Schema",
@@ -66,6 +73,8 @@ export const ResponseFormatControlView = memo(function ResponseFormatControlView
     open = false,
     onOpenChange,
 }: ResponseFormatControlViewProps) {
+    const t = useT(schemaControlsCatalog)
+    const tCommon = useT(commonCatalog)
     // Local editor state - buffers changes until Save
     const [editorState, setEditorState] = useState<string>(() => {
         if (value?.json_schema) {
@@ -158,7 +167,7 @@ export const ResponseFormatControlView = memo(function ResponseFormatControlView
             <Select value={formatType} onValueChange={handleFormatChange} disabled={disabled}>
                 <SelectTrigger
                     size={size === "sm" ? "sm" : "default"}
-                    aria-label="Output type"
+                    aria-label={t("entityUi.schemaControls.outputType")}
                     className="h-control-sm w-auto min-w-[130px]"
                 >
                     <SelectValue />
@@ -167,7 +176,7 @@ export const ResponseFormatControlView = memo(function ResponseFormatControlView
                 <SelectContent className="w-auto min-w-[var(--radix-select-trigger-width)]">
                     {RESPONSE_FORMAT_OPTIONS.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
-                            {option.label}
+                            {t(option.label)}
                         </SelectItem>
                     ))}
                 </SelectContent>
@@ -177,33 +186,37 @@ export const ResponseFormatControlView = memo(function ResponseFormatControlView
             {formatType === "json_schema" && (
                 <Button variant="outline" size={size} onClick={handleOpenModal} disabled={disabled}>
                     {((parsedSchema as Record<string, unknown> | null)?.name as string) ||
-                        "Edit Schema"}
+                        t("entityUi.schemaControls.editSchema")}
                 </Button>
             )}
 
             {/* JSON Schema Editor Modal */}
             {!disabled && (
-                <EnhancedModal
-                    title="Structured Output Schema"
-                    open={open}
-                    onCancel={handleCancel}
-                    width={600}
-                    footer={
-                        <ModalFooter
-                            onCancel={handleCancel}
-                            onConfirm={handleSave}
-                            confirmLabel="Save"
-                        />
-                    }
-                >
-                    <span className="mb-2 block text-colorText">
-                        Define the JSON schema for the structured output. The model will return
-                        responses that conform to this schema.
-                    </span>
-                    <div className="flex flex-col w-full gap-1 [&_.agenta-shared-editor]:box-border [&_.agenta-shared-editor]:!overflow-y-auto [&_.agenta-rich-text-editor]:!min-h-0 [&_.editor-code]:!pt-0 [&_.editor-code]:!pb-0 [&_.code-segment:first-child>br]:hidden">
-                        {editorContent}
-                    </div>
-                </EnhancedModal>
+                <Dialog open={open} onOpenChange={(next) => !next && handleCancel()}>
+                    <DialogContent className="max-w-[600px]">
+                        <DialogHeader>
+                            <DialogTitle>
+                                {t("entityUi.schemaControls.structuredOutputSchema")}
+                            </DialogTitle>
+                        </DialogHeader>
+                        <div>
+                            <span className="mb-2 block text-foreground">
+                                {t("entityUi.schemaControls.defineJsonSchema")}
+                            </span>
+                            <div className="flex flex-col w-full gap-1 [&_.agenta-shared-editor]:box-border [&_.agenta-shared-editor]:!overflow-y-auto [&_.agenta-rich-text-editor]:!min-h-0 [&_.editor-code]:!pt-0 [&_.editor-code]:!pb-0 [&_.code-segment:first-child>br]:hidden">
+                                {editorContent}
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={handleCancel}>
+                                {tCommon("common.cancel")}
+                            </Button>
+                            <Button onClick={handleSave}>
+                                {t("entityUi.schemaControls.save")}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             )}
         </div>
     )

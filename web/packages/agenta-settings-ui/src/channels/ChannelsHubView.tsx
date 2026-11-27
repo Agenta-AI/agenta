@@ -1,6 +1,9 @@
 import {useState} from "react"
 
-import {Button, SkeletonBlock} from "@agenta/ui/ui"
+import {useT} from "@agenta/i18n"
+import channelsHubCatalog from "@agenta/i18n/catalogs/channels.hub"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import {Button, SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
 import {CaretDown, CaretRight, CaretUp, ChatCircleText, Code, Plus} from "@phosphor-icons/react"
 
 import {ChannelsHubDiagram, type ChannelsHubDiagramTarget} from "./ChannelsHubDiagram"
@@ -54,6 +57,7 @@ export const ChannelsHubView = ({
     showEmbed = false,
     onOpenEmbed,
 }: ChannelsHubViewProps) => {
+    const t = useT(channelsHubCatalog, commonCatalog)
     const [expanded, setExpanded] = useState<Partial<Record<ChannelPlatform, boolean>>>({})
     const [retrying, setRetrying] = useState(false)
     const unavailable = loading || !!loadError
@@ -66,11 +70,16 @@ export const ChannelsHubView = ({
             // Any of the agent's connections, not only the summarized one.
             live: agentConnectionsOf(connections, platform).some((c) => isLiveForAgent(c, agentId)),
         })),
-        ...(showApi
-            ? [{key: "api", name: "API", icon: <Code size={12} weight="bold" />, live: apiLive}]
-            : []),
+        ...(showApi ? [{key: "api", name: "API", icon: <Code size={12} />, live: apiLive}] : []),
         ...(showEmbed
-            ? [{key: "embed", name: "Embed", icon: <ChatCircleText size={12} />, live: false}]
+            ? [
+                  {
+                      key: "embed",
+                      name: t("channels.hub.embed"),
+                      icon: <ChatCircleText size={12} />,
+                      live: false,
+                  },
+              ]
             : []),
     ]
 
@@ -81,7 +90,7 @@ export const ChannelsHubView = ({
             {loadError ? (
                 <div
                     role="alert"
-                    className="flex items-center justify-between gap-3 rounded-lg border border-solid border-border px-3 py-2.5 text-[13px] text-error"
+                    className="flex items-center justify-between gap-3 rounded-lg bg-muted px-3 py-2.5 text-label text-destructive"
                 >
                     <span className="min-w-0">{loadError}</span>
                     <Button
@@ -99,7 +108,7 @@ export const ChannelsHubView = ({
                             }
                         }}
                     >
-                        {retrying ? "Retrying…" : "Try again"}
+                        {retrying ? t("common.retrying") : t("common.tryAgain")}
                     </Button>
                 </div>
             ) : null}
@@ -110,9 +119,9 @@ export const ChannelsHubView = ({
                         return (
                             <div
                                 key={platform}
-                                className="flex items-center gap-3 rounded-lg border border-solid border-border px-3 py-2.5"
+                                className="flex items-center gap-3 rounded-lg bg-muted px-3 py-2.5"
                             >
-                                <SkeletonBlock active className="size-[34px] rounded-lg" />
+                                <SkeletonBlock active className="size-8 rounded-md" />
                                 <div className="flex flex-1 flex-col gap-1.5">
                                     <SkeletonBlock active className="h-3.5 w-20" />
                                     <SkeletonBlock active className="h-3 w-36" />
@@ -122,37 +131,32 @@ export const ChannelsHubView = ({
                     }
                     const summary = summarizeConnection(platform, connections[platform], agentId)
                     const mine = agentConnectionsOf(connections, platform)
-                    const noun =
+                    const connectedKey =
                         platform === "slack"
-                            ? "workspace"
+                            ? "channels.hub.workspacesConnected"
                             : platform === "whatsapp"
-                              ? "number"
-                              : "bot"
+                              ? "channels.hub.numbersConnected"
+                              : "channels.hub.botsConnected"
                     const canExpand = mine.length > 0 && !unavailable
                     // Answering as another agent is a choice to make here, so it reads as a warning.
                     const dotClass =
-                        summary.action === "connect-here" ? "bg-colorWarning" : summary.dotClass
+                        summary.action === "connect-here" ? "bg-warning" : summary.dotClass
                     const open = canExpand && !!expanded[platform]
                     const toggle = () => {
                         if (canExpand) setExpanded((e) => ({...e, [platform]: !e[platform]}))
                         else onOpenPlatform(platform)
                     }
                     const sub = loadError
-                        ? "Unavailable"
+                        ? t("common.unavailable")
                         : mine.length && summary.action === "manage" && !summary.needsAttention
-                          ? `${mine.length} ${noun}${mine.length > 1 ? "s" : ""} connected`
+                          ? t(connectedKey, {count: mine.length})
                           : summary.connected || summary.dotClass
                             ? summary.sub
-                            : "Not connected"
+                            : t("common.notConnected")
                     return (
-                        <div
-                            key={platform}
-                            className={`overflow-hidden rounded-lg border border-solid bg-background transition-colors ${
-                                open ? "border-ring" : "border-border"
-                            }`}
-                        >
+                        <div key={platform} className="overflow-hidden rounded-lg bg-muted">
                             <div
-                                className={`flex items-center gap-2 pr-2.5 ${
+                                className={`flex items-center gap-2 pr-2.5 transition-colors duration-[var(--duration-fast)] ${
                                     unavailable ? "" : "hover:bg-accent"
                                 }`}
                             >
@@ -164,20 +168,20 @@ export const ChannelsHubView = ({
                                     className={`${ROW_BUTTON} min-w-0 flex-1 gap-3 rounded-none py-2.5 pl-3 pr-1 hover:bg-transparent disabled:opacity-100`}
                                     data-testid={`channels-hub-${platform}`}
                                 >
-                                    <span className="relative flex size-[34px] flex-none items-center justify-center rounded-lg bg-muted">
+                                    <span className="relative flex size-8 flex-none items-center justify-center rounded-md bg-background">
                                         {platformLogo(platform, 16)}
                                         {dotClass && !unavailable ? (
                                             <span
-                                                className={`absolute -right-[3px] -top-[3px] size-2.5 rounded-full border-2 border-solid border-background ${dotClass}`}
+                                                className={`absolute -right-[3px] -top-[3px] size-2.5 rounded-round border-2 border-solid border-muted ${dotClass}`}
                                             />
                                         ) : null}
                                     </span>
                                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                        <span className="text-sm font-medium text-foreground">
+                                        <span className="text-label text-foreground">
                                             {platformLabel(platform)}
                                         </span>
                                         <span
-                                            className={`truncate text-[12.5px] ${
+                                            className={`truncate text-label ${
                                                 summary.needsAttention
                                                     ? summary.subClass
                                                     : "text-muted-foreground"
@@ -197,28 +201,44 @@ export const ChannelsHubView = ({
                                         }}
                                         data-testid={`channels-hub-add-${platform}`}
                                     >
-                                        <Plus weight="bold" data-icon="inline-start" />
-                                        {mine.length ? "Add" : "Connect"}
+                                        <Plus data-icon="inline-start" />
+                                        {mine.length ? t("common.add") : t("common.connect")}
                                     </Button>
                                 )}
-                                <Button
-                                    variant="ghost"
-                                    size="icon-sm"
-                                    disabled={unavailable}
-                                    aria-label={canExpand ? (open ? "Collapse" : "Expand") : "Open"}
-                                    onClick={toggle}
-                                    className={`rounded-full text-muted-foreground ${open ? "bg-muted" : ""}`}
+                                <SimpleTooltip
+                                    title={
+                                        canExpand
+                                            ? open
+                                                ? t("common.collapse")
+                                                : t("common.expand")
+                                            : t("common.open")
+                                    }
                                 >
-                                    {canExpand ? (
-                                        open ? (
-                                            <CaretUp />
+                                    <Button
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        disabled={unavailable}
+                                        aria-label={
+                                            canExpand
+                                                ? open
+                                                    ? t("common.collapse")
+                                                    : t("common.expand")
+                                                : t("common.open")
+                                        }
+                                        onClick={toggle}
+                                        className={`rounded-md text-muted-foreground ${open ? "bg-muted" : ""}`}
+                                    >
+                                        {canExpand ? (
+                                            open ? (
+                                                <CaretUp />
+                                            ) : (
+                                                <CaretDown />
+                                            )
                                         ) : (
-                                            <CaretDown />
-                                        )
-                                    ) : (
-                                        <CaretRight />
-                                    )}
-                                </Button>
+                                            <CaretRight />
+                                        )}
+                                    </Button>
+                                </SimpleTooltip>
                             </div>
                             {open ? (
                                 <div className="border-0 border-t border-solid border-border px-1.5 pb-1.5 pt-1">
@@ -234,32 +254,32 @@ export const ChannelsHubView = ({
                                                 variant="ghost"
                                                 disabled={!id}
                                                 onClick={() => id && onOpenConnection(platform, id)}
-                                                className={`${ROW_BUTTON} w-full gap-2.5 py-2 pl-2.5 pr-2`}
+                                                className={`${ROW_BUTTON} w-full gap-2 py-2 pl-2.5 pr-2`}
                                                 data-testid={`channels-hub-connection-${id}`}
                                             >
-                                                <span className="flex size-[22px] flex-none items-center justify-center rounded-md border border-solid border-border bg-muted text-[10.5px] font-semibold text-muted-foreground">
+                                                <span className="flex size-6 flex-none items-center justify-center rounded-md bg-secondary text-caption font-semibold text-muted-foreground">
                                                     {title
                                                         .replace(/^@/, "")
                                                         .charAt(0)
                                                         .toUpperCase()}
                                                 </span>
-                                                <span className="max-w-[50%] flex-none truncate text-[13px] font-medium text-foreground">
+                                                <span className="max-w-[50%] flex-none truncate text-label font-medium text-foreground">
                                                     {title}
                                                 </span>
-                                                <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                                                <span className="min-w-0 flex-1 truncate text-meta text-muted-foreground">
                                                     {detail}
                                                 </span>
                                                 <span
-                                                    className={`size-1.5 flex-none rounded-full ${
+                                                    className={`size-1.5 flex-none rounded-round ${
                                                         connection.status === "revoked"
-                                                            ? "bg-colorError"
+                                                            ? "bg-destructive"
                                                             : connection.agentOff
-                                                              ? "bg-colorTextQuaternary"
-                                                              : "bg-colorSuccess"
+                                                              ? "bg-border-strong"
+                                                              : "bg-success"
                                                     }`}
                                                 />
                                                 <CaretRight
-                                                    size={11}
+                                                    size={12}
                                                     className="flex-none text-muted-foreground"
                                                 />
                                             </Button>
@@ -278,18 +298,18 @@ export const ChannelsHubView = ({
                         className={`${ROW_BUTTON} w-full gap-3 rounded-lg py-2.5 pl-3 pr-2.5`}
                         data-testid="channels-hub-api"
                     >
-                        <span className="relative flex size-[34px] flex-none items-center justify-center rounded-lg bg-muted text-foreground">
-                            <Code size={16} weight="bold" />
+                        <span className="relative flex size-8 flex-none items-center justify-center rounded-md bg-secondary text-muted-foreground">
+                            <Code size={16} />
                             {apiLive ? (
-                                <span className="absolute -right-[3px] -top-[3px] size-2.5 rounded-full border-2 border-solid border-background bg-colorSuccess" />
+                                <span className="absolute -right-[3px] -top-[3px] size-2.5 rounded-round border-2 border-solid border-background bg-success" />
                             ) : null}
                         </span>
                         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                            <span className="text-sm font-medium text-foreground">API</span>
-                            <span className="truncate text-[12.5px] text-muted-foreground">
+                            <span className="text-label text-foreground">API</span>
+                            <span className="truncate text-label text-muted-foreground">
                                 {apiLive
-                                    ? "Always on for saved versions"
-                                    : "Save the agent to call it"}
+                                    ? t("channels.hub.apiAlwaysOn")
+                                    : t("channels.hub.apiSaveFirst")}
                             </span>
                         </span>
                         <span className="flex size-7 flex-none items-center justify-center text-muted-foreground">
@@ -305,13 +325,15 @@ export const ChannelsHubView = ({
                         className={`${ROW_BUTTON} w-full gap-3 rounded-lg py-2.5 pl-3 pr-2.5`}
                         data-testid="channels-hub-embed"
                     >
-                        <span className="flex size-[34px] flex-none items-center justify-center rounded-lg bg-muted text-foreground">
+                        <span className="flex size-8 flex-none items-center justify-center rounded-md bg-secondary text-muted-foreground">
                             <ChatCircleText size={16} />
                         </span>
                         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                            <span className="text-sm font-medium text-foreground">Embed</span>
-                            <span className="truncate text-[12.5px] text-muted-foreground">
-                                A chat on your website
+                            <span className="text-label text-foreground">
+                                {t("channels.hub.embed")}
+                            </span>
+                            <span className="truncate text-label text-muted-foreground">
+                                {t("channels.hub.embedDescription")}
                             </span>
                         </span>
                         <span className="flex size-7 flex-none items-center justify-center text-muted-foreground">

@@ -1,0 +1,160 @@
+/* The tour hero (components/hero-app/HeroTour.jsx): the app, then the dashes that fill and the step title. */
+/* A grid, so the tab order (stage, previous, dashes, next, title) matches what you see. */
+.hxt {
+  width: min(1120px, 100%);
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 40px;
+  justify-items: center;
+  margin-top: 24px;
+}
+.hxt-dashes {
+  grid-row: 2;
+  grid-column: 2;
+  display: flex;
+  gap: 8px;
+  margin-top: 28px;
+}
+.hxt-dashes button {
+  position: relative;
+  width: 40px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.hxt-dashes button::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 6px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--lp-line-strong);
+}
+.hxt-dashes button i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 6px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--lp-text);
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+.hxt-dashes button:hover::before {
+  background: var(--lp-dim);
+}
+.hxt-dashes button:focus-visible,
+.hxt-arrow:focus-visible {
+  outline: 2px solid var(--lp-text);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+/* The landing's small serif heading (.ntx b, .fgx .txt h3). */
+.hxt-title {
+  grid-row: 3;
+  grid-column: 2;
+  margin: 8px 0 0;
+  font:
+    400 24px / 1.2 "GT Alpina",
+    Georgia,
+    serif;
+  color: var(--lp-text);
+}
+.hxt-stage {
+  grid-row: 1;
+  grid-column: 1 / -1;
+  position: relative;
+  width: 100%;
+}
+.hxt-stage .hx-frame {
+  margin-top: 0;
+}
+.hxt-layer {
+  position: absolute;
+  inset: 0;
+}
+.hxt-layer.in {
+  animation: hxt-in 0.26s ease both;
+}
+.hxt-layer.out {
+  z-index: 1;
+  pointer-events: none;
+  animation: hxt-out 0.26s ease both;
+}
+@keyframes hxt-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes hxt-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+.hxt-arrow {
+  grid-row: 1;
+  align-self: center;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--lp-body);
+  cursor: pointer;
+}
+.hxt-arrow:hover {
+  background: var(--lp-surface-3);
+  color: var(--lp-text);
+}
+.hxt-arrow.prev {
+  grid-column: 1;
+  justify-self: start;
+  margin-left: -64px;
+}
+.hxt-arrow.next {
+  grid-column: 3;
+  justify-self: end;
+  margin-right: -64px;
+}
+
+/* Without room beside the app, the arrows sit at both ends of the dashes and title rows. */
+@media (max-width: 1279px) {
+  .hxt-arrow {
+    grid-row: 2 / span 2;
+    /* The dashes' top margin, so the arrows centre on the dashes and the title. */
+    margin-top: 28px;
+  }
+  .hxt-arrow.prev {
+    margin-left: 0;
+  }
+  .hxt-arrow.next {
+    margin-right: 0;
+  }
+}
+/* Phones: the desktop app would be about 3px text, so the hero keeps its text and buttons only. */
+@media (max-width: 860px) {
+  .hxt {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hxt-layer.in,
+  .hxt-layer.out {
+    animation: none;
+  }
+}

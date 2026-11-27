@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import React, {act} from "react"
+
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, expect, it, vi} from "vitest"
 
@@ -17,6 +18,7 @@ vi.mock("@agenta/ui/ui", () => ({
     LoadingButton: ({children, onClick}: React.ComponentProps<"button">) => (
         <button onClick={onClick}>{children}</button>
     ),
+    PasswordInput: (props: React.ComponentProps<"input">) => <input {...props} />,
     Segmented: ({
         options,
         onChange,
