@@ -1001,7 +1001,10 @@ export function useMcpConnectScreens({
                 ) : null}
 
                 {screen === "oauth" || screen === "api_key" || screen === "no_auth" ? (
-                    <HintedField label={t("entityUi.mcpJourney.name")} error={nameError ?? undefined}>
+                    <HintedField
+                        label={t("entityUi.mcpJourney.name")}
+                        error={nameError ?? undefined}
+                    >
                         <Input
                             className={fieldClass}
                             value={state.name}
@@ -1046,8 +1049,8 @@ export function useMcpConnectScreens({
                                 onChange={(slug) =>
                                     journey.setOauthClient({
                                         clientSecretId:
-                                            namedSecrets.find((secret) => secret.slug === slug)?.id ??
-                                            null,
+                                            namedSecrets.find((secret) => secret.slug === slug)
+                                                ?.id ?? null,
                                     })
                                 }
                                 secrets={namedSecrets}
@@ -1135,7 +1138,9 @@ export function useMcpConnectScreens({
                                     disabled={busy}
                                     invalid={state.status === "verify_failed"}
                                     aria-describedby={
-                                        state.status === "verify_failed" ? KEY_PROBLEM_ID : undefined
+                                        state.status === "verify_failed"
+                                            ? KEY_PROBLEM_ID
+                                            : undefined
                                     }
                                     canCreate={credentialBindingComplete(binding)}
                                     onCreate={() => openSecretDrawer()}
@@ -1172,7 +1177,9 @@ export function useMcpConnectScreens({
 
                 {screen === "waiting" ? (
                     <WaitingCard
-                        title={sealed ? null : t("entityUi.mcpJourney.waitingFor", {name: state.name})}
+                        title={
+                            sealed ? null : t("entityUi.mcpJourney.waitingFor", {name: state.name})
+                        }
                         body={
                             sealed
                                 ? t("entityUi.mcpJourney.savingBody")

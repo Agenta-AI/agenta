@@ -24,12 +24,7 @@ import {
     Button,
     EmptyState,
 } from "@agenta/ui/ui"
-import {
-    useViewForm,
-    useViewTitle,
-    ViewFooterStart,
-    type ViewProps,
-} from "@agenta/ui/view-stack"
+import {useViewForm, useViewTitle, ViewFooterStart, type ViewProps} from "@agenta/ui/view-stack"
 import {Lightning, Trash} from "@phosphor-icons/react"
 
 import {automationRunHistoryView} from "./automationRunHistoryView"

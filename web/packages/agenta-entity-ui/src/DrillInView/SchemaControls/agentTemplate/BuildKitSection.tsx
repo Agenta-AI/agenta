@@ -55,11 +55,7 @@ const presets: PermissionPresetOption[] = [
         "entityUi.buildKit.presetAllowReads",
         "entityUi.buildKit.presetAllowReadsHelp",
     ),
-    preset(
-        "deny_all",
-        "entityUi.buildKit.presetOff",
-        "entityUi.buildKit.presetOffKitHelp",
-    ),
+    preset("deny_all", "entityUi.buildKit.presetOff", "entityUi.buildKit.presetOffKitHelp"),
     preset("custom", "entityUi.buildKit.presetCustom", "entityUi.buildKit.presetCustomHelp", {
         disabled: true,
         separatorBefore: true,

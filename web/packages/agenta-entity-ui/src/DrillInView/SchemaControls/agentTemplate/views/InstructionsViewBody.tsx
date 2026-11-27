@@ -56,9 +56,7 @@ const InstructionsViewBody = ({params, target}: ViewProps<InstructionsViewParams
                     <div className="relative min-w-0 flex-1">
                         <div ref={setToolbarHost} className="peer min-w-0" />
                         {/* The tools' shape holds the band until the editor puts them in. */}
-                        <MarkdownToolbarSkeleton
-                            className="absolute inset-y-0 left-0 hidden peer-empty:flex"
-                        />
+                        <MarkdownToolbarSkeleton className="absolute inset-y-0 left-0 hidden peer-empty:flex" />
                     </div>
                     <Button
                         variant="ghost"

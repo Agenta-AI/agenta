@@ -178,21 +178,9 @@ export const AgentPane = ({
             />
         )
     else if (tab === "channels")
-        body = (
-            <ChannelsTab
-                agentId={agentId}
-                workspaceId={workspaceId}
-                projectId={projectId}
-            />
-        )
+        body = <ChannelsTab agentId={agentId} workspaceId={workspaceId} projectId={projectId} />
     else if (tab === "access")
-        body = (
-            <AccessTab
-                agentId={agentId}
-                workspaceId={workspaceId}
-                projectId={projectId}
-            />
-        )
+        body = <AccessTab agentId={agentId} workspaceId={workspaceId} projectId={projectId} />
     else if (tab === "drives")
         body = (
             <PaneDrives
@@ -236,10 +224,7 @@ export const AgentPane = ({
                 guardRef={guardRef}
             >
                 {() => (
-                    <div
-                        data-pane=""
-                        className="ag-panel-raised flex h-full min-h-0 flex-col"
-                    >
+                    <div data-pane="" className="ag-panel-raised flex h-full min-h-0 flex-col">
                         <AgentConfigTabs
                             tabs={PANE_TABS.map((key) => ({
                                 key,

@@ -152,10 +152,7 @@ export const AgentIntroCard = ({entityId, className}: {entityId: string; classNa
             {model || counts.tools || counts.mcps || counts.skills ? (
                 <div className="flex flex-wrap items-center justify-center gap-1.5">
                     {model ? (
-                        <Chip
-                            icon={<Cpu />}
-                            title={model !== modelLabel ? model : undefined}
-                        >
+                        <Chip icon={<Cpu />} title={model !== modelLabel ? model : undefined}>
                             {modelLabel}
                         </Chip>
                     ) : null}

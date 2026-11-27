@@ -321,12 +321,7 @@ export function SkillEditor({
         // One Files panel: a column at 672px and wider; below, it takes the fields' place while open.
         return (
             // Fills its host's height, so the Files panel can pin the programs card to the bottom.
-            <div
-                className={cn(
-                    "@container flex min-w-0 flex-col",
-                    !flow && "min-h-0 flex-1",
-                )}
-            >
+            <div className={cn("@container flex min-w-0 flex-col", !flow && "min-h-0 flex-1")}>
                 {filesToggle}
                 <div className={cn("flex min-w-0 gap-6", !flow && "min-h-0 flex-1")}>
                     <div

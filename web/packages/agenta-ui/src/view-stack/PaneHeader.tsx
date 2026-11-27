@@ -120,7 +120,8 @@ export const PaneHeader = ({
 export const PaneFooterSlotContext = createContext<HTMLElement | null>(null)
 
 /** The pane's action row band; empty, it takes no room. */
-export const PANE_FOOTER_CLASS = "flex shrink-0 items-center justify-end gap-2 bg-muted px-4 py-2.5 empty:hidden"
+export const PANE_FOOTER_CLASS =
+    "flex shrink-0 items-center justify-end gap-2 bg-muted px-4 py-2.5 empty:hidden"
 
 /** A view's action row: in a pane chrome, the chrome's row with compact buttons; elsewhere a band pinned under the body. */
 export const PaneFooter = ({children}: {children: ReactNode}) => {

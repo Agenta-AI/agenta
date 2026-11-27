@@ -70,9 +70,7 @@ export const ChannelsHubView = ({
             // Any of the agent's connections, not only the summarized one.
             live: agentConnectionsOf(connections, platform).some((c) => isLiveForAgent(c, agentId)),
         })),
-        ...(showApi
-            ? [{key: "api", name: "API", icon: <Code size={12} />, live: apiLive}]
-            : []),
+        ...(showApi ? [{key: "api", name: "API", icon: <Code size={12} />, live: apiLive}] : []),
         ...(showEmbed
             ? [
                   {

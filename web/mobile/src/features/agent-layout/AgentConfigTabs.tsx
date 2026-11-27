@@ -47,7 +47,9 @@ export const AgentConfigTabs = <K extends string>({
                 back={{title: back.title, onBack: back.onBack}}
                 title={back.current}
                 onWiden={
-                    widen ? {wide: widen.wide, onToggle: () => widen.setWide(!widen.wide)} : undefined
+                    widen
+                        ? {wide: widen.wide, onToggle: () => widen.setWide(!widen.wide)}
+                        : undefined
                 }
                 onClose={onClose}
             />

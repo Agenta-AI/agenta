@@ -19,11 +19,7 @@ import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationV
 import mcpPermissionsCatalog from "@agenta/i18n/catalogs/entityUi.mcpPermissions"
 import mcpViewsCatalog from "@agenta/i18n/catalogs/entityUi.mcpViews"
 import {McpServerMark} from "@agenta/ui/agent-icon"
-import {
-    Badge,
-    Button,
-    ItemViewTitle,
-} from "@agenta/ui/ui"
+import {Badge, Button, ItemViewTitle} from "@agenta/ui/ui"
 import {useViewTitle, type ConfigItemRef, type ViewNav, type ViewProps} from "@agenta/ui/view-stack"
 import {ArrowClockwise} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"

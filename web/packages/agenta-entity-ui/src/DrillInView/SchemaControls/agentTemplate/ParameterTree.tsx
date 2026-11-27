@@ -17,7 +17,6 @@ import parameterEditorCatalog from "@agenta/i18n/catalogs/entityUi.parameterEdit
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {CaretDown, CaretRight, Plus, Wrench} from "@phosphor-icons/react"
 
-
 import {RowRemoveAction} from "./RowRemoveAction"
 import {
     defType,
