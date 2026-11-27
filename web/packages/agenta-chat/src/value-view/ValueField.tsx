@@ -24,14 +24,24 @@ const CHIPS_SHOWN = 10
 const CHIP_MAX_CHARS = 40
 /** A table of objects shows this many rows before "Show all N". */
 const TABLE_ROWS_SHOWN = 5
+/** A text longer than this does not fit a table cell, which cannot open. */
+const TABLE_CELL_CHARS = 80
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === "object" && value !== null && !Array.isArray(value)
 
-/** A table cell draws one line, so it holds only values with nothing to open: no object, no list, no JSON text. */
+/**
+ * A table cell draws one line and cannot open, so it holds only short values: no object, no
+ * list, no JSON text, no text longer than a cell.
+ */
 const isCellValue = (value: unknown) => {
     if (typeof value === "object" && value !== null) return false
-    return typeof value !== "string" || !detectValueShape(value).parsedFromText
+    if (typeof value !== "string") return true
+    return (
+        value.length <= TABLE_CELL_CHARS &&
+        !value.includes("\n") &&
+        !detectValueShape(value).parsedFromText
+    )
 }
 
 /** Text with aligned columns (a log, a table drawn with spaces) reads in monospace. */

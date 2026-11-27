@@ -135,12 +135,15 @@ const TurnView = ({
     }
     if (message.role === "tool") {
         return (
-            <ToolIOBlock
-                label={t("chat.valueView.resultOf", {
-                    name: message.toolName ?? t("chat.valueView.toolResult"),
-                })}
-                value={message.text}
-            />
+            <div className="flex min-w-0 flex-col gap-2">
+                <ToolIOBlock
+                    label={t("chat.valueView.resultOf", {
+                        name: message.toolName ?? t("chat.valueView.toolResult"),
+                    })}
+                    value={message.text}
+                />
+                <Attachments message={message} />
+            </div>
         )
     }
     return (
@@ -156,6 +159,9 @@ const TurnView = ({
                     answerStarted
                 />
             ) : null}
+            {[...turn.results.values()].map((result, index) => (
+                <Attachments key={index} message={result} />
+            ))}
             {message.text ? (
                 message.role === "system" ? (
                     <div className="rounded-lg bg-muted px-3 py-2 text-body text-muted-foreground">

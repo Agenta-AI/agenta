@@ -141,6 +141,24 @@ describe("ValueField shapes", () => {
         expect(screen.getByText("message 3")).toBeTruthy()
     })
 
+    it("draws the image of a tool result under its call", () => {
+        const messages = [
+            {role: "user", content: "Show the chart."},
+            {
+                role: "assistant",
+                content: "",
+                tool_calls: [{id: "c1", function: {name: "render_chart", arguments: "{}"}}],
+            },
+            {
+                role: "tool",
+                tool_call_id: "c1",
+                content: [{type: "image_url", image_url: {url: "https://example.com/chart.png"}}],
+            },
+        ]
+        const {container} = render(<ValueField value={messages} />)
+        expect(container.querySelector('img[src="https://example.com/chart.png"]')).not.toBeNull()
+    })
+
     it("draws an image attachment as a tile in the turn", () => {
         const message = {
             role: "user",
@@ -209,6 +227,13 @@ describe("ValueField shapes", () => {
         const {container} = render(<ValueFullView value={items} />)
         expect(container.querySelector("table")).toBeNull()
         expect(screen.getByText(/Berlin/)).toBeTruthy()
+    })
+
+    it("draws a list of objects with a long text as rows", () => {
+        const answer = "Your order left our warehouse on Monday. ".repeat(4)
+        const {container} = render(<ValueFullView value={[{sku: "A", answer}]} />)
+        expect(container.querySelector("table")).toBeNull()
+        expect(screen.getByText(answer.trim())).toBeTruthy()
     })
 
     it("draws a list of objects with JSON text in a value as rows", () => {
