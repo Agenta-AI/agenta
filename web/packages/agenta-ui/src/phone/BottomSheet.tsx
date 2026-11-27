@@ -1,10 +1,11 @@
 import type {ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import phoneCatalog from "@agenta/i18n/catalogs/ui.phone"
 
 import {Button} from "../components/ui/button"
-import {Sheet, SheetContent, SheetTitle, SheetTrigger} from "../components/ui/sheet"
+import {Sheet, SheetClose, SheetContent, SheetTitle, SheetTrigger} from "../components/ui/sheet"
 import {cn} from "../utils/styles"
 
 import {PHONE_BUTTON_CLASS} from "./phoneButton"
@@ -24,7 +25,7 @@ export interface BottomSheetProps {
     trigger?: ReactNode
     /** Buttons above "Cancel" (for example "New session"). Use `PHONE_BUTTON_CLASS`. */
     actions?: ReactNode
-    /** No "Cancel": for a sheet whose choices apply as they are tapped (swipe or tap out closes it). */
+    /** No visible "Cancel": choices apply on tap; a tap outside, Escape or a screen reader's Close shuts it. */
     hideClose?: boolean
     /** Leaves the focus off the first field on open, so a phone keyboard stays down. */
     keepKeyboardClosed?: boolean
@@ -51,7 +52,7 @@ export const BottomSheet = ({
     "data-testid": testId = "bottom-sheet",
     children,
 }: BottomSheetProps) => {
-    const t = useT(phoneCatalog)
+    const t = useT(phoneCatalog, commonCatalog)
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
             {trigger ? <SheetTrigger asChild>{trigger}</SheetTrigger> : null}
@@ -73,6 +74,10 @@ export const BottomSheet = ({
                     {title}
                 </SheetTitle>
                 <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+                {/* Last, so the open focus does not land on it; only a screen reader finds it. */}
+                {hideClose ? (
+                    <SheetClose className="sr-only">{t("common.close")}</SheetClose>
+                ) : null}
                 {hideClose && !actions ? null : (
                     <div className="flex shrink-0 flex-col gap-2 px-4 pt-2">
                         {actions}

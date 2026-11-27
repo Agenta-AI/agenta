@@ -186,12 +186,12 @@ describe("BottomSheetMenu", () => {
         )
     }
 
-    it("shows the heading, one row per entry and Cancel", () => {
+    it("shows the heading and one row per entry, with no visible Cancel", () => {
         render(<Menu onPick={vi.fn()} />)
         expect(screen.getByText("Add automation")).toBeTruthy()
         expect(screen.getByRole("menuitem", {name: /App trigger/})).toBeTruthy()
         expect(screen.getByText("Run on a recurring schedule")).toBeTruthy()
-        expect(screen.getByRole("button", {name: "Cancel"}).className).toContain("h-control-lg")
+        expect(screen.queryByRole("button", {name: "Cancel"})).toBeNull()
     })
 
     it("a tap on an entry closes the sheet and runs it", () => {
@@ -202,10 +202,20 @@ describe("BottomSheetMenu", () => {
         expect(screen.getByText("closed")).toBeTruthy()
     })
 
-    it("Cancel closes the sheet and runs nothing", () => {
+    it("a screen reader's Close, kept out of sight, closes the sheet and runs nothing", () => {
         const onPick = vi.fn()
         render(<Menu onPick={onPick} />)
-        fireEvent.click(screen.getByRole("button", {name: "Cancel"}))
+        const close = screen.getByRole("button", {name: "Close"})
+        expect(close.className).toContain("sr-only")
+        fireEvent.click(close)
+        expect(onPick).not.toHaveBeenCalled()
+        expect(screen.getByText("closed")).toBeTruthy()
+    })
+
+    it("Escape closes the sheet and runs nothing", () => {
+        const onPick = vi.fn()
+        render(<Menu onPick={onPick} />)
+        fireEvent.keyDown(screen.getByRole("menu"), {key: "Escape"})
         expect(onPick).not.toHaveBeenCalled()
         expect(screen.getByText("closed")).toBeTruthy()
     })

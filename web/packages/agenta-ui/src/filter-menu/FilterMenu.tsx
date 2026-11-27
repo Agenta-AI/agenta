@@ -127,7 +127,7 @@ export const FilterMenu = ({
                     open={open}
                     onOpenChange={setOpen}
                     title={title}
-                    // Each choice applies as it is tapped: swipe down or tap out to close.
+                    // Each choice applies as it is tapped: tap out or Escape closes.
                     hideClose
                     keepKeyboardClosed
                     data-testid="filter-menu-sheet"

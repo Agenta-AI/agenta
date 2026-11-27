@@ -36,8 +36,8 @@ export interface BottomSheetMenuProps {
 /**
  * A menu of two to five entries that start something, as a bottom sheet on a phone: a grab bar,
  * the heading and the same MENU_ITEM row as every menu (ROW-02, nothing bigger on a phone: SIZE-02).
- * No "Cancel": a tap on an entry acts, and a swipe or a tap on the dimmed page closes it and
- * changes nothing. A select stays a menu under its field; this is for
+ * No visible "Cancel": a tap on an entry acts; a tap on the dimmed page, Escape or the screen
+ * reader's Close shuts it and changes nothing. A select stays a menu under its field; this is for
  * menus that start a form or an action.
  */
 export const BottomSheetMenu = ({
