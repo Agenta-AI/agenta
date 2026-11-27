@@ -1,10 +1,24 @@
 /**
  * The compare rules the /m run page uses: which runs the URL compares, how the picker filters
- * candidates, how one metric is found in every run, the delta under a compared value, how bars of
- * several runs share a chart, and how scenario rows and column groups of compared runs line up.
+ * candidates, how one metric is found in every run, the change of the newest run against the run
+ * before it, the compare summary and evaluator rows, the delta and bars of the old compare cards,
+ * and how scenario rows and column groups of
+ * compared runs line up.
  */
 import {describe, expect, it} from "vitest"
 
+import {
+    buildCompareEvaluatorRows,
+    buildCompareSummaryRows,
+    compareChange,
+    compareRoles,
+    formatSigned,
+    formatTileAmount,
+    runTiles,
+    type EvaluatorRow,
+    type RunTile,
+} from "../../src/evaluationRun/core/evaluatorRows"
+import {normalizeMetricStats} from "../../src/evaluationRun/core/metricStats"
 import {
     compareDelta,
     compareMetricKey,
@@ -80,6 +94,199 @@ describe("one metric across runs", () => {
         expect(
             compareMetricKey({...metric, id: "cost", kind: "invocation", evaluatorId: null}),
         ).toBe("cost")
+    })
+})
+
+describe("newest run and the run before it", () => {
+    it("picks the latest createdAt and the run created just before it", () => {
+        // The page's run is the oldest: the change uses the two other runs.
+        expect(
+            compareRoles(["2026-11-01T10:00:00Z", "2026-11-03T10:00:00Z", "2026-11-02T10:00:00Z"]),
+        ).toEqual({newest: 1, before: 2})
+        expect(compareRoles(["2026-11-03T10:00:00Z", "2026-11-01T10:00:00Z"])).toEqual({
+            newest: 0,
+            before: 1,
+        })
+    })
+
+    it("keeps column order for runs created at the same time, and needs two dated runs", () => {
+        const same = "2026-11-05T19:33:17Z"
+        expect(compareRoles([same, same])).toEqual({newest: 1, before: 0})
+        expect(compareRoles([same, null, "not a date"])).toBeNull()
+    })
+})
+
+describe("change of the newest run", () => {
+    it("reads pass rates in points, from the rounded percents", () => {
+        // 7 of 9 against 6 of 9: 78% against 67%.
+        expect(compareChange(7 / 9, 6 / 9, "rate")).toEqual({kind: "points", points: 11})
+        expect(compareChange(1, 0.75, "rate")).toEqual({kind: "points", points: 25})
+        // From a pass rate of 0, where a relative change has no value.
+        expect(compareChange(0.5, 0, "rate")).toEqual({kind: "points", points: 50})
+        expect(compareChange(0.501, 0.499, "rate")).toEqual({kind: "none"})
+    })
+
+    it("reads values on 0 to 1 with 2 decimals and other values with 3 significant digits", () => {
+        expect(compareChange(0.75, 0.83, "unit")).toEqual({kind: "difference", delta: -0.08})
+        expect(compareChange(0.751, 0.749, "unit")).toEqual({kind: "none"})
+        expect(compareChange(565, 261, "number")).toEqual({kind: "difference", delta: 304})
+        expect(compareChange(4.1234, 4.1199, "number")).toEqual({kind: "none"})
+    })
+
+    it("is missing when either run has no value", () => {
+        expect(compareChange(null, 0.5, "rate")).toEqual({kind: "missing"})
+        expect(compareChange(0.5, undefined, "unit")).toEqual({kind: "missing"})
+        expect(compareChange(Number.NaN, 1, "number")).toEqual({kind: "missing"})
+    })
+
+    it("prints a difference with a plus or a minus sign", () => {
+        expect(formatSigned(-0.08, (value) => value.toFixed(2))).toBe("−0.08")
+        expect(formatSigned(304, (value) => formatTileAmount("duration", value))).toBe("+304 ms")
+        expect(formatSigned(0.002, (value) => formatTileAmount("cost", value))).toBe("+$0.002")
+    })
+})
+
+const stats = (raw: Record<string, unknown>) => normalizeMetricStats(raw)
+const binaryStats = (passed: number, failed: number) =>
+    stats({
+        type: "binary",
+        count: passed + failed,
+        freq: [
+            {value: true, count: passed},
+            {value: false, count: failed},
+        ],
+    })
+const invocation = (id: string, mean: number) => ({
+    id,
+    stats: stats({type: "numeric/continuous", count: 9, mean, sum: mean * 9}),
+    statsAreRunWide: true,
+})
+const tilesOf = (passed: {passed: number; total: number} | null, cost: number | null) =>
+    runTiles({
+        status: "success",
+        online: false,
+        invocation: [
+            invocation("duration", 300),
+            ...(cost === null ? [] : [invocation("cost", cost)]),
+        ],
+        binaryStats: passed ? [binaryStats(passed.passed, passed.total - passed.passed)] : [],
+        passed: passed ? {status: "ready", ...passed} : {status: "unavailable"},
+        metricsPending: false,
+    })
+
+describe("compare summary rows", () => {
+    it("has one row per tile with the tile of each run and the change", () => {
+        const rows = buildCompareSummaryRows(
+            [tilesOf({passed: 6, total: 9}, 0.01), tilesOf({passed: 7, total: 9}, null)],
+            {newest: 1, before: 0},
+        )
+        expect(rows.map((row) => row.id)).toEqual([
+            "testCases",
+            "passed",
+            "cost",
+            "duration",
+            "tokens",
+            "errors",
+        ])
+        const row = (id: RunTile["id"]) => rows.find((candidate) => candidate.id === id)
+        expect(row("passed")?.tiles.map((tile) => tile?.value)).toEqual(["67%", "78%"])
+        expect(row("passed")?.change).toEqual({kind: "points", points: 11})
+        // One of the two runs has no cost.
+        expect(row("cost")?.change).toEqual({kind: "missing"})
+        expect(row("duration")?.change).toEqual({kind: "none"})
+        expect(row("testCases")?.change).toEqual({kind: "none"})
+    })
+
+    it("has no Passed row when no run has a binary metric, and waits for a run that loads", () => {
+        const rows = buildCompareSummaryRows([tilesOf(null, 0.01), null], {newest: 1, before: 0})
+        expect(rows.map((row) => row.id)).not.toContain("passed")
+        expect(rows[0].tiles[1]).toBeNull()
+        expect(rows[0].change).toEqual({kind: "missing"})
+    })
+})
+
+describe("compare evaluator rows", () => {
+    const row = (
+        evaluatorId: string,
+        metrics: {id: string; label: string; stats: ReturnType<typeof stats>}[],
+    ): EvaluatorRow => ({
+        stepKey: `step-${evaluatorId}`,
+        evaluatorId,
+        name: evaluatorId === "ev-1" ? "Exact Match" : "Tone",
+        metrics: metrics.map((entry) => ({
+            ...entry,
+            stepKey: `step-${evaluatorId}`,
+            metricKey: entry.id,
+            kind: entry.stats?.type?.startsWith("categorical")
+                ? "categorical"
+                : entry.stats?.type === "binary"
+                  ? "binary"
+                  : "numeric",
+        })),
+    })
+
+    it("matches evaluators and metrics across runs, with one value per run and the change", () => {
+        const older = [
+            row("ev-1", [
+                {id: "ev-1:success", label: "success", stats: binaryStats(3, 1)},
+                {
+                    id: "ev-1:score",
+                    label: "score",
+                    stats: stats({type: "numeric/continuous", mean: 0.83, min: 0, max: 1}),
+                },
+            ]),
+        ]
+        const newest = [
+            row("ev-1", [
+                {id: "ev-1:success", label: "success", stats: binaryStats(4, 0)},
+                {
+                    id: "ev-1:score",
+                    label: "score",
+                    stats: stats({type: "numeric/continuous", mean: 0.75, min: 0.5, max: 1}),
+                },
+            ]),
+            row("ev-2", [
+                {
+                    id: "ev-2:tone",
+                    label: "tone",
+                    stats: stats({type: "categorical/single", freq: [{value: "formal", count: 2}]}),
+                },
+            ]),
+        ]
+        const rows = buildCompareEvaluatorRows([older, newest], {newest: 1, before: 0})
+        expect(rows.map((entry) => [entry.key, entry.name])).toEqual([
+            ["ev-1", "Exact Match"],
+            ["ev-2", "Tone"],
+        ])
+        const [success, score] = rows[0].metrics
+        expect(success.id).toBe("ev-1:success")
+        expect(success.change).toEqual({kind: "points", points: 25})
+        expect(score.unitScale).toBe(true)
+        expect(score.change).toEqual({kind: "difference", delta: -0.08})
+        // A run without the metric has no stats; a categorical metric has no change.
+        const tone = rows[1].metrics[0]
+        expect(tone.stats[0]).toBeNull()
+        expect(tone.change).toBeNull()
+    })
+
+    it("reads a score off the 0 to 1 scale in any run with 3 significant digits", () => {
+        const rating = (mean: number, max: number) => [
+            row("ev-1", [
+                {
+                    id: "ev-1:rating",
+                    label: "rating",
+                    stats: stats({type: "numeric/continuous", mean, min: 0, max}),
+                },
+            ]),
+        ]
+        const [metricRow] = buildCompareEvaluatorRows([rating(0.9, 1), rating(3.5, 5)], {
+            newest: 1,
+            before: 0,
+        })
+        expect(metricRow.metrics[0].unitScale).toBe(false)
+        const change = metricRow.metrics[0].change
+        expect(change?.kind).toBe("difference")
+        expect(change?.kind === "difference" && change.delta).toBeCloseTo(2.6)
     })
 })
 
