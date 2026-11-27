@@ -9,7 +9,7 @@
  * final poll loses no output).
  */
 import { execSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -181,6 +181,35 @@ describe("a command runs at most once (Codex R4 duplicate launch)", () => {
     expect(r.outcome).toEqual({ kind: "exited", exitCode: 0 });
     expect(r.output).toContain("done");
     expect(readFileSync(`${ws.inSandbox(ws.cwd)}/effects.txt`, "utf-8")).toBe("side-effect\n");
+  });
+
+  it("takes the claim once even when the sandbox's mkdir does not fail on an existing folder (uutils mkdir)", async () => {
+    // uutils `mkdir` (Ubuntu 26.04) can report success to two racing calls. This stand-in for it
+    // never fails on an existing folder, so a claim taken with `mkdir` would be taken twice.
+    const shims = mkdtempSync(join(tmpdir(), "mkdir-shim-"));
+    const real = execSync("command -v mkdir").toString().trim();
+    writeFileSync(join(shims, "mkdir"), `#!/bin/sh\nexec ${real} -p "$@"\n`, { mode: 0o755 });
+    const path = process.env.PATH;
+    process.env.PATH = `${shims}:${path}`;
+    try {
+      const { ws, local } = await warm();
+      const run = local.run.bind(local);
+      let lost = false;
+      local.run = async (command, options) => {
+        const r = await run(command, options);
+        if (isLaunch(command) && !lost) {
+          lost = true;
+          await sleep(300); // the supervisor has taken its claim
+          throw new Error("socket hang up (injected: the command started, the answer was lost)");
+        }
+        return r;
+      };
+      const r = await ws.bash("echo side-effect >> effects.txt; echo done");
+      expect(r.outcome).toEqual({ kind: "exited", exitCode: 0 });
+      expect(readFileSync(`${ws.inSandbox(ws.cwd)}/effects.txt`, "utf-8")).toBe("side-effect\n");
+    } finally {
+      process.env.PATH = path;
+    }
   });
 
   it("retries a launch that provably never started, exactly once", async () => {
