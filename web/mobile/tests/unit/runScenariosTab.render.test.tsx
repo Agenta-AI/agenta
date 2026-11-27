@@ -79,8 +79,9 @@ async function mount(
     patch: Partial<ScenarioServerState> = {},
     wide = true,
     answer: typeof answerRequest = answerRequest,
+    reuseRunId?: string,
 ) {
-    const runId = `run-${++counter}`
+    const runId = reuseRunId ?? `run-${++counter}`
     state = newServerState(patch)
     stubWidth(wide)
     http.post.mockImplementation(async (url: string, body: Record<string, unknown>) =>
@@ -107,12 +108,19 @@ async function mount(
     return runId
 }
 
-const headers = () =>
-    [...host.querySelectorAll('[role="columnheader"]')].map((node) => node.textContent)
+const headers = () => [...host.querySelectorAll("th")].map((node) => node.textContent)
+/** The table's rows, or the cards on a narrow window. */
+const rows = () => [...host.querySelectorAll<HTMLElement>('tr[data-row-key], [role="button"]')]
 const buttonNamed = (name: string) =>
     [...host.querySelectorAll("button")].find((button) => button.textContent?.trim() === name)
 
+// The table draws only the rows its viewport shows: give jsdom's boxes a size.
+const offsetHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetHeight")
+const offsetWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetWidth")
+
 beforeEach(() => {
+    Object.defineProperty(HTMLElement.prototype, "offsetHeight", {configurable: true, value: 600})
+    Object.defineProperty(HTMLElement.prototype, "offsetWidth", {configurable: true, value: 1200})
     vi.useFakeTimers()
     host = document.createElement("div")
     document.body.appendChild(host)
@@ -136,6 +144,8 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+    if (offsetHeight) Object.defineProperty(HTMLElement.prototype, "offsetHeight", offsetHeight)
+    if (offsetWidth) Object.defineProperty(HTMLElement.prototype, "offsetWidth", offsetWidth)
     act(() => root.unmount())
     host.remove()
     vi.useRealTimers()
@@ -145,42 +155,42 @@ afterEach(() => {
 describe("scenarios tab", () => {
     it("Each row shows its index, status, the test set values, each evaluator metric and the app metrics", async () => {
         await mount()
+        // The test set's short text column is the label column; the evaluator's name stands over
+        // its metric. Every status is a success, so the status column has no title.
         expect(headers()).toEqual([
             "#",
-            "Status",
-            "Test set capitals",
-            "Exact Match · Success",
+            "",
+            "country",
+            "Exact Match",
             "Cost",
             "Duration",
             "Tokens",
             "Errors",
+            "Success",
         ])
-        const rows = host.querySelectorAll('[role="button"]')
-        expect(rows).toHaveLength(3)
-        expect(rows[0].textContent).toContain("1")
-        expect(rows[0].textContent).toContain("Success")
-        expect(rows[0].textContent).toContain("France")
-        expect(rows[2].textContent).toContain("Chile")
+        expect(rows()).toHaveLength(3)
+        expect(rows()[0].textContent).toContain("1")
+        expect(rows()[0].textContent).toContain("Success")
+        expect(rows()[0].textContent).toContain("France")
+        expect(rows()[2].textContent).toContain("Chile")
         // An automatic run has nothing to annotate by hand.
         expect([...host.querySelectorAll("button")].map((b) => b.textContent)).not.toContain(
             "Annotate",
         )
     })
 
-    it("Group headers use the test set and evaluator names", async () => {
-        client = new QueryClient({defaultOptions: {queries: {retry: false}}})
+    it("The evaluator header uses the evaluator's name", async () => {
         await mount()
-        client.setQueryData(["testset", "pr", "ts-1"], {id: "ts-1", name: "World capitals"})
         primeWorkflowArtifactCacheImperative([{id: "ev-1", name: "Capital match"}] as never)
         await settle()
         await settle()
-        expect(headers().slice(2, 4)).toEqual(["World capitals", "Capital match · Success"])
+        expect(headers().slice(2, 4)).toEqual(["country", "Capital match"])
     })
 
     it("A missing value shows a dash", async () => {
         // The evaluator has not scored the scenario yet: no metric row.
         await mount({ids: ["sc-1"], statuses: {"sc-1": "pending"}, scored: false})
-        const row = host.querySelector('[role="button"]')
+        const row = rows()[0]
         expect(row?.textContent).toContain("Pending")
         expect(row?.textContent).toContain("France")
         expect(row?.textContent).toContain("—")
@@ -204,9 +214,10 @@ describe("scenarios tab", () => {
         }
         const patch = {ids: ["sc-1"], statuses: {"sc-1": "errors"}, scored: false}
         await mount(patch, true, failed)
-        expect(host.querySelector('[role="button"] [role="alert"]')?.textContent).toBe(
-            "Invalid regex pattern",
-        )
+        // A red "Error" badge, with the message in the title.
+        const error = rows()[0].querySelector('[title="Invalid regex pattern"]')
+        expect(error?.textContent).toBe("Error")
+        expect(rows()[0].textContent).toContain("Errors")
         act(() => root.unmount())
         root = createRoot(host)
         await mount(patch, false, failed)
@@ -238,13 +249,14 @@ describe("scenarios tab", () => {
         )
         await mount({ids: ["sc-1"], scored: false, failTraces: true}, true, failed)
         // The step's own error is known without its trace, so it takes the retry's place.
-        const row = host.querySelector('[role="button"]')
-        expect(row?.textContent).toContain("Invalid regex pattern")
+        const row = rows()[0]
+        expect(row.querySelector('[title="Invalid regex pattern"]')?.textContent).toBe("Error")
+        expect(row.textContent).not.toContain("Could not load these values")
     })
 
     it("Clicking a row writes focusScenarioId and focusRunId to the URL", async () => {
         const runId = await mount()
-        const row = host.querySelectorAll('[role="button"]')[1] as HTMLElement
+        const row = rows()[1]
         await act(async () => row.click())
         expect(router.replace).toHaveBeenCalledWith(
             {
@@ -258,10 +270,10 @@ describe("scenarios tab", () => {
 
     it("Reaching the end loads the next page", async () => {
         await mount({ids: ["sc-1", "sc-2", "sc-3", "sc-4"], pageSize: 3})
-        expect(host.querySelectorAll('[role="button"]')).toHaveLength(3)
+        expect(rows()).toHaveLength(3)
         await act(async () => intersect?.())
         await settle()
-        expect(host.querySelectorAll('[role="button"]')).toHaveLength(4)
+        expect(rows()).toHaveLength(4)
         expect(buttonNamed("Load more")).toBeUndefined()
     })
 
@@ -269,7 +281,7 @@ describe("scenarios tab", () => {
         await mount({ids: ["sc-1", "sc-2", "sc-3", "sc-4"], pageSize: 3})
         await act(async () => buttonNamed("Load more")?.click())
         await settle()
-        expect(host.querySelectorAll('[role="button"]')).toHaveLength(4)
+        expect(rows()).toHaveLength(4)
     })
 
     it("A run without scenarios shows No scenarios", async () => {
@@ -284,7 +296,7 @@ describe("scenarios tab", () => {
         await act(async () => buttonNamed("Try again")?.click())
         await settle()
         expect(host.textContent).not.toContain("Could not load scenarios")
-        expect(host.querySelectorAll('[role="button"]')).toHaveLength(3)
+        expect(rows()).toHaveLength(3)
     })
 
     it("A failed next page keeps the rows and offers a retry", async () => {
@@ -293,17 +305,17 @@ describe("scenarios tab", () => {
         await act(async () => buttonNamed("Load more")?.click())
         await settle()
         expect(host.textContent).toContain("Could not load more scenarios")
-        expect(host.querySelectorAll('[role="button"]')).toHaveLength(3)
+        expect(rows()).toHaveLength(3)
         state.failScenarios = false
         await act(async () => buttonNamed("Try again")?.click())
         await settle()
-        expect(host.querySelectorAll('[role="button"]')).toHaveLength(4)
+        expect(rows()).toHaveLength(4)
     })
 
     it("A phone shows one card per scenario with its scores", async () => {
         await mount({}, false)
-        expect(host.querySelectorAll('[role="columnheader"]')).toHaveLength(0)
-        const cards = host.querySelectorAll('[role="button"]')
+        expect(host.querySelectorAll("th")).toHaveLength(0)
+        const cards = rows()
         expect(cards).toHaveLength(3)
         expect(cards[0].textContent).toContain("#1")
         expect(cards[0].textContent).toContain("France")
@@ -316,7 +328,7 @@ describe("scenarios tab", () => {
             vi.fn(async () => new Response("{}", {status: 400})),
         )
         await mount({failTraces: true, ids: ["sc-1"]})
-        const row = host.querySelector('[role="button"]')
+        const row = rows()[0]
         expect(row?.textContent).toContain("France")
         expect(row?.textContent).toContain("Could not load these values")
         vi.stubGlobal(
@@ -347,7 +359,7 @@ describe("scenarios tab", () => {
         await settle(5000)
         await settle(500)
         expect(host.textContent).toContain("Could not update the latest values")
-        expect(host.querySelectorAll('[role="button"]')).toHaveLength(3)
+        expect(rows()).toHaveLength(3)
         state.failScenarios = false
         await act(async () => buttonNamed("Try again")?.click())
         await settle()

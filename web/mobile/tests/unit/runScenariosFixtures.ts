@@ -2,6 +2,8 @@ import {vi} from "vitest"
 
 /** One neutral run: a test set with a country column, an app, and one evaluator with a success score. */
 export const COLUMN_PATH = "attributes.ag.data.outputs.success"
+/** The evaluator's reason, a text metric, when the state asks for it. */
+export const REASON_PATH = "attributes.ag.data.outputs.reason"
 
 export interface ScenarioServerState {
     runStatus: string
@@ -22,6 +24,8 @@ export interface ScenarioServerState {
     failing: string[]
     /** True: each scenario's metrics hold the cost, duration, tokens and errors of the app call. */
     appMetrics: boolean
+    /** True: the evaluator also writes a reason, a text metric. */
+    reasons: boolean
     calls: {url: string; body: unknown}[]
 }
 
@@ -38,6 +42,7 @@ export function newServerState(patch: Partial<ScenarioServerState> = {}): Scenar
         failTraces: false,
         failing: [],
         appMetrics: false,
+        reasons: false,
         calls: [],
         ...patch,
     }
@@ -101,6 +106,14 @@ export function answerRequest(
                                     column: {kind: "annotation", name: "success"},
                                     step: {key: "ev", path: COLUMN_PATH},
                                 },
+                                ...(state.reasons
+                                    ? [
+                                          {
+                                              column: {kind: "annotation", name: "reason"},
+                                              step: {key: "ev", path: REASON_PATH},
+                                          },
+                                      ]
+                                    : []),
                             ],
                         },
                     },
@@ -161,6 +174,7 @@ export function answerRequest(
                                 count: 1,
                                 freq: [{value: !state.failing.includes(id), count: 1}],
                             },
+                            ...(state.reasons ? {[REASON_PATH]: `Reason for ${id}`} : {}),
                         },
                         ...(state.appMetrics ? {app: APP_METRICS} : {}),
                     },
