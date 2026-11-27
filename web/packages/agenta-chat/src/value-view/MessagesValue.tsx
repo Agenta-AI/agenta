@@ -13,7 +13,7 @@ import {CollapsibleMessageBody} from "../components/CollapsibleMessageBody"
 import ToolIOBlock from "../components/ToolIOBlock"
 import type {ActivityStep} from "../model/activitySteps"
 
-import {sizeText} from "./FieldFold"
+import {formatTextSize} from "./FieldFold"
 import {useValueViewOptions} from "./ValueViewProvider"
 
 /** Over this many messages, the middle ones fold into "N more messages". */
@@ -183,7 +183,7 @@ const Attachments = ({message}: {message: ValueMessage}) =>
     )
 
 /** A system message folded to one line, "System prompt · SIZE", that opens on click. */
-const SystemPrompt = ({
+const SystemMessageFold = ({
     text,
     defaultOpen,
     children,
@@ -208,7 +208,7 @@ const SystemPrompt = ({
             >
                 <CollapseCaret open={open} />
                 <span className="min-w-0 truncate">
-                    {`${t("chat.valueView.systemPrompt")} · ${sizeText(t, text)}`}
+                    {`${t("chat.valueView.systemPrompt")} · ${formatTextSize(t, text)}`}
                 </span>
             </Button>
             {open ? (
@@ -279,7 +279,7 @@ const MessageItemView = ({
     }
     return (
         <div className="flex min-w-0 flex-col gap-2">
-            {message.role !== "assistant" && message.role !== "system" ? (
+            {message.role !== "assistant" && !(message.role === "system" && message.text) ? (
                 <span className="text-meta text-muted-foreground">{message.role}</span>
             ) : null}
             {activity ? <TraceActivity activity={activity} /> : null}
@@ -299,9 +299,9 @@ const MessageItemView = ({
                 : null}
             {message.text ? (
                 message.role === "system" ? (
-                    <SystemPrompt text={message.text} defaultOpen={unfolded}>
+                    <SystemMessageFold text={message.text} defaultOpen={unfolded}>
                         {markdown(message.text)}
-                    </SystemPrompt>
+                    </SystemMessageFold>
                 ) : (
                     markdown(message.text)
                 )

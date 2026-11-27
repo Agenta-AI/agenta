@@ -503,7 +503,7 @@ const evaluatorIdsAtom = atom<string[]>((get) => {
     const runId = get(activeRunIdAtom)
     if (!runId) return []
     return get(evaluationRunMolecule.selectors.humanAnnotationSteps(runId)).flatMap(
-        (step) => step.references?.evaluator?.id ?? [],
+        (step) => step.references?.evaluator?.id || [],
     )
 })
 
@@ -516,7 +516,7 @@ const evaluatorRevisionIdsAtom = atom<string[]>((get) => {
     const runId = get(activeRunIdAtom)
     if (!runId) return []
     return get(evaluationRunMolecule.selectors.humanAnnotationSteps(runId)).flatMap(
-        (step) => step.references?.evaluator_revision?.id ?? [],
+        (step) => step.references?.evaluator_revision?.id || [],
     )
 })
 
@@ -532,7 +532,7 @@ function deriveEvaluatorSlugFromStepKey(stepKey: string | null | undefined): str
  */
 const formEvaluatorsAtom = atom<FormEvaluators | null>(null)
 
-/** Slugs the host hides from the form; their edits stay in the draft but are not saved. */
+/** Slugs the host hides from the form; their refs leave `evaluatorStepRefs`. */
 const hiddenFormSlugsAtom = atom<ReadonlySet<string>>(
     (get) => new Set(get(formEvaluatorsAtom)?.hidden ?? []),
 )
@@ -3540,15 +3540,15 @@ export const annotationSessionController = {
         isAddToTestsetExporting: () => isAddToTestsetExportingAtom,
         /** Whether the current session has exportable data */
         canAddToTestset: () => canAddToTestsetAtom,
-        /** Evaluator workflow IDs from evaluation run annotation steps */
+        /** Evaluator workflow IDs of the active run's human annotation steps */
         evaluatorIds: () => evaluatorIdsAtom,
-        /** Evaluator revision IDs from evaluation run annotation steps */
+        /** Evaluator revision IDs of the active run's human annotation steps */
         evaluatorRevisionIds: () => evaluatorRevisionIdsAtom,
-        /** Ordered evaluator refs from evaluation run annotation steps */
+        /** Ordered evaluator refs of the human annotation steps, without the hidden slugs, then the added evaluators (`setFormEvaluators`) */
         evaluatorStepRefs: () => evaluatorStepRefsAtom,
         /** Evaluators the host added to or hid from a run's form; null when none */
         formEvaluators: () => formEvaluatorsAtom,
-        /** Slugs hidden from a run's form: their edits are kept, not shown, not saved */
+        /** Slugs hidden from a run's form: their edits are kept in the draft, not shown, not saved */
         hiddenFormSlugs: () => hiddenFormSlugsAtom,
         /** Annotation column definitions derived from run mappings + steps */
         annotationColumnDefs: () => annotationColumnDefsAtom,

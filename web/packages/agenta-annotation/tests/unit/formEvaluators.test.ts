@@ -120,6 +120,35 @@ describe("the run's form evaluators", () => {
         ).toBe(true)
     })
 
+    it("keeps an added then removed evaluator's edits in the draft, out of the count", () => {
+        const clarity = {workflowId: "wf-clarity", revisionId: "rev-clarity", slug: "clarity"}
+        store.set(annotationSessionController.actions.setFormEvaluators, {
+            added: [clarity],
+            hidden: [],
+        })
+        store.set(annotationFormController.actions.updateMetric, {
+            scenarioId: SCENARIO,
+            slug: "clarity",
+            fieldKey: "friendly",
+            value: true,
+        })
+        expect(count()).toBe(1)
+
+        store.set(annotationSessionController.actions.setFormEvaluators, {added: [], hidden: []})
+        expect(slugs()).toEqual(["tone"])
+        expect(count()).toBe(0)
+        expect(store.get(annotationFormController.selectors.hasFilledMetrics(SCENARIO))).toBe(false)
+        expect(
+            store.get(annotationFormController.selectors.effectiveMetrics(SCENARIO)).clarity,
+        ).toBeUndefined()
+
+        store.set(annotationSessionController.actions.setFormEvaluators, {
+            added: [clarity],
+            hidden: [],
+        })
+        expect(count()).toBe(1)
+    })
+
     it("counts each changed field, and not a field set back to its saved value", () => {
         store.set(annotationSessionController.actions.setFormEvaluators, {
             added: [{workflowId: "wf-clarity", revisionId: "rev-clarity", slug: "clarity"}],

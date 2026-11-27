@@ -864,17 +864,20 @@ const baselineAtomFamily = atomFamily(
 )
 
 /**
- * Edits of the evaluators the form shows. Edits of a slug the host hid stay in the draft, so
- * showing it again brings them back, but they are not drawn, counted or saved.
+ * Edits of the evaluators the form shows (the resolved `evaluatorStepRefs`). Edits of an
+ * evaluator the host hid, or added and then removed, stay in the draft, so showing it again
+ * brings them back, but they are not drawn, counted or saved.
  */
 const visibleEditsAtomFamily = atomFamily(
     (scenarioId: string) =>
         atom((get) => {
             const edits = get(editsAtomFamily(scenarioId))
-            const hidden = get(annotationSessionController.selectors.hiddenFormSlugs())
-            if (hidden.size === 0) return edits
+            const {evaluators} = get(baselineAtomFamily(scenarioId))
+            const shown = new Set(evaluators.map((evaluator) => evaluator.slug))
+            const slugs = Object.keys(edits)
+            if (slugs.every((slug) => shown.has(slug))) return edits
             return Object.fromEntries(
-                Object.entries(edits).filter(([slug]) => !hidden.has(slug)),
+                Object.entries(edits).filter(([slug]) => shown.has(slug)),
             ) as AnnotationMetrics
         }),
     (a, b) => a === b,
@@ -1767,7 +1770,7 @@ export const annotationFormController = {
         isSubmitting: (scenarioId: string) => isSubmittingAtomFamily(scenarioId),
         /** Current submission error message, or null if no error */
         submitError: (scenarioId: string) => submitErrorAtomFamily(scenarioId),
-        /** Evaluator IDs for the session */
+        /** Evaluator IDs of the session's human annotation steps */
         evaluatorIds: () => annotationSessionController.selectors.evaluatorIds(),
         /** Evaluator resolution state (pending/error) — session-scoped */
         evaluatorResolution: () => evaluatorResolutionAtom,

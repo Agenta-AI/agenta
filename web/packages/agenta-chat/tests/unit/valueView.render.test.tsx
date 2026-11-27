@@ -776,6 +776,27 @@ describe("System message", () => {
         await waitFor(() => expect(container.textContent).toContain("You are a support agent."))
     })
 
+    it("opens the system message in the full view", async () => {
+        const {container} = render(<ValueFullView value={chat} />)
+        const line = screen.getByRole("button", {name: /System prompt/})
+        expect(line.getAttribute("aria-expanded")).toBe("true")
+        await waitFor(() => expect(container.textContent).toContain("You are a support agent."))
+    })
+
+    it("folds a system message written as text parts", () => {
+        render(
+            <ValueField
+                value={[
+                    {role: "system", content: [{type: "text", text: "Be brief."}]},
+                    ...chat.slice(1),
+                ]}
+            />,
+        )
+        expect(screen.getByRole("button", {name: /System prompt/}).textContent).toBe(
+            "System prompt · 1 line, 9 characters",
+        )
+    })
+
     it("draws a chat with no system message as before", () => {
         render(<ValueField value={chat.slice(1)} />)
         expect(screen.queryByRole("button", {name: /System prompt/})).toBeNull()

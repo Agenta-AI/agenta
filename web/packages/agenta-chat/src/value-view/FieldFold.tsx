@@ -28,7 +28,7 @@ export interface FieldFoldProps {
 type ValueViewT = (key: CatalogKey<typeof valueViewCatalog>, values?: TranslationValues) => string
 
 /** The size of a text as a fold writes it: "177 lines, 9,850 characters". */
-export const sizeText = (t: ValueViewT, text: string) => {
+export const formatTextSize = (t: ValueViewT, text: string) => {
     const lines = lineCount(text)
     return t("chat.valueView.size", {
         lines: t("chat.valueView.lines", {count: lines, n: lines.toLocaleString()}),
@@ -65,7 +65,7 @@ export const FieldFold = ({
     if (unfolded || !needsFold(text)) return <>{children}</>
 
     const lines = lineCount(text)
-    const size = sizeText(t, text)
+    const size = formatTextSize(t, text)
     return (
         <div className="flex min-w-0 flex-col gap-1.5">
             <div

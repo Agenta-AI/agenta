@@ -38,6 +38,7 @@ it("lists only the human annotation steps, and leaves annotationSteps whole", as
                             step("judge", "annotation", "auto"),
                             step("rules", "annotation", "custom"),
                             step("tone", "annotation", "human"),
+                            step("legacy", "annotation", null),
                         ],
                     },
                 },
@@ -51,10 +52,10 @@ it("lists only the human annotation steps, and leaves annotationSteps whole", as
     const human = evaluationRunMolecule.selectors.humanAnnotationSteps("run-mixed")
     const unsubscribe = store.sub(human, () => undefined)
     try {
-        await vi.waitFor(() => expect(store.get(all)).toHaveLength(3))
+        await vi.waitFor(() => expect(store.get(all)).toHaveLength(4))
     } finally {
         unsubscribe()
     }
-    expect(store.get(all).map((item) => item.key)).toEqual(["judge", "rules", "tone"])
+    expect(store.get(all).map((item) => item.key)).toEqual(["judge", "rules", "tone", "legacy"])
     expect(store.get(human).map((item) => item.key)).toEqual(["tone"])
 })
