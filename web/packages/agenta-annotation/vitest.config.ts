@@ -4,11 +4,14 @@ import {defineConfig} from "vitest/config"
 
 export default defineConfig({
     resolve: {
-        alias: {
-            // Stub @agenta/ui to avoid pulling in the full antd tree.
+        alias: [
+            // Stub @agenta/ui and its subpaths to avoid pulling in the full antd tree.
             // Annotation tests only exercise pure functions — no React rendering.
-            "@agenta/ui": path.resolve(__dirname, "tests/__mocks__/agenta-ui.ts"),
-        },
+            {
+                find: /^@agenta\/ui(\/.*)?$/,
+                replacement: path.resolve(__dirname, "tests/__mocks__/agenta-ui.ts"),
+            },
+        ],
     },
     test: {
         // `{ts,tsx}`, not `*.test.ts`: a `.tsx` suite added here would otherwise be silently

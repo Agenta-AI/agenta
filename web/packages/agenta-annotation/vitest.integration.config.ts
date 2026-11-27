@@ -4,9 +4,13 @@ import {defineConfig} from "vitest/config"
 
 export default defineConfig({
     resolve: {
-        alias: {
-            "@agenta/ui": path.resolve(__dirname, "tests/__mocks__/agenta-ui.ts"),
-        },
+        // @agenta/ui and its subpaths (@agenta/entities imports @agenta/ui/ui) share one stub.
+        alias: [
+            {
+                find: /^@agenta\/ui(\/.*)?$/,
+                replacement: path.resolve(__dirname, "tests/__mocks__/agenta-ui.ts"),
+            },
+        ],
     },
     test: {
         include: ["tests/integration/**/*.test.ts"],
