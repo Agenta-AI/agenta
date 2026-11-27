@@ -87,6 +87,7 @@ from oss.src.core.tracing.dtos import (
     ListOperator,
     MetricSpec,
     MetricType,
+    ScoreMetricSpec,
 )
 from oss.src.core.tracing.service import TracingService
 
@@ -1458,7 +1459,7 @@ class EvaluationsService:
             step.key: step.type for step in refreshable_steps
         }
 
-        steps_metrics_keys: Dict[str, List[Dict[str, str]]] = {
+        steps_metrics_keys: Dict[str, List[Dict[str, Any]]] = {
             step_key: [] for step_key in step_types_by_key
         }
 
@@ -1523,7 +1524,7 @@ class EvaluationsService:
 
         # Resolved metric keys per step (declared schema, else trace-inferred);
         # become the run's `mappings`. Rewrite only when something was inferred.
-        metrics_keys_by_step: Dict[str, List[Dict[str, str]]] = {}
+        metrics_keys_by_step: Dict[str, List[Dict[str, Any]]] = {}
         # Trace-inferred outputs schema per step, persisted onto the run step so
         # the UI can type filter columns for schema-less evaluators.
         inferred_schemas_by_step: Dict[str, Dict[str, Any]] = {}
@@ -1593,11 +1594,15 @@ class EvaluationsService:
                 if metrics_keys:
                     metrics_keys_by_step[step.key] = metrics_keys
 
+                # Evaluator outputs carry the declared range (or None);
+                # DEFAULT_METRICS (cost, duration, tokens, errors) do not.
                 steps_metrics_keys[step.key] += [
                     {
                         "path": "attributes.ag.data.outputs."
                         + metric_key.get("path", ""),
                         "type": metric_key.get("type", ""),
+                        "minimum": metric_key.get("minimum"),
+                        "maximum": metric_key.get("maximum"),
                     }
                     for metric_key in metrics_keys
                 ]
@@ -1658,7 +1663,15 @@ class EvaluationsService:
                 )
 
                 specs = [
-                    MetricSpec(
+                    ScoreMetricSpec(
+                        type=MetricType.NUMERIC_CONTINUOUS,
+                        path=metric.get("path") or "*",
+                        declared_min=metric.get("minimum"),
+                        declared_max=metric.get("maximum"),
+                    )
+                    if metric.get("type") == MetricType.NUMERIC_CONTINUOUS.value
+                    and "minimum" in metric
+                    else MetricSpec(
                         type=MetricType(metric.get("type")),
                         path=metric.get("path") or "*",
                     )

@@ -503,9 +503,8 @@ class TracingDAO(TracingDAOInterface):
         #     )
 
         metric_specs: Dict[int, MetricSpec] = {
-            idx: MetricSpec(
-                **s.model_dump(exclude={"path"}),
-                path=s.path.removeprefix("attributes."),  # path prefix removal
+            idx: s.model_copy(
+                update={"path": s.path.removeprefix("attributes.")}  # prefix removal
             )
             for idx, s in enumerate(specs)
         }

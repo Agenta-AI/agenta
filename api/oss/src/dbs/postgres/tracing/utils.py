@@ -44,6 +44,7 @@ from oss.src.core.tracing.dtos import (
     #
     MetricType,
     MetricSpec,
+    ScoreMetricSpec,
 )
 
 log = get_module_logger(__name__)
@@ -1091,6 +1092,9 @@ def build_specs_values(
             s.vmin,
             s.vmax,
             (s.edge if s.edge is not None else True),
+            isinstance(s, ScoreMetricSpec),
+            getattr(s, "declared_min", None),
+            getattr(s, "declared_max", None),
         )
         for idx, s in enumerate(metric_specs)
     ]
@@ -1103,6 +1107,9 @@ def build_specs_values(
         column("vmin", Numeric),
         column("vmax", Numeric),
         column("edge", Boolean),
+        column("score_rule", Boolean),
+        column("declared_min", Numeric),
+        column("declared_max", Numeric),
         name="specs_values",
     ).data(data)
 
@@ -1192,6 +1199,9 @@ def build_extract_cte(
             specs_values.c.vmin,
             specs_values.c.vmax,
             specs_values.c.edge,
+            specs_values.c.score_rule,
+            specs_values.c.declared_min,
+            specs_values.c.declared_max,
             base_cte.c.attributes.op("#>")(specs_values.c.path).label("jv"),
         )
         .select_from(base_cte)
@@ -1255,6 +1265,9 @@ def build_numeric_continuous_blocks(
             extract_cte.c.vmin.label("vmin_opt"),
             extract_cte.c.vmax.label("vmax_opt"),
             extract_cte.c.edge.label("edge_opt"),
+            extract_cte.c.score_rule,
+            extract_cte.c.declared_min,
+            extract_cte.c.declared_max,
             cast(extract_cte.c.jv.op("#>>")(text("'{}'")), Numeric).label("value"),
         ).where(
             extract_cte.c.type == literal(MetricType.NUMERIC_CONTINUOUS.value),
@@ -1277,6 +1290,10 @@ def build_numeric_continuous_blocks(
             func.max(cont_raw.c.vmin_opt).label("vmin_opt"),
             func.max(cont_raw.c.vmax_opt).label("vmax_opt"),
             func.bool_or(cont_raw.c.edge_opt).label("edge_opt"),
+            func.bool_or(cont_raw.c.score_rule).label("score_rule"),
+            # Cast: an all-NULL VALUES column is typed as text.
+            func.max(cast(cont_raw.c.declared_min, Numeric)).label("declared_min"),
+            func.max(cast(cont_raw.c.declared_max, Numeric)).label("declared_max"),
         ).group_by(cont_raw.c.timestamp, cont_raw.c.idx)
     ).cte("cont_minmax")
 
@@ -1364,13 +1381,38 @@ def build_numeric_continuous_blocks(
     # -------------------------------------------------
     # 6. Chosen min/max/bins
     # -------------------------------------------------
+    # Score specs (ScoreMetricSpec) always get 10 bins: on the declared range
+    # when every value fits it, else on [0, 1] when every value fits, else on
+    # the data's own min to max.
+    fits_declared = (
+        cont_minmax.c.score_rule.is_(True)
+        & cont_minmax.c.declared_min.isnot(None)
+        & cont_minmax.c.declared_max.isnot(None)
+        & (cont_minmax.c.declared_min < cont_minmax.c.declared_max)
+        & (cont_minmax.c.vmin >= cont_minmax.c.declared_min)
+        & (cont_minmax.c.vmax <= cont_minmax.c.declared_max)
+    )
+    fits_unit = (
+        cont_minmax.c.score_rule.is_(True)
+        & (cont_minmax.c.vmin >= literal(0, Numeric))
+        & (cont_minmax.c.vmax <= literal(1, Numeric))
+    )
+    fixed_min = case(
+        (fits_declared, cont_minmax.c.declared_min),
+        (fits_unit, literal(0, Numeric)),
+    )
+    fixed_max = case(
+        (fits_declared, cont_minmax.c.declared_max),
+        (fits_unit, literal(1, Numeric)),
+    )
+
     chosen_min = case(
         (cont_minmax.c.vmin_opt.isnot(None), cast(cont_minmax.c.vmin_opt, Numeric)),
-        else_=cont_minmax.c.vmin,
+        else_=func.coalesce(fixed_min, cont_minmax.c.vmin),
     )
     chosen_max = case(
         (cont_minmax.c.vmax_opt.isnot(None), cast(cont_minmax.c.vmax_opt, Numeric)),
-        else_=cont_minmax.c.vmax,
+        else_=func.coalesce(fixed_max, cont_minmax.c.vmax),
     )
     # Guard against bins <= 0 (pre-existing: MetricSpec.bins has no lower bound).
     chosen_bins = func.greatest(
@@ -1379,6 +1421,7 @@ def build_numeric_continuous_blocks(
                 cont_minmax.c.bins_opt.isnot(None),
                 cast(cont_minmax.c.bins_opt, Integer),
             ),
+            (cont_minmax.c.score_rule.is_(True), literal(10, type_=Integer)),
             else_=cast(func.ceil(func.sqrt(cast(cont_minmax.c.n, Numeric))), Integer),
         ),
         literal(1, type_=Integer),
@@ -1390,7 +1433,8 @@ def build_numeric_continuous_blocks(
             cont_minmax.c.idx,
             case(
                 (
-                    (cont_minmax.c.n <= 1) | (chosen_min == chosen_max),
+                    cont_minmax.c.score_rule.isnot(True)
+                    & ((cont_minmax.c.n <= 1) | (chosen_min == chosen_max)),
                     literal(1, type_=Integer),
                 ),
                 else_=chosen_bins,

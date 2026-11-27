@@ -277,6 +277,18 @@ class MetricSpec(BaseModel):
     edge: Optional[bool] = None
 
 
+class ScoreMetricSpec(MetricSpec):
+    """Internal spec for a numeric/continuous evaluator output.
+
+    The histogram always has 10 bins: on [declared_min, declared_max] when
+    every value fits that range, else on [0, 1] when every value fits, else
+    on the data's own min to max.
+    """
+
+    declared_min: Optional[float] = None
+    declared_max: Optional[float] = None
+
+
 class MetricsBucket(BaseModel):
     timestamp: datetime
     interval: int
