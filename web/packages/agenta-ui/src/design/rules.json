@@ -303,7 +303,7 @@
                     "rule": "Separate areas by tone",
                     "why": "Each border is one more line to read.",
                     "avoid": "Borders around borders to separate areas",
-                    "do": "A different surface tone",
+                    "do": "A different surface tone. The one exception is a resizable edge (SURF-07)",
                     "checkedBy": [
                         "review"
                     ]
@@ -355,6 +355,16 @@
                     "why": "A fill that matches the hover disappears when the row is hovered.",
                     "avoid": "A fill inside a row that matches the hover fill",
                     "do": "A translucent fill (`secondary`) that stacks on the hover",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "SURF-07",
+                    "rule": "A resizable edge shows a border at rest and a thicker line when it can move",
+                    "why": "A pane that can be dragged needs a visible edge, and a thicker line on hover and while dragging tells the person that the edge moves. The sidebar, the side pane, the file tree and the split pane all do the same.",
+                    "avoid": "An invisible edge, a different color or width per pane, a handle drawn beside the border",
+                    "do": "`border-border-muted` at rest, and `ResizeEdgeLine` (2px, `bg-border-strong`) over it on hover, on focus and while dragging",
                     "checkedBy": [
                         "review"
                     ]

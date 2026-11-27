@@ -534,4 +534,31 @@ export const surfaceRules: RuleExample[] = [
             caption: "Every card floats, on an opaque gray shadow, so nothing does.",
         },
     },
+    {
+        id: "SURF-07",
+        do: {
+            example: (
+                <div className="relative flex h-20 w-56 overflow-hidden rounded-lg bg-background text-body">
+                    <div className="relative w-24 shrink-0 border-0 border-r border-solid border-border-muted bg-muted px-3 py-2">
+                        Sidebar
+                        <span
+                            aria-hidden
+                            className="absolute inset-y-0 -right-1 w-0.5 bg-border-strong"
+                        />
+                    </div>
+                    <div className="px-3 py-2">Page</div>
+                </div>
+            ),
+            caption: "A muted line at rest. Hover: a 2px line over it.",
+        },
+        avoid: {
+            example: (
+                <div className="relative flex h-20 w-56 overflow-hidden rounded-lg bg-background text-body">
+                    <div className="relative w-24 shrink-0 bg-muted px-3 py-2">Sidebar</div>
+                    <div className="px-3 py-2">Page</div>
+                </div>
+            ),
+            caption: "No edge, so nothing shows that it moves.",
+        },
+    },
 ]

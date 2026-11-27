@@ -30,7 +30,7 @@ One word for one thing. Use these words in code, comments, docs and reviews.
 
 1. **Theme variables name a job, not a look.** Write `bg-muted text-muted-foreground border-border-muted`. Never a hex value, a stock Tailwind color or an antd name.
 2. **Components own their size.** A caller passes `size="sm"`. Height, padding, radius, text and icon size come from the component. `className` is for layout only.
-3. **Tone separates areas, borders separate items.** An area that must stand apart gets a different surface (`muted` on `background`), not another border.
+3. **Tone separates areas, borders separate items.** An area that must stand apart gets a different surface (`muted` on `background`), not another border. One exception: a resizable edge (the sidebar, a side pane, the file tree, a split pane) keeps a `border-border-muted` line at rest and shows a thicker `ResizeEdgeLine` on hover and while dragging, the same everywhere (SURF-07).
 4. **One primary action per view.** Color points at one thing: the `default` (primary) button. Everything else is quiet.
 5. **Hierarchy from weight and tone first, size last.** Weight shows rank, never state.
 6. **Quiet, not loud.** No bold text, no thick lines, no large saturated fills, no heavy shadows. Emphasis comes from `foreground` against `muted-foreground`.
