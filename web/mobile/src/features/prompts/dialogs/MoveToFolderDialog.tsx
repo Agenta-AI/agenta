@@ -62,7 +62,7 @@ const TreeRows = ({
 )
 
 const ROW_CLASS =
-    "flex min-h-9 w-full items-center gap-2 rounded-md border-0 bg-transparent py-1 pr-2 text-left text-sm text-foreground hover:bg-accent disabled:cursor-not-allowed disabled:text-muted-foreground disabled:opacity-60 disabled:hover:bg-transparent aria-selected:bg-accent aria-selected:font-medium"
+    "flex min-h-9 w-full items-center gap-2 rounded-md border-0 bg-transparent py-1 pr-2 text-left text-label text-foreground hover:bg-accent disabled:cursor-not-allowed disabled:text-muted-foreground disabled:opacity-60 disabled:hover:bg-transparent aria-selected:bg-accent"
 
 /**
  * Picks where an item goes: the top level (a null id) or a folder. Every folder shows, fully
@@ -116,7 +116,7 @@ export const MoveToFolderDialog = ({
                     <DialogTitle>{copy.title}</DialogTitle>
                     <DialogDescription>{copy.moving(itemName)}</DialogDescription>
                 </DialogHeader>
-                <p className="m-0 text-sm font-medium text-foreground">{copy.selectLabel}</p>
+                <p className="m-0 text-label text-foreground">{copy.selectLabel}</p>
                 <ul
                     role="tree"
                     aria-label={copy.selectLabel}
@@ -145,7 +145,7 @@ export const MoveToFolderDialog = ({
                         onSelect={setSelectedId}
                     />
                 </ul>
-                {error ? <p className="m-0 text-sm text-destructive">{error}</p> : null}
+                {error ? <p className="m-0 text-body text-destructive">{error}</p> : null}
                 <DialogFooter>
                     <Button variant="outline" disabled={pending} onClick={onClose}>
                         {promptsCopy.cancel}

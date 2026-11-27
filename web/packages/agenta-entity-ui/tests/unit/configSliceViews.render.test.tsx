@@ -222,12 +222,12 @@ describe("Instructions view", () => {
 })
 
 describe("Model view", () => {
-    it("a pick changes the configuration at once; the view has Done and no Save", async () => {
+    it("a pick changes the configuration at once; the view has no Save and no Done", async () => {
         await openIn(modelView, {}, AGENT)
         expect(byText("Save")).toBeUndefined()
-        await click(byText("Claude Opus 5.5"))
+        await click(await findByText("Claude Opus 5.5"))
         expect(writer.agent.llm).toEqual({model: "claude-opus-5-5"})
-        expect(byText("Done")).toBeTruthy()
+        expect(byText("Done")).toBeUndefined()
     })
 })
 
@@ -287,7 +287,7 @@ describe("Connect view", () => {
         expect(writer.update).not.toHaveBeenCalled()
     })
 
-    it("in a drawer, the guarded back asks when the name field has text", async () => {
+    it("in a drawer, back with text in the name field closes without asking and creates nothing", async () => {
         const Host = () => {
             const [open, setOpen] = useState(true)
             return open ? (
@@ -307,8 +307,6 @@ describe("Connect view", () => {
         const name = await findByText("", 'input[placeholder="e.g. My GitHub Account"]')
         await change(name, "Work GitHub")
         await keyDown(name, "Escape")
-        expect(await findByText("", '[data-testid="unsaved-changes-dialog"]')).toBeTruthy()
-        await click(byText("Discard"))
         await waitFor(() => expect(byText("closed")).toBeTruthy(), 2000)
         expect(created.calls).toEqual([])
     })

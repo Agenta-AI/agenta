@@ -1,9 +1,10 @@
 import type {Key, ReactNode} from "react"
 import {useCallback, useMemo, useRef, useState} from "react"
 
-import {CircleNotch, MinusCircle, PlusCircle} from "@phosphor-icons/react"
+import {MinusCircle, PlusCircle} from "@phosphor-icons/react"
 import type {TableProps} from "antd/es/table"
 
+import {Spinner} from "../../components/ui/spinner"
 import {interactiveStyles} from "../../utils/styles"
 import type {ExpandableRowConfig} from "../types"
 
@@ -194,7 +195,7 @@ export function useExpandableRows<RecordType extends object, ChildType = unknown
                     }}
                 >
                     {loading ? (
-                        <CircleNotch size={16} className="animate-spin" />
+                        <Spinner />
                     ) : expanded ? (
                         <MinusCircle size={16} />
                     ) : (
@@ -256,7 +257,7 @@ export function useExpandableRows<RecordType extends object, ChildType = unknown
                     }}
                 >
                     {loading ? (
-                        <CircleNotch size={16} className="animate-spin" />
+                        <Spinner />
                     ) : expanded ? (
                         <MinusCircle size={16} />
                     ) : (

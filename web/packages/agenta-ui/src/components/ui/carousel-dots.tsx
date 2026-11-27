@@ -81,16 +81,16 @@ function CarouselDots({
                             onSelect(dot)
                             setRun((value) => value + 1)
                         }}
-                        className="flex h-6 min-w-3 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent px-[3px] outline-none focus-visible:ring-[3px] focus-visible:ring-[color:var(--ag-controlOutline)]"
+                        className="flex h-6 min-w-3 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent px-[3px] outline-none focus-ring"
                     >
                         <span
                             aria-hidden
                             className={cn(
-                                "relative block h-1.5 overflow-hidden rounded-full transition-opacity motion-reduce:transition-none",
+                                "relative block h-1.5 overflow-hidden rounded-xs transition-opacity motion-reduce:transition-none",
                                 current
                                     ? progressMs
-                                        ? "w-[22px] bg-muted-foreground/40"
-                                        : "w-[22px] bg-foreground"
+                                        ? "w-5.5 bg-muted-foreground/40"
+                                        : "w-5.5 bg-foreground"
                                     : "w-1.5 bg-muted-foreground opacity-40",
                             )}
                         >

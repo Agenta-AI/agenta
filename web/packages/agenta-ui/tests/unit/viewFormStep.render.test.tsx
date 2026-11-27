@@ -7,6 +7,7 @@ import {afterEach, describe, expect, it} from "vitest"
 import {
     defineView,
     DrawerViewChrome,
+    PhoneViewChrome,
     useViewForm,
     useViewStack,
     useViewTitle,
@@ -15,7 +16,7 @@ import {
     type ViewForm,
 } from "../../src/view-stack"
 
-type Extra = Pick<ViewForm, "actionRow" | "cancel">
+type Extra = Pick<ViewForm, "actionRow" | "cancel" | "back" | "backTitle">
 
 /** A form view whose step fields come from a button, so a test can switch them on. */
 const makeView = (step: (back: () => void) => Extra): ViewDef<Record<string, never>> =>
@@ -46,9 +47,12 @@ const Opener = ({view}: {view: ViewDef<Record<string, never>>}) => {
     return <button onClick={() => void stack.open(view, {}, {kind: "project"})}>open</button>
 }
 
-const openIn = async (view: ViewDef<Record<string, never>>) => {
+const openIn = async (
+    view: ViewDef<Record<string, never>>,
+    chrome: typeof DrawerViewChrome = DrawerViewChrome,
+) => {
     render(
-        <ViewStackHost chrome={DrawerViewChrome} rootTitle="Agent">
+        <ViewStackHost chrome={chrome} rootTitle="Agent">
             <Opener view={view} />
         </ViewStackHost>,
     )
@@ -112,6 +116,18 @@ describe("ViewForm step fields", () => {
         await act(async () => screen.getByText("start step").click())
         expect(screen.getByText("in step")).toBeTruthy()
         await act(async () => screen.getByRole("button", {name: "Cancel"}).click())
+        expect(screen.getByText("view body")).toBeTruthy()
+    })
+
+    it("on a phone, a step's Back names the step it returns to, not the view before", async () => {
+        await openIn(
+            makeView((back) => ({back, backTitle: "New skill"})),
+            PhoneViewChrome,
+        )
+        expect(screen.getByRole("button", {name: "Back to Agent"})).toBeTruthy()
+        await act(async () => screen.getByText("start step").click())
+        expect(screen.queryByRole("button", {name: "Back to Agent"})).toBeNull()
+        await act(async () => screen.getByRole("button", {name: "Back to New skill"}).click())
         expect(screen.getByText("view body")).toBeTruthy()
     })
 })

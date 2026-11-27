@@ -101,12 +101,12 @@ export const AgentCard = ({
     const avatar = (
         <span
             aria-hidden
-            className={`flex shrink-0 items-center justify-center rounded-full font-semibold ${
+            className={`flex shrink-0 items-center justify-center rounded-md font-semibold ${
                 isGrid
                     ? // Straddling the top edge, as in the design: it reads as the agent's mark on
                       // the card rather than as the first cell of a row.
-                      "absolute -top-5 left-4 size-10 border-2 border-solid border-colorBgContainer text-sm"
-                    : "size-10 text-sm"
+                      "absolute -top-5 left-4 size-10 border-2 border-solid border-background text-label"
+                    : "size-10 text-label"
             } ${chrome.className}`}
             style={chrome.style ?? {background: color}}
         >
@@ -118,15 +118,15 @@ export const AgentCard = ({
         <div className="flex min-w-0 items-center gap-2">
             {/* Rail rows read like session rows (14/regular); the grid card keeps a heading. */}
             <span
-                className={`min-w-0 truncate text-colorText ${
-                    isGrid ? "text-base font-semibold" : "text-sm"
+                className={`min-w-0 truncate text-foreground ${
+                    isGrid ? "text-title font-semibold" : "text-label"
                 }`}
             >
                 {agent.name}
             </span>
             {waiting > 0 ? (
                 <Tip title={t("entityUi.agentActions.waitingOnYou", {count: waiting})}>
-                    <span className="shrink-0 rounded bg-colorWarningBg px-1.5 py-0.5 text-xs leading-none text-colorWarningText">
+                    <span className="shrink-0 rounded bg-warning/10 px-1.5 py-0.5 text-meta leading-none text-warning">
                         {t("entityUi.agentActions.waitingCount", {count: waiting})}
                     </span>
                 </Tip>
@@ -134,13 +134,13 @@ export const AgentCard = ({
             {/* The rail puts activity on the title line, where the design shows the session
                 count; the grid carries it in the footer instead. */}
             {!isGrid && activity ? (
-                <span className="ml-auto shrink-0 text-xs text-colorTextTertiary">{activity}</span>
+                <span className="ml-auto shrink-0 text-meta text-muted-foreground">{activity}</span>
             ) : null}
         </div>
     )
 
     const description = agent.description ? (
-        <span className="line-clamp-2 text-[13px] leading-snug text-colorTextSecondary">
+        <span className="line-clamp-2 text-label leading-snug text-muted-foreground">
             {agent.description}
         </span>
     ) : null
@@ -216,10 +216,10 @@ export const AgentCard = ({
                 isGrid
                     ? // Warm tinted card in light (the treatment the rails and template cards
                       // carry); dark restores the elevated surface it renders today.
-                      "relative h-full gap-2.5 rounded-xl border border-solid border-colorBorderSecondary bg-[var(--ag-surface-paper)] p-5 pt-8 hover:border-colorBorder dark:bg-colorBgElevated"
+                      "relative h-full gap-2.5 rounded-xl border border-solid border-border-muted bg-muted p-5 pt-8 hover:border-border dark:bg-background"
                     : // No frame in the rail: the section around it is already a card, and a card
                       // inside a card is the look we just spent the day removing.
-                      "gap-2 rounded-lg p-3 hover:bg-colorFillQuaternary"
+                      "gap-2 rounded-lg p-3 hover:bg-accent"
             }`}
         >
             {isGrid ? avatar : null}
@@ -231,9 +231,9 @@ export const AgentCard = ({
                         {hasMenu ? menu : null}
                     </div>
                     {description}
-                    {/* Footer: who made it and when it last ran. The design's integration badges
+                    {/* Footer: who made it and when it last ran. The design pointer-coarse:opacity-100's integration badges
                         belong on this line — an agent's tools aren't on the row yet. */}
-                    <div className="mt-auto flex items-center gap-2 pt-3 text-xs text-colorTextTertiary">
+                    <div className="mt-auto flex items-center gap-2 pt-3 text-meta text-muted-foreground">
                         {owner}
                         <span className="ml-auto shrink-0">
                             {agent.updatedAt ? timeAgo(Date.parse(agent.updatedAt)) : "—"}

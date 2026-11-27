@@ -67,7 +67,7 @@ export const OnboardingTemplateDetail = ({
             tile: step.app ? (
                 <AppLogo slug={step.app} size={15} />
             ) : (
-                <span className="text-muted-foreground text-xs font-medium">{index + 1}</span>
+                <span className="text-muted-foreground text-caption tabular-nums">{index + 1}</span>
             ),
             label:
                 step.app && PROVIDERS[step.app]?.label
@@ -83,19 +83,19 @@ export const OnboardingTemplateDetail = ({
     return (
         <section
             aria-label={template.name}
-            className="bg-muted flex min-w-0 flex-col overflow-hidden rounded-xl md:h-full"
+            className="bg-muted flex min-w-0 flex-col overflow-hidden rounded-lg md:h-full"
         >
             <div className="flex min-h-0 flex-col md:flex-1 md:overflow-y-auto">
                 <div className="flex items-start gap-3 p-3">
                     <OnboardingTemplateTile template={template} size="panel" />
                     <div className="flex min-w-0 flex-1 flex-col gap-1">
-                        <h2 className="m-0 flex items-center gap-2 text-base font-semibold leading-6 tracking-[-0.01em]">
+                        <h2 className="m-0 flex items-center gap-2 text-title">
                             {template.name}
-                            <span className="bg-background text-muted-foreground ring-border rounded-[5px] px-1.5 py-px text-[11px] font-medium leading-4 tracking-normal ring-1">
+                            <span className="bg-secondary text-muted-foreground rounded-sm px-1.5 py-px text-caption">
                                 {t("onboarding.gallery.template")}
                             </span>
                         </h2>
-                        <p className="text-muted-foreground m-0 text-sm leading-5 text-pretty">
+                        <p className="text-muted-foreground m-0 text-body text-pretty">
                             {template.description}
                         </p>
                     </div>
@@ -119,7 +119,7 @@ export const OnboardingTemplateDetail = ({
                                         <span className={ONBOARDING_STYLE.kickerClass}>
                                             {node.label}
                                         </span>
-                                        <span className="text-sm leading-5">{node.text}</span>
+                                        <span className="text-body">{node.text}</span>
                                     </div>
                                 </li>
                             ))}
@@ -131,7 +131,7 @@ export const OnboardingTemplateDetail = ({
                 <div className="flex sm:justify-end">
                     <LoadingButton
                         size="sm"
-                        className="max-sm:h-10 max-sm:w-full"
+                        className="max-sm:w-full"
                         loading={create.creating}
                         disabled={!create.modelReady}
                         onClick={() => void create.onCreateFromTemplate(template)}

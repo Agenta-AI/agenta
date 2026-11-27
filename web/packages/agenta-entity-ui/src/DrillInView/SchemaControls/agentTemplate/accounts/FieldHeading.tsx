@@ -1,13 +1,12 @@
-/** A part's heading in an item view's account block: a label and a one-line note. */
+/** A part's heading in an item view: the label, and its note behind the kit's field help. */
+import {FieldHelp} from "@agenta/ui/ui"
 
-/** Canvas F02 f6, F03 f7: 13/20/600 and a 12/16 note; 14/20 on a phone (M09). `text-xs` is 13 px in /m. */
+/** Canvas F02 f6, F03 f7: 13/20/600. The note opens on hover, focus or a tap. */
 export function FieldHeading({label, note}: {label: string; note: string}) {
     return (
-        <div className="flex flex-col gap-px">
-            <span className="text-[13px] font-semibold leading-5 text-colorText max-md:text-[14px]">
-                {label}
-            </span>
-            <span className="text-[12px] leading-4 text-colorTextSecondary">{note}</span>
+        <div className="flex items-center gap-1">
+            <span className="text-label font-semibold leading-5 text-foreground">{label}</span>
+            <FieldHelp label={note}>{note}</FieldHelp>
         </div>
     )
 }

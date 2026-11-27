@@ -1,6 +1,7 @@
 import {defineView} from "@agenta/ui/view-stack"
 
 import {lazyView} from "../../DrillInView/SchemaControls/agentTemplate/views/lazyView"
+import {SecretAttachSkeleton} from "../attach/SecretAttachSkeleton"
 
 export interface SecretAttachViewParams {
     /** The attachment to edit, by its environment variable. Absent: a new attachment. */
@@ -14,6 +15,11 @@ export interface SecretAttachViewParams {
 export const secretAttachView = defineView<SecretAttachViewParams>({
     id: "agent.secret.attach",
     apply: "on_save",
-    widenButton: false,
-    Component: lazyView(() => import("./SecretAttachViewBody")),
+    Component: lazyView(
+        () => import("./SecretAttachViewBody"),
+        // The body's padding around the most common opening: pick an existing secret.
+        <div className="px-4 py-3">
+            <SecretAttachSkeleton />
+        </div>,
+    ),
 })

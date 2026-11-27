@@ -39,10 +39,10 @@ export const SettingsTabRail = ({
 
     return (
         // A scrolling strip on a phone, a grouped rail from lg.
-        <nav className="border-border flex shrink-0 gap-1 overflow-x-auto border-0 border-b border-solid px-2 py-2 lg:w-[220px] lg:flex-col lg:gap-4 lg:overflow-y-auto lg:border-b-0 lg:border-r lg:px-3 lg:py-4">
+        <nav className="border-border flex shrink-0 gap-1 overflow-x-auto border-0 border-b border-solid px-2 py-2 lg:w-55 lg:flex-col lg:gap-4 lg:overflow-y-auto lg:border-b-0 lg:border-r lg:px-3 lg:py-4">
             {groups.map((group) => (
                 <div key={group.key} className="flex gap-1 lg:flex-col">
-                    <span className="text-muted-foreground hidden px-2 pb-1 text-[11px] font-medium uppercase tracking-wide lg:block">
+                    <span className="text-muted-foreground hidden px-2 pb-1 text-meta lg:block">
                         {group.title}
                     </span>
                     {group.tabs.map((tab) => (
@@ -51,10 +51,10 @@ export const SettingsTabRail = ({
                             type="button"
                             onClick={() => onSelect(tab.key)}
                             className={cn(
-                                "shrink-0 cursor-pointer rounded-md border-0 px-3 py-1.5 text-left text-xs",
+                                "shrink-0 cursor-pointer rounded-md border-0 px-3 py-1.5 text-left text-label",
                                 tab.key === active
-                                    ? "bg-accent text-accent-foreground font-medium"
-                                    : "text-muted-foreground hover:bg-accent/50 bg-transparent",
+                                    ? "bg-selected text-foreground"
+                                    : "text-muted-foreground hover:bg-accent bg-transparent focus-ring",
                             )}
                         >
                             {tab.title}

@@ -20,7 +20,7 @@ import {
 import {McpConnectJourney} from "@agenta/entity-ui/mcpEndpoint"
 import {useT} from "@agenta/i18n"
 import chatMcpServerNoticeCatalog from "@agenta/i18n/catalogs/chat.mcpServerNotice"
-import {Button, cn, touchTargetExpansion} from "@agenta/ui/ui"
+import {Button, cn} from "@agenta/ui/ui"
 import {ArrowClockwise, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -51,11 +51,11 @@ export const McpServerNoticeCard = ({notice, className}: McpServerNoticeCardProp
                 // work, where `alert` would interrupt on every reload of the transcript.
                 role="status"
                 data-mcp-server-notice={notice.serverName}
-                className={cn("flex min-w-0 items-center gap-2 text-xs", className)}
+                className={cn("flex min-w-0 items-center gap-2 text-meta", className)}
             >
-                <WarningCircle size={14} className="shrink-0 text-colorWarning" />
-                <span className="min-w-0 text-colorTextSecondary">
-                    <span className="text-colorText">{lead}</span>
+                <WarningCircle size={14} className="shrink-0 text-warning" />
+                <span className="min-w-0 text-muted-foreground">
+                    <span className="text-foreground">{lead}</span>
                     {detail ? <span> {detail}</span> : null}
                 </span>
                 {canConnect ? (
@@ -66,9 +66,7 @@ export const McpServerNoticeCard = ({notice, className}: McpServerNoticeCardProp
                         aria-label={t("chat.mcpServerNotice.reconnectNamed", {
                             name: connectionName,
                         })}
-                        // The row's one action, in a transcript a phone scrolls: 28px of chrome,
-                        // 44px to land a finger on.
-                        className={cn("shrink-0", touchTargetExpansion(28))}
+                        className="shrink-0"
                     >
                         <ArrowClockwise />
                         {t("chat.mcpServerNotice.reconnect")}

@@ -11,7 +11,6 @@ import {useCallback, useState} from "react"
 
 import {richText, useT} from "@agenta/i18n"
 import commitModalCatalog from "@agenta/i18n/catalogs/entityUi.commitModal"
-import {ModalFooter} from "@agenta/ui/components/modal"
 import {cn, textColors} from "@agenta/ui/styles"
 import {
     Button,
@@ -59,11 +58,8 @@ function DeployForm({
     const [deployMessage, setDeployMessage] = useState("")
 
     return (
-        <div
-            className="w-[300px] rounded-lg border border-solid border-[var(--ag-colorBorder)] bg-[var(--ag-colorBgElevated)] p-3"
-            style={{boxShadow: "0 10px 32px rgba(0, 0, 0, 0.55)"}}
-        >
-            <div className={cn("mb-2 text-xs font-medium", textColors.secondary)}>
+        <div className="w-[300px] rounded-lg border border-solid border-border bg-popover p-3 shadow-overlay">
+            <div className={cn("mb-2 text-label font-medium", textColors.secondary)}>
                 {t("entityUi.commitModal.deployTo")}
             </div>
             <div className="flex flex-col gap-2">
@@ -71,7 +67,7 @@ function DeployForm({
                     <label
                         key={o.key}
                         className={cn(
-                            "flex items-center gap-2 text-xs",
+                            "flex items-center gap-2 text-meta",
                             o.disabled ? "cursor-not-allowed text-disabled" : "cursor-pointer",
                         )}
                     >
@@ -89,7 +85,9 @@ function DeployForm({
                         {o.hint ? (
                             <span className="flex items-center gap-2">
                                 {o.label}
-                                <span className={cn("text-xs", textColors.tertiary)}>{o.hint}</span>
+                                <span className={cn("text-meta", textColors.tertiary)}>
+                                    {o.hint}
+                                </span>
                             </span>
                         ) : (
                             o.label
@@ -97,7 +95,7 @@ function DeployForm({
                     </label>
                 ))}
             </div>
-            <div className={cn("mb-1.5 mt-4 text-xs font-medium", textColors.secondary)}>
+            <div className={cn("mb-1.5 mt-4 text-label font-medium", textColors.secondary)}>
                 {richText(t("entityUi.commitModal.deploymentMessage"), {
                     muted: (text) => <span className={textColors.tertiary}>{text}</span>,
                 })}
@@ -187,12 +185,13 @@ export function EntityCommitFooter({
     }
 
     return (
-        <ModalFooter
-            onCancel={onClose}
-            onConfirm={handleCommit}
-            confirmLabel={confirmLabel}
-            isLoading={isLoading}
-            canConfirm={canProceed}
-        />
+        <div className="flex w-full items-center justify-end gap-2">
+            <Button variant="outline" onClick={onClose} disabled={isLoading}>
+                {t("entityUi.commitModal.cancel")}
+            </Button>
+            <LoadingButton loading={isLoading} disabled={!canProceed} onClick={handleCommit}>
+                {confirmLabel}
+            </LoadingButton>
+        </div>
     )
 }

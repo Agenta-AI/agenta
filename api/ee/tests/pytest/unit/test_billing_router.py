@@ -6,7 +6,7 @@ import pytest
 
 from ee.src.apis.fastapi.billing import router as billing_router_module
 from ee.src.apis.fastapi.billing.router import BillingRouter
-from ee.src.core.access.entitlements.types import DefaultPlan
+from ee.src.core.access.entitlements.types import DefaultPlan, Gauge
 from ee.src.core.subscriptions.types import Event
 
 
@@ -502,3 +502,49 @@ async def test_a_payment_failure_after_the_cancellation_is_acknowledged(monkeypa
         and "sub_123" in line
         for line in infos
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "cloud, plan, members",
+    [
+        # Self-hosted counts the organization's members, owner included.
+        (False, DefaultPlan.SELF_HOSTED_COMMUNITY.value, 3),
+        # Cloud bills per seat from the gauge, so it keeps reading the gauge.
+        (True, DefaultPlan.CLOUD_V0_PRO.value, 7),
+    ],
+)
+async def test_usage_members_count(monkeypatch, cloud, plan, members):
+    organization_id = "00000000-0000-0000-0000-000000000001"
+    gauge = SimpleNamespace(value=7)
+    router = BillingRouter(
+        subscription_service=SimpleNamespace(
+            read=AsyncMock(return_value=SimpleNamespace(plan=plan, anchor=1))
+        ),
+        meters_service=SimpleNamespace(
+            fetch=AsyncMock(
+                side_effect=lambda *, scope, key, period: (
+                    [gauge] if key.name == "USERS" else []
+                )
+            )
+        ),
+    )
+    count = AsyncMock(return_value=3)
+    monkeypatch.setattr(billing_router_module, "is_cloud", lambda: cloud)
+    monkeypatch.setattr(
+        billing_router_module,
+        "get_auth_scope",
+        lambda: SimpleNamespace(organization_id=organization_id),
+    )
+    monkeypatch.setattr(billing_router_module, "scope_from", lambda scope: None)
+    monkeypatch.setattr(
+        billing_router_module.db_manager, "count_organization_members", count
+    )
+
+    usage = await router.fetch_usage()
+
+    assert usage[Gauge.USERS]["value"] == members
+    if cloud:
+        count.assert_not_awaited()
+    else:
+        count.assert_awaited_once_with(organization_id)

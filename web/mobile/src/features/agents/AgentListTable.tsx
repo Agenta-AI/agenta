@@ -4,7 +4,12 @@ import type {ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import agentsList from "@agenta/i18n/catalogs/agents.list"
 import {useMediaQuery} from "@agenta/ui/hooks"
-import {ListTable, type ListTableColumn, type ListTableView} from "@agenta/ui/list-table"
+import {
+    LIST_COLUMN_WIDTH,
+    ListTable,
+    type ListTableColumn,
+    type ListTableView,
+} from "@agenta/ui/list-table"
 
 import {AgentCardBody} from "./AgentCardBody"
 import type {AgentListGroup, AgentListRow} from "./agentListView"
@@ -30,17 +35,17 @@ const columnsFor = (narrow: boolean, t: Translate): ListTableColumn[] => {
     const agent: ListTableColumn = {
         key: "agent",
         label: t("agents.list.columnAgent"),
-        width: "minmax(160px,2fr)",
+        width: LIST_COLUMN_WIDTH.primary,
     }
     const owner: ListTableColumn = {
         key: "owner",
         label: t("agents.list.columnOwner"),
-        width: "minmax(96px,1fr)",
+        width: LIST_COLUMN_WIDTH.secondary,
     }
     const lastActive: ListTableColumn = {
         key: "lastActive",
         label: t("agents.list.columnLastActive"),
-        width: narrow ? "76px" : "minmax(96px,1fr)",
+        width: narrow ? LIST_COLUMN_WIDTH.timeCompact : LIST_COLUMN_WIDTH.time,
     }
     const actions: ListTableColumn = {
         key: "actions",
@@ -109,13 +114,7 @@ export const AgentListTable = ({
             // Affordable for the same reason: the minima fit every width this page is read at,
             // so the frame's own horizontal scroller was never doing anything.
             stickyHeader
-            // The first rows sit right under the header line, as drawn (A02, A03).
-            flushFirstRows
-            // As drawn (A03): quiet 12 px column names between two lines, 56 px rows with a light
-            // line under each that stays inside the table, and the cells 8 px in from its edge.
-            // 37 px: the table's top line sits above the 36 px header row.
-            headerClassName="h-[37px] border-t border-colorBorderSecondary px-2 text-[12px] font-normal text-colorTextTertiary"
-            rowClassName="mx-0 min-h-14 w-full rounded-[6px] border-b border-solid border-colorSplit px-2 py-0"
+            // The kit's header and rows, as on the other list pages (one list frame).
             loading={isLoading}
             groups={groups}
             rowKey={(row) => row.id}

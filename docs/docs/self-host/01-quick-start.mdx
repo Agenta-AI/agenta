@@ -72,12 +72,17 @@ AGENTA_WEB_URL=http://localhost:90
 
 Updating your local Agenta installation to the latest version, requires pulling the latest version with `--pull always` and running migrations if any.
 
-1. Pull the latest version:
+1. In the folder where you cloned Agenta, get the newest compose files. A release can change them:
+```bash
+git pull
+```
+
+2. Pull the latest version:
 ```bash
 docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh  --profile with-web --profile with-traefik up -d --pull always
 ```
 
-2. Run migrations if needed:
+3. Run migrations if needed:
 ```bash
 docker exec -e PYTHONPATH=/app -w /app/oss/databases/postgres/migrations/core agenta-oss-gh-api-1 alembic -c alembic.ini upgrade head
 ```
@@ -92,8 +97,8 @@ If Agenta doesn't start properly, check these common issues:
 2. Container status: Run `docker ps` to check if all Agenta containers are running
 3. Logs: Examine container logs with:
    ```bash
-   docker logs agenta-oss-gh-web
-   docker logs agenta-oss-gh-api
+   docker logs agenta-oss-gh-web-1
+   docker logs agenta-oss-gh-api-1
    ```
 4. SDK connectivity issues: If you're using the Agenta SDK from outside Docker to connect to your localhost Agenta instance and experiencing connection failures, ensure the `DOCKER_NETWORK_MODE` environment variable is unset (this is the default behavior).
 5. Docker network layout: The Docker networks are defined in the compose files. See `hosting/docker-compose/oss/docker-compose.gh.yml` (OSS) or `hosting/docker-compose/ee/docker-compose.dev.yml` (EE) for the network names and service attachments.

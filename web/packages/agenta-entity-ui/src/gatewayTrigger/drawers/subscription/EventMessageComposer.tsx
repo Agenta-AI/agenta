@@ -44,17 +44,12 @@ export function EventMessageComposer({
                 footer={fields}
                 ariaLabel={t("entityUi.triggerShared.instruction")}
             />
-            <span
-                className={`text-xs leading-snug ${
-                    template === null
-                        ? "text-[var(--ag-colorWarningText)]"
-                        : "text-[var(--ag-colorTextDescription)]"
-                }`}
-            >
-                {template === null
-                    ? t("entityUi.triggerShared.richerInputsAutomation")
-                    : t("entityUi.triggerShared.sentEachEvent")}
-            </span>
+            {/* The usual hint lives in the host label's "?" (FORM-01); only the warning shows here. */}
+            {template === null ? (
+                <span className="text-meta leading-snug text-warning">
+                    {t("entityUi.triggerShared.richerInputsAutomation")}
+                </span>
+            ) : null}
         </div>
     )
 }

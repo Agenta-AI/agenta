@@ -1,16 +1,4 @@
-/**
- * skillUpload
- *
- * Turns an uploaded skill — a folder, a set of loose files, or a `.zip` / `.skill` archive —
- * into the inline `SkillTemplateSchema` shape: `name` + `description` (parsed from the SKILL.md
- * YAML frontmatter), `body` (the Markdown after the frontmatter), and `files[]` (the supporting
- * files laid beside SKILL.md, by relative path). Pure helpers, unit-testable without the DOM,
- * plus a small DataTransfer reader for drag-and-dropped folders.
- *
- * Frontmatter mapping note: the schema keeps `name`/`description` as discrete fields (the backend
- * composes the SKILL.md frontmatter from them), so we parse those OUT of an uploaded SKILL.md and
- * keep only the body. `version` (present in some early mockups) has no schema home and is dropped.
- */
+// Reads an uploaded skill (folder, loose files, or a .zip / .skill archive) into the skill shape.
 import {strFromU8, unzipSync} from "fflate"
 import {load as loadYaml} from "js-yaml"
 
@@ -33,6 +21,7 @@ export interface ParsedSkill {
 interface RawFile {
     path: string
     bytes: Uint8Array
+    executable?: boolean
 }
 
 const SKILL_MD = /(^|\/)SKILL\.md$/i
@@ -88,7 +77,11 @@ export function buildSkillFromFiles(raw: RawFile[]): ParsedSkill {
         .map((f) => {
             const rel =
                 baseDir && f.path.startsWith(baseDir) ? f.path.slice(baseDir.length) : f.path
-            return {path: rel, content: strFromU8(f.bytes)}
+            return {
+                path: rel,
+                content: strFromU8(f.bytes),
+                ...(f.executable ? {executable: true} : {}),
+            }
         })
         .filter((f) => f.path)
     return {
@@ -100,24 +93,36 @@ export function buildSkillFromFiles(raw: RawFile[]): ParsedSkill {
     }
 }
 
-/** The entry names of a zip, repeats included, read from its central directory. */
-function zipEntryNames(bytes: Uint8Array): string[] {
+interface ZipEntry {
+    name: string
+    /** A Unix entry with an execute bit in its mode. */
+    executable: boolean
+}
+
+/** The entries of a zip, repeats included, read from its central directory. */
+function zipEntries(bytes: Uint8Array): ZipEntry[] {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
     // The end-of-directory record: the last 22 bytes, before any archive comment.
     let end = bytes.length - 22
     while (end >= 0 && view.getUint32(end, true) !== 0x06054b50) end--
     if (end < 0) return []
-    const names: string[] = []
+    const entries: ZipEntry[] = []
     let at = view.getUint32(end + 16, true)
     for (let n = view.getUint16(end + 10, true); n > 0; n--) {
         if (at + 46 > bytes.length || view.getUint32(at, true) !== 0x02014b50) break
         const nameLength = view.getUint16(at + 28, true)
         // As fflate: a name without the UTF-8 flag (bit 11) is read as Latin-1.
         const latin1 = !(view.getUint16(at + 8, true) & 0x0800)
-        names.push(strFromU8(bytes.subarray(at + 46, at + 46 + nameLength), latin1))
+        // Made on Unix (host 3): the high 16 bits of the external attributes are the file mode.
+        const unix = view.getUint8(at + 5) === 3
+        const mode = view.getUint32(at + 38, true) >>> 16
+        entries.push({
+            name: strFromU8(bytes.subarray(at + 46, at + 46 + nameLength), latin1),
+            executable: unix && (mode & 0o111) !== 0,
+        })
         at += 46 + nameLength + view.getUint16(at + 30, true) + view.getUint16(at + 32, true)
     }
-    return names
+    return entries
 }
 
 /** A name that an archive in the upload holds twice; unzipping keeps only one of the two. */
@@ -125,31 +130,36 @@ function repeatedArchivePath(raw: RawFile[]): string | undefined {
     for (const f of raw) {
         if (!ARCHIVE_EXT.test(f.path)) continue
         // Folders and ignored files never reach the skill, so their repeats do not count.
-        const names = zipEntryNames(f.bytes).filter(
-            (name) => !name.endsWith("/") && !IGNORED.test(name),
-        )
+        const names = zipEntries(f.bytes)
+            .map((entry) => entry.name)
+            .filter((name) => !name.endsWith("/") && !IGNORED.test(name))
         const repeated = names.find((name, i) => names.indexOf(name) !== i)
         if (repeated !== undefined) return repeated
     }
     return undefined
 }
 
-/** Expand any `.zip` / `.skill` archives into their entries; pass other files through. */
+/** Expand any `.zip` / `.skill` archives into their entries; throws when one cannot be read. */
 function expandArchives(raw: RawFile[]): RawFile[] {
     const out: RawFile[] = []
     for (const f of raw) {
-        if (ARCHIVE_EXT.test(f.path)) {
-            try {
-                const entries = unzipSync(f.bytes)
-                for (const [path, bytes] of Object.entries(entries)) {
-                    out.push({path, bytes: bytes as Uint8Array})
-                }
-                continue
-            } catch {
-                // Not a valid archive — fall through and treat it as a normal file.
-            }
+        if (!ARCHIVE_EXT.test(f.path)) {
+            out.push(f)
+            continue
         }
-        out.push(f)
+        const entries = unzipSync(f.bytes)
+        const executable = new Set(
+            zipEntries(f.bytes)
+                .filter((entry) => entry.executable)
+                .map((entry) => entry.name),
+        )
+        for (const [path, bytes] of Object.entries(entries)) {
+            out.push({
+                path,
+                bytes: bytes as Uint8Array,
+                ...(executable.has(path) ? {executable: true} : {}),
+            })
+        }
     }
     return out
 }
@@ -207,10 +217,7 @@ async function readDataTransfer(dt: DataTransfer): Promise<RawFile[]> {
     return filesToRaw(dt.files)
 }
 
-/**
- * Merge a pasted SKILL.md into an existing skill draft: frontmatter → name/description,
- * the remainder → body. Unlike a full upload it never touches `files` (paste is a merge).
- */
+/** Merge a pasted SKILL.md into a draft: name, description and body; `files` stay. */
 export function mergePastedSkill(
     skill: Record<string, unknown>,
     md: string,
@@ -238,6 +245,8 @@ export async function parseSkillFromDataTransfer(dt: DataTransfer): Promise<Pars
 // ---------------------------------------------------------------------------
 
 export interface SkillScanCandidate {
+    /** Unique per candidate, even when two loose SKILL.md files share a folder. Key rows by it. */
+    key: string
     /** SKILL.md's directory, "" at the upload root. Doubles as the row label. */
     dir: string
     skill: ParsedSkill
@@ -280,21 +289,19 @@ function splitTextFiles(raw: RawFile[]): {
     return {files, usable, skipped}
 }
 
-/**
- * Enumerate EVERY SKILL.md in an upload and build one candidate per directory, so the
- * upload view can recover from "no SKILL.md at the root" by offering the nested skills it
- * did find. Binary and oversized files are skipped with a reason, never mojibaked in.
- */
+/** One candidate per SKILL.md in the upload; binary and oversized files are skipped with a reason. */
 export function scanSkillFiles(raw: RawFile[]): SkillUploadScan {
     const {files, usable, skipped} = splitTextFiles(raw)
 
     const skillFiles = usable.filter((f) => SKILL_MD.test(f.path))
-    // Nested-skill boundaries come from EVERY SKILL.md, including skipped ones — a
-    // binary/oversized nested SKILL.md still fences its directory off from the parent.
+    // Every SKILL.md, skipped ones too, fences its folder off from the parent skill.
     const allSkillFiles = files.filter((f) => SKILL_MD.test(f.path))
-    const candidates: SkillScanCandidate[] = skillFiles.map((skillFile) => {
+    const candidates: SkillScanCandidate[] = skillFiles.map((skillFile, index) => {
         const dir = skillFile.path.replace(/SKILL\.md$/i, "").replace(/\/$/, "")
         const prefix = dir ? `${dir}/` : ""
+        // Another SKILL.md in the same folder (two loose files) is its own candidate.
+        const sibling = (f: RawFile) =>
+            f !== skillFile && SKILL_MD.test(f.path) && f.path.replace(/SKILL\.md$/i, "") === prefix
         // The candidate owns its subtree; a nested skill's files never leak into the parent's.
         const nestedDirs = allSkillFiles
             .filter((other) => other !== skillFile)
@@ -303,9 +310,10 @@ export function scanSkillFiles(raw: RawFile[]): SkillUploadScan {
         const scope = usable.filter(
             (f) =>
                 f.path.startsWith(prefix) &&
+                !sibling(f) &&
                 !nestedDirs.some((nested) => f.path.startsWith(nested)),
         )
-        return {dir, skill: buildSkillFromFiles(scope)}
+        return {key: `${index}:${skillFile.path}`, dir, skill: buildSkillFromFiles(scope)}
     })
 
     return {candidates, skipped, fileCount: files.length}
@@ -367,14 +375,7 @@ export async function readSkillUploadFromDataTransfer(dt: DataTransfer): Promise
 
 export type SkillUploadMode = "add" | "replace"
 
-/**
- * Apply an upload to the skill being edited.
- * - "add": each uploaded file is added; a file with the same path is replaced; the other files
- *   stay. SKILL.md, the name, the description and the switches never change.
- * - "replace": every file, the name, the description and SKILL.md come from the upload, as an
- *   upload did before. It needs a SKILL.md.
- * Nothing is saved: the result is the next draft.
- */
+/** Apply an upload to the draft: "add" merges files only; "replace" takes the whole skill. */
 export function applySkillUpload(
     skill: Record<string, unknown>,
     upload: SkillUpload,

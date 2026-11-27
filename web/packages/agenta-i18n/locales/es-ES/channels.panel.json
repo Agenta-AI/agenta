@@ -15,5 +15,7 @@
     "noIdYet": "Esta conexión todavía no tiene id.",
     "publish": "Publicar",
     "yourAgent": "tu agente",
-    "yourWorkspace": "tu espacio de trabajo"
+    "yourWorkspace": "tu espacio de trabajo",
+    "api": "API",
+    "disconnected": "{{platform}} desconectado"
 }

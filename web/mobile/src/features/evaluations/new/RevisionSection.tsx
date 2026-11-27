@@ -124,7 +124,7 @@ export const RevisionSection = ({
                         onToggle={() => setExpanded((current) => toggleKey(current, groupKey))}
                     />
                 ) : null}
-                <span className="block min-w-0 truncate text-[14px] font-medium text-foreground">
+                <span className="block min-w-0 truncate text-body font-medium text-foreground">
                     <VariantDetailsWithStatus
                         variant={{id: row.revisionId}}
                         variantName={row.variantName}
@@ -138,21 +138,21 @@ export const RevisionSection = ({
                 </span>
             </span>
             {narrow ? null : (
-                <span className="block truncate text-[13px] text-muted-foreground">
+                <span className="block truncate text-label text-muted-foreground">
                     {row.model || "—"}
                 </span>
             )}
-            <span className="block truncate text-[13px] text-muted-foreground">
+            <span className="block truncate text-label text-muted-foreground">
                 <FormattedDate date={row.createdAt} format="MMM D, YYYY" fallback="—" />
             </span>
             {narrow ? null : (
-                <span className="block truncate text-[13px] text-muted-foreground">
+                <span className="block truncate text-label text-muted-foreground">
                     <UserAuthorLabel userId={row.createdById} showYouLabel fallback="—" />
                 </span>
             )}
             {narrow ? null : (
                 <span
-                    className="block truncate text-[13px] text-muted-foreground"
+                    className="block truncate text-label text-muted-foreground"
                     title={row.message ?? undefined}
                 >
                     {row.message || "—"}

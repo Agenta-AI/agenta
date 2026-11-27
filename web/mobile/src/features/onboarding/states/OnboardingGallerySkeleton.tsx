@@ -12,7 +12,7 @@ export const OnboardingGallerySkeleton = () => {
             className="flex flex-col gap-1"
         >
             {Array.from({length: 6}, (_, index) => (
-                <SkeletonBlock key={index} className="h-14 rounded-[10px]" />
+                <SkeletonBlock key={index} className="h-12 rounded-md" />
             ))}
         </div>
     )

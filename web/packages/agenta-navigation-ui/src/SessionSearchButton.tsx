@@ -12,8 +12,7 @@ import {useSetAtom} from "jotai"
  *
  * It sits beside the filter menu because the two answer the same question at different scales:
  * the filter narrows what the rail lists, this reaches past it. Same control as the filter's
- * trigger (a 24 px ghost square, radius 6, 14 px glyph in the secondary ink; 18 px on a phone),
- * 4 px apart, so the pair reads as one set of buttons.
+ * trigger (the kit's icon-xs ghost button), so the pair reads as one set of buttons.
  */
 const SessionSearchButton = ({
     label,
@@ -34,10 +33,10 @@ const SessionSearchButton = ({
             <Button
                 type="button"
                 variant="ghost"
-                size="icon-sm"
+                size="icon-xs"
                 aria-label={name}
                 aria-keyshortcuts={shortcut?.aria}
-                className="mr-0.5 size-6 rounded-[6px] p-0 text-colorTextSecondary hover:text-colorText"
+                className="text-muted-foreground hover:text-foreground"
                 onClick={(event) => {
                     // Off the group row's stretched link anchor, as the filter trigger keeps its own.
                     event.preventDefault()
@@ -45,7 +44,7 @@ const SessionSearchButton = ({
                     setOpen(true)
                 }}
             >
-                <MagnifyingGlass className="size-3.5 max-md:size-[18px]" />
+                <MagnifyingGlass />
             </Button>
         </SimpleTooltip>
     )

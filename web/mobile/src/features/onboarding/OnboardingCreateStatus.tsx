@@ -18,18 +18,18 @@ export const OnboardingCreateStatus = ({
 }) => {
     const t = useT(creatorCatalog)
     return create.error ? (
-        <span role="alert" className="text-destructive text-xs">
+        <span role="alert" className="text-destructive text-meta">
             {create.error}
         </span>
     ) : !create.modelReady && !create.pending ? (
-        <span className="text-muted-foreground text-xs">
+        <span className="text-muted-foreground text-meta">
             {t("onboarding.creator.modelMissing")}{" "}
             <button
                 ref={chooseModelRef}
                 type="button"
                 onClick={create.onChooseModel}
                 className={cn(
-                    "text-foreground cursor-pointer rounded-sm border-0 bg-transparent p-0 text-xs underline",
+                    "text-foreground cursor-pointer rounded-sm border-0 bg-transparent p-0 text-meta underline",
                     FOCUS_RING,
                 )}
             >

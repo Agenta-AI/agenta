@@ -42,12 +42,12 @@ const META: Record<SessionRowStatus, Omit<SessionRowStatusMeta, "status">> = {
             return tNow("sessions.status.waitingOnYou")
         },
         dotClassName: "bg-[var(--ag-run-status-warning)]",
-        textClassName: "text-colorWarningText",
+        textClassName: "text-warning",
         pulse: true,
         get chipLabel() {
             return tNow("sessions.status.waiting")
         },
-        chipClassName: "bg-colorWarningBg text-colorWarningText",
+        chipClassName: "bg-warning/10 text-warning",
     },
     running: {
         get label() {
@@ -55,8 +55,8 @@ const META: Record<SessionRowStatus, Omit<SessionRowStatusMeta, "status">> = {
         },
         // The deep semantic green, not the run-status mint: the pulse dims the dot to half, and at
         // 6px the mint's low half read as washed out rather than live.
-        dotClassName: "bg-colorSuccess",
-        textClassName: "text-colorSuccessText",
+        dotClassName: "bg-success",
+        textClassName: "text-success",
         pulse: true,
     },
     // The rest are states, not calls to action, so they read as muted as the timestamp beside them.
@@ -66,7 +66,7 @@ const META: Record<SessionRowStatus, Omit<SessionRowStatusMeta, "status">> = {
         },
         // Ink, as the nav rail paints it (a FILLED dot in the row's own colour): a warm sandbox
         // is "there", not a colour-coded event. The old info-blue read as a stray tint.
-        dotClassName: "bg-colorText",
+        dotClassName: "bg-foreground",
         textClassName: "text-muted-foreground",
         pulse: false,
     },
@@ -74,7 +74,7 @@ const META: Record<SessionRowStatus, Omit<SessionRowStatusMeta, "status">> = {
         get label() {
             return tNow("sessions.status.ended")
         },
-        dotClassName: "bg-colorTextQuaternary",
+        dotClassName: "bg-border-strong",
         textClassName: "text-muted-foreground",
         pulse: false,
     },
@@ -82,7 +82,7 @@ const META: Record<SessionRowStatus, Omit<SessionRowStatusMeta, "status">> = {
         get label() {
             return tNow("sessions.status.archived")
         },
-        dotClassName: "bg-colorTextQuaternary",
+        dotClassName: "bg-border-strong",
         textClassName: "text-muted-foreground",
         pulse: false,
     },
@@ -90,7 +90,7 @@ const META: Record<SessionRowStatus, Omit<SessionRowStatusMeta, "status">> = {
         get label() {
             return tNow("sessions.status.idle")
         },
-        dotClassName: "bg-colorBorder",
+        dotClassName: "bg-border",
         textClassName: "text-muted-foreground",
         pulse: false,
     },

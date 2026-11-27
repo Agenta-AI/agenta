@@ -7,5 +7,6 @@
     "outputLabel": "Saída:",
     "providers": "Provedores",
     "selectProvider": "Selecione um provedor",
+    "signInToPick": "Sua assinatura precisa de um novo login. Abra Gerenciar provedores de modelos para entrar novamente.",
     "via": "via"
 }

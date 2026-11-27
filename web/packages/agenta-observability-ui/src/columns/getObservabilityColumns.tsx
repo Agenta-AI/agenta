@@ -18,6 +18,7 @@ import {ColumnVisibilityMenuTrigger, type ColumnDefs, type ExtendedColumn} from 
 import {CostCell} from "../cells/CostCell"
 import {DurationCell} from "../cells/DurationCell"
 import EvaluatorMetricsCell from "../cells/EvaluatorMetricsCell"
+import {ONE_LINE_CELL, ONE_LINE_MESSAGE_CELL} from "../cells/oneLineCell"
 import {SpanIdChip} from "../cells/SpanIdChip"
 import {SpanNameCell} from "../cells/SpanNameCell"
 import {StatusRenderer} from "../cells/StatusRenderer"
@@ -91,9 +92,9 @@ export const getObservabilityColumns = ({evaluatorSlugs, t}: ObservabilityColumn
             dataIndex: ["span_name"],
             key: "name",
             ellipsis: true,
-            width: 200,
+            width: 132,
             onHeaderCell: () => ({
-                style: {minWidth: 200},
+                style: {minWidth: 132},
             }),
             onCell: () => ({
                 style: {verticalAlign: "middle"},
@@ -123,8 +124,7 @@ export const getObservabilityColumns = ({evaluatorSlugs, t}: ObservabilityColumn
         {
             title: label("inputs"),
             key: "inputs",
-            width: 400,
-            maxWidth: 400,
+            width: 140,
             render: (_, record) => {
                 const inputs = getTraceInputs(record)
                 const {data: sanitizedInputs} = sanitizeDataWithBlobUrls(inputs)
@@ -132,7 +132,8 @@ export const getObservabilityColumns = ({evaluatorSlugs, t}: ObservabilityColumn
                     <LastInputMessageCell
                         value={sanitizedInputs}
                         keyPrefix={`trace-input-${record.span_id}`}
-                        className="h-[112px] overflow-hidden"
+                        maxLines={1}
+                        className={ONE_LINE_MESSAGE_CELL}
                     />
                 )
             },
@@ -140,8 +141,7 @@ export const getObservabilityColumns = ({evaluatorSlugs, t}: ObservabilityColumn
         {
             title: label("outputs"),
             key: "outputs",
-            width: 400,
-            maxWidth: 400,
+            width: 140,
             render: (_, record) => {
                 const outputs = getTraceOutputs(record)
                 const exception = record.events?.find((event) => event.name === "exception")
@@ -156,9 +156,10 @@ export const getObservabilityColumns = ({evaluatorSlugs, t}: ObservabilityColumn
                         <SmartCellContent
                             value={exceptionMessage}
                             keyPrefix={`trace-output-${record.span_id}`}
-                            maxLines={4}
+                            maxLines={1}
                             chatPreference="output"
-                            className="h-[112px] overflow-hidden text-red-500"
+                            // The Status column marks the error; the text stays neutral (LOUD-04).
+                            className={`${ONE_LINE_CELL} text-muted-foreground`}
                         />
                     )
                 }
@@ -167,9 +168,9 @@ export const getObservabilityColumns = ({evaluatorSlugs, t}: ObservabilityColumn
                     <SmartCellContent
                         value={sanitizedOutputs}
                         keyPrefix={`trace-output-${record.span_id}`}
-                        maxLines={4}
+                        maxLines={1}
                         chatPreference="output"
-                        className="h-[112px] overflow-hidden"
+                        className={ONE_LINE_CELL}
                     />
                 )
             },
@@ -198,9 +199,9 @@ export const getObservabilityColumns = ({evaluatorSlugs, t}: ObservabilityColumn
             title: label("duration"),
             key: "duration",
             dataIndex: ["time", "span"],
-            width: 150,
+            width: 64,
             onHeaderCell: () => ({
-                style: {minWidth: 150},
+                style: {minWidth: 64},
             }),
             render: (_, record) => {
                 const duration = getLatency(record)
@@ -211,9 +212,9 @@ export const getObservabilityColumns = ({evaluatorSlugs, t}: ObservabilityColumn
             title: label("cost"),
             key: "cost",
             dataIndex: ["attributes", "ag", "metrics", "costs", "cumulative", "total"],
-            width: 150,
+            width: 80,
             onHeaderCell: () => ({
-                style: {minWidth: 150},
+                style: {minWidth: 80},
             }),
             render: (_, record) => {
                 const cost = getCost(record)
@@ -224,9 +225,11 @@ export const getObservabilityColumns = ({evaluatorSlugs, t}: ObservabilityColumn
             title: label("usage"),
             key: "usage",
             dataIndex: ["attributes", "ag", "metrics", "tokens", "cumulative", "total"],
-            width: 150,
+            width: 72,
+            // Off by default so the default columns fit a 1280 screen; Edit columns adds it.
+            defaultHidden: true,
             onHeaderCell: () => ({
-                style: {minWidth: 150},
+                style: {minWidth: 72},
             }),
             render: (_, record) => {
                 const tokens = getTokens(record)
@@ -237,9 +240,9 @@ export const getObservabilityColumns = ({evaluatorSlugs, t}: ObservabilityColumn
             title: label("timestamp"),
             key: "timestamp",
             dataIndex: ["created_at"],
-            width: 200,
+            width: 164,
             onHeaderCell: () => ({
-                style: {minWidth: 200},
+                style: {minWidth: 164},
             }),
             render: (_, record) => <TimestampCell timestamp={record?.created_at} />,
         },
@@ -247,9 +250,9 @@ export const getObservabilityColumns = ({evaluatorSlugs, t}: ObservabilityColumn
             title: label("status"),
             key: "status",
             dataIndex: ["status_code"],
-            width: 160,
+            width: 84,
             onHeaderCell: () => ({
-                style: {minWidth: 160},
+                style: {minWidth: 84},
             }),
             render: (_, record) => (
                 <StatusRenderer
@@ -262,13 +265,13 @@ export const getObservabilityColumns = ({evaluatorSlugs, t}: ObservabilityColumn
         {
             title: <ColumnVisibilityMenuTrigger variant="icon" label={label("editColumns")} />,
             key: "actions",
-            width: 61,
+            width: 44,
             fixed: "right",
             align: "center",
             columnVisibilityLocked: true,
             exportEnabled: false,
             onHeaderCell: () => ({
-                style: {minWidth: 56},
+                style: {minWidth: 44},
             }),
             render: () => null,
         },

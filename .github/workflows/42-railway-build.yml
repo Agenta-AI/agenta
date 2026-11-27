@@ -149,7 +149,7 @@ jobs:
           # the Docker build without a separate inject step.
           - image_name: agenta-api
             context: .
-            dockerfile: api/oss/docker/Dockerfile.gh
+            dockerfile: api/docker/Dockerfile.gh
           - image_name: agenta-web
             context: web
             dockerfile: web/oss/docker/Dockerfile.gh
@@ -161,7 +161,7 @@ jobs:
             dockerfile: web/mobile/docker/Dockerfile.gh
           - image_name: agenta-services
             context: .
-            dockerfile: services/oss/docker/Dockerfile.gh
+            dockerfile: services/docker/Dockerfile.gh
           - image_name: agenta-runner
             context: services/runner
             dockerfile: services/runner/docker/Dockerfile.gh

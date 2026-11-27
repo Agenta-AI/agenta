@@ -19,7 +19,7 @@ export const OnboardingTemplateTile = ({
         size={size === "row" ? 16 : 18}
         className={cn(
             "ring-foreground/5 ring-1 ring-inset",
-            size === "row" ? "size-[34px] rounded-[9px]" : "size-8 rounded-lg",
+            size === "row" ? "size-8 rounded-md" : "size-8 rounded-lg",
         )}
     />
 )

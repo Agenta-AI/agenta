@@ -4,7 +4,7 @@ import type {SettingsTabKey} from "@agenta/settings"
 import dynamic from "next/dynamic"
 
 import type {SettingsTabProps} from "./settingsTabProps"
-import {SettingsTabSkeleton} from "./states/SettingsTabSkeleton"
+import {SettingsTabSkeleton, type SettingsTabSkeletonKind} from "./states/SettingsTabSkeleton"
 
 type Loader = () => Promise<ComponentType<SettingsTabProps>>
 
@@ -24,15 +24,27 @@ const LOADERS: Partial<Record<SettingsTabKey, Loader>> = {
     projects: () => import("./ProjectsTab").then((m) => m.ProjectsTab),
     organization: () => import("./AccessSecurityTab").then((m) => m.AccessSecurityTab),
     auditLog: () => import("./AuditLogTab").then((m) => m.AuditLogTab),
+    license: () => import("./LicenseTab").then((m) => m.LicenseTab),
     account: () => import("./AccountTab").then((m) => m.AccountTab),
     preferences: () => import("./PreferencesTab").then((m) => m.PreferencesTab),
+}
+
+const SKELETONS: Partial<Record<SettingsTabKey, SettingsTabSkeletonKind>> = {
+    llms: "connections",
+    tools: "catalog",
+    secrets: "connections",
+    mcpEndpoints: "connections",
+    channels: "connections",
 }
 
 /** Each tab's code loads on first open; `preloadSettingsTab` warms it ahead of a click. */
 export const SETTINGS_TAB_COMPONENTS = Object.fromEntries(
     Object.entries(LOADERS).map(([key, load]) => [
         key,
-        dynamic(load as Loader, {loading: () => <SettingsTabSkeleton />, ssr: false}),
+        dynamic(load as Loader, {
+            loading: () => <SettingsTabSkeleton kind={SKELETONS[key as SettingsTabKey]} />,
+            ssr: false,
+        }),
     ]),
 ) as Partial<Record<SettingsTabKey, ComponentType<SettingsTabProps>>>
 

@@ -83,7 +83,7 @@ export const evaluationQueueSchema = z
         run_id: z.string(),
 
         // Metadata
-        tags: z.array(z.string()).nullable().optional(),
+        tags: z.record(z.string(), z.unknown()).nullable().optional(),
         meta: z.record(z.string(), z.unknown()).nullable().optional(),
     })
     .merge(timestampFieldsSchema)

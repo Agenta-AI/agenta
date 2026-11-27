@@ -9,6 +9,7 @@ host at the endpoint the credentials name (the dev stack's SeaweedFS).
 
 import asyncio
 import os
+import socket
 from io import BytesIO
 from urllib.parse import urlparse
 from uuid import uuid4
@@ -78,13 +79,26 @@ async def _store_checks(credentials):
     return result
 
 
+def _is_unresolvable_private_host(credentials, error) -> bool:
+    """True when the store host is a private network name (a Railway preview names the
+    store `<service>.railway.internal`) that the test host cannot resolve."""
+    host = urlparse(credentials["endpoint"]).hostname or ""
+    dns_failure = isinstance(error, (aiohttp.ClientConnectorDNSError, socket.gaierror))
+    return dns_failure and host.endswith(".internal")
+
+
 def _run_on_store(credentials):
     try:
         return asyncio.run(_store_checks(credentials))
     except (aiohttp.ClientConnectionError, OSError) as e:
-        if os.getenv("AGENTA_TEST_REQUIRE_MOUNT_STORAGE", "").lower() == "true":
+        required = os.getenv("AGENTA_TEST_REQUIRE_MOUNT_STORAGE", "").lower() == "true"
+        # Storage can work for the API while its private host does not resolve here.
+        # That case skips; any other connection error fails when storage is required.
+        if required and not _is_unresolvable_private_host(credentials, e):
             pytest.fail(f"The store endpoint is not reachable: {e}")
-        pytest.skip("The store endpoint in the credentials is not reachable from here")
+        pytest.skip(
+            f"The store endpoint in the credentials is not reachable from here: {e}"
+        )
 
 
 class TestMountSignBySlug:
@@ -106,9 +120,10 @@ class TestMountSignBySlug:
         skip_if_mount_storage_unavailable(resp)
         assert resp.status_code == 404, resp.text
 
-    def test_a_reserved_slug_is_refused(self, authed_api):
+    def test_a_session_slug_is_not_signed(self, authed_api):
+        # A session drive is never signed by slug: it answers 404 like a missing drive.
         resp = _sign(authed_api, f"__ag__session__{uuid4().hex[:8]}")
-        assert resp.status_code == 422, resp.text
+        assert resp.status_code == 404, resp.text
 
 
 class TestReadOnlyCredentials:

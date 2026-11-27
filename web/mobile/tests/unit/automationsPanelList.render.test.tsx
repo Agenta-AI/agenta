@@ -7,7 +7,7 @@
  */
 import {act, createElement} from "react"
 
-import {AutomationDeleteDialog, TriggerManagementSection} from "@agenta/entity-ui/drill-in"
+import {TriggerManagementSection} from "@agenta/entity-ui/drill-in"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -79,6 +79,15 @@ let root: Root
 
 beforeEach(() => {
     ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
+    // The menu's tooltip trigger measures itself; jsdom has no ResizeObserver.
+    vi.stubGlobal(
+        "ResizeObserver",
+        class {
+            observe() {}
+            unobserve() {}
+            disconnect() {}
+        },
+    )
     triggers.schedules = []
     triggers.subscriptions = []
     triggers.removeSchedule.mockReset()
@@ -93,6 +102,7 @@ beforeEach(() => {
 afterEach(() => {
     act(() => root.unmount())
     container.remove()
+    vi.unstubAllGlobals()
 })
 
 const renderSection = (props: Record<string, unknown> = {}) =>
@@ -215,31 +225,25 @@ describe("Row menu", () => {
 
 describe("Delete this automation?", () => {
     it("deletes only after Delete, and keeps the dialog when the delete fails", async () => {
-        const onDelete = vi.fn().mockRejectedValueOnce(new Error("boom"))
-        const onClose = vi.fn()
+        triggers.schedules = [schedule]
+        triggers.removeSchedule.mockRejectedValueOnce(new Error("boom"))
         vi.spyOn(console, "error").mockImplementation(() => undefined)
-        act(() =>
-            root.render(
-                createElement(AutomationDeleteDialog, {
-                    open: true,
-                    name: "Daily summary",
-                    onDelete,
-                    onClose,
-                }),
-            ),
-        )
+        renderSection()
+        const menu = await openRowMenu()
+        act(() => item(menu, "Delete").click())
+        await flush()
         const dialog = document.querySelector("[data-testid=automation-delete-dialog]")
         expect(dialog?.textContent).toContain("Delete this automation?")
         expect(dialog?.textContent).toContain(
             "“Daily summary” stops running and leaves your list. Its past runs stay in your history.",
         )
-        expect(onDelete).not.toHaveBeenCalled()
+        expect(triggers.removeSchedule).not.toHaveBeenCalled()
         const deleteButton = [...(dialog?.querySelectorAll("button") ?? [])].find(
             (b) => b.textContent === "Delete",
         ) as HTMLButtonElement
         await act(async () => deleteButton.click())
-        expect(onDelete).toHaveBeenCalledTimes(1)
-        expect(onClose).not.toHaveBeenCalled()
+        expect(triggers.removeSchedule).toHaveBeenCalledTimes(1)
+        expect(document.querySelector("[data-testid=automation-delete-dialog]")).not.toBeNull()
         expect(document.querySelector("[role=alert]")?.textContent).toBe(
             "Couldn't delete this automation. Try again.",
         )

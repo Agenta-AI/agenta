@@ -198,7 +198,7 @@ export const FirstRunScreen = ({
                         <FirstRunHeroSkeleton />
                     ) : (
                         <>
-                            <h1 className="m-0 text-2xl font-semibold leading-tight lg:text-[32px]">
+                            <h1 className="m-0 text-display">
                                 {template
                                     ? t("agents.firstRun.templateTitle", {name: template.name})
                                     : t("agents.firstRun.title")}
@@ -207,7 +207,7 @@ export const FirstRunScreen = ({
                                 does not repeat the build prompt — that sits in the editor below.
                                 `description` is the card's one-liner; the clamp guards a template
                                 that overruns it. */}
-                            <p className="text-muted-foreground m-0 line-clamp-2 text-sm lg:text-base">
+                            <p className="text-muted-foreground m-0 line-clamp-2 text-body">
                                 {template ? template.description : t("agents.firstRun.subtitle")}
                             </p>
                         </>
@@ -239,36 +239,36 @@ export const FirstRunScreen = ({
                 {/* One error line for the whole surface. A failed mint reports here too, with the
                     retry that releases its guard — never a surface that silently spins. */}
                 {mintError ? (
-                    <p className="text-destructive m-0 text-xs">
+                    <p className="text-destructive m-0 text-meta">
                         {mintError}{" "}
                         <button
                             type="button"
                             onClick={retry}
-                            className="text-foreground cursor-pointer border-0 bg-transparent p-0 text-xs underline"
+                            className="text-foreground cursor-pointer border-0 bg-transparent p-0 text-meta underline"
                         >
                             {t("agents.firstRun.tryAgain")}
                         </button>
                     </p>
                 ) : null}
                 {!template && arrivalUnresolved && arrivalLookup.status === "error" ? (
-                    <p className="text-destructive m-0 text-xs">
+                    <p className="text-destructive m-0 text-meta">
                         {t("agents.firstRun.templateLoadError")}{" "}
                         <button
                             type="button"
                             onClick={() => refetchTemplates()}
-                            className="text-foreground cursor-pointer border-0 bg-transparent p-0 text-xs underline"
+                            className="text-foreground cursor-pointer border-0 bg-transparent p-0 text-meta underline"
                         >
                             {t("agents.firstRun.tryAgain")}
                         </button>
                     </p>
                 ) : null}
                 {templateKey && arrivalLookup.status === "missing" ? (
-                    <p className="text-muted-foreground m-0 text-xs">
+                    <p className="text-muted-foreground m-0 text-meta">
                         {UNAVAILABLE_TEMPLATE_MESSAGE}
                     </p>
                 ) : null}
                 {newAgent.error ? (
-                    <p className="text-destructive m-0 text-xs">{newAgent.error}</p>
+                    <p className="text-destructive m-0 text-meta">{newAgent.error}</p>
                 ) : null}
             </div>
         </div>

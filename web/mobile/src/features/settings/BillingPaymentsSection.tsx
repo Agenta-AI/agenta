@@ -16,7 +16,7 @@ export const BillingPaymentsSection = ({
     const t = useT(billingBillingPaymentsSectionCatalog)
     return (
         <section className="flex flex-col gap-3">
-            <h3 className="m-0 text-sm font-medium">{t("billing.billingPaymentsSection.title")}</h3>
+            <h3 className="m-0 text-label">{t("billing.billingPaymentsSection.title")}</h3>
             <div className="border-border/50 flex flex-wrap items-center gap-3 border-0 border-t border-solid py-3">
                 <span className="bg-accent flex size-7 shrink-0 items-center justify-center rounded-md">
                     <Receipt size={14} />
@@ -25,7 +25,7 @@ export const BillingPaymentsSection = ({
                     <span className="font-medium">
                         {t("billing.billingPaymentsSection.invoices")}
                     </span>
-                    <span className="text-muted-foreground text-[13px]">
+                    <span className="text-muted-foreground text-label">
                         {t("billing.billingPaymentsSection.invoicesHint")}
                     </span>
                 </span>
@@ -36,8 +36,8 @@ export const BillingPaymentsSection = ({
                     <ArrowSquareOut data-icon="inline-end" />
                 </Button>
             </div>
-            {error ? <span className="text-destructive text-[13px]">{error}</span> : null}
-            <span className="text-muted-foreground text-[13px]">
+            {error ? <span className="text-destructive text-label">{error}</span> : null}
+            <span className="text-muted-foreground text-label">
                 {t("billing.billingPaymentsSection.portalHint")}
             </span>
         </section>

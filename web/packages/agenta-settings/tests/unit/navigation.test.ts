@@ -42,6 +42,12 @@ describe("resolveSettingsTab", () => {
         )
     })
 
+    it("lists Access & Security and Audit Log on OSS, where they show a locked state", () => {
+        const oss = {...baseAccess, isEE: false}
+        expect(resolveSettingsTab("organization", oss)).toBe("organization")
+        expect(resolveSettingsTab("auditLog", oss)).toBe("auditLog")
+    })
+
     it("keeps the projects tab reachable", () => {
         expect(resolveSettingsTab("projects", baseAccess)).toBe("projects")
     })
@@ -147,6 +153,7 @@ describe("settings sidebar scopes", () => {
             "projects",
             "organization",
             "auditLog",
+            "license",
         ])
         expect(keysForScope("personal")).toEqual(["account", "preferences"])
     })
@@ -195,5 +202,16 @@ describe("tabs a role cannot read", () => {
 
     it("falls back to the owner check for a host that says nothing about billing", () => {
         expect(isSettingsTabVisible("billing", {...baseAccess, isOwner: false})).toBe(false)
+    })
+})
+
+describe("license tab", () => {
+    it("shows only to an instance admin of a deployment without billing", () => {
+        const selfHosted = {...baseAccess, billingEnabled: false}
+        expect(isSettingsTabVisible("license", {...selfHosted, isInstanceAdmin: true})).toBe(true)
+        expect(isSettingsTabVisible("license", {...selfHosted, isInstanceAdmin: false})).toBe(false)
+        expect(isSettingsTabVisible("license", selfHosted)).toBe(false)
+        expect(isSettingsTabVisible("license", {...baseAccess, isInstanceAdmin: true})).toBe(false)
+        expect(getSettingsTabLabel("license", baseAccess)).toBe("License")
     })
 })

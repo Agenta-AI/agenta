@@ -1,7 +1,7 @@
 import {useT} from "@agenta/i18n"
 import agentsActivity from "@agenta/i18n/catalogs/agents.activity"
 import {Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle} from "@agenta/ui/ui"
-import {MessagesSquare, Zap} from "lucide-react"
+import {ChatsIcon, LightningIcon} from "@phosphor-icons/react"
 
 import type {AgentActivityTab} from "../agentActivityView"
 
@@ -21,7 +21,7 @@ export const AgentActivityEmpty = ({tab}: {tab: AgentActivityTab}) => {
         <Empty className="py-12">
             <EmptyHeader>
                 <EmptyMedia variant="icon">
-                    {tab === "runs" ? <Zap /> : <MessagesSquare />}
+                    {tab === "runs" ? <LightningIcon /> : <ChatsIcon />}
                 </EmptyMedia>
                 <EmptyTitle>{t(copy.title)}</EmptyTitle>
                 <EmptyDescription>{t(copy.body)}</EmptyDescription>

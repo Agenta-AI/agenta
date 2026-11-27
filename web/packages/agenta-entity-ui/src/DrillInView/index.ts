@@ -382,7 +382,7 @@ export {
 export {
     TriggerManagementSection,
     AddTriggerDropdown,
-    AutomationDeleteDialog,
+    useAutomationDelete,
 } from "./SchemaControls/TriggerManagementSection"
 export type {
     TriggerManagementSectionProps,
@@ -442,6 +442,11 @@ export {
 } from "./SchemaControls/agentTemplate/ToolManagementList"
 export {CatalogListRow} from "./SchemaControls/agentTemplate/CatalogListRow"
 export type {CatalogListRowProps} from "./SchemaControls/agentTemplate/CatalogListRow"
+export {
+    CatalogGroupSkeleton,
+    CatalogListSkeleton,
+    CatalogRowSkeleton,
+} from "./SchemaControls/agentTemplate/CatalogRowSkeleton"
 export {AddSubagentList} from "./SchemaControls/agentTemplate/AddSubagentList"
 export type {SubagentOption} from "./SchemaControls/agentTemplate/AddSubagentList"
 export type {SubagentListProps} from "./SchemaControls/agentTemplate/ToolManagementList"
@@ -451,7 +456,13 @@ export type {McpServerFormViewProps} from "./SchemaControls/McpServerFormView"
 export {SkillFormView} from "./SchemaControls/SkillFormView"
 export {useSkillViewForm} from "./SchemaControls/SkillUploadStep"
 export type {SkillUploadControl} from "./SchemaControls/SkillUploadStep"
-export {SkillFormSkeleton} from "./SchemaControls/DrawerSkeletons"
+export {
+    MarkdownBodySkeleton,
+    MarkdownToolbarSkeleton,
+    SkillBodySkeleton,
+    SkillFormSkeleton,
+    SkillViewSkeleton,
+} from "./SchemaControls/DrawerSkeletons"
 export type {SkillFormViewProps} from "./SchemaControls/SkillFormView"
 export {scanSkillFromDataTransfer, scanSkillFromFileList} from "./SchemaControls/skillUpload"
 export type {ParsedSkill, SkillScanCandidate, SkillUploadScan} from "./SchemaControls/skillUpload"
@@ -461,6 +472,9 @@ export {
     downloadSkill,
 } from "./SchemaControls/skillDownload"
 export {firstBadFile, skillFilesOf} from "./SchemaControls/skillFiles"
+export {slugifySkillName} from "./SchemaControls/skillName"
+export {MarkdownEditor} from "./SchemaControls/MarkdownEditor"
+export type {MarkdownEditorProps} from "./SchemaControls/MarkdownEditor"
 export {
     SKILL_ACTION_ROW,
     SkillViewHeader,
@@ -491,9 +505,6 @@ export {
     usePhoneSectionScreen,
 } from "./SchemaControls/agentTemplate/phoneSections"
 export type {PhoneSection, PhoneSectionsApi} from "./SchemaControls/agentTemplate/phoneSections"
-export {SectionListLayoutContext} from "./SchemaControls/agentTemplate/sectionListLayout"
-export {SectionPageAction} from "./SchemaControls/agentTemplate/SectionPageAction"
-export type {SectionListLayout} from "./SchemaControls/agentTemplate/sectionListLayout"
 export {SectionAddButton} from "./SchemaControls/agentTemplate/SectionAddButton"
 export type {SectionAddButtonProps} from "./SchemaControls/agentTemplate/SectionAddButton"
 // Writes the composer-prefill request atom from @agenta/shared/state: its one atom dependency.

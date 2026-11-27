@@ -103,7 +103,7 @@ spec:
           command:
             - sh
             - -c
-            - {{ printf "python -m %s" (include "agenta.alembicRunnerModule" .) | quote }}
+            - "python -m ee.databases.postgres.migrations.runner"
           env:
             {{- include "agenta.commonEnv" . | nindent 12 }}
             - name: ALEMBIC_AUTO_MIGRATIONS
@@ -112,10 +112,6 @@ spec:
               {{- else }}
               value: "true"
               {{- end }}
-            - name: ALEMBIC_CFG_PATH_CORE
-              value: {{ include "agenta.alembicCfgPathCore" . | quote }}
-            - name: ALEMBIC_CFG_PATH_TRACING
-              value: {{ include "agenta.alembicCfgPathTracing" . | quote }}
             {{- range $key, $val := $alembic.env }}
             - name: {{ $key }}
               value: {{ $val | quote }}

@@ -76,7 +76,7 @@ export const RunAnnotateTab = ({runId, header}: {runId: string; header: RunHeade
     return (
         <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center gap-2">
-                <div className="min-w-0 flex-1 md:max-w-[420px]">
+                <div className="min-w-0 flex-1 md:max-w-105">
                     <ScenarioNavigator
                         kind={header.kind}
                         rows={rows}

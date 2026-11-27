@@ -1,11 +1,23 @@
 import {AutomationDetailBody} from "@agenta/automation-ui"
-import {AutomationDeleteDialog} from "@agenta/entity-ui/drill-in"
+import {createT} from "@agenta/i18n"
+import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
+import {
+    AlertDialog,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 import type {StoryScope} from "../../../.storybook/decorators/withAgentaData"
 import {DAILY_SUMMARY, runHistoryQueries} from "../../../fixtures/builderLayout/automations"
 
 const noop = () => undefined
+const t = createT(automationsScreensCatalog)
 
 /** The automation view in a 440px panel column (F05 f5): "Runs", then "Settings". */
 const PanelAutomation = () => (
@@ -57,11 +69,21 @@ export const DailySummary: Story = {}
 /** F06 f4: "Delete this automation?". */
 export const DeleteDialog: StoryObj = {
     render: () => (
-        <AutomationDeleteDialog
-            open
-            name="Daily summary"
-            onDelete={async () => undefined}
-            onClose={noop}
-        />
+        <AlertDialog open>
+            <AlertDialogContent data-testid="automation-delete-dialog">
+                <AlertDialogHeader>
+                    <AlertDialogTitle>{t("automations.screens.deleteTitle")}</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        {t("automations.screens.deleteMessage", {name: "Daily summary"})}
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel asChild>
+                        <Button variant="outline">{t("automations.screens.cancel")}</Button>
+                    </AlertDialogCancel>
+                    <Button variant="destructive">{t("automations.screens.delete")}</Button>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     ),
 }

@@ -39,5 +39,16 @@
     "noProjectSecrets": "プロジェクトシークレットが見つかりません",
     "unnamedSecret": "名前のないシークレット",
     "createSecret": "シークレットを作成",
-    "advancedSummary": "コールバック URL、クライアント ID、スコープ"
+    "advancedSummary": "コールバック URL、クライアント ID、スコープ",
+    "missingUrl": "サーバー URL を追加してください",
+    "invalidUrl": "https:// で始まる完全な URL を入力してください",
+    "missingName": "名前を追加してください",
+    "nameTaken": "他の接続で使われていない名前を選んでください",
+    "missingKeyName": "キーを送信する名前を追加してください",
+    "missingProjectSecret": "プロジェクトのシークレットを選んでください",
+    "missingClient": "クライアント ID とシークレットを追加してください",
+    "missingClientSecret": "クライアントシークレットを選んでください",
+    "advancedSummaryClient": "コールバック URL、クライアント ID",
+    "advancedSummaryScopes": "スコープ",
+    "newSecret": "新しいシークレット"
 }

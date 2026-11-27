@@ -12,8 +12,9 @@
   // worker.
   "preview_urls": false,
   "routes": [
-    { "pattern": "agenta.ai/docs", "zone_name": "agenta.ai" },
-    { "pattern": "agenta.ai/docs/*", "zone_name": "agenta.ai" }
+    // One pattern ending in "*": a route without it does not match /docs with
+    // a query string (for example /docs?q=...), which then reaches the website.
+    { "pattern": "agenta.ai/docs*", "zone_name": "agenta.ai" }
   ],
   "assets": {
     "directory": "./dist",

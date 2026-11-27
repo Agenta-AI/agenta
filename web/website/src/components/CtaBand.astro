@@ -27,6 +27,9 @@ const {
   secondaryLabel = "Book a demo",
   secondaryHref = "https://cal.com/mahmoud-mabrouk-ogzgey/demo?duration=30",
 } = Astro.props as Props;
+// Docs links open in a new tab everywhere on the site; app and demo links do not.
+const docsTab = (href: string) =>
+  /^https:\/\/(docs\.agenta\.ai|agenta\.ai\/docs)/.test(href) ? { target: "_blank", rel: "noopener" } : {};
 
 // Exact CTA-keycap CSS lifted from live agenta.ai (computed styles). Kept inline
 // here so the band matches the live site without touching the shared button
@@ -73,8 +76,8 @@ const btnWhite =
         )
       }
       <div style="display:flex;gap:12px;">
-        <a class="ag-key" href={primaryHref} style={btnDark}>{primaryLabel}</a>
-        {secondaryLabel && <a class="ag-key" href={secondaryHref} style={btnWhite}>{secondaryLabel}</a>}
+        <a class="ag-key" href={primaryHref} style={btnDark} {...docsTab(primaryHref)}>{primaryLabel}</a>
+        {secondaryLabel && <a class="ag-key" href={secondaryHref} style={btnWhite} {...docsTab(secondaryHref)}>{secondaryLabel}</a>}
       </div>
     </div>
   </div>

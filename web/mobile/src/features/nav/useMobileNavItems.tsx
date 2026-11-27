@@ -1,4 +1,4 @@
-import {createElement, Fragment, useCallback, useEffect, useMemo, type ReactNode} from "react"
+import {createElement, useCallback, useEffect, useMemo, type ReactNode} from "react"
 
 import {promptWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {createT, useT} from "@agenta/i18n"
@@ -18,9 +18,10 @@ import {
     sidebarSessionGroupKey,
     sidebarSessionGroupsAtomFamily,
     loadMoreSidebarSessionsAtomFamily,
+    notInstalledReleasesAtom,
+    releaseListAtom,
     sidebarSessionPageCountAtomFamily,
     sidebarSessionsNeedNextPageAtomFamily,
-    RELEASES,
     SIDEBAR_UNBOUNDED,
     sidebarSessionsListAtomFamily,
     setSidebarSessionFilterDefaults,
@@ -28,8 +29,10 @@ import {
     type SessionSidebarRef,
     type SidebarConfig,
     type SidebarEntityRef,
+    type UpdateSize,
+    updateSizeAtom,
 } from "@agenta/navigation"
-import {buildReleaseNavItems, SessionFilterMenu, SessionSearchButton} from "@agenta/navigation-ui"
+import {buildReleaseNavItems, SessionFilterMenu, UPDATE_SIZE_COLOR} from "@agenta/navigation-ui"
 import {sessionRoutePath} from "@agenta/sessions/link"
 import {
     SessionRowActions,
@@ -39,11 +42,8 @@ import {
     type SessionRowTarget,
 } from "@agenta/sessions-ui"
 import {betaDeveloperModeActiveAtom, userAtom} from "@agenta/shared/state"
-import {getShortcut, shortcutAria, shortcutFaces} from "@agenta/shared/utils"
-import {BuilderIcon} from "@agenta/ui/agent-icon"
-import {useIsMacPlatform} from "@agenta/ui/shortcuts"
-import {Spinner} from "@agenta/ui/ui"
 import {
+    ArrowsOutLineVerticalIcon,
     ChatsIcon,
     GearIcon,
     GithubLogoIcon,
@@ -53,16 +53,17 @@ import {
     LightningIcon,
     PaperPlaneIcon,
     QuestionIcon,
+    RobotIcon,
     ScrollIcon,
     SlackLogoIcon,
+    SparkleIcon,
     SquaresFourIcon,
+    TextboxIcon,
 } from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {unwrap} from "jotai/utils"
-import {Bot, UnfoldVertical} from "lucide-react"
 import {useRouter} from "next/router"
 
-import {sessionBullet} from "@/features/agent-sidebar/agentSidebarItems"
 import {openAgentSidebar} from "@/features/agent-sidebar/selectedSidebar"
 import {agentEntryHref} from "@/features/agents/agentEntry"
 import {builderChatPath} from "@/features/builder/builderChatHref"
@@ -72,6 +73,7 @@ import {shareDialogRequestAtom} from "@/features/chat/shareDialogState"
 import {useLeaveSession} from "@/features/chat/useLeaveSession"
 import {startBlankSession} from "@/features/chat/useStartBlankSession"
 import {useEnabledDeveloperViews} from "@/features/developer/developerViewAccess"
+import {useReleaseNotices} from "@/features/education/useReleaseNotices"
 import {whatsNewAtom} from "@/features/education/whatsNewAtom"
 
 import {useProjectPermission} from "../context/useProjectPermission"
@@ -80,6 +82,8 @@ import {AgentsNavAction} from "./AgentsNavAction"
 import {AgentsQuickPanel} from "./AgentsQuickPanel"
 import {developerNavSlots, PROMPTS_ROW_KEY} from "./developerNavSlots"
 import {useSyncLocalSessionRefs} from "./localSessionRefs"
+import {sessionMarkOf, sessionStatusMark, withStatusMark} from "./sessionStatusMark"
+import {SupportActions} from "./SupportActions"
 
 /** Outside React: the row-level labels the entity registry builds at call time. */
 const tNow = createT(navigationCatalog)
@@ -94,8 +98,6 @@ export const MOBILE_NAV_SCOPE_ID = "mobile-main"
 // By agent, not the shared flat default: the rail's "+" lives on agent headings, and a heading
 // that is a date or a status names no agent to start a session with. Reset comes back here.
 setSidebarSessionFilterDefaults(MOBILE_NAV_SCOPE_ID, {groupBy: "agent"})
-/** The registry entry for ⌘K / Ctrl+K, which `MobileCommandPalette` binds. */
-const PALETTE_SHORTCUT_ID = "palette.open"
 
 /**
  * Mobile's registration over the SHARED machinery: same gated sessions source, same
@@ -106,7 +108,7 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
     SESSIONS_SIDEBAR_KEY,
     {
         kind: "app",
-        icon: createElement(ChatsIcon, {size: 14}),
+        icon: createElement(ChatsIcon, {size: 16}),
         // Its OWN scope: the source reads that scope's filters, so the desktop rail's filters
         // cannot narrow this drawer. Mobile has no filter UI, so this scope keeps the defaults.
         listAtom: sidebarSessionsListAtomFamily(MOBILE_NAV_SCOPE_ID),
@@ -116,31 +118,15 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
             isBuilderAgent(session.agentId)
                 ? builderChatPath(session.sessionId)
                 : `/sessions/${session.sessionId}`,
-        emptyLabel: "No sessions yet",
+        emptyLabel: tNow("navigation.items.noSessionsYet"),
         // No caret on this row to protect, and "No sessions yet" under a heading that already
         // says Sessions is the same sentence twice.
         hideWhenEmpty: true,
         // No "Show all" row: the group's own "Sessions" row already links to the full list, and
         // the headings make a trailing overflow link read as one more session.
         // No pin glyph: pinned rows sit under their own heading, which says it once.
-        // Amber for a session blocked on you. `--ag-run-status-warning` rather than
-        // `colorWarning`: the semantic token's light step is a muddy #8a6400 that reads as
-        // disabled at 8px, and this one is the palette's bright amber in BOTH themes.
-        getIcon: (session) => {
-            // State wins the glyph while a turn is live; otherwise the SHAPE says the type — a
-            // bolt for a trigger run, a dot for a chat — and the colour still carries the gate.
-            const amber = session.waiting ? "text-[var(--ag-run-status-warning)]" : undefined
-            const live = session.waiting || session.alive
-            if (session.running) return createElement(Spinner, {className: "size-3"})
-            if (session.isAutomation)
-                return createElement(LightningIcon, {
-                    size: 12,
-                    // Fill means LIVE on both glyphs; the bolt shape alone says automation.
-                    weight: live ? "fill" : "regular",
-                    className: amber,
-                })
-            return sessionBullet(session.waiting ? "waiting" : live ? "live" : "idle")
-        },
+        // No leading glyph: a row's state shows as a quiet mark on its right (sessionStatusMark).
+        getIcon: () => null,
         // Archived rows read as second-class: same row, dimmed. The archived view is the only
         // place they appear, so this says WHICH list you are looking at as much as which row.
         getRowClassName: (session) => (session.archived ? "opacity-60" : undefined),
@@ -178,7 +164,7 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
             if (!agentId) return undefined
             return {
                 label: tAgentSections("nav.agentSections.openAgent", {agent: group.label}),
-                icon: createElement(UnfoldVertical, {size: 14}),
+                icon: createElement(ArrowsOutLineVerticalIcon, {size: 12}),
                 onClick: isBuilderAgent(agentId)
                     ? () => openBuilderPage(projectURL)
                     : () => openAgentSidebar(agentId, "main"),
@@ -203,12 +189,12 @@ export const mobilePromptsEntity = defineSidebarEntity<Workflow>(
     PROMPTS_ROW_KEY,
     {
         kind: "app",
-        icon: createElement(SquaresFourIcon, {size: 14}),
+        icon: createElement(TextboxIcon, {size: 16}),
         listAtom: promptWorkflowsListQueryStateAtom,
         getLabel: (workflow) =>
             workflow.name || workflow.slug || tNow("navigation.items.untitledPrompt"),
         childPath: (workflow) => `/apps/${workflow.id}/playground`,
-        emptyLabel: "No prompts",
+        emptyLabel: tNow("navigation.items.noPromptsYet"),
         showAllPath: "/prompts",
     },
 )
@@ -253,34 +239,27 @@ export const useRailSessionRowWrapper = (projectURL: string) => {
         }),
     )
     return useCallback(
-        (session: SessionRowTarget, node: ReactNode) =>
+        (session: SessionRowTarget, node: ReactNode, status?: ReactNode) =>
             createElement(SessionRowActions, {
                 session,
                 chrome,
+                status,
                 children: node,
             }),
         [chrome],
     )
 }
 
-/** The chord that opens the search window, for the search buttons' tooltips. */
-export const usePaletteShortcut = () => {
-    // Platform read in an effect: the server has none, and a guess mismatches on hydration.
-    const mac = useIsMacPlatform()
-    return useMemo(() => {
-        const shortcut = getShortcut(PALETTE_SHORTCUT_ID)
-        return shortcut
-            ? {faces: shortcutFaces(shortcut, mac), aria: shortcutAria(PALETTE_SHORTCUT_ID)}
-            : undefined
-    }, [mac])
+/** The main rail's pages, its Sessions group, and the pages that start in "More". */
+export interface MobileNavItems {
+    /** The pages the user arranges, in their default order. */
+    pages: SidebarConfig[]
+    sessions: SidebarConfig
+    /** The pages that start in "More". */
+    defaultHidden: ReadonlySet<string>
 }
 
-/**
- * The rail's nav model — the same keys, order and icon sizes the desktop rail uses, narrowed
- * to the screens mobile has. Entries appear here as their screens land; nothing is hidden by
- * forking a component.
- */
-export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
+export const useMobileNavItems = (projectURL: string): MobileNavItems => {
     const t = useT(navigationCatalog)
     const tBuilder = useT(builderPageCatalog)
     // Sessions this client created ride the shared local seam until the server lists them.
@@ -292,16 +271,15 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
     const needNextPage = useAtomValue(sidebarSessionsNeedNextPageAtomFamily(MOBILE_NAV_SCOPE_ID))
     // Read so the effect runs again after each page, also when a page came from the cache and
     // the answer stayed true.
-    const pages = useAtomValue(sidebarSessionPageCountAtomFamily(MOBILE_NAV_SCOPE_ID))
+    const sessionPages = useAtomValue(sidebarSessionPageCountAtomFamily(MOBILE_NAV_SCOPE_ID))
     useEffect(() => {
         if (needNextPage) loadMoreSessions()
-    }, [needNextPage, pages, loadMoreSessions])
+    }, [needNextPage, sessionPages, loadMoreSessions])
     const groups = useAtomValue(sidebarSessionGroupsAtomFamily(MOBILE_NAV_SCOPE_ID))
     // MEMOIZED, and load-bearing: `withEntityGroups` spreads into a new object, so an unmemoized
     // call changes identity on every render — which busts the memo below, re-buckets every row,
     // and hands `NavMenu` a new items array that defeats its own memo.
     const source = useMemo(() => withEntityGroups(rawSource, groups), [rawSource, groups])
-    const paletteShortcut = usePaletteShortcut()
     const developerViews = useEnabledDeveloperViews()
     const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
     const wrapSession = useRailSessionRowWrapper(projectURL)
@@ -310,9 +288,10 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
         // leave on archive) know only the session page.
         (ref: SidebarEntityRef, node: ReactNode) => {
             const session = ref as SessionSidebarRef
+            const status = sessionStatusMark(sessionMarkOf(session))
             return isBuilderAgent(session.agentId)
-                ? createElement(Fragment, null, node)
-                : wrapSession(session, node)
+                ? withStatusMark(node, status)
+                : wrapSession(session, node, status)
         },
         [wrapSession],
     )
@@ -332,8 +311,9 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
         [developerMode, developerViews, projectURL, promptsSource, t],
     )
 
-    return useMemo(
-        () => [
+    const {pages, defaultHidden} = useMemo(() => {
+        const developerRows = [...developerSlots.afterHome, ...developerSlots.afterSessions]
+        const list: SidebarConfig[] = [
             {
                 key: "mobile-home",
                 title: t("navigation.items.home"),
@@ -343,18 +323,16 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
             {
                 key: "mobile-builder",
                 title: tBuilder("builder.page.builder"),
-                icon: createElement(BuilderIcon, {size: 16}),
+                icon: createElement(SparkleIcon, {size: 16}),
                 link: `${projectURL}/builder`,
                 // After "Back" on a new chat the link goes nowhere new, so the click itself
                 // brings the builder sidebar back.
                 onClick: showBuilderSidebar,
             },
-            ...developerSlots.afterHome,
             {
                 key: AGENTS_SIDEBAR_KEY,
                 title: t("navigation.items.agents"),
-                // The canvas Agents glyph is an outline robot (Lucide); Phosphor's robot has a filled face.
-                icon: createElement(Bot, {size: 16}),
+                icon: createElement(RobotIcon, {size: 16}),
                 link: `${projectURL}/agents`,
                 // Start or open an agent without leaving the page: a "+" on the row, the same
                 // panel as a hover flyout on the collapsed rail.
@@ -381,51 +359,44 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 link: `${projectURL}/skills`,
             },
             {
-                key: SESSIONS_SIDEBAR_KEY,
-                title: t("navigation.items.sessions"),
-                icon: createElement(ChatsIcon, {size: 16}),
-                link: `${projectURL}/sessions`,
-                hideChildrenWhenCollapsed: true,
-                // No collapse caret here: the filter control is this group's affordance, and the
-                // rows are grouped and individually collapsible already.
-                alwaysOpen: true,
-                // The rail does not scroll; THIS group does. Sessions is the only list that grows
-                // without bound, so Observability (and whatever lands after it) stays on screen.
-                scrollChildren: true,
-                onReachEnd: loadMoreSessions,
-                // Search reaches past what the rail lists; the filter narrows it. Same pair,
-                // same order, as the desktop rail.
-                groupAction: createElement(
-                    "span",
-                    {className: "flex items-center gap-0.5"},
-                    createElement(SessionSearchButton, {
-                        label: t("navigation.items.search"),
-                        shortcut: paletteShortcut,
-                    }),
-                    createElement(SessionFilterMenu, {scopeId: MOBILE_NAV_SCOPE_ID}),
-                ),
-                submenu: resolveChildren(
-                    mobileSessionsEntity,
-                    source,
-                    projectURL,
-                    undefined,
-                    undefined,
-                    wrapSessionRow,
-                ),
+                key: "mobile-templates",
+                title: t("navigation.items.templates"),
+                icon: createElement(SquaresFourIcon, {size: 16}),
+                link: `${projectURL}/templates`,
             },
-            ...developerSlots.afterSessions,
-        ],
-        [
-            loadMoreSessions,
-            source,
-            projectURL,
-            wrapSessionRow,
-            paletteShortcut,
-            developerSlots,
-            t,
-            tBuilder,
-        ],
+            ...developerRows,
+        ]
+        // Templates and the developer pages start in "More".
+        const hidden = new Set(["mobile-templates", ...developerRows.map((row) => row.key)])
+        return {pages: list, defaultHidden: hidden}
+    }, [developerSlots, projectURL, t, tBuilder])
+
+    const sessions = useMemo<SidebarConfig>(
+        () => ({
+            key: SESSIONS_SIDEBAR_KEY,
+            title: t("navigation.items.sessions"),
+            icon: createElement(ChatsIcon, {size: 16}),
+            link: `${projectURL}/sessions`,
+            hideChildrenWhenCollapsed: true,
+            // No caret: the filter is this group's control.
+            alwaysOpen: true,
+            // The rail does not scroll; THIS group does, so the footer stays on screen.
+            scrollChildren: true,
+            onReachEnd: loadMoreSessions,
+            groupAction: createElement(SessionFilterMenu, {scopeId: MOBILE_NAV_SCOPE_ID}),
+            submenu: resolveChildren(
+                mobileSessionsEntity,
+                source,
+                projectURL,
+                undefined,
+                undefined,
+                wrapSessionRow,
+            ),
+        }),
+        [loadMoreSessions, source, projectURL, wrapSessionRow, t],
     )
+
+    return useMemo(() => ({pages, sessions, defaultHidden}), [pages, sessions, defaultHidden])
 }
 
 // Lazy-load package.json so its version stays out of the initial bundle.
@@ -434,11 +405,8 @@ const versionAtom = unwrap(atom(async () => (await import("../../../package.json
 
 export const useMobileVersion = () => useAtomValue(versionAtom)
 
-/** Templates and Settings (not in the settings scope), plus Invite Teammate in beta developer mode. */
-export const useMobileBottomNavItems = (
-    projectURL: string,
-    {includeSettingsLink = true}: {includeSettingsLink?: boolean} = {},
-): SidebarConfig[] => {
+/** Settings with live chat and help, plus Invite Teammate in beta developer mode. */
+export const useMobileBottomNavItems = (projectURL: string): SidebarConfig[] => {
     const t = useT(navigationCatalog, commonCatalog)
     const version = useMobileVersion()
     const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
@@ -464,33 +432,24 @@ export const useMobileBottomNavItems = (
                 : [],
         [canInvite, developerMode, projectURL, t],
     )
-    const items = useMemo(
-        () =>
-            // The settings scope drops them: the rail IS settings there.
-            includeSettingsLink
-                ? [
-                      {
-                          key: "mobile-templates",
-                          title: t("navigation.items.templates"),
-                          icon: createElement(SquaresFourIcon, {size: 16}),
-                          link: `${projectURL}/templates`,
-                      },
-                      {
-                          key: "mobile-settings",
-                          title: t("common.settings"),
-                          icon: createElement(GearIcon, {size: 16}),
-                          link: `${projectURL}/settings`,
-                          suffix: version
-                              ? createElement(
-                                    "span",
-                                    {className: "text-[12px] leading-4 text-colorTextTertiary"},
-                                    `v${version}`,
-                                )
-                              : undefined,
-                      },
-                  ]
-                : [],
-        [includeSettingsLink, projectURL, version, t],
+    const items = useMemo<SidebarConfig[]>(
+        () => [
+            {
+                key: "mobile-settings",
+                title: t("common.settings"),
+                icon: createElement(GearIcon, {size: 16}),
+                link: `${projectURL}/settings`,
+                suffix: version
+                    ? createElement(
+                          "span",
+                          {className: "text-caption text-muted-foreground"},
+                          `v${version}`,
+                      )
+                    : undefined,
+                trailing: createElement(SupportActions, {projectId}),
+            },
+        ],
+        [projectId, projectURL, version, t],
     )
     return useMemo(
         () => (inviteItems.length ? [...items, ...inviteItems] : items),
@@ -498,10 +457,15 @@ export const useMobileBottomNavItems = (
     )
 }
 
+/** The update row names the size of the newest missing update, as its marks' color does. */
+const UPDATE_LABEL = {
+    security: "navigation.items.securityUpdate",
+    minor: "navigation.items.newMinorVersion",
+    patch: "navigation.items.newPatchVersion",
+} as const satisfies Record<UpdateSize, string>
+
 /**
- * Help & Docs as an item the rail renders as an icon button beside the project switcher, the
- * same place the desktop rail puts it. It is a menu you reach for, not a place in the product,
- * and the row it held was the widest thing in the rail's footer.
+ * Help & Docs as an icon button on the Settings row: a menu you reach for, not a place.
  */
 export const useMobileHelpItem = ({
     onOpenShortcuts,
@@ -509,31 +473,72 @@ export const useMobileHelpItem = ({
     const t = useT(navigationCatalog)
     const version = useMobileVersion()
     const openWhatsNew = useSetAtom(whatsNewAtom)
+    const releases = useAtomValue(releaseListAtom)
+    const notInstalled = useAtomValue(notInstalledReleasesAtom)
+    const size = useAtomValue(updateSizeAtom)
+    const {notices, dismiss: dismissReleaseNotice} = useReleaseNotices()
 
     return useMemo(() => {
+        const newest = notInstalled[0]
         const help = buildHelpDocsNavItem({
             icons: {
-                help: createElement(QuestionIcon, {size: 16}),
-                docs: createElement(ScrollIcon, {size: 14}),
-                github: createElement(GithubLogoIcon, {size: 14}),
-                slack: createElement(SlackLogoIcon, {size: 14}),
+                help:
+                    newest && size
+                        ? createElement(
+                              "span",
+                              {
+                                  className: "relative flex",
+                                  "aria-label": t("navigation.items.updateAvailable"),
+                              },
+                              createElement(QuestionIcon, {size: 16}),
+                              createElement("span", {
+                                  "data-update-size": size,
+                                  className: `absolute -right-0.5 -top-0.5 size-1.5 rounded-round ${UPDATE_SIZE_COLOR[size].bg}`,
+                              }),
+                          )
+                        : createElement(QuestionIcon, {size: 16}),
+                docs: createElement(ScrollIcon, {size: 16}),
+                github: createElement(GithubLogoIcon, {size: 16}),
+                slack: createElement(SlackLogoIcon, {size: 16}),
             },
             extraItems: [
                 {
                     key: "keyboard-shortcuts",
                     title: t("navigation.items.keyboardShortcuts"),
-                    icon: createElement(KeyboardIcon, {size: 14}),
+                    icon: createElement(KeyboardIcon, {size: 16}),
                     isHidden: !onOpenShortcuts,
                     onClick: () => onOpenShortcuts?.(),
                     // The rule between the destinations and the release list.
                     divider: true,
                 },
-                // Release rows reopen the what's-new dialog; "View all releases" links out.
-                ...buildReleaseNavItems(version, {
-                    whatsNew: t("navigation.items.whatsNew"),
-                    viewAll: t("navigation.items.viewAllReleases"),
-                }).map((item) =>
-                    RELEASES.some((release) => release.id === item.key)
+                // Release rows reopen the what's-new dialog; a notice opens its link and
+                // stays closed after; "View all releases" links out.
+                ...buildReleaseNavItems(
+                    version,
+                    {
+                        whatsNew: t("navigation.items.whatsNew"),
+                        viewAll: t("navigation.items.viewAllReleases"),
+                        update: newest && size ? t(UPDATE_LABEL[size], {version: newest.id}) : "",
+                        releasesBehind: t("navigation.items.releasesBehind", {
+                            count: notInstalled.length,
+                        }),
+                        notInstalled: t("navigation.items.notInstalled"),
+                        securityFix: t("navigation.items.securityFix"),
+                    },
+                    {
+                        releases,
+                        notInstalled,
+                        notices,
+                        updateSize: size,
+                        // The dialog shows what the update brings, then how to install it.
+                        onOpenUpdate: (release) => openWhatsNew({releaseId: release.id}),
+                        onOpenNotice: (notice) => {
+                            window.open(notice.link, "_blank", "noopener,noreferrer")
+                            dismissReleaseNotice(notice.id)
+                        },
+                    },
+                ).map((item) =>
+                    releases.some((release) => release.id === item.key)
                         ? {
                               ...item,
                               link: undefined,
@@ -556,5 +561,15 @@ export const useMobileHelpItem = ({
                 titles[item.key] ? {...item, title: titles[item.key]} : item,
             ),
         }
-    }, [onOpenShortcuts, openWhatsNew, t, version])
+    }, [
+        dismissReleaseNotice,
+        notInstalled,
+        notices,
+        onOpenShortcuts,
+        openWhatsNew,
+        releases,
+        size,
+        t,
+        version,
+    ])
 }

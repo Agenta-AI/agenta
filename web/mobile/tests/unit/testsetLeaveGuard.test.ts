@@ -44,10 +44,13 @@ vi.mock("next/router", () => ({
 
 let leave: ((url: string) => void) | null = null
 
+// The toolbar draws the prompt from `promptOpen`; its Discard button stands in for it here.
 function Probe({dirty}: {dirty: boolean}) {
-    const guard = useTestsetLeaveGuard({dirty, isNew: false, onSave: vi.fn(), onDiscard: vi.fn()})
+    const guard = useTestsetLeaveGuard({dirty, onSave: vi.fn(), onDiscard: vi.fn()})
     leave = guard.leave
-    return guard.prompt
+    return guard.promptOpen
+        ? createElement("button", {onClick: guard.discardAndLeave}, "Discard changes")
+        : null
 }
 
 describe("useTestsetLeaveGuard", () => {

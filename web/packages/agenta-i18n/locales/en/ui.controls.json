@@ -36,8 +36,10 @@
     "timePart": "time",
     "filter": "Filter",
     "group": "Group",
-    "showValue": "show",
-    "hideValue": "hide",
+    "showValue": "Show value",
+    "hideValue": "Hide value",
     "searchEllipsis": "Search…",
-    "searchLabel": "Search {{label}}"
+    "searchLabel": "Search {{label}}",
+    "required": "Required",
+    "optional": "Optional"
 }

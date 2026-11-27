@@ -5,6 +5,7 @@
     "stepCounter": "第 {{current}} 步，共 {{total}} 步",
     "skip": "暂时跳过",
     "dotCredits": "额度",
+    "dotRegister": "注册",
     "dotTemplates": "第一个 Agent",
     "keyHint": "按 {{key}}",
     "continue": "继续",

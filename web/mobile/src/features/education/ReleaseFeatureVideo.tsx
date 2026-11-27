@@ -22,7 +22,7 @@ export const ReleaseFeatureVideo = ({
 }) => {
     const t = useT(whatsNewCatalog)
     return (
-        <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-solid border-colorBorderSecondary">
+        <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-solid border-border-muted">
             {playing ? (
                 <iframe
                     src={streamPlayerUrl(videoId)}
@@ -42,8 +42,8 @@ export const ReleaseFeatureVideo = ({
                         alt=""
                         className="block size-full object-cover"
                     />
-                    <span className="absolute bottom-4 left-4 inline-flex h-[34px] items-center gap-2 rounded-full bg-background pl-[5px] pr-[13px] text-[13px] font-medium text-foreground shadow-overlay">
-                        <span className="inline-flex size-6 items-center justify-center rounded-full bg-hero-action text-hero-action-foreground">
+                    <span className="absolute bottom-4 left-4 inline-flex h-control items-center gap-2 rounded-md bg-background pl-1 pr-3 text-label text-foreground shadow-overlay">
+                        <span className="inline-flex size-6 items-center justify-center rounded-sm bg-secondary text-foreground">
                             <Play size={11} weight="fill" aria-hidden />
                         </span>
                         {t("education.whatsNew.play")}

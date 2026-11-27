@@ -3,7 +3,7 @@
     "newChat": "新对话",
     "chats": "对话",
     "chatsLoading": "正在加载对话…",
-    "chatsFailed": "无法加载对话。",
+    "chatsFailed": "无法加载会话",
     "retry": "重试",
     "untitledChat": "未命名对话",
     "today": "今天",
@@ -88,5 +88,6 @@
     "kindTool": "工具",
     "kindApp": "应用",
     "itemNotShown": "此项目暂时无法在这里显示。",
-    "changedByBuilder": "由构建器更改"
+    "changedByBuilder": "由构建器更改",
+    "noChatsYet": "还没有会话。请通过“新建会话”开始一个。"
 }

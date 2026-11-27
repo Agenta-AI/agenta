@@ -1,17 +1,17 @@
-import {useCallback, useMemo, useState, type ReactNode} from "react"
+import {useCallback, useEffect, useMemo, useState, type ReactNode} from "react"
 
 import {type TriggerDelivery} from "@agenta/entities/gatewayTrigger"
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import automationsRunHistoryCatalog from "@agenta/i18n/catalogs/automations.runHistory"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 
 import {type Automation} from "./automationModel"
 import {AutomationRunFilterMenu} from "./AutomationRunFilterMenu"
 import {AutomationRunList} from "./AutomationRunList"
 import {AutomationRunPane} from "./AutomationRunPane"
-import {ICON_LINK} from "./lib/interactive"
 import {useElementWidth} from "./lib/useElementWidth"
 import {cn} from "./lib/utils"
 import {
@@ -20,6 +20,7 @@ import {
     isRunListFiltered,
     type RunListView,
 } from "./runListView"
+import {runLabel} from "./runModel"
 import {useAutomationRunPages, useRecentAutomationRuns} from "./useAutomationRuns"
 
 /** From this width of the VIEW (not the window) the list and the open run sit side by side. */
@@ -50,6 +51,7 @@ export const AutomationRunHistoryView = ({
     runNow,
     initialRunId,
     phone = false,
+    onRunBackChange,
 }: {
     automation: Automation | null
     /** The way back to the automation — rendered above the list, on its own grid. */
@@ -74,6 +76,8 @@ export const AutomationRunHistoryView = ({
      * the split width on a phone, so it already shows the list or one run, never both.
      */
     phone?: boolean
+    /** Given, the host's header owns Back while one run fills the view (null when none does), and gets that run's name. */
+    onRunBackChange?: (back: (() => void) | null, runTitle?: string) => void
 }) => {
     const t = useT(automationsEditorCatalog, automationsRunHistoryCatalog)
     // The count line reads the capped recent query (shared with the card); the list pages.
@@ -129,6 +133,12 @@ export const AutomationRunHistoryView = ({
     const panelEmpty = frame === "panel" && !isLoading && !error && allRuns.length === 0
     const showPane = Boolean(selected)
     const showList = !showPane || canSplit
+    const runBack = showPane && !canSplit ? onBack : null
+    const runTitle = runBack && selected ? runLabel(selected) : undefined
+    useEffect(() => {
+        onRunBackChange?.(runBack, runTitle)
+    }, [onRunBackChange, runBack, runTitle])
+    useEffect(() => () => onRunBackChange?.(null), [onRunBackChange])
 
     return (
         <div
@@ -140,8 +150,8 @@ export const AutomationRunHistoryView = ({
                 // line like every other screen — and the back link centres with it, on the same
                 // 30px as the heading below. The split layout stays full-bleed: its rule divides
                 // the window, not a column.
-                frame === "page" && !showPane && "mx-auto max-w-[760px]",
-                frame !== "page" && "pt-3",
+                frame === "page" && !showPane && "mx-auto max-w-content-md",
+                frame !== "page" && showList && "pt-3",
             )}
         >
             {header}
@@ -159,41 +169,56 @@ export const AutomationRunHistoryView = ({
                             "flex min-h-0 flex-col",
                             showPane
                                 ? "min-w-[240px] max-w-[380px] flex-[1_1_240px] border-0 border-r border-solid border-border pb-6 pr-4"
-                                : "w-full min-w-0 flex-1 pb-6 pr-5",
-                            // The heading's own 10px inset makes up the rest: 30px on a page's
-                            // grid, the panel's own gutter in a panel.
-                            frame === "page" ? "pl-5" : "pl-1.5",
-                            frame === "page" && !showPane && "max-w-[760px]",
+                                : "w-full min-w-0 flex-1 pb-6 pr-4 sm:pr-5",
+                            // The heading's own 10px inset makes up the rest: 16px on a phone page
+                            // (the bar's Back edge), 30px on a wider page, the panel's own gutter.
+                            frame === "page" ? "pl-1.5 sm:pl-5" : "pl-1.5",
+                            frame === "page" && !showPane && "max-w-content-md",
                         )}
                     >
-                        <div className="flex shrink-0 items-center gap-2 pl-2.5">
-                            <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold text-foreground">
-                                {t("automations.editor.runHistory")}
-                            </h1>
+                        <div
+                            className={cn(
+                                "flex shrink-0 items-center gap-2 pl-2.5",
+                                frame === "panel" && "mb-2.5",
+                            )}
+                        >
+                            {/* In a panel the pane header names the view; the caption takes its place. */}
+                            {frame === "panel" ? (
+                                <p className="m-0 min-h-4.5 min-w-0 flex-1 truncate text-label text-muted-foreground">
+                                    {panelEmpty ? null : caption}
+                                </p>
+                            ) : (
+                                <h1 className="m-0 min-w-0 flex-1 truncate text-title text-foreground">
+                                    {t("automations.editor.runHistory")}
+                                </h1>
+                            )}
                             {showFilters ? (
                                 <AutomationRunFilterMenu view={view} onChange={setView} />
                             ) : runHistoryHref && !panelEmpty ? (
-                                <a
-                                    href={runHistoryHref}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    aria-label={t("automations.runHistory.openInNewTab")}
-                                    title={t("automations.runHistory.openInNewTab")}
-                                    className={cn(
-                                        "flex shrink-0 items-center justify-center p-1 text-muted-foreground",
-                                        phone && "size-11",
-                                        ICON_LINK,
-                                    )}
-                                >
-                                    <ArrowSquareOut aria-hidden size={15} />
-                                </a>
+                                <SimpleTooltip title={t("automations.runHistory.openInNewTab")}>
+                                    <Button
+                                        asChild
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        className="shrink-0 text-muted-foreground"
+                                    >
+                                        <a
+                                            href={runHistoryHref}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            aria-label={t("automations.runHistory.openInNewTab")}
+                                        >
+                                            <ArrowSquareOut aria-hidden />
+                                        </a>
+                                    </Button>
+                                </SimpleTooltip>
                             ) : null}
                         </div>
                         {/* Empty until the deliveries land — the hook withholds the caption
                             rather than claiming "0 runs" off a query that has not run. The line
                             keeps its height so the list does not jump. */}
-                        {panelEmpty ? null : (
-                            <p className="m-0 mb-2.5 mt-1 min-h-[18px] pl-2.5 text-[13px] text-muted-foreground">
+                        {panelEmpty || frame === "panel" ? null : (
+                            <p className="m-0 mb-2.5 mt-1 min-h-4.5 pl-2.5 text-label text-muted-foreground">
                                 {caption}
                             </p>
                         )}
@@ -224,7 +249,7 @@ export const AutomationRunHistoryView = ({
                             delivery={selected}
                             renderConversation={renderConversation}
                             sessionHref={sessionHref}
-                            onBack={canSplit ? undefined : onBack}
+                            onBack={canSplit || onRunBackChange ? undefined : onBack}
                             phone={phone}
                         />
                     </div>

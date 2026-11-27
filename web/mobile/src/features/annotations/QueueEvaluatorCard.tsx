@@ -86,14 +86,11 @@ export const QueueEvaluatorCard = ({revisionId}: {revisionId: string}) => {
         <div className="flex flex-col">
             <div className="flex min-h-10 items-center justify-between gap-2 bg-muted px-3 py-1.5">
                 <div className="flex min-w-0 items-center gap-2">
-                    <span
-                        className="min-w-0 truncate text-sm font-medium text-foreground"
-                        title={name}
-                    >
+                    <span className="min-w-0 truncate text-label text-foreground" title={name}>
                         {name}
                     </span>
                     {evaluator?.version ? <Badge>{`v${evaluator.version}`}</Badge> : null}
-                    {isHuman ? <Badge variant="purple">Human</Badge> : null}
+                    {isHuman ? <Badge variant="default">Human</Badge> : null}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                     {hasJson && open ? (
@@ -137,7 +134,7 @@ export const QueueEvaluatorCard = ({revisionId}: {revisionId: string}) => {
                         <>
                             {typeLabel ? (
                                 <QueueConfigField label="Evaluator type">
-                                    <Badge variant={isHuman ? "purple" : "default"}>
+                                    <Badge variant={isHuman ? "default" : "default"}>
                                         {typeLabel}
                                     </Badge>
                                 </QueueConfigField>
@@ -151,7 +148,7 @@ export const QueueEvaluatorCard = ({revisionId}: {revisionId: string}) => {
                                 <QueueConfigField key={parameter.key} label={parameter.label}>
                                     <Box>
                                         {parameter.isMultiline ? (
-                                            <pre className="m-0 max-h-48 overflow-auto whitespace-pre-wrap break-words text-xs">
+                                            <pre className="m-0 max-h-48 overflow-auto whitespace-pre-wrap break-words text-code">
                                                 {parameter.displayValue}
                                             </pre>
                                         ) : (

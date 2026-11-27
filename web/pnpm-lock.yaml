@@ -11,7 +11,7 @@ overrides:
   diff@>=4.0.0 <4.0.4: '>=4.0.4 <5'
   lodash@<4.17.23: '>=4.17.23 <5'
   lodash-es@<4.17.23: '>=4.17.23 <5'
-  minimatch@>=9.0.0 <9.0.7: '>=9.0.7 <10'
+  minimatch@>=7 <11.0.1: 11.0.1
   glob@>=10.2.0 <14.0.2: 14.0.2
   picomatch@>=2 <2.3.2: 2.3.2
   picomatch@>=4 <4.0.4: 4.0.4
@@ -511,9 +511,6 @@ importers:
       jotai-tanstack-query:
         specifier: ^0.11.0
         version: 0.11.0(@tanstack/query-core@5.100.9)(@tanstack/react-query@5.100.9(react@19.2.6))(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))(react@19.2.6)
-      lucide-react:
-        specifier: ^0.479.0
-        version: 0.479.0(react@19.2.6)
       motion:
         specifier: ^12.0.0
         version: 12.38.0(@emotion/is-prop-valid@0.7.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -1204,9 +1201,6 @@ importers:
       '@phosphor-icons/react':
         specifier: ^2.1.10
         version: 2.1.10(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      lucide-react:
-        specifier: ^0.475.0
-        version: 0.475.0(react@19.2.6)
     devDependencies:
       '@tanstack/react-query':
         specifier: 5.100.9
@@ -1534,9 +1528,6 @@ importers:
       js-yaml:
         specifier: 4.3.2
         version: 4.3.2
-      lucide-react:
-        specifier: ^0.479.0
-        version: 0.479.0(react@19.2.6)
       motion:
         specifier: ^12.0.0
         version: 12.38.0(@emotion/is-prop-valid@0.7.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -1807,6 +1798,12 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      lucide-react:
+        specifier: ^0.479.0
+        version: 0.479.0(react@19.2.6)
+      motion:
+        specifier: ^12.0.0
+        version: 12.38.0(@emotion/is-prop-valid@0.7.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
     devDependencies:
       '@types/node':
         specifier: ^20.19.20
@@ -1917,9 +1914,6 @@ importers:
       json5:
         specifier: ^2.2.3
         version: 2.2.3
-      lucide-react:
-        specifier: ^0.479.0
-        version: 0.479.0(react@19.2.6)
       papaparse:
         specifier: ^5.5.3
         version: 5.5.3
@@ -2663,9 +2657,6 @@ importers:
       lexical:
         specifier: ^0.46.0
         version: 0.46.0(typescript@5.9.3)
-      lucide-react:
-        specifier: ^0.479.0
-        version: 0.479.0(react@19.2.6)
       marked:
         specifier: ^17.0.4
         version: 17.0.6
@@ -2766,6 +2757,9 @@ importers:
       '@agenta/entity-ui':
         specifier: workspace:*
         version: link:../packages/agenta-entity-ui
+      '@agenta/navigation':
+        specifier: workspace:*
+        version: link:../packages/agenta-navigation
       '@agenta/navigation-ui':
         specifier: workspace:*
         version: link:../packages/agenta-navigation-ui
@@ -2796,9 +2790,6 @@ importers:
       '@phosphor-icons/react':
         specifier: ^2.1.10
         version: 2.1.10(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      lucide-react:
-        specifier: ^0.479.0
-        version: 0.479.0(react@19.2.6)
       next:
         specifier: 15.5.29
         version: 15.5.29(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.60.0)(@types/node@20.19.39)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -7799,9 +7790,6 @@ packages:
   brace-expansion@1.1.21:
     resolution: {integrity: sha512-9zeA+KLZNNzglF2TPKRQEDyx6Yby7daAkuy8MiPzpXPsYDWi/DRM8jmwUDxokQjYqBpv5DgPiwD4h4ZZSy1Ujw==}
 
-  brace-expansion@2.1.7:
-    resolution: {integrity: sha512-uZbew1NqdmPDTMJ8ah1y+b+9QEJrfkXFk3RcTQw3X0jW/xRUvFKsg1CfQdSYGdTbXZWExtU3J3ccxtnfw1Fi0g==}
-
   brace-expansion@5.0.12:
     resolution: {integrity: sha512-YovQ3rzhaLMIrDjNDMkNS01tea93qhEhG5xy8f6+R0l+dw3Ki+5sCoIoI942iuLZTHWogWktgwVDhU09iNEimQ==}
     engines: {node: 20 || >=22}
@@ -10158,11 +10146,6 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
-  lucide-react@0.475.0:
-    resolution: {integrity: sha512-NJzvVu1HwFVeZ+Gwq2q00KygM1aBhy/ZrhY9FsAgJtpB+E4R7uxRk9M2iKvHa6/vNxZydIB59htha4c2vvwvVg==}
-    peerDependencies:
-      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
-
   lucide-react@0.479.0:
     resolution: {integrity: sha512-aBhNnveRhorBOK7uA4gDjgaf+YlHMdMhQ/3cupk6exM10hWlEU+2QtWYOfhXhjAsmdb6LeKR+NZnow4UxRRiTQ==}
     peerDependencies:
@@ -10462,20 +10445,12 @@ packages:
   minimalistic-crypto-utils@1.0.1:
     resolution: {integrity: sha512-JIYlbt6g8i5jKfJ3xz7rF0LXmv2TkDxBLUkiBeZ7bAx4GnnNMr8xFpGnOxn6GhTEHx3SjRrZEoU+j04prX1ktg==}
 
-  minimatch@10.2.5:
-    resolution: {integrity: sha512-MULkVLfKGYDFYejP07QOurDLLQpcjk7Fw+7jXS2R2czRQzR56yHRveU5NDJEOviH+hETZKSkIk5c+T23GjFUMg==}
+  minimatch@11.0.1:
+    resolution: {integrity: sha512-t+Vn6DX4wPCxS23y03C0uhF7S1jpi1GfqPrnlEipCJaA2ykiNbMkVlDutZtmvLfRcUN6R8AYVlzTsQrT4RZoLQ==}
     engines: {node: 18 || 20 || >=22}
-
-  minimatch@11.0.9:
-    resolution: {integrity: sha512-KCFkfyjqerNlSstjlhIGNXIKZGA/6O4V4RlhZ+Dsr621SPPw0mzlypE9D9ZOoPiVefHID+j7/XuMMlqfD/F60Q==}
-    engines: {node: 20 || >=22}
 
   minimatch@3.1.5:
     resolution: {integrity: sha512-VgjWUsnnT6n+NUk6eZq77zeFdpW2LWDzP6zFGrCbHXiYNul5Dzqk2HHQ5uFH2DNW5Xbp8+jVzaeNt94ssEEl4w==}
-
-  minimatch@9.0.9:
-    resolution: {integrity: sha512-OBwBN9AL4dqmETlpS2zasx+vTeWclWzkblfZk7KTA5j3jeOONz/tRCnZomUyvNg83wL5Zv9Ss6HMJXAgL8R2Yg==}
-    engines: {node: '>=16 || 14 >=14.17'}
 
   minimist@1.2.8:
     resolution: {integrity: sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA==}
@@ -12807,7 +12782,7 @@ packages:
         optional: true
 
   xlsx@https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz:
-    resolution: {tarball: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz}
+    resolution: {integrity: sha512-oLDq3jw7AcLqKWH2AhCpVTZl8mf6X2YReP+Neh0SJUzV/BdZYjth94tG5toiMB1PPrYtxOCfaoUCkvtuH+3AJA==, tarball: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz}
     version: 0.20.3
     engines: {node: '>=0.8'}
     hasBin: true
@@ -17327,7 +17302,7 @@ snapshots:
       debug: 4.4.3
       globby: 11.1.0
       is-glob: 4.0.3
-      minimatch: 9.0.9
+      minimatch: 11.0.1
       semver: 7.8.5
       ts-api-utils: 1.4.3(typescript@5.9.3)
     optionalDependencies:
@@ -17342,7 +17317,7 @@ snapshots:
       '@typescript-eslint/types': 8.61.0
       '@typescript-eslint/visitor-keys': 8.61.0
       debug: 4.4.3
-      minimatch: 10.2.5
+      minimatch: 11.0.1
       semver: 7.8.5
       tinyglobby: 0.2.17
       ts-api-utils: 2.5.0(typescript@5.9.3)
@@ -18146,10 +18121,6 @@ snapshots:
     dependencies:
       balanced-match: 1.0.2
       concat-map: 0.0.1
-
-  brace-expansion@2.1.7:
-    dependencies:
-      balanced-match: 1.0.2
 
   brace-expansion@5.0.12:
     dependencies:
@@ -18966,7 +18937,7 @@ snapshots:
     dependencies:
       '@one-ini/wasm': 0.1.1
       commander: 10.0.1
-      minimatch: 9.0.9
+      minimatch: 11.0.1
       semver: 7.8.4
 
   ee-first@1.1.1: {}
@@ -19816,7 +19787,7 @@ snapshots:
 
   glob@14.0.2:
     dependencies:
-      minimatch: 11.0.9
+      minimatch: 11.0.1
       minipass: 7.1.3
       path-scurry: 3.0.0
 
@@ -20868,10 +20839,6 @@ snapshots:
     dependencies:
       yallist: 3.1.1
 
-  lucide-react@0.475.0(react@19.2.6):
-    dependencies:
-      react: 19.2.6
-
   lucide-react@0.479.0(react@19.2.6):
     dependencies:
       react: 19.2.6
@@ -21479,11 +21446,7 @@ snapshots:
 
   minimalistic-crypto-utils@1.0.1: {}
 
-  minimatch@10.2.5:
-    dependencies:
-      brace-expansion: 5.0.12
-
-  minimatch@11.0.9:
+  minimatch@11.0.1:
     dependencies:
       '@isaacs/nonrecursive-glob-match': 1.1.0
       brace-expansion: 5.0.12
@@ -21491,10 +21454,6 @@ snapshots:
   minimatch@3.1.5:
     dependencies:
       brace-expansion: 1.1.21
-
-  minimatch@9.0.9:
-    dependencies:
-      brace-expansion: 2.1.7
 
   minimist@1.2.8: {}
 

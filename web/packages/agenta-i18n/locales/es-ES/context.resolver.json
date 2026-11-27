@@ -1,5 +1,9 @@
 {
+    "checkAgain": "Volver a comprobar",
+    "noOrganizationBody": "Esta instancia tiene una organización. Pide a su administrador que te invite. La invitación se abre aquí cuando llega.",
+    "noOrganizationTitle": "Todavía no estás en ninguna organización",
     "noProjects": "No se encontraron proyectos.",
     "retry": "Reintentar",
+    "signedInAs": "Sesión iniciada como {{email}}",
     "somethingWrong": "Algo salió mal."
 }

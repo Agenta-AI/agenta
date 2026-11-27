@@ -16,6 +16,14 @@ import settingsOrganizationsTabCatalog from "@agenta/i18n/catalogs/settings.orga
 import {OrganizationsPage} from "@agenta/settings-ui"
 import {message} from "@agenta/ui/app-message"
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
     Button,
     Dialog,
     DialogContent,
@@ -35,20 +43,29 @@ import {useRouter} from "next/router"
 import {fetchProjects} from "@/lib/context"
 
 import {groupByOrganization} from "../context/workspaceGroups"
+import {readLimitRefusal} from "../limits/limitRefusal"
+import {LimitRefusalNotice} from "../limits/LimitRefusalNotice"
+import {OrganizationLimitNotice} from "../limits/OrganizationLimitNotice"
+import {useLimitRefusal} from "../limits/useLimitRefusal"
 
-import {ConfirmModal} from "./ConfirmModal"
+import {isAtLimit} from "./licenseApi"
 import {NameDialog} from "./NameDialog"
 import type {SettingsTabProps} from "./settingsTabProps"
 import {switchSettingsContext} from "./switchContext"
+import {invalidateLicenseUsage, useLicenseUsage} from "./useLicenseUsage"
 import {useSettingsOrg} from "./useSettingsOrg"
 
 const errorText = (error: unknown, fallback: string): string => {
-    const axiosLike = error as {response?: {data?: {detail?: string}}; message?: string}
-    return axiosLike?.response?.data?.detail || axiosLike?.message || fallback
+    const axiosLike = error as {
+        response?: {data?: {detail?: string | {message?: string}}}
+        message?: string
+    }
+    const detail = axiosLike?.response?.data?.detail
+    return (typeof detail === "object" ? detail?.message : detail) || axiosLike?.message || fallback
 }
 
 /** Mobile binding: create, rename in place, transfer ownership and delete for organizations. */
-export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
+export const OrganizationsTab = ({workspaceId, projectId}: SettingsTabProps) => {
     const t = useT(commonCatalog, settingsOrganizationsTabCatalog)
     const router = useRouter()
     const queryClient = useQueryClient()
@@ -63,8 +80,14 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
         void org.refetch()
         // The nav switcher and org switching read org names and projects from this list.
         void queryClient.invalidateQueries({queryKey: ["mobile", "projects"]})
+        // A new or deleted organization changes the count against the instance limit.
+        void invalidateLicenseUsage(queryClient)
     }
     const [creating, setCreating] = useState(false)
+    // The limit shows when the dialog opens, before the reader types a name.
+    const usage = useLicenseUsage(projectId, creating)
+    const organizationsAtLimit = isAtLimit(usage.data?.organizations)
+    const {refusal, refuse, clear: clearRefusal} = useLimitRefusal(usage, usage.data?.organizations)
     const [transferring, setTransferring] = useState<Org | null>(null)
     const [deleting, setDeleting] = useState<Org | null>(null)
     const [pending, setPending] = useState(false)
@@ -73,12 +96,15 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
     const run = async (action: () => Promise<unknown>, fallback: string) => {
         setPending(true)
         setError(null)
+        clearRefusal()
         try {
             await action()
             onChanged()
             return true
         } catch (cause) {
-            setError(errorText(cause, fallback))
+            const limitRefusal = readLimitRefusal(cause)
+            if (limitRefusal) refuse(limitRefusal)
+            else setError(errorText(cause, fallback))
             return false
         } finally {
             setPending(false)
@@ -117,6 +143,7 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
             }}
             onCreate={() => {
                 setError(null)
+                clearRefusal()
                 setCreating(true)
             }}
             onRename={async (org, name) => {
@@ -144,6 +171,24 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
                 submitLabel={t("common.create")}
                 pending={pending}
                 error={error}
+                submitDisabled={organizationsAtLimit || Boolean(refusal)}
+                notice={
+                    organizationsAtLimit && usage.data?.organizations ? (
+                        <OrganizationLimitNotice
+                            usage={usage.data.organizations}
+                            workspaceId={workspaceId}
+                            projectId={projectId}
+                            onNavigate={() => setCreating(false)}
+                        />
+                    ) : refusal ? (
+                        <LimitRefusalNotice
+                            refusal={refusal}
+                            workspaceId={workspaceId}
+                            projectId={projectId}
+                            onNavigate={() => setCreating(false)}
+                        />
+                    ) : null
+                }
                 onClose={() => setCreating(false)}
                 onSubmit={async (name) => {
                     if (
@@ -174,30 +219,63 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
                 }}
             />
 
-            <ConfirmModal
+            <AlertDialog
                 open={Boolean(deleting)}
-                title={t("settings.organizationsTab.deleteTitle")}
-                description={t("common.thisCannotBeUndone")}
-                body={t("settings.organizationsTab.deleteBody", {
-                    name: deleting?.name ?? t("settings.organizationsTab.thisOrganization"),
-                })}
-                confirmLabel={t("settings.organizationsTab.deleteTitle")}
-                pending={pending}
-                error={error ?? undefined}
-                onClose={() => setDeleting(null)}
-                onConfirm={async () => {
-                    if (!deleting) return
-                    const org = deleting
-                    const done = await run(
-                        () => deleteOrganization(org.id),
-                        t("settings.organizationsTab.deleteFailed"),
-                    )
-                    if (!done) return
-                    setDeleting(null)
-                    // The app is scoped to the organization that just went away.
-                    if (org.id === selectedOrgId) void router.replace("/")
+                onOpenChange={(next) => {
+                    if (!next && !pending) setDeleting(null)
                 }}
-            />
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {t("settings.organizationsTab.deleteTitle")}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t("common.thisCannotBeUndone")}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="text-body">
+                        {t("settings.organizationsTab.deleteBody", {
+                            name: deleting?.name ?? t("settings.organizationsTab.thisOrganization"),
+                        })}
+                    </div>
+                    {error ? <p className="m-0 text-body text-destructive">{error}</p> : null}
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                variant="outline"
+                                onClick={() => setDeleting(null)}
+                                disabled={pending}
+                            >
+                                {t("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant="destructive"
+                                disabled={pending}
+                                onClick={async (event) => {
+                                    event.preventDefault()
+                                    if (!deleting) return
+                                    const org = deleting
+                                    const done = await run(
+                                        () => deleteOrganization(org.id),
+                                        t("settings.organizationsTab.deleteFailed"),
+                                    )
+                                    if (!done) return
+                                    setDeleting(null)
+                                    // The app is scoped to the organization that just went away.
+                                    if (org.id === selectedOrgId) void router.replace("/")
+                                }}
+                            >
+                                {pending
+                                    ? t("common.working")
+                                    : t("settings.organizationsTab.deleteTitle")}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </OrganizationsPage>
     )
 }
@@ -260,12 +338,12 @@ const TransferDialog = ({
                         </SelectContent>
                     </Select>
                 ) : (
-                    <p className="m-0 text-sm text-muted-foreground">
+                    <p className="m-0 text-body text-muted-foreground">
                         {t("settings.organizationsTab.inviteFirst")}
                     </p>
                 )}
                 {error ? (
-                    <p role="alert" className="text-destructive m-0 text-xs">
+                    <p role="alert" className="text-destructive m-0 text-meta">
                         {error}
                     </p>
                 ) : null}

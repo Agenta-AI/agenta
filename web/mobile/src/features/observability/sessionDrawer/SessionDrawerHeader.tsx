@@ -73,7 +73,7 @@ export const SessionDrawerHeader = ({
             >
                 <CaretDown size={14} />
             </Button>
-            <span className="text-sm font-medium text-foreground">
+            <span className="text-label text-foreground">
                 {t("observability.sessionDrawer.session")}
             </span>
             <CopyTooltip

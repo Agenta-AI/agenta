@@ -122,6 +122,7 @@ export const AppSwitcher = ({
                     name={name}
                     evaluator={Boolean(app?.flags?.is_evaluator)}
                     showDetails={!collapsed}
+                    trigger
                 />
             }
         />

@@ -189,7 +189,7 @@ const SessionNavigation = ({scenarioId, queueId, onCompleted}: SessionNavigation
                         type="text"
                         icon={<ArrowSquareOut size={13} />}
                         onClick={handleViewTrace}
-                        className="!text-[var(--ag-c-758391)]"
+                        className="!text-muted-foreground"
                     />
                 )}
             </div>
@@ -202,14 +202,14 @@ const SessionNavigation = ({scenarioId, queueId, onCompleted}: SessionNavigation
                         checked={hideCompletedInFocus}
                         onChange={setHideCompletedInFocus}
                     />
-                    <Typography.Text type="secondary" className="text-xs">
+                    <Typography.Text type="secondary" className="text-label font-normal">
                         Hide marked complete
                     </Typography.Text>
                 </label>
 
                 <label className="inline-flex items-center gap-2 cursor-pointer select-none whitespace-nowrap">
                     <Switch size="small" checked={focusAutoNext} onChange={setFocusAutoNext} />
-                    <Typography.Text type="secondary" className="text-xs">
+                    <Typography.Text type="secondary" className="text-label font-normal">
                         Auto next
                     </Typography.Text>
                 </label>

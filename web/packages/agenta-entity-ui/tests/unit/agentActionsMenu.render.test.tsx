@@ -30,7 +30,6 @@ vi.mock("@agenta/ui/ui", () => {
     return {
         cn: (...classes: unknown[]) => classes.filter(Boolean).join(" "),
         Input: () => null,
-        PHONE_TOUCH_TARGET_CLASS: "",
         DropdownMenu: Pass,
         DropdownMenuContent: Pass,
         DropdownMenuTrigger: Pass,

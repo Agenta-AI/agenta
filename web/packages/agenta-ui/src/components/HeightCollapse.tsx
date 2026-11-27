@@ -1,6 +1,7 @@
 import {useMemo} from "react"
 
 import clsx from "clsx"
+import {useReducedMotion} from "motion/react"
 
 export interface HeightCollapseProps {
     open: boolean
@@ -30,8 +31,9 @@ export interface HeightCollapseProps {
  * HeightCollapse
  *
  * CSS-native collapse that transitions `height` between pixel values and `auto` using
- * `interpolate-size: allow-keywords`. Plain CSS transitions (NOT `motion-safe`-gated), so it
- * animates regardless of the OS reduced-motion setting. The single collapse primitive for chrome
+ * `interpolate-size: allow-keywords`. It moves on the theme's `duration-base` and `ease-in-out`
+ * unless a caller passes `durationMs`; under reduced motion the new state shows at once (MOTION-02).
+ * The single collapse primitive for chrome
  * that enters/leaves a column — accordion sections, the tool gutter, and (via `fade`/`slideY`) the
  * composer dock, queued messages, and the config-pane notices — so everything moves the same way.
  */
@@ -40,8 +42,8 @@ export function HeightCollapse({
     children,
     className,
     contentClassName,
-    durationMs = 300,
-    animate = true,
+    durationMs,
+    animate: animateProp = true,
     collapsedHeight = 0,
     fade = false,
     slideY = 0,
@@ -49,7 +51,10 @@ export function HeightCollapse({
 }: HeightCollapseProps) {
     const collapsedHeightPx = useMemo(() => `${Math.max(0, collapsedHeight)}px`, [collapsedHeight])
 
-    const easing = "cubic-bezier(0.4, 0, 0.2, 1)"
+    const reducedMotion = useReducedMotion()
+    const animate = animateProp && !reducedMotion
+    const easing = "var(--ease-in-out, cubic-bezier(0.4, 0, 0.2, 1))"
+    const duration = durationMs === undefined ? "var(--duration-base, 200ms)" : `${durationMs}ms`
 
     const outerStyle = useMemo(
         () =>
@@ -58,10 +63,10 @@ export function HeightCollapse({
                 opacity: fade ? (open ? 1 : 0) : undefined,
                 interpolateSize: "allow-keywords",
                 transitionProperty: animate ? (fade ? "height, opacity" : "height") : "none",
-                transitionDuration: animate ? `${durationMs}ms` : "0ms",
+                transitionDuration: animate ? duration : "0ms",
                 transitionTimingFunction: animate ? easing : "linear",
             }) as React.CSSProperties,
-        [open, collapsedHeightPx, animate, fade, durationMs],
+        [open, collapsedHeightPx, animate, fade, duration, easing],
     )
 
     const innerStyle = useMemo<React.CSSProperties | undefined>(
@@ -70,11 +75,11 @@ export function HeightCollapse({
                 ? {
                       transform: open ? "translateY(0)" : `translateY(${slideY}px)`,
                       transitionProperty: animate ? "transform" : "none",
-                      transitionDuration: animate ? `${durationMs}ms` : "0ms",
+                      transitionDuration: animate ? duration : "0ms",
                       transitionTimingFunction: animate ? easing : "linear",
                   }
                 : undefined,
-        [slideY, open, animate, durationMs],
+        [slideY, open, animate, duration, easing],
     )
 
     // aria-hidden and inert move together — hiding a still-tabbable subtree is aria-hidden-focus.

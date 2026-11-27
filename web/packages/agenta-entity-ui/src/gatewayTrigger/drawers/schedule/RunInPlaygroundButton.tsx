@@ -126,10 +126,10 @@ export function RunInPlaygroundButton({
                 onMouseLeave={() => hover(false)}
             >
                 {/* antd Popover `title`: label row above the content. */}
-                <div className="mb-2 text-xs font-medium text-[var(--ag-colorTextHeading)]">
+                <div className="mb-2 text-label font-medium text-foreground">
                     {t("entityUi.triggerSchedule.agentWillReceive")}
                 </div>
-                <pre className="m-0 max-h-[240px] max-w-[320px] overflow-auto whitespace-pre-wrap break-words text-xs leading-snug">
+                <pre className="m-0 max-h-60 max-w-[320px] overflow-auto whitespace-pre-wrap break-words text-meta leading-snug">
                     {parsed.ok ? preview : t("entityUi.triggerSchedule.inputsNotValidJsonSentence")}
                 </pre>
             </PopoverContent>

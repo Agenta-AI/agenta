@@ -25,7 +25,7 @@ import {
 import {QueueEvaluatorField} from "./QueueEvaluatorField"
 
 const SectionTitle = ({children}: {children: string}) => (
-    <h3 className="m-0 text-sm font-semibold text-foreground">{children}</h3>
+    <h3 className="m-0 text-label text-foreground">{children}</h3>
 )
 
 /**

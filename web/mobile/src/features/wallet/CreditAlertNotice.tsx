@@ -82,11 +82,11 @@ const ROWS: Record<ShownAlert["kind"], Record<CreditFunding, NoticeRow>> = {
 // Same tinted strip as `ModelSetupBanner` and `ConnectModelStrip`, so the composer strips read as one family.
 const TONES: Record<ShownAlert["kind"], {strip: string; dismissible: boolean}> = {
     low: {
-        strip: "border-colorWarning/30 bg-colorWarningBg text-colorWarningText",
+        strip: "border-warning/30 bg-warning/10 text-warning",
         dismissible: true,
     },
     empty: {
-        strip: "border-colorErrorBorder bg-colorErrorBg text-colorErrorText",
+        strip: "border-destructive/40 bg-destructive/10 text-destructive",
         dismissible: false,
     },
     daily: {strip: "border-border bg-muted text-muted-foreground", dismissible: true},
@@ -122,11 +122,11 @@ export const CreditAlertNotice = ({
                 tone.strip,
             )}
         >
-            <span className="flex min-w-0 items-center gap-2 text-xs">
+            <span className="flex min-w-0 items-center gap-2 text-label">
                 <Coins size={14} className="shrink-0" />
                 <span className="min-w-0">
-                    <span className="block truncate font-medium">{title}</span>
-                    <span className="block truncate tabular-nums">{detail}</span>
+                    <span className="block truncate">{title}</span>
+                    <span className="block truncate text-meta tabular-nums">{detail}</span>
                 </span>
             </span>
             <span className="flex shrink-0 items-center gap-1.5">
@@ -143,12 +143,12 @@ export const CreditAlertNotice = ({
                 {tone.dismissible ? (
                     <Button
                         variant="ghost"
-                        size="icon-sm"
+                        size="icon-xs"
                         aria-label="Dismiss"
                         onClick={onDismiss}
-                        className="text-colorTextQuaternary hover:text-colorText size-[22px]"
+                        className="text-muted-foreground hover:text-foreground"
                     >
-                        <X size={11} />
+                        <X size={12} />
                     </Button>
                 ) : null}
             </span>

@@ -1,7 +1,7 @@
 import {useEffect, useId, useRef, useState} from "react"
 
 import {revalidateAgentRevisionReads, workflowMolecule} from "@agenta/entities/workflow"
-import {formatDate, formatRelativeTime, useT} from "@agenta/i18n"
+import {useT} from "@agenta/i18n"
 import headerCatalog from "@agenta/i18n/catalogs/playground.agentHeader"
 import revisionStatusCatalog from "@agenta/i18n/catalogs/playground.revisionStatus"
 import {
@@ -37,25 +37,6 @@ const AgentVersionHistoryDrawer = dynamic(
  */
 const historyChipsAtomFamily = atomFamily((_workflowId: string) => atom<string[]>([]))
 
-/**
- * When a version was saved, as the Configuration page header writes it (canvas A04): "Today
- * 09:12", "Yesterday 17:40", else "Nov 3 09:12". Null when the date is missing or not a date.
- */
-const savedWhen = (iso: string | null | undefined, now: Date = new Date()): string | null => {
-    const at = iso ? new Date(iso) : null
-    if (!at || Number.isNaN(at.getTime())) return null
-    // A 24-hour clock, as the canvas writes it ("09:12").
-    const time = formatDate(at, {hour: "2-digit", minute: "2-digit", hourCycle: "h23"})
-    const startOf = (date: Date) =>
-        new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
-    const days = Math.round((startOf(now) - startOf(at)) / 86_400_000)
-    if (days === 0 || days === 1) {
-        const day = formatRelativeTime(-days, "day", {numeric: "auto"})
-        return `${day.charAt(0).toLocaleUpperCase()}${day.slice(1)} ${time}`
-    }
-    return `${formatDate(at, {month: "short", day: "numeric"})} ${time}`
-}
-
 /** Wraps in a tooltip only when there is something to say beyond the visible label. */
 const StatusWrap = ({tip, children}: {tip: string | null; children: React.ReactElement}) =>
     tip ? <SimpleTooltip title={tip}>{children}</SimpleTooltip> : <>{children}</>
@@ -85,17 +66,8 @@ export interface AgentRevisionStatusProps {
     phone?: boolean
     /** On a phone, the name of the screen the history's back arrow returns to. */
     backTitle?: string
-    /**
-     * Lay out for a footer (the Configuration panel, canvas S02): a "History" button and the
-     * status as a bordered "Saved as vN". Needs `historyWorkflowId`.
-     */
-    footer?: boolean
-    /**
-     * Lay out for the Configuration page header (canvas A04): the version and when it was saved
-     * as a history button ("v4 · Today 09:12"), then the status as a bordered "Saved as vN".
-     * Needs `historyWorkflowId`.
-     */
-    page?: boolean
+    /** Only what needs the person: "Update to vN" and a failed save's retry; nothing at rest. */
+    quiet?: boolean
     className?: string
 }
 
@@ -117,8 +89,7 @@ export const AgentRevisionStatus = ({
     checkKey,
     phone = false,
     backTitle,
-    footer = false,
-    page = false,
+    quiet = false,
     className,
 }: AgentRevisionStatusProps) => {
     const t = useT(headerCatalog, revisionStatusCatalog)
@@ -174,7 +145,6 @@ export const AgentRevisionStatus = ({
     }, [offersUpdate, historyWorkflowId, projectId, checkKey, historyOpens])
 
     const version = (data?.version as number | null | undefined) ?? null
-    const savedAt = page ? savedWhen(data?.created_at) : null
     const commitMessage = data?.message?.trim() || null
     const newer =
         onUpdate &&
@@ -213,7 +183,7 @@ export const AgentRevisionStatus = ({
 
     const dot = failed
         ? {
-              tone: "bg-colorError",
+              tone: "bg-destructive",
               label: t("playground.agentHeader.notSaved"),
               tip: t("playground.agentHeader.tipFailed", {
                   error: autoCommitError ?? t("playground.agentHeader.couldNotSave"),
@@ -221,18 +191,18 @@ export const AgentRevisionStatus = ({
           }
         : saving
           ? {
-                tone: "bg-colorTextTertiary",
+                tone: "bg-muted-foreground",
                 label: t("playground.agentHeader.saving"),
                 tip: t("playground.agentHeader.tipSaving"),
             }
           : isDirty
             ? {
-                  tone: "bg-colorWarning",
+                  tone: "bg-warning",
                   label: t("playground.agentHeader.draft"),
                   tip: t("playground.agentHeader.tipDraft"),
               }
             : {
-                  tone: "bg-colorSuccess",
+                  tone: "bg-success",
                   label: t("playground.agentHeader.saved"),
                   tip: t("playground.agentHeader.saved"),
               }
@@ -241,13 +211,14 @@ export const AgentRevisionStatus = ({
     // two chips they competed. A failed save is the exception — there the status IS the retry
     // control, so it stays separate rather than sharing a button that opens history.
     const merged = version !== null && !!historyWorkflowId && !failed
+    const atRest = !failed && !saving && !isDirty
 
     const statusBody = (
         <>
             {failed ? (
-                <WarningCircle size={12} className="shrink-0 text-colorError" />
+                <WarningCircle size={12} className="shrink-0 text-destructive" />
             ) : (
-                <span className={`h-[6px] w-[6px] shrink-0 rounded-full ${dot.tone}`} />
+                <span className={`size-1.5 shrink-0 rounded-round ${dot.tone}`} />
             )}
             {/* Words only for states that need attention; hidden on a narrow bar, except on a
                 phone, where the icon alone does not say that a save failed. */}
@@ -269,83 +240,52 @@ export const AgentRevisionStatus = ({
             />
         ) : null
 
-    // "Update to vN": a newer version saved elsewhere. On a phone the pill keeps its size and gets
-    // a 44 px high hit area.
+    // "Update to vN": a newer version saved elsewhere. On touch the pill keeps its size and gets
+    // a 44 px hit area.
     const updatePill =
         newer && !autoUpdateId ? (
             <button
                 type="button"
                 onClick={() => onUpdate?.(newer.id)}
-                className={cn(
-                    "shrink-0 cursor-pointer whitespace-nowrap rounded border-0 bg-[var(--ag-colorPrimaryBg)] px-1.5 py-0.5 text-xs font-medium text-[var(--ag-colorPrimary)] hover:bg-[var(--ag-colorPrimaryBgHover)]",
-                    phone &&
-                        "relative after:absolute after:inset-x-0 after:-inset-y-3 after:content-['']",
-                )}
+                className=" shrink-0 cursor-pointer whitespace-nowrap rounded border-0 bg-selected px-1.5 py-0.5 text-label text-primary hover:bg-accent"
             >
                 {t("playground.agentHeader.updateAvailable", {version: newer.version})}
             </button>
         ) : null
 
-    // The bordered "Saved as vN" of the footer and the page header. A status, not an action:
-    // enabled only as the retry of a failed save.
-    const savedAsButton =
-        (footer || page) && version !== null ? (
-            <StatusWrap tip={failed ? dot.tip : null}>
-                <Button
-                    variant="outline"
-                    size="compact"
-                    disabled={!failed}
-                    aria-label={failed ? t("playground.agentHeader.retrySaving") : undefined}
-                    onClick={failed ? () => void retrySave({revisionId}) : undefined}
-                    className={cn(
-                        "disabled:opacity-100",
-                        failed ? "text-colorError" : "text-colorTextSecondary",
-                    )}
-                >
-                    {settled ? t("playground.revisionStatus.savedAs", {version}) : dot.label}
-                </Button>
-            </StatusWrap>
-        ) : null
+    const statusControl = (
+        <StatusWrap tip={failed ? dot.tip : null}>
+            <span
+                role={failed ? "button" : undefined}
+                tabIndex={failed ? 0 : undefined}
+                aria-label={failed ? t("playground.agentHeader.retrySaving") : undefined}
+                onClick={failed ? () => void retrySave({revisionId}) : undefined}
+                onKeyDown={
+                    failed
+                        ? (event) => {
+                              if (event.key !== "Enter" && event.key !== " ") return
+                              event.preventDefault()
+                              void retrySave({revisionId})
+                          }
+                        : undefined
+                }
+                className={cn(
+                    "flex items-center gap-1.5 text-meta text-muted-foreground",
+                    failed && "cursor-pointer",
+                    failed && "",
+                )}
+            >
+                {statusBody}
+            </span>
+        </StatusWrap>
+    )
 
-    if (footer) {
+    if (quiet) {
+        if (!updatePill && !failed && !historyDrawer) return null
         return (
-            <div className={cn("flex items-center gap-2", className)}>
-                {historyWorkflowId ? (
-                    <Button
-                        variant="ghost"
-                        size="compact"
-                        onClick={() => openHistory(historyWorkflowId)}
-                    >
-                        {t("playground.revisionStatus.history")}
-                    </Button>
-                ) : null}
-                {savedAsButton}
-                {historyDrawer}
-            </div>
-        )
-    }
-
-    if (page) {
-        return (
-            <div className={cn("flex items-center gap-2", className)}>
-                {historyWorkflowId && version !== null ? (
-                    <SimpleTooltip title={t("playground.agentHeader.versionHistory")}>
-                        <Button
-                            variant="ghost"
-                            size="compact"
-                            aria-label={t("playground.agentHeader.openVersionHistory")}
-                            onClick={() => openHistory(historyWorkflowId)}
-                        >
-                            <ClockCounterClockwise className="size-3.5" />
-                            <span className="font-mono text-[12px]">v{version}</span>
-                            {savedAt ? (
-                                <span className="text-colorTextTertiary">· {savedAt}</span>
-                            ) : null}
-                        </Button>
-                    </SimpleTooltip>
-                ) : null}
+            <div className={`flex items-center gap-2 ${className ?? ""}`}>
                 {updatePill}
-                {savedAsButton}
+                {failed ? statusControl : null}
                 {historyDrawer}
             </div>
         )
@@ -357,35 +297,38 @@ export const AgentRevisionStatus = ({
                 <SimpleTooltip
                     title={t("playground.agentHeader.statusAndHistory", {status: dot.label})}
                 >
-                    <button
-                        type="button"
+                    {/* A kit control, the height of the bar's other controls (SIZE-01). */}
+                    <Button
+                        variant="ghost"
+                        size="compact"
                         aria-label={t("playground.agentHeader.versionStatusOpen", {
                             version,
                             status: dot.label,
                         })}
                         onClick={() => openHistory(historyWorkflowId)}
                         className={cn(
-                            "flex cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent text-colorTextSecondary hover:bg-colorFillSecondary hover:text-colorText",
+                            "gap-1.5",
                             phone
-                                ? "min-h-11 whitespace-nowrap pl-2 pr-0.5 text-[14px] leading-5"
-                                : "px-1.5 py-0.5 text-xs",
+                                ? "whitespace-nowrap"
+                                : "text-muted-foreground hover:text-foreground",
                         )}
                     >
                         {/* One chip: the save state is a fact about this version. */}
-                        <span className={cn("flex items-center", phone ? "gap-1.5" : "gap-1")}>
+                        <span className="flex items-center gap-1.5">
                             {/* A caret would promise a menu; this opens a drawer of history. */}
                             {phone ? (
                                 // Canvas M07: a 14 px glyph and no dot; the words carry the state
                                 // ("Saved as vN", "Saving…").
-                                <ClockCounterClockwise size={14} className="shrink-0" />
+                                <ClockCounterClockwise size={14} className="size-3.5 shrink-0" />
                             ) : (
                                 <span className="relative flex shrink-0">
-                                    <ClockCounterClockwise size={11} />
-                                    {/* Save state as a badge on the icon, so it never trails the
-                                        text. */}
-                                    <span
-                                        className={`absolute -right-[2px] -top-[2px] h-[5px] w-[5px] rounded-full ring-[1.5px] ring-[var(--ag-surface-raised)] ${dot.tone}`}
-                                    />
+                                    <ClockCounterClockwise size={12} className="size-3" />
+                                    {/* A saved version is the resting state: no mark (LOUD-04). */}
+                                    {atRest ? null : (
+                                        <span
+                                            className={`absolute -right-[2px] -top-[2px] size-1.5 rounded-round ring-1 ring-muted ${dot.tone}`}
+                                        />
+                                    )}
                                 </span>
                             )}
                             {phone
@@ -397,7 +340,7 @@ export const AgentRevisionStatus = ({
                         {showLabel && !phone ? (
                             <span className="hidden sm:inline">{dot.label}</span>
                         ) : null}
-                    </button>
+                    </Button>
                 </SimpleTooltip>
             ) : null}
 
@@ -408,7 +351,7 @@ export const AgentRevisionStatus = ({
                             type="button"
                             aria-label={t("playground.agentHeader.openVersionHistory")}
                             onClick={() => openHistory(historyWorkflowId)}
-                            className="flex cursor-pointer items-center gap-1 rounded border-0 bg-colorFillSecondary px-1.5 py-0.5 text-xs text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText"
+                            className="flex cursor-pointer items-center gap-1 rounded border-0 bg-secondary px-1.5 py-0.5 text-meta text-muted-foreground hover:bg-accent hover:text-foreground"
                         >
                             <ClockCounterClockwise size={11} className="shrink-0" />v{version}
                         </button>
@@ -419,21 +362,21 @@ export const AgentRevisionStatus = ({
                         title={
                             commitMessage ? (
                                 <div className="flex flex-col gap-1">
-                                    <span className="text-[12px] font-medium uppercase tracking-wide opacity-65">
+                                    <span className="text-meta font-medium opacity-65">
                                         {t("playground.agentHeader.commitMessage")}
                                     </span>
-                                    <div className="max-h-[240px] overflow-y-auto overscroll-contain whitespace-pre-wrap break-words text-xs leading-relaxed">
+                                    <div className="max-h-60 overflow-y-auto overscroll-contain whitespace-pre-wrap break-words text-label font-normal leading-relaxed">
                                         {commitMessage}
                                     </div>
                                 </div>
                             ) : (
-                                <span className="text-xs italic">
+                                <span className="text-label font-normal italic">
                                     {t("playground.agentHeader.noCommitMessage")}
                                 </span>
                             )
                         }
                     >
-                        <span className="cursor-default rounded bg-colorFillSecondary px-1.5 py-0.5 text-xs text-colorTextSecondary">
+                        <span className="cursor-default rounded bg-secondary px-1.5 py-0.5 text-meta text-muted-foreground">
                             v{version}
                         </span>
                     </SimpleTooltip>
@@ -445,32 +388,7 @@ export const AgentRevisionStatus = ({
             {historyDrawer}
 
             {/* Tooltip only on failure: there it carries the error and the retry hint. */}
-            {merged ? null : (
-                <StatusWrap tip={failed ? dot.tip : null}>
-                    <span
-                        role={failed ? "button" : undefined}
-                        tabIndex={failed ? 0 : undefined}
-                        aria-label={failed ? t("playground.agentHeader.retrySaving") : undefined}
-                        onClick={failed ? () => void retrySave({revisionId}) : undefined}
-                        onKeyDown={
-                            failed
-                                ? (event) => {
-                                      if (event.key !== "Enter" && event.key !== " ") return
-                                      event.preventDefault()
-                                      void retrySave({revisionId})
-                                  }
-                                : undefined
-                        }
-                        className={cn(
-                            "flex items-center gap-1.5 text-xs text-colorTextTertiary",
-                            failed && "cursor-pointer",
-                            failed && phone && "min-h-11 min-w-11 justify-center",
-                        )}
-                    >
-                        {statusBody}
-                    </span>
-                </StatusWrap>
-            )}
+            {merged ? null : statusControl}
         </div>
     )
 }

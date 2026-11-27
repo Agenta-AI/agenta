@@ -25,7 +25,7 @@ export {
     skillRevisionsQueryKey,
     type SkillDetailDrawerProps,
 } from "./SkillDetailDrawer"
-export {SkillAgentPicker} from "./SkillAgentPicker"
+export {SkillAgentPicker, skillUsageQueryKey} from "./SkillAgentPicker"
 export {AddSkillsBody} from "./AddSkillsBody"
 export {
     NewSkillBody,
@@ -37,3 +37,27 @@ export {registryNewSkillView, type RegistryNewSkillParams} from "./registryNewSk
 export {registrySkillView, RegistrySkillBody} from "./registrySkillView"
 export {SourceRefreshButton} from "./SourceRefreshButton"
 export {useSkillsBridge} from "./bridge"
+export {SkillEditor, type SkillEditorProps} from "./SkillEditor"
+export {SkillFilesPanel, type SkillFilesPanelProps} from "./SkillFilesPanel"
+export {SkillFileNameRow} from "./SkillFileNameRow"
+export {SkillNameTitle} from "./SkillNameTitle"
+export {SkillCandidateList, type SkillCandidate, type UnavailableSkill} from "./SkillCandidateList"
+export {SkillGithubImport, type ImportedSkill} from "./SkillGithubImport"
+export {
+    useSkillCreateFlow,
+    type CreatedSkill,
+    type SkillCreateFlow,
+    type SkillCreateStep,
+} from "./useSkillCreateFlow"
+export {
+    EMPTY_SKILL_DRAFT,
+    descriptionTooLong,
+    draftSkillName,
+    isSkillDraftEmpty,
+    sameSkillDraft,
+    toSkillContent,
+    toSkillDraft,
+    type SkillDraft,
+} from "./skillDraft"
+export {useRegistrySkill} from "./useRegistrySkill"
+export {SkillCreateWays} from "./SkillCreateWays"

@@ -8,17 +8,29 @@ import {
     type ReactNode,
 } from "react"
 
-import {useT} from "@agenta/i18n"
+import {formatNumber, useT} from "@agenta/i18n"
 import chatCatalog from "@agenta/i18n/catalogs/playground.chat"
 import type {SimpleChatMessage} from "@agenta/playground"
-import {ChatMessageEditor} from "@agenta/ui/chat-message"
+import {message as appMessage} from "@agenta/ui/app-message"
+import {ChatMessageEditor, createSnippetPdfAttachment} from "@agenta/ui/chat-message"
 import {
     getViewOptions,
     messageViewModeAtom,
     toMessageViewMode,
     ViewModeDropdown,
 } from "@agenta/ui/drill-in"
-import {cn} from "@agenta/ui/ui"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+    cn,
+} from "@agenta/ui/ui"
 import {useAtom} from "jotai"
 import {v4 as uuidv4} from "uuid"
 
@@ -27,7 +39,6 @@ import {ToolCallViewHeader} from "../shared/ToolCallView"
 
 import {MessageAttachmentSlots} from "./MessageAttachmentSlots"
 import {MessageToolbar} from "./MessageToolbar"
-import {PasteLimitDialog, type PasteOverLimit} from "./PasteLimitDialog"
 
 export interface ChatMessageProps {
     entityId: string
@@ -42,6 +53,13 @@ export interface ChatMessageProps {
     footer?: ReactNode
     /** Replaces the message's own re-run, for example to re-run every revision in compare. */
     onRerun?: () => void
+}
+
+/** A paste that went over the editor limit, and the text that was pasted. */
+interface PasteOverLimit {
+    pastedText: string
+    maxPasteChars: number
+    overBy: number
 }
 
 const TOOL_ROLE_OPTIONS = [{label: "tool", value: "tool"}]
@@ -109,6 +127,27 @@ export const ChatMessage = memo(
             return true
         }, [])
         const closePaste = useCallback(() => setPaste(null), [])
+        const createSnippet = async () => {
+            if (!paste) return
+            try {
+                const {fileData, filename, mimeType} = await createSnippetPdfAttachment(
+                    paste.pastedText,
+                )
+                model.addFile(fileData, filename, mimeType)
+                appMessage.success(t("playground.chat.attachedSnippet", {filename}))
+            } catch (error) {
+                console.error("Failed to create snippet attachment", error)
+                appMessage.error(t("playground.chat.snippetFailed"))
+            }
+        }
+        const pasteSummary = !paste
+            ? ""
+            : paste.overBy > 0
+              ? t("playground.chat.pasteOverBy", {
+                    over: formatNumber(paste.overBy),
+                    max: formatNumber(paste.maxPasteChars),
+                })
+              : t("playground.chat.pasteExceeds", {max: formatNumber(paste.maxPasteChars)})
 
         if (!message) return null
 
@@ -246,7 +285,35 @@ export const ChatMessage = memo(
                     />
                 )}
                 {isUser ? (
-                    <PasteLimitDialog paste={paste} onAttach={model.addFile} onClose={closePaste} />
+                    <AlertDialog
+                        open={paste !== null}
+                        onOpenChange={(open) => {
+                            if (!open) closePaste()
+                        }}
+                    >
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>{t("playground.chat.tooLong")}</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    {paste
+                                        ? t("playground.chat.pasteAdvice", {summary: pasteSummary})
+                                        : ""}
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel asChild>
+                                    <Button variant="outline">
+                                        {t("playground.chat.dismiss")}
+                                    </Button>
+                                </AlertDialogCancel>
+                                <AlertDialogAction asChild>
+                                    <Button onClick={() => void createSnippet()}>
+                                        {t("playground.chat.createSnippet")}
+                                    </Button>
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                 ) : null}
             </div>
         )

@@ -73,9 +73,7 @@ export const McpTokenSignInDialog = ({
                         void submit()
                     }}
                 >
-                    <span className="text-sm font-medium text-foreground">
-                        {t("settings.mcp.token")}
-                    </span>
+                    <span className="text-label text-foreground">{t("settings.mcp.token")}</span>
                     <PasswordInput
                         autoFocus
                         autoComplete="off"
@@ -83,7 +81,7 @@ export const McpTokenSignInDialog = ({
                         value={token}
                         onValueChange={setToken}
                     />
-                    {error ? <p className="m-0 text-sm text-colorError">{error}</p> : null}
+                    {error ? <p className="m-0 text-body text-destructive">{error}</p> : null}
                 </form>
                 <DialogFooter>
                     <Button variant="outline" onClick={close} disabled={saving}>

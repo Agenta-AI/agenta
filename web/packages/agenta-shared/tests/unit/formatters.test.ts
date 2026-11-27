@@ -4,6 +4,7 @@ import {
     createFormatter,
     formatCompact,
     formatCurrency,
+    formatCurrencyPrecise,
     formatLatency,
     formatNumber,
     formatPercent,
@@ -47,11 +48,28 @@ describe("formatCurrency", () => {
         expect(formatCurrency(1234.56)).toBe("$1,234.56")
     })
 
-    it("formats small values without trailing zeros (maximumFractionDigits: 6)", () => {
+    it("formats small values without trailing zeros", () => {
         expect(formatCurrency(0.00123)).toBe("$0.00123")
     })
 
+    it("keeps two digits past the leading zeros below a dollar", () => {
+        expect(formatCurrency(0.150026)).toBe("$0.15")
+        expect(formatCurrency(0.0123456)).toBe("$0.0123")
+        expect(formatCurrency(0.0000012)).toBe("$0.000001")
+        expect(formatCurrency(0)).toBe("$0.00")
+    })
+
     it("returns '-' for null", () => expect(formatCurrency(null)).toBe("-"))
+})
+
+describe("formatCurrencyPrecise", () => {
+    it("keeps up to six decimals at every size", () => {
+        expect(formatCurrencyPrecise(1.234567)).toBe("$1.234567")
+        expect(formatCurrencyPrecise(0.150026)).toBe("$0.150026")
+        expect(formatCurrencyPrecise(1234.5)).toBe("$1,234.50")
+    })
+
+    it("returns '-' for null", () => expect(formatCurrencyPrecise(null)).toBe("-"))
 })
 
 // ---------------------------------------------------------------------------

@@ -4,7 +4,7 @@ import {type ReactNode} from "react"
 import {TooltipProvider} from "@agenta/ui/ui"
 
 import {PHONE_LINE_CLASS, PHONE_NAME_CLASS, PHONE_ROW_CLASS, PhoneRowSwitch} from "./phoneRow"
-import {LINE_CLASS, NAME_CLASS, ROW_CLASS, RowStatusDot} from "./rowParts"
+import {LINE_CLASS, NAME_CLASS, ROW_CLASS, ROW_LEAD_GAP, RowStatusDot} from "./rowParts"
 import {TriggerActionsMenu} from "./TriggerActionsMenu"
 
 /** A trigger row: the tile, name, line, the status dot (or a phone's switch) and the "⋯" menu. */
@@ -22,7 +22,7 @@ export function TriggerRow({
     phone,
     onToggle,
 }: {
-    /** The 28 px tile before the name (`RowTile`). */
+    /** The 24 px Mark before the name (`RowTile`). */
     tile: ReactNode
     name: string
     nameMuted?: boolean
@@ -51,7 +51,7 @@ export function TriggerRow({
                 className={
                     phone
                         ? `${PHONE_ROW_CLASS} ${disabled ? "cursor-default" : "cursor-pointer"}`
-                        : `${ROW_CLASS} ${disabled ? "cursor-default" : "cursor-pointer hover:border-[var(--ag-colorBorder)]"}`
+                        : `${ROW_CLASS} ${disabled ? "cursor-default" : "cursor-pointer hover:border-border"}`
                 }
             >
                 <div
@@ -66,13 +66,13 @@ export function TriggerRow({
                             open()
                         }
                     }}
-                    className={`flex min-w-0 flex-1 items-center ${phone ? "gap-3 self-stretch" : "gap-2.5"}`}
+                    className={`focus-ring flex min-w-0 flex-1 items-center rounded-sm ${phone ? "gap-3 self-stretch" : ROW_LEAD_GAP}`}
                 >
                     {tile}
                     <div className="min-w-0 flex-1">
                         <div
-                            className={`${phone ? PHONE_NAME_CLASS : NAME_CLASS} font-normal ${
-                                nameMuted ? "italic text-[var(--ag-colorTextTertiary)]" : ""
+                            className={`${phone ? PHONE_NAME_CLASS : NAME_CLASS} ${
+                                nameMuted ? "italic text-muted-foreground" : ""
                             }`}
                         >
                             {name}

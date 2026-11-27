@@ -159,12 +159,12 @@ export const MappingRows = ({
     return (
         <section className="flex flex-col gap-2">
             <div>
-                <h3 className={cn("m-0 text-sm font-medium", hasDuplicates && "text-destructive")}>
+                <h3 className={cn("m-0 text-label", hasDuplicates && "text-destructive")}>
                     {t("observability.addToTestset.step2Title")}
                 </h3>
                 <p
                     className={cn(
-                        "m-0 text-xs",
+                        "m-0 text-meta",
                         hasDuplicates ? "text-destructive" : "text-muted-foreground",
                     )}
                 >

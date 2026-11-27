@@ -24,12 +24,12 @@ export const ChartTooltipPanel = ({
     rows = [],
     facts = [],
 }: ChartTooltipPanelProps) => (
-    <div className="flex w-[220px] flex-col gap-1.5 rounded-lg border border-border bg-background px-3 py-2.5 text-xs shadow-lg">
+    <div className="flex w-[220px] flex-col gap-1.5 rounded-lg border border-border bg-popover px-3 py-2.5 text-meta shadow-overlay">
         <div className="flex items-baseline justify-between gap-2 text-muted-foreground">
             <span>{title}</span>
             {runs ? <span>{runs}</span> : null}
         </div>
-        <span className="text-sm font-semibold text-foreground">{value}</span>
+        <span className="text-label font-semibold tabular-nums text-foreground">{value}</span>
         {rows.length ? (
             <div className="flex flex-col gap-1">
                 {rowsTitle ? <span className="text-muted-foreground">{rowsTitle}</span> : null}
@@ -38,7 +38,7 @@ export const ChartTooltipPanel = ({
                     <div key={i} className="flex flex-col">
                         <div className="flex items-center gap-1.5">
                             <span
-                                className="size-2 shrink-0 rounded-full"
+                                className="size-2 shrink-0 rounded-xs"
                                 style={{background: row.color}}
                             />
                             <span className="min-w-0 flex-1 truncate">{row.label}</span>

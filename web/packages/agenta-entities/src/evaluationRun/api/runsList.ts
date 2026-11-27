@@ -25,9 +25,10 @@ const MAX_SERVER_PAGES = 8
 /** A cached run younger than this is not replaced by a list row. */
 const FRESH_RUN_MS = 60_000
 
+// Runs are checked one by one below, so one run with an unexpected shape does not fail the page.
 const evaluationRunsPageResponseSchema = z.object({
     count: z.number(),
-    runs: z.array(evaluationRunSchema),
+    runs: z.array(z.unknown()),
     windowing: z.object({next: z.string().nullable().optional()}).nullable().optional(),
 })
 
@@ -98,7 +99,19 @@ async function fetchServerPage(
         params: {project_id: projectId},
     })
     const page = evaluationRunsPageResponseSchema.parse(response.data)
-    return {runs: page.runs, next: page.windowing?.next || null}
+    const runs: EvaluationRun[] = []
+    for (const raw of page.runs) {
+        const parsed = evaluationRunSchema.safeParse(raw)
+        if (parsed.success) {
+            runs.push(parsed.data)
+        } else {
+            console.error("[queryEvaluationRunsPage] Skipped a run that failed validation", {
+                runId: (raw as {id?: unknown} | null)?.id,
+                issues: parsed.error.issues,
+            })
+        }
+    }
+    return {runs, next: page.windowing?.next || null}
 }
 
 /**

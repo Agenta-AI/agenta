@@ -83,7 +83,7 @@ const SmartCellContent = memo(
         if (value === undefined || value === null || value === "") {
             return (
                 <div className={`${className}`}>
-                    <span className="text-xs text-colorTextDescription">—</span>
+                    <span className="text-meta text-muted-foreground">—</span>
                 </div>
             )
         }

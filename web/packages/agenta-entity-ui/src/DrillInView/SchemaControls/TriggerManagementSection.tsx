@@ -36,10 +36,22 @@ import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens
 import triggersCatalog from "@agenta/i18n/catalogs/entityUi.triggers"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {message} from "@agenta/ui"
-import {DropdownMenuItem} from "@agenta/ui/ui"
+import {
+    AlertDialog,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+} from "@agenta/ui/ui"
 import {
     ArrowsClockwise,
     ClockCounterClockwise,
+    Lightning,
     Pause,
     PencilSimpleLine,
     Play,
@@ -50,17 +62,23 @@ import {useSetAtom} from "jotai"
 
 import {SectionLoadError} from "../../agent/SectionLoadError"
 
+import {
+    AddTriggerDropdown,
+    useAddAutomation,
+    type OnAddAutomation,
+} from "./triggerManagement/AddTriggerDropdown"
 import {AppTriggerProviderGroups} from "./triggerManagement/AppTriggerProviderGroups"
-import {AutomationDeleteDialog} from "./triggerManagement/AutomationDeleteDialog"
+import {EmptyListRow, RowSkeleton} from "./triggerManagement/rowParts"
 import {ScheduleTriggerRow} from "./triggerManagement/ScheduleTriggerRow"
 import {useAgentTriggers} from "./triggerManagement/useAgentTriggers"
+import {useAutomationDelete} from "./triggerManagement/useAutomationDelete"
 
 const tNow = createT(triggersCatalog)
 const tScreens = createT(automationsScreensCatalog)
 
 export {AddAutomationPhoneAction, AddTriggerDropdown} from "./triggerManagement/AddTriggerDropdown"
-export {AutomationDeleteDialog} from "./triggerManagement/AutomationDeleteDialog"
 export {useAgentTriggers} from "./triggerManagement/useAgentTriggers"
+export {useAutomationDelete} from "./triggerManagement/useAutomationDelete"
 
 /** Which automation a row action names: a schedule or an event subscription, by id. */
 export interface TriggerOwnerRef {
@@ -90,9 +108,16 @@ export interface TriggerManagementSectionProps {
     automationDrawer: ReactNode
     /**
      * The phone shape (M10): flat rows whose line wraps, a switch on each row of a person who
-     * can edit, and 44 px controls. The host decides it (`useIsPhone`).
+     * can edit. The host decides it (`useIsPhone`).
      */
     phone?: boolean
+    /**
+     * The panel's list shape: one "Automations" heading with one "Add", then every automation
+     * as a flat row. Not on a phone.
+     */
+    flat?: boolean
+    /** With `flat`: where "Add" opens the new-automation form; absent, the drawer. */
+    onAdd?: OnAddAutomation
 }
 
 export function TriggerManagementSection({
@@ -102,8 +127,11 @@ export function TriggerManagementSection({
     onOpenAutomation,
     automationDrawer,
     phone,
+    flat = false,
+    onAdd,
 }: TriggerManagementSectionProps) {
-    const t = useT(triggersCatalog, automationsPanelCatalog)
+    const addAutomation = useAddAutomation(entityId, onAdd)
+    const t = useT(triggersCatalog, automationsPanelCatalog, automationsScreensCatalog)
     const {scopedSubscriptions, scopedSchedules} = useAgentTriggers(entityId)
     // The same cached lists `useAgentTriggers` reads: a failed or pending read must not show
     // "No automations yet" for an agent that has some.
@@ -134,6 +162,12 @@ export function TriggerManagementSection({
         name: string
         remove: () => Promise<void>
     } | null>(null)
+    const deletion = useAutomationDelete({
+        onDelete: async () => {
+            await pendingDelete?.remove()
+        },
+        onClose: () => setDeleteOpen(false),
+    })
 
     // Deactivate and Activate act at once, for both kinds. No agent version is saved.
     const toggleAutomation = useCallback(
@@ -225,17 +259,21 @@ export function TriggerManagementSection({
             </DropdownMenuItem>
         )
 
+    // Delete comes last, after a separator (ACT-03).
     const deleteItem = (name: string, remove: () => Promise<void>) => (
-        <DropdownMenuItem
-            variant="destructive"
-            onSelect={() => {
-                setPendingDelete({name, remove})
-                setDeleteOpen(true)
-            }}
-        >
-            <Trash size={16} />
-            {tNow("entityUi.triggers.delete")}
-        </DropdownMenuItem>
+        <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+                variant="destructive"
+                onSelect={() => {
+                    setPendingDelete({name, remove})
+                    setDeleteOpen(true)
+                }}
+            >
+                <Trash size={16} />
+                {tNow("entityUi.triggers.delete")}
+            </DropdownMenuItem>
+        </>
     )
 
     const subscriptionMenu = useCallback(
@@ -344,8 +382,8 @@ export function TriggerManagementSection({
         <h3
             className={
                 phone
-                    ? "m-0 pb-1.5 pt-4 text-[12px] font-medium leading-5 text-[var(--ag-colorTextTertiary)]"
-                    : "m-0 mt-1 text-[12px] font-medium leading-4 text-[var(--ag-colorTextSecondary)]"
+                    ? "m-0 pb-1.5 pt-4 text-meta font-medium leading-5 text-muted-foreground"
+                    : "m-0 mt-1 text-subtitle text-foreground"
             }
         >
             {label}
@@ -356,74 +394,109 @@ export function TriggerManagementSection({
     const switches = phone && !disabled
     const groupClass = `flex flex-col ${phone ? "" : "gap-2.5"}`
 
-    return (
-        <div className={`flex flex-col ${phone ? "" : "gap-2.5 pb-3 pt-2.5"}`}>
-            {/* Two groups, "Scheduled triggers" first; a group with no automation does not
-                show (F05 f1). App triggers stay grouped by the app they arrive from. */}
-            {scopedSchedules.length > 0 ? (
-                <section className={groupClass}>
-                    {groupHeading(t("automations.panel.scheduledTriggers"))}
-                    {scopedSchedules.map((record) => (
-                        <ScheduleTriggerRow
-                            key={`schedule-${record.id}`}
-                            record={record}
-                            disabled={disabled}
-                            onOpen={() => record.id && openSchedule(record.id)}
-                            menu={scheduleMenu(record)}
-                            phone={phone}
-                            onToggle={
-                                switches && record.id
-                                    ? (next) =>
-                                          void toggleAutomation(
-                                              setScheduleActive,
-                                              record.id as string,
-                                              next,
-                                          )
-                                    : undefined
-                            }
-                        />
-                    ))}
-                </section>
-            ) : null}
+    const scheduleRows = scopedSchedules.map((record) => (
+        <ScheduleTriggerRow
+            key={`schedule-${record.id}`}
+            record={record}
+            disabled={disabled}
+            onOpen={() => record.id && openSchedule(record.id)}
+            menu={scheduleMenu(record)}
+            phone={phone}
+            onToggle={
+                switches && record.id
+                    ? (next) => void toggleAutomation(setScheduleActive, record.id as string, next)
+                    : undefined
+            }
+        />
+    ))
+    const appGroups = (
+        <AppTriggerProviderGroups
+            scopedSubscriptions={scopedSubscriptions}
+            entityId={entityId}
+            disabled={disabled}
+            subscriptionMenu={subscriptionMenu}
+            onOpenSubscription={openSubscription}
+            phone={phone}
+            onToggleSubscription={
+                switches
+                    ? (record, next) => {
+                          if (record.id)
+                              void toggleAutomation(setSubscriptionActive, record.id, next)
+                      }
+                    : undefined
+            }
+        />
+    )
+    const flatList = flat && !phone
+    const count = scopedSchedules.length + scopedSubscriptions.length
 
-            {scopedSubscriptions.length > 0 ? (
-                <section className={groupClass}>
-                    {groupHeading(t("automations.panel.appTriggers"))}
-                    <AppTriggerProviderGroups
-                        scopedSubscriptions={scopedSubscriptions}
-                        entityId={entityId}
-                        disabled={disabled}
-                        subscriptionMenu={subscriptionMenu}
-                        onOpenSubscription={openSubscription}
-                        phone={phone}
-                        onToggleSubscription={
-                            switches
-                                ? (record, next) => {
-                                      if (record.id)
-                                          void toggleAutomation(
-                                              setSubscriptionActive,
-                                              record.id,
-                                              next,
-                                          )
-                                  }
-                                : undefined
-                        }
-                    />
+    return (
+        <div
+            className={`flex flex-col ${phone ? "" : flatList ? "pb-3 pt-3" : "gap-2.5 pb-3 pt-2.5"}`}
+        >
+            {flatList ? (
+                // One list (the panel): the heading with one "Add", then every automation as a
+                // flat row. The row's Mark tells the kind: a clock, or the app's logo.
+                <section className="flex flex-col gap-1" aria-busy={loading || undefined}>
+                    <div className="flex h-8 items-center justify-between gap-2">
+                        <h3 className="m-0 truncate text-subtitle text-foreground">
+                            {t("automations.panel.automations")}
+                        </h3>
+                        {disabled ? null : (
+                            <AddTriggerDropdown entityId={entityId} onAdd={onAdd} quiet />
+                        )}
+                    </div>
+                    {/* The rows hang their hover fill 9 px out, so their Marks sit on the
+                        heading's line (ALIGN-01). */}
+                    <div data-flat-rows className="-mx-2.25 flex flex-col gap-2">
+                        {scheduleRows}
+                        {scopedSubscriptions.length > 0 ? appGroups : null}
+                        {count > 0 ? null : loading ? (
+                            <>
+                                <RowSkeleton />
+                                <RowSkeleton />
+                            </>
+                        ) : loadFailed ? null : (
+                            <EmptyListRow
+                                icon={<Lightning />}
+                                title={t("entityUi.triggers.noAutomations")}
+                                line={t("automations.panel.automationsHint")}
+                                onAdd={disabled ? undefined : addAutomation}
+                            />
+                        )}
+                    </div>
                 </section>
-            ) : null}
+            ) : (
+                <>
+                    {/* Two groups, "Scheduled triggers" first; a group with no automation does
+                        not show (F05 f1). App triggers stay grouped by their app. */}
+                    {scopedSchedules.length > 0 ? (
+                        <section className={groupClass}>
+                            {groupHeading(t("automations.panel.scheduledTriggers"))}
+                            {scheduleRows}
+                        </section>
+                    ) : null}
+                    {scopedSubscriptions.length > 0 ? (
+                        <section className={groupClass}>
+                            {groupHeading(t("automations.panel.appTriggers"))}
+                            {appGroups}
+                        </section>
+                    ) : null}
+                </>
+            )}
 
             {loadFailed ? (
                 // A list that did not load is not an empty list; one that half loaded says so
                 // under the rows it has.
-                <div className={phone ? "[&_button]:min-h-11" : undefined}>
+                <div>
                     <SectionLoadError
                         message={tScreens("automations.screens.loadFailed")}
                         onRetry={retryLoad}
                     />
                 </div>
-            ) : !loading && scopedSubscriptions.length === 0 && scopedSchedules.length === 0 ? (
+            ) : !flatList && !loading && count === 0 ? (
                 // One quiet line; the header's "Add automation" is the way to add one.
-                <span className="text-xs text-colorTextTertiary">
+                <span className="text-meta text-muted-foreground">
                     {t("entityUi.triggers.noAutomations")}
                 </span>
             ) : null}
@@ -431,14 +504,41 @@ export function TriggerManagementSection({
             {/* Propless, atom-driven drawers, mounted once. A new automation created here is
                 bound to this agent. */}
             {automationDrawer}
-            <AutomationDeleteDialog
+            <AlertDialog
                 open={deleteOpen}
-                name={pendingDelete?.name ?? ""}
-                onDelete={async () => {
-                    await pendingDelete?.remove()
-                }}
-                onClose={() => setDeleteOpen(false)}
-            />
+                onOpenChange={(next) => (next ? undefined : deletion.close())}
+            >
+                <AlertDialogContent data-testid="automation-delete-dialog">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{t("automations.screens.deleteTitle")}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t("automations.screens.deleteMessage", {
+                                name: pendingDelete?.name ?? "",
+                            })}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {deletion.failed ? (
+                        <p role="alert" className="m-0 text-label text-destructive">
+                            {t("automations.panel.deleteFailed")}
+                        </p>
+                    ) : null}
+                    <AlertDialogFooter>
+                        {/* Focus starts on Cancel when the dialog opens. */}
+                        <AlertDialogCancel asChild>
+                            <Button variant="outline" disabled={deletion.pending}>
+                                {t("automations.screens.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <Button
+                            variant="destructive"
+                            disabled={deletion.pending}
+                            onClick={() => void deletion.remove()}
+                        >
+                            {t("automations.screens.delete")}
+                        </Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }

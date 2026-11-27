@@ -1,8 +1,21 @@
-import {useId, useMemo, useRef, useState, type KeyboardEvent} from "react"
+import {useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode} from "react"
 
 import type {ProjectMemberProfile} from "@agenta/entities/sharing"
-import {Popover, PopoverAnchor, PopoverContent, SkeletonBlock, cn} from "@agenta/ui/ui"
-import {MagnifyingGlassIcon, XIcon} from "@phosphor-icons/react"
+import {
+    Button,
+    Empty,
+    EmptyContent,
+    EmptyDescription,
+    EmptyHeader,
+    EmptyMedia,
+    EmptyTitle,
+    Popover,
+    PopoverAnchor,
+    PopoverContent,
+    SkeletonBlock,
+    cn,
+} from "@agenta/ui/ui"
+import {MagnifyingGlassIcon, UsersIcon, XIcon} from "@phosphor-icons/react"
 
 import {memberPickerCopy} from "./copy"
 import {PersonAvatar, personName, type SharingPerson} from "./people"
@@ -10,7 +23,6 @@ import {PersonAvatar, personName, type SharingPerson} from "./people"
 export interface MemberPickerProps {
     /** "multiple": chips for several people; "single": one person (the transfer picker). */
     mode?: "multiple" | "single"
-    projectName: string
     /** Project members for the current search (the members route, never workspace members). */
     members: readonly ProjectMemberProfile[]
     search: string
@@ -27,13 +39,18 @@ export interface MemberPickerProps {
     invalidUserIds?: readonly string[]
     loading?: boolean
     error?: boolean
+    /** Opens the project's members page; the empty list offers it. */
+    onAddMembers?: () => void
+    /** A control at the field's end (the invite role), inside its border. */
+    end?: ReactNode
+    /** The empty field's text, in place of "Add people by name or email". */
+    placeholder?: string
     disabled?: boolean
     className?: string
 }
 
 export const MemberPicker = ({
     mode = "multiple",
-    projectName,
     members,
     search,
     onSearch,
@@ -45,6 +62,9 @@ export const MemberPicker = ({
     invalidUserIds = [],
     loading = false,
     error = false,
+    onAddMembers,
+    end,
+    placeholder = memberPickerCopy.placeholder,
     disabled = false,
     className,
 }: MemberPickerProps) => {
@@ -99,13 +119,15 @@ export const MemberPicker = ({
 
     const query = search.trim()
 
+    const noMembers = !loading && !error && options.length === 0 && !query
+
     return (
         <Popover open={open && !disabled} onOpenChange={setOpen} modal={false}>
             <PopoverAnchor asChild>
                 <div
                     ref={fieldRef}
                     className={cn(
-                        "box-border flex min-h-9 flex-1 flex-wrap items-center gap-1 rounded-control border border-solid border-border bg-background px-2 py-1",
+                        "focus-ring-field box-border flex min-h-control flex-1 flex-wrap items-center gap-1 rounded-control border border-solid border-border bg-background px-2 py-0.5",
                         invalidUserIds.some((id) => selectedIds.has(id)) && "border-error",
                         disabled && "opacity-50",
                         className,
@@ -126,8 +148,8 @@ export const MemberPicker = ({
                                 key={person.user_id}
                                 data-invalid={invalid || undefined}
                                 className={cn(
-                                    "inline-flex items-center gap-1 rounded-full bg-muted py-0.5 pl-0.5 pr-1.5 text-xs",
-                                    invalid && "bg-error-bg text-error",
+                                    "inline-flex items-center gap-1 rounded-sm bg-secondary py-0.5 pl-0.5 pr-1.5 text-label",
+                                    invalid && "bg-destructive/10 text-destructive",
                                 )}
                             >
                                 <PersonAvatar person={person} />
@@ -157,7 +179,7 @@ export const MemberPicker = ({
                             aria-autocomplete="list"
                             disabled={disabled}
                             value={search}
-                            placeholder={selected.length === 0 ? memberPickerCopy.placeholder : ""}
+                            placeholder={selected.length === 0 ? placeholder : ""}
                             onChange={(event) => {
                                 onSearch(event.target.value)
                                 setActive(0)
@@ -168,8 +190,17 @@ export const MemberPicker = ({
                             // A click, typing or the arrow key opens it.
                             onClick={() => setOpen(true)}
                             onKeyDown={onKeyDown}
-                            className="min-w-[80px] flex-1 border-0 bg-transparent p-0 text-sm text-foreground outline-none [font-family:inherit] placeholder:text-muted-foreground"
+                            className="min-w-20 flex-1 border-0 bg-transparent p-0 text-field-md text-foreground outline-none [font-family:inherit] placeholder:text-muted-foreground"
                         />
+                    ) : null}
+                    {end ? (
+                        // Its own clicks stay its own: they must not focus the search.
+                        <span
+                            className="ml-auto flex shrink-0"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {end}
+                        </span>
                     ) : null}
                 </div>
             </PopoverAnchor>
@@ -181,10 +212,12 @@ export const MemberPicker = ({
                     if (fieldRef.current?.contains(event.target as Node)) event.preventDefault()
                 }}
             >
-                <span className="px-2.5 pb-1 pt-1.5 text-xs text-muted-foreground">
-                    {memberPickerCopy.heading(projectName)}
-                </span>
-                <div id={listId} role="listbox" aria-label={memberPickerCopy.heading(projectName)}>
+                {noMembers ? null : (
+                    <span className="px-2.5 pb-1 pt-1.5 text-meta text-muted-foreground">
+                        {memberPickerCopy.heading()}
+                    </span>
+                )}
+                <div id={listId} role="listbox" aria-label={memberPickerCopy.heading()}>
                     {loading ? (
                         <div className="flex flex-col gap-2 px-2.5 py-1.5" aria-busy>
                             <SkeletonBlock className="h-7 w-full" />
@@ -192,13 +225,34 @@ export const MemberPicker = ({
                             <SkeletonBlock className="h-7 w-full" />
                         </div>
                     ) : error ? (
-                        <span className="block px-2.5 py-1.5 text-sm text-error">
+                        <span className="block px-2.5 py-1.5 text-label text-destructive">
                             {memberPickerCopy.error}
                         </span>
                     ) : options.length === 0 && query ? (
-                        <span className="block px-2.5 py-1.5 text-sm text-muted-foreground">
+                        <span className="block px-2.5 py-1.5 text-label text-muted-foreground">
                             {memberPickerCopy.noMatch(query)}
                         </span>
+                    ) : noMembers ? (
+                        <Empty className="gap-3 p-4">
+                            <EmptyHeader>
+                                <EmptyMedia variant="icon">
+                                    <UsersIcon />
+                                </EmptyMedia>
+                                <EmptyTitle className="text-label font-normal">
+                                    {memberPickerCopy.noMembersTitle}
+                                </EmptyTitle>
+                                <EmptyDescription className="text-label">
+                                    {memberPickerCopy.noMembersDescription}
+                                </EmptyDescription>
+                            </EmptyHeader>
+                            {onAddMembers ? (
+                                <EmptyContent>
+                                    <Button variant="outline" size="sm" onClick={onAddMembers}>
+                                        {memberPickerCopy.addMembers}
+                                    </Button>
+                                </EmptyContent>
+                            ) : null}
+                        </Empty>
                     ) : (
                         options.map((member, index) => {
                             const enabled = pickable(member)
@@ -219,17 +273,17 @@ export const MemberPicker = ({
                                 >
                                     <PersonAvatar person={member} />
                                     <span className="flex min-w-0 flex-1 flex-col">
-                                        <span className="truncate text-sm font-medium">
+                                        <span className="truncate text-label">
                                             {personName(member)}
                                         </span>
                                         {member.name ? (
-                                            <span className="truncate text-xs text-muted-foreground">
+                                            <span className="truncate text-meta text-muted-foreground">
                                                 {member.email}
                                             </span>
                                         ) : null}
                                     </span>
                                     {enabled ? null : (
-                                        <span className="text-xs text-muted-foreground">
+                                        <span className="text-meta text-muted-foreground">
                                             {memberPickerCopy.hasAccess}
                                         </span>
                                     )}
@@ -238,10 +292,15 @@ export const MemberPicker = ({
                         })
                     )}
                 </div>
-                <div className="my-1 h-px bg-border" />
-                <span className="px-2.5 pb-1.5 pt-1 text-xs text-muted-foreground">
-                    {memberPickerCopy.footer}
-                </span>
+                {/* The empty state already says who can be added. */}
+                {noMembers ? null : (
+                    <>
+                        <div className="my-1 h-px bg-border" />
+                        <span className="px-2.5 pb-1.5 pt-1 text-meta text-muted-foreground">
+                            {memberPickerCopy.footer}
+                        </span>
+                    </>
+                )}
             </PopoverContent>
         </Popover>
     )

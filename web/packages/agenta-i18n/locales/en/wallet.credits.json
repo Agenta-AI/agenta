@@ -19,7 +19,7 @@
     "ofAmount": "of {{amount}}",
     "purchased": "Purchased",
     "remainingOfTotal": "{{remaining}} of {{total}}",
-    "remainingTitle": "Credits remaining",
+    "remainingTitle": "Credits",
     "resets": "Resets {{date}}",
     "resetsDaily": "Resets daily",
     "statusEmpty": "Empty",

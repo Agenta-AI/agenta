@@ -3,8 +3,7 @@ import {useCallback, useMemo, useState} from "react"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
-import {ListTableToolbar} from "@agenta/ui/list-table"
-import {Button} from "@agenta/ui/ui"
+import {Button, PageToolbar} from "@agenta/ui/ui"
 import {PlusIcon, TrayIcon} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -215,7 +214,7 @@ export const EvaluatorsScreen = ({
                         >
                             <div className="flex min-w-0 items-center gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
+                                <h1 className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
                                     Evaluators
                                 </h1>
                             </div>
@@ -226,7 +225,7 @@ export const EvaluatorsScreen = ({
                         <div className="mb-3 overflow-x-auto">
                             <EvaluatorCategoryTabs category={category} onChange={changeCategory} />
                         </div>
-                        <ListTableToolbar
+                        <PageToolbar
                             search={search.value}
                             onSearchChange={search.onChange}
                             actions={

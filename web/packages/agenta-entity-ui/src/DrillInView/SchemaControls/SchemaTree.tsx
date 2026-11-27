@@ -61,7 +61,7 @@ function SchemaRows({node, depth}: {node: Record<string, unknown>; depth: number
         <div
             className={
                 depth > 0
-                    ? "flex flex-col border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] pl-3"
+                    ? "flex flex-col border-0 border-l border-solid border-border-muted pl-3"
                     : "flex flex-col"
             }
         >
@@ -72,27 +72,25 @@ function SchemaRows({node, depth}: {node: Record<string, unknown>; depth: number
                 return (
                     <div key={name} className="py-1.5">
                         <div className="flex items-baseline gap-2">
-                            <span className="font-mono text-xs text-[var(--ag-colorText)]">
-                                {name}
-                            </span>
-                            <span className="text-xs text-[var(--ag-colorTextSecondary)]">
+                            <span className=" text-code-sm text-foreground">{name}</span>
+                            <span className="text-meta text-muted-foreground">
                                 {typeLabel(def)}
                             </span>
                             {required.includes(name) ? (
                                 <Tag
-                                    tone="red"
-                                    className="m-0 px-1.5 py-0 text-[12px] leading-[18px]"
+                                    tone="destructive"
+                                    className="m-0 px-1.5 py-0 text-meta leading-[18px]"
                                 >
                                     {t("entityUi.schemaControls.required")}
                                 </Tag>
                             ) : (
-                                <span className="text-[12px] text-[var(--ag-colorTextTertiary)]">
+                                <span className="text-meta text-muted-foreground">
                                     {t("entityUi.schemaControls.optional")}
                                 </span>
                             )}
                         </div>
                         {description ? (
-                            <p className="m-0 mt-0.5 text-xs leading-snug text-[var(--ag-colorTextTertiary)]">
+                            <p className="m-0 mt-0.5 text-meta leading-snug text-muted-foreground">
                                 {description}
                             </p>
                         ) : null}
@@ -116,7 +114,7 @@ export function SchemaTree({schema, emptyText, className}: SchemaTreeProps) {
 
     if (Object.keys(props).length === 0) {
         return (
-            <div className={`text-xs text-[var(--ag-colorTextTertiary)] ${className ?? ""}`}>
+            <div className={`text-meta text-muted-foreground ${className ?? ""}`}>
                 {emptyText ?? t("entityUi.schemaControls.noDeclaredFields")}
             </div>
         )
@@ -125,7 +123,7 @@ export function SchemaTree({schema, emptyText, className}: SchemaTreeProps) {
     return (
         <div className={className}>
             {description ? (
-                <p className="m-0 mb-1.5 text-xs leading-snug text-[var(--ag-colorTextTertiary)]">
+                <p className="m-0 mb-1.5 text-meta leading-snug text-muted-foreground">
                     {description}
                 </p>
             ) : null}
