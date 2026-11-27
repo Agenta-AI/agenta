@@ -9,12 +9,12 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import uiDrillInCatalog from "@agenta/i18n/catalogs/ui.drillIn"
 
-import {getTextModeValue, textModeToStorageValue} from "./fieldUtils"
-import type {TextFieldProps} from "./types"
-
 import {FieldHeader} from "@agenta/ui/components/presentational"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
+
+import {getTextModeValue, textModeToStorageValue} from "./fieldUtils"
+import type {TextFieldProps} from "./types"
 
 export function TextField({
     item,

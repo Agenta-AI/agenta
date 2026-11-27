@@ -4,10 +4,10 @@
  * Renders a chat messages array using ChatMessageList from @agenta/ui.
  */
 
+import {ChatMessageList} from "@agenta/ui/chat-message"
+
 import {isMessagesArray, parseMessages} from "./fieldUtils"
 import type {BaseFieldProps} from "./types"
-
-import {ChatMessageList} from "@agenta/ui/chat-message"
 
 export function MessagesField({item, stringValue, fullPath, setValue, valueMode}: BaseFieldProps) {
     const originalWasString = typeof item.value === "string"

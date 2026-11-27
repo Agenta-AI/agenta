@@ -59,10 +59,10 @@ interface PopoverSemanticClassNames {
 
 // antd v6 `styles`/`classNames` are resolvable: an object or `(info) => object`. Only the object
 // form is consumed; the props param is intentionally loose so any antd resolver assigns here.
-type PopoverStyles = PopoverSemanticStyles | ((info: {props: any}) => PopoverSemanticStyles)
+type PopoverStyles = PopoverSemanticStyles | ((info: {props: any}) => PopoverSemanticStyles) // eslint-disable-line @typescript-eslint/no-explicit-any
 type PopoverClassNames =
     | PopoverSemanticClassNames
-    | ((info: {props: any}) => PopoverSemanticClassNames)
+    | ((info: {props: any}) => PopoverSemanticClassNames) // eslint-disable-line @typescript-eslint/no-explicit-any
 
 /**
  * Local, antd-compatible overlay prop surface (antd's `open`/`onOpenChange`/`content`/`children`/

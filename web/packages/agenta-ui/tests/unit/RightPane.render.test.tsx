@@ -121,7 +121,7 @@ describe("RightPane", () => {
     it("docked, takes the focus when it opens, unless focusOnOpen is false", () => {
         const Page = ({focusOnOpen}: {focusOnOpen?: boolean}) => (
             <RightPaneHost>
-                {}
+                {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
                 <input aria-label="name" autoFocus />
                 <RightPane
                     open

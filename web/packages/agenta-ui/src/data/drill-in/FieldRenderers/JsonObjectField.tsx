@@ -7,6 +7,8 @@
 
 import {useMemo, useState} from "react"
 
+import {ChatMessageEditor} from "@agenta/ui/chat-message"
+
 import {useDrillInUI} from "../context/DrillInUIContext"
 import {ViewModeDropdown} from "../core/ViewModeDropdown"
 import {getViewOptions, type ViewMode} from "../utils/getViewOptions"
@@ -14,8 +16,6 @@ import {getViewOptions, type ViewMode} from "../utils/getViewOptions"
 import {isChatMessageObject} from "./fieldUtils"
 import {JsonEditorWithLocalState} from "./JsonEditorWithLocalState"
 import type {JsonObjectFieldProps} from "./types"
-
-import {ChatMessageEditor} from "@agenta/ui/chat-message"
 
 type ChatViewMode = Extract<ViewMode, "text" | "markdown" | "json" | "yaml">
 
