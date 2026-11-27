@@ -13,6 +13,9 @@ import {
     isAggregatableMetric,
     isBooleanMetricStats,
     normalizeMetricStats,
+    roundCost,
+    roundDuration,
+    roundTokens,
     type MetricStats,
 } from "./metricStats"
 
@@ -546,16 +549,15 @@ export type CompareChange =
 const round3Sig = (value: number) => Number(value.toPrecision(3))
 const roundTo = (value: number, digits: number) => Number(value.toFixed(digits))
 
-/** Each scale's value as it is shown (see `formatMean`, `formatCost`, `formatDuration`, ...). */
+/** Each scale's value as its cell prints it (`percent`, `formatMean`, `format3Sig`, `formatCost`, ...). */
 const SHOWN: Record<CompareScale, (value: number) => number> = {
     rate: (value) => Math.round(value * 100),
     unit: (value) => roundTo(value, 2),
     number: round3Sig,
     count: Math.round,
-    cost: (value) => (Math.abs(value) >= 1 || value === 0 ? roundTo(value, 2) : round3Sig(value)),
-    duration: (value) =>
-        Math.abs(value) < 1000 ? Math.round(value) : roundTo(value / 1000, 2) * 1000,
-    tokens: (value) => (Math.abs(value) >= 1000 ? round3Sig(value) : Math.round(value)),
+    cost: roundCost,
+    duration: roundDuration,
+    tokens: roundTokens,
 }
 
 /**

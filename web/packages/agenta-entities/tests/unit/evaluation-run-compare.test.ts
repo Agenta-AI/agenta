@@ -12,12 +12,19 @@ import {
     compareChange,
     compareRoles,
     formatSigned,
+    formatMean,
     formatTileAmount,
     runTiles,
     type EvaluatorRow,
     type RunTile,
 } from "../../src/evaluationRun/core/evaluatorRows"
-import {normalizeMetricStats} from "../../src/evaluationRun/core/metricStats"
+import {
+    format3Sig,
+    formatCost,
+    formatDuration,
+    formatTokens,
+    normalizeMetricStats,
+} from "../../src/evaluationRun/core/metricStats"
 import {
     compareMetricKey,
     compareRunIds,
@@ -153,6 +160,38 @@ describe("change of the newest run", () => {
         expect(compareChange(12_341, 12_339, "duration")).toEqual({kind: "none"})
         // Tokens: 1.1K and 1.1K are the same shown value.
         expect(compareChange(1104, 1096, "tokens")).toEqual({kind: "none"})
+    })
+
+    it("finds no change exactly when the two values print the same", () => {
+        // Keeps the rounding of each scale in step with the formatter of its cell. (999.6 ms
+        // prints "1000 ms" and 1001 ms "1.00 s": the same value, so it is not a sample.)
+        const formats = {
+            unit: (value: number) => formatMean(value, true),
+            number: format3Sig,
+            count: (value: number) => String(Math.round(value)),
+            cost: formatCost,
+            duration: formatDuration,
+            tokens: formatTokens,
+        }
+        const samples = [
+            0, 0.0042, 0.00421, 1.004, 1.005, 1004, 1005, 0.0061, 0.334, 0.346, 0.5, 0.504, 0.506,
+            0.614, 0.615, 0.999, 1, 1.226, 1.234, 4.1149, 4.1151, 265, 950, 999.4, 1001, 1004, 1096,
+            1104, 12_336, 12_339, 12_341, 12_346, 99_950, 1_234_567,
+        ]
+        for (const [scale, format] of Object.entries(formats)) {
+            for (const a of samples) {
+                for (const b of samples) {
+                    const same = format(a) === format(b)
+                    const change = compareChange(a, b, scale as keyof typeof formats)
+                    expect({scale, a, b, none: change.kind === "none"}).toEqual({
+                        scale,
+                        a,
+                        b,
+                        none: same,
+                    })
+                }
+            }
+        }
     })
 
     it("is missing when either run has no value", () => {

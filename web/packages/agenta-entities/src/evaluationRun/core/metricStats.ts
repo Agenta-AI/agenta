@@ -197,14 +197,24 @@ export function frequencyBars(stats: MetricStats | null | undefined, limit?: num
 }
 
 /** USD. 2 decimals from $1, else 3 significant digits ("$0.000123"). */
+const costDigits = (value: number) =>
+    Math.abs(value) >= 1 || value === 0
+        ? {minimumFractionDigits: 2, maximumFractionDigits: 2}
+        : {maximumSignificantDigits: 3}
+
 export function formatCost(value: number): string {
     return new Intl.NumberFormat("en-US", {
         style: "currency",
         currency: "USD",
-        ...(Math.abs(value) >= 1 || value === 0
-            ? {minimumFractionDigits: 2, maximumFractionDigits: 2}
-            : {maximumSignificantDigits: 3}),
+        ...costDigits(value),
     }).format(value)
+}
+
+/** A cost rounded as {@link formatCost} prints it, by the same `Intl` rounding. */
+export function roundCost(value: number): number {
+    return Number(
+        new Intl.NumberFormat("en-US", {useGrouping: false, ...costDigits(value)}).format(value),
+    )
 }
 
 /**
@@ -216,10 +226,24 @@ export function formatDuration(milliseconds: number): string {
     return `${(milliseconds / 1000).toFixed(2)} s`
 }
 
+/** A duration in milliseconds rounded as {@link formatDuration} prints it. */
+export function roundDuration(milliseconds: number): number {
+    if (Math.abs(milliseconds) < 1000) return Math.round(milliseconds)
+    return Number((milliseconds / 1000).toFixed(2)) * 1000
+}
+
 /** "950", "12.3K", "4.5M". */
 export function formatTokens(value: number): string {
     const abs = Math.abs(value)
     if (abs >= 1_000_000) return `${format3Sig(value / 1_000_000)}M`
     if (abs >= 1_000) return `${format3Sig(value / 1_000)}K`
     return String(Math.round(value))
+}
+
+/** A token count rounded as {@link formatTokens} prints it. */
+export function roundTokens(value: number): number {
+    const abs = Math.abs(value)
+    if (abs >= 1_000_000) return Number((value / 1_000_000).toPrecision(3)) * 1_000_000
+    if (abs >= 1_000) return Number((value / 1_000).toPrecision(3)) * 1_000
+    return Math.round(value)
 }

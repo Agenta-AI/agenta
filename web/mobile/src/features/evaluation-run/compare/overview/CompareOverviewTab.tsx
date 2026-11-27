@@ -83,7 +83,8 @@ export const CompareOverviewTab = ({
         }
     }, [scenarioErrors])
 
-    const hasMetrics = runs.some((run) => run.metrics.some((metric) => metric.kind === "evaluator"))
+    // From the rows, which leave text metrics out, so text-only results show the empty state.
+    const hasMetrics = rows.some((row) => row.metrics.length > 0)
     const failed = runs.some((run) => run.metricsError || run.scenarioError)
     const retry = () => {
         for (const run of runs) {
