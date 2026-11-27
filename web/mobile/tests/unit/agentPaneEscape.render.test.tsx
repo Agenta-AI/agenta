@@ -3,10 +3,10 @@
  * Escape and focus in the agent pane outside the view stack: a tab's inner view (a channel's
  * connect or manage view), the automation's name field, and the phone section screen.
  */
-import type {ReactNode} from "react"
+import {useContext, type ReactNode} from "react"
 
 import {AutomationTitle} from "@agenta/automation-ui"
-import {usePhoneSections} from "@agenta/entity-ui/drill-in"
+import {PhoneSectionsContext} from "@agenta/entity-ui/drill-in"
 import {QueryClientProvider} from "@tanstack/react-query"
 import {act, cleanup, fireEvent, render, screen, waitFor} from "@testing-library/react"
 import {createStore, Provider} from "jotai"
@@ -26,6 +26,16 @@ vi.mock("@/features/context/useProjectPermission", async (original) => ({
     ...(await original<object>()),
     useProjectPermissionState: () => ({pending: false, allowed: true}),
 }))
+
+// The title's tooltip measures itself; jsdom has no ResizeObserver.
+vi.stubGlobal(
+    "ResizeObserver",
+    class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+    },
+)
 
 afterEach(cleanup)
 
@@ -112,7 +122,7 @@ describe("AutomationTitle", () => {
 
 describe("AgentConfigHost phone section screen", () => {
     const OpenSkills = () => {
-        const sections = usePhoneSections()
+        const sections = useContext(PhoneSectionsContext)
         return (
             <button onClick={() => sections?.show("skills", "Skills")}>
                 {sections?.shownKey ? `section ${sections.shownKey}` : "section rows"}

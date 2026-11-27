@@ -78,7 +78,7 @@ vi.mock("@/features/agent-layout/AutomationsTab", () => ({
 /** An automation form with edits. */
 const DirtyBody = () => {
     useViewTitle("Morning check")
-    useViewForm({dirty: true, valid: true, save: async () => true, leaveDescription: "Leave?"})
+    useViewForm({dirty: true, valid: true, save: async () => true})
     return <span>form</span>
 }
 const dirtyView = defineView<Record<string, never>>({
