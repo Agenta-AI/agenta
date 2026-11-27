@@ -1,7 +1,8 @@
 import {playgroundController} from "@agenta/playground"
-import {EnhancedModal, ModalContent} from "@agenta/ui"
 import {Button, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
+
+import {EnhancedModal, ModalContent} from "@/oss/components/LegacyKit"
 
 import {initialKeepDraftRowsState, keepDraftRowsModalAtom} from "./store/state"
 

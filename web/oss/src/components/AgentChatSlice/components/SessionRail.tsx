@@ -3,7 +3,8 @@ import {memo, useCallback, useEffect, useRef, useState} from "react"
 import {sessionMessagesAtom} from "@agenta/chat/state"
 import {useSessionPins} from "@agenta/sessions/state"
 import {shortcutAria, timeAgo} from "@agenta/shared/utils"
-import {Button, EmptyState, SearchInput, SimpleTooltip} from "@agenta/ui/ui"
+import {EmptyState, SearchInput, SimpleTooltip} from "@agenta/ui/composed"
+import {Button} from "@agenta/ui/ui"
 import {
     Archive,
     ArrowCounterClockwise,

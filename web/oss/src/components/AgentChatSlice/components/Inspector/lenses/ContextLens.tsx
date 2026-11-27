@@ -14,7 +14,8 @@ import {useMemo, useState} from "react"
 
 import {sessionRecordsQueryFamily} from "@agenta/entities/session"
 import {Tag, type TagProps} from "@agenta/ui/components/presentational"
-import {Segmented, SimpleTooltip, Skeleton} from "@agenta/ui/ui"
+import {Segmented, SimpleTooltip} from "@agenta/ui/composed"
+import {Skeleton} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
 import Markdown from "../../../assets/markdown"

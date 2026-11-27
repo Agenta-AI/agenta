@@ -7,7 +7,8 @@
 import {useMemo, useState} from "react"
 
 import {sessionRecordsQueryFamily} from "@agenta/entities/session"
-import {Segmented, SimpleTooltip, Skeleton} from "@agenta/ui/ui"
+import {Segmented, SimpleTooltip} from "@agenta/ui/composed"
+import {Skeleton} from "@agenta/ui/ui"
 import {CaretRight} from "@phosphor-icons/react"
 import {useAtom, useAtomValue} from "jotai"
 

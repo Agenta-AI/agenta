@@ -1,4 +1,4 @@
-import type {EnhancedModalProps} from "@agenta/ui/components/modal"
+import type {EnhancedModalProps} from "@/oss/components/LegacyKit"
 
 export interface DeleteEvaluatorsModalProps extends Omit<EnhancedModalProps, "children" | "onOk"> {
     selectedCount: number

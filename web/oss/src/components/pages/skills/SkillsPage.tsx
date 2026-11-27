@@ -17,7 +17,7 @@ import {
     type SkillListItem,
 } from "@agenta/skills-ui"
 import {PageLayout} from "@agenta/ui"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
+import {pageContentWidthClass} from "@agenta/ui/layout"
 import clsx from "clsx"
 import {useAtom, useAtomValue} from "jotai"
 

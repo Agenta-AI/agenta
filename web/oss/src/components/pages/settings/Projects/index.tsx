@@ -1,8 +1,8 @@
 import {ProjectsPage} from "@agenta/settings-ui"
-import {EnhancedModal} from "@agenta/ui/components/modal"
 import {Trash} from "@phosphor-icons/react"
 import {Form, Input, Switch} from "antd"
 
+import {EnhancedModal} from "@/oss/components/LegacyKit"
 import useURL from "@/oss/hooks/useURL"
 import {useProjectData} from "@/oss/state/project"
 

@@ -1,5 +1,5 @@
 import {PageLayout} from "@agenta/ui"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
+import {pageContentWidthClass} from "@agenta/ui/layout"
 import {ArrowLeft} from "@phosphor-icons/react"
 import {Button} from "antd"
 import clsx from "clsx"

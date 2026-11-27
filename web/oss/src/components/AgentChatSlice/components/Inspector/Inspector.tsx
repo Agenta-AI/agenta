@@ -7,15 +7,8 @@
 import {useEffect, useMemo, useState} from "react"
 
 import {revalidateSessionRecordsAtom, sessionRecordsQueryFamily} from "@agenta/entities/session"
-import {
-    Button,
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-    SimpleTooltip,
-} from "@agenta/ui/ui"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@agenta/ui/ui"
 import {ArrowClockwise, BracketsCurly, DownloadSimple, X} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"

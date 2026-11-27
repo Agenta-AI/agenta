@@ -1,10 +1,10 @@
 import React, {useCallback} from "react"
 
 import {createdWebhookSecretAtom} from "@agenta/entities/webhook"
-import {CopyButton, EnhancedModal, ModalContent} from "@agenta/ui"
 import {Typography} from "antd"
 import {useAtom} from "jotai"
 
+import {CopyButton, EnhancedModal, ModalContent} from "@/oss/components/LegacyKit"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 
 const SecretRevealModal: React.FC = () => {

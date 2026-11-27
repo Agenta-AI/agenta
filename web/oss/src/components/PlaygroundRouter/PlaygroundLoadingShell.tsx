@@ -1,10 +1,10 @@
 import type {ReactNode} from "react"
 
-import {bgColors} from "@agenta/ui"
 import {Robot} from "@phosphor-icons/react"
 import {Typography} from "antd"
 import {useAtomValue} from "jotai"
 
+import {bgColors} from "@/oss/components/LegacyKit"
 import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
 interface PlaygroundLoadingShellProps {

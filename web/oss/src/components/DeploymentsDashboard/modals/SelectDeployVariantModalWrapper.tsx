@@ -1,6 +1,7 @@
-import {EnhancedModal, ModalFooter} from "@agenta/ui"
 import {Typography} from "antd"
 import {useAtomValue} from "jotai"
+
+import {EnhancedModal, ModalFooter} from "@/oss/components/LegacyKit"
 
 import SelectDeployVariantModalContent, {
     useSelectDeployVariant,

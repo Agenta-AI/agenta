@@ -1,7 +1,6 @@
 import {useMemo, useRef, useState} from "react"
 
 import {LAST_SSO_ORG_SLUG_KEY} from "@agenta/auth"
-import {EnhancedModal as Modal} from "@agenta/ui"
 import {
     AppleOutlined,
     FacebookOutlined,
@@ -14,6 +13,7 @@ import {
 import {Alert, Button, Divider, Typography} from "antd"
 import {getAuthorisationURLWithQueryParamsAndSetState} from "supertokens-auth-react/recipe/thirdparty"
 
+import {EnhancedModal as Modal} from "@/oss/components/LegacyKit"
 import EmailPasswordSignIn from "@/oss/components/pages/auth/EmailPasswordSignIn"
 import PasswordlessAuth from "@/oss/components/pages/auth/PasswordlessAuth"
 import SendOTP from "@/oss/components/pages/auth/SendOTP"

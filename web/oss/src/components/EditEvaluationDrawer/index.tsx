@@ -9,7 +9,6 @@ import {
 } from "@agenta/entity-ui/selection"
 import {VersionBadge} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Plus, Trash} from "@phosphor-icons/react"
 import {Button, Input, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -21,6 +20,7 @@ import {
 } from "@/oss/components/EvalRunDetails/atoms/table/evaluators"
 import {evaluationRunQueryAtomFamily} from "@/oss/components/EvalRunDetails/atoms/table/run"
 import {derivedEvalTypeAtomFamily} from "@/oss/components/EvalRunDetails/state/evalType"
+import {EnhancedDrawer} from "@/oss/components/LegacyKit"
 
 const {Text} = Typography
 

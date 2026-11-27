@@ -78,8 +78,8 @@ vi.mock("@agenta/entity-ui/onboarding", async () => {
 })
 vi.mock("@agenta/home-ui", () => ({HomeOverview: nothing, UsageCard: nothing}))
 vi.mock("@agenta/ui", () => ({PageLayout: passthrough}))
-vi.mock("@agenta/ui/components/page-width", () => ({pageContentWidthClass: ""}))
-vi.mock("@agenta/ui/height-collapse", () => ({HeightCollapse: passthrough}))
+vi.mock("@agenta/ui/layout", () => ({pageContentWidthClass: ""}))
+vi.mock("@agenta/ui/layout", () => ({HeightCollapse: passthrough}))
 vi.mock("@phosphor-icons/react", () => ({ArrowLeftIcon: nothing}))
 vi.mock("antd", () => {
     const app = {message: {warning: vi.fn()}}
