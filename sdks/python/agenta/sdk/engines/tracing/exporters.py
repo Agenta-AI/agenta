@@ -1,6 +1,7 @@
 from typing import Sequence, Dict, List, Optional
 from threading import Thread
 from os import environ
+from time import monotonic
 
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
     OTLPSpanExporter,
@@ -110,9 +111,12 @@ class OTLPExporter(OTLPSpanExporter):
         session.request = request_with_credentials
 
     def shutdown(self) -> None:
-        # Let the accepted async groups finish before the exporter closes.
+        # Let the accepted async groups finish before the exporter closes. Each
+        # group stops retrying after the export timeout, so wait at most that
+        # long in total. A response that never completes must not block exit.
+        deadline = monotonic() + self._client._timeout
         for thread in self._threads:
-            thread.join()
+            thread.join(max(deadline - monotonic(), 0))
 
         self._threads.clear()
 
