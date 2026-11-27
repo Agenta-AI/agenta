@@ -9,6 +9,7 @@ import type {AnnotationDto} from "@agenta/entities/annotation/dto"
 import {
     assertionSummary,
     sortEvaluatorResults,
+    splitByOrigin,
     summarizeEvaluatorResult,
     type EvaluatorResultSummary,
 } from "@agenta/entities/evaluationRun"
@@ -120,15 +121,15 @@ export function annotationResults(
 }
 
 /**
- * The header of the Annotations section. `passed` counts the true binary metrics of the auto and
- * custom evaluators only: human values are not part of "Passed X of Y" (decision card 17). It is
- * null when none of those metrics is true or false.
+ * The header of the Annotations section. `passed` counts the true binary metrics of the
+ * annotations that are not human (`splitByOrigin`): human values are not part of
+ * "Passed X of Y". It is null when none of those metrics is true or false.
  */
 export function annotationResultsHeader(
     results: readonly AnnotationResult[],
 ): AnnotationResultsHeader {
     const summary = assertionSummary(
-        results.filter((result) => result.origin !== "human").map((result) => result.summary),
+        splitByOrigin(results).notHuman.map((result) => result.summary),
     )
     return {
         evaluators: new Set(results.map((result) => result.evaluatorName)).size,

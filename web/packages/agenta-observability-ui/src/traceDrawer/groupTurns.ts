@@ -1,29 +1,28 @@
 /**
- * The turns of a conversation trace, for the tree's "Group turns" view. A turn starts at each
- * child of the root span whose input holds a user message; the spans up to the next turn sit
- * under it. Pure: no React.
+ * The rows of the tree's "Group turns" view, built on the one turn rule of a trace
+ * (`groupTraceTurns`): one row per turn, holding the children of the root span that belong to
+ * it. Pure: no React.
  *
  * @packageDocumentation
  */
 
+import {groupTraceTurns, type TraceSpan} from "@agenta/entities/trace"
 import {getAgDataInputs, type TraceSpanNode} from "@agenta/observability"
 import {isChatMessagesArray, readValueMessage} from "@agenta/shared/utils"
 
-export interface TraceTurn {
+import {isSpanRunning} from "./spanRunning"
+
+export interface TraceTurnRow {
     /** 1 for the first turn. */
     index: number
-    /** The user's message that opens the turn. */
-    message: string
-    /** The spans of the turn: the span with the message, then the ones up to the next turn. */
+    /** The user's message that opens the turn; null when it cannot be read. */
+    message: string | null
+    /** The span whose input holds the message. */
+    spanId: string
+    /** The children of the root span in this turn, in tree order. */
     spans: TraceSpanNode[]
-    /** From the first span's start to the last span's end, in milliseconds; null while running. */
+    /** From the first start to the last end of the turn's spans, in ms; null while running. */
     durationMs: number | null
-}
-
-export interface TraceTurns {
-    /** Children of the root that come before the first turn. */
-    leading: TraceSpanNode[]
-    turns: TraceTurn[]
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -39,10 +38,10 @@ const lastUserText = (messages: unknown[]): string | null => {
 }
 
 /**
- * The user message in a span's input: the input itself as messages or one message, or a list
- * of messages under one of its keys.
+ * The label of a turn row: the last user message in the span's input (the input itself as
+ * messages or one message, or messages under one of its keys).
  */
-export function userMessageOf(span: TraceSpanNode): string | null {
+export function userMessageOf(span: TraceSpanNode | undefined): string | null {
     const inputs = getAgDataInputs(span)
     if (isChatMessagesArray(inputs)) return lastUserText(inputs)
     if (!isRecord(inputs)) return null
@@ -56,37 +55,43 @@ export function userMessageOf(span: TraceSpanNode): string | null {
     return null
 }
 
-const timeOf = (value: string | number | null | undefined): number | null => {
-    if (value === null || value === undefined || value === "") return null
-    const time = typeof value === "number" ? value : Date.parse(value)
-    return Number.isFinite(time) ? time : null
-}
+const flatten = (node: TraceSpanNode): TraceSpanNode[] => [
+    node,
+    ...((node.children ?? []) as TraceSpanNode[]).flatMap(flatten),
+]
 
-const turnDuration = (spans: TraceSpanNode[]): number | null => {
-    const start = timeOf(spans[0]?.start_time)
-    const end = timeOf(spans[spans.length - 1]?.end_time)
-    return start === null || end === null ? null : Math.max(0, end - start)
-}
+/** The number of turns of a trace; 1 for a trace with no user turn. */
+export const countTurns = (root: TraceSpanNode | null | undefined): number =>
+    root ? Math.max(1, groupTraceTurns(flatten(root) as unknown as TraceSpan[]).length) : 0
 
 /**
- * The turns under a trace's root span. Null when the root has fewer than two turns: the tree
- * then has nothing to group, and the switch is disabled.
+ * The turn rows under a tree's root. `turnsOf` is the trace the turns are read from (the whole
+ * trace); `root` is the tree drawn (it may be filtered by search or key spans). Null when the
+ * trace has fewer than two turns: there is nothing to group.
  */
-export function groupTurns(root: TraceSpanNode | null | undefined): TraceTurns | null {
-    const children = (root?.children ?? []) as TraceSpanNode[]
-    const leading: TraceSpanNode[] = []
-    const turns: TraceTurn[] = []
-    for (const child of children) {
-        const message = userMessageOf(child)
-        if (message) {
-            turns.push({index: turns.length + 1, message, spans: [child], durationMs: null})
-        } else if (turns.length > 0) {
-            turns[turns.length - 1].spans.push(child)
-        } else {
-            leading.push(child)
-        }
-    }
+export function groupTurns(
+    root: TraceSpanNode | null | undefined,
+    turnsOf: TraceSpanNode | null | undefined = root,
+): TraceTurnRow[] | null {
+    if (!root || !turnsOf) return null
+    const all = flatten(turnsOf)
+    const turns = groupTraceTurns(all as unknown as TraceSpan[])
     if (turns.length < 2) return null
-    for (const turn of turns) turn.durationMs = turnDuration(turn.spans)
-    return {leading, turns}
+    const byId = new Map(all.map((span) => [span.span_id, span]))
+    const children = (root.children ?? []) as TraceSpanNode[]
+    return turns.map((turn, index) => {
+        const members = new Set(turn.spans.map((span) => span.span_id))
+        return {
+            index: index + 1,
+            message: userMessageOf(byId.get(turn.spanId)),
+            spanId: turn.spanId,
+            spans: children.filter((child) => members.has(child.span_id)),
+            durationMs:
+                turn.startTime !== null &&
+                turn.endTime !== null &&
+                !turn.spans.some((span) => isSpanRunning(span as unknown as TraceSpanNode))
+                    ? Math.max(0, turn.endTime - turn.startTime)
+                    : null,
+        }
+    })
 }

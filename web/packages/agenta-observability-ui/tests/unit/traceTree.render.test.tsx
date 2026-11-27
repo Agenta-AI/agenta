@@ -16,6 +16,7 @@ const metrics = (ms: number, extra: Record<string, unknown> = {}) => ({
 
 const turn = (id: string, text: string, children: unknown[]) => ({
     span_id: id,
+    parent_id: "root",
     span_name: "_agent",
     span_type: "agent",
     start_time: "2026-11-27T10:00:00Z",
@@ -49,6 +50,7 @@ const tree = {
         turn("a", "Fix the failing test in the date parser.", [
             {
                 span_id: "llm",
+                parent_id: "a",
                 span_name: "chat opus",
                 span_type: "chat",
                 start_time: "2026-11-27T10:00:00Z",
@@ -66,6 +68,7 @@ const tree = {
             },
             {
                 span_id: "tool",
+                parent_id: "a",
                 span_name: "execute_tool Bash",
                 span_type: "tool",
                 start_time: "2026-11-27T10:00:05Z",
@@ -82,7 +85,11 @@ const tree = {
                 },
             },
         ]),
-        turn("b", "Now ship it.", []),
+        {
+            ...turn("b", "Now ship it.", []),
+            start_time: "2026-11-27T10:00:30Z",
+            end_time: "2026-11-27T10:00:50Z",
+        },
     ],
 }
 

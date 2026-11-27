@@ -21,6 +21,8 @@ export interface ReferenceLabelProps {
     openExternally?: boolean
     hovercardPlacement?: string
     label?: ReactNode
+    /** The test case of a test set reference: the chip then names and opens that test case. */
+    testcaseId?: string | null
     [key: string]: unknown
 }
 

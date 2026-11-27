@@ -27,7 +27,7 @@ export {
     type AnnotationResultMetric,
     type AnnotationResultRowProps,
 } from "./annotationResults"
-export {groupTurns, userMessageOf, type TraceTurn, type TraceTurns} from "./groupTurns"
+export {countTurns, groupTurns, userMessageOf, type TraceTurnRow} from "./groupTurns"
 export {toolSpanLabel} from "./toolSpanLabel"
 export {isSpanRunning} from "./spanRunning"
 export {default as TraceTree} from "./TraceTree"

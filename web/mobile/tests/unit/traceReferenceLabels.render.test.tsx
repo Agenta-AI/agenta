@@ -157,11 +157,10 @@ describe("trace drawer references on /m", () => {
         // One chip per entity: the application, its variant and its version are one chip.
         expect(links).toEqual([
             [
-                expect.stringContaining("default"),
-                "/w/ws-1/p/proj-1/variants?app=app-1&revisionId=rev-1",
+                expect.stringContaining("Capital finder / default"),
+                "/w/ws-1/p/proj-1/apps/app-1/overview",
             ],
         ])
-        expect(host.textContent).toContain("Application")
         expect(host.textContent).toContain("v3")
     })
 

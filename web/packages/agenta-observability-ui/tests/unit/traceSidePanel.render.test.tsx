@@ -92,10 +92,9 @@ describe("trace side panel", () => {
             links: [{trace_id: "t-2", span_id: "s-9", key: "invocation"}],
         }
         await render(<TraceSidePanel activeTrace={span() as never} />)
+        // One chip per entity: the evaluator (with its revision) and the test case.
         const references = host.querySelector('[data-testid="trace-references"]')
-        expect(references?.querySelectorAll("dt")).toHaveLength(2)
-        expect(references?.textContent).toContain("Evaluator")
-        expect(references?.textContent).toContain("Test case")
+        expect(references?.textContent).toBe("Referencesfaithfulness-judgesupport-faq")
         expect(host.querySelector('[data-testid="trace-linked-spans"]')?.textContent).toContain(
             "invocation",
         )

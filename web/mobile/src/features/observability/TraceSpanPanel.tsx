@@ -5,7 +5,7 @@ import {useT} from "@agenta/i18n"
 import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
 import spanCatalog from "@agenta/i18n/catalogs/observabilityUi.traceSpan"
 import {AccordionTreePanel} from "@agenta/observability-ui/traceDrawer"
-import {detectValueShape, getStringOrJson, lineCount} from "@agenta/shared/utils"
+import {detectValueShape, getStringOrJson, lineCount, unwrapWrapperKey} from "@agenta/shared/utils"
 import {CopyButton} from "@agenta/ui/components/presentational"
 import {Button, CollapseCaret, Segmented, SkeletonBlock, cn} from "@agenta/ui/ui"
 import {XCircleIcon} from "@phosphor-icons/react"
@@ -150,7 +150,8 @@ const SpanSectionPanel = ({
                 </span>
             )
         ) : (
-            <ValueField value={value} label={title} />
+            // A single wrapper key ({"inputs": {...}}) is dropped: its rows are the section.
+            <ValueField value={unwrapWrapperKey(value)} label={title} />
         )
 
     return (

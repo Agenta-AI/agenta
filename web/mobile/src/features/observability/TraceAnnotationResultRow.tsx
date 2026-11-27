@@ -1,7 +1,8 @@
 import {useMemo} from "react"
 
 import {EvaluatorResultRow, ValueViewProvider} from "@agenta/chat/value-view"
-import {summarizeEvaluatorResult} from "@agenta/entities/evaluationRun"
+import {isHumanOrigin, summarizeEvaluatorResult} from "@agenta/entities/evaluationRun"
+import {UserAuthorLabel} from "@agenta/entities/shared"
 import {useT} from "@agenta/i18n"
 import spanCatalog from "@agenta/i18n/catalogs/observabilityUi.traceSpan"
 import type {AnnotationResultRowProps} from "@agenta/observability-ui/traceDrawer"
@@ -15,14 +16,16 @@ const ORIGIN_KEYS = {
 } as const
 
 /**
- * The trace drawer's `AnnotationResultRow` slot on `/m`: one annotation of the span
- * as an evaluator result row, the origin after its name. With no run catalog in the trace view,
- * each metric's kind comes from its value.
+ * The trace drawer's `AnnotationResultRow` slot on `/m`: one annotation of the span as an
+ * evaluator result row, with its origin as the badge and its author as the byline. A human
+ * annotation reads True or False. With no run catalog in the trace view, each metric's kind
+ * comes from its value.
  */
 export const TraceAnnotationResultRow = ({
     evaluatorName,
     origin,
     metrics,
+    author,
 }: AnnotationResultRowProps) => {
     const t = useT(spanCatalog)
     const summary = useMemo(
@@ -33,16 +36,28 @@ export const TraceAnnotationResultRow = ({
             ),
         [metrics],
     )
-    const originLabel =
+    const originWord =
         origin && Object.hasOwn(ORIGIN_KEYS, origin)
             ? t(ORIGIN_KEYS[origin as keyof typeof ORIGIN_KEYS])
             : origin
     return (
         <ValueViewProvider markdownClassName={chatProseClassName} markdownIcons={markdownIcons}>
             <EvaluatorResultRow
-                // The row takes the name as text, so the origin follows it there.
-                name={originLabel ? `${evaluatorName} · ${originLabel}` : evaluatorName}
+                name={evaluatorName}
                 summary={summary}
+                badge={
+                    originWord ? (
+                        <span className="shrink-0 text-meta text-muted-foreground">
+                            {originWord}
+                        </span>
+                    ) : undefined
+                }
+                byline={
+                    author.userId ? (
+                        <UserAuthorLabel userId={author.userId} at={author.at} />
+                    ) : undefined
+                }
+                binaryWords={isHumanOrigin(origin) ? "trueFalse" : "passFail"}
             />
         </ValueViewProvider>
     )
