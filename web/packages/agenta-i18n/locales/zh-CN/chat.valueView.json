@@ -26,5 +26,12 @@
     "copyValue": "复制值",
     "copied": "已复制",
     "noOutput": "无输出",
-    "fullView": "完整视图"
+    "fullView": "完整视图",
+    "passedOf": "{{total}} 项中 {{passed}} 项通过",
+    "moreMetrics": "另外 {{count}} 项",
+    "notRun": "未运行，应用调用失败",
+    "openTrace": "打开追踪",
+    "errorLabel": "错误",
+    "passedLabel": "通过",
+    "assertionsValue": "{{passed}} / {{total}}"
 }

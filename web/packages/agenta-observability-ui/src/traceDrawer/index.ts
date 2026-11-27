@@ -31,4 +31,17 @@ export {default as TraceContent} from "./TraceContent"
 export type * from "./traceTypeHeaderTypes"
 export {default as TraceDrawer} from "./TraceDrawer"
 export {default as TraceDrawerContent} from "./TraceDrawerContent"
-export {createReferenceLabels, type ReferenceHrefs} from "../references/referenceLabels"
+export {
+    createReferenceLabels,
+    mergeReferenceChips,
+    ReferenceChip,
+    testcaseChipLabel,
+    type MergedReferenceChip,
+    type MergedReferenceField,
+    type MergedReferenceKind,
+    type ReferenceChipProps,
+    type ReferenceHrefs,
+    type ReferenceIdentifiers,
+    type ReferenceKind,
+    type TraceReference,
+} from "../references"

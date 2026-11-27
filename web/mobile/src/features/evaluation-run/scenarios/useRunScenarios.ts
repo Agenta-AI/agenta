@@ -8,6 +8,7 @@ import {
     isTerminalRunStatus,
     queryEvaluationScenariosPage,
     runHeaderAtomFamily,
+    runMetricCatalogAtomFamily,
     type EvaluationRunScenario,
 } from "@agenta/entities/evaluationRun"
 import {
@@ -28,7 +29,9 @@ import {queryClientAtom} from "jotai-tanstack-query"
 import {
     buildScenarioRowData,
     isTerminalScenarioStatus,
+    metricKindsOf,
     scenarioColumnGroups,
+    withMetricKinds,
     type ScenarioRow,
     type ScenarioRowData,
     type ScenarioSchema,
@@ -176,6 +179,7 @@ export function useRunScenarios(runId: string, {poll = true}: {poll?: boolean} =
     const projectId = useAtomValue(projectIdAtom)
     const runQuery = useAtomValue(evaluationRunQueryAtomFamily(runId))
     const header = useAtomValue(runHeaderAtomFamily(runId))
+    const catalog = useAtomValue(runMetricCatalogAtomFamily(runId))
     const client = useQueryClient()
 
     const run = runQuery.data ?? null
@@ -199,12 +203,13 @@ export function useRunScenarios(runId: string, {poll = true}: {poll?: boolean} =
         staleTime: 30_000,
     })
 
+    const kinds = useMemo(() => metricKindsOf(catalog), [catalog])
     const rows = useMemo<ScenarioRow[]>(
         () =>
             (query.data?.pages ?? [])
                 .flatMap((page) => page.rows)
-                .map((row, position) => ({...row, index: position + 1})),
-        [query.data],
+                .map((row, position) => withMetricKinds({...row, index: position + 1}, kinds)),
+        [query.data, kinds],
     )
 
     const live = Boolean(header) && !isTerminalRunStatus(header?.status)

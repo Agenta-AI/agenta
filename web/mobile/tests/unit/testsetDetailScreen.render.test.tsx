@@ -23,11 +23,12 @@ const state = vi.hoisted(() => ({
     drawer: null as null | Record<string, unknown>,
     openRow: null as null | ((id: string) => void),
     rowAdded: null as null | ((id: string) => void),
+    query: {} as Record<string, string>,
 }))
 
 vi.mock("next/router", () => ({
     useRouter: () => ({
-        query: {workspace_id: "ws", project_id: "pr", testset_id: REVISION},
+        query: {workspace_id: "ws", project_id: "pr", testset_id: REVISION, ...state.query},
         push: vi.fn(),
     }),
 }))
@@ -132,6 +133,7 @@ describe("Test set page", () => {
         state.drawer = null
         state.openRow = null
         state.rowAdded = null
+        state.query = {}
         queryClient = new QueryClient()
         store = createStore()
         host = document.createElement("div")
@@ -203,6 +205,26 @@ describe("Test set page", () => {
 
         act(() => (state.drawer?.onPrevious as () => void)())
         expect(state.drawer).toMatchObject({testcaseId: "case-1"})
+    })
+
+    it("A link with testcase_id opens the editor on that test case", () => {
+        state.query = {testcase_id: "case-2"}
+        render()
+        expect(state.drawer).toMatchObject({testcaseId: "case-2", testcaseNumber: 2})
+    })
+
+    it("A testcase_id that is not in the revision opens nothing", () => {
+        state.query = {testcase_id: "case-9"}
+        render()
+        expect(state.drawer).toBeNull()
+    })
+
+    it("The link opens the editor once: closing it does not open it again", () => {
+        state.query = {testcase_id: "case-1"}
+        render()
+        act(() => (state.drawer?.onClose as () => void)())
+        render()
+        expect(state.drawer).toMatchObject({testcaseId: null})
     })
 
     it("While a save runs, the drawer opens view only", () => {

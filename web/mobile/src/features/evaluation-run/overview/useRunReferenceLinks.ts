@@ -3,10 +3,16 @@ import {useMemo} from "react"
 import {useRouter} from "next/router"
 
 import {useDeveloperViewEnabled} from "../../developer/developerViewAccess"
+import {TESTCASE_QUERY_PARAM} from "../../testsets/detail/testsetRouteId"
 
 export interface RunReferenceLinks {
     /** The test set page of one revision; null when the test sets view is off. */
     testset: (revisionId: string) => string | null
+    /**
+     * The test set page of one revision with the editor open on one test case
+     * (`?testcase_id=`); null when the test sets view is off.
+     */
+    testcase: (revisionId: string, testcaseId: string) => string | null
     /** The variants page of the app with the revision open; null when the variants view is off. */
     variant: (appId: string, revisionId: string) => string | null
 }
@@ -27,6 +33,10 @@ export const useRunReferenceLinks = (): RunReferenceLinks => {
         () => ({
             testset: (revisionId) =>
                 base && testsetsOn ? `${base}/testsets/${encodeURIComponent(revisionId)}` : null,
+            testcase: (revisionId, testcaseId) =>
+                base && testsetsOn
+                    ? `${base}/testsets/${encodeURIComponent(revisionId)}?${TESTCASE_QUERY_PARAM}=${encodeURIComponent(testcaseId)}`
+                    : null,
             variant: (appId, revisionId) =>
                 base && variantsOn
                     ? `${base}/variants?app=${encodeURIComponent(appId)}&revisionId=${encodeURIComponent(revisionId)}`

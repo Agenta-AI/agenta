@@ -1,4 +1,4 @@
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {testcaseDataController, type TestcaseTableRow} from "@agenta/entities/testcase"
 import {useTestcaseDrawerNavigation} from "@agenta/entity-ui/testcase"
@@ -38,7 +38,7 @@ import {ArchivedTestsetNotice} from "./ArchivedTestsetNotice"
 import {TestsetDetailSkeleton} from "./states/TestsetDetailSkeleton"
 import {TestsetGrid} from "./TestsetGrid"
 import {TestsetHeader} from "./TestsetHeader"
-import {testsetRevisionPath} from "./testsetRouteId"
+import {TESTCASE_QUERY_PARAM, testsetRevisionPath} from "./testsetRouteId"
 import {TestsetToolbar} from "./TestsetToolbar"
 import {useArchivedTestset} from "./useArchivedTestset"
 import {useRevisionArchive} from "./useRevisionArchive"
@@ -158,6 +158,15 @@ export const TestsetDetailScreen = ({
     const rows = useAtomValue(testcaseDataController.selectors.rows(editor.tableConfig))
     const columns = useAtomValue(testcaseDataController.selectors.columns(editor.tableConfig))
     const columnKeys = useMemo(() => columns.map((column) => column.key), [columns])
+    // A link with `?testcase_id=` opens the editor on that test case once, when it is in the revision.
+    const linkedTestcaseId = router.query[TESTCASE_QUERY_PARAM]
+    const linkHandled = useRef(false)
+    useEffect(() => {
+        if (linkHandled.current || typeof linkedTestcaseId !== "string" || rows.length === 0) return
+        linkHandled.current = true
+        if (rows.some((row) => row.id === linkedTestcaseId)) openRow(linkedTestcaseId)
+    }, [linkedTestcaseId, openRow, rows])
+
     const navigation = useTestcaseDrawerNavigation({
         rows,
         getRowId: rowId,

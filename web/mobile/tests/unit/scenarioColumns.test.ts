@@ -1,11 +1,14 @@
+import type {RunMetricEntry} from "@agenta/entities/evaluationRun"
 import {describe, expect, it} from "vitest"
 
 import {
     buildScenarioRowData,
     groupFallbackLabel,
     isTerminalScenarioStatus,
+    metricKindsOf,
     scenarioColumnGroups,
     scoreText,
+    withMetricKinds,
     type ScenarioSchema,
 } from "@/features/evaluation-run/scenarios/scenarioColumns"
 
@@ -214,6 +217,70 @@ describe("scenario columns", () => {
         )
         expect(row.errors).toEqual({})
         expect(row.otherErrors).toEqual(["The model timed out"])
+    })
+
+    it("Rows carry the test set of their test case, from testset_id or else set_id", () => {
+        const rowWith = (testcase: Record<string, unknown> | null) =>
+            buildScenarioRowData(
+                {
+                    scenario: {id: "sc-1", run_id: "r", status: "success"},
+                    results: [],
+                    metrics: [],
+                    testcase: testcase as never,
+                    traces: {},
+                },
+                schema,
+            )
+        expect(rowWith({id: "tc", data: {}, testset_id: "set-1"}).testsetId).toBe("set-1")
+        expect(rowWith({id: "tc", data: {}, set_id: "set-2"}).testsetId).toBe("set-2")
+        expect(rowWith(null).testsetId).toBeNull()
+    })
+
+    it("Evaluator cells carry the metric kind of the run metric catalog, by step key and path", () => {
+        const entry = (stepKey: string, metricKey: string, stats: RunMetricEntry["stats"]) =>
+            ({
+                id: `${stepKey}:${metricKey}`,
+                kind: "evaluator",
+                stepKey,
+                metricKey,
+                stats,
+            }) as RunMetricEntry
+        const kinds = metricKindsOf([
+            entry("evaluator-fcda", "attributes.ag.data.outputs.success", {
+                type: "binary",
+                freq: [{value: true, count: 1}],
+            } as never),
+            entry("other-step", "attributes.ag.data.outputs.success", {
+                type: "numeric/continuous",
+                mean: 0.5,
+            } as never),
+        ])
+        const row = buildScenarioRowData(
+            {
+                scenario: {id: "sc-1", run_id: "r", status: "success"},
+                results: [],
+                metrics: [],
+                testcase: null,
+                traces: {},
+            },
+            liveSchema,
+        )
+        const evaluatorKey = "evaluator:starts-uppercase"
+        expect(row.cells[evaluatorKey][0].metricKind).toBeUndefined()
+
+        const withKinds = withMetricKinds(row, kinds)
+        expect(withKinds.cells[evaluatorKey]).toMatchObject([
+            {name: "success", metricKind: "binary"},
+        ])
+        // Input and output cells are not metrics.
+        expect(
+            Object.entries(withKinds.cells)
+                .filter(([key]) => key !== evaluatorKey)
+                .flatMap(([, cells]) => cells)
+                .every((cell) => cell.metricKind === undefined),
+        ).toBe(true)
+        // Before the catalog loads, the row is the same object.
+        expect(withMetricKinds(row, new Map())).toBe(row)
     })
 
     it("A scenario is finished once it succeeded or failed", () => {

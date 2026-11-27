@@ -44,5 +44,12 @@
     "copyValue": "Copier la valeur",
     "copied": "Copié",
     "noOutput": "Aucune sortie",
-    "fullView": "Vue complète"
+    "fullView": "Vue complète",
+    "passedOf": "{{passed}} sur {{total}} réussis",
+    "moreMetrics": "+{{count}} de plus",
+    "notRun": "Non exécuté, l’appel de l’application a échoué",
+    "openTrace": "Ouvrir la trace",
+    "errorLabel": "erreur",
+    "passedLabel": "Réussis",
+    "assertionsValue": "{{passed}} sur {{total}}"
 }

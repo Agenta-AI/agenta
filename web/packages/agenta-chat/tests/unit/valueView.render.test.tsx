@@ -2,12 +2,25 @@
  * @vitest-environment jsdom
  *
  * The value views of the evaluation views: each shape as a field (the taxonomy's "Field" column),
- * the "parsed from text" note, folding, and the full view with Formatted and Raw.
+ * the "parsed from text" note, folding, the full view with Formatted and Raw, the evaluator
+ * result row and the drawer header count.
  */
+import {
+    assertionSummary,
+    summarizeEvaluatorResult,
+    type EvaluatorResultMetricInput,
+    type EvaluatorResultState,
+} from "@agenta/entities/evaluationRun"
 import {cleanup, fireEvent, render, screen, waitFor} from "@testing-library/react"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {ValueField, ValueFullView} from "../../src/value-view"
+import {
+    AssertionSummary,
+    EvaluatorResultList,
+    EvaluatorResultRow,
+    ValueField,
+    ValueFullView,
+} from "../../src/value-view"
 
 vi.mock("@agenta/entities/gatewayTool", () => ({
     useToolIntegrationDetail: () => ({integration: null}),
@@ -313,5 +326,185 @@ describe("ValueFullView", () => {
         render(<ValueField value={lines(20)} label="contract_text" />)
         fireEvent.click(screen.getByRole("button", {name: "Open full view"}))
         expect(await screen.findByRole("dialog")).toBeTruthy()
+    })
+})
+
+const summary = (metrics: EvaluatorResultMetricInput[], state: EvaluatorResultState = "done") =>
+    summarizeEvaluatorResult(metrics, state)
+
+describe("EvaluatorResultRow", () => {
+    it("draws three short metrics by name, Pass for a true one, and is not red", () => {
+        const {container} = render(
+            <EvaluatorResultRow
+                name="Return policy check"
+                summary={summary([
+                    {name: "success", value: true, kind: "binary"},
+                    {name: "score", value: 0.35, kind: "numeric"},
+                    {name: "label", value: "partial", kind: "categorical"},
+                ])}
+            />,
+        )
+        expect(container.textContent).toBe("Return policy checksuccessPassscore0.35labelpartial")
+        expect(container.querySelector(".text-destructive")).toBeNull()
+        // Nothing to open: no caret button.
+        expect(screen.queryByRole("button")).toBeNull()
+    })
+
+    it("draws 7 binary metrics with 2 false as the failed names and 5 of 7 passed, a grid on expand", () => {
+        const values = [true, true, false, true, false, true, true]
+        render(
+            <EvaluatorResultRow
+                name="Senest Eingang Klassifikation"
+                summary={summary(
+                    values.map((value, index) => ({
+                        name: `check ${index + 1}`,
+                        value,
+                        kind: "binary",
+                    })),
+                )}
+            />,
+        )
+        expect(screen.getByText("5 of 7 passed").className).toContain("text-destructive")
+        expect(screen.getByText("check 3")).toBeTruthy()
+        expect(screen.queryByText("check 1")).toBeNull()
+        fireEvent.click(screen.getByRole("button", {name: /Senest Eingang Klassifikation/}))
+        expect(screen.getByText("check 1")).toBeTruthy()
+        expect(screen.getAllByText("Pass")).toHaveLength(5)
+    })
+
+    it("draws 6 numbers with no binary as the first two and +4 more, never passed or red", () => {
+        const {container} = render(
+            <EvaluatorResultRow
+                name="Retrieval quality"
+                summary={summary(
+                    ["Accuracy", "Coverage", "F1", "MRR", "Hits", "Recall"].map((name, index) => ({
+                        name,
+                        value: [0.6, 0.8, 0.72, 0.58, 7, 0.64][index],
+                        kind: "numeric",
+                    })),
+                )}
+            />,
+        )
+        expect(screen.getByText("Accuracy 0.6, Coverage 0.8 +4 more")).toBeTruthy()
+        expect(container.textContent).not.toContain("passed")
+        expect(container.querySelector(".text-destructive")).toBeNull()
+    })
+
+    it("shows a reason as markdown and a JSON metric as key rows only on expand", async () => {
+        const {container} = render(
+            <EvaluatorResultRow
+                name="Return policy check"
+                summary={summary([
+                    {name: "success", value: true, kind: "binary"},
+                    {name: "reason", value: "The agent checked the **order date**.", kind: "text"},
+                    {name: "details", value: {missing: ["price"]}, kind: "text"},
+                ])}
+            />,
+        )
+        expect(container.textContent).not.toContain("reason")
+        fireEvent.click(screen.getByRole("button", {name: /Return policy check/}))
+        await waitFor(() =>
+            expect(container.textContent).toContain("The agent checked the order date."),
+        )
+        expect(screen.getByText("missing")).toBeTruthy()
+        expect(screen.getByText("price")).toBeTruthy()
+    })
+
+    it("draws an error as a red Error badge, with the message and Open trace on expand", () => {
+        const onOpenTrace = vi.fn()
+        render(
+            <EvaluatorResultRow
+                name="Refund amount match"
+                summary={summary([], "error")}
+                error="Rate limit exceeded"
+                onOpenTrace={onOpenTrace}
+            />,
+        )
+        expect(screen.getByText("Error").className).toContain("text-destructive")
+        fireEvent.click(screen.getByRole("button", {name: /Refund amount match/}))
+        expect(screen.getByText("Rate limit exceeded")).toBeTruthy()
+        fireEvent.click(screen.getByRole("button", {name: "Open trace"}))
+        expect(onOpenTrace).toHaveBeenCalled()
+    })
+
+    it("draws a running evaluator as Running, and one that did not run as muted with no caret", () => {
+        const {container} = render(
+            <>
+                <EvaluatorResultRow name="Escalation check" summary={summary([], "pending")} />
+                <EvaluatorResultRow name="Exact match" summary={summary([], "notRun")} />
+            </>,
+        )
+        expect(screen.getByText("Running")).toBeTruthy()
+        expect(screen.getByText("Not run, the app call failed")).toBeTruthy()
+        expect(container.querySelector("button")).toBeNull()
+    })
+
+    it("keeps the host's trace button at the end of the row", () => {
+        render(
+            <EvaluatorResultRow
+                name="Tone"
+                summary={summary([{name: "label", value: "friendly", kind: "categorical"}])}
+                actions={<span data-testid="trace-button" />}
+            />,
+        )
+        expect(screen.getByTestId("trace-button")).toBeTruthy()
+    })
+})
+
+describe("EvaluatorResultList", () => {
+    it("lists failed and errored first by name, then the others, then not run", () => {
+        const {container} = render(
+            <EvaluatorResultList
+                items={[
+                    {id: "d", name: "D", summary: summary([], "notRun")},
+                    {
+                        id: "a",
+                        name: "A",
+                        summary: summary([{name: "ok", value: true, kind: "binary"}]),
+                    },
+                    {id: "c", name: "C", summary: summary([], "error")},
+                    {
+                        id: "b",
+                        name: "B",
+                        summary: summary([{name: "ok", value: false, kind: "binary"}]),
+                    },
+                ]}
+            />,
+        )
+        const names = [...container.querySelectorAll(".text-label.truncate")].map(
+            (node) => node.textContent,
+        )
+        expect(names).toEqual(["B", "C", "A", "D"])
+    })
+})
+
+describe("AssertionSummary", () => {
+    it("shows Passed 3 of 4 in destructive when a binary metric is false", () => {
+        render(
+            <AssertionSummary
+                summary={assertionSummary([
+                    summary([
+                        {name: "a", value: true, kind: "binary"},
+                        {name: "b", value: true, kind: "binary"},
+                        {name: "c", value: true, kind: "binary"},
+                        {name: "d", value: false, kind: "binary"},
+                    ]),
+                ])}
+            />,
+        )
+        expect(screen.getByText("Passed")).toBeTruthy()
+        expect(screen.getByText("3 of 4").className).toContain("text-destructive")
+    })
+
+    it("shows the main numbers by name and never Passed when no metric is binary", () => {
+        const {container} = render(
+            <AssertionSummary
+                summary={assertionSummary([
+                    summary([{name: "relevance", value: 0.8, kind: "numeric"}]),
+                    summary([{name: "faithfulness", value: 0.9, kind: "numeric"}]),
+                ])}
+            />,
+        )
+        expect(container.textContent).toBe("relevance0.8faithfulness0.9")
     })
 })

@@ -26,5 +26,12 @@
     "copyValue": "値をコピー",
     "copied": "コピーしました",
     "noOutput": "出力なし",
-    "fullView": "全体表示"
+    "fullView": "全体表示",
+    "passedOf": "{{total}} 件中 {{passed}} 件合格",
+    "moreMetrics": "ほか {{count}} 件",
+    "notRun": "未実行（アプリの呼び出しが失敗しました）",
+    "openTrace": "トレースを開く",
+    "errorLabel": "エラー",
+    "passedLabel": "合格",
+    "assertionsValue": "{{passed}} / {{total}}"
 }

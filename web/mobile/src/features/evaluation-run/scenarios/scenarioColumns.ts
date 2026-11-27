@@ -1,10 +1,13 @@
 import {
     format3Sig,
     INVOCATION_METRICS,
+    metricKind,
     scenarioMetricStats,
     stepMetricStats,
     type EvaluationRunScenario,
+    type MetricKind,
     type MetricStats,
+    type RunMetricEntry,
 } from "@agenta/entities/evaluationRun"
 import {
     computeColumnGroup,
@@ -33,6 +36,11 @@ export interface ScenarioCell {
     /** The mapping path, which tells a metric what it measures. */
     path: string
     value: unknown
+    /**
+     * An evaluator cell's metric kind, from the run metric catalog by step key and path. Absent
+     * on other cells, and until the catalog has loaded.
+     */
+    metricKind?: MetricKind
 }
 
 /** A scenario with its values already picked out of the hydrated entities. */
@@ -40,6 +48,8 @@ export interface ScenarioRowData {
     scenario: EvaluationRunScenario
     /** The test case the scenario ran on: what lines up the rows of compared runs. */
     testcaseId: string | null
+    /** The test set of that test case; with the run's revisions it names the revision to link to. */
+    testsetId: string | null
     /** Cells by group key, in the order of the group's columns. */
     cells: Record<string, ScenarioCell[]>
     /** True when the traces of this scenario did not load: its outputs and scores are unknown. */
@@ -230,6 +240,7 @@ export function buildScenarioRowData(
     return {
         scenario: hydrated.scenario,
         testcaseId: hydrated.testcase?.id ?? hydrated.scenario.testcase_id ?? null,
+        testsetId: hydrated.testcase?.testset_id ?? hydrated.testcase?.set_id ?? null,
         cells,
         valuesFailed,
         invocation,
@@ -239,6 +250,45 @@ export function buildScenarioRowData(
         metrics,
         steps,
     }
+}
+
+/** The kind of each evaluator metric of a run, by `{stepKey}:{metricKey}` (the catalog entry id). */
+export function metricKindsOf(catalog: readonly RunMetricEntry[]): ReadonlyMap<string, MetricKind> {
+    const kinds = new Map<string, MetricKind>()
+    for (const entry of catalog) {
+        if (entry.kind === "evaluator" && entry.stats) kinds.set(entry.id, metricKind(entry.stats))
+    }
+    return kinds
+}
+
+/**
+ * A row whose evaluator cells carry their metric kind. The kinds come from the run metric
+ * catalog, which loads apart from the rows, so they are added when the row is read, not when
+ * its page is fetched. A row with no evaluator cell to change comes back as it is.
+ */
+export function withMetricKinds<R extends ScenarioRowData>(
+    row: R,
+    kinds: ReadonlyMap<string, MetricKind>,
+): R {
+    if (kinds.size === 0) return row
+    let changed = false
+    const cells: Record<string, ScenarioCell[]> = {}
+    for (const [groupKey, list] of Object.entries(row.cells)) {
+        cells[groupKey] = list.map((cell) => {
+            if (cell.kind !== "evaluator") return cell
+            const column = row.columns.find(
+                (candidate) =>
+                    candidate.group.key === groupKey &&
+                    candidate.name === cell.name &&
+                    candidate.path === cell.path,
+            )
+            const kind = column ? kinds.get(`${column.stepKey}:${column.path}`) : undefined
+            if (!kind || kind === cell.metricKind) return cell
+            changed = true
+            return {...cell, metricKind: kind}
+        })
+    }
+    return changed ? {...row, cells} : row
 }
 
 const FAILED_STATUSES: ReadonlySet<string> = new Set(["failure", "failed", "error", "errors"])
