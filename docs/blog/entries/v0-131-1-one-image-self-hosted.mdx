@@ -18,13 +18,9 @@ description: "You can move a self-hosted install from open source to Enterprise 
 
 <Summary>
 
-We keep working on self-hosted Agenta, and this release brings three changes to it.
+We keep working on self-hosted Agenta, and this release brings three changes. You can move from the open source edition to Enterprise with a license key, without changing your images. There is a new free Registered plan, and when you register your instance from the app, you get a free key that removes the project limit.
 
-First, you can move from the open source edition to Enterprise without changing your images. Until now, there were two separate images, one for each edition, and now every install runs the same image, so you upgrade by adding a license key.
-
-Second, we added a free Registered plan. An instance that is not registered can have 1 project, and when you register it from the app, you get a free key that removes the project limit. The [license keys page](/self-host/license-keys#limits-by-plan) compares the plans.
-
-Third, we reworked self-hosted telemetry, so that each instance counts once and test installs no longer mix with real ones. The [Telemetry page](/self-host/telemetry) lists what an instance sends and how to turn it off.
+We also reworked self-hosted telemetry, so that each instance counts once and test installs no longer mix with real ones. The [Telemetry page](/self-host/telemetry) lists what an instance sends and how to turn it off. The [license keys page](/self-host/license-keys#limits-by-plan) compares the plans.
 
 </Summary>
 
@@ -36,7 +32,7 @@ We keep working on self-hosted Agenta, and this release brings three changes to 
 
 Until now, the open source and Enterprise editions shipped as two separate sets of images. To move an install from open source to Enterprise, you had to switch to the Enterprise images. Now every install runs the same images, and a license key decides the plan of the instance.
 
-To move to Enterprise, add your key in **Settings > License**, or set `AGENTA_LICENSE_KEY` in your environment. You do not change your images, compose files or Helm values. See [License keys](/self-host/license-keys).
+To move to Enterprise, add your key in **Settings > License**. You do not change your images or compose files. To set the key through the environment instead, use `AGENTA_LICENSE_KEY`. Docker Compose users add it to `.env`. Helm users add it under `extraEnv` in their values file. See [License keys](/self-host/license-keys).
 
 ## A free Registered plan
 
