@@ -1,5 +1,5 @@
 import type {CSSProperties, ReactNode} from "react"
-import {useMemo} from "react"
+import {createContext, useContext, useMemo} from "react"
 
 import {useT} from "@agenta/i18n"
 import scenariosCatalog from "@agenta/i18n/catalogs/evaluations.scenarios"
@@ -24,7 +24,6 @@ import {
     type SortDirection,
 } from "./scenarioTableColumns"
 import {defaultColumnWidth, LEAD_WIDTH, ROW_HEIGHT, type ScenarioView} from "./scenarioViewDefaults"
-import {useTableBodyHeight} from "./useTableBodyHeight"
 
 /** The table's width change, as `VirtualTable` reports a drag. */
 export type ScenarioWidthsChange = NonNullable<VirtualTableProps<object>["onColumnSizingChange"]>
@@ -43,10 +42,97 @@ const ROW_HOVER = "group-hover/row:bg-[image:linear-gradient(var(--accent),var(-
 const DIVIDER = "border-0 border-solid border-border-muted"
 
 /**
+ * What changes while the table is open (widths, sort) and the actions, read by the headers and
+ * cells. They are kept out of the column list: `VirtualTable` mounts every header again when the
+ * list changes, which would close an open column menu on a drag, a width step or a polling tick.
+ */
+interface ScenarioTableActions {
+    widths: Record<string, number>
+    sort: ScenarioSort | null
+    onSort: (sort: ScenarioSort) => void
+    onWidth: (key: string, width: number | null) => void
+    onHide: (key: string) => void
+    onAnnotate: (row: ScenarioRow) => void
+    onRetry: () => void
+}
+
+const ActionsContext = createContext<ScenarioTableActions | null>(null)
+
+const useActions = () => {
+    const actions = useContext(ActionsContext)
+    if (!actions) throw new Error("ScenarioTable parts render inside ScenarioTable")
+    return actions
+}
+
+/** A column header with its menu; its width before a drag is `defaultWidth`. */
+const ColumnHeader = ({
+    columnKey,
+    label,
+    title,
+    defaultWidth,
+    right = false,
+    narrow = false,
+}: {
+    columnKey: string
+    label: string
+    title: string
+    defaultWidth: number
+    right?: boolean
+    narrow?: boolean
+}) => {
+    const {widths, sort, onSort, onWidth, onHide} = useActions()
+    return (
+        <ScenarioColumnMenu
+            label={label}
+            title={title}
+            align={right ? "right" : "left"}
+            narrow={narrow}
+            width={widths[columnKey] ?? defaultWidth}
+            sorted={sort?.key === columnKey ? sort.direction : null}
+            onSort={(direction) => onSort({key: columnKey, direction})}
+            onWidth={(width) => onWidth(columnKey, width)}
+            onResetWidth={() => onWidth(columnKey, null)}
+            onHide={() => onHide(columnKey)}
+        />
+    )
+}
+
+/** A value cell; `retry` marks the one cell of a row that offers to load its values again. */
+const ValueTableCell = (props: {
+    row: ScenarioRow
+    column: ScenarioColumn
+    density: ScenarioView["density"]
+    lines: 1 | 3
+    retry: boolean
+}) => {
+    const {onRetry} = useActions()
+    return <ScenarioTableCell {...props} onRetry={props.retry ? onRetry : undefined} />
+}
+
+const AnnotateCell = ({row}: {row: ScenarioRow}) => {
+    const {onAnnotate} = useActions()
+    return <ScenarioAnnotateButton onClick={() => onAnnotate(row)} />
+}
+
+/** Why a compared run shows no scenario on this row. */
+const CompareNote = ({entry}: {entry: ScenarioEntry}) => {
+    const t = useT(scenariosCatalog)
+    return (
+        <span className="truncate text-meta text-muted-foreground">
+            {entry.failed
+                ? t("evaluations.scenarios.compareLoadFailed")
+                : entry.pending
+                  ? t("evaluations.scenarios.loading")
+                  : t("evaluations.scenarios.compareNoMatch")}
+        </span>
+    )
+}
+
+/**
  * The Scenarios table on a window 1,024 px and wider, on `VirtualTable`: the number, the status
  * and the label column stay while the table scrolls sideways; each evaluator's name stands over
  * its metric columns; a header opens its column menu and its edge drags to resize. Clicking a row
- * opens the scenario in the drawer.
+ * opens the scenario in the drawer. With `height` the body scrolls on its own under the header.
  */
 export const ScenarioTable = ({
     entries,
@@ -61,6 +147,7 @@ export const ScenarioTable = ({
     fieldLabel,
     emptyText,
     loading,
+    height,
     onSort,
     onWidth,
     onWidths,
@@ -82,6 +169,8 @@ export const ScenarioTable = ({
     fieldLabel: (column: ScenarioFieldColumn) => string
     emptyText: ReactNode
     loading: boolean
+    /** The body's height; without it the table is as tall as its rows. */
+    height?: number
     onSort: (sort: ScenarioSort) => void
     onWidth: (key: string, width: number | null) => void
     onWidths: ScenarioWidthsChange
@@ -100,6 +189,16 @@ export const ScenarioTable = ({
     const showWords = entries.some(
         (entry) => entry.row && entry.row.scenario.status?.toLowerCase() !== "success",
     )
+    // A row whose values did not load says so once, in its first column read from the trace.
+    const retryKey =
+        fields.find((column) => column.section === "output")?.key ??
+        evaluators[0]?.columns[0]?.key ??
+        null
+
+    const actions = useMemo<ScenarioTableActions>(
+        () => ({widths, sort, onSort, onWidth, onHide, onAnnotate, onRetry}),
+        [widths, sort, onSort, onWidth, onHide, onAnnotate, onRetry],
+    )
 
     const columns = useMemo<ColumnDefs<ScenarioEntry>>(() => {
         const cellBox = (narrow: boolean) =>
@@ -108,28 +207,6 @@ export const ScenarioTable = ({
                 tall ? "h-18 items-start py-2.5" : "h-9 items-center",
                 narrow ? "px-1" : "px-2",
             )
-        const widthOf = (column: ScenarioColumn) =>
-            widths[column.key] ?? defaultColumnWidth(column, density)
-        const header = (
-            column: ScenarioColumn,
-            text: string,
-            title: string,
-            right = false,
-            narrow = false,
-        ) => (
-            <ScenarioColumnMenu
-                label={text}
-                title={title}
-                align={right ? "right" : "left"}
-                narrow={narrow}
-                width={widthOf(column)}
-                sorted={sort?.key === column.key ? sort.direction : null}
-                onSort={(direction) => onSort({key: column.key, direction})}
-                onWidth={(width) => onWidth(column.key, width)}
-                onResetWidth={() => onWidth(column.key, null)}
-                onHide={() => onHide(column.key)}
-            />
-        )
         // The last pinned column draws the line between the pinned and the scrolling columns.
         const lastLead = label ? label.key : isHumanRun ? "annotate" : comparing ? "run" : "status"
         const lead = (key: string, width: number, title: ReactNode) => {
@@ -156,11 +233,12 @@ export const ScenarioTable = ({
         )
         const valueColumn = (
             column: ScenarioColumn,
+            width: number,
             title: ReactNode,
             options: {narrow?: boolean; first?: boolean; fixed?: boolean; last?: boolean} = {},
         ) => ({
             key: column.key,
-            width: widthOf(column),
+            width,
             minWidth: 32,
             ...(options.fixed ? {fixed: "left" as const} : {}),
             title,
@@ -178,12 +256,12 @@ export const ScenarioTable = ({
             render: (_: unknown, entry: ScenarioEntry) => (
                 <div className={cellBox(Boolean(options.narrow))}>
                     {entry.row ? (
-                        <ScenarioTableCell
+                        <ValueTableCell
                             row={entry.row}
                             column={column}
                             density={density}
                             lines={lines}
-                            onRetry={onRetry}
+                            retry={column.key === retryKey}
                         />
                     ) : null}
                 </div>
@@ -221,8 +299,10 @@ export const ScenarioTable = ({
             defs.push({
                 ...lead("run", LEAD_WIDTH.run, leadTitle(t("evaluations.scenarios.evaluation"))),
                 render: (_: unknown, entry: ScenarioEntry) => (
-                    <div className={cellBox(false)}>
+                    <div className={clsx(cellBox(false), "gap-2")}>
                         <CompareRowRun slot={entry.slot} name={entry.runName} />
+                        {/* With no label column, the run column says why a row is empty. */}
+                        {!label && !entry.row ? <CompareNote entry={entry} /> : null}
                     </div>
                 ),
             })
@@ -232,20 +312,26 @@ export const ScenarioTable = ({
                 ...lead("annotate", LEAD_WIDTH.annotate, null),
                 render: (_: unknown, entry: ScenarioEntry) => (
                     <div className={cellBox(false)}>
-                        {entry.slot === 0 && entry.row ? (
-                            <ScenarioAnnotateButton
-                                onClick={() => entry.row && onAnnotate(entry.row)}
-                            />
-                        ) : null}
+                        {entry.slot === 0 && entry.row ? <AnnotateCell row={entry.row} /> : null}
                     </div>
                 ),
             })
         }
         if (label) {
             const name = fieldLabel(label)
+            const width = LEAD_WIDTH.label[density]
             defs.push({
-                ...valueColumn(label, header(label, name, name), {fixed: true, last: true}),
-                width: widths[label.key] ?? LEAD_WIDTH.label[density],
+                ...valueColumn(
+                    label,
+                    width,
+                    <ColumnHeader
+                        columnKey={label.key}
+                        label={name}
+                        title={name}
+                        defaultWidth={width}
+                    />,
+                    {fixed: true, last: true},
+                ),
                 render: (_: unknown, entry: ScenarioEntry) => (
                     <div className={cellBox(false)}>
                         {entry.row ? (
@@ -255,13 +341,7 @@ export const ScenarioTable = ({
                                 lines={lines}
                             />
                         ) : (
-                            <span className="truncate text-meta text-muted-foreground">
-                                {entry.failed
-                                    ? t("evaluations.scenarios.compareLoadFailed")
-                                    : entry.pending
-                                      ? t("evaluations.scenarios.loading")
-                                      : t("evaluations.scenarios.compareNoMatch")}
-                            </span>
+                            <CompareNote entry={entry} />
                         )}
                     </div>
                 ),
@@ -269,7 +349,19 @@ export const ScenarioTable = ({
         }
         for (const column of fields) {
             const name = fieldLabel(column)
-            defs.push(valueColumn(column, header(column, name, name)))
+            const width = defaultColumnWidth(column, density)
+            defs.push(
+                valueColumn(
+                    column,
+                    width,
+                    <ColumnHeader
+                        columnKey={column.key}
+                        label={name}
+                        title={name}
+                        defaultWidth={width}
+                    />,
+                ),
+            )
         }
         for (const group of evaluators) {
             defs.push({
@@ -291,23 +383,38 @@ export const ScenarioTable = ({
                 ),
                 onHeaderCell: () => ({style: HEADER_STYLE, className: `${DIVIDER} border-l`}),
                 children: group.columns.map((column, position) => {
-                    const right = column.metricKind === "numeric"
+                    const width = defaultColumnWidth(column, density)
                     return valueColumn(
                         column,
-                        header(
-                            column,
-                            column.label,
-                            `${group.label} · ${column.label}`,
-                            right,
-                            compact,
-                        ),
+                        width,
+                        <ColumnHeader
+                            columnKey={column.key}
+                            label={column.label}
+                            title={`${group.label} · ${column.label}`}
+                            defaultWidth={width}
+                            right={column.metricKind === "numeric"}
+                            narrow={compact}
+                        />,
                         {narrow: compact, first: position === 0},
                     )
                 }),
             })
         }
         for (const column of metrics) {
-            defs.push(valueColumn(column, header(column, column.label, column.label, true)))
+            const width = defaultColumnWidth(column, density)
+            defs.push(
+                valueColumn(
+                    column,
+                    width,
+                    <ColumnHeader
+                        columnKey={column.key}
+                        label={column.label}
+                        title={column.label}
+                        defaultWidth={width}
+                        right
+                    />,
+                ),
+            )
         }
         return defs
     }, [
@@ -321,25 +428,14 @@ export const ScenarioTable = ({
         label,
         lines,
         metrics,
-        onAnnotate,
-        onHide,
-        onRetry,
-        onSort,
-        onWidth,
+        retryKey,
         showWords,
-        sort,
+        t,
         tall,
-        widths,
-    ])
-
-    // A bounded body keeps the header in place while the rows scroll.
-    const {boxRef, height} = useTableBodyHeight(entries.length * (ROW_HEIGHT[rowHeight] + 1), [
-        density,
-        evaluators.length,
     ])
 
     return (
-        <div ref={boxRef}>
+        <ActionsContext.Provider value={actions}>
             <VirtualTable<ScenarioEntry>
                 height={height}
                 loadMore={onLoadMore}
@@ -359,12 +455,15 @@ export const ScenarioTable = ({
                               className: "group/row cursor-pointer",
                               onClick: () => onOpen(entry),
                               onKeyDown: (event) => {
-                                  if (event.key === "Enter") onOpen(entry)
+                                  // Enter on a control in the row (Annotate, Try again, a link) is
+                                  // that control's own.
+                                  if (event.key === "Enter" && event.target === event.currentTarget)
+                                      onOpen(entry)
                               },
                           }
                         : {className: "group/row"}
                 }
             />
-        </div>
+        </ActionsContext.Provider>
     )
 }

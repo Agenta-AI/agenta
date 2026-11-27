@@ -382,15 +382,99 @@ describe("scenarios table", () => {
     })
 
     it("Scrolling the table to its end loads the next page", async () => {
+        const innerHeight = window.innerHeight
+        window.innerHeight = 400
+        try {
+            const ids = Array.from({length: 12}, (_, index) => `sc-${index + 1}`)
+            await mount({ids, pageSize: 10})
+            const body = host.querySelector<HTMLElement>(".avt-body")
+            // Ten rows are taller than the room: the body scrolls on its own.
+            expect(body?.style.height).toBe("328px")
+            expect(scenarioReads()).toBe(1)
+            await act(async () => {
+                body?.dispatchEvent(new Event("scroll"))
+                await vi.advanceTimersByTimeAsync(100)
+            })
+            await settle()
+            expect(scenarioReads()).toBe(2)
+        } finally {
+            window.innerHeight = innerHeight
+        }
+    })
+
+    it("When the rows fit, reaching the footer loads the next page", async () => {
+        let intersect: (() => void) | null = null
+        vi.stubGlobal(
+            "IntersectionObserver",
+            class {
+                constructor(callback: IntersectionObserverCallback) {
+                    intersect = () =>
+                        callback(
+                            [{isIntersecting: true} as IntersectionObserverEntry],
+                            this as never,
+                        )
+                }
+                observe = vi.fn()
+                disconnect = vi.fn()
+            },
+        )
         await mount({ids: ["sc-1", "sc-2", "sc-3"], pageSize: 2})
         expect(rows()).toHaveLength(2)
-        const body = host.querySelector<HTMLElement>(".avt-body")
-        await act(async () => {
-            body?.dispatchEvent(new Event("scroll"))
-            await vi.advanceTimersByTimeAsync(100)
-        })
+        expect(host.querySelector<HTMLElement>(".avt-body")?.style.height).toBe("")
+        await act(async () => intersect?.())
         await settle()
         expect(rows()).toHaveLength(3)
+    })
+
+    it("A column menu stays open while its width changes", async () => {
+        await mount({ids: ["sc-1"]})
+        await openMenu(button("Cost"))
+        expect(document.body.textContent).toContain("96 px")
+        await click(button("Wider"))
+        await click(button("Wider"))
+        const menu = [...document.querySelectorAll('[role="menu"]')].at(-1)
+        expect(menu?.getAttribute("data-state")).toBe("open")
+        expect(menu?.textContent).toContain("144 px")
+    })
+
+    it("The label column's Wider starts from its drawn width", async () => {
+        await mount({ids: ["sc-1"]})
+        await openMenu(button("country"))
+        // Compact draws the label column 220 px wide.
+        expect([...document.querySelectorAll('[role="menu"]')].at(-1)?.textContent).toContain(
+            "220 px",
+        )
+    })
+
+    it("Hide column on the label column leaves the table with no label column", async () => {
+        await mount({ids: ["sc-1"]})
+        await openMenu(button("country"))
+        await click(menuItem("Hide column"))
+        expect(headers()).not.toContain("country")
+        expect(rows()[0].textContent).not.toContain("France")
+        await openMenu(button("Display"))
+        expect(menuItem("Columns")?.textContent).toContain("1 hidden")
+    })
+
+    it("Enter on a control in a row is the control's own and does not open the drawer", async () => {
+        await mount({ids: ["sc-1"]}, {...RUN, kind: "human"})
+        const annotate = [...rows()[0].querySelectorAll("button")].find(
+            (node) => node.textContent === "Annotate",
+        )
+        await act(async () => {
+            annotate?.dispatchEvent(
+                new KeyboardEvent("keydown", {key: "Enter", bubbles: true, cancelable: true}),
+            )
+            await vi.advanceTimersByTimeAsync(50)
+        })
+        expect(router.replace).not.toHaveBeenCalled()
+        await act(async () => {
+            rows()[0].dispatchEvent(
+                new KeyboardEvent("keydown", {key: "Enter", bubbles: true, cancelable: true}),
+            )
+            await vi.advanceTimersByTimeAsync(50)
+        })
+        expect(router.replace).toHaveBeenCalledTimes(1)
     })
 
     it("On a human run each row has Annotate next to its status", async () => {

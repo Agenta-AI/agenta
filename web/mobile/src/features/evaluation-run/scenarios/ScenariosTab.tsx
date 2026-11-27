@@ -40,6 +40,7 @@ import {scenarioFilterAtomFamily} from "./scenarioTableState"
 import {
     hiddenKeys,
     labelColumnKey,
+    ROW_HEIGHT,
     moveKey,
     orderedByKeys,
     setColumnsHidden,
@@ -54,6 +55,7 @@ import {SCENARIOS_PAGE_SIZE, useRunScenarios} from "./useRunScenarios"
 import {useScenarioFilter} from "./useScenarioFilter"
 import {useScenarioGroupLabels} from "./useScenarioGroupLabels"
 import {useScenarioView} from "./useScenarioView"
+import {useTableBodyHeight} from "./useTableBodyHeight"
 
 // The annotate sheet brings the annotation controllers: it loads when a row asks for it.
 const RunAnnotateSheet = dynamic<{
@@ -124,26 +126,46 @@ export const ScenariosTab = ({
         loadMore: scenarios.loadMore,
     })
 
-    const model = useMemo(
+    const freshModel = useMemo(
         () => scenarioColumnModel(columnGroups, rows, labels, scenarios.schema.steps),
         [columnGroups, rows, labels, scenarios.schema.steps],
     )
-    const hidden = useMemo(() => hiddenKeys(model, view), [model, view])
+    // A polling tick gives new rows but almost never new columns: keep the same model then, so
+    // the table keeps its column list and does not draw every header and cell again.
+    const modelText = JSON.stringify(freshModel)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const model = useMemo(() => freshModel, [modelText])
+    const {density, hide, show} = view
+    // Not on the whole view: a width drag must not rebuild the column list.
+    const hidden = useMemo(
+        () => hiddenKeys(model, {density, hide, show}),
+        [model, density, hide, show],
+    )
     const labelKey = labelColumnKey(model, view)
     const label = model.fields.find((column) => column.key === labelKey) ?? null
     const fields = useMemo(
         () => orderedByKeys(model.fields, view.order).filter((column) => column.key !== labelKey),
         [model.fields, view.order, labelKey],
     )
-    const evaluators = useMemo(() => {
-        if (!view.orderByFailures) return orderedByKeys(model.evaluators, view.order)
+    // By failures: the order changes only when the counts reorder the evaluators, not on each tick.
+    const failureOrder = useMemo(() => {
+        if (!view.orderByFailures) return null
         const failures = new Map(
             model.evaluators.map((group) => [group.key, evaluatorFailures(rows, group)]),
         )
-        return [...model.evaluators].sort(
-            (a, b) => (failures.get(b.key) ?? 0) - (failures.get(a.key) ?? 0),
-        )
-    }, [model.evaluators, view.order, view.orderByFailures, rows])
+        return [...model.evaluators]
+            .sort((a, b) => (failures.get(b.key) ?? 0) - (failures.get(a.key) ?? 0))
+            .map((group) => group.key)
+            .join("\n")
+    }, [model.evaluators, view.orderByFailures, rows])
+    const evaluators = useMemo(
+        () =>
+            orderedByKeys(
+                model.evaluators,
+                failureOrder === null ? view.order : failureOrder.split("\n"),
+            ),
+        [model.evaluators, view.order, failureOrder],
+    )
     const allColumns = useMemo<ScenarioColumn[]>(
         () => [
             ...model.fields,
@@ -153,6 +175,19 @@ export const ScenariosTab = ({
         [model],
     )
     const sortColumn = sort ? allColumns.find((column) => column.key === sort.key) : undefined
+    const visible = useMemo(
+        () => ({
+            fields: fields.filter((column) => !hidden.has(column.key)),
+            evaluators: evaluators
+                .map((group) => ({
+                    ...group,
+                    columns: group.columns.filter((column) => !hidden.has(column.key)),
+                }))
+                .filter((group) => group.columns.length > 0),
+            metrics: model.metrics.filter((column) => !hidden.has(column.key)),
+        }),
+        [fields, evaluators, model.metrics, hidden],
+    )
 
     const comparing = compareIds.length > 0
     const compared = useComparedScenarios(
@@ -232,16 +267,22 @@ export const ScenariosTab = ({
     )
     const fieldLabel = useCallback(
         (column: ScenarioFieldColumn) => column.label ?? t("evaluations.scenarios.output"),
-        // `t` stays out of the list: a new language renders the table again anyway.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [],
+        [t],
     )
     const hideColumns = useCallback(
         (keys: string[], hide: boolean) =>
             updateView((current) => setColumnsHidden(current, model, keys, hide)),
         [model, updateView],
     )
-    const onHide = useCallback((key: string) => hideColumns([key], true), [hideColumns])
+    // Hiding the label column leaves the table with no label column.
+    const onHide = useCallback(
+        (key: string) =>
+            updateView((current) => {
+                const next = setColumnsHidden(current, model, [key], true)
+                return key === labelColumnKey(model, current) ? {...next, label: null} : next
+            }),
+        [model, updateView],
+    )
     const onWidth = useCallback(
         (key: string, width: number | null) =>
             updateView((current) => {
@@ -263,6 +304,10 @@ export const ScenariosTab = ({
     const onAnnotate = useCallback((row: ScenarioRow) => setAnnotatingId(row.scenario.id), [])
 
     const annotating = rows.find((row) => row.scenario.id === annotatingId) ?? null
+    // A bounded body keeps the header in place while the rows scroll.
+    const {boxRef, height: bodyHeight} = useTableBodyHeight(
+        entries.length * (ROW_HEIGHT[view.rowHeight] + 1),
+    )
 
     if (scenarios.isError) {
         return (
@@ -331,8 +376,12 @@ export const ScenariosTab = ({
                                     ...current,
                                     // A drag sets the order by hand.
                                     orderByFailures: false,
+                                    // The label column keeps its place for when it is not the label.
                                     order: moveKey(
-                                        [...fields, ...evaluators].map((item) => item.key),
+                                        [
+                                            ...orderedByKeys(model.fields, current.order),
+                                            ...evaluators,
+                                        ].map((item) => item.key),
                                         key,
                                         before,
                                     ),
@@ -350,37 +399,37 @@ export const ScenariosTab = ({
                 </p>
             ) : null}
             {isTable ? (
-                <ScenarioTable
-                    entries={entries}
-                    label={label}
-                    fields={fields.filter((column) => !hidden.has(column.key))}
-                    evaluators={evaluators
-                        .map((group) => ({
-                            ...group,
-                            columns: group.columns.filter((column) => !hidden.has(column.key)),
-                        }))
-                        .filter((group) => group.columns.length > 0)}
-                    metrics={model.metrics.filter((column) => !hidden.has(column.key))}
-                    view={view}
-                    comparing={comparing}
-                    isHumanRun={isHumanRun}
-                    sort={sort}
-                    fieldLabel={fieldLabel}
-                    emptyText={empty}
-                    loading={lookingForMatches}
-                    onSort={setSort}
-                    onWidth={onWidth}
-                    onWidths={onWidths}
-                    onHide={onHide}
-                    onOpen={openRow}
-                    onAnnotate={onAnnotate}
-                    onRetry={scenarios.retryValues}
-                    onLoadMore={
-                        scenarios.hasMore && !scenarios.isFetchingMore && !scenarios.loadMoreError
-                            ? scenarios.loadMore
-                            : undefined
-                    }
-                />
+                <div ref={boxRef}>
+                    <ScenarioTable
+                        entries={entries}
+                        label={label}
+                        fields={visible.fields}
+                        evaluators={visible.evaluators}
+                        metrics={visible.metrics}
+                        view={view}
+                        comparing={comparing}
+                        isHumanRun={isHumanRun}
+                        sort={sort}
+                        fieldLabel={fieldLabel}
+                        emptyText={empty}
+                        loading={lookingForMatches}
+                        height={bodyHeight}
+                        onSort={setSort}
+                        onWidth={onWidth}
+                        onWidths={onWidths}
+                        onHide={onHide}
+                        onOpen={openRow}
+                        onAnnotate={onAnnotate}
+                        onRetry={scenarios.retryValues}
+                        onLoadMore={
+                            scenarios.hasMore &&
+                            !scenarios.isFetchingMore &&
+                            !scenarios.loadMoreError
+                                ? scenarios.loadMore
+                                : undefined
+                        }
+                    />
+                </div>
             ) : (
                 <ListTable
                     view="grid"
@@ -445,8 +494,9 @@ export const ScenariosTab = ({
                     onLoadMore={scenarios.loadMore}
                     shown={rows.length}
                     total={total}
-                    // The table loads from its own scroll; the cards load at the page's end.
-                    watchScroll={!isTable}
+                    // A table with its own scroll loads from it; cards, and a table whose rows
+                    // fit, load when the footer comes into view.
+                    watchScroll={!isTable || bodyHeight === undefined}
                 />
             ) : null}
         </div>

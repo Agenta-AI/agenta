@@ -95,7 +95,10 @@ export function defaultHiddenKeys(
 }
 
 /** The hidden columns: the defaults, with the user's changes. */
-export function hiddenKeys(model: ScenarioColumnModel, view: ScenarioView): Set<string> {
+export function hiddenKeys(
+    model: ScenarioColumnModel,
+    view: Pick<ScenarioView, "density" | "hide" | "show">,
+): Set<string> {
     const hidden = defaultHiddenKeys(model, view.density)
     for (const key of view.show) hidden.delete(key)
     for (const key of view.hide) hidden.add(key)

@@ -9,7 +9,8 @@ import {ScenarioValuesError} from "./states/ScenarioValuesError"
 /**
  * One value of a scenario in the table, drawn by its shape or its metric kind, never taller than
  * the row. A failed step shows an "Error" badge with its message in the title; a row whose values
- * did not load offers a retry. The full value opens in the drawer, never in the cell.
+ * did not load says so in the one cell given `onRetry`; its other trace cells stay empty. The
+ * full value opens in the drawer, never in the cell.
  */
 export const ScenarioTableCell = ({
     row,
@@ -22,7 +23,8 @@ export const ScenarioTableCell = ({
     column: ScenarioColumn
     density: ScenarioDensity
     lines: 1 | 3
-    onRetry: () => void
+    /** Only the row's first trace column: one error line and one "Try again" per row. */
+    onRetry?: () => void
 }) => {
     if (column.type === "metric") {
         const text = metricCellText(column.metricKey, row.metrics[column.metricKey])
@@ -43,7 +45,9 @@ export const ScenarioTableCell = ({
     }
     // The test case values do not come from a trace, so they show when the traces failed.
     const fromTrace = column.type === "evaluator" || column.section === "output"
-    if (row.valuesFailed && fromTrace) return <ScenarioValuesError onRetry={onRetry} />
+    if (row.valuesFailed && fromTrace) {
+        return onRetry ? <ScenarioValuesError onRetry={onRetry} /> : null
+    }
     const cell = cellOf(row, column)
     if (column.type === "evaluator") {
         return (

@@ -331,6 +331,8 @@ describe("scenarios tab", () => {
         const row = rows()[0]
         expect(row?.textContent).toContain("France")
         expect(row?.textContent).toContain("Could not load these values")
+        // Once per row, not once per column read from the trace.
+        expect(row?.textContent?.split("Could not load these values")).toHaveLength(2)
         vi.stubGlobal(
             "fetch",
             vi.fn(async () => new Response(JSON.stringify({count: 0, traces: []}), {status: 200})),
