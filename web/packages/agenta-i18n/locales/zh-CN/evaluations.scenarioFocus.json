@@ -22,7 +22,6 @@
     "noOutputYet": "暂无输出",
     "copyInputs": "复制输入",
     "copyOutput": "复制输出",
-    "toolCalls_other": "{{count}} 次工具调用",
     "toolCallsFailed": "无法加载工具调用",
     "tryAgain": "重试",
     "evaluators": "评估器",

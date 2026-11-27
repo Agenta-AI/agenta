@@ -613,7 +613,7 @@ describe("scenario focus drawer", () => {
         expect(traceGets()).toHaveLength(1)
         expect(traceGets()[0]).toContain("/traces/sc-1-app-trace")
         const output = section("Output")
-        expect(output.textContent).toContain("Worked for")
+        expect(output.textContent).toMatch(/Worked for 10 s\s*·\s*2 tool calls/)
         await act(async () => {
             ;[...output.querySelectorAll("button")]
                 .find((button) => button.textContent?.includes("Worked for"))
@@ -680,6 +680,13 @@ describe("scenario focus drawer", () => {
 
     it("A test case with only human evaluators shows no passed count", async () => {
         await mount("sc-1", {}, "human", withOrigins({ev: "human"}))
+        const header = dialog()?.querySelector('[data-slot="sheet-header"]') as HTMLElement
+        expect(header.textContent).not.toContain("Passed")
+        expect(header.textContent).toContain("Duration")
+    })
+
+    it("A test case with no true or false metric shows no passed count", async () => {
+        await mount("sc-1", {statuses: {"sc-1": "failure"}, scored: false})
         const header = dialog()?.querySelector('[data-slot="sheet-header"]') as HTMLElement
         expect(header.textContent).not.toContain("Passed")
         expect(header.textContent).toContain("Duration")

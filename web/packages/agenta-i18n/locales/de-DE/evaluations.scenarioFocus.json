@@ -23,8 +23,6 @@
     "noOutputYet": "Noch keine Ausgabe",
     "copyInputs": "Eingaben kopieren",
     "copyOutput": "Ausgabe kopieren",
-    "toolCalls_one": "{{count}} Tool-Aufruf",
-    "toolCalls_other": "{{count}} Tool-Aufrufe",
     "toolCallsFailed": "Die Tool-Aufrufe konnten nicht geladen werden",
     "tryAgain": "Erneut versuchen",
     "evaluators": "Evaluatoren",

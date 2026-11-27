@@ -23,8 +23,6 @@
     "noOutputYet": "No output yet",
     "copyInputs": "Copy inputs",
     "copyOutput": "Copy output",
-    "toolCalls_one": "{{count}} tool call",
-    "toolCalls_other": "{{count}} tool calls",
     "toolCallsFailed": "Could not load the tool calls",
     "tryAgain": "Try again",
     "evaluators": "Evaluators",

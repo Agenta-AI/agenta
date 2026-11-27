@@ -1,7 +1,6 @@
 import {AssertionSummary} from "@agenta/chat/value-view"
 import {assertionSummary, splitByOrigin, TILE_MISSING} from "@agenta/entities/evaluationRun"
 import {useT} from "@agenta/i18n"
-import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
 import focusCatalog from "@agenta/i18n/catalogs/evaluations.scenarioFocus"
 import {formatCurrency, formatLatency, formatTokens} from "@agenta/shared/utils"
 
@@ -24,9 +23,8 @@ const tileText = (value: number | undefined, format: (value: number) => string) 
 
 /**
  * The line under the drawer's title: "Passed X of Y" over the true or false metrics of the
- * evaluators that are not human (the main numbers when there is none; nothing when every
- * evaluator is human), then the test case's duration, tokens and cost. A missing value shows a
- * dash.
+ * evaluators that are not human, else their main numbers, never "Passed" without such a metric;
+ * then the test case's duration, tokens and cost. A missing value shows a dash.
  */
 export const ScenarioFocusSummaryLine = ({
     row,
@@ -35,19 +33,15 @@ export const ScenarioFocusSummaryLine = ({
     row: ScenarioRow
     results: ScenarioEvaluatorResult[]
 }) => {
-    const t = useT(focusCatalog, valueViewCatalog)
+    const t = useT(focusCatalog)
     // Human values never count: only the evaluators that are not human make "Passed X of Y".
     const {notHuman} = splitByOrigin(results)
-    const summary = assertionSummary(notHuman.map((result) => result.summary))
     const metrics = executionMetricsOf(row.metrics)
     return (
         <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-3 sm:grid-cols-4">
-            {notHuman.length === 0 ? null : summary.kind === "mainNumbers" &&
-              summary.items.length === 0 ? (
-                <Tile label={t("chat.valueView.passedLabel")} value={TILE_MISSING} />
-            ) : (
-                <AssertionSummary summary={summary} />
-            )}
+            <AssertionSummary
+                summary={assertionSummary(notHuman.map((result) => result.summary))}
+            />
             <Tile
                 label={t("evaluations.scenarioFocus.duration")}
                 value={tileText(metrics.durationMs, (ms) => formatLatency(ms / 1000))}

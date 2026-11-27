@@ -22,7 +22,6 @@
     "noOutputYet": "まだ出力がありません",
     "copyInputs": "入力をコピー",
     "copyOutput": "出力をコピー",
-    "toolCalls_other": "{{count}} 件のツール呼び出し",
     "toolCallsFailed": "ツール呼び出しを読み込めませんでした",
     "tryAgain": "再試行",
     "evaluators": "評価者",
