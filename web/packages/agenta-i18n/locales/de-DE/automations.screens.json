@@ -41,6 +41,8 @@
     "setUpAutomation": "Automatisierung einrichten",
     "agentMeta": "Agent",
     "detailFallbackTitle": "Automatisierung",
+    "leaveTitle": "Ohne Speichern verlassen?",
+    "leaveMessage": "Diese Automatisierung hat ungespeicherte Änderungen. Beim Verlassen werden sie verworfen.",
     "noLongerExists": "Diese Automatisierung existiert nicht mehr.",
     "noLongerExistsBody": "Jemand hat sie gelöscht, oder dieser Link ist veraltet. Gehen Sie zurück, um die Automatisierungen dieses Agenten zu sehen.",
     "backToAutomations": "Zurück zu den Automatisierungen",

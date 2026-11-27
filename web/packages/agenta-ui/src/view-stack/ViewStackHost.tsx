@@ -9,6 +9,18 @@ import {
     type ReactNode,
 } from "react"
 
+import {useT} from "@agenta/i18n"
+import viewStackCatalog from "@agenta/i18n/catalogs/ui.viewStack"
+
+import {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "../components/ui/alert-dialog"
+import {Button} from "../components/ui/button"
 import {cn} from "../components/ui/utils"
 
 import {
@@ -30,6 +42,8 @@ import type {
 } from "./types"
 import {viewEnterClass, type ViewDirection} from "./ViewStep"
 
+export type LeaveAnswer = "keep" | "discard" | "save"
+
 interface Entry {
     /** Unique per open; a new key remounts the view, which drops its local form. */
     key: number
@@ -39,6 +53,22 @@ interface Entry {
     /** What had focus when the view opened; it gets focus back when the view leaves. */
     returnFocus: HTMLElement | null
 }
+
+interface PendingQuestion {
+    title?: string
+    description?: string
+    canSave: boolean
+    offerSave: boolean
+    saveFailed: boolean
+    resolve: (answer: LeaveAnswer) => void
+}
+
+/**
+ * Whether leaving `entry` can lose edits: an "on_save" view whose form differs from what it
+ * loaded. An "immediate" view has written its edits already, so it never asks.
+ */
+const hasUnsavedEdits = (entry: Entry, forms: Record<number, ViewForm>): boolean =>
+    entry.view.apply === "on_save" && Boolean(forms[entry.key]?.dirty)
 
 /** How a dirty form was settled before an action: nothing to settle, dropped, or saved. */
 type Settled = "clean" | "discarded" | "saved"
@@ -79,6 +109,7 @@ export const ViewStackHost = ({
     rootTitle,
     onEscapeAtRoot,
     phone = false,
+    confirmLeave = true,
     children,
 }: {
     chrome: ComponentType<ViewChromeProps>
@@ -91,6 +122,8 @@ export const ViewStackHost = ({
      * and the browser back closes the top view. The container still picks its chrome.
      */
     phone?: boolean
+    /** False: leaving a dirty form drops the edits without asking (a dialog's Cancel and close). */
+    confirmLeave?: boolean
     children: ReactNode
 }) => {
     const [entries, setEntries] = useState<Entry[]>([])
@@ -100,6 +133,8 @@ export const ViewStackHost = ({
     const [footerStart, setFooterStart] = useState<HTMLElement | null>(null)
     const [saving, setSaving] = useState(false)
     const [failedKey, setFailedKey] = useState<number | null>(null)
+    const [question, setQuestion] = useState<PendingQuestion | null>(null)
+    const t = useT(viewStackCatalog)
     // The root animates only when a view gives it back its place, not on the first paint.
     const [viewOpened, setViewOpened] = useState(false)
     if (entries.length > 0 && !viewOpened) setViewOpened(true)
@@ -114,7 +149,7 @@ export const ViewStackHost = ({
     const savingRef = useRef<Promise<ViewSaveResult> | null>(null)
     // One guarded navigation at a time, from its first wait to its stack update.
     const navigatingRef = useRef(false)
-    // A view that left by itself (`nav.cancel()`) while a save ran: it leaves
+    // A view that left by itself (`nav.cancel()`) while a save ran or the dialog asked: it leaves
     // once that ends, if it is still on top.
     const deferredCancelRef = useRef<number | null>(null)
     const hostRef = useRef<HTMLDivElement>(null)
@@ -128,7 +163,7 @@ export const ViewStackHost = ({
 
     /**
      * One save at a time; a second call while one runs is ignored (resolves false). A failure
-     * from the Save button marks the view. "stay" is a step
+     * from the Save button marks the view; the dialog shows its own failures. "stay" is a step
      * that worked: no failure, and the view stays.
      */
     const runSave = useCallback(
@@ -154,11 +189,50 @@ export const ViewStackHost = ({
         [],
     )
 
-    /** Leaving never asks: a dirty form among `scope` is dropped. */
-    const settle = useCallback(
-        async (scope: Entry[]): Promise<Settled | false> =>
-            scope.some((entry) => formsRef.current[entry.key]?.dirty) ? "discarded" : "clean",
+    const ask = useCallback(
+        (form: ViewForm, saveFailed: boolean) =>
+            new Promise<LeaveAnswer>((resolve) => {
+                setQuestion({
+                    title: form.leaveTitle,
+                    description: form.leaveDescription,
+                    canSave: form.valid,
+                    offerSave: form.leaveCanSave !== false,
+                    saveFailed,
+                    resolve: (answer) => {
+                        setQuestion(null)
+                        resolve(answer)
+                    },
+                })
+            }),
         [],
+    )
+
+    /**
+     * Settle the one dirty form among `scope` before an action. Resolves false when the person
+     * kept editing; the action must then not run. A failed "Save changes" asks again with the
+     * error, so the failure shows even when the dirty form sits under a picker.
+     */
+    const settle = useCallback(
+        async (scope: Entry[]): Promise<Settled | false> => {
+            const dirty = scope.find((entry) => hasUnsavedEdits(entry, formsRef.current))
+            if (!dirty) return "clean"
+            if (!confirmLeave) return "discarded"
+            let saveFailed = false
+            for (;;) {
+                const form = formsRef.current[dirty.key]
+                // Defensive: the navigation lock keeps the view in place while the dialog asks.
+                if (!form) return "clean"
+                const answer = await ask(form, saveFailed)
+                if (answer === "keep") return false
+                if (answer === "discard") return "discarded"
+                const result = await runSave(dirty.key, false)
+                if (result === true) return "saved"
+                // A step of the form worked: the person stays on it, as with "Keep editing".
+                if (result === "stay") return false
+                saveFailed = true
+            }
+        },
+        [ask, confirmLeave, runSave],
     )
 
     /** Set the whole stack. Forms and titles of views that leave go with them. */
@@ -184,7 +258,7 @@ export const ViewStackHost = ({
         setFailedKey(null)
     }, [])
 
-    /** Run a cancel that arrived while a save ran, if its view is still on top. */
+    /** Run a cancel that arrived while a save ran or the dialog asked, if its view is still on top. */
     const flushDeferredCancel = useCallback(() => {
         const key = deferredCancelRef.current
         deferredCancelRef.current = null
@@ -194,7 +268,7 @@ export const ViewStackHost = ({
 
     /**
      * Runs one guarded navigation. Another one asked for meanwhile (a second click while the
-     * a save runs) is dropped and resolves false.
+     * dialog asks or a save runs) is dropped and resolves false.
      */
     const exclusive = useCallback(
         async (action: () => Promise<boolean>) => {
@@ -315,7 +389,8 @@ export const ViewStackHost = ({
     const save = useCallback(async () => {
         const top = entriesRef.current.at(-1)
         if (!top || navigatingRef.current) return
-        if ((await runSave(top.key, true)) === true) {
+        const closes = formsRef.current[top.key]?.closeOnSave !== false
+        if ((await runSave(top.key, true)) === true && closes) {
             deferredCancelRef.current = null
             setStack(entriesRef.current.filter((entry) => entry.key !== top.key))
             return
@@ -326,7 +401,7 @@ export const ViewStackHost = ({
     // On a phone each open view is a level of the browser back, guarded like the back arrow.
     useSystemBack(phone ? entries.length : 0, "view", back)
 
-    const dirty = saving || Object.values(forms).some((form) => form.dirty)
+    const dirty = saving || entries.some((entry) => hasUnsavedEdits(entry, forms))
     const depth = entries.length as 0 | 1 | 2
     useReportOpenViewItem(entries, titles)
 
@@ -437,6 +512,56 @@ export const ViewStackHost = ({
                     </Chrome>
                 ) : null}
             </div>
+            {/* The generic unsaved-changes question; the dirty view gives the description. */}
+            <AlertDialog
+                open={question !== null}
+                onOpenChange={(next) => (next ? undefined : question?.resolve("keep"))}
+            >
+                <AlertDialogContent data-testid="unsaved-changes-dialog">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {question?.title ?? t("ui.viewStack.unsavedChanges")}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {question?.description ?? ""}
+                        </AlertDialogDescription>
+                        {question?.saveFailed ? (
+                            <span role="alert" className="text-body text-destructive">
+                                {t("ui.viewStack.saveFailed")}
+                            </span>
+                        ) : null}
+                    </AlertDialogHeader>
+                    {/* In a narrow pane the three answers wrap rather than overflow. */}
+                    <AlertDialogFooter className="sm:flex-wrap">
+                        <Button variant="ghost" onClick={() => question?.resolve("keep")}>
+                            {t("ui.viewStack.keepEditing")}
+                        </Button>
+                        {(question?.offerSave ?? true) ? (
+                            <>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => question?.resolve("discard")}
+                                >
+                                    {t("ui.viewStack.discard")}
+                                </Button>
+                                <Button
+                                    disabled={!question?.canSave}
+                                    onClick={() => question?.resolve("save")}
+                                >
+                                    {t("ui.viewStack.saveChanges")}
+                                </Button>
+                            </>
+                        ) : (
+                            <Button
+                                variant="destructive"
+                                onClick={() => question?.resolve("discard")}
+                            >
+                                {t("ui.viewStack.discard")}
+                            </Button>
+                        )}
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </ViewStackContext.Provider>
     )
 }

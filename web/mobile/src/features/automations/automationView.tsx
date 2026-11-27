@@ -20,8 +20,9 @@ export interface AutomationViewParams {
 /**
  * One automation as a view (F05 f5): the name with its switch, "Runs" and "Settings". The switch
  * and "Save" in "Settings" write the automation at once (target "project"); no agent version is
- * saved. Leaving with unsaved settings asks first. The chrome draws the action row: Delete at its
- * start (`ViewFooterStart`), then Cancel and Save.
+ * saved, and the view stays open after Save. Leaving asks first only when the settings differ from
+ * the saved automation. The chrome draws the action row: Delete at its start
+ * (`ViewFooterStart`), then Cancel and Save.
  */
 export const automationView = defineView<AutomationViewParams>({
     id: "automations.automation",

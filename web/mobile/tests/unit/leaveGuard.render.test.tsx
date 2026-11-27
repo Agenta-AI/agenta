@@ -157,15 +157,20 @@ describe("leave guard", () => {
         await expect(first).resolves.toBe(true)
     })
 
-    it("never asks the browser before unload, even with a dirty source", () => {
+    it("asks the browser before unload only when a source is dirty", () => {
+        let dirty = false
         render(
             <LeaveGuardProvider leavesAgent={() => true}>
-                <Source source={{isDirty: () => true, ask: async () => true}} />
+                <Source source={{isDirty: () => dirty, ask: async () => true}} />
             </LeaveGuardProvider>,
         )
-        const unload = new Event("beforeunload", {cancelable: true})
-        window.dispatchEvent(unload)
-        expect(unload.defaultPrevented).toBe(false)
+        const clean = new Event("beforeunload", {cancelable: true})
+        window.dispatchEvent(clean)
+        expect(clean.defaultPrevented).toBe(false)
+        dirty = true
+        const asked = new Event("beforeunload", {cancelable: true})
+        window.dispatchEvent(asked)
+        expect(asked.defaultPrevented).toBe(true)
     })
 
     it("aborts a route change, asks, and pushes the same URL once the person agrees", async () => {

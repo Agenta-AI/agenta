@@ -11,7 +11,7 @@ export {
     type PaneHeaderProps,
 } from "./PaneHeader"
 export {ViewDrawerHost, type ViewRequest} from "./ViewDrawerHost"
-export {ViewStackHost} from "./ViewStackHost"
+export {ViewStackHost, type LeaveAnswer} from "./ViewStackHost"
 export {ViewStep, viewEnterClass, type ViewDirection} from "./ViewStep"
 export {restartSystemBack, useSystemBack, type SystemBackRank} from "./systemBack"
 export {useViewOpener} from "./useViewOpener"
