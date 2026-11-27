@@ -46,7 +46,7 @@ export const RunningLatency = () => {
     const t = useT(drawerCatalog)
     return (
         <span className="inline-flex shrink-0 items-center gap-1 text-meta text-info">
-            <span aria-hidden className="size-1.5 animate-pulse rounded-full bg-info" />
+            <span aria-hidden className="size-1.5 animate-pulse rounded-round bg-info" />
             {t("observabilityUi.traceDrawer.runningLatency")}
         </span>
     )

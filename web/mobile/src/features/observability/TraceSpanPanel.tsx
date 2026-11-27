@@ -76,12 +76,12 @@ const RunningOutput = () => {
     return (
         <div className="flex flex-col gap-2" aria-busy>
             <span className="inline-flex items-center gap-1.5 text-meta text-muted-foreground">
-                <span aria-hidden className="size-1.5 animate-pulse rounded-full bg-info" />
+                <span aria-hidden className="size-1.5 animate-pulse rounded-round bg-info" />
                 {t("observabilityUi.traceSpan.waitingForOutput")}
             </span>
-            <SkeletonBlock className="max-w-[480px]" />
-            <SkeletonBlock className="max-w-[400px]" />
-            <SkeletonBlock className="max-w-[280px]" />
+            <SkeletonBlock className="w-120 max-w-full" />
+            <SkeletonBlock className="w-100 max-w-full" />
+            <SkeletonBlock className="w-70 max-w-full" />
         </div>
     )
 }

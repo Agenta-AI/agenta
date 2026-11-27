@@ -2,7 +2,7 @@ import React, {useMemo, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import {CollapseCaret, cn} from "@agenta/ui/ui"
+import {Button, CollapseCaret} from "@agenta/ui/ui"
 import {MinusSquare, PlusSquare} from "@phosphor-icons/react"
 
 import {nodeLabelClass, nodeLabelContentClass, treeLineClass} from "./customTreeStyles"
@@ -100,27 +100,27 @@ const CompactNode = <TNode,>({
                 aria-level={depth + 1}
                 aria-selected={nodeKey === selectedKey}
                 aria-expanded={children.length > 0 ? expanded : undefined}
-                className={cn(
-                    "flex h-7 min-w-0 cursor-pointer items-center gap-1 rounded-control pr-2 hover:bg-accent",
-                    nodeKey === selectedKey && "bg-selected hover:bg-selected",
-                )}
+                // The selected row keeps its fill under the pointer (aria-selected wins).
+                className="flex h-7 min-w-0 cursor-pointer items-center gap-1 rounded-control pr-2 hover:bg-accent aria-selected:bg-selected"
                 style={{paddingLeft: depth * 16 + 4}}
                 onClick={() => onSelect?.(nodeKey, node)}
             >
                 {children.length > 0 ? (
-                    <button
+                    <Button
                         type="button"
+                        variant="ghost"
+                        size="icon-xs"
                         aria-label={expanded ? t("common.collapse") : t("common.expand")}
-                        className="inline-flex size-4 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0"
+                        className="shrink-0 hover:bg-transparent"
                         onClick={(event) => {
                             event.stopPropagation()
                             setExpanded((prev) => !prev)
                         }}
                     >
                         <CollapseCaret open={expanded} />
-                    </button>
+                    </Button>
                 ) : (
-                    <span aria-hidden className="size-4 shrink-0" />
+                    <span aria-hidden className="size-control-xs shrink-0" />
                 )}
                 <div className="min-w-0 flex-1">{renderLabel(node)}</div>
             </div>
