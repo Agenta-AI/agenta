@@ -15,12 +15,15 @@ export const AgentChannels = ({
     workspaceId,
     projectId,
     renderOpenView,
+    page = false,
 }: {
     agentId: string
     workspaceId: string
     projectId: string
     /** The right pane draws an open channel view under its own back link. */
     renderOpenView?: (view: ChannelsPanelRenderProps) => ReactNode
+    /** The Channels page: its description holds the intro, and a desktop shows a grid. */
+    page?: boolean
 }) => {
     const {row, resolveAgentName} = useAgentRow(agentId)
     // Undefined until the agent list loads: the views then say "your agent", not a blank.
@@ -42,6 +45,7 @@ export const AgentChannels = ({
             api={api}
             embed={embed}
             renderOpenView={renderOpenView}
+            page={page}
         />
     )
 }

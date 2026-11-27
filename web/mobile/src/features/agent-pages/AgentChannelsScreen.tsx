@@ -1,22 +1,17 @@
 import {useT} from "@agenta/i18n"
+import agentPagesChannelsCatalog from "@agenta/i18n/catalogs/agentPages.channels"
 import agentSidebarCatalog from "@agenta/i18n/catalogs/agentSidebar"
+import channelsPageCatalog from "@agenta/i18n/catalogs/channels.page"
 import {useIsPhone} from "@agenta/ui/phone"
 
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
-
+import {useAgentRow} from "../agent-layout/useAgentRow"
 import {useBindProjectContext} from "../context/useBindProjectContext"
-import {AppShell} from "../nav/AppShell"
-import {SESSIONS_PAGE_FRAME} from "../sessions/pageFrame"
+import {PageLayout} from "../page-layout/PageLayout"
 
+import {AgentBuilderButton} from "./AgentBuilderButton"
 import {AgentChannels} from "./AgentChannels"
-import {
-    AGENT_CHANNELS_PAGE_COLUMN,
-    AGENT_CHANNELS_PAGE_EDGE,
-    AgentListPageHeader,
-} from "./AgentListPageHeader"
 
-/** The Channels page of one agent. */
+/** The Channels page of one agent: the Settings channel grid for this agent. */
 export const AgentChannelsScreen = ({
     workspaceId,
     projectId,
@@ -26,39 +21,28 @@ export const AgentChannelsScreen = ({
     projectId: string
     agentId: string
 }) => {
-    const t = useT(agentSidebarCatalog)
+    const t = useT(agentSidebarCatalog, agentPagesChannelsCatalog, channelsPageCatalog)
     const phone = useIsPhone()
     useBindProjectContext(projectId)
+    const {row} = useAgentRow(agentId)
+    const agent = row?.name || row?.slug || t("channels.page.yourAgent")
     return (
-        <>
-            <PageTitle title={t("agentSidebar.channels")} />
-            <AppShell workspaceId={workspaceId} projectId={projectId}>
-                <ScreenScaffold
-                    header={
-                        <AgentListPageHeader
-                            title={t("agentSidebar.channels")}
-                            workspaceId={workspaceId}
-                            projectId={projectId}
-                            column={AGENT_CHANNELS_PAGE_EDGE}
-                        />
-                    }
-                >
-                    <div
-                        className={
-                            phone
-                                ? // On a phone the channel rows run edge to edge (M13).
-                                  `min-w-0 pb-12 ${SESSIONS_PAGE_FRAME}`
-                                : AGENT_CHANNELS_PAGE_COLUMN
-                        }
-                    >
-                        <AgentChannels
-                            agentId={agentId}
-                            workspaceId={workspaceId}
-                            projectId={projectId}
-                        />
-                    </div>
-                </ScreenScaffold>
-            </AppShell>
-        </>
+        <PageLayout
+            workspaceId={workspaceId}
+            projectId={projectId}
+            title={t("agentSidebar.channels")}
+            description={t("agentPages.channels.intro", {agent})}
+            actions={<AgentBuilderButton />}
+        >
+            {/* On a phone the channel rows run edge to edge (M13). */}
+            <div className={phone ? "-mx-4" : undefined}>
+                <AgentChannels
+                    agentId={agentId}
+                    workspaceId={workspaceId}
+                    projectId={projectId}
+                    page
+                />
+            </div>
+        </PageLayout>
     )
 }

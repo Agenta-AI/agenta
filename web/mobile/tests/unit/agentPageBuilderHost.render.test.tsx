@@ -26,7 +26,7 @@ import {
     useOpenAgentBuilder,
 } from "@/features/agent-layout/AgentPageBuilderHost"
 import {agentPanelStateAtomFamily, panelStateKey} from "@/features/agent-layout/agentPanelState"
-import {AgentPagesHeader} from "@/features/agent-pages/AgentPagesHeader"
+import {AgentBuilderButton} from "@/features/agent-pages/AgentBuilderButton"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
@@ -147,25 +147,23 @@ describe("the builder panel on an agent page", () => {
         expect(frame().className).toContain("hidden")
     })
 
-    it("gives an agent page header in the host its Builder icon, with no prop from the page", async () => {
+    it("gives an agent page's Builder button the host's builder, with no prop from the page", async () => {
         await act(async () =>
             root.render(
                 <Provider store={createStore()}>
                     <AgentPageBuilderHost agentId="agent-1" workspaceId="ws-1" projectId="proj-1">
-                        <AgentPagesHeader title="Sessions" workspaceId="ws-1" projectId="proj-1" />
+                        <AgentBuilderButton />
                     </AgentPageBuilderHost>
                 </Provider>,
             ),
         )
-        const icon = host.querySelector("[aria-label=Builder]") as HTMLButtonElement
-        await act(async () => icon.click())
+        const button = [...host.querySelectorAll("button")].find((b) => b.textContent === "Builder")
+        await act(async () => button?.click())
         expect(q("builder")).not.toBeNull()
     })
 
-    it("draws no Builder icon outside an agent page", async () => {
-        await act(async () =>
-            root.render(<AgentPagesHeader title="Agents" workspaceId="ws-1" projectId="proj-1" />),
-        )
-        expect(host.querySelector("[aria-label=Builder]")).toBeNull()
+    it("draws no Builder button outside an agent page", async () => {
+        await act(async () => root.render(<AgentBuilderButton />))
+        expect(host.querySelector("button")).toBeNull()
     })
 })

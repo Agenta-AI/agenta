@@ -5,6 +5,7 @@ import {
     builderAgentWorkflowIdAtom,
 } from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
+import agentPagesPageCatalog from "@agenta/i18n/catalogs/agentPages.page"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import sessionsMobileListCatalog from "@agenta/i18n/catalogs/sessions.mobileList"
 import {agentDisplayNameAtomFamily} from "@agenta/navigation"
@@ -18,25 +19,20 @@ import {
 } from "@agenta/sessions/state"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
-import {useIsPhone} from "@agenta/ui/phone"
 import {Button, PageToolbar} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {useStartBlankSession} from "@/features/chat/useStartBlankSession"
 
-import {AGENT_SESSIONS_PAGE_COLUMN, AgentListPageHeader} from "../agent-pages/AgentListPageHeader"
+import {AgentBuilderButton} from "../agent-pages/AgentBuilderButton"
 import {LockedAgentChip} from "../agent-pages/LockedAgentChip"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
 import {FeatureOnboarding} from "../education/FeatureOnboarding"
 import {HowThisWorksButton} from "../education/HowThisWorksButton"
-import {AppShell} from "../nav/AppShell"
-import {PAGE_BODY, PAGE_GUTTERS, pageColumn} from "../page-layout/pageFrame"
 import {PageLayout} from "../page-layout/PageLayout"
 
 import {SessionAutomationDrawers} from "./SessionAutomationDrawers"
@@ -101,7 +97,7 @@ const SessionListBody = ({
 }) => {
     const t = useT(sessionsMobileListCatalog)
     const tBuilder = useT(builderPageCatalog)
-    const phone = useIsPhone()
+    const tPage = useT(agentPagesPageCatalog)
     const filterAtoms = useSessionFilterAtoms()
     const defaultView = lockedAgentId ? LOCKED_AGENT_SESSION_LIST_VIEW : DEFAULT_SESSION_LIST_VIEW
     useBindProjectContext(projectId)
@@ -276,49 +272,22 @@ const SessionListBody = ({
             onResetView={resetView}
         />
     )
-    const listBody = projectEmpty ? (
-        listTable
-    ) : (
-        <>
-            {listToolbar}
-            {listTable}
-        </>
-    )
-
     return (
         <>
-            {lockedAgentId ? (
-                // An agent's sessions page is one of the agent's pages: its own top and column.
-                <>
-                    <PageTitle title={t("sessions.mobileList.sessions")} />
-                    <AppShell workspaceId={workspaceId} projectId={projectId}>
-                        <ScreenScaffold
-                            header={
-                                <AgentListPageHeader
-                                    title={t("sessions.mobileList.sessions")}
-                                    workspaceId={workspaceId}
-                                    projectId={projectId}
-                                />
-                            }
-                        >
-                            {phone ? (
-                                <div className={PAGE_GUTTERS}>
-                                    <div className={`${pageColumn()} ${PAGE_BODY}`}>{listBody}</div>
-                                </div>
-                            ) : (
-                                <div className={AGENT_SESSIONS_PAGE_COLUMN}>{listBody}</div>
-                            )}
-                        </ScreenScaffold>
-                    </AppShell>
-                </>
-            ) : (
-                <PageLayout
-                    workspaceId={workspaceId}
-                    projectId={projectId}
-                    title={t("sessions.mobileList.sessions")}
-                    description={t("sessions.mobileList.pageDescription")}
-                    toolbar={projectEmpty ? undefined : listToolbar}
-                    actions={
+            <PageLayout
+                workspaceId={workspaceId}
+                projectId={projectId}
+                title={t("sessions.mobileList.sessions")}
+                description={
+                    lockedAgentId
+                        ? tPage("agentPages.page.sessionsDescription")
+                        : t("sessions.mobileList.pageDescription")
+                }
+                toolbar={projectEmpty ? undefined : listToolbar}
+                actions={
+                    lockedAgentId ? (
+                        <AgentBuilderButton />
+                    ) : (
                         <>
                             {projectEmpty ? null : (
                                 <HowThisWorksButton guide="sessions" className="max-sm:hidden" />
@@ -333,11 +302,11 @@ const SessionListBody = ({
                                 </Button>
                             ) : null}
                         </>
-                    }
-                >
-                    {listTable}
-                </PageLayout>
-            )}
+                    )
+                }
+            >
+                {listTable}
+            </PageLayout>
             {/* The trigger drawers the automation row verbs open, at screen level so one survives
                 its row unmounting underneath it. */}
             <SessionAutomationDrawers base={base} />

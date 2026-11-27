@@ -51,6 +51,8 @@ export interface AgentChannelsViewProps extends Pick<
     /** Draws an open view in the host's chrome, not under the "Channels › title" breadcrumb. */
     renderOpenView?: (view: ChannelsPanelRenderProps) => ReactNode
     agentId: string
+    /** The agent's Channels page: the page says the intro; a desktop shows a grid. */
+    page?: boolean
 }
 
 /**
@@ -212,7 +214,7 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
                         group={{
                             label: t("agentPages.channels.connected"),
                             items: connectedItems,
-                            list: true,
+                            list: !props.page,
                             count: null,
                         }}
                     />
@@ -221,11 +223,13 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
                     <SettingsCatalogSection
                         group={{
                             label: t("agentPages.channels.addChannel"),
-                            description: t("agentPages.channels.intro", {agent: agentName}),
+                            description: props.page
+                                ? undefined
+                                : t("agentPages.channels.intro", {agent: agentName}),
                             // While loading, the loaded list's own rows as skeletons (STATE-02).
                             items: loading ? [] : addItems,
                             pendingRows: loading ? CHANNEL_PLATFORMS.length + 2 : 0,
-                            list: true,
+                            list: !props.page,
                             count: null,
                         }}
                     />
@@ -239,11 +243,13 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
             className={phone ? "flex flex-col" : "flex flex-col gap-5"}
             data-testid="agent-channels"
         >
-            <p
-                className={`m-0 text-body-sm text-muted-foreground ${phone ? "px-4 pb-1 pt-3.5" : ""}`}
-            >
-                {t("agentPages.channels.intro", {agent: agentName})}
-            </p>
+            {props.page ? null : (
+                <p
+                    className={`m-0 text-body-sm text-muted-foreground ${phone ? "px-4 pb-1 pt-3.5" : ""}`}
+                >
+                    {t("agentPages.channels.intro", {agent: agentName})}
+                </p>
+            )}
 
             {loadError ? (
                 <div className={phone ? "mx-4 mt-3" : undefined}>
