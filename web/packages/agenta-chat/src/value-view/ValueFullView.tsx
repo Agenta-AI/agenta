@@ -1,4 +1,4 @@
-import {useId, useState} from "react"
+import {useId, useMemo, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
@@ -36,7 +36,7 @@ export const ValueFullView = ({
     const t = useT(valueViewCatalog)
     const stateKey = useId()
     const [mode, setMode] = useState<ValueViewMode>(defaultMode)
-    const detected = detectValueShape(value)
+    const detected = useMemo(() => detectValueShape(value), [value])
     const switchable = detected.parsedFromText || !PLAIN_SHAPES.has(detected.shape)
     const raw = mode === "raw" && switchable
 

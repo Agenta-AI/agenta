@@ -29,6 +29,7 @@ export type ValueShape =
     | "array-objects"
     | "message"
     | "object-flat"
+    /** An object with a nested value, or an array that is none of the array shapes above. */
     | "object-nested"
 
 export interface DetectedValue {
@@ -62,13 +63,49 @@ const MESSAGE_KEYS = [
 
 const MARKDOWN_PATTERNS = [
     /^#{1,6}\s+\S/m, // heading
-    /^\s*(?:[-*+]|\d+[.)])\s+\S/m, // list item
+    // `[^\S\n\r\u2028\u2029]` is `\s` without line breaks: `^\s*` crossed blank lines and made
+    // this check quadratic on text with many of them.
+    /^[^\S\n\r\u2028\u2029]*(?:[-*+]|\d+[.)])\s+\S/m, // list item
     /^>\s?\S/m, // quote
     /^```/m, // code fence
     /^\|.+\|\s*$/m, // table row
     /\*\*[^*\n]+\*\*/, // bold
-    /\[[^\]\n]+\]\([^)\s]+\)/, // link
 ]
+
+const WHITESPACE = /\s/
+
+/**
+ * True when the text holds a link `[label](url)`: what `/\[[^\]\n]+\]\([^)\s]+\)/` matches, in one
+ * pass. The pattern rescans the rest of the text from every `[` (and every `](`), which is
+ * quadratic on text such as a long run of `[`.
+ */
+const hasMarkdownLink = (text: string): boolean => {
+    // The first `[` since the last `]` or line break: the longest label a `]` can close.
+    let open = -1
+    // Every `](` before this index has no valid destination: they all end at the same space.
+    let noDestinationBefore = 0
+    for (let index = 0; index < text.length; index++) {
+        const char = text[index]
+        if (char === "\n") open = -1
+        else if (char === "[") {
+            if (open === -1) open = index
+        } else if (char === "]") {
+            if (
+                open !== -1 &&
+                index - open >= 2 &&
+                text[index + 1] === "(" &&
+                index >= noDestinationBefore
+            ) {
+                let end = index + 2
+                while (end < text.length && text[end] !== ")" && !WHITESPACE.test(text[end])) end++
+                if (end > index + 2 && text[end] === ")") return true
+                noDestinationBefore = end
+            }
+            open = -1
+        }
+    }
+    return false
+}
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === "object" && value !== null && !Array.isArray(value)
@@ -90,7 +127,7 @@ export const lineCount = (text: string): number => {
 
 /** True when the text uses markdown syntax: a heading, a list, a quote, a fence, a table, bold or a link. */
 export const hasMarkdownSyntax = (text: string): boolean =>
-    MARKDOWN_PATTERNS.some((pattern) => pattern.test(text))
+    MARKDOWN_PATTERNS.some((pattern) => pattern.test(text)) || hasMarkdownLink(text)
 
 /** Only text that starts like an object, an array, a fence or a quoted string can hold JSON. */
 const mayHoldJson = (text: string) => {
@@ -129,7 +166,7 @@ const detectText = (text: string): DetectedValue => {
     if (isUrl(text.trim()) && !/\s/.test(text.trim())) return {shape: "url", value: text}
     if (mayHoldJson(text)) {
         const parsed = parseStructuredJson(text)
-        if (parsed !== null) return {...detectStructured(parsed), parsedFromText: true}
+        if (parsed !== null) return {...detectStructured(parsed as object), parsedFromText: true}
     }
     if (hasMarkdownSyntax(text)) return {shape: "markdown", value: text}
     if (text.length > TEXT_LONG_CHARS || lineCount(text) > TEXT_LONG_LINES) {
@@ -138,7 +175,8 @@ const detectText = (text: string): DetectedValue => {
     return {shape: "text-short", value: text}
 }
 
-const detectStructured = (value: unknown): DetectedValue => {
+/** An array, or an object that is not an array (`typeof value === "object"`, not null). */
+const detectStructured = (value: object): DetectedValue => {
     if (Array.isArray(value)) {
         if (value.length === 0) return {shape: "empty", value}
         if (isChatMessagesArray(value)) return {shape: "messages", value}
@@ -146,17 +184,15 @@ const detectStructured = (value: unknown): DetectedValue => {
         if (value.every(isRecord)) return {shape: "array-objects", value}
         return {shape: "object-nested", value}
     }
-    if (isRecord(value)) {
-        const keys = Object.keys(value)
-        if (keys.length === 0) return {shape: "empty", value}
-        if (isChatMessageObject(value)) return {shape: "message", value}
-        const wrapped = wrappedMessages(value)
-        if (wrapped) return {shape: "messages", value: wrapped.value, key: wrapped.key}
-        return keys.every((key) => isScalar(value[key]))
-            ? {shape: "object-flat", value}
-            : {shape: "object-nested", value}
-    }
-    return detectValueShape(value)
+    const record = value as Record<string, unknown>
+    const keys = Object.keys(record)
+    if (keys.length === 0) return {shape: "empty", value}
+    if (isChatMessageObject(record)) return {shape: "message", value}
+    const wrapped = wrappedMessages(record)
+    if (wrapped) return {shape: "messages", value: wrapped.value, key: wrapped.key}
+    return keys.every((key) => isScalar(record[key]))
+        ? {shape: "object-flat", value}
+        : {shape: "object-nested", value}
 }
 
 /**

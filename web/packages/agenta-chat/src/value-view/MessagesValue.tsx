@@ -96,25 +96,39 @@ const Attachments = ({message}: {message: ValueMessage}) =>
         </AttachmentGrid>
     )
 
-const TurnView = ({turn, stateKey}: {turn: Turn; stateKey: string}) => {
+const TurnView = ({
+    turn,
+    stateKey,
+    unfolded,
+}: {
+    turn: Turn
+    stateKey: string
+    /** The full view: long turns are not clamped. */
+    unfolded: boolean
+}) => {
     const t = useT(valueViewCatalog)
     const {markdownClassName, markdownIcons} = useValueViewOptions()
     const {message} = turn
     const key = `${stateKey}:${turn.index}`
-    const markdown = (text: string): ReactNode => (
-        <CollapsibleMessageBody stateKey={key} collapsedMaxPx={TURN_MAX_PX}>
-            <ChatMarkdown content={text} baseClassName={markdownClassName} icons={markdownIcons} />
-        </CollapsibleMessageBody>
-    )
+    const clamp = (body: ReactNode): ReactNode =>
+        unfolded ? (
+            body
+        ) : (
+            <CollapsibleMessageBody stateKey={key} collapsedMaxPx={TURN_MAX_PX}>
+                {body}
+            </CollapsibleMessageBody>
+        )
+    const markdown = (text: string): ReactNode =>
+        clamp(
+            <ChatMarkdown content={text} baseClassName={markdownClassName} icons={markdownIcons} />,
+        )
 
     if (message.role === "user") {
         return (
             <div className="ml-auto flex max-w-[85%] flex-col gap-2 rounded-lg bg-secondary px-3 py-2 text-body">
-                {message.text ? (
-                    <CollapsibleMessageBody stateKey={key} collapsedMaxPx={TURN_MAX_PX}>
-                        <div className="whitespace-pre-wrap break-words">{message.text}</div>
-                    </CollapsibleMessageBody>
-                ) : null}
+                {message.text
+                    ? clamp(<div className="whitespace-pre-wrap break-words">{message.text}</div>)
+                    : null}
                 <Attachments message={message} />
             </div>
         )
@@ -173,7 +187,7 @@ export const MessagesValue = ({messages, stateKey, unfolded = false}: MessagesVa
     return (
         <div className="flex min-w-0 flex-col gap-3">
             {head.map((turn) => (
-                <TurnView key={turn.index} turn={turn} stateKey={stateKey} />
+                <TurnView key={turn.index} turn={turn} stateKey={stateKey} unfolded={unfolded} />
             ))}
             {folded ? (
                 <div className="flex items-center gap-2">
@@ -190,7 +204,7 @@ export const MessagesValue = ({messages, stateKey, unfolded = false}: MessagesVa
                 </div>
             ) : null}
             {tail.map((turn) => (
-                <TurnView key={turn.index} turn={turn} stateKey={stateKey} />
+                <TurnView key={turn.index} turn={turn} stateKey={stateKey} unfolded={unfolded} />
             ))}
         </div>
     )

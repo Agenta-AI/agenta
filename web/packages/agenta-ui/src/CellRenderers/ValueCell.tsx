@@ -4,7 +4,7 @@
  * `lines={3}`. No markdown or chat code, so a table of many rows stays light.
  */
 
-import {memo, type ReactNode} from "react"
+import {memo, useMemo, type ReactNode} from "react"
 
 import {useT, type CatalogKey, type TranslationValues} from "@agenta/i18n"
 import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
@@ -47,21 +47,26 @@ const Muted = ({children}: {children: ReactNode}) => (
 
 const Dash = () => <span className="text-muted-foreground">—</span>
 
+/** A cell shows at most three lines, so it never needs more text than this. */
+const CELL_CHARS = 600
+
+const clip = (text: string) => (text.length > CELL_CHARS ? text.slice(0, CELL_CHARS) : text)
+
 /** Markup removed: the first lines of a markdown text as plain text. */
 const plainMarkdown = (text: string) =>
-    text
+    clip(text)
         .split("\n")
         .map((line) =>
             line
                 .replace(/^\s*(?:#{1,6}|>|[-*+]|\d+[.)])\s+/, "")
-                .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+                .replace(/\[([^[\]]*)\]\([^)]*\)/g, "$1")
                 .replace(/(\*\*|__|`)/g, "")
                 .trim(),
         )
         .filter((line) => line && !line.startsWith("```") && !/^\|?[\s:-]+\|/.test(line))
         .join(" ")
 
-const firstLine = (text: string) => text.trim().split("\n", 1)[0] ?? ""
+const firstLine = (text: string) => clip(text.trimStart()).split("\n", 1)[0] ?? ""
 
 /** "host/path" of a URL, else the URL. */
 const urlText = (url: string) => {
@@ -78,6 +83,9 @@ const linesText = (count: number, t: T) =>
 
 const scalarText = (value: unknown) =>
     typeof value === "number" ? formatShapeNumber(value) : String(value)
+
+/** The first values of a list as one line of text. */
+const listText = (items: unknown[]) => clip(items.slice(0, 50).map(scalarText).join(", "))
 
 /** The text of a message for a cell, with a muted lead: its role, the tool calls, or a result. */
 function messageLead(message: unknown, t: T): {lead: string; text: string; files: number} {
@@ -107,7 +115,7 @@ const MessageText = ({message, lead, t}: {message: unknown; lead?: string; t: T}
     return (
         <>
             <Muted>{lead ?? line.lead}</Muted>
-            <Text>{line.text}</Text>
+            <Text>{clip(line.text)}</Text>
         </>
     )
 }
@@ -149,7 +157,7 @@ function ShapeContent({detected, t}: {detected: DetectedValue; t: T}) {
                 </a>
             )
         case "text-short":
-            return <Text>{value as string}</Text>
+            return <Text>{clip(value as string)}</Text>
         case "text-long":
             return (
                 <>
@@ -177,16 +185,19 @@ function ShapeContent({detected, t}: {detected: DetectedValue; t: T}) {
         case "object-flat":
             return (
                 <Text mono>
-                    {Object.entries(value as Record<string, unknown>)
-                        .map(([key, item]) => `${key}: ${scalarText(item)}`)
-                        .join(", ")}
+                    {clip(
+                        Object.entries(value as Record<string, unknown>)
+                            .slice(0, 50)
+                            .map(([key, item]) => `${key}: ${scalarText(item)}`)
+                            .join(", "),
+                    )}
                 </Text>
             )
         case "array-scalars": {
             const items = value as unknown[]
             return (
                 <>
-                    <Text>{items.map(scalarText).join(", ")}</Text>
+                    <Text>{listText(items)}</Text>
                     <Muted>{t("chat.valueView.items", {count: items.length})}</Muted>
                 </>
             )
@@ -214,11 +225,14 @@ const metricNumber = (value: unknown): number | null => {
 function MetricContent({
     value,
     kind,
+    detected,
     density,
     t,
 }: {
     value: unknown
     kind: ValueCellMetricKind
+    /** The shape of a `text` metric. */
+    detected: DetectedValue | null
     density: "compact" | "comfortable"
     t: T
 }) {
@@ -274,7 +288,7 @@ function MetricContent({
         )
     }
     // `text`: a reason draws by its shape; a JSON output reads as a count of fields.
-    const detected = detectValueShape(value)
+    if (!detected) return <Dash />
     if (detected.shape === "object-flat") {
         return (
             <Muted>
@@ -294,6 +308,11 @@ const ValueCell = memo(function ValueCell({
     className,
 }: ValueCellProps) {
     const t = useT(valueViewCatalog)
+    // The parse of a large JSON text is not free: once per value, not once per render.
+    const detected = useMemo(
+        () => (state || (metricKind && metricKind !== "text") ? null : detectValueShape(value)),
+        [value, metricKind, state],
+    )
     let content: ReactNode
     if (state === "error") {
         content = <Badge variant="destructive">{t("chat.valueView.error")}</Badge>
@@ -305,9 +324,16 @@ const ValueCell = memo(function ValueCell({
             </>
         )
     } else if (metricKind) {
-        content = <MetricContent value={value} kind={metricKind} density={density} t={t} />
-    } else {
-        const detected = detectValueShape(value)
+        content = (
+            <MetricContent
+                value={value}
+                kind={metricKind}
+                detected={detected}
+                density={density}
+                t={t}
+            />
+        )
+    } else if (detected) {
         content = (
             <>
                 <ShapeContent detected={detected} t={t} />

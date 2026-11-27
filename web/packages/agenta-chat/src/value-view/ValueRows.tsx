@@ -1,4 +1,4 @@
-import {useState} from "react"
+import {useMemo, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
@@ -44,8 +44,8 @@ const NestedValue = ({
     stateKey: string
 }) => {
     const t = useT(valueViewCatalog)
-    const json = JSON.stringify(value) ?? ""
-    const [open, setOpen] = useState(unfolded || json.length <= NESTED_FOLD_CHARS)
+    const size = useMemo(() => (JSON.stringify(value) ?? "").length, [value])
+    const [open, setOpen] = useState(unfolded || size <= NESTED_FOLD_CHARS)
     const count = Array.isArray(value)
         ? t("chat.valueView.items", {count: value.length})
         : t("chat.valueView.fields", {count: Object.keys(value).length})
@@ -54,8 +54,8 @@ const NestedValue = ({
         : t("chat.valueView.size", {
               lines: count,
               characters: t("chat.valueView.characters", {
-                  count: json.length,
-                  n: json.length.toLocaleString(),
+                  count: size,
+                  n: size.toLocaleString(),
               }),
           })
     return (
@@ -72,7 +72,7 @@ const NestedValue = ({
                 {summary}
             </Button>
             {open ? (
-                <ValueRows
+                <ValueBody
                     value={value}
                     depth={depth + 1}
                     unfolded={unfolded}

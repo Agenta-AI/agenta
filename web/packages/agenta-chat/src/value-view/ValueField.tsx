@@ -1,4 +1,4 @@
-import {lazy, Suspense, useId, useState} from "react"
+import {lazy, Suspense, useId, useMemo, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
@@ -28,6 +28,12 @@ const TABLE_ROWS_SHOWN = 5
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === "object" && value !== null && !Array.isArray(value)
 
+/** A table cell draws one line, so it holds only values with nothing to open. */
+const isCellValue = (value: unknown) =>
+    value === null ||
+    value === undefined ||
+    (typeof value !== "object" && typeof value !== "function")
+
 /** Text with aligned columns (a log, a table drawn with spaces) reads in monospace. */
 const hasAlignedColumns = (text: string) => {
     const lines = text.split("\n")
@@ -38,8 +44,8 @@ const hasAlignedColumns = (text: string) => {
 const scalarText = (value: unknown) =>
     typeof value === "number" ? formatShapeNumber(value) : String(value)
 
-const ArrayScalars = ({items}: {items: unknown[]}) => {
-    const [all, setAll] = useState(false)
+const ArrayScalars = ({items, unfolded}: {items: unknown[]; unfolded: boolean}) => {
+    const [all, setAll] = useState(unfolded)
     const texts = items.map(scalarText)
     if (texts.some((text) => text.length > CHIP_MAX_CHARS)) {
         return (
@@ -96,7 +102,8 @@ const ArrayObjects = ({
     const t = useT(valueViewCatalog)
     const [all, setAll] = useState(unfolded)
     const keys = sharedKeys(items)
-    if (!keys)
+    // A nested value in a cell would read only as "N fields", with no way to open it.
+    if (!keys || !items.every((item) => keys.every((key) => isCellValue(item[key]))))
         return <ValueRows value={items} depth={depth} unfolded={unfolded} stateKey={stateKey} />
     const rows = all ? items : items.slice(0, TABLE_ROWS_SHOWN)
     return (
@@ -164,7 +171,7 @@ export const ValueBody = ({
 }: ValueBodyProps) => {
     const t = useT(valueViewCatalog)
     const {markdownClassName, markdownIcons} = useValueViewOptions()
-    const detected = detectValueShape(value)
+    const detected = useMemo(() => detectValueShape(value), [value])
     const drawn = detected.value
 
     const body = (() => {
@@ -241,7 +248,7 @@ export const ValueBody = ({
             case "message":
                 return <MessagesValue messages={[drawn]} stateKey={stateKey} unfolded={unfolded} />
             case "array-scalars":
-                return <ArrayScalars items={drawn as unknown[]} />
+                return <ArrayScalars items={drawn as unknown[]} unfolded={unfolded} />
             case "array-objects":
                 return (
                     <ArrayObjects

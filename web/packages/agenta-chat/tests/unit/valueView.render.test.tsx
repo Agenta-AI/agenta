@@ -203,6 +203,13 @@ describe("ValueField shapes", () => {
         fireEvent.click(screen.getByRole("button", {name: "Show all 7"}))
         expect(container.querySelectorAll("tbody tr")).toHaveLength(7)
     })
+
+    it("draws a list of objects with a nested value as rows, so the value can open", () => {
+        const items = [{sku: "A", details: {address: {city: "Berlin"}}}]
+        const {container} = render(<ValueFullView value={items} />)
+        expect(container.querySelector("table")).toBeNull()
+        expect(screen.getByText(/Berlin/)).toBeTruthy()
+    })
 })
 
 describe("ValueFullView", () => {
@@ -219,6 +226,11 @@ describe("ValueFullView", () => {
         render(<ValueFullView value={lines(40)} label="contract_text" />)
         expect(screen.queryByRole("button", {name: /Show all/})).toBeNull()
         expect(screen.getByText(/Art\. 40/)).toBeTruthy()
+    })
+
+    it("shows every word of a long list", () => {
+        render(<ValueFullView value={Array.from({length: 12}, (_, index) => `tag${index}`)} />)
+        expect(screen.getByText("tag11")).toBeTruthy()
     })
 
     it("opens from a field's Open full view", async () => {

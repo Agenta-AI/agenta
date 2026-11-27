@@ -407,6 +407,17 @@ export const stripJsonFence = (input: string): string | null => {
 }
 
 /**
+ * False when JSON5 cannot give an object, an array or a quoted string for this trimmed text, so
+ * the JSON5 parse is skipped: it is slow, and a cut-off output of 1 MB takes over a second to
+ * fail. Such a value ends with `}`, `]` or a quote, or with a comment: a block comment ends with
+ * `/`, and a line comment runs to the end of the last line.
+ */
+const mayEndJson5Value = (text: string): boolean => {
+    if ("}]\"'/".includes(text.charAt(text.length - 1))) return true
+    return text.slice(text.lastIndexOf("\n") + 1).includes("//")
+}
+
+/**
  * Try to parse a string as structured JSON, tolerating:
  * - whitespace
  * - markdown fenced code blocks (```json ... ```)
@@ -444,6 +455,7 @@ export const parseStructuredJson = (value: string): unknown | null => {
     const strictParsed = toStructured(tryParseJson(candidate))
     if (strictParsed !== null) return strictParsed
 
+    if (!mayEndJson5Value(candidate)) return null
     try {
         return toStructured(JSON5.parse(candidate))
     } catch {
