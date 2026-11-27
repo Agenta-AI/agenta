@@ -24,6 +24,7 @@ const config = {
             "@agenta/oss",
             "@agenta/shared",
             "@agenta/ui",
+            "@agenta/editor",
             "@agenta/entities",
             "@agenta/entity-ui",
             "@agenta/playground",

@@ -171,6 +171,9 @@ importers:
       '@agenta/chat':
         specifier: workspace:../packages/agenta-chat
         version: link:../packages/agenta-chat
+      '@agenta/editor':
+        specifier: workspace:../packages/agenta-editor
+        version: link:../packages/agenta-editor
       '@agenta/entities':
         specifier: workspace:../packages/agenta-entities
         version: link:../packages/agenta-entities
