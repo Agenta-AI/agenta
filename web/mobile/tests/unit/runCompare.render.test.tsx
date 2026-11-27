@@ -633,6 +633,39 @@ describe("compared scenarios", () => {
     })
 })
 
+describe("compared scenarios with no label column", () => {
+    it("A compared run's missing scenario says so in the Evaluation column", async () => {
+        const base = addRun("Capitals: default", {
+            scenarios: [
+                {id: "s1", testcase: "tc-1", success: true},
+                {id: "s2", testcase: "tc-2", success: true},
+            ],
+        })
+        const verbose = addRun("Capitals: verbose", {
+            scenarios: [{id: "s1", testcase: "tc-1", success: false}],
+        })
+        window.localStorage.setItem(
+            `agenta:evaluation-run:scenario-view:${base}`,
+            JSON.stringify({label: null}),
+        )
+        sizeBoxes()
+        try {
+            await open(base, {compare: verbose, view: "scenarios"})
+            await until(
+                () =>
+                    tableRows().some(
+                        (row) =>
+                            row.textContent?.includes("Capitals: verbose") &&
+                            row.textContent.includes("No matching scenario"),
+                    ),
+                "missing scenario explained",
+            )
+        } finally {
+            window.localStorage.removeItem(`agenta:evaluation-run:scenario-view:${base}`)
+        }
+    })
+})
+
 describe("compared scenarios without test cases", () => {
     it("Matches rows by position when the scenarios have no test case", async () => {
         const base = addRun("Capitals: default", {

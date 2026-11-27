@@ -18,6 +18,7 @@ import {
     cellOf,
     type ScenarioColumn,
     type ScenarioEntry,
+    type ScenarioEvaluatorColumn,
     type ScenarioEvaluatorGroup,
     type ScenarioFieldColumn,
     type ScenarioMetricColumn,
@@ -42,13 +43,17 @@ const ROW_HOVER = "group-hover/row:bg-[image:linear-gradient(var(--accent),var(-
 const DIVIDER = "border-0 border-solid border-border-muted"
 
 /**
- * What changes while the table is open (widths, sort) and the actions, read by the headers and
- * cells. They are kept out of the column list: `VirtualTable` mounts every header again when the
- * list changes, which would close an open column menu on a drag, a width step or a polling tick.
+ * What changes while the table is open (widths, sort), read by the headers, and the actions, read
+ * by the headers and cells. Both are kept out of the column list: `VirtualTable` mounts every
+ * header again when the list changes, which would close an open column menu on a drag, a width
+ * step or a polling tick. They are two contexts, so a drag renders the headers, not the cells.
  */
-interface ScenarioTableActions {
+interface ScenarioHeaderState {
     widths: Record<string, number>
     sort: ScenarioSort | null
+}
+
+interface ScenarioTableActions {
     onSort: (sort: ScenarioSort) => void
     onWidth: (key: string, width: number | null) => void
     onHide: (key: string) => void
@@ -56,6 +61,7 @@ interface ScenarioTableActions {
     onRetry: () => void
 }
 
+const HeaderStateContext = createContext<ScenarioHeaderState>({widths: {}, sort: null})
 const ActionsContext = createContext<ScenarioTableActions | null>(null)
 
 const useActions = () => {
@@ -80,7 +86,8 @@ const ColumnHeader = ({
     right?: boolean
     narrow?: boolean
 }) => {
-    const {widths, sort, onSort, onWidth, onHide} = useActions()
+    const {widths, sort} = useContext(HeaderStateContext)
+    const {onSort, onWidth, onHide} = useActions()
     return (
         <ScenarioColumnMenu
             label={label}
@@ -97,16 +104,26 @@ const ColumnHeader = ({
     )
 }
 
-/** A value cell; `retry` marks the one cell of a row that offers to load its values again. */
-const ValueTableCell = (props: {
+/**
+ * A value cell. A row whose values did not load says so once: in its first visible column read
+ * from the trace that has no step error of its own (that cell shows its error).
+ */
+const ValueTableCell = ({
+    traceColumns,
+    ...props
+}: {
     row: ScenarioRow
     column: ScenarioColumn
     density: ScenarioView["density"]
     lines: 1 | 3
-    retry: boolean
+    traceColumns: readonly (ScenarioFieldColumn | ScenarioEvaluatorColumn)[]
 }) => {
     const {onRetry} = useActions()
-    return <ScenarioTableCell {...props} onRetry={props.retry ? onRetry : undefined} />
+    const {row, column} = props
+    const retry =
+        row.valuesFailed &&
+        traceColumns.find((candidate) => !row.errors[candidate.groupKey])?.key === column.key
+    return <ScenarioTableCell {...props} onRetry={retry ? onRetry : undefined} />
 }
 
 const AnnotateCell = ({row}: {row: ScenarioRow}) => {
@@ -189,15 +206,19 @@ export const ScenarioTable = ({
     const showWords = entries.some(
         (entry) => entry.row && entry.row.scenario.status?.toLowerCase() !== "success",
     )
-    // A row whose values did not load says so once, in its first column read from the trace.
-    const retryKey =
-        fields.find((column) => column.section === "output")?.key ??
-        evaluators[0]?.columns[0]?.key ??
-        null
+    // The visible columns read from the trace, in their order: a row's values error goes to one.
+    const traceColumns = useMemo(
+        () => [
+            ...fields.filter((column) => column.section === "output"),
+            ...evaluators.flatMap((group) => group.columns),
+        ],
+        [fields, evaluators],
+    )
 
+    const headerState = useMemo<ScenarioHeaderState>(() => ({widths, sort}), [widths, sort])
     const actions = useMemo<ScenarioTableActions>(
-        () => ({widths, sort, onSort, onWidth, onHide, onAnnotate, onRetry}),
-        [widths, sort, onSort, onWidth, onHide, onAnnotate, onRetry],
+        () => ({onSort, onWidth, onHide, onAnnotate, onRetry}),
+        [onSort, onWidth, onHide, onAnnotate, onRetry],
     )
 
     const columns = useMemo<ColumnDefs<ScenarioEntry>>(() => {
@@ -261,7 +282,7 @@ export const ScenarioTable = ({
                             column={column}
                             density={density}
                             lines={lines}
-                            retry={column.key === retryKey}
+                            traceColumns={traceColumns}
                         />
                     ) : null}
                 </div>
@@ -428,7 +449,7 @@ export const ScenarioTable = ({
         label,
         lines,
         metrics,
-        retryKey,
+        traceColumns,
         showWords,
         t,
         tall,
@@ -436,34 +457,39 @@ export const ScenarioTable = ({
 
     return (
         <ActionsContext.Provider value={actions}>
-            <VirtualTable<ScenarioEntry>
-                height={height}
-                loadMore={onLoadMore}
-                columns={columns}
-                dataSource={entries}
-                rowKey={(entry) => entry.key}
-                rowHeight={ROW_HEIGHT[rowHeight] + 1}
-                enableColumnResizing
-                columnSizing={widths}
-                onColumnSizingChange={onWidths}
-                loading={loading}
-                emptyText={emptyText}
-                onRow={(entry) =>
-                    entry.row
-                        ? {
-                              tabIndex: 0,
-                              className: "group/row cursor-pointer",
-                              onClick: () => onOpen(entry),
-                              onKeyDown: (event) => {
-                                  // Enter on a control in the row (Annotate, Try again, a link) is
-                                  // that control's own.
-                                  if (event.key === "Enter" && event.target === event.currentTarget)
-                                      onOpen(entry)
-                              },
-                          }
-                        : {className: "group/row"}
-                }
-            />
+            <HeaderStateContext.Provider value={headerState}>
+                <VirtualTable<ScenarioEntry>
+                    height={height}
+                    loadMore={onLoadMore}
+                    columns={columns}
+                    dataSource={entries}
+                    rowKey={(entry) => entry.key}
+                    rowHeight={ROW_HEIGHT[rowHeight] + 1}
+                    enableColumnResizing
+                    columnSizing={widths}
+                    onColumnSizingChange={onWidths}
+                    loading={loading}
+                    emptyText={emptyText}
+                    onRow={(entry) =>
+                        entry.row
+                            ? {
+                                  tabIndex: 0,
+                                  className: "group/row cursor-pointer",
+                                  onClick: () => onOpen(entry),
+                                  onKeyDown: (event) => {
+                                      // Enter on a control in the row (Annotate, Try again, a link) is
+                                      // that control's own.
+                                      if (
+                                          event.key === "Enter" &&
+                                          event.target === event.currentTarget
+                                      )
+                                          onOpen(entry)
+                                  },
+                              }
+                            : {className: "group/row"}
+                    }
+                />
+            </HeaderStateContext.Provider>
         </ActionsContext.Provider>
     )
 }

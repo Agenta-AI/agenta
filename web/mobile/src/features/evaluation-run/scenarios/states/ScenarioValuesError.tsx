@@ -9,11 +9,11 @@ import {Button} from "@agenta/ui/ui"
  */
 export const ScenarioValuesError = ({onRetry}: {onRetry: () => void}) => {
     const t = useT(scenariosCatalog, commonCatalog)
+    const text = t("evaluations.scenarios.valuesError")
     return (
-        <div role="alert" className="flex min-w-0 items-center gap-1 text-meta">
-            <span className="truncate text-muted-foreground">
-                {t("evaluations.scenarios.valuesError")}
-            </span>
+        // The title keeps the reason readable when a narrow column cuts the line.
+        <div role="alert" title={text} className="flex min-w-0 items-center gap-1 text-meta">
+            <span className="truncate text-muted-foreground">{text}</span>
             <Button
                 variant="link"
                 size="xs"

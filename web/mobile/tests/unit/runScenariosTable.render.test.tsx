@@ -381,6 +381,26 @@ describe("scenarios table", () => {
         }
     })
 
+    it("Scrolling the screen does not change the body's height", async () => {
+        const innerHeight = window.innerHeight
+        window.innerHeight = 400
+        // A /m screen scrolls inside its own box, scrolled down 200 px: the table sits 200 px
+        // above the window's top.
+        host.style.overflowY = "auto"
+        Object.defineProperty(host, "scrollTop", {configurable: true, value: 200})
+        const rect = vi
+            .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+            .mockReturnValue({top: -200, height: 0} as DOMRect)
+        try {
+            const ids = Array.from({length: 30}, (_, index) => `sc-${index + 1}`)
+            await mount({ids})
+            expect(host.querySelector<HTMLElement>(".avt-body")?.style.height).toBe("328px")
+        } finally {
+            rect.mockRestore()
+            window.innerHeight = innerHeight
+        }
+    })
+
     it("Scrolling the table to its end loads the next page", async () => {
         const innerHeight = window.innerHeight
         window.innerHeight = 400

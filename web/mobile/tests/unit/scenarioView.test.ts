@@ -5,6 +5,7 @@ import {rowNounKey} from "@/features/evaluation-run/focus/scenarioNoun"
 import type {ScenarioCell, ScenarioRow} from "@/features/evaluation-run/scenarios/scenarioColumns"
 import {
     evaluatorFailures,
+    metricValueOf,
     scenarioColumnModel,
     sortScenarioRows,
 } from "@/features/evaluation-run/scenarios/scenarioTableColumns"
@@ -235,6 +236,24 @@ describe("scenario table columns", () => {
     it("An evaluator's failures count the rows where one of its true or false metrics is false", () => {
         expect(evaluatorFailures(rows, model.evaluators[0])).toBe(1)
         expect(evaluatorFailures(rows, model.evaluators[1])).toBe(2)
+    })
+
+    it("A categorical metric reads as its labels, the most frequent first", () => {
+        const cell = (value: unknown) => ({name: "tone", value}) as ScenarioCell
+        expect(
+            metricValueOf(
+                cell({
+                    type: "categorical/single",
+                    freq: [
+                        {value: "neutral", count: 0},
+                        {value: "formal", count: 1},
+                        {value: "friendly", count: 2},
+                    ],
+                }),
+            ),
+        ).toEqual(["friendly", "formal"])
+        expect(metricValueOf(cell({type: "binary", freq: [{value: true, count: 1}]}))).toBe(true)
+        expect(metricValueOf(cell({type: "numeric/continuous", mean: 0.5}))).toBe(0.5)
     })
 
     it("The row word of a sentence follows the run kind", () => {

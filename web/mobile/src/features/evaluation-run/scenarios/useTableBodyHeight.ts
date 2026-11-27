@@ -6,12 +6,24 @@ const FOOTER_ROOM = 72
 const MIN_BODY = 240
 
 /**
+ * How far the page is scrolled: the nearest scrolling box above the table (a /m screen scrolls
+ * inside `ScreenScaffold`, not in the window), else the window.
+ */
+function scrolledBy(box: HTMLElement): number {
+    for (let node = box.parentElement; node; node = node.parentElement) {
+        const {overflowY} = window.getComputedStyle(node)
+        if (overflowY === "auto" || overflowY === "scroll") return node.scrollTop
+    }
+    return window.scrollY
+}
+
+/**
  * The room under the table's header, in px, with the page scrolled to its top: the table's place
  * is read from the top of the page, so scrolling the page does not change it.
  */
 function roomOf(box: HTMLElement | null): number | null {
     if (!box) return null
-    const top = box.getBoundingClientRect().top + window.scrollY
+    const top = box.getBoundingClientRect().top + scrolledBy(box)
     const header = box.querySelector("thead")?.getBoundingClientRect().height ?? 0
     return Math.max(MIN_BODY, Math.floor(window.innerHeight - top - header - FOOTER_ROOM))
 }
