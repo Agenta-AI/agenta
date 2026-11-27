@@ -91,7 +91,7 @@ export const ElicitationChips = ({
         <div
             ref={boxRef}
             onClick={() => boxRef.current?.querySelector("input")?.focus({preventScroll: true})}
-            className="flex min-h-8 w-full cursor-text flex-wrap items-center gap-1 rounded-md border border-solid border-border bg-background px-2 py-1 focus-within:border-primary"
+            className="flex min-h-8 w-full cursor-text flex-wrap items-center gap-1 rounded-md border border-solid border-border bg-background px-2 py-1 focus-ring-field"
         >
             {chips.map((chip) => (
                 <Badge

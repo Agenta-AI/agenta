@@ -428,8 +428,8 @@
                     "id": "FORM-02",
                     "rule": "One focus style",
                     "why": "Focus that looks different per control is easy to lose.",
-                    "avoid": "A gray halo, `outline-4`, `ring-[3px]`, an offset gap",
-                    "do": "`focus-ring` on any control (a 2px `ring` outline with a 1px `foreground` line inside), `focus-ring-field` on a bordered field, `focus-ring-inset` on a full-bleed row inside a scroller; all three are in `@agenta/ui/focus.css`",
+                    "avoid": "Brand yellow or `primary` on focus (`focus:border-primary`, a yellow ring), a gray halo, `outline-4`, `ring-[3px]`, an offset gap",
+                    "do": "Focus is neutral: `ring` is a gray. `focus-ring` on any control (a 2px `ring` outline with a 1px `foreground` line inside), `focus-ring-field` on a bordered field (the border turns `ring` and grows to 2px), `focus-ring-inset` on a full-bleed row inside a scroller; all three are in `@agenta/ui/focus.css`",
                     "checkedBy": ["review"]
                 },
                 {

@@ -199,7 +199,7 @@ export const moreFormExamples: RuleExample[] = [
                     <div className="mb-2 text-label">Rename agent</div>
                     <Input
                         defaultValue="Weekly report"
-                        className="border-foreground outline outline-2 outline-ring"
+                        className="border-ring shadow-[0_0_0_1px_var(--ring)]"
                     />
                 </div>
             ),
