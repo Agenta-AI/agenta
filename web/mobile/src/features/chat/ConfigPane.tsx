@@ -15,10 +15,13 @@ import {AgentBuildPanel} from "@agenta/playground-ui/agent-build"
 export const ConfigPane = ({
     entityId,
     column = false,
+    page = false,
 }: {
     entityId: string
     /** A wide host (the builder page pane): the sections sit in a centered 760 px column. */
     column?: boolean
+    /** A page body: the page scrolls, so the sections take their own height. */
+    page?: boolean
 }) => {
     // The edit right comes from the container (ConfigurationContent), which its open views share.
     const readOnly = useContext(AgentEditorContext)?.readOnly ?? false
@@ -26,7 +29,13 @@ export const ConfigPane = ({
     return (
         // On a phone the size container lets a section screen fill the pane (its primary action at
         // the bottom). The sections' own 16 px inset is the pane's line (ALIGN-01).
-        <div className="ag-panel-raised ag-scroll-no-bar flex h-full min-h-0 w-full flex-col overflow-y-auto max-md:[container-type:size]">
+        <div
+            className={
+                page
+                    ? "flex w-full flex-col"
+                    : "ag-panel-raised ag-scroll-no-bar flex h-full min-h-0 w-full flex-col overflow-y-auto max-md:[container-type:size]"
+            }
+        >
             <AgentBuildPanel
                 className={column ? "mx-auto w-full max-w-content-md" : undefined}
                 revisionId={entityId}

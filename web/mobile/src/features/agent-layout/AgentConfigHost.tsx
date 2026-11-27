@@ -27,9 +27,9 @@ export interface PhoneSectionScreen {
 }
 
 /**
- * The agent's configuration pane, shared by the session's right panel and the builder page: one
- * view stack with the panel chrome over the tabs (`children`), the agent editor (revision, edit
- * right, channel presence) and the DrillIn bridge its views use.
+ * The agent's configuration pane, shared by the session's right panel, the builder page and the
+ * agent's Configuration page: one view stack with the panel chrome over the tabs (`children`), the
+ * agent editor (revision, edit right, channel presence) and the DrillIn bridge its views use.
  */
 export const AgentConfigHost = ({
     agentId,
@@ -38,6 +38,7 @@ export const AgentConfigHost = ({
     readChannels,
     rootTitle,
     phone = false,
+    sectionScreen: pageSectionScreen,
     shown = true,
     widen,
     onClose,
@@ -55,6 +56,8 @@ export const AgentConfigHost = ({
     rootTitle: string
     /** A phone screen: phone chrome, and the Agent tab's sections open as their own screens. */
     phone?: boolean
+    /** The phone section screen, when the container draws its header itself (a page). */
+    sectionScreen?: ReturnType<typeof usePhoneSectionScreen>
     /** The pane is on screen: only then is a section screen a level of the browser back. */
     shown?: boolean
     widen?: PanelChromeControls["widen"]
@@ -75,7 +78,8 @@ export const AgentConfigHost = ({
         [revisionId, readOnly, hasChannel],
     )
     // On a phone the Agent tab is a list of rows, and a row opens its section as a screen.
-    const sectionScreen = usePhoneSectionScreen(phone)
+    const ownSectionScreen = usePhoneSectionScreen(phone && !pageSectionScreen)
+    const sectionScreen = pageSectionScreen ?? ownSectionScreen
     useSystemBack(shown && sectionScreen.shown ? 1 : 0, "section", sectionScreen.close)
     // A hidden pane drops its section screen, so it opens again at its root.
     const closeSection = sectionScreen.close

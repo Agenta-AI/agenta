@@ -8,6 +8,11 @@
         "agent": "11b39c93777e",
         "onlyThisAgent": "e4b153af241b"
     },
+    "agentPages.page": {
+        "analyticsDescription": "4c3d3fc7743e",
+        "configurationDescription": "e3c489305f0d",
+        "sessionsDescription": "04f6057c5341"
+    },
     "agentSidebar": {
         "agent": "11b39c93777e",
         "agents": "279b44d2ab4b",
