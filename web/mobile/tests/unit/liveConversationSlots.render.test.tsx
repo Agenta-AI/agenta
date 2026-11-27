@@ -23,7 +23,6 @@ const calls = vi.hoisted(() => ({
 }))
 const dialog = vi.hoisted(() => ({confirm: vi.fn()}))
 const modelSetup = vi.hoisted(() => ({blocked: false, loading: false, canFix: false}))
-const personalSetup = vi.hoisted(() => ({open: false}))
 const engine = vi.hoisted(() => ({isEmpty: false, isHydrating: false}))
 
 const approval = {approvalId: "gate-1", toolName: "send_email"}
@@ -183,10 +182,10 @@ vi.mock("@agenta/entity-ui/clientTools", () => ({
     SecretRequestDock: () => <div data-testid="secret-dock" />,
 }))
 vi.mock("@agenta/entity-ui/onboarding", () => ({
-    PersonalAccountsCard: () => <div data-testid="personal-card" />,
+    PersonalAccountsCard: () => null,
 }))
 vi.mock("@/features/chat/usePersonalSetupStep", () => ({
-    usePersonalSetupStep: () => ({open: personalSetup.open, items: [], pendingKeys: new Set()}),
+    usePersonalSetupStep: () => ({open: false, items: [], pendingKeys: new Set()}),
 }))
 vi.mock("@agenta/shared/utils", () => ({isOnScreen: () => true, isOverlayOpen: () => false}))
 // The builder's approval choices load the entities package, which needs the real utils.
