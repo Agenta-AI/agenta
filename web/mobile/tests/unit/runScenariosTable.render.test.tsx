@@ -388,6 +388,8 @@ describe("scenarios table", () => {
         // above the window's top.
         host.style.overflowY = "auto"
         Object.defineProperty(host, "scrollTop", {configurable: true, value: 200})
+        Object.defineProperty(host, "scrollHeight", {configurable: true, value: 2000})
+        Object.defineProperty(host, "clientHeight", {configurable: true, value: 400})
         const rect = vi
             .spyOn(HTMLElement.prototype, "getBoundingClientRect")
             .mockReturnValue({top: -200, height: 0} as DOMRect)

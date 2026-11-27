@@ -12,7 +12,9 @@ const MIN_BODY = 240
 function scrolledBy(box: HTMLElement): number {
     for (let node = box.parentElement; node; node = node.parentElement) {
         const {overflowY} = window.getComputedStyle(node)
-        if (overflowY === "auto" || overflowY === "scroll") return node.scrollTop
+        // A box that only scrolls sideways also reads overflow-y auto: it has no taller content.
+        const scrolls = overflowY === "auto" || overflowY === "scroll"
+        if (scrolls && node.scrollHeight > node.clientHeight) return node.scrollTop
     }
     return window.scrollY
 }

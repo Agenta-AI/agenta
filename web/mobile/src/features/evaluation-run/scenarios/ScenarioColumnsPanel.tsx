@@ -71,7 +71,7 @@ export const ScenarioColumnsPanel = ({
 }) => {
     const t = useT(scenariosCatalog)
     const [query, setQuery] = useState("")
-    const [dragged, setDragged] = useState<string | null>(null)
+    const [dragged, setDragged] = useState<{key: string; section: PanelRow["section"]} | null>(null)
     const needle = query.trim().toLowerCase()
     const matches = (row: PanelRow) =>
         !needle ||
@@ -136,14 +136,16 @@ export const ScenarioColumnsPanel = ({
                 key={row.key}
                 className="flex items-center gap-1"
                 draggable={canDrag}
-                onDragStart={() => setDragged(row.key)}
+                onDragStart={() => setDragged({key: row.key, section: row.section})}
                 onDragEnd={() => setDragged(null)}
                 onDragOver={(event) => {
-                    if (dragged && dragged !== row.key) event.preventDefault()
+                    // A row moves only among the rows of its own section.
+                    if (dragged && dragged.key !== row.key && dragged.section === row.section)
+                        event.preventDefault()
                 }}
                 onDrop={(event) => {
                     event.preventDefault()
-                    if (dragged) onMove(dragged, row.key)
+                    if (dragged && dragged.section === row.section) onMove(dragged.key, row.key)
                     setDragged(null)
                 }}
             >

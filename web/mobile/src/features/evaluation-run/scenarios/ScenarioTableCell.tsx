@@ -23,7 +23,10 @@ export const ScenarioTableCell = ({
     column: ScenarioColumn
     density: ScenarioDensity
     lines: 1 | 3
-    /** Only the row's first trace column: one error line and one "Try again" per row. */
+    /**
+     * Only the row's first visible trace column without a step error: one error line and one
+     * "Try again" per row.
+     */
     onRetry?: () => void
 }) => {
     if (column.type === "metric") {
