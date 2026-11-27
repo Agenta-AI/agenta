@@ -2,7 +2,7 @@ import {memo, useEffect, useState} from "react"
 
 import {AgentActionsMenu, AgentOverviewSkeleton} from "@agenta/entity-ui/agent"
 import {PageLayout} from "@agenta/ui"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
+import {pageContentWidthClass} from "@agenta/ui/layout"
 import {SkeletonBlock} from "@agenta/ui/ui"
 import {Space, Typography} from "antd"
 import clsx from "clsx"

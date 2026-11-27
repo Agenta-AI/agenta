@@ -8,7 +8,7 @@ import {
 } from "@agenta/entities/workflow"
 import {TEMPLATE_GALLERY_COPY, TemplateGallery} from "@agenta/home-ui"
 import {PageLayout} from "@agenta/ui"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
+import {pageContentWidthClass} from "@agenta/ui/layout"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
