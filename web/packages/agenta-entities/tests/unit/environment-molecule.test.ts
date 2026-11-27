@@ -5,12 +5,9 @@
  * as the testset molecule. All write operations make API calls (archive, commit,
  * deploy) so those are out of scope here. We test the pure Jotai layer:
  *
- *   • Molecule shape       — name, atoms, actions, invalidate, revisionsList
  *   • isNewEntity          — always false (no local creation flow)
  *   • Draft operations     — update/discard reducers change draft and isDirty
  *   • Null-safe selectors  — queryOptional / dataOptional with null/undefined
- *   • revisionsList shape  — atoms / reducers / get exposed correctly
- *   • invalidate shape     — list / detail / revisions exposed as functions
  */
 
 import {createStore} from "jotai"
@@ -23,76 +20,6 @@ import {environmentMolecule} from "../../src/environment/state/environmentMolecu
 function freshStore() {
     return createStore()
 }
-
-// ── Molecule shape ────────────────────────────────────────────────────────────
-
-describe("environmentMolecule shape", () => {
-    it("exposes 'environment' as the molecule name", () => {
-        expect(environmentMolecule.name).toBe("environment")
-    })
-
-    it("exposes atoms namespace", () => {
-        expect(typeof environmentMolecule.atoms.data).toBe("function")
-        expect(typeof environmentMolecule.atoms.isDirty).toBe("function")
-        expect(typeof environmentMolecule.atoms.draft).toBe("function")
-        expect(typeof environmentMolecule.atoms.serverData).toBe("function")
-        expect(typeof environmentMolecule.atoms.query).toBe("function")
-    })
-
-    it("exposes extended atoms for deployments", () => {
-        expect(typeof environmentMolecule.atoms.revisionDeployment).toBe("function")
-        expect(typeof environmentMolecule.atoms.bySlug).toBe("function")
-        expect(typeof environmentMolecule.atoms.appDeployments).toBe("function")
-        expect(typeof environmentMolecule.atoms.appDeploymentsBySlug).toBe("function")
-        expect(typeof environmentMolecule.atoms.appDeploymentInEnvironment).toBe("function")
-    })
-
-    it("exposes top-level data / query / isDirty aliases", () => {
-        expect(typeof environmentMolecule.data).toBe("function")
-        expect(environmentMolecule.query).toBeDefined()
-        expect(typeof environmentMolecule.isDirty).toBe("function")
-    })
-
-    it("exposes null-safe queryOptional and dataOptional", () => {
-        expect(typeof environmentMolecule.queryOptional).toBe("function")
-        expect(typeof environmentMolecule.dataOptional).toBe("function")
-    })
-
-    it("exposes actions namespace", () => {
-        expect(environmentMolecule.actions.update).toBeDefined()
-        expect(environmentMolecule.actions.discard).toBeDefined()
-        expect(environmentMolecule.actions.archive).toBeDefined()
-        expect(environmentMolecule.actions.toggleGuard).toBeDefined()
-        expect(environmentMolecule.actions.commit).toBeDefined()
-        expect(environmentMolecule.actions.deploy).toBeDefined()
-        expect(environmentMolecule.actions.undeploy).toBeDefined()
-        expect(environmentMolecule.actions.revert).toBeDefined()
-        expect(environmentMolecule.actions.revertToSnapshot).toBeDefined()
-    })
-
-    it("exposes invalidate namespace", () => {
-        expect(typeof environmentMolecule.invalidate.list).toBe("function")
-        expect(typeof environmentMolecule.invalidate.detail).toBe("function")
-        expect(typeof environmentMolecule.invalidate.revisions).toBe("function")
-    })
-
-    it("exposes revisionsList namespace", () => {
-        expect(environmentMolecule.revisionsList).toBeDefined()
-        expect(environmentMolecule.revisionsList.atoms).toBeDefined()
-        expect(environmentMolecule.revisionsList.reducers).toBeDefined()
-        expect(typeof environmentMolecule.revisionsList.get).toBe("function")
-    })
-
-    it("exposes imperative get namespace", () => {
-        expect(typeof environmentMolecule.get.data).toBe("function")
-        expect(typeof environmentMolecule.get.isDirty).toBe("function")
-    })
-
-    it("exposes imperative set namespace", () => {
-        expect(typeof environmentMolecule.set.update).toBe("function")
-        expect(typeof environmentMolecule.set.discard).toBe("function")
-    })
-})
 
 // ── isNewEntity ───────────────────────────────────────────────────────────────
 

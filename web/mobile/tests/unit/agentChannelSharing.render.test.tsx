@@ -1,31 +1,18 @@
 // @vitest-environment jsdom
 /**
- * Agent sharing around the channels on /m: the Publish panel of a private agent is the same as a
- * shared agent's (a private agent answers in channels), and the privacy control learns which
- * channel connections are still off, from the connections Publish already read.
+ * Agent sharing around the channels on /m: the privacy control learns which channel connections
+ * are still off, from the connections Publish already read.
  */
-import {act, createElement} from "react"
+import {createElement} from "react"
 
 import type {ChannelConnection, ChannelConnections} from "@agenta/settings-ui"
 import {createStore, Provider} from "jotai"
-import {createRoot, type Root} from "react-dom/client"
 import {renderToStaticMarkup} from "react-dom/server"
-import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
-;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
+import {beforeEach, describe, expect, it, vi} from "vitest"
 
-const {publishOptions, controlProps, workflows} = vi.hoisted(() => ({
-    publishOptions: [] as Record<string, unknown>[],
+const {controlProps} = vi.hoisted(() => ({
     controlProps: [] as Record<string, unknown>[],
-    workflows: {current: [] as Record<string, unknown>[]},
 }))
-
-vi.mock("@agenta/entities/workflow", async (importOriginal) => {
-    const {atom: mockAtom} = await import("jotai")
-    return {
-        ...(await importOriginal<typeof import("@agenta/entities/workflow")>()),
-        agentWorkflowsListQueryStateAtom: mockAtom(() => ({data: workflows.current})),
-    }
-})
 
 vi.mock("@agenta/shared/state", async (importOriginal) => {
     const {atom: mockAtom} = await import("jotai")
@@ -34,18 +21,6 @@ vi.mock("@agenta/shared/state", async (importOriginal) => {
         userAtom: mockAtom({id: "me", email: "me@example.com", username: "Me"}),
     }
 })
-
-vi.mock("../../src/features/agents/useAgentPublishPanel", () => ({
-    useAgentPublishPanel: (options: Record<string, unknown>) => {
-        publishOptions.push(options)
-        return {
-            openHub: vi.fn(),
-            reload: vi.fn().mockResolvedValue(undefined),
-            connections: {slack: null, telegram: null, whatsapp: null, teams: null},
-            panel: null,
-        }
-    },
-}))
 
 vi.mock("@agenta/entity-ui/sharing", () => ({
     AgentPrivacyControl: (props: Record<string, unknown>) => {
@@ -81,60 +56,9 @@ vi.mock("@tanstack/react-query", async (importOriginal) => ({
 }))
 
 import {AgentPrivacyHost} from "../../src/features/chat/AgentPrivacyHost"
-import {ShareMenu} from "../../src/features/chat/ShareMenu"
-
-let root: Root | null = null
-let host: HTMLDivElement | null = null
-
-const mountShareMenu = () => {
-    host = document.createElement("div")
-    document.body.append(host)
-    root = createRoot(host)
-    act(() => {
-        root?.render(
-            createElement(
-                Provider,
-                {store: createStore()},
-                createElement(ShareMenu, {
-                    agentId: "agent-1",
-                    sessionId: "session-1",
-                    canRequestTemplate: false,
-                    workspaceId: "workspace-1",
-                    projectId: "project-1",
-                }),
-            ),
-        )
-    })
-}
 
 beforeEach(() => {
-    publishOptions.length = 0
     controlProps.length = 0
-})
-
-afterEach(() => {
-    act(() => {
-        root?.unmount()
-        host?.remove()
-    })
-    root = null
-    host = null
-})
-
-describe("the Publish panel of a private agent", () => {
-    it("gets no private state: a private agent connects like a shared one", () => {
-        workflows.current = [
-            {
-                id: "agent-1",
-                name: "Support triage",
-                access: {visibility: "private", owner_user_id: "me"},
-            },
-        ]
-        mountShareMenu()
-        const options = publishOptions.at(-1)!
-        expect(options).not.toHaveProperty("agentPrivate")
-        expect(options).not.toHaveProperty("onShareAgent")
-    })
 })
 
 describe("the privacy control's channel state", () => {

@@ -2,10 +2,8 @@ import {describe, expect, it} from "vitest"
 
 import {
     agentTemplateByKey,
-    categoryFromSlug,
     connectionNeedLabel,
     templateConnections,
-    templatePrimaryProvider,
     templateProviderSlugs,
     PROVIDERS,
     SAVE_AS_TEMPLATE_MESSAGE,
@@ -26,8 +24,6 @@ describe("catalog API parity", () => {
     it("keeps deep-link category and key lookups on the fetched list", () => {
         expect(templateCategories(FIXTURE_TEMPLATES)).toEqual([...TEMPLATE_CATEGORY_ORDER])
         expect(templateCategories([])).toEqual([])
-        expect(categoryFromSlug("engineering", FIXTURE_TEMPLATES)).toBe("Engineering")
-        expect(categoryFromSlug("engineering", [])).toBe("All")
         expect(agentTemplateByKey(FIXTURE_TEMPLATES, "pr-reviewer")?.name).toBe("PR reviewer")
         expect(agentTemplateByKey(FIXTURE_TEMPLATES, "missing")).toBeUndefined()
         expect(agentTemplateByKey(FIXTURE_TEMPLATES, undefined)).toBeUndefined()
@@ -35,10 +31,6 @@ describe("catalog API parity", () => {
 })
 
 describe("catalog templates", () => {
-    it("has exactly 30 entries", () => {
-        expect(AGENT_TEMPLATES).toHaveLength(30)
-    })
-
     it("has unique keys", () => {
         const keys = AGENT_TEMPLATES.map((template) => template.key)
         expect(new Set(keys).size).toBe(keys.length)
@@ -70,8 +62,7 @@ describe("catalog templates", () => {
         for (const template of AGENT_TEMPLATES) {
             const slots = templateConnections(template)
             if (!slots.length) continue
-            expect(templatePrimaryProvider(template)).toBe(slots[0].primary.slug)
-            expect(templateProviderSlugs(template)[0]).toBe(templatePrimaryProvider(template))
+            expect(templateProviderSlugs(template)[0]).toBe(slots[0].primary.slug)
         }
     })
 

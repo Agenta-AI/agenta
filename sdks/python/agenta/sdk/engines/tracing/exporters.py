@@ -1,6 +1,7 @@
 from typing import Sequence, Dict, List, Optional
-from threading import Thread
+from threading import Lock, Thread
 from os import environ
+from time import monotonic
 
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
     OTLPSpanExporter,
@@ -20,7 +21,6 @@ from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.utils.cache import TTLLRUCache
 from agenta.sdk.contexts.tracing import (
     otlp_context_manager,
-    otlp_context,
     OTLPContext,
 )
 
@@ -82,8 +82,6 @@ class InlineTraceExporter(SpanExporter):
 
 
 class OTLPExporter(OTLPSpanExporter):
-    _MAX_RETRY_TIMEOUT = 2
-
     def __init__(
         self,
         *args,
@@ -93,6 +91,48 @@ class OTLPExporter(OTLPSpanExporter):
         super().__init__(*args, **kwargs)
 
         self.credentials = credentials
+        self._threads: List[Thread] = []
+        self._threads_lock = Lock()
+
+        # The OTLP HTTP client of opentelemetry 1.45 sends every request through
+        # the transport session. Wrap that session (also one loaded from a
+        # credential provider) so each request carries the credentials of the
+        # group that is exporting. Nothing is shared between groups. A provider
+        # session that sets Authorization itself still wins, as it did with
+        # opentelemetry 1.43, because the provider owns the collector auth.
+        session = self._client._transport._session
+        request = session.request
+
+        def request_with_credentials(method, url, *args, headers=None, **kwargs):
+            credentials = OTLPContext.get().credentials
+
+            if credentials:
+                headers = {**(headers or {}), "Authorization": credentials}
+
+            return request(method, url, *args, headers=headers, **kwargs)
+
+        session.request = request_with_credentials
+
+    def shutdown(self) -> None:
+        # Let the accepted async groups finish before the exporter closes. Each
+        # group stops retrying after the export timeout, so wait at most that
+        # long in total. A response that never completes must not block exit.
+        deadline = monotonic() + self._client._timeout
+        with self._threads_lock:
+            threads, self._threads = self._threads, []
+
+        for thread in threads:
+            thread.join(max(deadline - monotonic(), 0))
+
+        super().shutdown()
+
+    def _export_group(
+        self,
+        credentials: Optional[str],
+        spans: List[ReadableSpan],
+    ) -> bool:
+        with otlp_context_manager(context=OTLPContext(credentials=credentials)):
+            return super().export(spans) == SpanExportResult.SUCCESS
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
         grouped_spans: Dict[Optional[str], List[ReadableSpan]] = dict()
@@ -109,74 +149,31 @@ class OTLPExporter(OTLPSpanExporter):
 
             grouped_spans[credentials].append(span)
 
-        serialized_spans = []
+        results = []
 
         for credentials, _spans in grouped_spans.items():
-            with otlp_context_manager(
-                context=OTLPContext(
-                    credentials=credentials,
+            if _ASYNC_EXPORT is True:
+                thread = Thread(
+                    target=self._export_group,
+                    args=(credentials, _spans),
+                    daemon=False,
                 )
-            ):
-                for _span in _spans:
-                    trace_id = _span.get_span_context().trace_id  # noqa: F841
+                thread.start()
+                with self._threads_lock:
+                    self._threads = [t for t in self._threads if t.is_alive()]
+                    self._threads.append(thread)
+                results.append(True)
+            else:
+                try:
+                    results.append(self._export_group(credentials, _spans))
+                except Exception as e:
+                    log.error(f"Export failed with error: {e}", exc_info=True)
+                    results.append(False)
 
-                    # log.debug(
-                    #     "[SPAN]  [EXPORT]",
-                    #     trace_id=UUID(int=trace_id).hex,
-                    #     span_id=UUID(int=span_id).hex[-16:],
-                    #     # span_attributes=_span.attributes,
-                    # )
-
-                serialized_spans.append(super().export(_spans))
-
-        if all(serialized_spans):
+        if all(results):
             return SpanExportResult.SUCCESS
         else:
             return SpanExportResult.FAILURE
-
-    def _export(self, serialized_data: bytes, timeout_sec: Optional[float] = None):
-        try:
-            credentials = otlp_context.get().credentials
-
-            if credentials:
-                self._session.headers.update({"Authorization": credentials})
-
-            def __export():
-                with suppress():
-                    _resp = None
-                    if timeout_sec is not None:
-                        _resp = super(OTLPExporter, self)._export(
-                            serialized_data,
-                            timeout_sec,
-                        )
-                    else:
-                        _resp = super(OTLPExporter, self)._export(
-                            serialized_data,
-                        )
-
-                    # log.debug(
-                    #     "[SPAN] [_EXPORT]",
-                    #     # data=serialized_data,
-                    #     resp=resp,
-                    # )
-
-            if _ASYNC_EXPORT is True:
-                # log.debug("[SPAN] [ASYNC.X]", credentials=(credentials is not None))
-                thread = Thread(target=__export, daemon=False)
-                thread.start()
-            else:
-                # log.debug("[SPAN] [ SYNC.X]", credentials=(credentials is not None))
-                return __export()
-
-        except Exception as e:
-            log.error(f"Export failed with error: {e}", exc_info=True)
-
-        finally:
-
-            class Response:
-                ok = True
-
-            return Response()
 
 
 ConsoleExporter = ConsoleSpanExporter

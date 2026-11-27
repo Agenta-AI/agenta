@@ -421,7 +421,10 @@ accounting) and stays around 15 calls per preview cycle.
 
 ## Notes
 
-- This fast-start flow keeps auth minimal (`AGENTA_LICENSE=oss`).
+- The API containers (api, workers, cron, alembic) do not set `AGENTA_LICENSE`. They get their
+  databases from `POSTGRES_URI_*`, which `configure.sh` sets. The web, web-mobile and services
+  containers keep `AGENTA_LICENSE=oss`: the web entrypoint uses it to pick the classic `/w`
+  build, and the services use it for the default of provider keys from the environment.
 - CI is wired for Railway preview environments via `.github/workflows/14-check-pr-preview.yml` (automatic PR preview entrypoint: build, deploy, tests, cleanup), `.github/workflows/42-railway-build.yml` (reusable/manual image build), `.github/workflows/44-railway-tests.yml` (reusable post-deploy tests), `.github/workflows/45-railway-cleanup.yml` (five-minute sweep, PR close/draft conversion, and workflow-completion reconciliation), `.github/workflows/46-railway-preview-comment.yml` (`/preview` comment entrypoint), `.github/workflows/47-railway-template-drift.yml` (daily template drift check), `.github/workflows/48-railway-clone-preview-test.yml` (opt-in real-provider acceptance harness), `.github/workflows/49-railway-lifecycle.yml` (reusable per-PR lifecycle controller for create/deploy/finish/sweep), and `.github/workflows/50-railway-lifecycle-checks.yml` (offline lifecycle regression tests). Workflows 41 and 43 were removed; setup and deploy are now folded into the lifecycle controller.
 - Postgres and Redis are provisioned as image-backed services with explicit volume mounts.
 - Redis now gets a `/data` volume during bootstrap for persistence.

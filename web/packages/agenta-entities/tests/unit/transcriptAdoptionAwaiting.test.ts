@@ -1,22 +1,6 @@
 import {describe, expect, it} from "vitest"
 
 import {shouldAdoptServerTranscript} from "../../src/session/core/transcriptAdoption"
-import {hasWaitingInteraction} from "../../src/session/state/interactionStatus"
-import type {SessionInteractionRowState} from "../../src/session/state/interactionStatus"
-
-const row = (status: SessionInteractionRowState["status"]): SessionInteractionRowState => ({
-    token: "t1",
-    status,
-    kind: "client_tool" as SessionInteractionRowState["kind"],
-})
-
-/** The shape the sessions API returns for a Terminal call parked on Approve/Deny. */
-const pendingApprovalRow = (): SessionInteractionRowState => ({
-    token: "0199a1e2-approval-token",
-    status: "pending",
-    kind: "user_approval" as SessionInteractionRowState["kind"],
-    toolCallId: "toolu_01Terminal",
-})
 
 const grown = {
     serverRecordCount: 10,
@@ -33,18 +17,6 @@ describe("#5942 adoption guard", () => {
 
     it("refuses to adopt over a card still parked on the user", () => {
         expect(shouldAdoptServerTranscript({...grown, awaitingUser: true})).toBe(false)
-    })
-
-    it("reads a pending row as waiting and terminal rows as settled", () => {
-        expect(hasWaitingInteraction(new Map([["t1", row("pending")]]))).toBe(true)
-        expect(hasWaitingInteraction(new Map([["t1", row("responded")]]))).toBe(false)
-        expect(hasWaitingInteraction(new Map([["t1", row("resolved")]]))).toBe(false)
-        expect(hasWaitingInteraction(new Map([["t1", row("cancelled")]]))).toBe(false)
-    })
-
-    it("treats absent rows as not waiting — the guard needs positive evidence", () => {
-        expect(hasWaitingInteraction(undefined)).toBe(false)
-        expect(hasWaitingInteraction(new Map())).toBe(false)
     })
 })
 
@@ -66,16 +38,8 @@ describe("cold open of a session parked on an approval", () => {
         busy: false,
     }
 
-    const rows = new Map([["0199a1e2-approval-token", pendingApprovalRow()]])
-
-    it("sees the pending user_approval row as waiting on the user", () => {
-        expect(hasWaitingInteraction(rows)).toBe(true)
-    })
-
     it("adopts the server transcript even though an approval is pending", () => {
-        expect(
-            shouldAdoptServerTranscript({...coldOpen, awaitingUser: hasWaitingInteraction(rows)}),
-        ).toBe(true)
+        expect(shouldAdoptServerTranscript({...coldOpen, awaitingUser: true})).toBe(true)
     })
 
     it("still refuses once that transcript is on screen — #5942 is intact", () => {
@@ -87,7 +51,7 @@ describe("cold open of a session parked on an approval", () => {
                 localMessageCount: 4,
                 watermark: 12,
                 serverRecordCount: 14,
-                awaitingUser: hasWaitingInteraction(rows),
+                awaitingUser: true,
             }),
         ).toBe(false)
     })

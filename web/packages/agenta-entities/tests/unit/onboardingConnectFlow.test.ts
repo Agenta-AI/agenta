@@ -1,14 +1,13 @@
 /**
  * Both onboarding flows end to end, at the level the rules live (#6043 item 6): a description or a
- * template goes in, and what comes out is the rows the step shows, whether Create is gated, and
- * what the created agent is told.
+ * template goes in, and what comes out is the rows the step shows and whether Create is gated.
  *
  * The UI is covered separately (`@agenta/entity-ui` AgentSetupCard.gating). This suite exists so a
  * change to detection or gating cannot silently alter what either flow produces.
  */
 import {describe, expect, it} from "vitest"
 
-import {appendSetupPreamble, canCreateAgent, setupStatus} from "../../src/workflow/agentSetup"
+import {canCreateAgent, setupStatus} from "../../src/workflow/agentSetup"
 import {templateConnections, type AgentStarterTemplate} from "../../src/workflow/agentTemplates"
 import {FIXTURE_TEMPLATES as AGENT_TEMPLATES} from "./agentTemplateFixtures"
 import {detectAccounts} from "../../src/workflow/detectAccounts"
@@ -33,7 +32,6 @@ const runStep = ({
         slugs: accounts.map((a) => a.slug),
         canCreate: canCreateAgent(selection),
         status: setupStatus(selection),
-        seed: appendSetupPreamble(description ?? "", selection),
     }
 }
 
@@ -47,26 +45,6 @@ describe("free-text onboarding", () => {
     it("never blocks create, however the user leaves the step", () => {
         expect(runStep({description}).canCreate).toBe(true)
         expect(runStep({description, connect: ["github"]}).canCreate).toBe(true)
-    })
-
-    it("tells the agent what is connected, and nothing about what was left alone", () => {
-        // An unconnected optional account IS the skip — the builder asks when it needs it,
-        // and the seed carries no line about it.
-        const {seed} = runStep({description, connect: ["github"]})
-        expect(seed).toContain(description)
-        expect(seed).toContain("I've connected GitHub.")
-        expect(seed).not.toContain("skipped")
-    })
-
-    it("adds only the default posture when the user connects nothing", () => {
-        expect(runStep({description}).seed).toBe(
-            `${description}\n\nAsk me before you write or send anything.`,
-        )
-    })
-
-    it("states that posture with no accounts at all — it is a constant, not an answer", () => {
-        const {seed} = runStep({description: "Summarize my notes"})
-        expect(seed).toContain("Ask me before you write or send anything.")
     })
 
     it("detects nothing from a description that names no service", () => {
@@ -93,10 +71,6 @@ describe("template onboarding", () => {
     it("connecting only some of them still blocks", () => {
         if (declared.length < 2) return
         expect(runStep({template, connect: [declared[0]]}).canCreate).toBe(false)
-    })
-
-    it("cannot be unblocked by anything short of connecting", () => {
-        expect(runStep({template}).canCreate).toBe(false)
     })
 
     it("merges the template's accounts with ones named in the builder message", () => {

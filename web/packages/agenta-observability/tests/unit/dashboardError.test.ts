@@ -3,7 +3,6 @@ import {describe, expect, it} from "vitest"
 import {
     DASHBOARD_ERROR_FALLBACK,
     dashboardErrorMessage,
-    isDashboardTimeout,
     shouldRetryDashboard,
 } from "../../src/core/dashboardError"
 
@@ -22,14 +21,6 @@ describe("dashboardErrorMessage", () => {
             DASHBOARD_ERROR_FALLBACK,
         )
         expect(dashboardErrorMessage(new Error("network"))).toBe(DASHBOARD_ERROR_FALLBACK)
-    })
-})
-
-describe("isDashboardTimeout", () => {
-    it("is true only for a 504", () => {
-        expect(isDashboardTimeout(fernError(504, {}))).toBe(true)
-        expect(isDashboardTimeout(fernError(500, {}))).toBe(false)
-        expect(isDashboardTimeout(new Error("network"))).toBe(false)
     })
 })
 

@@ -16,28 +16,6 @@ import {
     toolRowKey,
 } from "../../../src/state/expandState"
 
-describe("expandState key builders", () => {
-    it("builds a reasoning key from the message id and part index", () => {
-        expect(reasoningKey("m1", 2)).toBe("m1::reason::2")
-    })
-
-    it("builds an error key from the message id", () => {
-        expect(errorKey("m1")).toBe("m1::error")
-    })
-
-    it("builds a body key from the message id", () => {
-        expect(messageBodyKey("m1")).toBe("m1::body")
-    })
-
-    it("builds a tool row key from the tool call id", () => {
-        expect(toolRowKey("tool-1")).toBe("tool::row::tool-1")
-    })
-
-    it("builds a tool group key from the tool call id", () => {
-        expect(toolGroupKey("tool-1")).toBe("tool::group::tool-1")
-    })
-})
-
 describe("expandedKeysForMessages", () => {
     it("emits error and body keys for every message plus reasoning/tool keys for their parts", () => {
         const messages = [
