@@ -19,8 +19,6 @@ import {DiffView} from "@agenta/ui/editor"
 import {cn} from "@agenta/ui/styles"
 import {ArrowLeft, Code, PencilSimple} from "@phosphor-icons/react"
 
-import {isSectionOpen} from "./sectionOpenState"
-
 import {
     CARD,
     ChangeSections,
@@ -32,6 +30,8 @@ import {
     kindIcon,
     kindStyle,
 } from "@agenta/entity-ui/changes"
+
+import {isSectionOpen} from "./sectionOpenState"
 
 type View =
     | {kind: "summary"}
