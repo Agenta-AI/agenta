@@ -27,7 +27,8 @@ vi.mock("@agenta/entities/workflow", async () => {
         "ev-1": {name: "Tone check", slug: "tone-check"},
     }
     const revisions: Record<string, unknown> = {
-        "rev-8": {name: "with_site_text", slug: "with-site-text", version: 8, workflow_id: "app-1"},
+        // A UI-made revision carries "default"; the chip must name the variant, not the revision.
+        "rev-8": {name: "default", slug: "3f9a0c", version: 8, workflow_id: "app-1"},
     }
     return {
         workflowDetailQueryAtomFamily: (id: string | null) =>
@@ -36,6 +37,7 @@ vi.mock("@agenta/entities/workflow", async () => {
             selectors: {
                 data: (id: string) => atom(revisions[id] ?? null),
                 query: () => atom({isPending: false}),
+                variantLabel: (id: string) => atom(id === "rev-8" ? "with_site_text" : null),
             },
         },
     }

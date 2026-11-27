@@ -54,7 +54,7 @@ export const createReferenceLabels = (routes: ReferenceHrefs) => {
         )
     }
 
-    /** The variant of an application revision, read by revision id: its name, slug and version. */
+    /** An application revision, read by id: its data (version, workflow id) and load state. */
     const useRevision = (revisionId: string | null) => {
         const data = useAtomValue(
             useMemo(() => workflowMolecule.selectors.data(revisionId ?? ""), [revisionId]),
@@ -75,6 +75,10 @@ export const createReferenceLabels = (routes: ReferenceHrefs) => {
         const revisionId = str(props.revisionId)
         const query = useWorkflow(appId)
         const revision = useRevision(revisionId)
+        // The variant's own name (never the revision's fields, web/AGENTS.md "Entity display names").
+        const variantName = useAtomValue(
+            useMemo(() => workflowMolecule.selectors.variantLabel(revisionId ?? ""), [revisionId]),
+        )
         const routeHref = useHref("app", appId ? {appId} : null)
         const href = str(props.href) ?? routeHref
         const fallback = str(props.label)
@@ -85,7 +89,6 @@ export const createReferenceLabels = (routes: ReferenceHrefs) => {
         // Only a lookup that worked and found nothing means deleted; a failed lookup keeps the slug.
         const deleted = !query.isError && !app
         const appName = app?.name ?? app?.slug ?? fallback ?? appId
-        const variantName = revision.data?.name ?? revision.data?.slug ?? null
         return (
             <ReferenceChip
                 kind="app"
@@ -112,19 +115,14 @@ export const createReferenceLabels = (routes: ReferenceHrefs) => {
     const VariantReferenceLabel = (props: Props) => {
         const t = useT(referencesCatalog)
         const revisionId = str(props.revisionId)
-        const data = useAtomValue(
-            useMemo(() => workflowMolecule.selectors.data(revisionId ?? ""), [revisionId]),
-        )
-        const query = useAtomValue(
-            useMemo(() => workflowMolecule.selectors.query(revisionId ?? ""), [revisionId]),
-        )
+        const {data, isPending} = useRevision(revisionId)
         const fallback = str(props.fallbackLabel) ?? str(props.label)
         const appId = data?.workflow_id ?? null
         const href = useHref("variant", appId && revisionId ? {appId, revisionId} : null)
         if (!revisionId) {
             return fallback ? <ReferenceChip kind="variant" label={fallback} /> : <Placeholder />
         }
-        if (query.isPending) return <ReferenceChipSkeleton />
+        if (isPending) return <ReferenceChipSkeleton />
         const resolved = Boolean(data?.name || data?.slug || data?.version != null)
         const deleted = !resolved && !fallback
         return (

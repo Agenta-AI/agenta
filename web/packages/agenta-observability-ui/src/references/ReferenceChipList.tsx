@@ -39,8 +39,7 @@ export const ReferenceChipList = ({references, hrefOf}: ReferenceChipListProps) 
     return (
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             {chips.map((chip) => {
-                const href = hrefOf?.(chip)
-                const link = typeof href === "string" && href ? {href} : {}
+                const link = {href: hrefOf?.(chip) ?? undefined}
                 switch (chip.kind) {
                     case "app":
                         return (

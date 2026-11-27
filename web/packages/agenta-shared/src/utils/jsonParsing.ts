@@ -418,7 +418,7 @@ const mayEndJson5Value = (text: string): boolean => {
     return text.slice(text.lastIndexOf("\n") + 1).includes("//")
 }
 
-/** Text longer than this (100 KB) is not tried as JSON5, only as strict JSON. */
+/** Text longer than this (100,000 characters) is not tried as JSON5, only as strict JSON. */
 const JSON5_MAX_CHARS = 100_000
 
 /**
@@ -426,7 +426,7 @@ const JSON5_MAX_CHARS = 100_000
  * - whitespace
  * - markdown fenced code blocks (```json ... ```)
  * - one level of string-wrapping (e.g. a JSON-stringified JSON)
- * - JSON5 syntax (single quotes, trailing commas, etc.), for text up to 100 KB
+ * - JSON5 syntax (single quotes, trailing commas, etc.), for text up to 100,000 characters
  *
  * Returns the parsed object/array, or null if not structured.
  */

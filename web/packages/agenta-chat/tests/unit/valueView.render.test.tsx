@@ -613,6 +613,25 @@ describe("ValueField turnActivity", () => {
         expect(container.textContent).not.toContain("Older turn")
     })
 
+    it("keeps a system prompt in the first exchange, so one exchange has no turn label", () => {
+        const activity: TurnActivity[] = [
+            {steps: [traceStep("older_turn")]},
+            {steps: [traceStep("last_turn")]},
+        ]
+        const {container} = render(
+            <ValueField
+                value={[{role: "system", content: "You help with returns."}, ...exchange]}
+                turnActivity={activity}
+            />,
+        )
+        const text = container.textContent ?? ""
+        expect(text).toContain("Last turn")
+        expect(text).not.toContain("Older turn")
+        expect(text).not.toContain("Turn 1")
+        expect(text).not.toContain("Turn 2")
+        expect(text.indexOf("Last turn")).toBeLessThan(text.indexOf("Yes, until 18 December."))
+    })
+
     it("keeps the stored calls of a turn with no entry", () => {
         const second = [
             {role: "user", content: "And the tent?"},

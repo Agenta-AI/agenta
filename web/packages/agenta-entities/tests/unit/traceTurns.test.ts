@@ -79,6 +79,21 @@ describe("groupTraceTurns", () => {
         expect(groupTraceTurns([root]).map((turn) => turn.spanId)).toEqual(["turn1", "turn2"])
     })
 
+    it("sorts a span with no start time last, so it does not join the first turn", () => {
+        const spans = [
+            span("root", null, at(0), at(20)),
+            span("turn1", "root", at(1), at(5), user("one")),
+            span("late", "root", "", ""),
+            span("turn2", "root", at(6), at(10), user("two")),
+        ]
+        const turns = groupTraceTurns(spans)
+        expect(turns.map((turn) => turn.spans.map((item) => item.span_id))).toEqual([
+            ["turn1"],
+            ["turn2", "late"],
+        ])
+        expect(turns[1].endTime).toBe(Date.parse(at(10)))
+    })
+
     it("returns no turn for no spans", () => {
         expect(groupTraceTurns([])).toEqual([])
     })

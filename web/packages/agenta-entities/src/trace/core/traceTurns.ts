@@ -13,7 +13,10 @@ import {extractInputs} from "../utils/selectors"
 import type {TraceSpan} from "./schema"
 
 export interface TraceTurn {
-    /** The span whose input holds the user message (a child of the root); the root when one turn. */
+    /**
+     * The span whose input holds the user message (a child of the root). The root only when no
+     * child of the root holds a user message (then the trace is one turn).
+     */
     spanId: string
     /** Every span of the turn, by start time. */
     spans: TraceSpan[]
@@ -58,8 +61,13 @@ const flatten = (spans: readonly TraceSpan[]): TraceSpan[] => {
     return [...seen.values()]
 }
 
-const byStart = (a: TraceSpan, b: TraceSpan) =>
-    (timeOf(a.start_time) ?? 0) - (timeOf(b.start_time) ?? 0)
+/** By start time; a span with no start time sorts last. */
+const byStart = (a: TraceSpan, b: TraceSpan) => {
+    const left = timeOf(a.start_time)
+    const right = timeOf(b.start_time)
+    if (left === null || right === null) return (left === null ? 1 : 0) - (right === null ? 1 : 0)
+    return left - right
+}
 
 const turnOf = (spanId: string, spans: TraceSpan[]): TraceTurn => {
     const starts = spans.map((span) => timeOf(span.start_time)).filter((ms) => ms !== null)
@@ -101,11 +109,11 @@ export function groupTraceTurns(spans: readonly TraceSpan[]): TraceTurn[] {
     if (starts.length === 0) return [turnOf(root.span_id, all)]
 
     // The turn of each top: the last turn start at or before it, else the first turn.
+    const startIndex = new Map(starts.map((start, index) => [start.span_id, index]))
     const turnIndex = new Map<string, number>()
     let current = 0
     for (const top of tops) {
-        const found = starts.indexOf(top)
-        if (found !== -1) current = found
+        current = startIndex.get(top.span_id) ?? current
         turnIndex.set(top.span_id, current)
     }
     const members: TraceSpan[][] = starts.map(() => [])

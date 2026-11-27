@@ -19,6 +19,7 @@
  * ```
  */
 
+import {timeAgo} from "@agenta/shared/utils"
 import {BylineText, InitialsAvatar} from "@agenta/ui"
 
 import {useUserDisplayName, useIsCurrentUser} from "./atoms"
@@ -106,7 +107,8 @@ export function UserAuthorLabel({
 
     const displayName =
         (resolvedName && resolvedName !== "-" ? resolvedName : undefined) || name || null
-    const withTime = Boolean(at) && Number.isFinite(Date.parse(at as string))
+    // The same test BylineText makes, so a date it cannot draw falls back to the plain label.
+    const withTime = Boolean(at && timeAgo(Date.parse(at)))
 
     if (withTime && (displayName || isCurrentUser)) {
         return (

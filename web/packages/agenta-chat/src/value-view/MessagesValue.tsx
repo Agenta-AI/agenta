@@ -94,11 +94,18 @@ function buildMessageItems(messages: unknown[]): MessageItem[] {
     return items
 }
 
-/** One turn per user exchange: a user message and every message up to the next one. */
+/**
+ * One turn per user exchange: a user message and every message up to the next one. Messages
+ * before the first user message (a system prompt) join the first turn, as spans before the first
+ * turn do in `groupTraceTurns`. A chat with no user message is one turn.
+ */
 const splitTurns = (items: MessageItem[]): MessageItem[][] => {
     const turns: MessageItem[][] = []
+    let hasUser = false
     for (const item of items) {
-        if (item.message.role === "user" || turns.length === 0) turns.push([])
+        const isUser = item.message.role === "user"
+        if (turns.length === 0 || (isUser && hasUser)) turns.push([])
+        hasUser ||= isUser
         turns[turns.length - 1].push(item)
     }
     return turns
