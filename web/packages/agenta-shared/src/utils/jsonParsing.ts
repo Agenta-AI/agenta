@@ -410,7 +410,8 @@ export const stripJsonFence = (input: string): string | null => {
  * False when JSON5 cannot give an object, an array or a quoted string for this trimmed text, so
  * the JSON5 parse is skipped: it is slow, and a cut-off output of 1 MB takes over a second to
  * fail. Such a value ends with `}`, `]` or a quote, or with a comment: a block comment ends with
- * `/`, and a line comment runs to the end of the last line.
+ * `/`, and a line comment runs to the end of the last line. This skips an output cut inside a
+ * value; one cut right after a `}` or a `]` still pays the parse.
  */
 const mayEndJson5Value = (text: string): boolean => {
     if ("}]\"'/".includes(text.charAt(text.length - 1))) return true

@@ -210,6 +210,13 @@ describe("ValueField shapes", () => {
         expect(container.querySelector("table")).toBeNull()
         expect(screen.getByText(/Berlin/)).toBeTruthy()
     })
+
+    it("draws a list of objects with JSON text in a value as rows", () => {
+        const items = [{sku: "A", input: '{"question": "Where is my order?"}'}]
+        const {container} = render(<ValueFullView value={items} />)
+        expect(container.querySelector("table")).toBeNull()
+        expect(screen.getByText("Where is my order?")).toBeTruthy()
+    })
 })
 
 describe("ValueFullView", () => {

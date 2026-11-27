@@ -28,11 +28,11 @@ const TABLE_ROWS_SHOWN = 5
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === "object" && value !== null && !Array.isArray(value)
 
-/** A table cell draws one line, so it holds only values with nothing to open. */
-const isCellValue = (value: unknown) =>
-    value === null ||
-    value === undefined ||
-    (typeof value !== "object" && typeof value !== "function")
+/** A table cell draws one line, so it holds only values with nothing to open: no object, no list, no JSON text. */
+const isCellValue = (value: unknown) => {
+    if (typeof value === "object" && value !== null) return false
+    return typeof value !== "string" || !detectValueShape(value).parsedFromText
+}
 
 /** Text with aligned columns (a log, a table drawn with spaces) reads in monospace. */
 const hasAlignedColumns = (text: string) => {
@@ -101,9 +101,14 @@ const ArrayObjects = ({
 }) => {
     const t = useT(valueViewCatalog)
     const [all, setAll] = useState(unfolded)
-    const keys = sharedKeys(items)
-    // A nested value in a cell would read only as "N fields", with no way to open it.
-    if (!keys || !items.every((item) => keys.every((key) => isCellValue(item[key]))))
+    const keys = useMemo(() => {
+        const shared = sharedKeys(items)
+        // A nested value in a cell would read only as "N fields", with no way to open it.
+        return shared && items.every((item) => shared.every((key) => isCellValue(item[key])))
+            ? shared
+            : null
+    }, [items])
+    if (!keys)
         return <ValueRows value={items} depth={depth} unfolded={unfolded} stateKey={stateKey} />
     const rows = all ? items : items.slice(0, TABLE_ROWS_SHOWN)
     return (
