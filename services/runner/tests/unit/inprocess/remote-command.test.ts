@@ -173,15 +173,20 @@ describe("Stop", () => {
 
   it("ends a command's wait in the queue at once on Stop (Codex R4 P1)", async () => {
     const { ws } = await warm();
-    const ahead = ws.bash("touch ahead-started; sleep 1.5; echo ahead");
+    const ahead = ws.bash("touch ahead-started; while [ ! -f ahead-release ]; do sleep 0.05; done; echo ahead");
     const stop = new AbortController();
     const queued = ws.bash("echo queued > queued.txt", { signal: stop.signal });
     // Stop once the command ahead holds the queue.
-    await started(ws, "ahead-started");
-    const t0 = Date.now();
-    stop.abort();
-    await expect(queued).rejects.toThrow(/aborted/);
-    expect(Date.now() - t0).toBeLessThan(500);
+    const release = () => writeFileSync(`${ws.inSandbox(ws.cwd)}/ahead-release`, "");
+    try {
+      await started(ws, "ahead-started");
+      const t0 = Date.now();
+      stop.abort();
+      await expect(queued).rejects.toThrow(/aborted/);
+      expect(Date.now() - t0).toBeLessThan(500);
+    } finally {
+      release();
+    }
     expect((await ahead).output).toContain("ahead");
     expect(() => readFileSync(`${ws.inSandbox(ws.cwd)}/queued.txt`)).toThrow();
   });

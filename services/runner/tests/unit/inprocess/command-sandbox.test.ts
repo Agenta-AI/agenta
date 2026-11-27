@@ -7,7 +7,7 @@
  * recovered; registry capacity; a running slot goes back only once its sandbox is confirmed
  * stopped or gone.
  */
-import { existsSync, mkdtempSync } from "node:fs";
+import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -184,12 +184,14 @@ describe("recovery and retirement (CR7, R3-4, Codex 8)", () => {
   it("waits for a command in flight before a park stops the sandbox (R3-13)", async () => {
     const ws = createTestWorkspace();
     await ws.bash("true");
-    const running = ws.bash("touch park-started; sleep 0.5; echo finished");
+    const running = ws.bash("touch park-started; while [ ! -f park-release ]; do sleep 0.05; done; echo finished");
     // Park only once the command really runs in the sandbox.
     await vi.waitFor(() => expect(existsSync(join(ws.inSandbox(ws.cwd), "park-started"))).toBe(true), { timeout: 20_000, interval: 10 });
     ws.registry.release(ws.workspace, "park");
     const [local] = [...ws.daytona.sandboxes.values()];
     expect(local!.state).toBe("started");
+    // The command stays active until the park has been requested, then it may finish.
+    writeFileSync(join(ws.inSandbox(ws.cwd), "park-release"), "");
     const r = await running;
     expect(r.output).toContain("finished");
     await ws.registry.settle(5_000);

@@ -130,11 +130,11 @@ describe("a command's changes", () => {
     const run = ws.bash("echo partial > half.txt; sleep 30", { signal: stop.signal });
     while (!ws.daytona.sandboxes.size || !sandboxOf(ws).commands.some((c) => c.includes("setsid"))) await new Promise((r) => setTimeout(r, 20));
     // Stop once the command has written its partial file, so the flush has something to save.
-    await vi.waitFor(() => expect(existsSync(join(ws.cwd, "half.txt"))).toBe(true), { timeout: 20_000, interval: 10 });
+    await vi.waitFor(() => expect(existsSync(join(ws.cwd, "half.txt")) && readFileSync(join(ws.cwd, "half.txt"), "utf-8")).toContain("partial"), { timeout: 20_000, interval: 10 });
     stop.abort();
     expect((await run).outcome).toEqual({ kind: "aborted" });
     expect(sandboxOf(ws).commands.at(-1)).toMatch(/sync -f .*; exit \$f$/);
-    expect(existsSync(join(ws.cwd, "half.txt"))).toBe(true);
+    expect(readFileSync(join(ws.cwd, "half.txt"), "utf-8")).toContain("partial");
     await ws.workspace.sandbox.delete();
   });
 });
@@ -579,8 +579,8 @@ describe("Codex round 7: a change's outcome is never assumed", () => {
     let streaming!: () => void;
     const downloading = new Promise<void>((resolve) => (streaming = resolve));
     local.download = async () => {
-      streaming();
-      const stalled = new Readable({ read() {} });
+      // Signal once the reader pulls from the stream, so the abort lands on an active download.
+      const stalled = new Readable({ read: () => streaming() });
       stalled.push(Buffer.alloc(1000, 1));
       return stalled;
     };
