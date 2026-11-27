@@ -1,0 +1,41 @@
+---
+title: Update notices
+sidebar_label: Update notices
+description: How a self-hosted Agenta instance shows newer releases and security warnings, and how to turn the update check off
+slug: /self-host/update-notices
+---
+
+A self-hosted Agenta instance shows its users when a newer release is available, and warns organization owners and admins when a newer release fixes a security issue. This page explains what users see, where the data comes from, and how to turn it off. Agenta Cloud shows no "Update available" row and no security warning, because Agenta upgrades it.
+
+## What users see
+
+- **Newer releases.** The **What's new?** dialog lists releases newer than the version you run, marked "Not installed". A release that fixes a security issue also has a red "Security fix" tag.
+- **Update row.** When a newer release exists, the help menu shows a dot on its icon and a row that names the newest release, with how many releases you are behind (for example "3 releases behind"). The row and the dot share one color:
+  - red, "Security update: v0.131.2", when any missing release fixes a security issue;
+  - amber, "New minor version: v0.131.0", when a newer minor version exists (Agenta versions are `0.MINOR.PATCH`);
+  - grey, "New patch version: v0.131.2", when only patch releases are missing.
+
+  The row opens the **What's new?** dialog on the newest release.
+- **Upgrade box.** When you are behind, the **What's new?** dialog starts with a box that names the version you run, the latest release, how many releases are not installed, and how many of them fix a security issue. Its **How to upgrade** button opens the [upgrade guide](/self-host/upgrading).
+- **Commands for your setup.** Organization owners and admins of an open source instance also see the standard upgrade commands for the way the instance was deployed (Docker Compose, Helm or Railway), with a copy button, and a button that copies a prompt for a coding agent. When a missing release has extra upgrade steps, the box names it and links to the steps. The API reads the deployment method from `AGENTA_DEPLOYMENT_METHOD`. For other methods, for Enterprise and when the method is unknown, the box shows only the **How to upgrade** button. Members see "Ask the person who runs your Agenta server to upgrade." in place of the commands.
+- **Security warning.** When a newer release fixes a security issue, a bar at the top of the app shows "Security update available. Upgrade to" with the version, and a **How to upgrade** link. The link opens the **What's new?** dialog on that release. Only organization owners and admins see it. When a user closes the bar, it stays hidden for seven days in that browser.
+- **Notices.** Agenta can publish short notices, for example about a known problem in some versions. A notice shows at the top of the **What's new?** section of the help menu, only on the versions and editions it names. When a user opens a notice, it stays hidden in that browser.
+
+## Where the data comes from
+
+When a signed-in user opens the app, the app asks your API for the release list. The API downloads the public release feed at `https://agenta.ai/releases.json` and keeps it for 12 hours. After a failed download, it tries again after one hour. Each API process keeps its own copy.
+
+The download sends the version your API runs and the kind of instance, as query parameters (`?version=v0.131.0&kind=production`). Agenta counts these requests to know which versions are in use, as other self-hosted products do with their update checks. The kind is `production` unless `AGENTA_TELEMETRY_INSTANCE_KIND` sets another value; Agenta's own test stacks set `test` so their requests can be filtered out. The request sends no other data about your instance. It is separate from telemetry, and `AGENTA_TELEMETRY_ENABLED` does not change it. `AGENTA_UPDATE_CHECK_ENABLED=false` stops it.
+
+If the API cannot reach `agenta.ai`, for example on a network with no internet access, the app shows only the releases that shipped with your version, and no warnings.
+
+## Turn the update check off
+
+Set the switch on the API and restart it.
+
+- Docker Compose: add `AGENTA_UPDATE_CHECK_ENABLED=false` to your `.env` file.
+- Helm: set `releases.updateCheckEnabled: false` in your values file.
+
+With the check off, the API does not download the feed. The app shows only the releases that shipped with your version. It shows no "Update available" row, no security warning and no notices.
+
+All settings are listed in [Configuration](/self-host/configuration#releases).

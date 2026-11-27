@@ -6,7 +6,8 @@
     "groupPages": "Páginas",
     "groupPrompts": "Prompts",
     "newAgent": "Novo agente",
-    "nothingMatches": "Nada corresponde",
+    "nothingMatches": "Nenhum resultado. Tente outra palavra.",
     "placeholder": "Pesquisar sessões, agentes, páginas…",
-    "searching": "Pesquisando…"
+    "searching": "Pesquisando…",
+    "goTo": "Ir para {{page}}"
 }

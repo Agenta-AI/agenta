@@ -13,7 +13,7 @@
     "appSecret": "应用密钥",
     "appUninstalled": "{{platform}} 卸载了该应用",
     "botToken": "机器人令牌",
-    "botUserOAuthToken": "Bot User OAuth Token",
+    "botUserOAuthToken": "Bot user OAuth token",
     "channels": "频道",
     "channelsAndGroupChats": "频道和群聊",
     "channelsItsIn": "所在频道",
@@ -75,7 +75,7 @@
     "revokedHelpWhatsApp": "在你粘贴新的访问令牌之前，{{agent}} 无法在那里回复。",
     "runInviteFirst": "请先运行 /invite",
     "searchChannels": "搜索频道",
-    "signingSecret": "Signing Secret",
+    "signingSecret": "Signing secret",
     "since": "自 {{date}} 起",
     "telegramRevokedToken": "Telegram 撤销了机器人令牌",
     "turnOnFailed": "无法开启 {{platform}}。请重试。",
@@ -84,5 +84,6 @@
     "updateToken": "更新令牌",
     "useOwnApp": "使用你自己的应用",
     "useOwnBot": "使用你自己的机器人",
-    "webhook": "Webhook"
+    "webhook": "Webhook",
+    "disconnectPendingConfirm": "取消与 {{subject}} 的链接？链接尚未完成，{{agent}} 从未在那里回复。"
 }

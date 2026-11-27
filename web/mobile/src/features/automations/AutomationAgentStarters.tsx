@@ -54,7 +54,7 @@ export const AutomationAgentStarters = ({base}: {base: string}) => {
                 {agents.map((agent) => (
                     <FeatureActionCard
                         key={agent.id}
-                        media={<AgentChip workflowId={agent.id} box="size-[30px]" glyph={16} />}
+                        media={<AgentChip workflowId={agent.id} box="size-8" glyph={16} />}
                         title={agent.name || agent.slug || t("automations.screens.untitledAgent")}
                         description={agent.description || t("automations.screens.noDescription")}
                         actionLabel={t("automations.screens.setUpAutomation")}

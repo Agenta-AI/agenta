@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import worker from "./index";
 
 // A stand-in for the Workers ASSETS binding: a map of path -> response, with
@@ -32,6 +32,7 @@ const SITE = assets({
 });
 
 const MEDIA = {
+  async put() {},
   async head(key: string) {
     return key === "blog/example/image-abc123.webp" ? { size: 5 } : null;
   },
@@ -52,8 +53,10 @@ const MEDIA = {
           controller.close();
         },
       }),
+      etag: "abc123",
       httpEtag: '"abc123"',
       size: bytes.length,
+      text: async () => "media",
       writeHttpMetadata(headers: Headers) {
         headers.set("Content-Type", "image/webp");
       },
@@ -111,6 +114,26 @@ describe("R2 media", () => {
 
     expect(response.status).toBe(416);
     expect(response.headers.get("content-range")).toBe("bytes */5");
+  });
+
+  it("never serves the registration caps from the shared bucket", async () => {
+    const everything = {
+      ...MEDIA,
+      async head() {
+        return { size: 2 };
+      },
+      async get() {
+        return MEDIA.get("blog/example/image-abc123.webp");
+      },
+    };
+    const response = await worker.fetch(
+      new Request(
+        "https://agenta.ai/media/license-registrations/caps/email/abc",
+      ),
+      { ASSETS: SITE, MEDIA: everything },
+    );
+
+    expect(response.status).toBe(404);
   });
 
   it("returns 404 for missing or empty media keys", async () => {
@@ -277,5 +300,126 @@ describe("robustness", () => {
     );
     expect(response.status).toBe(200);
     expect(await response.text()).toContain("ok");
+  });
+});
+
+describe("release feed", () => {
+  const FEED = '{"releases":[],"notices":[]}';
+  const env = {
+    ASSETS: assets({
+      "/releases.json": { body: FEED, type: "application/json" },
+    }),
+    MEDIA,
+  };
+  const events: { url: string; body: Record<string, any> }[] = [];
+  const realFetch = globalThis.fetch;
+  let posthog: () => Promise<Response>;
+
+  beforeEach(() => {
+    events.length = 0;
+    posthog = async () => new Response("{}", { status: 200 });
+    globalThis.fetch = (async (
+      input: RequestInfo | URL,
+      init?: RequestInit,
+    ) => {
+      events.push({ url: String(input), body: JSON.parse(String(init?.body)) });
+      return posthog();
+    }) as typeof fetch;
+  });
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+  });
+
+  const feed = (query = "", ctx?: { waitUntil(p: Promise<unknown>): void }) =>
+    worker.fetch(
+      new Request(`https://agenta.ai/releases.json${query}`),
+      env,
+      ctx,
+    );
+
+  it("records the update check and returns the feed", async () => {
+    const response = await feed(
+      "?version=v0.131.0&kind=production&instance_id=inst-1",
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe(FEED);
+    expect(response.headers.get("cache-control")).toBe(
+      "public, max-age=3600, stale-while-revalidate=86400",
+    );
+    expect(events).toHaveLength(1);
+    expect(events[0].url).toBe("https://us.posthog.com/i/v0/e/");
+    expect(events[0].body).toMatchObject({
+      api_key: "phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7",
+      event: "instance_update_check",
+      distinct_id: "inst-1",
+      properties: {
+        agenta_version: "v0.131.0",
+        instance_kind: "production",
+        $groups: { instance: "inst-1" },
+      },
+    });
+    expect(events[0].body.properties).not.toHaveProperty(
+      "$process_person_profile",
+    );
+  });
+
+  it("records the test kind so test stacks can be filtered out", async () => {
+    await feed("?version=v0.131.0&kind=test");
+
+    expect(events[0].body.properties.instance_kind).toBe("test");
+  });
+
+  it.each([["?version=v0.131.0"], ["?version=v0.131.0&kind=staging"]])(
+    "records no instance kind for %s",
+    async (query) => {
+      await feed(query);
+
+      expect(events[0].body.properties.instance_kind).toBeNull();
+    },
+  );
+
+  it("uses an anonymous id when only the version is sent", async () => {
+    await feed("?version=v0.131.0");
+
+    expect(events[0].body.distinct_id).toBe("anonymous");
+    expect(events[0].body.properties.agenta_version).toBe("v0.131.0");
+    expect(events[0].body.properties).not.toHaveProperty("$groups");
+    expect(events[0].body.properties.$process_person_profile).toBe(false);
+  });
+
+  it("hands the event to waitUntil so the feed is not held", async () => {
+    const pending: Promise<unknown>[] = [];
+    const response = await feed("?version=v0.131.0", {
+      waitUntil: (p) => pending.push(p),
+    });
+
+    expect(await response.text()).toBe(FEED);
+    expect(pending).toHaveLength(1);
+    await Promise.all(pending);
+    expect(events).toHaveLength(1);
+  });
+
+  it.each([
+    ["an error answer", async () => new Response("no", { status: 500 })],
+    [
+      "a network failure",
+      async () => {
+        throw new Error("down");
+      },
+    ],
+  ])("still returns the feed when PostHog gives %s", async (_, answer) => {
+    posthog = answer;
+    const response = await feed("?version=v0.131.0&instance_id=inst-1");
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe(FEED);
+  });
+
+  it("sends no event without parameters", async () => {
+    const response = await feed();
+
+    expect(await response.text()).toBe(FEED);
+    expect(events).toEqual([]);
   });
 });

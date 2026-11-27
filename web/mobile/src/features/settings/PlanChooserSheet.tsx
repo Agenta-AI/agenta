@@ -87,18 +87,18 @@ export const PlanChooserSheet = ({
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             {/* On a desktop the cards keep their buttons in view and scroll their lists instead. */}
-            <DialogContent className="max-w-[1040px] lg:overflow-hidden">
+            <DialogContent className="max-w-content-lg">
                 <DialogHeader className="pr-6">
                     <DialogTitle>{t("billing.planChooserSheet.title")}</DialogTitle>
                     <DialogDescription>
                         {t("billing.planChooserSheet.description")}
                     </DialogDescription>
                 </DialogHeader>
-                {error ? <p className="text-destructive m-0 text-sm">{error}</p> : null}
-                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:min-h-0 lg:flex-1 lg:grid-cols-[repeat(auto-fit,minmax(200px,1fr))] lg:grid-rows-[minmax(0,1fr)]">
+                {error ? <p className="text-destructive m-0 text-body">{error}</p> : null}
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(200px,1fr))]">
                     {loading
                         ? Array.from({length: 3}, (_, index) => (
-                              <SkeletonBlock key={index} className="h-[360px] rounded-[14px]" />
+                              <SkeletonBlock key={index} className="h-90 rounded-lg" />
                           ))
                         : plans.map((plan) => (
                               <PlanOptionCard
@@ -114,15 +114,15 @@ export const PlanChooserSheet = ({
                           ))}
                 </div>
                 {included.length ? (
-                    <div className="bg-muted flex shrink-0 flex-col gap-2 rounded-xl px-4 py-3.5">
-                        <span className="text-[13px] font-medium">
+                    <div className="bg-muted flex shrink-0 flex-col gap-2 rounded-lg px-4 py-3">
+                        <span className="text-label font-medium">
                             {t("billing.planChooserSheet.includedOnEveryPlan")}
                         </span>
                         <ul className="m-0 flex list-none flex-wrap gap-1.5 p-0">
                             {included.map((feature) => (
                                 <li
                                     key={feature}
-                                    className="bg-background border-border rounded-full border border-solid px-2.5 text-xs leading-[22px]"
+                                    className="bg-background border-border rounded-sm border border-solid px-2.5 py-0.5 text-label"
                                 >
                                     {feature}
                                 </li>

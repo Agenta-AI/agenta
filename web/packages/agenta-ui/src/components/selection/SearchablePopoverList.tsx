@@ -203,7 +203,7 @@ export function SearchablePopoverList<T>({
         return (
             <div className="flex items-center justify-center py-4 px-6" style={{minWidth}}>
                 <Spinner size="small" />
-                <span className="ml-2 text-colorTextSecondary">{loadingMessage}</span>
+                <span className="ml-2 text-muted-foreground">{loadingMessage}</span>
             </div>
         )
     }
@@ -224,7 +224,7 @@ export function SearchablePopoverList<T>({
         <div className={className} style={{minWidth, maxWidth}}>
             {/* Search input (show if items > threshold) */}
             {items.length > searchThreshold && (
-                <div className="box-border border-0 border-b border-solid border-colorBorderSecondary p-2">
+                <div className="box-border border-0 border-b border-solid border-border-muted p-2">
                     <SearchInput
                         value={searchTerm}
                         onChange={setSearchTerm}

@@ -28,7 +28,9 @@ export const SessionTurnsTree = ({traces, stats, selectedKey, onSelect}: Session
     const tree = useMemo(() => buildSessionTree(traces, stats, search), [traces, stats, search])
 
     const renderLabel = useCallback(
-        (node: SessionTreeNode) => <TraceRow span={node} metrics={settings} className="text-xs" />,
+        (node: SessionTreeNode) => (
+            <TraceRow span={node} metrics={settings} className="text-meta" />
+        ),
         [settings],
     )
 
@@ -52,7 +54,7 @@ export const SessionTurnsTree = ({traces, stats, selectedKey, onSelect}: Session
                             <SlidersHorizontal size={14} />
                         </Button>
                     </PopoverTrigger>
-                    <PopoverContent side="bottom" align="end" className="!p-0 w-[240px]">
+                    <PopoverContent side="bottom" align="end" className="!p-0 w-60">
                         <TraceTreeSettings settings={settings} setSettings={setSettings} />
                     </PopoverContent>
                 </Popover>

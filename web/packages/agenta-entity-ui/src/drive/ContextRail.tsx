@@ -16,10 +16,9 @@ import {isSessionFresh} from "@agenta/entities/session"
 import {useT} from "@agenta/i18n"
 import driveRailCatalog from "@agenta/i18n/catalogs/entityUi.driveRail"
 import filesPaneCatalog from "@agenta/i18n/catalogs/entityUi.filesPane"
-import {EnhancedButton as Button} from "@agenta/ui/components/presentational"
 import {Tag} from "@agenta/ui/components/presentational"
-import {SimpleTooltip as Tooltip} from "@agenta/ui/ui"
-import {CircleNotch, FolderOpen, FolderSimple, Sidebar} from "@phosphor-icons/react"
+import {Button, SimpleTooltip as Tooltip, Spinner} from "@agenta/ui/ui"
+import {FolderOpen, FolderSimple, Sidebar} from "@phosphor-icons/react"
 import {useAtom, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
@@ -42,15 +41,15 @@ const Text = ({
     children,
     ...rest
 }: React.HTMLAttributes<HTMLSpanElement> & {type?: "secondary"}) => (
-    <span className={`text-colorTextSecondary ${className ?? ""}`} {...rest}>
+    <span className={`text-muted-foreground ${className ?? ""}`} {...rest}>
         {children}
     </span>
 )
 
 // Shared elevated surface with the Inspector (build-spec §elevation) — the right dock reads the
 // same in chat (this rail) and build (Inspector). Theme-aware tokens, same as the Inspector panel.
-const SURFACE = "var(--ag-surface-raised)"
-const BORDER = "var(--ag-colorSplit)"
+const SURFACE = "var(--muted)"
+const BORDER = "var(--border-muted)"
 
 /** Rail visibility — a global UI preference (survives session switches and reloads).
  * Starts CLOSED; opening it once is the opt-in. */
@@ -126,12 +125,12 @@ export function ContextRail({
                         }
                     }}
                     aria-label={t("entityUi.filesPane.showFiles")}
-                    className={`group flex h-full cursor-pointer flex-col items-center gap-2.5 border-0 border-l border-solid pt-3 transition-colors hover:bg-[var(--ag-colorFillTertiary)] ${dropActive ? "bg-[var(--ant-color-primary-bg)]" : ""}`}
+                    className={`group flex h-full cursor-pointer flex-col items-center gap-2.5 border-0 border-l border-solid pt-3 transition-colors hover:bg-accent ${dropActive ? "bg-selected" : ""}`}
                     style={{width: STRIP_WIDTH, borderColor: BORDER}}
                     {...stageDropProps}
                 >
                     <Tooltip title={t("entityUi.filesPane.showFiles")} side="left">
-                        <span className="flex h-7 w-7 items-center justify-center rounded text-colorTextSecondary transition-colors group-hover:text-colorText">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors group-hover:text-foreground">
                             <Sidebar size={15} />
                         </span>
                     </Tooltip>
@@ -157,10 +156,10 @@ export function ContextRail({
                                 corner="br"
                                 tooltip={false}
                             >
-                                <span className="relative flex h-7 w-7 items-center justify-center text-colorTextSecondary">
+                                <span className="relative flex h-7 w-7 items-center justify-center text-muted-foreground">
                                     <FolderSimple size={15} />
                                     {drive.fileCount > 0 ? (
-                                        <span className="absolute right-0 top-0 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-[var(--ag-colorPrimary)] px-1 text-[9px] font-semibold leading-none text-[var(--ag-colorBgContainer)]">
+                                        <span className="absolute right-0 top-0 flex h-3.5 min-w-3.5 items-center justify-center rounded-sm bg-primary px-1 text-caption font-semibold leading-none text-background">
                                             {drive.fileCount}
                                             {drive.fileCountCapped ? "+" : ""}
                                         </span>
@@ -172,8 +171,8 @@ export function ContextRail({
                     {busy ? (
                         <Tooltip title={t("entityUi.driveRail.agentRunning")} side="left">
                             <span className="relative flex h-2 w-2">
-                                <span className="absolute inline-flex h-full w-full rounded-full bg-colorInfo opacity-60 motion-safe:animate-ping" />
-                                <span className="relative inline-flex h-2 w-2 rounded-full bg-colorInfo" />
+                                <span className="absolute inline-flex h-full w-full rounded-md bg-info opacity-60 motion-safe:animate-ping" />
+                                <span className="relative inline-flex h-2 w-2 rounded-round bg-info" />
                             </span>
                         </Tooltip>
                     ) : null}
@@ -215,16 +214,16 @@ const ExpandedRail = ({
     const download = useDriveItemDownload(drive)
     return (
         <aside
-            className={`flex h-full flex-col overflow-y-auto border-0 border-l border-solid transition-colors ${dropActive ? "bg-[var(--ant-color-primary-bg)]" : ""}`}
+            className={`flex h-full flex-col overflow-y-auto border-0 border-l border-solid transition-colors ${dropActive ? "bg-selected" : ""}`}
             style={{width: RAIL_WIDTH, borderColor: BORDER}}
             {...dropProps}
         >
             <div className="flex items-center gap-1.5 px-3 pt-3">
-                <span className="text-xs font-medium">{t("entityUi.driveRail.files")}</span>
+                <span className="text-label">{t("entityUi.driveRail.files")}</span>
                 {drive.fileCount > 0 ? (
                     <Tag
                         size="small"
-                        className="m-0 !px-1.5 !text-[12px] font-normal leading-[16px]"
+                        className="m-0 !px-1.5 !text-meta font-normal"
                         label={`${drive.fileCount}${drive.fileCountCapped ? "+" : ""}`}
                     />
                 ) : null}
@@ -240,23 +239,25 @@ const ExpandedRail = ({
                         side="bottom"
                     >
                         <Button
-                            type="text"
-                            icon={
-                                <DriveWarningBadge show={drive.partialErrored} tooltip={false}>
-                                    <FolderOpen size={13} />
-                                </DriveWarningBadge>
-                            }
+                            variant="ghost"
+                            size="default"
                             onClick={onOpenFiles}
                             aria-label={t("entityUi.driveRail.openFilesDrawerAria")}
-                        />
+                        >
+                            <DriveWarningBadge show={drive.partialErrored} tooltip={false}>
+                                <FolderOpen size={13} />
+                            </DriveWarningBadge>
+                        </Button>
                     </Tooltip>
                     <Tooltip title={t("entityUi.driveRail.collapsePanel")} side="bottom">
                         <Button
-                            type="text"
-                            icon={<Sidebar size={13} />}
+                            variant="ghost"
+                            size="default"
                             onClick={onCollapse}
                             aria-label={t("entityUi.driveRail.collapsePanel")}
-                        />
+                        >
+                            <Sidebar size={13} />
+                        </Button>
                     </Tooltip>
                 </div>
             </div>
@@ -289,7 +290,7 @@ const ExpandedRail = ({
                                 aria-busy={showSkeleton || undefined}
                             >
                                 {phase === "error" ? (
-                                    <Text type="secondary" className="px-1 pb-1 !text-xs">
+                                    <Text type="secondary" className="px-1 pb-1 !text-meta">
                                         {t("entityUi.driveRail.couldNotLoadFiles")}{" "}
                                         {drive.retry ? (
                                             <DriveRetryButton
@@ -301,11 +302,11 @@ const ExpandedRail = ({
                                 ) : phase === "no-changes" ? (
                                     // Files exist but none changed in THIS conversation (recents = its
                                     // record log).
-                                    <Text type="secondary" className="px-1 pb-1 !text-xs">
+                                    <Text type="secondary" className="px-1 pb-1 !text-meta">
                                         {t("entityUi.driveRail.noChangesYet")}
                                     </Text>
                                 ) : phase === "empty" ? (
-                                    <Text type="secondary" className="px-1 pb-1 !text-xs">
+                                    <Text type="secondary" className="px-1 pb-1 !text-meta">
                                         {t("entityUi.driveRail.noFilesYet")}
                                     </Text>
                                 ) : (
@@ -441,8 +442,8 @@ const ExpandedRail = ({
                                         </MotionConfig>
                                         {!showSkeleton &&
                                         (drive.reconciling || drive.isFetching) ? (
-                                            <div className="flex items-center gap-1.5 px-1 pt-0.5 text-xs text-colorTextTertiary">
-                                                <CircleNotch size={11} className="animate-spin" />
+                                            <div className="flex items-center gap-1.5 px-1 pt-0.5 text-meta text-muted-foreground">
+                                                <Spinner aria-hidden className="size-3" />
                                                 <span>{t("entityUi.driveRail.loadingMore")}</span>
                                             </div>
                                         ) : null}
@@ -453,7 +454,7 @@ const ExpandedRail = ({
                                                     e.currentTarget.blur()
                                                     onOpenFiles()
                                                 }}
-                                                className={`mt-0.5 w-fit cursor-pointer rounded border-0 bg-transparent px-1.5 py-0.5 text-xs text-[var(--ag-colorInfo)] hover:underline ${FOCUS_RING}`}
+                                                className={`mt-0.5 w-fit cursor-pointer rounded-sm border-0 bg-transparent px-1.5 py-0.5 text-meta text-link underline ${FOCUS_RING}`}
                                             >
                                                 {t("entityUi.driveRail.viewAllFiles")}
                                             </button>

@@ -204,6 +204,28 @@ _PUBLIC_ENDPOINTS = (
 )
 
 _ADMIN_ENDPOINT_IDENTIFIER = "/admin/"
+# The reads a signed-in person without an organization may make: their profile,
+# their (empty) project list, their (empty) organization list and the instance's
+# telemetry setting (not organization data). Sign-up skips the personal organization
+# when the instance is at its organization limit; with these the app can tell that
+# the person has no organization, show the invitation screen and accept an invitation.
+_ORGANIZATIONLESS_READ_PATHS = frozenset(
+    {
+        "/profile",
+        "/profile/",
+        "/api/profile",
+        "/projects",
+        "/projects/",
+        "/api/projects",
+        "/api/projects/",
+        "/organizations",
+        "/organizations/",
+        "/api/organizations",
+        "/api/organizations/",
+        "/instance/telemetry",
+        "/api/instance/telemetry",
+    }
+)
 _INVITE_ACCEPT_ENDPOINT_IDENTIFIER = "/invite/accept"
 _INVITATION_POLICY_ENDPOINT_IDENTIFIERS = (
     _INVITE_ACCEPT_ENDPOINT_IDENTIFIER,
@@ -1116,7 +1138,20 @@ async def verify_bearer_token(
                 user_id=user_id,
             )
             if default_ref is None:
-                raise NoResultFound(f"No organization membership for user {user_id}")
+                if (
+                    request.method == "GET"
+                    and request.url.path in _ORGANIZATIONLESS_READ_PATHS
+                ):
+                    request.state.user_id = user_id
+                    request.state.user_email = user_email
+                    request.state.project_id = None
+                    request.state.workspace_id = None
+                    request.state.organization_id = None
+                    request.state.organization_name = None
+                    return
+                # Not cached: a cached denial would also refuse the two reads above.
+                _deny("membership", "no organization membership")
+                raise HTTPException(status_code=401, detail="Unauthorized")
 
             default = await db_manager.fetch_default_project(
                 organization_id=default_ref,
@@ -1782,7 +1817,8 @@ async def _check_organization_policy(request: Request):
     # This prevents SSO logins from being blocked by the default org policy
     # before the frontend can redirect to the intended SSO org.
     if (
-        request.url.path in {"/api/profile", "/api/organizations"}
+        request.url.path
+        in {"/api/profile", "/api/organizations", "/api/instance/telemetry"}
         or request.url.path.startswith("/api/projects")
         or request.url.path.startswith("/api/organizations/")
     ):

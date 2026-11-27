@@ -17,5 +17,8 @@
     "running": "Em execução",
     "searchSessions": "Pesquisar sessões",
     "today": "Hoje",
-    "type": "Tipo"
+    "type": "Tipo",
+    "searchDescription": "Pesquise as sessões deste projeto.",
+    "searchHint": "Digite para pesquisar as sessões deste projeto.",
+    "noSessionsMatch": "Nenhuma sessão corresponde. Tente outra palavra."
 }

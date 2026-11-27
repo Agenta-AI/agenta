@@ -66,7 +66,7 @@ export const AnnotateScenarioSheet = ({
                                 testcaseId={testcaseRef.testcaseId}
                             />
                         </div>
-                        <div className="flex w-full shrink-0 flex-col overflow-hidden rounded-lg border border-solid border-border md:w-[340px]">
+                        <div className="flex w-full shrink-0 flex-col overflow-hidden rounded-lg border border-solid border-border md:w-85">
                             <AnnotationFormPanel
                                 scenarioId={scenarioId}
                                 queueId={queueId}

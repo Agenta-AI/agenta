@@ -17,7 +17,7 @@ export const SelectEvaluatorsEmpty = ({
     const t = useT(annotateCatalog)
     return (
         <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
-            <p className="m-0 text-sm text-muted-foreground">
+            <p className="m-0 text-body text-muted-foreground">
                 {t("observability.annotate.noEvaluators")}
             </p>
             {onCreate ? (

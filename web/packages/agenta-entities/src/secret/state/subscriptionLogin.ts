@@ -142,8 +142,8 @@ export const buildSubscriptionSecretPayload = (provider: string, name: string): 
 /**
  * Create the subscription connection. Returns its record id.
  *
- * An organization connection is created without a name, so the API's default says whose it is
- * ("ChatGPT (Organization)"), and for every project unless `projects` narrows it.
+ * An organization connection is created for every project unless `projects` narrows it. It
+ * keeps the given name: an empty one would make the API add the owner ("ChatGPT (Organization)").
  */
 export const createSubscriptionConnectionAtom = atom(
     null,
@@ -170,7 +170,7 @@ export const createSubscriptionConnectionAtom = atom(
             scope === "organization"
                 ? await createOrganizationSecret({
                       projectId,
-                      payload: buildSubscriptionSecretPayload(provider, ""),
+                      payload: buildSubscriptionSecretPayload(provider, name),
                       projects,
                   })
                 : await get(createVaultSecretMutationAtom).mutateAsync({

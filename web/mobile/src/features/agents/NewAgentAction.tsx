@@ -35,7 +35,7 @@ export const NewAgentAction = ({
                 browseHref={`${base}/templates`}
             />
             {newAgent.error ? (
-                <span className="text-destructive text-[11px]">{newAgent.error}</span>
+                <span className="text-destructive text-meta">{newAgent.error}</span>
             ) : null}
             <AgentTemplateImportDrawer
                 open={importOpen}

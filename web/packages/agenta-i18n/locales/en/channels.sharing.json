@@ -1,5 +1,5 @@
 {
-    "audienceNote": "For a shared agent, everyone in {{project}} can read its {{platform}} conversations in Agenta, including direct messages. For a private agent, new conversations are private to its owner.",
+    "audienceNote": "Everyone in this project can read a shared agent's {{platform}} chats, including direct messages. New chats with a private agent are visible only to its owner.",
     "off": "Off",
     "offIn": "Off · in {{places}}",
     "turnOn": "Turn on"

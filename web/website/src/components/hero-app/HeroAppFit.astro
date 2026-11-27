@@ -1,0 +1,21 @@
+---
+// Scales each 1440x900 app picture ([data-hx-frame]) to its frame's width, before first paint
+// and on resize. The tokens of the app (light and dark) come with it.
+import { heroAppTheme } from "./theme.js";
+---
+
+<style is:global set:html={heroAppTheme}></style>
+<script is:inline>
+  (() => {
+    const fit = (el) => {
+      const w = el.clientWidth;
+      if (w) el.style.setProperty("--hx-s", String(w / 1440));
+    };
+    const frames = document.querySelectorAll("[data-hx-frame]");
+    const ro = "ResizeObserver" in window ? new ResizeObserver((es) => es.forEach((e) => fit(e.target))) : null;
+    frames.forEach((el) => {
+      fit(el);
+      ro?.observe(el);
+    });
+  })();
+</script>

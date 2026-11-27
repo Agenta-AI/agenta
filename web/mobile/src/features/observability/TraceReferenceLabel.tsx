@@ -25,7 +25,7 @@ export const TraceReferenceLabel = ({
     const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
     if (!developerMode) {
         const label = typeof props.label === "string" ? props.label : null
-        return <span className="text-colorText">{label ?? "—"}</span>
+        return <span className="text-foreground">{label ?? "—"}</span>
     }
     const Label = routes[kind]
     return <Label {...props} />

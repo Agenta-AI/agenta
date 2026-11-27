@@ -19,8 +19,8 @@ beforeEach(async () => {
     document.head.innerHTML =
         '<link rel="icon" href="/m/assets/favicon.ico" sizes="any">' +
         '<link rel="icon" href="/m/assets/agenta-symbol.svg" type="image/svg+xml">'
-    document.documentElement.style.setProperty("--ag-run-status-processing", "blue")
-    document.documentElement.style.setProperty("--ag-run-status-success", "green")
+    document.documentElement.style.setProperty("--info", "blue")
+    document.documentElement.style.setProperty("--success", "green")
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(function (
         this: HTMLCanvasElement,
     ) {

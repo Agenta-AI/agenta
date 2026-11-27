@@ -8,7 +8,7 @@ export const RunningIndicator = ({label}: {label?: string}) => {
     return (
         <div
             role="status"
-            className="flex items-center gap-2 px-1 py-2 text-sm text-muted-foreground"
+            className="flex items-center gap-2 px-1 py-2 text-body text-muted-foreground"
         >
             <Spinner size="small" />
             <span>{label ?? t("playground.panels.generating")}</span>

@@ -4,9 +4,10 @@ import {useT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import instructionsViewCatalog from "@agenta/i18n/catalogs/entityUi.instructionsView"
 import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
+import {Button} from "@agenta/ui/ui"
 import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 
-import {MarkdownEditorSkeleton} from "../../DrawerSkeletons"
+import {MarkdownBodySkeleton, MarkdownToolbarSkeleton} from "../../DrawerSkeletons"
 import {MarkdownEditor} from "../../MarkdownEditor"
 import {useAgentConfigWriter} from "../useAgentConfigWriter"
 
@@ -37,7 +38,6 @@ const InstructionsViewBody = ({params, target}: ViewProps<InstructionsViewParams
     useViewForm({
         dirty: draft !== original,
         valid: !writer.readOnly,
-        leaveDescription: t("entityUi.configItems.saveOrDiscardDraft"),
         save: async () => {
             writer.update((agent) => ({
                 ...agent,
@@ -51,17 +51,23 @@ const InstructionsViewBody = ({params, target}: ViewProps<InstructionsViewParams
     return (
         <div className="md-prose-panel flex min-h-0 flex-1 flex-col">
             {showToolbar ? (
-                <div className="flex shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary bg-[var(--ag-surface-raised)] px-2.5 py-1.5">
-                    <div ref={setToolbarHost} className="min-w-0 flex-1" />
-                    <button
-                        type="button"
+                // Tone alone sets the band apart (SURF-01); the left edge and the text sit at 16px.
+                <div className="flex shrink-0 items-center gap-1 bg-muted py-1.5 pl-4 pr-2">
+                    <div className="relative min-w-0 flex-1">
+                        <div ref={setToolbarHost} className="peer min-w-0" />
+                        {/* The tools' shape holds the band until the editor puts them in. */}
+                        <MarkdownToolbarSkeleton className="absolute inset-y-0 left-0 hidden peer-empty:flex" />
+                    </div>
+                    <Button
+                        variant="ghost"
+                        size="xs"
                         onClick={() => setView((v) => (v === "source" ? "rendered" : "source"))}
-                        className="shrink-0 cursor-pointer rounded-[6px] border-0 bg-transparent px-1.5 py-0.5 font-[inherit] text-[12px] font-medium text-colorText underline underline-offset-2 hover:bg-colorFillTertiary"
+                        className="shrink-0 text-muted-foreground hover:text-foreground"
                     >
                         {view === "source"
                             ? t("entityUi.schemaControls.richText")
                             : t("entityUi.schemaControls.source")}
-                    </button>
+                    </Button>
                 </div>
             ) : null}
             <MarkdownEditor
@@ -76,7 +82,7 @@ const InstructionsViewBody = ({params, target}: ViewProps<InstructionsViewParams
                 hideHeader
                 bordered={false}
                 grow
-                loadingSkeleton={<MarkdownEditorSkeleton />}
+                loadingSkeleton={<MarkdownBodySkeleton />}
                 placeholder={t("entityUi.instructionsView.placeholder")}
             />
         </div>

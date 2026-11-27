@@ -9,8 +9,8 @@ import {
 } from "@/features/agent-layout/agentPanelState"
 
 describe("agent panel state", () => {
-    it("clamps the width to 360..640", () => {
-        expect(clampPanelWidth(100)).toBe(360)
+    it("clamps the width to 320..640", () => {
+        expect(clampPanelWidth(100)).toBe(320)
         expect(clampPanelWidth(500.4)).toBe(500)
         expect(clampPanelWidth(900)).toBe(640)
     })

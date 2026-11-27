@@ -3,14 +3,14 @@ import type {ReactNode, SVGProps} from "react"
 /**
  * The brand header pinned at the top of the rail: full wordmark expanded, mark alone collapsed.
  *
- * Inline SVG rather than `next/image` over `public/assets/logos/*`: a bare asset path misses the
- * mobile app's `/m` basePath, and inlining lets the mark carry the theme accent through a class
- * (`dark:` — both apps toggle `.dark` on `<html>`) instead of swapping two files per theme.
+ * Inline SVG rather than `next/image`: a bare asset path misses the `/m` basePath, and a class
+ * carries the theme colour instead of two files per theme.
  *
  * Geometry matches the desktop rail exactly: a 32px row, an 80x18 wordmark, a 20x20 mark. The
  * mark's own viewBox is 171x140, so at 20x20 it letterboxes exactly as the `<img>` did.
  */
-const MARK_CLASS = "fill-[#1E1C1D] dark:fill-[#F2F25C]"
+// `primary` is ink in light and brand yellow in dark, the logo's two colours; no logo variable exists yet.
+const MARK_CLASS = "fill-primary"
 
 const AgentaWordmark = (props: SVGProps<SVGSVGElement>) => (
     <svg viewBox="0 0 361 80" role="img" aria-label="Agenta" fill="currentColor" {...props}>
@@ -39,12 +39,9 @@ const AgentaMark = (props: SVGProps<SVGSVGElement>) => (
 export const SidebarLogo = ({collapsed, toggle}: {collapsed: boolean; toggle?: ReactNode}) => (
     <div
         className={[
-            // mt/ml push the whole centred row away from the corner; padding alone read as
-            // no change because the 48px row's centring already held the logo 14px down.
             "flex h-8 shrink-0 items-center mt-1.5 mb-1",
-            // pr-3, not pr-2: the toggle is an icon in a borderless box, so at 8px its glyph sat
-            // closer to the rail's edge than the nav rows' labels sit to theirs.
-            collapsed ? "justify-center" : toggle ? "justify-between ml-2 px-3" : "px-3",
+            // The wordmark starts on the icon line (16px); the toggle's box ends on the rows' 8px inset.
+            collapsed ? "justify-center" : toggle ? "justify-between pl-4 pr-2" : "px-4",
         ].join(" ")}
     >
         {collapsed ? (

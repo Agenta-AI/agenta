@@ -11,7 +11,7 @@ export const SessionAutomationKind = ({
     // Capped below `sm`: unshrinkable, it starved the title beside it down to ~10px.
     <span
         className={clsx(
-            "max-w-[45%] shrink-0 truncate text-xs text-colorTextTertiary sm:max-w-none",
+            "max-w-[45%] shrink-0 truncate text-meta text-muted-foreground sm:max-w-none",
             className,
         )}
     >

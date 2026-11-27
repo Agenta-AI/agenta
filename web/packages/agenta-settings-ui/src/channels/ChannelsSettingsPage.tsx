@@ -53,8 +53,6 @@ export interface ChannelsSettingsPageProps {
     hostedHandle?: string
     /** Confirms a disconnect; without it the row menu offers no Disconnect. */
     confirm?: ConfirmDestructive
-    /** The project's name, for the agent step's audience note. */
-    projectName?: string
 }
 
 const PLATFORM_DESCRIPTIONS: Record<
@@ -104,7 +102,6 @@ export const ChannelsSettingsPage = ({
     renderPanel,
     hostedHandle = "@agenta",
     confirm,
-    projectName,
 }: ChannelsSettingsPageProps) => {
     const t = useT(channelsPageCatalog, commonCatalog)
     const [retrying, setRetrying] = useState(false)
@@ -136,7 +133,6 @@ export const ChannelsSettingsPage = ({
         hostedHandle,
         agents,
         onAgentChange,
-        projectName,
     })
     const {openRoute, openConnection: openPanelConnection} = panel
 
@@ -273,7 +269,7 @@ export const ChannelsSettingsPage = ({
                     loadError ? (
                         <div
                             role="alert"
-                            className="flex items-center justify-between gap-3 rounded-lg border border-solid border-border px-3 py-2.5 text-[13px] text-error"
+                            className="flex items-center justify-between gap-3 rounded-lg border border-solid border-border px-3 py-2.5 text-label text-destructive"
                         >
                             <span className="min-w-0">{loadError}</span>
                             <Button variant="outline" disabled={retrying} onClick={retry}>

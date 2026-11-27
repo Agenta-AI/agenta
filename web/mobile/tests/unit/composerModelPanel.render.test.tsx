@@ -56,14 +56,17 @@ const renderPanel = (props: Partial<Parameters<typeof ComposerModelPanel>[0]> = 
 }
 
 describe("ComposerModelPanel", () => {
-    it("draws one list grouped by connection, with raw ids and a check on the current model", () => {
+    it("draws one list grouped by connection, with model names and a check on the current model", () => {
         renderPanel()
         // Every group is open at once: no connection column to hover first.
         expect(screen.getByText("Agenta")).toBeTruthy()
         expect(screen.getByText("Built-in")).toBeTruthy()
         expect(screen.getByText("openrouter")).toBeTruthy()
-        expect(screen.getByText("google/gemini-3.8-flash")).toBeTruthy()
-        expect(screen.getByText("openai/gpt-5.5")).toBeTruthy()
+        // A row shows only the model's name, not its raw id.
+        expect(screen.getByText("Gemini 3.8 Flash")).toBeTruthy()
+        expect(screen.getByText("OpenAI: GPT-5.5")).toBeTruthy()
+        expect(screen.queryByText("google/gemini-3.8-flash")).toBeNull()
+        expect(screen.queryByText("openai/gpt-5.5")).toBeNull()
         const current = screen.getByRole("button", {name: /Gemini 4 Argon/})
         expect(current.getAttribute("aria-pressed")).toBe("true")
         expect(current.querySelector("svg")).not.toBeNull()

@@ -501,9 +501,7 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
     )
 
     if (!hasMessagesField) {
-        return (
-            <div className={cn("min-h-[260px]", className)} data-testid="prompt-schema-control" />
-        )
+        return <div className={cn("min-h-65", className)} data-testid="prompt-schema-control" />
     }
 
     return (
@@ -672,14 +670,14 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                         icon={<Info size={14} className="!size-3.5" />}
                         className="!py-1 !px-2 !rounded-md"
                         message={
-                            <span className="text-[12px]">
+                            <span className="text-meta">
                                 {richText(
                                     t("entityUi.schemaControls.switchingIsPermanent", {
                                         format: originalTemplateFormatRef.current,
                                     }),
                                     {
                                         code: (text) => (
-                                            <code className="font-mono text-xs bg-chip px-1 rounded">
+                                            <code className=" text-code-sm bg-chip px-1 rounded">
                                                 {text}
                                             </code>
                                         ),

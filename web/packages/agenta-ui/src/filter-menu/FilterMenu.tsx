@@ -2,13 +2,20 @@ import {useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
-import {SlidersHorizontal} from "lucide-react"
+import {SlidersHorizontalIcon} from "@phosphor-icons/react"
 
 import {Popover, PopoverContent} from "../components/ui/popover"
+import {useMediaQuery} from "../hooks/useMediaQuery"
+import {BottomSheet} from "../phone/BottomSheet"
 
-import {FilterMenuPanel} from "./FilterMenuPanel"
+import {DRILLDOWN_QUERY, FilterMenuPanel} from "./FilterMenuPanel"
 import {FilterMenuTrigger} from "./FilterMenuTrigger"
-import type {FilterMenuItem, FilterMenuPlacementProps, FilterMenuTriggerProps} from "./types"
+import {
+    isFilterMenuNarrowed,
+    type FilterMenuItem,
+    type FilterMenuPlacementProps,
+    type FilterMenuTriggerProps,
+} from "./types"
 
 export interface FilterMenuProps extends FilterMenuTriggerProps, FilterMenuPlacementProps {
     /**
@@ -74,39 +81,75 @@ export const FilterMenu = ({
         onOpenChange?.(next)
     }
 
+    // A phone opens the panel as a bottom sheet (COMPACT-04): rows drill in, nothing hovers.
+    const compact = useMediaQuery(DRILLDOWN_QUERY)
+    // One row is a plain filter: name the panel after it, not "Filter, sort and group".
+    const single = sections.length === 1 ? sections[0] : null
+    const title = single ? single.label : t("ui.controls.filterSortGroup")
+    const trigger = (
+        <FilterMenuTrigger
+            label={label}
+            icon={icon ?? <SlidersHorizontalIcon size={14} aria-hidden />}
+            size={size}
+            variant={variant}
+            triggerClassName={triggerClassName}
+            triggerAriaLabel={triggerAriaLabel}
+            active={Boolean(active) || isFilterMenuNarrowed(sections)}
+            defaultLabel={t("ui.controls.filter")}
+            onClick={compact ? () => setOpen(true) : undefined}
+        />
+    )
+    const panel = (
+        <FilterMenuPanel
+            sections={sections}
+            // A phone sheet holds a few rows: a search field there is one more thing to tap past.
+            searchable={compact ? false : searchable}
+            searchPlaceholder={
+                searchPlaceholder ?? (single ? t("ui.controls.searchEllipsis") : undefined)
+            }
+            defaultSearch={defaultSearch}
+            onReset={onReset}
+            resetLabel={resetLabel}
+            resetDisabled={resetDisabled}
+            flyoutSide={flyoutSide}
+            flyoutAlign={flyoutAlign}
+            flyoutSideOffset={flyoutSideOffset}
+            fluid={compact}
+            className={className}
+        />
+    )
+
+    if (compact) {
+        return (
+            <>
+                {trigger}
+                <BottomSheet
+                    open={open}
+                    onOpenChange={setOpen}
+                    title={title}
+                    // Each choice applies as it is tapped: tap out or Escape closes.
+                    hideClose
+                    keepKeyboardClosed
+                    data-testid="filter-menu-sheet"
+                >
+                    {panel}
+                </BottomSheet>
+            </>
+        )
+    }
+
     return (
         <Popover open={open} onOpenChange={setOpen}>
-            <FilterMenuTrigger
-                label={label}
-                icon={icon ?? <SlidersHorizontal size={14} aria-hidden />}
-                size={size}
-                variant={variant}
-                triggerClassName={triggerClassName}
-                triggerAriaLabel={triggerAriaLabel}
-                active={active}
-                defaultLabel={t("ui.controls.filter")}
-            />
+            {trigger}
             <PopoverContent
                 side={side}
                 align={align}
                 sideOffset={sideOffset}
-                aria-label={t("ui.controls.filterSortGroup")}
+                aria-label={title}
                 className="p-0"
                 onOpenAutoFocus={(event) => event.preventDefault()}
             >
-                <FilterMenuPanel
-                    sections={sections}
-                    searchable={searchable}
-                    searchPlaceholder={searchPlaceholder}
-                    defaultSearch={defaultSearch}
-                    onReset={onReset}
-                    resetLabel={resetLabel}
-                    resetDisabled={resetDisabled}
-                    flyoutSide={flyoutSide}
-                    flyoutAlign={flyoutAlign}
-                    flyoutSideOffset={flyoutSideOffset}
-                    className={className}
-                />
+                {panel}
             </PopoverContent>
         </Popover>
     )

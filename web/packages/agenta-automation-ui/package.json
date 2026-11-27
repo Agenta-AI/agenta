@@ -21,8 +21,7 @@
         "@agenta/sessions-ui": "workspace:../agenta-sessions-ui",
         "@agenta/shared": "workspace:../agenta-shared",
         "@agenta/ui": "workspace:../agenta-ui",
-        "@phosphor-icons/react": "^2.1.10",
-        "lucide-react": "^0.475.0"
+        "@phosphor-icons/react": "^2.1.10"
     },
     "peerDependencies": {
         "@tanstack/react-query": ">=5.0.0",

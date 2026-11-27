@@ -63,7 +63,7 @@ export const LiveEvaluatorSection = ({
             </Field>
             {list.noneSupported ? (
                 <div className="flex flex-col items-start gap-1">
-                    <p className="m-0 text-sm text-muted-foreground">
+                    <p className="m-0 text-body text-muted-foreground">
                         No evaluator can run on live traffic yet. Create an LLM-as-a-judge, code,
                         regex, webhook, or custom evaluator to continue.
                     </p>
@@ -71,7 +71,7 @@ export const LiveEvaluatorSection = ({
                         <Link
                             href={evaluatorsHref}
                             prefetch={false}
-                            className="text-sm font-medium text-foreground underline"
+                            className="text-label text-foreground underline"
                         >
                             Open evaluators
                         </Link>

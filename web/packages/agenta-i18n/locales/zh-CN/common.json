@@ -80,5 +80,7 @@
     "view": "查看",
     "working": "处理中…",
     "yourRole": "你的角色",
-    "dialog": "对话框"
+    "dialog": "对话框",
+    "resizePane": "调整面板大小",
+    "you": "你"
 }

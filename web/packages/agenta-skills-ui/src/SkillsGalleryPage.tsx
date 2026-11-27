@@ -64,17 +64,15 @@ function SourceNavRow({
             onClick={onSelect}
             aria-current={active}
             className={cn(
-                "flex cursor-pointer items-center justify-between gap-2 rounded-md border-0 px-2.5 py-1.5 text-left text-xs",
+                "flex cursor-pointer items-center justify-between gap-2 rounded-md border-0 px-2.5 py-1.5 text-left text-label font-normal",
                 chip ? "shrink-0" : "w-full",
                 active
-                    ? "bg-[var(--ag-colorBgContainer)] font-medium shadow-sm"
-                    : "bg-transparent text-[var(--ag-colorTextSecondary)] hover:bg-[var(--ag-colorFillTertiary)]",
+                    ? "bg-selected font-medium"
+                    : "bg-transparent text-muted-foreground hover:bg-accent",
             )}
         >
             <span className="min-w-0 truncate">{entry.label}</span>
-            <span className="shrink-0 tabular-nums text-[var(--ag-colorTextTertiary)]">
-                {entry.count}
-            </span>
+            <span className="shrink-0 tabular-nums text-muted-foreground">{entry.count}</span>
         </button>
     )
 }
@@ -126,7 +124,7 @@ export function SkillsGalleryPage({
                         <button
                             type="button"
                             onClick={() => onShowArchivedChange(!showArchived)}
-                            className="ml-auto shrink-0 cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--ag-colorTextSecondary)] hover:underline"
+                            className="ml-auto shrink-0 cursor-pointer border-0 bg-transparent p-0 text-meta text-muted-foreground hover:underline"
                         >
                             {showArchived
                                 ? t("skills.gallery.hideArchived")
@@ -161,9 +159,7 @@ export function SkillsGalleryPage({
         <FilterRailLayout
             rail={
                 <>
-                    <h1 className="m-0 text-lg font-semibold">
-                        {t("skills.gallery.skillsHeading")}
-                    </h1>
+                    <h1 className="m-0 text-title">{t("skills.gallery.skillsHeading")}</h1>
                     <SearchInput
                         placeholder={t("skills.gallery.searchPlaceholder")}
                         aria-label={t("skills.gallery.searchAria")}
@@ -184,7 +180,7 @@ export function SkillsGalleryPage({
                         ))}
                     </nav>
                     {onShowArchivedChange ? (
-                        <label className="flex cursor-pointer items-center gap-2 px-2.5 text-xs text-[var(--ag-colorTextSecondary)]">
+                        <label className="flex cursor-pointer items-center gap-2 px-2.5 text-meta text-muted-foreground">
                             <Checkbox
                                 checked={Boolean(showArchived)}
                                 onCheckedChange={(next) => onShowArchivedChange(next === true)}

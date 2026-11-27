@@ -63,7 +63,7 @@ export const VariantCard = memo(
         return (
             <div
                 data-testid={`variant-card-${revisionId}`}
-                className="flex flex-col gap-2 rounded-lg border border-solid border-border bg-card p-2 text-sm"
+                className="flex flex-col gap-2 rounded-lg border border-solid border-border bg-card p-2 text-body"
             >
                 <div className="flex items-center gap-1">
                     <button
@@ -111,7 +111,7 @@ export const VariantCard = memo(
                         <X aria-hidden />
                     </IconAction>
                 </div>
-                <dl className="m-0 grid grid-cols-[1fr_auto] gap-x-2 gap-y-1 text-xs">
+                <dl className="m-0 grid grid-cols-[1fr_auto] gap-x-2 gap-y-1 text-label font-normal">
                     <dt className="text-muted-foreground">
                         {t("playground.panels.averageLatency")}
                     </dt>

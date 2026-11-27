@@ -134,8 +134,8 @@ function useMediaMetadata(
 export const MetaRow = ({label, value}: {label: string; value: React.ReactNode}) =>
     value ? (
         <>
-            <dt className="text-colorTextTertiary">{label}</dt>
-            <dd className="m-0 min-w-0 truncate font-mono text-colorTextSecondary">{value}</dd>
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="m-0 min-w-0 truncate font-mono text-muted-foreground">{value}</dd>
         </>
     ) : null
 
@@ -193,7 +193,7 @@ export function DriveFileMetaList({
     // (Content vs Dimensions vs Duration), so `auto` resized the columns and slid the right half
     // sideways as you paged. 4.5rem fits the longest label ("Dimensions").
     const grid = (
-        <dl className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-xs sm:grid-cols-[4.5rem_1fr_4.5rem_1fr]">
+        <dl className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-meta sm:grid-cols-[4.5rem_1fr_4.5rem_1fr]">
             <MetaRow label={t("entityUi.drivePreview.metaType")} value={fileTypeLabel(path)} />
             <MetaRow label={t("entityUi.drivePreview.metaMime")} value={mimeFor(path)} />
             <MetaRow
@@ -254,13 +254,13 @@ export function DriveFileMetaList({
 
     return (
         <div className="flex flex-col gap-1.5">
-            <div className="flex items-center gap-2 text-xs">
-                <span className="min-w-0 truncate text-colorTextTertiary">{summary}</span>
+            <div className="flex items-center gap-2 text-meta">
+                <span className="min-w-0 truncate text-muted-foreground">{summary}</span>
                 <button
                     type="button"
                     onClick={() => setInternalExpanded((v) => !v)}
                     aria-expanded={internalExpanded}
-                    className="ml-auto flex shrink-0 cursor-pointer items-center gap-0.5 rounded border-0 bg-transparent p-0 text-colorTextTertiary transition-colors hover:text-colorText"
+                    className="ml-auto flex shrink-0 cursor-pointer items-center gap-1 rounded-sm border-0 bg-transparent p-0 text-meta text-muted-foreground transition-colors hover:text-foreground"
                 >
                     {t("entityUi.drivePreview.details")}
                     <CaretRight

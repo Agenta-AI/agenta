@@ -1,5 +1,37 @@
 [
     {
+        "id": "v0.131.1",
+        "date": "2026-11-26",
+        "features": [
+            {
+                "id": "v0-131-1-one-image-self-hosted",
+                "title": "Easier upgrades and a free plan for self-hosted Agenta",
+                "body": "We keep working on self-hosted Agenta, and this release brings three changes. You can move from the open source edition to Enterprise with a license key, without changing your images. There is a new free Registered plan, and when you register your instance from the app, you get a free key that removes the project limit.\n\nWe also reworked self-hosted telemetry, so that each instance counts once and test installs no longer mix with real ones. The [Telemetry page](https://agenta.ai/docs/self-host/telemetry) lists what an instance sends and how to turn it off. The [license keys page](https://agenta.ai/docs/self-host/license-keys#limits-by-plan) compares the plans.",
+                "link": "https://agenta.ai/docs/changelog/v0-131-1-one-image-self-hosted"
+            }
+        ],
+        "improvements": [
+            {
+                "area": "Self-hosting",
+                "text": "The app tells you when a new release or a security fix is out"
+            },
+            {
+                "area": "Self-hosting",
+                "text": "On the Community and Registered plans, the Access & Security and Audit Log settings show what Enterprise adds, and where to enter a key"
+            },
+            {
+                "area": "Helm",
+                "text": "The migration job can run for up to one hour, up from 10 minutes"
+            },
+            {
+                "area": "Helm",
+                "text": "Enterprise Helm installs pull public images and need no pull secret"
+            }
+        ],
+        "fixes": [],
+        "upgradeNotesLink": "https://agenta.ai/docs/self-host/upgrading#upgrading-to-0131-1"
+    },
+    {
         "id": "v0.131.0",
         "date": "2026-11-24",
         "features": [
@@ -161,7 +193,8 @@
             }
         ],
         "improvements": [],
-        "fixes": []
+        "fixes": [],
+        "upgradeNotesLink": "https://agenta.ai/docs/self-host/upgrading#upgrading-to-01270-workspaces-are-removed"
     },
     {
         "id": "v0.126.0",
@@ -186,20 +219,6 @@
                 "title": "Security updates and agent-run fixes",
                 "body": "This release updates vulnerable dependencies across the web app, API, SDK and runner.\n\nOn self-hosted setups that override `HOME`, Codex runs no longer wait indefinitely on their first turn. Agent runs send the correct project even without an authorization header. The model picker shows a readable Kimi K3.1 Pro label, and session names no longer show a lock icon.",
                 "link": "https://agenta.ai/docs/changelog/security-and-agent-run-fixes-125-3"
-            }
-        ],
-        "improvements": [],
-        "fixes": []
-    },
-    {
-        "id": "v0.125.2",
-        "date": "2026-10-27",
-        "features": [
-            {
-                "id": "channel-chats-from-agenta",
-                "title": "Continue channel chats in Agenta",
-                "body": "You can now continue a Slack or Telegram chat in Agenta. Members who can send to a project-visible channel chat can write in the app, and the agent's answer also goes back to the channel thread.\n\n- A private agent can stay connected to a channel through a connection its owner made.\n- A new channel chat with that private agent belongs to its owner and starts private.\n- Fixes keep first messages and more of a long turn's work when a chat changes or a turn ends.",
-                "link": "https://agenta.ai/docs/changelog/channel-chats-from-agenta"
             }
         ],
         "improvements": [],

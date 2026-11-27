@@ -34,12 +34,16 @@ const InlineRenameInput = ({
             onChange={(event) => rename.setDraft(event.target.value)}
             onBlur={() => void rename.commit()}
             onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== "Escape") return
+                // The field owns the key: a page-level Escape (Stop) must not see it.
+                event.preventDefault()
+                event.stopPropagation()
                 if (event.key === "Enter") void rename.commit()
-                if (event.key === "Escape") rename.cancel()
+                else rename.cancel()
             }}
             className={
                 className ??
-                "h-5 w-full min-w-0 rounded border border-solid border-colorBorder bg-colorBgContainer px-1 text-[13px] leading-5 text-colorText outline-none [font-family:inherit] focus:border-colorPrimary"
+                "h-5 w-full min-w-0 rounded border border-solid border-border bg-background px-1 text-label leading-5 text-foreground outline-none [font-family:inherit] focus-ring-field"
             }
         />
     )

@@ -17,8 +17,8 @@ import {
     isInteractionEndedOutput,
     type ClientToolWidgetProps as ClientToolHandlerProps,
 } from "@agenta/shared/clientTools"
-import {Button} from "@agenta/ui/ui"
-import {CheckCircle, Plugs, Spinner, Warning} from "@phosphor-icons/react"
+import {Button, Spinner} from "@agenta/ui/ui"
+import {CheckCircle, Plugs, Warning} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {McpConnectJourney} from "../mcpEndpoint"
@@ -29,7 +29,7 @@ import {useGatewayConnectFlow, type GatewayTarget} from "./useGatewayConnectFlow
 /** Without an icon (the host's `bare` mode) the row takes the host's row type — see ConnectToolWidget. */
 const ChipRow = ({icon, children}: {icon: React.ReactNode; children: React.ReactNode}) => (
     <div
-        className={`flex min-w-0 items-center gap-2 ${icon ? "py-1" : "py-0.5 [&_.text-xs]:text-sm"}`}
+        className={`flex min-w-0 items-center gap-2 ${icon ? "py-1" : "py-0.5 [&_.text-meta]:text-label"}`}
     >
         {icon ? <span className="shrink-0">{icon}</span> : null}
         {children}
@@ -62,13 +62,9 @@ const GatewayConnectToolWidget = ({
         return (
             <>
                 <ChipRow
-                    icon={
-                        bare ? null : (
-                            <Spinner size={13} className="animate-spin text-colorPrimary" />
-                        )
-                    }
+                    icon={bare ? null : <Spinner aria-hidden className="size-3.5 text-primary" />}
                 >
-                    <span className="truncate text-xs text-colorTextSecondary">
+                    <span className="truncate text-meta text-muted-foreground">
                         {t("entityUi.clientTools.connectingLabel", {label})}
                     </span>
                 </ChipRow>
@@ -98,10 +94,8 @@ const GatewayConnectToolWidget = ({
     if (meta.settled || outcome) {
         if (isInteractionEndedOutput(meta.output)) {
             return (
-                <ChipRow
-                    icon={bare ? null : <Plugs size={13} className="text-colorTextTertiary" />}
-                >
-                    <span className="truncate text-xs text-colorTextTertiary">
+                <ChipRow icon={bare ? null : <Plugs size={13} className="text-muted-foreground" />}>
+                    <span className="truncate text-meta text-muted-foreground">
                         {t("entityUi.clientTools.connectionRequestEnded")}
                     </span>
                 </ChipRow>
@@ -113,11 +107,11 @@ const GatewayConnectToolWidget = ({
                 <ChipRow
                     icon={
                         bare ? null : (
-                            <CheckCircle size={13} weight="fill" className="text-colorSuccess" />
+                            <CheckCircle size={13} weight="fill" className="text-success" />
                         )
                     }
                 >
-                    <span className="truncate text-xs text-colorText">
+                    <span className="truncate text-meta text-foreground">
                         {t("entityUi.clientTools.labelConnected", {label})}
                     </span>
                 </ChipRow>
@@ -125,11 +119,9 @@ const GatewayConnectToolWidget = ({
         }
         return (
             <ChipRow
-                icon={
-                    bare ? null : <Warning size={13} weight="fill" className="text-colorWarning" />
-                }
+                icon={bare ? null : <Warning size={13} weight="fill" className="text-warning" />}
             >
-                <span className="truncate text-xs text-colorTextSecondary">
+                <span className="truncate text-meta text-muted-foreground">
                     {t("entityUi.clientTools.connectionNotCompleted")}
                 </span>
             </ChipRow>
@@ -137,8 +129,8 @@ const GatewayConnectToolWidget = ({
     }
 
     return (
-        <ChipRow icon={bare ? null : <Plugs size={13} className="text-colorPrimary" />}>
-            <span className="truncate text-xs text-colorText">
+        <ChipRow icon={bare ? null : <Plugs size={13} className="text-primary" />}>
+            <span className="truncate text-meta text-foreground">
                 {target.plane === "llm"
                     ? t("entityUi.clientTools.connectLabelModelProvider", {label})
                     : t("entityUi.clientTools.connectLabelMcpServer", {label})}

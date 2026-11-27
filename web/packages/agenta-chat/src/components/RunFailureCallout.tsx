@@ -164,22 +164,22 @@ export const RunFailureCallout = ({
         !notSent && !!onRetry && (!!transport || (!!code && RETRYABLE_CODES.has(code)))
 
     return (
-        <div className="flex items-start gap-2 rounded-xl bg-colorErrorBg px-4 py-3">
-            <XCircle size={16} weight="fill" className="mt-px shrink-0 text-colorError" />
+        <div className="flex items-start gap-2 rounded-lg bg-destructive/10 px-4 py-3">
+            <XCircle size={16} weight="fill" className="mt-px shrink-0 text-destructive" />
             <div className="flex min-w-0 flex-col items-start gap-0.5">
-                <span className="text-xs font-medium text-colorError">
+                <span className="text-label text-destructive">
                     {title ??
                         (notSent
                             ? t("chat.runFailureCallout.messageNotSent")
                             : t("chat.runFailureCallout.runFailed"))}
                 </span>
                 {big && expanded ? (
-                    <pre className="m-0 max-h-60 w-full overflow-auto whitespace-pre-wrap break-words bg-transparent p-0 font-mono text-xs !text-colorErrorText">
+                    <pre className="m-0 max-h-60 w-full overflow-auto whitespace-pre-wrap break-words bg-transparent p-0 font-mono text-code !text-destructive">
                         {text}
                     </pre>
                 ) : (
                     <span
-                        className={`whitespace-pre-wrap break-words text-xs text-colorErrorText ${
+                        className={`whitespace-pre-wrap break-words text-meta text-destructive ${
                             big ? "line-clamp-3" : ""
                         }`}
                         title={big ? text : undefined}
@@ -193,7 +193,7 @@ export const RunFailureCallout = ({
                         variant="ghost"
                         onClick={() => setExpanded({key: stateKey, value: !expanded})}
                         aria-expanded={expanded}
-                        className="-ml-1 px-1 font-medium text-colorError"
+                        className="-ml-1 px-1 font-medium text-destructive"
                     >
                         {expanded
                             ? t("chat.runFailureCallout.showLess")

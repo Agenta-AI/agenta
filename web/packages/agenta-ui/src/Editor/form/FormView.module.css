@@ -44,13 +44,13 @@
         top: 50%;
         transform: translateY(-50%);
         width: 8px;
-        border-top: 1px dotted #c4c4c4;
+        border-top: 1px dotted var(--border);
     }
 
     &:global(.array-item) {
         border-left: none;
     }
-    border-left: 1px dashed #e5e5e5;
+    border-left: 1px dashed var(--border-muted);
 
     :global(.object-node) {
         /* > .tree-row {
@@ -105,13 +105,13 @@
             top: 50%;
             transform: translateY(-50%);
             width: 8px;
-            border-top: 1px dotted #c4c4c4;
+            border-top: 1px dotted var(--border);
         }
 
         &:global(.array-item) {
             border-left: none;
         }
-        border-left: 1px dashed #e5e5e5;
+        border-left: 1px dashed var(--border-muted);
 
         :global(.object-node) {
             /* > .tree-row {

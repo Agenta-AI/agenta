@@ -512,7 +512,7 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
     if (mode === "advanced") {
         return (
             <div className={className}>
-                <div className="border border-solid border-gray-200 rounded overflow-hidden">
+                <div className="border border-solid border-border rounded-md overflow-hidden">
                     <SharedEditor
                         editorType="border"
                         placeholder={t("entityUi.feedbackConfig.enterJsonSchema")}
@@ -607,13 +607,16 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                 <div className="mb-4">
                     <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-1">
-                            <span className="text-xs font-medium">
+                            <span className="text-label font-medium">
                                 {t("entityUi.feedbackConfig.categories")}
                             </span>
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <Info size={12} className="cursor-help text-gray-400" />
+                                        <Info
+                                            size={12}
+                                            className="cursor-help text-muted-foreground"
+                                        />
                                     </TooltipTrigger>
                                     <TooltipContent>
                                         {t("entityUi.feedbackConfig.categoriesTooltip")}
@@ -623,7 +626,7 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                         </div>
                         <Button
                             size="sm"
-                            variant="dashed"
+                            variant="outline"
                             onClick={addCategory}
                             disabled={disabled}
                         >
@@ -656,15 +659,12 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                                     disabled={disabled}
                                     className="flex-[2]"
                                 />
-                                {/* antd `type="text" danger`: chrome-less, colorError text,
-                                    colorErrorBg on hover — ghost + the error colour pair. */}
                                 <Button
-                                    variant="ghost"
+                                    variant="destructive-ghost"
                                     size="icon"
                                     aria-label={t("entityUi.feedbackConfig.removeCategory", {
                                         number: index + 1,
                                     })}
-                                    className="text-error hover:bg-error-bg hover:text-error-hover"
                                     onClick={() => removeCategory(index)}
                                     disabled={disabled || categories.length <= 1}
                                 >
@@ -679,13 +679,13 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
             {/* Include reasoning */}
             <div className="flex items-center justify-between gap-3 mb-4">
                 <div className="flex items-center gap-1">
-                    <span className="text-xs font-medium" id={reasoningLabelId}>
+                    <span className="text-label font-medium" id={reasoningLabelId}>
                         {t("entityUi.feedbackConfig.includeReasoning")}
                     </span>
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <Info size={12} className="cursor-help text-gray-400" />
+                                <Info size={12} className="cursor-help text-muted-foreground" />
                             </TooltipTrigger>
                             <TooltipContent>
                                 {t("entityUi.feedbackConfig.includeReasoningTooltip")}

@@ -50,7 +50,6 @@
     "copy": "复制",
     "copyByHand": "请选中 URL 并复制。",
     "clientId": "客户端 ID",
-    "optional": "可选",
     "clientSecret": "客户端密钥",
     "clientAuthentication": "客户端认证",
     "scopes": "权限范围",
@@ -67,5 +66,10 @@
     "noServersYet": "此项目中还没有 MCP 服务器",
     "noServersYetBody": "通过 URL 连接 MCP 服务器。你只需登录或添加一次密钥，项目中的每个 Agent 都可以使用它。",
     "searchServers": "搜索服务器",
-    "noServersMatch": "没有匹配的服务器"
+    "noServersMatch": "没有匹配的服务器",
+    "serverResponse": "服务器响应",
+    "tryAnotherNameOrHost": "试试其他名称或主机。",
+    "serversUnavailable": "无法加载项目的服务器",
+    "serversUnavailableDetail": "服务器没有响应，因此列表为空。代理已有的服务器仍可使用。",
+    "oauthApp": "OAuth 应用"
 }

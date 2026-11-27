@@ -49,7 +49,7 @@ def _load_stripe() -> Optional["stripe"]:
     return _stripe_module
 
 
-def _load_posthog() -> Optional["posthog"]:
+def _import_posthog() -> Optional["posthog"]:
     global _posthog_module, _posthog_checked
 
     if _posthog_checked:
@@ -62,9 +62,6 @@ def _load_posthog() -> Optional["posthog"]:
 
         log = get_module_logger(__name__)
 
-        # Gate on "enabled" here so the return value means "a usable, configured
-        # PostHog module": None signals "not available" (disabled OR import/config
-        # failure), and callers need a single `if posthog is None` check.
         if not env.posthog.enabled:
             log.warn("✗ PostHog disabled")
             _posthog_module = None
@@ -81,6 +78,22 @@ def _load_posthog() -> Optional["posthog"]:
         _posthog_module = None
 
     return _posthog_module
+
+
+async def _load_posthog() -> Optional["posthog"]:
+    """The shared, queued PostHog client, or None when PostHog is not configured or
+    the telemetry switch is off. Callers need a single `if posthog is None` check."""
+
+    posthog = _import_posthog()
+    if posthog is None:
+        return None
+
+    from oss.src.core.telemetry.service import telemetry_enabled
+
+    if not await telemetry_enabled():
+        return None
+
+    return posthog
 
 
 def _load_sendgrid() -> Optional["SendGridAPIClient"]:

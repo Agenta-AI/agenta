@@ -24,7 +24,7 @@ import React from "react"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
-import {ChevronDown} from "lucide-react"
+import {CaretDownIcon} from "@phosphor-icons/react"
 
 import type {EntityListCounts} from "../../InfiniteVirtualTable/paginated"
 import {
@@ -161,7 +161,7 @@ export function LoadMoreButton({
                 onClick={onClick}
                 disabled={isLoading || !hasMore}
             >
-                {isLoading ? <Spinner size="small" /> : <ChevronDown className="w-4 h-4" />}
+                {isLoading ? <Spinner size="small" /> : <CaretDownIcon className="w-4 h-4" />}
                 {isLoading ? loadingLabel : `${label}${countString}`}
             </Button>
         </div>

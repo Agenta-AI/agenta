@@ -7,5 +7,7 @@
     "connectedCount_one": "{{count}} connected",
     "connectedCount_other": "{{count}} connected",
     "numbers": "Numbers",
-    "workspaces": "Workspaces"
+    "workspaces": "Workspaces",
+    "addFirstWorkspace": "Add a workspace",
+    "addFirstNumber": "Add a number"
 }

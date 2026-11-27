@@ -1,7 +1,6 @@
 import type {EvaluatorCategory} from "@agenta/entities/workflow"
 import {Button, Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle} from "@agenta/ui/ui"
-import {ChartDonut, Plus} from "@phosphor-icons/react"
-import {Archive, Search} from "lucide-react"
+import {ArchiveIcon, ChartDonut, MagnifyingGlassIcon, Plus} from "@phosphor-icons/react"
 
 /**
  * No evaluators in this tab, or none that match the search; offers the way back from a search.
@@ -21,7 +20,7 @@ export const EvaluatorsEmpty = ({
     onClear?: () => void
     onCreate?: () => void
 }) => {
-    const Icon = term ? Search : archived ? Archive : ChartDonut
+    const Icon = term ? MagnifyingGlassIcon : archived ? ArchiveIcon : ChartDonut
     const title = term
         ? `No evaluators match “${term}”`
         : archived

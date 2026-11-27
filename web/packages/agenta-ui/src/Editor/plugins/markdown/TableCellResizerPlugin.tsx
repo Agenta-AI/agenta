@@ -41,7 +41,7 @@ type PointerDraggingDirection = "right" | "bottom"
 
 const MIN_ROW_HEIGHT = 33
 const MIN_COLUMN_WIDTH = 50
-const ACTIVE_RESIZER_COLOR = "#76b6ff"
+const ACTIVE_RESIZER_COLOR = "var(--ring)"
 
 function TableCellResizer({editor}: {editor: LexicalEditor}) {
     const targetRef = useRef<HTMLElement | null>(null)
@@ -405,7 +405,7 @@ function TableCellResizer({editor}: {editor: LexicalEditor}) {
                     styles[draggingDirection].height = `${tableRect.height}px`
                 }
 
-                styles[draggingDirection].backgroundColor = "#adf"
+                styles[draggingDirection].backgroundColor = "var(--ring)"
                 styles[draggingDirection].mixBlendMode = "unset"
             } else if (!draggingDirection && hoveredDirection === "right") {
                 const halfZoneWidth = zoneWidth / 2

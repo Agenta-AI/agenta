@@ -57,16 +57,16 @@ function CollapsibleSection({
     )
 
     return (
-        <div className="flex flex-col bg-[var(--ag-c-FFFFFF)] rounded-lg border border-solid border-[var(--ag-rgba-051729-06)] overflow-hidden">
+        <div className="flex flex-col bg-background rounded-lg border border-solid border-border-muted overflow-hidden">
             <div
-                className="flex items-center justify-between px-4 h-11 cursor-pointer bg-[var(--ag-rgba-051729-02)]"
-                style={{borderBottom: collapsed ? undefined : "1px solid rgba(5,23,41,0.06)"}}
+                className="flex items-center justify-between px-4 h-11 cursor-pointer bg-muted"
+                style={{borderBottom: collapsed ? undefined : "1px solid var(--border-muted)"}}
                 role="button"
                 tabIndex={0}
                 onClick={toggle}
                 onKeyDown={handleKeyDown}
             >
-                <Text className="text-sm font-semibold text-[var(--ag-c-344054)]">{title}</Text>
+                <Text className="text-label font-semibold text-muted-foreground">{title}</Text>
                 <Button
                     type="text"
                     size="small"
@@ -105,7 +105,7 @@ function EmptyValue() {
 function ReadOnlyBox({children, className}: PropsWithChildren<{className?: string}>) {
     return (
         <div
-            className={`rounded border border-solid border-[var(--ag-c-E4E7EC)] bg-[var(--ag-c-F9FAFB)] px-2.5 py-1.5 ${className ?? ""}`}
+            className={`rounded border border-solid border-border-muted bg-muted px-2.5 py-1.5 ${className ?? ""}`}
         >
             {children}
         </div>
@@ -204,28 +204,27 @@ const EvaluatorCard = memo(function EvaluatorCard({evaluatorId}: {evaluatorId: s
         <SectionCard className="!gap-0 !p-0 overflow-hidden">
             {/* Evaluator header */}
             <div
-                className="flex h-10 items-center justify-between gap-2 bg-[var(--ag-rgba-051729-02)] px-3"
+                className="flex h-10 items-center justify-between gap-2 bg-muted px-3"
                 style={{
-                    borderBottom:
-                        "var(--Components-Collapse-Global-lineWidth, 1px) solid var(--Colors-Neutral-Border-colorSplit, rgba(5, 23, 41, 0.06))",
+                    borderBottom: "1px solid var(--border-muted)",
                 }}
             >
                 <div className="flex min-w-0 items-center gap-2">
                     {evaluatorHref ? (
                         <Tag
-                            className="!m-0 !bg-[var(--ag-c-F2F4F7)] !border-[var(--ag-c-D0D5DD)] !text-[var(--ag-c-1D2939)] cursor-pointer"
+                            className="!m-0 !bg-secondary !border-border !text-foreground cursor-pointer"
                             icon={<ArrowSquareOut size={12} className="mr-1" />}
                             onClick={() => window.open(evaluatorHref, "_blank")}
                         >
                             {displayName}
                         </Tag>
                     ) : (
-                        <Tag className="!m-0 !bg-[var(--ag-c-F2F4F7)] !border-[var(--ag-c-D0D5DD)] !text-[var(--ag-c-1D2939)]">
+                        <Tag className="!m-0 !bg-secondary !border-border !text-foreground">
                             {displayName}
                         </Tag>
                     )}
                     {version ? (
-                        <span className="rounded-full bg-[var(--ag-c-F2F4F7)] px-2 py-0.5 text-xs font-medium text-[var(--ag-c-475467)]">
+                        <span className="rounded-md bg-secondary px-2 py-0.5 text-label text-muted-foreground">
                             V{version}
                         </span>
                     ) : null}
@@ -267,7 +266,7 @@ const EvaluatorCard = memo(function EvaluatorCard({evaluatorId}: {evaluatorId: s
             {!collapsed && (
                 <div className="flex flex-col gap-4 p-3">
                     {view === "json" && hasEvaluatorJson ? (
-                        <div className="rounded-md border border-solid border-[var(--ag-c-E4E7EC)] bg-[var(--ag-c-F8FAFC)]">
+                        <div className="rounded-md border border-solid border-border-muted bg-muted">
                             <Editor
                                 key={evaluatorJsonKey}
                                 initialValue={evaluatorJson}
@@ -310,11 +309,11 @@ const EvaluatorCard = memo(function EvaluatorCard({evaluatorId}: {evaluatorId: s
                                 >
                                     <ReadOnlyBox>
                                         {param.isMultiline ? (
-                                            <pre className="m-0 max-h-48 overflow-auto whitespace-pre-wrap break-words text-xs text-[var(--ag-c-1D2939)]">
+                                            <pre className="m-0 max-h-48 overflow-auto whitespace-pre-wrap break-words text-label font-normal text-foreground">
                                                 {param.displayValue}
                                             </pre>
                                         ) : (
-                                            <span className="text-[var(--ag-c-1D2939)] break-words">
+                                            <span className="text-foreground break-words">
                                                 {param.displayValue}
                                             </span>
                                         )}
@@ -332,7 +331,7 @@ const EvaluatorCard = memo(function EvaluatorCard({evaluatorId}: {evaluatorId: s
                                 >
                                     <ReadOnlyBox>
                                         <div className="flex flex-wrap items-center gap-2">
-                                            <span className="font-semibold text-[var(--ag-c-475467)]">
+                                            <span className="font-semibold text-muted-foreground">
                                                 {metric.name}
                                             </span>
                                             <Tag className="!m-0" bordered={false}>
@@ -351,8 +350,8 @@ const EvaluatorCard = memo(function EvaluatorCard({evaluatorId}: {evaluatorId: s
                                                     className="!m-0"
                                                     bordered={false}
                                                     style={{
-                                                        backgroundColor: "var(--ag-c-F2F4F7)",
-                                                        color: "var(--ag-c-475467)",
+                                                        backgroundColor: "var(--secondary)",
+                                                        color: "var(--muted-foreground)",
                                                     }}
                                                 >
                                                     Optional
@@ -360,7 +359,7 @@ const EvaluatorCard = memo(function EvaluatorCard({evaluatorId}: {evaluatorId: s
                                             )}
                                         </div>
                                         {metric.description && (
-                                            <div className="mt-1 text-[var(--ag-c-475467)]">
+                                            <div className="mt-1 text-muted-foreground">
                                                 {metric.description}
                                             </div>
                                         )}
@@ -391,7 +390,7 @@ const EvaluatorsSection = memo(function EvaluatorsSection() {
     }
 
     return (
-        <div className="flex flex-col divide-y divide-[var(--ag-rgba-051729-06)]">
+        <div className="flex flex-col divide-y divide-border-muted">
             {evaluatorIds.map((id) => (
                 <EvaluatorCard key={id} evaluatorId={id} />
             ))}
@@ -541,10 +540,10 @@ const DeleteSection = memo(function DeleteSection({
 
     return (
         <>
-            <div className="flex flex-col gap-4 p-4 rounded-lg border border-solid border-[var(--ag-c-FEE4E2)] bg-[var(--ag-c-FFFBFA)] dark:border-[var(--ant-red-3)] dark:bg-[var(--ant-red-1)]">
+            <div className="flex flex-col gap-4 p-4 rounded-lg border border-solid border-destructive/30 bg-destructive/10 dark:border-destructive/30 dark:bg-destructive/10">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div className="flex flex-col gap-1">
-                        <Text className="text-sm font-semibold text-[var(--ag-c-B42318)]">
+                        <Text className="text-label font-semibold text-destructive">
                             Delete queue
                         </Text>
                         <Text type="secondary">
@@ -587,7 +586,7 @@ const ConfigurationView = memo(function ConfigurationView({queueId}: Configurati
     }
 
     return (
-        <div className="flex flex-col flex-1 overflow-y-auto bg-[var(--ag-c-F5F7FA)] py-6">
+        <div className="flex flex-col flex-1 overflow-y-auto bg-muted py-6">
             <div className="w-full max-w-[560px] mx-auto flex flex-col gap-4 px-4">
                 {/* ── General ── */}
                 <CollapsibleSection title="General">

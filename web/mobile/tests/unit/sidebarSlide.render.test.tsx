@@ -57,14 +57,14 @@ describe("the rail's slide between sidebars", () => {
         mount("end")
         expect(animate).toHaveBeenCalledOnce()
         const [frames, options] = animate.mock.calls[0]
-        expect(frames[0]).toMatchObject({transform: "translateX(16px)", opacity: 0})
+        expect(frames[0]).toMatchObject({transform: "translateX(4px)", opacity: 0})
         expect(options).toMatchObject({duration: 200})
     })
 
     it("slides in from the start when going back", () => {
         reducedMotion(false)
         mount("start")
-        expect(animate.mock.calls[0][0][0]).toMatchObject({transform: "translateX(-16px)"})
+        expect(animate.mock.calls[0][0][0]).toMatchObject({transform: "translateX(-4px)"})
     })
 
     it("does not move with reduced motion or with no focus change", () => {

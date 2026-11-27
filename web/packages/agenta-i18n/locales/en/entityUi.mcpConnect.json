@@ -51,7 +51,6 @@
     "copy": "Copy",
     "copyByHand": "Select the URL and copy it.",
     "clientId": "Client ID",
-    "optional": "Optional",
     "clientSecret": "Client secret",
     "clientAuthentication": "Client authentication",
     "scopes": "Scopes",
@@ -69,5 +68,10 @@
     "noServersYet": "No MCP servers in this project yet",
     "noServersYetBody": "Connect an MCP server by URL. You'll sign in or add a key once, and every agent in the project can use it.",
     "searchServers": "Search servers",
-    "noServersMatch": "No servers match"
+    "noServersMatch": "No servers match",
+    "serverResponse": "Server response",
+    "tryAnotherNameOrHost": "Try another name or host.",
+    "serversUnavailable": "Couldn't load the project's servers",
+    "serversUnavailableDetail": "The server did not answer, so the list is empty. Servers already on the agent still work.",
+    "oauthApp": "OAuth app"
 }

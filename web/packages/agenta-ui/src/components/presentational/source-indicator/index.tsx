@@ -25,10 +25,10 @@ import {Badge, type BadgeProps} from "../../ui/badge"
 // antd Tag `color` → shadcn Badge variant.
 const COLOR_VARIANT: Record<string, NonNullable<BadgeProps["variant"]>> = {
     default: "default",
-    green: "green",
-    orange: "orange",
-    blue: "blue",
-    red: "red",
+    green: "success",
+    orange: "warning",
+    blue: "info",
+    red: "destructive",
 }
 
 // ============================================================================

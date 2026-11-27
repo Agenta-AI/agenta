@@ -25,7 +25,6 @@ import {
     traceOutputsAtomFamily,
 } from "@agenta/entities/trace"
 import {workflowMolecule} from "@agenta/entities/workflow"
-import {EnhancedButton} from "@agenta/ui"
 import {
     SmartCellContent,
     MetricCellContent,
@@ -42,6 +41,7 @@ import {
     type TableScopeConfig,
     type TableExportColumnContext,
 } from "@agenta/ui/table"
+import {LoadingButton} from "@agenta/ui/ui"
 import {
     ArrowSquareOut,
     CaretDown,
@@ -153,6 +153,14 @@ const STATUS_TAG_MAP: Record<string, {color: string; label: string}> = {
 }
 
 const DEFAULT_STATUS_TAG = {color: "default", label: "Pending"}
+
+// The antd tag colors above, as status fills. `--ant-color-*` never resolved in /m, so the dot was blank.
+const TAG_DOT_CLASS: Record<string, string> = {
+    green: "bg-success",
+    orange: "bg-warning",
+    blue: "bg-info",
+    red: "bg-destructive",
+}
 
 // ============================================================================
 // HELPERS
@@ -373,13 +381,13 @@ const TraceNameCell = memo(function TraceNameCell({
 
     return (
         <div className="flex items-center gap-1.5">
-            <Typography.Text className="text-xs font-medium" ellipsis>
+            <Typography.Text className="text-label" ellipsis>
                 {rootSpan?.span_name || "—"}
             </Typography.Text>
             {rootSpan?.span_type && (
                 <Typography.Text
                     type="secondary"
-                    className="text-[12px] px-1 py-0.5 rounded bg-[var(--ant-color-fill-tertiary)] shrink-0"
+                    className="text-meta px-1 py-0.5 rounded bg-secondary shrink-0"
                 >
                     {rootSpan.span_type}
                 </Typography.Text>
@@ -451,9 +459,7 @@ const AnnotationGroupHeader = memo(function AnnotationGroupHeader({
                     <CaretDown size={12} weight="bold" />
                 )}
                 <span className="truncate">{displayName}</span>
-                <span className="text-[var(--ant-color-text-quaternary)] text-xs font-normal">
-                    ({childCount})
-                </span>
+                <span className="text-muted-foreground text-meta font-normal">({childCount})</span>
             </span>
         </Tooltip>
     )
@@ -690,9 +696,7 @@ const GroupHeaderTitle = memo(function GroupHeaderTitle({
                 <CaretDown size={12} weight="bold" />
             )}
             <span>{title}</span>
-            <span className="text-[var(--ant-color-text-quaternary)] text-xs font-normal">
-                ({childCount})
-            </span>
+            <span className="text-muted-foreground text-meta font-normal">({childCount})</span>
         </span>
     )
 })
@@ -739,18 +743,19 @@ function mapDefToColumn(
 
                     return (
                         <Tooltip title={tag.label} placement="topLeft">
-                            <span className="inline-flex items-center gap-2 text-xs font-medium">
+                            <span className="inline-flex items-center gap-2 text-label">
                                 {isComplete ? (
-                                    <Check size={12} weight="bold" className="text-emerald-600" />
+                                    <Check size={12} className="text-success" />
                                 ) : (
                                     <span
-                                        className="h-2 w-2 rounded-full"
-                                        style={{
-                                            backgroundColor: `var(--ant-color-${tag.color === "orange" ? "warning" : tag.color})`,
-                                        }}
+                                        className={`h-2 w-2 rounded-xs ${TAG_DOT_CLASS[tag.color] ?? "bg-muted-foreground"}`}
                                     />
                                 )}
-                                <span className={isComplete ? "text-emerald-700" : "text-zinc-600"}>
+                                <span
+                                    className={
+                                        isComplete ? "text-success" : "text-muted-foreground"
+                                    }
+                                >
                                     {record.scenarioIndex + 1}
                                 </span>
                             </span>
@@ -1095,7 +1100,7 @@ const AnnotationDrawer = memo(function AnnotationDrawer({
                     </div>
 
                     {/* Right panel: Annotation form */}
-                    <div className="w-[340px] min-w-[280px] shrink-0 border border-solid border-[var(--ag-rgba-051729-06)] rounded-lg overflow-hidden bg-[var(--ag-c-FFFFFF)]">
+                    <div className="w-[340px] min-w-[280px] shrink-0 border border-solid border-border-muted rounded-lg overflow-hidden bg-background">
                         <AnnotationPanel
                             scenarioId={scenarioId}
                             queueId={queueId}
@@ -1537,14 +1542,16 @@ const ScenarioListView = memo(function ScenarioListView({
 
     const primaryActionsNode = useMemo(
         () => (
-            <EnhancedButton
-                size="small"
-                icon={<Plus size={14} />}
+            <LoadingButton
+                variant="outline"
+                size="sm"
+                loading={isAddToTestsetExporting}
                 onClick={handleAddToTestset}
                 disabled={!canAddToTestset}
-                loading={isAddToTestsetExporting}
-                label="Add to Testset"
-            />
+            >
+                <Plus size={14} />
+                Add to Testset
+            </LoadingButton>
         ),
         [canAddToTestset, handleAddToTestset, isAddToTestsetExporting],
     )

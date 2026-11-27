@@ -3,7 +3,9 @@ import {useCallback, useEffect, useRef, useState} from "react"
 import {
     AutomationDetailBody,
     AutomationDetailSkeleton,
+    AutomationMetaRow,
     AutomationRunHistoryView,
+    AutomationTitle,
     AutomationTriggerDrawers,
     useAutomationEditor,
 } from "@agenta/automation-ui"
@@ -17,13 +19,13 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
-import {useConfirmModal} from "../settings/useConfirmModal"
+import {PageBackBar} from "../page-layout/PageBackBar"
+import {PageBackControl} from "../page-layout/PageBackControl"
+import {PageLayout} from "../page-layout/PageLayout"
 
 import {AutomationActionsMenu} from "./AutomationActionsMenu"
 import {AutomationRunConversation} from "./AutomationRunConversation"
 import {AutomationRunNowButton} from "./AutomationRunNowButton"
-import {AutomationScreenHeader} from "./AutomationScreenHeader"
-import {useUnsavedGuard} from "./useUnsavedGuard"
 
 /**
  * One automation — its identity, what it runs, when it runs, and what it is told.
@@ -76,15 +78,11 @@ export const AutomationDetailScreen = ({
         save,
     } = useAutomationEditor(automationId)
 
-    // One modal for both questions this screen can ask (leave without saving, delete) would mean
-    // one of them waiting on the other; the menu owns its own.
-    const {confirm, modal} = useConfirmModal()
-    const leave = useUnsavedGuard({
-        dirty,
-        confirm,
-        title: t("automations.screens.leaveTitle"),
-        message: t("automations.screens.leaveMessage"),
-    })
+    // Leaving never asks: unsaved edits are dropped.
+    const leave = useCallback(
+        (url: string) => void router.push(url).catch(() => undefined),
+        [router],
+    )
 
     // `?view=runs` opens straight on the history — a list row that promises runs should not
     // land the reader on the config to find them.
@@ -119,108 +117,128 @@ export const AutomationDetailScreen = ({
         [automation?.agentId, projectId, workspaceId],
     )
 
-    return (
-        <>
-            <PageTitle title={t("automations.screens.pageTitle")} context={automation?.name} />
-            <AppShell workspaceId={workspaceId} projectId={projectId}>
-                <ScreenScaffold
-                    fill={showRuns}
-                    header={
-                        // The runs view carries its own back link, inside the column it centres,
-                        // so the arrow lands on the same grid as "Run history" at either width.
-                        showRuns ? null : (
-                            <AutomationScreenHeader
-                                workspaceId={workspaceId}
-                                projectId={projectId}
-                                title={
-                                    automation?.name || t("automations.screens.detailFallbackTitle")
-                                }
-                                backHref={`${base}/automations`}
+    const listHref = `${base}/automations`
+    const automationName = automation?.name || t("automations.screens.detailFallbackTitle")
+
+    const runNow = automation ? (
+        <AutomationRunNowButton automation={automation} base={base} dirty={dirty} />
+    ) : null
+
+    // The run history is a workbench view (a list and a transcript, full height): its own frame.
+    if (showRuns) {
+        return (
+            <>
+                <PageTitle title={t("automations.screens.pageTitle")} context={automation?.name} />
+                <AppShell workspaceId={workspaceId} projectId={projectId}>
+                    <ScreenScaffold
+                        fill
+                        header={
+                            // Below lg, Back returns to the automation, as the link's name does.
+                            <PageBackBar
+                                back={{label: automationName, onBack: closeRuns}}
+                                column="mx-auto box-border w-full max-w-content-md px-4 sm:pl-7.5 sm:pr-5"
                             />
-                        )
-                    }
-                >
-                    {showRuns ? (
+                        }
+                    >
                         <AutomationRunHistoryView
                             automation={automation}
                             header={
-                                <AutomationScreenHeader
-                                    workspaceId={workspaceId}
-                                    projectId={projectId}
-                                    title={
-                                        automation?.name ||
-                                        t("automations.screens.detailFallbackTitle")
-                                    }
-                                    runHistory={{
-                                        listHref: `${base}/automations`,
-                                        name:
-                                            automation?.name ||
-                                            t("automations.screens.detailFallbackTitle"),
-                                        onAutomation: closeRuns,
-                                    }}
-                                    // The view's own 30px grid, so the arrow lines up with
-                                    // "Run history" below it.
-                                    className="w-full shrink-0 pb-2 pl-[30px] pr-5 pt-3 lg:pt-5"
-                                />
+                                // The view's own 30px grid, so the arrow lines up with
+                                // "Run history" below it.
+                                <div className="w-full shrink-0 pt-6 lg:pb-2 lg:pl-[30px] lg:pr-5 lg:pt-8">
+                                    <div className="max-lg:hidden">
+                                        <PageBackControl
+                                            back={{label: automationName, onBack: closeRuns}}
+                                        />
+                                    </div>
+                                </div>
                             }
                             renderConversation={renderConversation}
                             initialRunId={openRunId}
                             phone={phone}
-                            runNow={
-                                automation ? (
-                                    <AutomationRunNowButton
-                                        automation={automation}
-                                        base={base}
-                                        dirty={dirty}
-                                    />
-                                ) : null
-                            }
+                            runNow={runNow}
                         />
-                    ) : automation && preview ? (
-                        <AutomationDetailBody
-                            automation={automation}
-                            preview={preview}
-                            agentName={agentName}
-                            onOpenRunHistory={openRuns}
-                            failureReason={failureReason}
-                            dirty={dirty}
-                            saving={saving}
+                    </ScreenScaffold>
+                </AppShell>
+                <AutomationTriggerDrawers />
+            </>
+        )
+    }
+
+    // The automation itself is a general page: back link, name, the switch line, a form.
+    return (
+        <>
+            <PageLayout
+                workspaceId={workspaceId}
+                projectId={projectId}
+                width="md"
+                back={{label: t("automations.screens.pageTitle"), href: listHref}}
+                documentTitle={t("automations.screens.pageTitle")}
+                documentContext={automation?.name}
+                title={
+                    automation ? (
+                        // The name renames in place, so it draws its own heading.
+                        <AutomationTitle
+                            name={automation.name}
+                            description={automation.description}
                             onRename={onRename}
-                            onSelectAgent={setAgent}
-                            onChangeCron={setCron}
-                            onSelectEvent={setEvent}
-                            onChangeInputs={setInputs}
-                            includeEvent={draft.includeEvent}
-                            onChangeIncludeEvent={setIncludeEvent}
-                            onToggle={onToggle}
-                            runNow={
-                                <AutomationRunNowButton
-                                    automation={automation}
-                                    base={base}
-                                    dirty={dirty}
-                                />
-                            }
-                            actions={
-                                <AutomationActionsMenu
-                                    automation={automation}
-                                    base={base}
-                                    onLeave={leave}
-                                />
-                            }
-                            onDiscard={discard}
-                            onSave={() => void save()}
                         />
-                    ) : loading ? (
-                        <AutomationDetailSkeleton />
-                    ) : missing ? (
-                        <p className="m-0 px-8 py-16 text-center text-[13px] text-muted-foreground">
-                            {t("automations.screens.noLongerExists")}
-                        </p>
-                    ) : null}
-                </ScreenScaffold>
-            </AppShell>
+                    ) : (
+                        automationName
+                    )
+                }
+                description={
+                    automation ? (
+                        <AutomationMetaRow
+                            active={automation.isActive}
+                            agentName={agentName}
+                            updatedAt={automation.updatedAt}
+                            onToggle={onToggle}
+                        />
+                    ) : undefined
+                }
+                actions={
+                    automation ? (
+                        <AutomationActionsMenu
+                            automation={automation}
+                            base={base}
+                            onLeave={leave}
+                        />
+                    ) : undefined
+                }
+            >
+                {automation && preview ? (
+                    <AutomationDetailBody
+                        headless
+                        className="flex flex-col"
+                        automation={automation}
+                        preview={preview}
+                        agentName={agentName}
+                        onOpenRunHistory={openRuns}
+                        failureReason={failureReason}
+                        dirty={dirty}
+                        saving={saving}
+                        onRename={onRename}
+                        onSelectAgent={setAgent}
+                        onChangeCron={setCron}
+                        onSelectEvent={setEvent}
+                        onChangeInputs={setInputs}
+                        includeEvent={draft.includeEvent}
+                        onChangeIncludeEvent={setIncludeEvent}
+                        onToggle={onToggle}
+                        runNow={runNow}
+                        onDiscard={discard}
+                        onSave={() => void save()}
+                    />
+                ) : loading ? (
+                    <AutomationDetailSkeleton />
+                ) : missing ? (
+                    <p className="m-0 py-16 text-center text-label text-muted-foreground">
+                        {t("automations.screens.noLongerExists")}
+                    </p>
+                ) : null}
+            </PageLayout>
             <AutomationTriggerDrawers />
-            {modal}
         </>
     )
 }

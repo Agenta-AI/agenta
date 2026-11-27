@@ -11,10 +11,17 @@ import {creditsLine} from "./planCatalog"
 
 const tNow = createT(billingPlanSummaryCardCatalog)
 
-/** The trial's state, else when the plan renews; nothing for a plan that never renews. */
-const renewal = (subscription: BillingSubscription | null | undefined, isOnFreePlan: boolean) => {
+/**
+ * The trial's state, else when the plan renews; nothing for a plan that never renews. A
+ * self-hosted plan does not renew: a paid key's expiry is on the License tab.
+ */
+const renewal = (
+    subscription: BillingSubscription | null | undefined,
+    isOnFreePlan: boolean,
+    selfHosted: boolean,
+) => {
     const end = periodEnd(subscription)
-    if (!end || isOnFreePlan) return null
+    if (!end || isOnFreePlan || selfHosted) return null
     if (subscription?.free_trial)
         return end > new Date()
             ? tNow("billing.planSummaryCard.trialEnds", {date: formatDate(end.toISOString())})
@@ -34,6 +41,7 @@ export const PlanSummaryCard = ({
     monthlyCreditsMusd,
     isOnFreePlan,
     isCustomPlan,
+    selfHosted = false,
     onChangePlan,
     onCancel,
 }: {
@@ -44,12 +52,14 @@ export const PlanSummaryCard = ({
     monthlyCreditsMusd: number | null
     isOnFreePlan: boolean
     isCustomPlan: boolean
+    /** The install is self-hosted: its plan comes from the license key, not from billing. */
+    selfHosted?: boolean
     onChangePlan?: () => void
     onCancel?: () => void
 }) => {
     const t = useT(billingPlanSummaryCardCatalog)
     const name = plan?.title ?? planName(subscription?.plan) ?? "—"
-    const renews = renewal(subscription, isOnFreePlan)
+    const renews = renewal(subscription, isOnFreePlan, selfHosted)
 
     const price = planPrice(plan)
     // The wallet's live grant wins; the catalog's line covers plans the wallet does not grant.
@@ -61,23 +71,21 @@ export const PlanSummaryCard = ({
 
     // Scoped to `.dark` so the card reads as the design's dark card in both themes.
     return (
-        <section className="dark bg-card text-foreground ring-border box-border flex min-h-[176px] min-w-0 flex-col gap-3 rounded-2xl px-5 py-[18px] ring-1 ring-inset">
+        <section className="dark bg-card text-foreground ring-border box-border flex min-h-44 min-w-0 flex-col gap-3 rounded-lg px-5 py-5 ring-1 ring-inset">
             <div className="flex items-center justify-between gap-3">
-                <span className="text-muted-foreground text-[13px]">
+                <span className="text-muted-foreground text-label">
                     {t("billing.planSummaryCard.currentPlan")}
                 </span>
                 {renews ? (
-                    <span className="text-muted-foreground truncate text-xs">{renews}</span>
+                    <span className="text-muted-foreground truncate text-meta">{renews}</span>
                 ) : null}
             </div>
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-2.5">
-                <span className="truncate text-[30px] font-semibold capitalize leading-9 tracking-[-0.02em]">
-                    {name}
-                </span>
+                <span className="truncate text-heading capitalize">{name}</span>
                 {price ? <span className="text-muted-foreground">{price}</span> : null}
             </div>
             {credits ? (
-                <span className="bg-hero-action/15 text-hero-action inline-flex h-[26px] items-center gap-1.5 self-start whitespace-nowrap rounded-full px-2.5 text-[13px]">
+                <span className="bg-brand/15 text-brand inline-flex h-control-sm items-center gap-1.5 self-start whitespace-nowrap rounded-md px-2.5 text-label">
                     <Coins size={14} />
                     {credits}
                 </span>
@@ -87,7 +95,7 @@ export const PlanSummaryCard = ({
                     href={CONTACT_URL}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-muted-foreground hover:text-foreground mt-auto text-[13px]"
+                    className="text-muted-foreground hover:text-foreground mt-auto text-label"
                 >
                     {t("billing.planSummaryCard.contactUs")}
                 </a>
@@ -105,7 +113,7 @@ export const PlanSummaryCard = ({
                     {!isOnFreePlan && onCancel ? (
                         <button
                             type="button"
-                            className="text-muted-foreground hover:text-foreground cursor-pointer border-0 bg-transparent p-0 text-[13px]"
+                            className="text-muted-foreground hover:text-foreground cursor-pointer border-0 bg-transparent p-0 text-label"
                             onClick={onCancel}
                         >
                             {t("billing.planSummaryCard.cancelSubscription")}

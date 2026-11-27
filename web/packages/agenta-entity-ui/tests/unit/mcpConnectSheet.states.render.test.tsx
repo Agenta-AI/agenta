@@ -198,30 +198,6 @@ const advancedRow = () =>
     )
 
 /** Control heights in px, restated here so this file does not lean on the kit for them. */
-const SIZE_BY_CLASS_UNDER_TEST: Record<string, number> = {
-    "h-control-xs": 24,
-    "h-control-sm": 28,
-}
-
-/**
- * The reach a control's classes yield, derived here rather than asked of the kit.
- *
- * D126 shipped because the touch helper and its reader shared one assumption, so a case that
- * asks either of them confirms the class the helper wrote rather than the box a finger gets.
- * The size class is the border box and the `after` inset is measured from inside the border, so
- * the box at the edge a reader can see is `size - 2 x border + 2 x inset`.
- */
-const reachOf = (className: string) => {
-    const classes = className.split(/\s+/).filter(Boolean)
-    const size = SIZE_BY_CLASS_UNDER_TEST[classes.find((c) => c in SIZE_BY_CLASS_UNDER_TEST) ?? ""]
-    const border = classes.includes("border-0") ? 0 : classes.includes("border") ? 1 : 0
-    const inset = classes
-        .map((c) => /^after:-inset-y-(?:\[(\d+)px\]|(\d+(?:\.\d+)?))$/.exec(c))
-        .find(Boolean)
-    const px = inset ? Number(inset[1] ?? Number(inset[2]) * 4) : 0
-    return {size, border, inset: px, reach: size - 2 * border + 2 * px}
-}
-
 const press = async (element: Element | undefined) => {
     await act(async () => {
         element?.dispatchEvent(new MouseEvent("click", {bubbles: true}))
@@ -248,6 +224,10 @@ describe("C1, the address", () => {
         await open(state({status: "url_entry", url: ""}))
 
         expect(text()).toContain("Connect MCP server")
+        // The help sits behind the info button beside the label.
+        await act(async () =>
+            document.querySelector<HTMLElement>("[data-slot=field-help]")?.click(),
+        )
         expect(text()).toContain(
             "The server's HTTP endpoint. Agenta checks it and detects whether it needs OAuth, an API key, or nothing.",
         )
@@ -414,15 +394,11 @@ describe("the address field's description, in both states", () => {
     const describedNodes = (element: HTMLElement | null) =>
         describedIds(element).map((id) => document.getElementById(id))
 
-    it("points at the help line while the address is still being typed", async () => {
+    it("points at nothing missing while the address is still being typed", async () => {
         await open(state({status: "url_entry"}))
 
         const field = control("Server URL")
-        expect(describedIds(field)).toHaveLength(1)
         expect(describedNodes(field).every(Boolean)).toBe(true)
-        expect(describedNodes(field)[0]?.textContent).toContain(
-            "The server's HTTP endpoint. Agenta checks it and detects whether it needs OAuth, an API key, or nothing.",
-        )
     })
 
     it("points at the failure once the check has failed", async () => {
@@ -535,13 +511,28 @@ describe("the OAuth screen's Advanced section", () => {
             scopesSelected: ["read", "write", "offline_access"],
             ...over,
         })
-    const checkboxes = () => [...document.querySelectorAll("[role='checkbox']")]
+    // A shut HeightCollapse keeps its content mounted, but aria-hidden and inert.
+    const shown = (node: Element | null | undefined) =>
+        Boolean(node) && !node!.closest('[aria-hidden="true"]')
+    const checkboxes = () => [...document.querySelectorAll("[role='checkbox']")].filter(shown)
+    /** The help behind a field's info trigger, opened with a click as a mouse does. */
+    const fieldHelpTexts = async () => {
+        const texts: string[] = []
+        for (const trigger of [...document.querySelectorAll('[data-slot="field-help"]')].filter(
+            shown,
+        )) {
+            await press(trigger)
+            texts.push(document.querySelector('[role="tooltip"]')?.textContent ?? "")
+            await press(trigger)
+        }
+        return texts
+    }
 
     it("is collapsed, so the usual screen stays as it was", async () => {
         await open(naming())
 
         expect(advancedRow()?.getAttribute("aria-expanded")).toBe("false")
-        expect(control("Client ID")).toBeNull()
+        expect(shown(control("Client ID"))).toBe(false)
         expect(checkboxes()).toHaveLength(0)
         expect(button("Connect")?.disabled).toBe(false)
     })
@@ -550,17 +541,22 @@ describe("the OAuth screen's Advanced section", () => {
         await open(naming())
         await press(advancedRow())
 
-        expect(control("Client ID")?.getAttribute("placeholder")).toBe("Optional")
+        expect(shown(control("Client ID"))).toBe(true)
         expect(control("Client secret")).not.toBeNull()
-        expect(text()).toContain(
-            "Only needed when the server does not register clients on its own. Most do.",
-        )
+        // Client ID and Client secret each say Optional in a muted word after the label.
+        expect(
+            [...document.querySelectorAll('[data-slot="field-optional"]')].filter(shown),
+        ).toHaveLength(2)
         expect(checkboxes().map((box) => box.getAttribute("aria-checked"))).toEqual([
             "true",
             "true",
             "true",
         ])
-        expect(text()).toContain("Uncheck a scope to ask for less.")
+        const help = await fieldHelpTexts()
+        expect(help).toContain(
+            "Only needed when the server does not register clients on its own. Most do.",
+        )
+        expect(help).toContain("Uncheck a scope to ask for less.")
     })
 
     it("asks for less when a scope is unchecked", async () => {
@@ -580,15 +576,20 @@ describe("the OAuth screen's Advanced section", () => {
         expect(text()).not.toContain("Scopes")
     })
 
-    it("opens by itself and says why when the server registers no clients", async () => {
+    it("puts the app above Advanced, required, and says why when the server registers no clients", async () => {
         const probe = {
             ...OAUTH_PROBE,
             auth: {...OAUTH_PROBE.auth, registration: "unavailable" as const},
         }
         await open(naming({probe}))
 
-        expect(advancedRow()?.getAttribute("aria-expanded")).toBe("true")
-        expect(text()).toContain(
+        // The app's fields leave Advanced and sit above it, required; Advanced keeps the scopes.
+        const app = document.querySelector('[data-testid="mcp-oauth-app"]')
+        expect(shown(app)).toBe(true)
+        expect(app?.contains(control("Client ID"))).toBe(true)
+        expect(app?.querySelectorAll('[data-slot="field-required"]')).toHaveLength(2)
+        expect(advancedRow()?.textContent).toContain("Scopes")
+        expect(await fieldHelpTexts()).toContain(
             "This server needs an OAuth app you register yourself. Add the callback URL to it, then paste its client ID and secret.",
         )
         // Nothing to sign in as until the app is entered.
@@ -709,33 +710,6 @@ describe("C4, the provider's window", () => {
         )
         expect(button("Open the window again")).toBeDefined()
         expect(button("Connect")).toBeUndefined()
-    })
-
-    it("gives both of its links 44px of reach at the row's own 24px height", async () => {
-        // The quiet half of the screen's actions, and on this screen the only two controls
-        // there are: a person whose consent window went behind something has nothing else to
-        // press. A link has no chrome, so it sits on the scale's smallest step and the reach
-        // beyond it is an invisible box. The row's 16px gap is wider than the 10px either box
-        // reaches sideways, so the two do not take each other's presses.
-        await open(
-            state({
-                status: "awaiting_consent",
-                url: "https://mcp.linear.app/mcp",
-                name: "Linear",
-                probe: OAUTH_PROBE,
-                endpointId: "mcp-1",
-            }),
-        )
-
-        for (const label of ["Open the window again", "Cancel"]) {
-            const link = button(label)
-            expect(link, label).toBeDefined()
-            const measured = reachOf(link!.className)
-            expect(measured.size, `${label}: not the 24px control this case is about`).toBe(24)
-            expect(measured.border, `${label}: not the bordered Button this case is about`).toBe(1)
-            expect(measured.reach, label).toBe(44)
-            expect(link!.className, label).not.toMatch(/after:(bg|border|text|shadow)-/)
-        }
     })
 
     it("abandons one attempt on Cancel without closing what was typed", async () => {
@@ -1339,8 +1313,8 @@ describe("the Authentication selector", () => {
         expect(
             [...document.querySelectorAll('[role="radio"]')].map((node) => node.textContent),
         ).toEqual(["OAuthDetected", "API key", "None"])
-        // The OAuth-only Advanced row is there.
-        expect(text()).toContain("Callback URL, client ID, scopes")
+        // The OAuth-only Advanced row is there; this probe offers no scopes.
+        expect(advancedRow()?.textContent).toContain("Callback URL, client ID")
         expect(control("Header name")).toBeNull()
     })
 

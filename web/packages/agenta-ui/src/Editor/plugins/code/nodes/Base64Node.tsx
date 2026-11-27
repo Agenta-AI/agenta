@@ -124,18 +124,18 @@ export type SerializedBase64Node = Spread<
  * Get the appropriate icon for a mime type
  */
 function FileTypeIcon({mimeType, size = 48}: {mimeType: string | null; size?: number}) {
-    if (!mimeType) return <FileArchive size={size} className="text-gray-400" />
+    if (!mimeType) return <FileArchive size={size} className="text-muted-foreground" />
 
     if (mimeType.startsWith("image/")) {
-        return <ImageIcon size={size} className="text-blue-500" />
+        return <ImageIcon size={size} className="text-muted-foreground" />
     }
     if (mimeType === "application/pdf") {
-        return <FilePdf size={size} className="text-red-500" />
+        return <FilePdf size={size} className="text-muted-foreground" />
     }
     if (mimeType.startsWith("text/")) {
-        return <FileText size={size} className="text-green-500" />
+        return <FileText size={size} className="text-muted-foreground" />
     }
-    return <FileArchive size={size} className="text-gray-400" />
+    return <FileArchive size={size} className="text-muted-foreground" />
 }
 
 /**
@@ -231,7 +231,7 @@ function Base64Component({
             </div>
 
             {/* File Preview */}
-            <div className="flex items-center justify-center bg-gray-50 rounded-lg overflow-hidden">
+            <div className="flex items-center justify-center bg-muted rounded-lg overflow-hidden">
                 {isImage && dataUrl ? (
                     <img
                         src={dataUrl}
@@ -242,12 +242,12 @@ function Base64Component({
                     <iframe
                         src={dataUrl}
                         title={tNow("ui.editor.pdfPreview")}
-                        className="w-full h-[300px] border-0"
+                        className="w-full h-75 border-0"
                     />
                 ) : (
                     <div className="flex flex-col items-center gap-2 p-6">
                         <FileTypeIcon mimeType={mimeType} size={48} />
-                        <span className="text-xs text-colorTextDescription">{fileTypeLabel}</span>
+                        <span className="text-meta text-muted-foreground">{fileTypeLabel}</span>
                     </div>
                 )}
             </div>
@@ -260,7 +260,7 @@ function Base64Component({
                 click semantics instead of Radix's click-to-toggle. */}
             <PopoverAnchor asChild>
                 <span
-                    className="token token-string cursor-help border-b border-dashed border-gray-400"
+                    className="token token-string cursor-help border-b border-dashed border-border"
                     data-lexical-base64="true"
                     data-node-key={nodeKey}
                     {...hoverProps}

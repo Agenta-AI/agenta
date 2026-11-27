@@ -53,7 +53,7 @@ export const NotFoundScreen = ({onBack, path, homeHref}: NotFoundScreenProps) =>
             <div className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
                 {/* The mark stands in for the middle zero, sized to the numerals' cap height. */}
                 <div
-                    className="flex items-center justify-center text-[clamp(96px,15vw,196px)] font-black leading-none tracking-[-0.04em]"
+                    className="flex items-center justify-center text-[clamp(96px,15vw,196px)] font-semibold leading-none tracking-[-0.04em]"
                     role="img"
                     aria-label="404"
                 >
@@ -86,7 +86,7 @@ export const NotFoundScreen = ({onBack, path, homeHref}: NotFoundScreenProps) =>
                         asChild
                         variant="outline"
                         size="lg"
-                        className="h-11 rounded-lg px-5 text-sm font-medium"
+                        className="h-control-lg rounded-md px-5"
                     >
                         <a href={ISSUES_URL}>{t("auth.notFound.report")}</a>
                     </Button>
@@ -94,7 +94,7 @@ export const NotFoundScreen = ({onBack, path, homeHref}: NotFoundScreenProps) =>
             </div>
 
             {/* Quietest text on the page: it is here to be quoted into a bug report. */}
-            <p className="px-6 pb-10 text-center text-xs leading-[18px] text-[color:var(--ag-colorTextQuaternary)]">
+            <p className="px-6 pb-10 text-center text-meta text-muted-foreground">
                 {t("auth.notFound.error404")}
                 {mounted && path ? (
                     <>

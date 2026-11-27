@@ -28,7 +28,7 @@ const OPTIONS: McpConnectionOption[] = [
 const Row = ({onEdit, children}: {onEdit: () => void; children?: ReactNode}) =>
     createElement("div", {onClick: onEdit, "data-testid": "row"}, children)
 
-/** A stand-in for the dialog: portalled out of the DOM subtree, exactly as EnhancedModal is. */
+/** A stand-in for the dialog: portalled out of the DOM subtree, exactly as the kit Dialog is. */
 const PortalDialog = () =>
     createPortal(
         createElement("button", {type: "button", "data-testid": "dialog-confirm"}, "Connect"),

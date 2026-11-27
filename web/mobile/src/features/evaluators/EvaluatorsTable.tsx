@@ -102,7 +102,7 @@ export const EvaluatorsTable = ({
                           bulkActions: (keys) => (
                               <Button
                                   size="sm"
-                                  variant="destructive"
+                                  variant="destructive-ghost"
                                   onClick={() => onArchive([...keys])}
                               >
                                   Archive

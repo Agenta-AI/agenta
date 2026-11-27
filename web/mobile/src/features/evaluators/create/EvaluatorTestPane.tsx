@@ -51,7 +51,7 @@ export const EvaluatorTestPane = ({revisionId}: {revisionId: string}) => {
     return (
         <section className="flex min-h-full flex-col" aria-label="Test evaluator">
             <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-1 border-0 border-b border-solid border-border px-4 py-2">
-                <span className="mr-auto text-sm font-medium text-foreground">Test evaluator</span>
+                <span className="mr-auto text-label text-foreground">Test evaluator</span>
                 <RunOnSelector mode={runOn} onPick={pickRunOn} />
                 {runOn === "app" ? (
                     <AppPicker selectedLabel={appLabel} onSelect={connectApp} />

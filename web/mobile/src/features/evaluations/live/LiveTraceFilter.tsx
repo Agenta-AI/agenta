@@ -35,7 +35,7 @@ export const LiveTraceFilter = ({
             columns={columns}
             onApplyFilter={apply}
             // The trigger sits inside the live evaluation form: as a submit button it would create.
-            buttonProps={{disabled, htmlType: "button"}}
+            buttonProps={{disabled, type: "button"}}
             // The sheet is 640 px wide: keep the dialog inside it, clear of the window edge.
             className="!w-[min(560px,calc(100vw-48px))]"
         />

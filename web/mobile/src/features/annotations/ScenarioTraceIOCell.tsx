@@ -5,7 +5,7 @@ import {sanitizeDataWithBlobUrls} from "@agenta/shared/utils"
 import {LastInputMessageCell, SmartCellContent} from "@agenta/ui/cell-renderers"
 import {useAtomValue} from "jotai"
 
-const CELL_CLASS = "max-h-[88px] overflow-hidden"
+const CELL_CLASS = "max-h-22 overflow-hidden"
 
 /**
  * A trace item's inputs or outputs, as the traces table shows them: the last input message (or
@@ -28,7 +28,7 @@ export const ScenarioTraceIOCell = ({
         : part === "outputs"
           ? (getSpanDisplayOutputs(rootSpan as TraceSpanNode) ?? null)
           : (extractAgData(rootSpan)[part] ?? null)
-    if (value === null) return <span className="text-[13px] text-muted-foreground">—</span>
+    if (value === null) return <span className="text-label text-muted-foreground">—</span>
     const {data} = sanitizeDataWithBlobUrls(value)
     return part === "inputs" ? (
         <LastInputMessageCell

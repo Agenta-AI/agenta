@@ -2,8 +2,6 @@ import type {Folder} from "@agenta/entities/workflow"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {fn} from "storybook/test"
 
-import {ArchivePromptDialog} from "../../../mobile/src/features/prompts/dialogs/ArchivePromptDialog"
-import {DeleteFolderDialog} from "../../../mobile/src/features/prompts/dialogs/DeleteFolderDialog"
 import {FolderNameDialog} from "../../../mobile/src/features/prompts/dialogs/FolderNameDialog"
 import {MoveToFolderDialog} from "../../../mobile/src/features/prompts/dialogs/MoveToFolderDialog"
 
@@ -85,14 +83,6 @@ export const MovePrompt: Story = {
             {...handlers}
         />
     ),
-}
-
-export const DeleteFolder: Story = {
-    render: () => <DeleteFolderDialog open folderName="Emails" {...handlers} />,
-}
-
-export const ArchivePrompt: Story = {
-    render: () => <ArchivePromptDialog open promptName="Welcome email" {...handlers} />,
 }
 
 export const Pending: Story = {

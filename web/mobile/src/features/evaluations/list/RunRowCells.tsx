@@ -33,24 +33,24 @@ const RunQueryCell = lazy(() =>
 )
 
 const KIND_BADGE: Record<EvaluationRunKind, NonNullable<BadgeProps["variant"]>> = {
-    auto: "geekblue",
-    human: "purple",
-    online: "green",
-    custom: "magenta",
+    auto: "info",
+    human: "default",
+    online: "success",
+    custom: "default",
 }
 
 const DATE_FORMAT = "MMM D, YYYY h:mm A"
 
 /** A 12 px dot in the status colour. The word is the tooltip and the accessible name. */
 export const RunStatusDot = ({status}: {status: string | null | undefined}) => {
-    if (!status) return <span className="text-[13px] text-muted-foreground">—</span>
+    if (!status) return <span className="text-label text-muted-foreground">—</span>
     const label = humanizeRunStatus(status)
     return (
         <span
             role="img"
             aria-label={label}
             title={label}
-            className={`inline-block size-3 rounded-full ${RUN_STATUS_DOT_COLOR[runStatusTone(status)]}`}
+            className={`inline-block size-3 rounded-xs ${RUN_STATUS_DOT_COLOR[runStatusTone(status)]}`}
         />
     )
 }
@@ -71,7 +71,7 @@ const MetricCellsPlaceholder = ({columns}: {columns: RunListColumns}) => (
     </>
 )
 
-const muted = "block truncate text-[13px] text-muted-foreground"
+const muted = "block truncate text-label text-muted-foreground"
 
 /**
  * One run's cells, in column order. A phone shows Status, Name (with the kind and the date
@@ -113,10 +113,10 @@ export const RunRowCells = ({
                     <RunStatusDot status={runDisplayStatus(run)} />
                 </span>
                 <span className="block min-w-0">
-                    <span className="block truncate text-[14px] font-medium text-foreground">
+                    <span className="block truncate text-body font-medium text-foreground">
                         {runDisplayName(run)}
                     </span>
-                    <span className="mt-1 flex items-center gap-2 text-[12px] text-muted-foreground">
+                    <span className="mt-1 flex items-center gap-2 text-meta text-muted-foreground">
                         <RunKindBadge run={run} />
                         <FormattedDate date={run.created_at} format={DATE_FORMAT} fallback="—" />
                     </span>
@@ -131,7 +131,7 @@ export const RunRowCells = ({
             <span className="flex">
                 <RunStatusDot status={runDisplayStatus(run)} />
             </span>
-            <span ref={ref} className="block truncate text-[14px] font-medium text-foreground">
+            <span ref={ref} className="block truncate text-body font-medium text-foreground">
                 {runDisplayName(run)}
             </span>
             {columns.showKind ? (

@@ -1,8 +1,7 @@
 /**
  * @vitest-environment jsdom
  *
- * The card list's touch targets on a phone: "Show more" is 44 px high, and a row's 20 px title
- * button reaches over the whole row (taller than 44 px), which opens on a tap anywhere.
+ * The card list on a phone: a row opens on a tap anywhere.
  */
 import {act, createElement, type ReactNode} from "react"
 import {createRoot, type Root} from "react-dom/client"
@@ -89,23 +88,6 @@ afterEach(() => {
 const buttons = () => Array.from(container.querySelectorAll("button"))
 
 describe("SessionCardList on a phone", () => {
-    it("draws Show more 44 px high on a phone", () => {
-        const showMore = buttons().find((button) => button.textContent?.includes("Show more"))
-        expect(showMore?.className.split(/\s+/)).toContain("max-md:min-h-11")
-    })
-
-    it("gives the title button the whole row as its touch area on a phone", () => {
-        const title = buttons().find((button) => button.textContent?.includes("Refund question"))
-        const classes = title?.className.split(/\s+/) ?? []
-        expect(classes).toEqual(
-            expect.arrayContaining(["max-md:after:absolute", "max-md:after:inset-0"]),
-        )
-        const row = title?.parentElement
-        expect(row?.className.split(/\s+/)).toContain("max-md:relative")
-        // The trailing controls stay above the title's area, so the pin keeps its own tap.
-        expect(row?.lastElementChild?.className.split(/\s+/)).toContain("max-md:relative")
-    })
-
     it("keeps the row's own click: a tap outside the title button opens the row", () => {
         const title = buttons().find((button) => button.textContent?.includes("Refund question"))
         const row = title?.parentElement

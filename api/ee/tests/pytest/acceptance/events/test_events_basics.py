@@ -19,6 +19,7 @@ import pytest
 import requests
 
 from utils.constants import BASE_TIMEOUT
+from utils.plans import skip_unless_plan_offers
 
 
 def _create_developer_business_account(admin_api):
@@ -81,6 +82,7 @@ def _delete_account_by_email(admin_api, *, email):
 
 @pytest.fixture(scope="class")
 def events_api(admin_api, ag_env):
+    skip_unless_plan_offers(admin_api, plan="cloud_v0_business", flags=("audit",))
     account = _create_developer_business_account(admin_api)
 
     def _request(method: str, endpoint: str, **kwargs):

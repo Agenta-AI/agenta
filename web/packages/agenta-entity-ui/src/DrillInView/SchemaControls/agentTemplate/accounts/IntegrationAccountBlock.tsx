@@ -1,4 +1,4 @@
-/** The "Account" part of an integration view (F10): whose account the agent uses. */
+/** The "Owner" part of an integration view (F10): whose account the agent uses, Personal or Project. */
 import {useMemo, type ReactNode} from "react"
 
 import {USER_ACCOUNT_SOURCE, userItemKey} from "@agenta/entities/accountChoice"
@@ -12,11 +12,11 @@ import {personalAccountsAccessAtom} from "@agenta/entities/secret"
 import {useT} from "@agenta/i18n"
 import accountsCatalog from "@agenta/i18n/catalogs/entityUi.accounts"
 import accountSwitchCatalog from "@agenta/i18n/catalogs/entityUi.accountSwitch"
-import {Button} from "@agenta/ui/ui"
+import {Button, ChoiceSwitch} from "@agenta/ui/ui"
 import {AppWindow, Users, Warning} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
-import {AccountSwitch} from "../../../../accounts/AccountSwitch"
+import {useOwnerWord} from "../../../../accounts/OwnerField"
 import {personalConnectionsFor} from "../../../../accounts/personalAccounts"
 import {useAccountChoice} from "../../../../accounts/useAccountChoice"
 import {
@@ -62,6 +62,8 @@ export function IntegrationAccountBlock({
     disabled,
 }: IntegrationAccountBlockProps) {
     const t = useT(accountSwitchCatalog, accountsCatalog)
+    // The Settings Owner words, so "whose account" reads the same everywhere.
+    const ownerWord = useOwnerWord()
     const {integration} = useToolIntegrationDetail(target.integration)
     const name = integration?.name || target.integration
     const {connections} = useToolConnectionsQuery()
@@ -82,6 +84,9 @@ export function IntegrationAccountBlock({
         [projectConnections, entry],
     )
 
+    // One project account, already the agent's: nothing to pick, so the picker stays hidden.
+    const onlySharedPicked = shared.length === 1 && shared[0].slug === entry.connection
+
     const pickSource = (next: string) => {
         const pick = accountSourcePick(next, entry, shared)
         if ("write" in pick) onChange(pick.write)
@@ -89,29 +94,29 @@ export function IntegrationAccountBlock({
     }
 
     return (
-        <div className="flex flex-col gap-3.5">
+        <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
                 <FieldHeading
-                    label={t("entityUi.accounts.label")}
+                    label={t("entityUi.accounts.owner")}
                     note={t("entityUi.accountSwitch.chooseWhose", {name})}
                 />
                 {showAccountSwitch(access, entry) ? (
-                    <AccountSwitch
+                    <ChoiceSwitch
                         value={eachPerson ? USER_ACCOUNT_SOURCE : "agent"}
                         choices={[
                             {
                                 value: USER_ACCOUNT_SOURCE,
-                                label: t("entityUi.accountSwitch.eachPersonsOwn"),
+                                label: ownerWord("user"),
                                 note: t("entityUi.accountSwitch.eachPersonsOwnNote", {name}),
                             },
                             {
                                 value: "agent",
-                                label: t("entityUi.accountSwitch.oneShared"),
+                                label: ownerWord("project"),
                                 note: t("entityUi.accountSwitch.oneSharedNote"),
                             },
                         ]}
                         onChange={pickSource}
-                        aria-label={t("entityUi.accounts.label")}
+                        aria-label={t("entityUi.accounts.owner")}
                         disabled={disabled}
                     />
                 ) : null}
@@ -129,7 +134,8 @@ export function IntegrationAccountBlock({
                         onConnect={() => onConnect("user")}
                     />
                 ) : null
-            ) : (
+            ) : onlySharedPicked ? null : (
+                // Picking only matters with two or more project accounts, or none yet.
                 <div className="flex flex-col gap-2">
                     <FieldHeading
                         label={t("entityUi.accountSwitch.sharedAccount")}
@@ -163,8 +169,8 @@ function NoPersonWarning({context}: {context: ItemAccountContext}) {
     const t = useT(accountSwitchCatalog)
     if (!useRunsWithoutPerson(useItemWorkflowId(context))) return null
     return (
-        <div className="flex items-start gap-2 rounded-lg border border-solid border-colorWarningBorder bg-colorWarningBg px-3 py-2 text-xs leading-4 text-colorText">
-            <Warning size={14} className="mt-px shrink-0 text-colorWarning" />
+        <div className="flex items-start gap-2 rounded-lg border border-solid border-warning/30 bg-warning/10 px-3 py-2 text-meta leading-4 text-foreground">
+            <Warning size={14} className="mt-px shrink-0 text-warning" />
             <span>{t("entityUi.accountSwitch.noPersonWarning")}</span>
         </div>
     )
@@ -197,7 +203,7 @@ function YourAccount({
         // Canvas F10 f3: a dashed box with the dark connect button.
         body = (
             <EmptyAccountBox text={t("entityUi.accountSwitch.noAccountYet")}>
-                <Button size="compact" className="max-md:h-11" onClick={onConnect}>
+                <Button size="compact" variant="outline" onClick={onConnect}>
                     {t("entityUi.accountSwitch.connectApp", {name})}
                 </Button>
             </EmptyAccountBox>
@@ -244,7 +250,7 @@ function YourAccount({
             />
             {body}
             {choice.failed ? (
-                <span className="text-xs text-colorError">
+                <span className="text-meta text-destructive">
                     {t("entityUi.accounts.choiceFailed")}
                 </span>
             ) : null}

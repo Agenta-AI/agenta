@@ -16,7 +16,7 @@
 /* The docked right panel and the full screen views. The design paints them with the container
    colour, the same as the chat beside them; the shadow still lifts the panel off its seam. */
 .ag-panel-raised {
-    background: var(--ag-colorBgContainer);
+    background: var(--background);
     box-shadow: var(--ag-surface-raised-shadow);
 }
 .ag-canvas {
@@ -228,13 +228,6 @@
     }
 }
 
-/* Fades overflowing one-line text at the box's right edge; give the box its full width. */
-.ag-text-fade {
-    overflow: hidden;
-    white-space: nowrap;
-    mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent 100%);
-}
-
 /* ── Overlay motion ────────────────────────────────────────────────────────────────────────────
    Enter/exit for portalled Radix surfaces (popover, and anything else that opts in). Radix keeps
    a closing element mounted until its animation ends, so this has to be a real, FINITE CSS
@@ -258,6 +251,23 @@
     }
 }
 
+/* MICRO-01: a trigger's caret turns while its panel is open. Child of the trigger only, so an
+   open dialog around it does not turn it. */
+.ag-caret {
+    transition: transform var(--duration-fast, 120ms) var(--ease-out, ease-out);
+}
+
+:is([data-state="open"], [aria-expanded="true"]) > .ag-caret,
+.ag-caret[data-open="true"] {
+    transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ag-caret {
+        transition: none;
+    }
+}
+
 .ag-overlay-motion {
     /* Radix publishes the origin matching the resolved side/align, so this is the edge the panel
        is anchored to — the trigger's. Scaling Y from there makes the panel UNFOLD out of the
@@ -267,12 +277,12 @@
 }
 
 .ag-overlay-motion[data-state="open"] {
-    /* antd's easeOutQuint over motionDurationMid — the ladder the neighbouring overlays move on. */
-    animation: ag-overlay-in 160ms cubic-bezier(0.23, 1, 0.32, 1);
+    /* The theme's popover timing (MOTION-01): `duration-base` in, `duration-fast` out. */
+    animation: ag-overlay-in var(--duration-base, 200ms) var(--ease-out, ease-out);
 }
 
 .ag-overlay-motion[data-state="closed"] {
-    animation: ag-overlay-out 120ms cubic-bezier(0.755, 0.05, 0.855, 0.06);
+    animation: ag-overlay-out var(--duration-fast, 120ms) var(--ease-in-out, ease-in-out);
 }
 
 /* Not `animation: none` — Radix would still wait for an `animationend` that never comes on the
@@ -303,7 +313,7 @@
     content: "";
     position: absolute;
     inset: 0;
-    background: linear-gradient(transparent, var(--ag-colorPrimary) 45%, transparent);
+    background: linear-gradient(transparent, var(--primary) 45%, transparent);
     background-size: 100% 60%;
     background-repeat: no-repeat;
     animation: ag-activity-current 2.6s linear infinite;
@@ -313,5 +323,49 @@
     .ag-activity-wire-live::after {
         animation: none;
         display: none;
+    }
+}
+
+/* MOTION-01: a view that takes the place of another fades in and slides 4px. Forward (a view
+   opens, a step goes on) it comes from the right; back (a view closes, a step goes back) it comes
+   from the left. Only the enter moves: the view it replaces is already hidden. A view hidden with
+   `display: none` plays this again when it shows. One element per level animates: the header
+   stays still and only the body moves.
+   - `ag-view-enter` / `ag-view-enter-back`: the element itself (`ViewStep` sets them).
+   - `ag-view-enter-children`: each child, for a tab body that swaps.
+   - `ag-view-root-back`: the stack's root as a view gives it back its place. The root's
+     `[data-view-body]` moves if it marks one, else each child. */
+@keyframes ag-view-in {
+    from {
+        opacity: 0;
+        transform: translateX(4px);
+    }
+}
+
+@keyframes ag-view-in-back {
+    from {
+        opacity: 0;
+        transform: translateX(-4px);
+    }
+}
+
+.ag-view-enter,
+.ag-view-enter-children > * {
+    animation: ag-view-in var(--duration-base, 200ms) var(--ease-out, ease-out);
+}
+
+.ag-view-enter-back,
+.ag-view-root-back > :not(:has([data-view-body])),
+.ag-view-root-back [data-view-body] {
+    animation: ag-view-in-back var(--duration-base, 200ms) var(--ease-out, ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ag-view-enter,
+    .ag-view-enter-children > *,
+    .ag-view-enter-back,
+    .ag-view-root-back > :not(:has([data-view-body])),
+    .ag-view-root-back [data-view-body] {
+        animation: none;
     }
 }

@@ -95,3 +95,6 @@ export const guardOnboardingRoute = (
 
 /** Each step's heading id: focus lands on it, and its choices are labelled by it. */
 export const onboardingHeadingId = (step: OnboardingStep) => `onboarding-heading-${step}`
+
+/** The registration step's heading: it is shown between steps, not as a route of its own. */
+export const REGISTRATION_HEADING_ID = "onboarding-heading-registration"

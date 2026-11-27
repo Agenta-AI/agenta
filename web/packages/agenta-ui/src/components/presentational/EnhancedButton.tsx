@@ -69,7 +69,7 @@ export interface EnhancedButtonProps extends Omit<
 
 // antd `type`+`danger` → @agenta/ui variant (per Button.tsx's documented mapping).
 const toVariant = (type: AntButtonType | undefined, danger?: boolean): ButtonVariant => {
-    if (danger) return type === "primary" ? "destructive" : "destructive-outline"
+    if (danger) return type === "primary" ? "destructive" : "destructive-ghost"
     switch (type) {
         case "primary":
             return "default"
@@ -78,7 +78,7 @@ const toVariant = (type: AntButtonType | undefined, danger?: boolean): ButtonVar
         case "link":
             return "link"
         case "dashed":
-            return "dashed"
+            return "outline"
         default:
             return "outline" // antd default (bordered)
     }

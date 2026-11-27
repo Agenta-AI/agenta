@@ -42,11 +42,7 @@ export const AutomationMetaRow = ({
         .join(" · ")
 
     if (factsOnly)
-        return (
-            <span className="min-w-0 truncate text-[12px] leading-4 text-muted-foreground">
-                {facts}
-            </span>
-        )
+        return <span className="min-w-0 truncate text-meta text-muted-foreground">{facts}</span>
 
     return (
         <div className="mb-1 mt-4 flex min-w-0 flex-wrap items-center gap-3.5">
@@ -57,7 +53,7 @@ export const AutomationMetaRow = ({
                     of one line or leading the next. It only separates when both parts share a
                     line. */}
                 <span aria-hidden className="hidden h-4 w-px shrink-0 bg-border sm:block" />
-                <span className="min-w-0 truncate text-[13px] text-muted-foreground">{facts}</span>
+                <span className="min-w-0 truncate text-label text-muted-foreground">{facts}</span>
             </span>
         </div>
     )

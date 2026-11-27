@@ -1,7 +1,7 @@
 import type {ConfigItemRef} from "@agenta/ui/view-stack"
 import {defineView} from "@agenta/ui/view-stack"
 
-import {SkillFormSkeleton} from "../../DrawerSkeletons"
+import {SkillViewSkeleton} from "../../DrawerSkeletons"
 import {isEmbedRefSkill, staticEmbedSlug} from "../itemDescriptors"
 
 import {lazyView} from "./lazyView"
@@ -24,12 +24,7 @@ export const skillView = defineView<SkillViewParams>({
     apply: "on_save",
     readOnlyOnPhone: true,
     wide: true,
-    Component: lazyView(
-        () => import("./SkillViewBody"),
-        <div className="p-4">
-            <SkillFormSkeleton />
-        </div>,
-    ),
+    Component: lazyView(() => import("./SkillViewBody"), <SkillViewSkeleton />),
 })
 
 type Skill = Record<string, unknown>

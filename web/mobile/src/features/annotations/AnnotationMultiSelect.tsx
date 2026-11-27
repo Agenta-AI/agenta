@@ -42,7 +42,7 @@ export const AnnotationMultiSelect = ({
                             {value.map((item) => (
                                 <span
                                     key={item}
-                                    className="rounded-control-sm bg-chip px-1.5 text-xs leading-5 text-foreground"
+                                    className="rounded-control-sm bg-secondary px-1.5 text-label text-foreground"
                                 >
                                     {item}
                                 </span>

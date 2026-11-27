@@ -2,7 +2,7 @@ import type {ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import analyticsCatalog from "@agenta/i18n/catalogs/observabilityUi.analytics"
-import {Button, PHONE_TOUCH_TARGET_CLASS, SkeletonBlock, cn} from "@agenta/ui/ui"
+import {Button, SkeletonBlock, cn} from "@agenta/ui/ui"
 import {CaretRight, ChartBar, WarningCircle} from "@phosphor-icons/react"
 
 export interface AnalyticsCardProps {
@@ -47,14 +47,14 @@ export const AnalyticsCard = ({
         >
             <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-                    <span className="text-[13px] leading-5 text-muted-foreground">{title}</span>
+                    <span className="text-label leading-5 text-muted-foreground">{title}</span>
                     {controls}
                 </div>
                 {onExplore ? (
                     <Button
                         variant="ghost"
-                        size="xs"
-                        className={cn("-mr-2 text-muted-foreground", PHONE_TOUCH_TARGET_CLASS)}
+                        size="sm"
+                        className={cn("-mr-2 text-muted-foreground")}
                         onClick={onExplore}
                     >
                         {t("observabilityUi.analytics.explore")}
@@ -68,12 +68,12 @@ export const AnalyticsCard = ({
                 ) : (
                     <>
                         {value != null ? (
-                            <span className="truncate text-lg font-medium tracking-tight text-foreground">
+                            <span className="truncate text-heading font-medium tabular-nums text-foreground">
                                 {value}
                             </span>
                         ) : null}
                         {caption ? (
-                            <span className="truncate text-[12px] leading-4 text-muted-foreground">
+                            <span className="truncate text-meta text-muted-foreground">
                                 {caption}
                             </span>
                         ) : null}
@@ -91,7 +91,7 @@ export const AnalyticsCard = ({
                 {loading ? (
                     <SkeletonBlock className="size-full" />
                 ) : error ? (
-                    <div className="flex size-full flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
+                    <div className="flex size-full flex-col items-center justify-center gap-2 text-body text-muted-foreground">
                         <WarningCircle size={20} />
                         <span>{t("observabilityUi.analytics.couldNotLoadChart")}</span>
                         {onRetry ? (
@@ -101,7 +101,7 @@ export const AnalyticsCard = ({
                         ) : null}
                     </div>
                 ) : empty ? (
-                    <div className="flex size-full flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
+                    <div className="flex size-full flex-col items-center justify-center gap-2 text-body text-muted-foreground">
                         <span className="grid size-8 place-items-center rounded-lg border border-solid border-border bg-background">
                             <ChartBar size={16} />
                         </span>
@@ -109,7 +109,7 @@ export const AnalyticsCard = ({
                         {empty.onClear ? (
                             <button
                                 type="button"
-                                className="cursor-pointer border-0 bg-transparent p-0 text-xs text-foreground underline underline-offset-2"
+                                className="cursor-pointer border-0 bg-transparent p-0 text-meta text-foreground underline underline-offset-2"
                                 onClick={empty.onClear}
                             >
                                 {t("observabilityUi.analytics.clearFilters")}
@@ -121,7 +121,7 @@ export const AnalyticsCard = ({
                 )}
             </div>
             {!loading && !error && !empty && legend ? <div className="mt-3">{legend}</div> : null}
-            {note ? <div className="mt-2 text-xs text-muted-foreground">{note}</div> : null}
+            {note ? <div className="mt-2 text-meta text-muted-foreground">{note}</div> : null}
         </section>
     )
 }
@@ -148,12 +148,12 @@ export const ChartLegendRow = ({
                 disabled={!onToggle}
                 onClick={() => onToggle?.(item.key)}
                 className={cn(
-                    "inline-flex items-center gap-1.5 border-0 bg-transparent p-0 text-xs text-muted-foreground max-md:min-h-11 max-md:min-w-11",
+                    "inline-flex items-center gap-1.5 border-0 bg-transparent p-0 text-meta text-muted-foreground",
                     onToggle && "cursor-pointer hover:text-foreground",
                     item.hidden && "line-through opacity-40",
                 )}
             >
-                <span className="size-2 rounded-full" style={{background: item.color}} />
+                <span className="size-2 rounded-xs" style={{background: item.color}} />
                 {item.label}
             </button>
         ))}

@@ -28,12 +28,10 @@ export const HowItWorksSteps = ({steps}: {steps: HowStep[]}) => (
                     ) : null}
                 </div>
                 <div className="flex min-w-0 flex-col items-start gap-1 pb-5 pt-0.5">
-                    <span className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wide">
-                        {howStepKicker(step)}
-                    </span>
-                    <span className="text-sm text-foreground">{howStepText(step)}</span>
+                    <span className="text-muted-foreground text-meta">{howStepKicker(step)}</span>
+                    <span className="text-body text-foreground">{howStepText(step)}</span>
                     {step.kind === "connection" && step.scope ? (
-                        <code className="text-muted-foreground rounded bg-colorFillTertiary px-1.5 py-0.5 font-mono text-xs">
+                        <code className="text-muted-foreground rounded-sm bg-secondary px-1.5 py-0.5 text-code-sm">
                             {step.scope}
                         </code>
                     ) : null}

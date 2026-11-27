@@ -1,0 +1,109 @@
+// Counts off-system styling in web/mobile/src and web/packages/*/src; no count may rise (the rules are in src/design/rules.json).
+// Usage: tsx scripts/design-ratchet.ts [--check | --write]
+import {existsSync, readFileSync, readdirSync, statSync, writeFileSync} from "fs"
+import {dirname, join, relative, resolve} from "path"
+import {fileURLToPath} from "url"
+
+const HERE = dirname(fileURLToPath(import.meta.url))
+const WEB = resolve(HERE, "../../..")
+const BASELINE = resolve(HERE, "design-ratchet.json")
+
+const PATTERNS: Record<string, RegExp> = {
+    // SURF-05: every hover fill is bg-accent (or accent layered over an opaque ground).
+    // SURF-06: `secondary` is the fill of a control inside a hovered row.
+    "hover-fill-not-accent":
+        /\bhover:bg-(?!accent\b|secondary\b|transparent\b|destructive\b|\[image:linear-gradient\(var\(--accent\))/g,
+    // Old hex shims outside the legacy alias block; several never resolved in /m.
+    "legacy-hex-shims": /var\(--(?:ag-c-|ag-rgba-|ant-color-)/g,
+    // TYPE-05: a control's weight never changes with its state.
+    "weight-by-state":
+        /(?:data-\[state=[a-z]+\]|aria-[a-z]+(?:=[a-z]+)?|data-\[(?:active|selected)[^\]]*\]):font-(?:medium|semibold|bold)/g,
+    "antd-color-names":
+        /\bcolor(?:Text|Bg|Fill|Border|Primary|Error|Success|Warning|Info)[A-Za-z]*/g,
+    "var(--ag-color": /var\(--ag-color/g,
+    "text-[Npx]": /text-\[\d+(?:\.\d+)?px\]/g,
+    "h-[Npx]": /h-\[\d+(?:\.\d+)?px\]/g,
+    "rounded-full": /\brounded-full\b/g,
+    "font-bold": /\bfont-(?:bold|extrabold|black)\b/g,
+    "lucide-react": /lucide-react/g,
+    // COLOR-01: a border takes border, border-muted or border-strong, never a text color.
+    "border-text-color":
+        /(?<![\w-])border-(?:[trblxy]-)?(?:foreground|muted-foreground|current)\b/g,
+    // SIZE-01: a kit control gets its height from `size`, never from a class.
+    "kit-control-height":
+        /<(?:Button|Input|SelectTrigger)\b[^>]*?className=[^>]*?(?<![\w-])(?:h|min-h|size)-(?:\d|\[)/g,
+    // CONS-03: a raw <button> skips the kit.
+    "raw-button": /<button\b/g,
+    // LAYOUT-02: a content column takes content-sm, content-md or content-lg.
+    "max-w-[Npx]": /\bmax-w-\[\d+(?:\.\d+)?px\]/g,
+    // Layout: three window classes, so only the sm and lg breakpoints.
+    "extra-breakpoint": /(?<![\w-])(?:max-)?(?:md|xl|2xl):/g,
+}
+
+type Counts = Record<string, {mobile: number; packages: number}>
+
+const walk = (dir: string, out: string[]) => {
+    for (const name of readdirSync(dir)) {
+        if (name === "node_modules" || name.startsWith(".")) continue
+        const p = join(dir, name)
+        if (statSync(p).isDirectory()) walk(p, out)
+        else if (/\.(tsx?|mts)$/.test(name) && !name.endsWith(".d.ts")) out.push(p)
+    }
+}
+
+const count = (): Counts => {
+    const roots = [
+        {key: "mobile" as const, dir: join(WEB, "mobile/src")},
+        ...readdirSync(join(WEB, "packages"))
+            .map((p) => join(WEB, "packages", p, "src"))
+            .filter((d) => existsSync(d))
+            .map((dir) => ({key: "packages" as const, dir})),
+    ]
+    const counts: Counts = Object.fromEntries(
+        Object.keys(PATTERNS).map((k) => [k, {mobile: 0, packages: 0}]),
+    )
+    for (const {key, dir} of roots) {
+        const files: string[] = []
+        walk(dir, files)
+        for (const file of files) {
+            const src = readFileSync(file, "utf8")
+            for (const [name, re] of Object.entries(PATTERNS)) {
+                counts[name][key] += src.match(re)?.length ?? 0
+            }
+        }
+    }
+    return counts
+}
+
+const mode = process.argv.includes("--write") ? "write" : "check"
+const now = count()
+
+if (mode === "write") {
+    writeFileSync(BASELINE, `${JSON.stringify(now, null, 4)}\n`)
+    console.log(`design-ratchet: baseline written to ${relative(WEB, BASELINE)}`)
+    console.table(now)
+    process.exit(0)
+}
+
+const base: Counts = existsSync(BASELINE) ? JSON.parse(readFileSync(BASELINE, "utf8")) : {}
+const over: string[] = []
+const under: string[] = []
+for (const [name, c] of Object.entries(now)) {
+    for (const area of ["mobile", "packages"] as const) {
+        const b = base[name]?.[area] ?? 0
+        if (c[area] > b) over.push(`${name} in ${area}: ${c[area]} > baseline ${b}`)
+        else if (c[area] < b) under.push(`${name} in ${area}: ${c[area]} < baseline ${b}`)
+    }
+}
+if (over.length) {
+    console.error(
+        `design-ratchet: counts rose above the baseline (see src/design/rules.json):\n  ${over.join("\n  ")}`,
+    )
+    process.exit(1)
+}
+if (under.length) {
+    console.log(
+        `design-ratchet: counts fell; run \`pnpm --filter @agenta/ui exec tsx scripts/design-ratchet.ts --write\` to lock them in:\n  ${under.join("\n  ")}`,
+    )
+}
+console.log("design-ratchet: ok")

@@ -139,7 +139,7 @@ const isInsideAntdPopup = (target: EventTarget | null) =>
     target instanceof Element && !!target.closest(ANTD_POPUP_SELECTOR)
 
 const FilterCountBadge = ({count}: {count: number}) => (
-    <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] !px-1 rounded-md bg-chip text-foreground text-xs font-medium">
+    <span className="inline-flex items-center justify-center min-w-5 h-5 !px-1 rounded-sm bg-secondary text-foreground text-caption">
         {count}
     </span>
 )
@@ -222,7 +222,7 @@ const FiltersPopoverTrigger = ({
                 {/* Plays antd's `.ant-popover-container`: bg / radius / shadow / 12px padding. */}
                 <div
                     className={cn(
-                        "box-border rounded-control-lg bg-popover text-popover-foreground shadow-overlay p-3",
+                        "box-border rounded-lg bg-popover text-popover-foreground shadow-overlay p-3",
                         overlayClassNames.container,
                     )}
                     style={{...overlayStyles.container, ...popoverProps?.overlayInnerStyle}}

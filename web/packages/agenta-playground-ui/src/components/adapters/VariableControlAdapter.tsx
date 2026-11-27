@@ -59,7 +59,7 @@ const VariableHeader: React.FC<{
 }> = ({name, headerActions, helpText, typeChip}) => (
     <div className="w-full flex items-start justify-between gap-2">
         <div className="flex items-center gap-1 min-w-0">
-            <Typography className="playground-property-control-label font-[500] text-[12px] leading-[20px] text-[var(--ag-c-1677FF)] font-mono truncate">
+            <Typography className="playground-property-control-label font-[500] text-meta leading-[20px] text-info font-mono truncate">
                 {name}
             </Typography>
             {typeChip}
@@ -67,7 +67,7 @@ const VariableHeader: React.FC<{
                 <Tooltip title={helpText} placement="topLeft" overlayStyle={{maxWidth: 360}}>
                     <Info
                         size={12}
-                        className="text-gray-400 hover:text-gray-600 shrink-0 cursor-help"
+                        className="text-muted-foreground hover:text-foreground shrink-0 cursor-help"
                         aria-label={`About ${name ?? "this variable"}`}
                     />
                 </Tooltip>
@@ -100,7 +100,7 @@ const MarkdownViewSynchronizer: React.FC<{enabled: boolean}> = ({enabled}) => {
 
 /**
  * Inline JSON/YAML code editor used by the schema-typed branch of
- * `VariableControlAdapter`. It mirrors `JsonEditorWithLocalState`'s
+ * `VariableControlAdapter`. It mirrors `JsonEditorWithLocalState` pointer-coarse:opacity-100's
  * composition (EditorProvider wrapping SharedEditor with line numbers,
  * disabled long text, syncWithInitialValueChanges, and local state that
  * swallows invalid JSON instead of propagating it), while accepting header
@@ -178,7 +178,7 @@ const JsonVariableEditor: React.FC<{
                         // label's top offset is identical to the text-editor
                         // case. Without these overrides the header sits
                         // slightly higher in the JSON branch.
-                        className="min-h-[60px] overflow-hidden !pt-[11px] !pb-0 [&_.agenta-editor-wrapper]:!mb-0"
+                        className="min-h-15 overflow-hidden !pt-[11px] !pb-0 [&_.agenta-editor-wrapper]:!mb-0"
                         disableDebounce
                         noProvider
                         syncWithInitialValueChanges
@@ -392,7 +392,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                             : clsx(
                                   "p-[11px] rounded-lg border border-solid",
                                   viewType === "single" && view !== "focus"
-                                      ? "border-[var(--ag-c-BDC7D1)]"
+                                      ? "border-border"
                                       : "border-transparent bg-transparent",
                               ),
                         className,
@@ -430,7 +430,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                             : clsx(
                                   "p-[11px] rounded-lg border border-solid",
                                   viewType === "single" && view !== "focus"
-                                      ? "border-[var(--ag-c-BDC7D1)]"
+                                      ? "border-border"
                                       : "border-transparent bg-transparent",
                               ),
                         className,
@@ -492,10 +492,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                 }
                 footer={
                     showShapeHint ? (
-                        <Typography.Text
-                            type="secondary"
-                            className="block mt-1 px-1 text-xs font-mono"
-                        >
+                        <Typography.Text type="secondary" className="block mt-1 px-1 text-code">
                             Expected shape: <code>{shapeHint}</code>
                         </Typography.Text>
                     ) : null
@@ -565,7 +562,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                 />
             </EditorProvider>
             {showShapeHint && (
-                <Typography.Text type="secondary" className="block mt-1 px-1 text-xs font-mono">
+                <Typography.Text type="secondary" className="block mt-1 px-1 text-code">
                     Expected shape: <code>{shapeHint}</code>
                 </Typography.Text>
             )}

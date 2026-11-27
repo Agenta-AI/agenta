@@ -8,6 +8,7 @@
     "presetWithOverrides_one": "{{label}} · {{count}} Abweichung",
     "presetWithOverrides_other": "{{label}} · {{count}} Abweichungen",
     "defaultPermission": "Standardberechtigung",
+    "defaultPermissionNote": "Was der Agent tun darf, ohne Sie zu fragen",
     "searchToolCount_one": "{{count}} Werkzeug durchsuchen",
     "searchToolCount_other": "{{count}} Werkzeuge durchsuchen",
     "searchTools": "Werkzeuge suchen",

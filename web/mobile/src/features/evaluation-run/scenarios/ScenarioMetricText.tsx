@@ -1,7 +1,6 @@
 import {metricCellText} from "@agenta/entities/evaluationRun"
 import {unwrapStatsForCompare} from "@agenta/entities/evaluationRun/etl"
-
-import {StatusTag} from "@/components/StatusTag"
+import {Badge} from "@agenta/ui/ui"
 
 import {ScenarioCellValue} from "./ScenarioCellValue"
 import type {ScenarioCell} from "./scenarioColumns"
@@ -17,7 +16,7 @@ export const ScenarioMetricText = ({metricKey, value}: {metricKey: string; value
         // A grid cell stretches its child: the span keeps the chip as wide as its text.
         return (
             <span className="flex">
-                <StatusTag tone={flag ? "live" : "muted"}>{String(flag)}</StatusTag>
+                <Badge variant={flag ? "success" : "default"}>{String(flag)}</Badge>
             </span>
         )
     }
@@ -28,7 +27,7 @@ export const ScenarioMetricText = ({metricKey, value}: {metricKey: string; value
     }
     return (
         <p
-            className="m-0 break-words text-sm tabular-nums"
+            className="m-0 break-words text-body tabular-nums"
             title={text}
             style={{
                 display: "-webkit-box",

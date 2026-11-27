@@ -29,7 +29,7 @@ import {eventTypeLabel} from "./eventTypeLabels"
 
 const t = createT(settingsAuditCatalog)
 
-export const Dash = () => <span className="text-xs text-muted-foreground">—</span>
+export const Dash = () => <span className="text-meta text-muted-foreground">—</span>
 
 /** Actor user id from `attributes.user_id`, if present. */
 const readActor = (event: Event): string | null => {
@@ -98,7 +98,7 @@ export const EventTypeCell = ({eventId}: {eventId: string}) => {
                 {eventTypeLabel(event.event_type, typeText)}
             </span>
             <span
-                className="truncate font-mono text-[11.5px] text-muted-foreground"
+                className="truncate font-mono text-caption text-muted-foreground"
                 title={event.event_type}
             >
                 {event.event_type}
@@ -126,7 +126,7 @@ export const ActorCell = ({eventId, names, currentUserId}: ActorCellProps) => {
     if (!actor) return <Dash />
     if (!registeredName && !hostName) {
         return (
-            <span className="truncate font-mono text-xs text-muted-foreground" title={actor}>
+            <span className="truncate text-code-sm text-muted-foreground" title={actor}>
                 {shortId(actor)}
             </span>
         )
@@ -162,7 +162,7 @@ export const CountCell = ({eventId}: {eventId: string}) => {
 
     return (
         <span
-            className="text-right font-mono text-xs tabular-nums text-muted-foreground"
+            className="text-right text-code-sm tabular-nums text-muted-foreground"
             title={t("settings.audit.itemCount", {count})}
         >
             {count}

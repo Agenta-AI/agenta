@@ -22,15 +22,15 @@ export const AppIcon = ({
                 src={logo}
                 alt=""
                 aria-hidden
-                className="size-4 shrink-0 rounded-[3px] object-contain"
+                className="size-4 shrink-0 rounded-sm object-contain"
             />
         )
     }
-    if (loading) return <SkeletonBlock active className="size-4 shrink-0 rounded-[3px]" />
+    if (loading) return <SkeletonBlock active className="size-4 shrink-0 rounded-sm" />
     return (
         <span
             aria-hidden
-            className="flex size-4 shrink-0 items-center justify-center rounded-[3px] bg-muted text-[9px] font-medium uppercase text-muted-foreground"
+            className="flex size-4 shrink-0 items-center justify-center rounded-sm bg-secondary text-caption font-medium uppercase text-muted-foreground"
         >
             {label.trim().charAt(0) || "?"}
         </span>

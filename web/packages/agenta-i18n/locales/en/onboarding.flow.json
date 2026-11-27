@@ -5,6 +5,7 @@
     "stepCounter": "Step {{current}} of {{total}}",
     "skip": "Skip for now",
     "dotCredits": "Credits",
+    "dotRegister": "Register",
     "dotTemplates": "First agent",
     "keyHint": "Press {{key}}",
     "continue": "Continue",

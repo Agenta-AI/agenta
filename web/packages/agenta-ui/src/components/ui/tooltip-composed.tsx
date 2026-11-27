@@ -8,6 +8,20 @@ import {
     TooltipTrigger,
 } from "./tooltip"
 
+/**
+ * A label stays shut while its own menu or popover is open, and on focus a script moved there
+ * after a pointer click (a menu returning focus, a panel focusing its first control).
+ */
+const shouldOpen = (el: HTMLElement) => {
+    if (el.matches('[aria-expanded="true"]') || el.querySelector('[aria-expanded="true"]')) {
+        return false
+    }
+    const active = document.activeElement as HTMLElement | null
+    const focused = Boolean(active) && (el === active || el.contains(active))
+    if (focused && !el.matches(":hover") && !active?.matches(":focus-visible")) return false
+    return true
+}
+
 export interface SimpleTooltipProps {
     /** Tooltip body. Empty/undefined renders the child bare — antd `Tooltip title` semantics. */
     title?: React.ReactNode
@@ -40,11 +54,20 @@ export interface SimpleTooltipProps {
  *   Unresolved — do not assume the un-nesting above closed it.
  */
 export function SimpleTooltip({title, side, shortcut, className, children}: SimpleTooltipProps) {
+    const triggerRef = React.useRef<HTMLButtonElement>(null)
+    const [open, setOpen] = React.useState(false)
+    const handleOpenChange = React.useCallback((next: boolean) => {
+        const el = triggerRef.current
+        if (next && el && !shouldOpen(el)) return
+        setOpen(next)
+    }, [])
     if (title == null || title === "") return children
     return (
         <TooltipProvider delayDuration={300}>
-            <Tooltip>
-                <TooltipTrigger asChild>{children}</TooltipTrigger>
+            <Tooltip open={open} onOpenChange={handleOpenChange}>
+                <TooltipTrigger ref={triggerRef} asChild>
+                    {children}
+                </TooltipTrigger>
                 <TooltipContent side={side} shortcut={shortcut} className={className}>
                     {title}
                 </TooltipContent>

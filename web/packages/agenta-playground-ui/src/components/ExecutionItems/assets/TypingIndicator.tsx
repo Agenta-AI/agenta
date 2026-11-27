@@ -1,7 +1,6 @@
 import {type FC} from "react"
 
-import {LoadingOutlined} from "@ant-design/icons"
-import {Spin} from "antd"
+import {Spinner} from "@agenta/ui/ui"
 import clsx from "clsx"
 
 const TypingIndicator: FC<{label?: string; className?: string; size?: "small" | "default"}> = ({
@@ -12,21 +11,13 @@ const TypingIndicator: FC<{label?: string; className?: string; size?: "small" | 
     return (
         <div
             className={clsx(
-                "w-full px-3 py-2 rounded-md text-[13px] text-[var(--ag-c-667085BF)]",
+                "w-full px-3 py-2 rounded-md text-label text-muted-foreground",
                 className,
             )}
         >
-            <Spin
-                indicator={
-                    <LoadingOutlined
-                        style={{
-                            fontSize: size === "small" ? 12 : 14,
-                            color: "rgba(102,112,133,0.75)",
-                        }}
-                        spin
-                    />
-                }
-                size={size === "small" ? "small" : "default"}
+            <Spinner
+                aria-hidden
+                className={clsx("inline align-middle", size === "small" ? "size-3" : "size-3.5")}
             />
             <span className="ml-2 align-middle">{label}</span>
         </div>

@@ -22,7 +22,8 @@ export const TimestampCell = memo(({timestamp}: {timestamp?: string | number | n
     const date = language !== "en" && timestamp != null ? new Date(timestamp) : null
     // English keeps its exact format; an unparsable stamp keeps the shared formatter's output.
     const text = date && !Number.isNaN(date.getTime()) ? formatDate(date, LOCAL_FORMAT) : formatted
-    return <div className="font-mono">{text}</div>
+    // One line in the body face with even digits: a time is not code, and it never wraps a row.
+    return <div className="truncate whitespace-nowrap tabular-nums">{text}</div>
 })
 
 export default TimestampCell

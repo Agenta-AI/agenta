@@ -45,7 +45,7 @@ const RegionButton = ({id, label, isSelected, disabled, onSwitch}: RegionButtonP
             variant={isSelected ? "default" : "outline"}
             size="lg"
             className={cn(
-                "h-10 flex-1 rounded-lg text-sm font-medium",
+                "h-control-lg flex-1 rounded-md text-label",
                 isSelected ? "disabled:opacity-100" : "text-muted-foreground",
             )}
             onClick={() => onSwitch(id)}
@@ -108,14 +108,14 @@ const RegionSelectorInner = ({onLearnMore}: RegionSelectorProps) => {
     return (
         <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
-                <span className="text-xs font-medium uppercase leading-[18px] tracking-[0.03em] text-muted-foreground">
+                <span className="text-label text-muted-foreground">
                     {t("auth.regionSelector.dataResidency")}
                 </span>
                 <Button
                     type="button"
                     variant="link"
                     size="xs"
-                    className="h-auto px-0 text-xs text-muted-foreground hover:text-foreground"
+                    className="h-auto px-0 text-meta text-muted-foreground hover:text-foreground"
                     onClick={learnMore}
                     aria-haspopup={onLearnMore ? "dialog" : undefined}
                     aria-expanded={onLearnMore ? undefined : isInfoOpen}
@@ -142,7 +142,7 @@ const RegionSelectorInner = ({onLearnMore}: RegionSelectorProps) => {
                 )}
             </div>
             {!onLearnMore && isInfoOpen ? (
-                <RegionInfoText className="text-[15px] leading-[22px] text-muted-foreground" />
+                <RegionInfoText className="text-body text-muted-foreground" />
             ) : null}
         </div>
     )

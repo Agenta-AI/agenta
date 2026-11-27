@@ -58,8 +58,8 @@ const DefaultFieldRenderer: FieldRendererComponent = ({value, editable}) => {
     const displayValue = typeof value === "string" ? value : JSON.stringify(value, null, 2)
     return (
         <pre
-            className={`text-xs font-mono whitespace-pre-wrap break-words m-0 p-3 bg-gray-50 rounded-md max-h-[200px] overflow-auto ${
-                editable ? "text-gray-700" : "text-[var(--ag-c-9D4EDD)]"
+            className={`text-code-sm font-mono whitespace-pre-wrap break-words m-0 p-3 bg-muted rounded-md max-h-50 overflow-auto ${
+                editable ? "text-foreground" : "text-data-4"
             }`}
         >
             {displayValue}
@@ -546,7 +546,7 @@ export function DrillInContent({
     const outerWrapperClass = isFlatVariant ? "flex flex-col" : "flex flex-col gap-2"
     const fieldsWrapperClass = isFlatVariant ? "flex flex-col" : "flex flex-col gap-2"
     const fieldWrapperClass = isFlatVariant
-        ? "flex flex-col border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]"
+        ? "flex flex-col border-0 border-b border-solid border-border-muted"
         : "flex flex-col gap-2"
     const fieldBodyClass = isFlatVariant ? "px-4 pb-2 pt-2" : "px-4 pt-2"
 
@@ -585,7 +585,9 @@ export function DrillInContent({
 
             {/* Current level items */}
             {filteredLevelItems.length === 0 && (
-                <div className="text-gray-500 text-sm">{t("ui.drillIn.noItemsToDisplay")}</div>
+                <div className="text-muted-foreground text-body">
+                    {t("ui.drillIn.noItemsToDisplay")}
+                </div>
             )}
 
             <div className={fieldsWrapperClass}>

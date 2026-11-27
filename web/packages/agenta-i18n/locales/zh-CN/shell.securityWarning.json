@@ -1,0 +1,4 @@
+{
+    "message": "有可用的安全更新。请升级到 {{version}} 或更高版本。",
+    "howToUpgrade": "如何升级"
+}

@@ -96,10 +96,10 @@ export const OidcCallbackScreen = () => {
             <AgentaLogo className="text-foreground h-6 w-auto" />
             {error ? (
                 <>
-                    <p className="text-destructive text-xs" role="alert">
+                    <p className="text-destructive text-meta" role="alert">
                         {"key" in error ? t(`auth.oidcCallback.${error.key}`) : error.text}
                     </p>
-                    <Button asChild variant="link" size="sm" className="text-xs text-foreground">
+                    <Button asChild variant="link" size="sm" className="text-foreground">
                         <Link href="/auth">{t("auth.oidcCallback.backToSignIn")}</Link>
                     </Button>
                 </>

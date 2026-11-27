@@ -18,7 +18,7 @@ export interface WorkflowKindTagProps {
 const WorkflowKindTag = memo(({isEvaluator, className}: WorkflowKindTagProps) => {
     const t = useT(workflowTagCatalog)
     return (
-        <Badge variant={isEvaluator ? "purple" : "blue"} className={cn(className)}>
+        <Badge variant={isEvaluator ? "default" : "info"} className={cn(className)}>
             {isEvaluator ? t("entityUi.workflowTag.evaluator") : t("entityUi.workflowTag.app")}
         </Badge>
     )

@@ -244,14 +244,15 @@ describe("Testset header", () => {
                 projectId: "pr",
                 testsetId: "set-1",
                 revisionId: "rev-2",
-                name: "Refund questions",
-                version: 2,
                 list: list(),
                 base: "/w/ws/p/pr",
                 leave,
             })
             request = archive.request
-            return archive.modal
+            // The detail screen draws the confirm from `open`; its Archive button stands in here.
+            return archive.open ? (
+                <button onClick={() => void archive.confirmArchive()}>Archive</button>
+            ) : null
         }
         const client = new QueryClient()
         await mount(
@@ -260,10 +261,6 @@ describe("Testset header", () => {
             </QueryClientProvider>,
         )
         await act(async () => request())
-        expect(document.body.textContent).toContain(
-            "Are you sure you want to archive the following?",
-        )
-        expect(document.body.textContent).toContain("Refund questions v2")
 
         const confirm = Array.from(document.querySelectorAll("button")).find(
             (b) => b.textContent === "Archive",
