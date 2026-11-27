@@ -10,7 +10,7 @@
     "next": "Cas de test suivant",
     "newTestcase": "Nouveau cas de test",
     "testcaseNumber": "Cas de test {{number}}",
-    "edited": "modifié",
+    "edited": "Modifié",
     "copyId": "Copier l’ID",
     "copiedId": "Copié !",
     "collapseAllFields": "Réduire tous les champs",
@@ -26,5 +26,11 @@
     "root": "Racine",
     "unsavedChanges": "Modifications non enregistrées",
     "noTestcases": "Aucun cas de test trouvé",
-    "invalidCode": "{{format}} non valide : {{error}}. Corrigez-le pour appliquer la modification."
+    "codeError": "{{format}} non valide : {{problem}} à la ligne {{line}}. Le champ garde sa dernière valeur valide jusqu'à ce que vous corrigiez l'erreur.",
+    "codeErrorNoLine": "{{format}} non valide : {{problem}}. Le champ garde sa dernière valeur valide jusqu'à ce que vous corrigiez l'erreur.",
+    "codeProblemMissingComma": "il manque une virgule",
+    "codeProblemMissingQuote": "il manque un guillemet",
+    "codeProblemExtraComma": "il y a une virgule en trop",
+    "codeProblemEndsEarly": "le texte se termine trop tôt",
+    "codeProblemOther": "le texte contient une erreur"
 }

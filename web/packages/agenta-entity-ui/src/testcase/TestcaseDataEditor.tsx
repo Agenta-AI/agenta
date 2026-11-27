@@ -17,9 +17,10 @@ import {TypeChip} from "@agenta/ui/type-chip"
 import deepEqual from "fast-deep-equal"
 
 import {
+    codeErrorText,
     codeParseError,
     parseCodeString,
-    textMatchesValue,
+    type CodeParseError,
     toCodeString,
     type RootDrawerViewMode,
 } from "./codeFormat"
@@ -44,6 +45,9 @@ const DEFAULT_VALUE_BY_TYPE: Record<PropertyType, unknown> = {
 }
 
 const tNow = createT(testcaseCatalog)
+
+const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null && !Array.isArray(value)
 
 // Built when a field asks, so the labels are in the active language.
 // Chat-specific view mode and chip variants are scoped for v2.
@@ -79,7 +83,6 @@ function FullPayloadCodeEditor({
     editable: boolean
     columns?: TestcaseDataEditorColumn[]
 }) {
-    const t = useT(testcaseCatalog)
     // When data columns are provided, scope the JSON/YAML view to just those
     // columns. The full flattened entity also contains system fields like
     // `tags`, `flags`, `meta`, `created_at` etc. — surfacing them here lets the
@@ -93,12 +96,15 @@ function FullPayloadCodeEditor({
     const displayValue = useMemo(() => toCodeString(editableValue, format), [editableValue, format])
     const editorId = `testcase-root-${format}-editor`
     // Text that does not parse stays in the editor and says why; it never reaches the testcase.
-    const [parseError, setParseError] = useState<string | null>(null)
+    const [parseError, setParseError] = useState<CodeParseError | null>(null)
     const [jsonText, setJsonText] = useState(displayValue)
     const typedText = useRef(displayValue)
-    // Resync only on an outside change, so the user's own edit is never rewritten.
+    // Resync only on an outside change, so the user's own edit is never rewritten. The root is
+    // always an object, so typed text that is not one compares as an empty object.
     useEffect(() => {
-        if (textMatchesValue(typedText.current, format, editableValue)) return
+        const typed = parseCodeString<unknown>(typedText.current, format, undefined)
+        if (typed !== undefined && deepEqual(isPlainRecord(typed) ? typed : {}, editableValue))
+            return
         typedText.current = displayValue
         setJsonText(displayValue)
         setParseError(null)
@@ -123,10 +129,7 @@ function FullPayloadCodeEditor({
 
     const errorNote = parseError ? (
         <p role="alert" className="m-0 mt-2 text-meta text-destructive">
-            {t("entityUi.testcase.invalidCode", {
-                format: format === "json" ? "JSON" : "YAML",
-                error: parseError,
-            })}
+            {codeErrorText(parseError, format)}
         </p>
     ) : null
 

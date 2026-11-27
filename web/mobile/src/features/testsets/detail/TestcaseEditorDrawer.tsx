@@ -4,6 +4,7 @@ import {testcaseMolecule, type Testcase} from "@agenta/entities/testcase"
 import {TestcaseDrawer, type TestcaseDrawerContentRenderProps} from "@agenta/entity-ui/testcase"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import type {FieldColumnActions} from "./fields/TestcaseFieldForm"
 import {replaceDataUpdate} from "./testcaseDataUpdate"
 import {TestcaseEditorDrawerContent} from "./TestcaseEditorDrawerContent"
 import {TestcaseQueueButton} from "./TestcaseQueuePicker"
@@ -27,6 +28,8 @@ export const TestcaseEditorDrawer = ({
     onClose,
     onOpenCommit,
     discardOnCancel = false,
+    columnActions,
+    onAddColumn,
 }: {
     testcaseId: string | null
     testcaseNumber: number | undefined
@@ -39,6 +42,9 @@ export const TestcaseEditorDrawer = ({
     onOpenCommit: () => void
     /** The row was just added and never applied: Cancel removes it instead of restoring it. */
     discardOnCancel?: boolean
+    /** The field menu's Rename column and Delete column; the page asks before each. */
+    columnActions?: (key: string) => FieldColumnActions | null
+    onAddColumn?: () => void
 }) => {
     const id = testcaseId ?? ""
     const isNewRow = id.startsWith("new-")
@@ -67,10 +73,12 @@ export const TestcaseEditorDrawer = ({
                     testcaseId={testcaseId}
                     isNewRow={isNewRow}
                     viewOnly={viewOnly}
+                    columnActions={viewOnly ? undefined : columnActions}
+                    onAddColumn={viewOnly ? undefined : onAddColumn}
                     {...props}
                 />
             ) : null,
-        [isNewRow, testcaseId, viewOnly],
+        [columnActions, isNewRow, onAddColumn, testcaseId, viewOnly],
     )
 
     // A row that is not saved yet gets no item ids, so no button.

@@ -10,7 +10,7 @@
     "next": "Next test case",
     "newTestcase": "New test case",
     "testcaseNumber": "Test case {{number}}",
-    "edited": "edited",
+    "edited": "Edited",
     "copyId": "Copy ID",
     "copiedId": "Copied!",
     "collapseAllFields": "Collapse all fields",
@@ -26,5 +26,11 @@
     "root": "Root",
     "unsavedChanges": "Unsaved changes",
     "noTestcases": "No test cases found",
-    "invalidCode": "Invalid {{format}}: {{error}}. Fix it to apply the change."
+    "codeError": "Not valid {{format}}: {{problem}} in line {{line}}. The field keeps its last valid value until you fix it.",
+    "codeErrorNoLine": "Not valid {{format}}: {{problem}}. The field keeps its last valid value until you fix it.",
+    "codeProblemMissingComma": "a comma is missing",
+    "codeProblemMissingQuote": "a quote is missing",
+    "codeProblemExtraComma": "there is an extra comma",
+    "codeProblemEndsEarly": "the text ends too early",
+    "codeProblemOther": "the text has an error"
 }

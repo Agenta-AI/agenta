@@ -39,6 +39,8 @@ import {AppShell} from "../../nav/AppShell"
 import {PageBackBar} from "../../page-layout/PageBackBar"
 
 import {ArchivedTestsetNotice} from "./ArchivedTestsetNotice"
+import {ColumnDialog, type ColumnDialogStep} from "./ColumnDialogs"
+import type {FieldColumnActions} from "./fields/TestcaseFieldForm"
 import {TestsetDetailSkeleton} from "./states/TestsetDetailSkeleton"
 import {TestsetGrid} from "./TestsetGrid"
 import {TestsetHeader} from "./TestsetHeader"
@@ -196,6 +198,54 @@ export const TestsetDetailScreen = ({
         openRow,
         rows,
     ])
+
+    // The drawer's field menu changes the column of a field with the grid's column steps. A
+    // top-level column can be renamed and deleted; an object split into nested columns is a
+    // group, deleted by its own key.
+    const [fieldColumnStep, setFieldColumnStep] = useState<ColumnDialogStep | null>(null)
+    const fieldColumnActions = useCallback(
+        (key: string): FieldColumnActions | null => {
+            const blockedReason = editor.columnEditBlocked
+            if (columns.some((column) => column.key === key && !column.parentKey)) {
+                return {
+                    blockedReason,
+                    onRename: () => setFieldColumnStep({kind: "rename", columnKey: key}),
+                    onDelete: () =>
+                        setFieldColumnStep({
+                            kind: "delete",
+                            columnKey: key,
+                            columnKeys: [key],
+                            isGroup: false,
+                        }),
+                }
+            }
+            if (columns.some((column) => column.parentKey && column.key.startsWith(`${key}.`))) {
+                return {
+                    blockedReason,
+                    onDelete: () =>
+                        setFieldColumnStep({
+                            kind: "delete",
+                            columnKey: key,
+                            columnKeys: [key],
+                            isGroup: true,
+                        }),
+                }
+            }
+            return null
+        },
+        [columns, editor.columnEditBlocked],
+    )
+    const submitFieldColumnStep = useCallback(
+        (name: string) => {
+            if (fieldColumnStep?.kind === "rename")
+                return editor.renameColumn(fieldColumnStep.columnKey, name)
+            if (fieldColumnStep?.kind === "delete")
+                return editor.deleteColumns(fieldColumnStep.columnKeys)
+            return editor.addColumn(name)
+        },
+        [editor, fieldColumnStep],
+    )
+    const openAddColumn = useCallback(() => setFieldColumnStep({kind: "add"}), [])
 
     const navigation = useTestcaseDrawerNavigation({
         rows,
@@ -380,8 +430,16 @@ export const TestsetDetailScreen = ({
                         setCommitOpen(true)
                     }}
                     discardOnCancel={openRowId !== null && openRowId === addedRowId}
+                    columnActions={fieldColumnActions}
+                    onAddColumn={editor.columnEditBlocked ? undefined : openAddColumn}
                 />
             ) : null}
+            <ColumnDialog
+                step={fieldColumnStep}
+                onClose={() => setFieldColumnStep(null)}
+                onSubmit={submitFieldColumnStep}
+                onDone={() => setFieldColumnStep(null)}
+            />
         </>
     )
 }
