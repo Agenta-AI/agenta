@@ -51,11 +51,11 @@ export interface SessionCardListProps extends UseSessionCardListArgs {
     onRenameRow?: (vm: SessionRowVm, name: string) => Promise<boolean>
     /** Hide the per-row agent name (an agent-scoped list restates its heading otherwise). */
     showAgent?: boolean
-    /** Touch surfaces have no hover — keep the pin always visible there. */
+    /** Touch surfaces have no hover: a card row keeps its pin visible. A compact row has no pin. */
     alwaysShowPin?: boolean
     /**
-     * `card` is the designed Home row (glyph, subtitle, agent name). `compact` is the nav rail's
-     * one-line row — status glyph, title, time — for a popover that should read like the sidebar.
+     * `card` is the designed Home row (glyph, subtitle, agent name, pin). `compact` is a menu row
+     * (ROW-02): status icon, title, time; its context menu pins it.
      */
     density?: "card" | "compact"
     /** The row that is on screen — painted as the rail paints its selected entry. */
@@ -67,17 +67,22 @@ const COMPACT_SKELETON_TITLE_WIDTHS = ["w-[58%]", "w-[42%]", "w-[66%]", "w-[36%]
 
 /**
  * The menu row's 16px icon: the Session term icon (ICON-05), a spinner while a turn runs, the
- * Automation bolt for a run; amber when it waits on you.
+ * Automation bolt for a run; amber when it waits on you, ink while its sandbox is alive.
  */
 const CompactStatusGlyph = ({vm}: {vm: SessionRowVm}) => {
     const {status} = vm.status
     if (status === "running") return <Spinner aria-hidden className="size-3.5" />
-    const amber = status === "waiting" ? "text-[var(--ag-run-status-warning)]" : undefined
-    if (vm.automation) return <LightningIcon size={16} className={amber} />
-    return <ChatsIcon size={16} className={amber} />
+    const tone =
+        status === "waiting"
+            ? "text-[var(--ag-run-status-warning)]"
+            : status === "alive"
+              ? "text-foreground"
+              : undefined
+    if (vm.automation) return <LightningIcon size={16} className={tone} />
+    return <ChatsIcon size={16} className={tone} />
 }
 
-/** One row, and the owner of its rename state. The pin toggles in place; the rest is the host's. */
+/** One row, and the owner of its rename state. A card row's pin toggles in place; the rest is the host's. */
 const Row = ({
     vm,
     origin,
@@ -132,8 +137,8 @@ const Row = ({
                 "group relative box-border mb-0.5 flex h-8 w-full cursor-pointer select-none items-center gap-2 rounded-sm px-2 text-label",
                 // The open session: the selected fill, same weight as the other rows.
                 active ? "bg-secondary text-foreground" : "text-foreground hover:bg-accent",
-                // Keyboard focus fills the row, as a highlighted menu item does.
-                "has-[button:focus-visible]:bg-accent",
+                // focus-ring-inset (focus.css) on the row while its title button has keyboard focus.
+                "has-[button:focus-visible]:outline-2 has-[button:focus-visible]:-outline-offset-2 has-[button:focus-visible]:outline-solid has-[button:focus-visible]:outline-[var(--ring)]",
             )}
         >
             <SimpleTooltip title={vm.status.label}>

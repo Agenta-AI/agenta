@@ -78,13 +78,11 @@ export const SessionMenu = ({
             <Spinner className="size-3" />
         </span>
     ) : null
-    // One list for both widths: the rail's compact rows in the popover, the taller card rows
-    // in the phone sheet. The row menu (rename, pin, archive) is the same on both; on a touch
-    // screen the pin lives in that menu.
-    const list = (density: "card" | "compact") => (
+    // One list for both widths: menu rows in the popover and the phone sheet; the row menu pins.
+    const list = (
         <SessionCardList
             {...sessionMenuListArgs(agentId)}
-            density={density}
+            density="compact"
             activeRowId={sessionId}
             emptyText=""
             onOpenRow={openRow}
@@ -166,12 +164,12 @@ export const SessionMenu = ({
                             />
                         </button>
                     }
-                    // Menu rows, no Cancel: a row acts, a swipe or a tap outside closes (as BottomSheetMenu).
+                    // Menu rows, no Cancel: a row acts, a tap outside closes (as BottomSheetMenu).
                     hideClose
                 >
                     {loadError}
                     <div className="flex flex-col gap-1 px-2">
-                        {list("compact")}
+                        {list}
                         {menuRows}
                     </div>
                 </BottomSheet>
@@ -198,9 +196,7 @@ export const SessionMenu = ({
             <PopoverContent align="end" className="flex w-80 flex-col gap-1 p-1">
                 {loadError}
                 {/* No reserved gutter: the session rows span the same width as the menu rows. */}
-                <div className="bg-popover max-h-80 min-h-0 overflow-y-auto">
-                    {list("compact")}
-                </div>
+                <div className="bg-popover max-h-80 min-h-0 overflow-y-auto">{list}</div>
                 {menuRows}
             </PopoverContent>
             {inspector}
