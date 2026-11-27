@@ -18,7 +18,6 @@ import {atomWithQuery} from "jotai-tanstack-query"
 import {evaluationRunQueryKey} from "../api"
 import {queryRunLevelMetrics} from "../api/runDetails"
 import {
-    isAggregatableMetric,
     isTerminalRunStatus,
     normalizeMetricStats,
     type EvaluationMetric,
@@ -259,7 +258,7 @@ export function buildRunMetricCatalog(
             if (metricKey.startsWith(INVOCATION_PREFIX)) continue
             const temporal = pointsFor(step.key, metricKey)
             const stats = statsFor(step.key, metricKey, temporal)
-            if (!isAggregatableMetric(stats)) continue
+            if (!stats) continue
             entries.push({
                 id: `${step.key}:${metricKey}`,
                 kind: "evaluator",

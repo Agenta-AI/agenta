@@ -4,7 +4,12 @@ import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
-const {postMock} = vi.hoisted(() => ({postMock: vi.fn()}))
+const {postMock, queryMetrics} = vi.hoisted(() => ({postMock: vi.fn(), queryMetrics: vi.fn()}))
+
+vi.mock("@agenta/sdk/resources", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@agenta/sdk/resources")>()),
+    getEvaluationsClient: () => ({queryMetrics}),
+}))
 
 vi.mock("@agenta/shared/api", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/shared/api")>()),
@@ -19,6 +24,7 @@ import {
     runLevelMetricsQueryAtomFamily,
     runLevelMetricsQueryKey,
     runMetricCatalogAtomFamily,
+    runScenarioMetricsQueryAtomFamily,
     type EvaluationMetric,
     type EvaluationRun,
 } from "../../src/evaluationRun"
@@ -49,6 +55,8 @@ function serve(runs: {id: string; status?: string}[], metrics: unknown[]) {
 
 beforeEach(() => {
     postMock.mockReset()
+    queryMetrics.mockReset()
+    queryMetrics.mockResolvedValue({count: 0, metrics: []})
     store.set(queryClientAtom, new QueryClient())
     store.set(projectIdAtom, "p1")
 })
@@ -83,15 +91,33 @@ describe("run metric catalog", () => {
         expect(catalog.find((entry) => entry.id === "cost")?.stats).toBeNull()
     })
 
-    it("String and json metrics are left out of the catalog", () => {
+    it("String and json metrics stay in the catalog, so the table can show them", () => {
         const catalog = buildRunMetricCatalog(asRun(human.run), asMetrics(human.response.metrics))
         const evaluatorEntries = catalog.filter((entry) => entry.kind === "evaluator")
+        const types = Object.fromEntries(
+            evaluatorEntries.map((entry) => [entry.metricKey, entry.stats?.type]),
+        )
 
-        expect(ids(evaluatorEntries)).toEqual(["evaluator-4d0a:attributes.ag.data.outputs.tone"])
-        expect(evaluatorEntries[0].stats?.type).toBe("categorical/single")
+        expect(types["attributes.ag.data.outputs.tone"]).toBe("categorical/single")
+        expect(Object.values(types)).toEqual(expect.arrayContaining(["string"]))
     })
 
-    it("Legacy stats without a type are kept when they have a mean", () => {
+    it("A path with no stat blob is left out of the catalog", () => {
+        const catalog = buildRunMetricCatalog(asRun(human.run), [
+            {
+                id: "m1",
+                run_id: human.run.id,
+                scenario_id: null,
+                data: {"evaluator-4d0a": {"outputs.rating": {count: 3, mean: 4.2}, "outputs.x": 7}},
+            },
+        ])
+
+        expect(ids(catalog.filter((entry) => entry.kind === "evaluator"))).toEqual([
+            "evaluator-4d0a:outputs.rating",
+        ])
+    })
+
+    it("Legacy stats without a type are kept", () => {
         const catalog = buildRunMetricCatalog(asRun(human.run), [
             {
                 id: "m1",
@@ -107,7 +133,10 @@ describe("run metric catalog", () => {
         ])
         const legacy = catalog.filter((entry) => entry.kind === "evaluator")
 
-        expect(ids(legacy)).toEqual(["evaluator-4d0a:outputs.rating"])
+        expect(ids(legacy)).toEqual([
+            "evaluator-4d0a:outputs.rating",
+            "evaluator-4d0a:outputs.note",
+        ])
         expect(legacy[0].label).toBe("rating")
     })
 
@@ -532,5 +561,45 @@ describe("cost, duration and tokens of a live run", () => {
         const entry = catalog.find((candidate) => candidate.id === "cost")
         expect(entry?.stepKey).toBe(steps[1].key)
         expect(entry?.stats?.mean).toBe(1)
+    })
+})
+
+describe("per-test-case metrics query", () => {
+    const watch = (runId: string) => {
+        const stop = store.sub(runScenarioMetricsQueryAtomFamily(runId), () => undefined)
+        return stop
+    }
+
+    it("A finished run reads its per-test-case rows once, with no poll", async () => {
+        const run = {...auto.run, id: "run-done", status: "success"}
+        const client = new QueryClient()
+        client.setQueryData(evaluationRunQueryKey(run.id), run)
+        store.set(queryClientAtom, client)
+
+        const stop = watch(run.id)
+        await vi.waitFor(() => expect(queryMetrics).toHaveBeenCalledTimes(1))
+        expect(queryMetrics.mock.calls[0][0]).toEqual({
+            metrics: {run_ids: [run.id], scenario_ids: true},
+            windowing: {limit: 5000},
+        })
+        const query = client
+            .getQueryCache()
+            .findAll({queryKey: ["evaluation-run-scenario-metrics"]})
+        expect(query[0]?.options).not.toHaveProperty("refetchInterval")
+        stop()
+    })
+
+    it("A running run and an online run send no per-test-case request", async () => {
+        const running = {...auto.run, id: "run-running", status: "running"}
+        const liveRun = {...asRun(live.run), id: "run-live", status: "success"}
+        const client = new QueryClient()
+        client.setQueryData(evaluationRunQueryKey(running.id), running)
+        client.setQueryData(evaluationRunQueryKey(liveRun.id), liveRun)
+        store.set(queryClientAtom, client)
+
+        const stops = [watch(running.id), watch(liveRun.id)]
+        await new Promise((resolve) => setTimeout(resolve, 50))
+        expect(queryMetrics).not.toHaveBeenCalled()
+        stops.forEach((stop) => stop())
     })
 })

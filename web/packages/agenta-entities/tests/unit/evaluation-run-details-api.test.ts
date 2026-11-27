@@ -1,18 +1,25 @@
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
-const {postMock} = vi.hoisted(() => ({postMock: vi.fn()}))
+const {postMock, queryMetrics} = vi.hoisted(() => ({postMock: vi.fn(), queryMetrics: vi.fn()}))
+
+vi.mock("@agenta/sdk/resources", () => ({getEvaluationsClient: () => ({queryMetrics})}))
 
 vi.mock("@agenta/shared/api", () => ({
     axios: {post: postMock},
     getAgentaApiUrl: () => "https://agenta.test/api",
 }))
 
-import {queryEvaluationScenariosPage, queryRunLevelMetrics} from "../../src/evaluationRun"
+import {
+    queryEvaluationScenariosPage,
+    queryRunLevelMetrics,
+    queryRunScenarioMetrics,
+} from "../../src/evaluationRun"
 
 const scenario = (id: string) => ({id, run_id: "run-1", status: "success"})
 
 beforeEach(() => {
     postMock.mockReset()
+    queryMetrics.mockReset()
 })
 
 describe("run details API", () => {
@@ -86,5 +93,27 @@ describe("run details API", () => {
             {metrics: {run_ids: ["run-1", "run-2"], scenario_ids: false}},
             {params: {project_id: "p1"}},
         )
+    })
+    it("Per-test-case metrics query asks for every scenario row of one run, at most the limit", async () => {
+        queryMetrics.mockResolvedValue({
+            count: 1,
+            metrics: [{id: "m1", run_id: "run-1", scenario_id: "s1", data: {}}],
+        })
+
+        const rows = await queryRunScenarioMetrics({projectId: "p1", runId: "run-1", limit: 5000})
+
+        expect(queryMetrics).toHaveBeenCalledWith(
+            {metrics: {run_ids: ["run-1"], scenario_ids: true}, windowing: {limit: 5000}},
+            {queryParams: {project_id: "p1"}},
+        )
+        expect(rows.map((row) => row.scenario_id)).toEqual(["s1"])
+    })
+
+    it("Per-test-case metrics query throws when the response has the wrong shape", async () => {
+        queryMetrics.mockResolvedValue({metrics: "nope"})
+
+        await expect(
+            queryRunScenarioMetrics({projectId: "p1", runId: "run-1", limit: 5000}),
+        ).rejects.toThrow()
     })
 })
