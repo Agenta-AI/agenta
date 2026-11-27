@@ -12,7 +12,6 @@ import {ITEM_KINDS} from "../itemKinds"
 import {ItemRow} from "../ItemRow"
 import {SectionAddButton} from "../SectionAddButton"
 import {SectionEmpty} from "../SectionEmpty"
-import {SectionPageAction} from "../SectionPageAction"
 import {RemoveFromAgentDialog} from "../views/RemoveFromAgentDialog"
 
 import type {AgentTemplateT, SectionIndicatorFor, SectionResult} from "./types"
@@ -71,9 +70,6 @@ export const skillsSection = ({
         emptyAction: !disabled
             ? {label: t("entityUi.agentTemplate.addSkill"), onClick: handleAddSkill}
             : undefined,
-        pageAction: !disabled ? (
-            <SectionPageAction action="add" onClick={handleAddSkill} />
-        ) : undefined,
         phoneAction: !disabled
             ? {
                   label: t("entityUi.agentTemplate.addSkill"),

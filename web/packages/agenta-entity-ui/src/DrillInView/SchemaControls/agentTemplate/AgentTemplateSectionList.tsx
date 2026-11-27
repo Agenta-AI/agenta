@@ -27,8 +27,6 @@ import {CaretRight} from "@phosphor-icons/react"
 
 import {usePhoneSections, type PhoneSectionsApi} from "./phoneSections"
 import {SectionEmptyActionContext, type SectionEmptyAction} from "./SectionEmpty"
-import {useSectionListLayout} from "./sectionListLayout"
-import {SectionPageRow} from "./SectionPageRow"
 
 /** One config section, fully resolved by the container. */
 export interface AgentTemplateSectionDescriptor {
@@ -58,19 +56,8 @@ export interface AgentTemplateSectionDescriptor {
      */
     phoneAction?: {label: string; icon?: ReactNode; onClick: () => void}
     /**
-     * On the Configuration page (layout "page"), the action at the right of the section title:
-     * "Change", "Edit" or "Add" (canvas A04). Use {@link SectionPageAction}. "Add" opens the
-     * section's own add flow: the page draws a text button, not the panel's "+" menu.
-     */
-    pageAction?: ReactNode
-    /**
-     * On the Configuration page, the card's content in place of `content` (or of the one row a
-     * section that opens a view draws): the Advanced parts, the Permissions policy row.
-     */
-    pageContent?: ReactNode
-    /**
      * In the panel, the section is one card that opens a view, with a preview under its title
-     * (Instructions). The phone and the page keep `content`.
+     * (Instructions). The phone keeps `content`.
      */
     panelCard?: {onOpen: () => void; summary?: ReactNode; badge?: ReactNode; preview: ReactNode}
     /** In the panel, the first action an empty section offers on its empty line (STATE-01). */
@@ -115,7 +102,6 @@ export const AgentTemplateSectionList = ({
 }: AgentTemplateSectionListProps) => {
     const t = useT(configItemsCatalog)
     const phoneSections = usePhoneSections()
-    const layout = useSectionListLayout()
     if (sections.length === 0) {
         // antd `Typography.Text type="secondary"` = colorTextDescription + `word-break: break-word`.
         // Its line-height token does NOT apply here: the call site already carried `text-xs`, and
@@ -128,7 +114,6 @@ export const AgentTemplateSectionList = ({
     }
 
     if (phoneSections) return <PhoneSectionList sections={sections} phoneSections={phoneSections} />
-    if (layout === "page") return <PageSectionList sections={sections} />
 
     return (
         // Canvas F01.
@@ -137,14 +122,8 @@ export const AgentTemplateSectionList = ({
                 const controlled = Boolean(controlledKeys?.has(s.key))
                 const card = s.panelCard
                 return (
-                    // An anchor per section, so a host can list the sections and scroll to one.
-                    <div
-                        key={s.key}
-                        data-config-section={s.key}
-                        data-config-section-title={
-                            typeof s.title === "string" ? s.title : undefined
-                        }
-                    >
+                    // An anchor per section (the builder's section marks find it).
+                    <div key={s.key} data-config-section={s.key}>
                         <ConfigAccordionSection
                             icon={s.icon}
                             title={s.title}
@@ -208,7 +187,7 @@ const IndicatorDot = ({indicator}: {indicator: AgentTemplateSectionDescriptor["i
         />
     ) : null
 
-/** A section's title as text, for its header on a phone and on the page; the key otherwise. */
+/** A section's title as text, for its header on a phone; the key otherwise. */
 const sectionTitle = (s: AgentTemplateSectionDescriptor) =>
     typeof s.title === "string" ? s.title : s.key
 
@@ -282,7 +261,6 @@ const PhoneSectionList = ({
                     key={s.key}
                     type="button"
                     data-config-section={s.key}
-                    data-config-section-title={sectionTitle(s)}
                     className="flex min-h-row-double w-full cursor-pointer items-center gap-3 rounded-md border-0 bg-transparent px-2 py-1 text-left font-[inherit] hover:bg-accent active:bg-accent"
                     onClick={() =>
                         s.onOpen ? s.onOpen() : phoneSections.show(s.key, sectionTitle(s))
@@ -317,50 +295,3 @@ const PhoneSectionList = ({
         </div>
     )
 }
-
-/**
- * The sections on the Configuration page (canvas A04): per section a title row with its action,
- * then one white card that holds the section's content, always open. A section that opens a view
- * (Model, Advanced) is one row in its card.
- */
-const PageSectionList = ({sections}: {sections: AgentTemplateSectionDescriptor[]}) => (
-    <div className="flex flex-col gap-7">
-        {sections.map((s) => (
-            <section
-                key={s.key}
-                data-config-section={s.key}
-                data-config-section-title={sectionTitle(s)}
-                className="flex flex-col gap-2"
-            >
-                <div className="flex min-h-7 items-center justify-between gap-2">
-                    <h3 className="m-0 flex min-w-0 items-center gap-1.5 text-title text-foreground">
-                        <span className="truncate">{s.title}</span>
-                        <IndicatorDot indicator={s.indicator} />
-                        {s.titleBadge ? <span className="shrink-0">{s.titleBadge}</span> : null}
-                    </h3>
-                    {s.pageAction ? <span className="shrink-0">{s.pageAction}</span> : null}
-                </div>
-                <div className="overflow-hidden rounded-lg border border-solid border-border-muted bg-background">
-                    {s.pageContent ? (
-                        s.pageContent
-                    ) : s.onOpen ? (
-                        <SectionPageRow
-                            icon={s.icon}
-                            title={s.title}
-                            summary={s.summary}
-                            onClick={s.onOpen}
-                        />
-                    ) : (
-                        // Flat rows draw a line above themselves: -mt-px tucks the first one under
-                        // the card's edge, and a list of rows keeps no gap. Content with no rows
-                        // (an empty line, a notice) gets the card's padding instead, and an empty
-                        // line reads 13/20 (canvas A04 `.cpe`).
-                        <div className="-mt-px flex flex-col empty:hidden [&:not(:has([data-page-row]))]:mt-0 [&:not(:has([data-page-row]))]:p-3.5 [&:not(:has([data-page-row]))>span]:!text-label [&:not(:has([data-page-row]))>span]:!leading-5 [&_:has([data-page-row])]:gap-0">
-                            {s.content}
-                        </div>
-                    )}
-                </div>
-            </section>
-        ))}
-    </div>
-)

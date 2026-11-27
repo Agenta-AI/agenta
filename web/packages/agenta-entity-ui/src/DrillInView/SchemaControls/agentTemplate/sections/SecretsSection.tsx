@@ -24,7 +24,6 @@ import agentSecretsCatalog from "@agenta/i18n/catalogs/entityUi.agentSecrets"
 import modelHarnessCatalog from "@agenta/i18n/catalogs/entityUi.modelHarness"
 import secretAttachmentCatalog from "@agenta/i18n/catalogs/entityUi.secretAttachment"
 import secretViewsCatalog from "@agenta/i18n/catalogs/entityUi.secretViews"
-import {cn} from "@agenta/ui/styles"
 import {Plus, Vault} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -33,8 +32,6 @@ import {ItemRow, ItemRowSkeleton, type ItemRowStatus} from "../ItemRow"
 import {needsSetupLabel, needsSetupReasonText} from "../needsSetupText"
 import {SectionAddButton} from "../SectionAddButton"
 import {SectionEmpty} from "../SectionEmpty"
-import {useSectionListLayout} from "../sectionListLayout"
-import {SectionPageAction} from "../SectionPageAction"
 import {RemoveFromAgentDialog} from "../views/RemoveFromAgentDialog"
 
 import type {SectionIndicatorFor, SectionResult} from "./types"
@@ -91,13 +88,6 @@ export const secretsSection = ({
                   onClick: () => openAttach(),
               }
             : undefined,
-        pageAction: !disabled ? (
-            <SecretsPageAction
-                revisionId={revisionId ?? ""}
-                canEditSecrets={canEditSecrets}
-                onAdd={() => openAttach()}
-            />
-        ) : undefined,
         phoneAction: !disabled
             ? {
                   label: tNow("entityUi.secretAttachment.attachTitle"),
@@ -150,20 +140,6 @@ const SecretsAddButton = ({
     )
 }
 
-/** "Add" on the Configuration page: the same rule as the header "+". */
-const SecretsPageAction = ({
-    revisionId,
-    canEditSecrets,
-    onAdd,
-}: {
-    revisionId: string
-    canEditSecrets: boolean
-    onAdd: () => void
-}) => {
-    const {canChange} = useCanChange(revisionId, canEditSecrets)
-    return <SectionPageAction action="add" disabled={!canChange} onClick={onAdd} />
-}
-
 export const SecretsSectionBody = ({
     revisionId,
     bindings,
@@ -180,8 +156,6 @@ export const SecretsSectionBody = ({
     onRevisionCommitted?: (revisionId: string) => void
 }) => {
     const t = useT(agentSecretsCatalog)
-    // On the page the rows are flat in the card; a notice above them keeps off the card's edge.
-    const inset = useSectionListLayout() === "page" && bindings.length > 0
     const {namedSecrets, loading} = useVaultSecret()
     const requirements = useAtomValue(agentRequirementsAtomFamily(revisionId))
     const commit = useSetAtom(commitAgentCredentialsAtom)
@@ -249,12 +223,7 @@ export const SecretsSectionBody = ({
     return (
         <div className="flex flex-col gap-2">
             {notice ? (
-                <div
-                    className={cn(
-                        "rounded-lg border border-border-muted p-3 text-meta text-muted-foreground",
-                        inset && "m-3",
-                    )}
-                >
+                <div className="rounded-lg border border-border-muted p-3 text-meta text-muted-foreground">
                     {notice}
                 </div>
             ) : null}

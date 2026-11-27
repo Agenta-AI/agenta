@@ -941,9 +941,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             sectionIndicator,
             advancedChangeBody,
             openAdvanced,
-            schema,
-            config,
-            revisionId,
         }),
     ].filter(Boolean) as AgentTemplateSectionDescriptor[]
     // A container's marks on sections (the builder page's "Changed by the builder").

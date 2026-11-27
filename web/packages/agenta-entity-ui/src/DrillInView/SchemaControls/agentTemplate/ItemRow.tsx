@@ -22,13 +22,6 @@ import {CaretRight} from "@phosphor-icons/react"
 import {describeInstruction, type ItemDescriptor} from "./itemDescriptors"
 import {usePhoneSections} from "./phoneSections"
 import {RowRemoveAction} from "./RowRemoveAction"
-import {useSectionListLayout} from "./sectionListLayout"
-
-/**
- * On the Configuration page (canvas A04) the rows are flat inside the section's one card: no
- * border of their own, a line above each row. The card hides the first row's line.
- */
-const PAGE_ROW = "gap-3 border-0 border-t border-solid border-border-muted px-3.5 py-3"
 
 /** A panel row's Mark: 28 px with a 16 px glyph, also for an item that draws its own Mark. */
 const PANE_MARK = "size-7 [&_svg]:size-4 [&_[data-slot=icon-tile]]:size-7"
@@ -186,7 +179,6 @@ export function ItemRow({
     status?: ItemRowStatus
 }) {
     const t = useT(configItemsCatalog)
-    const page = useSectionListLayout() === "page"
     const phone = usePhoneSections() !== null
     // ROW-01: a name alone is a one-line row (36), a name with a second line is two-line (48).
     const twoLine = Boolean(status?.reason || descriptor.description)
@@ -194,26 +186,18 @@ export function ItemRow({
     const interactive = Boolean(onEdit) && !locked && !disabled
     return (
         <div
-            data-page-row={page || undefined}
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
             // The whole row opens it; the chevron and tags used to be a dead target.
             onClick={interactive ? onEdit : undefined}
             className={cn(
                 "group flex items-center transition-colors",
-                // `cn` does not drop a class another one overrides: the page row and the panel
-                // card take their padding and frame from one place each.
                 // In the pane a plain row with the hover fill, not a card in the section
                 // (SURF-01/02). The clear border only shows a status tint.
-                page
-                    ? PAGE_ROW
-                    : cn(
-                          // box-border: the status border sits inside the row height (ROW-01).
-                          "box-border gap-2 rounded-md border border-solid border-transparent px-2 py-1",
-                          twoLine ? "min-h-row-double" : "min-h-row-single",
-                          // On a phone screen the row hangs its fill; its Mark stays on the line.
-                          phone && "-mx-2.25",
-                      ),
-                page && !locked && "bg-background",
+                // box-border: the status border sits inside the row height (ROW-01).
+                "box-border gap-2 rounded-md border border-solid border-transparent px-2 py-1",
+                twoLine ? "min-h-row-double" : "min-h-row-single",
+                // On a phone screen the row hangs its fill; its Mark stays on the line.
+                phone && "-mx-2.25",
                 interactive && !status && "cursor-pointer hover:bg-accent",
                 interactive && status && "cursor-pointer",
                 locked && "bg-muted opacity-70",
@@ -238,8 +222,8 @@ export function ItemRow({
                 className={cn(
                     "flex min-w-0 flex-1 items-center rounded-sm transition-opacity",
                     interactive && "focus-ring",
-                    // 8 px to the panel's 28 px Mark; SPACE-04 for the page and the phone.
-                    page || (twoLine && phone) ? "gap-3" : "gap-2",
+                    // 8 px to the panel's 28 px Mark; SPACE-04 for the phone.
+                    twoLine && phone ? "gap-3" : "gap-2",
                     inactive && "opacity-50",
                 )}
             >
@@ -248,15 +232,13 @@ export function ItemRow({
                     size={twoLine && phone ? 32 : 24}
                     // A panel row's Mark is 28 px, the size of its section's tile; a phone row's
                     // follows the row (24 or 32, CONS-01).
-                    className={!page && !phone ? PANE_MARK : undefined}
+                    className={!phone ? PANE_MARK : undefined}
                 />
                 <div className="min-w-0 flex-1">
                     <div
                         className={cn(
                             "truncate font-normal leading-5",
-                            // Canvas A04: a page row's name is 14 px, a mono name 13 px; a panel
-                            // card's is 13 px (F01).
-                            page && descriptor.monoName === false ? "text-label" : "text-label",
+                            "text-label",
                             descriptor.monoName !== false && "font-mono",
                         )}
                     >
@@ -290,17 +272,8 @@ export function ItemRow({
                     <RowRemoveAction name={descriptor.name} onRemove={onRemove} />
                 ) : null}
                 {interactive ? (
-                    // Canvas F01: a panel card ends with an outline chevron; A04: a page row
-                    // ends with the triangle.
-                    page ? (
-                        <ConfigRowTriangle />
-                    ) : (
-                        <CaretRight
-                            aria-hidden
-                            size={12}
-                            className="shrink-0 text-muted-foreground"
-                        />
-                    )
+                    // Canvas F01: a panel card ends with an outline chevron.
+                    <CaretRight aria-hidden size={12} className="shrink-0 text-muted-foreground" />
                 ) : null}
             </div>
         </div>
@@ -390,24 +363,12 @@ export function InstructionsFileRow({
     status?: ItemRowStatus
 }) {
     const t = useT(configItemsCatalog)
-    const page = useSectionListLayout() === "page"
     const phone = usePhoneSections() !== null
     const wordCount = content.trim().split(/\s+/).filter(Boolean).length
     const meta =
         wordCount > 0
             ? t("entityUi.configItems.wordCount", {count: wordCount})
             : t("entityUi.configItems.empty")
-    if (page) {
-        return (
-            <InstructionsPagePreview
-                filename={filename}
-                content={content}
-                meta={meta}
-                onOpen={onOpen}
-                status={status}
-            />
-        )
-    }
     const descriptor = describeInstruction(filename, content)
     // An empty file has no preview: `descriptor.description` already says "Empty file".
     const line = wordCount > 0 ? `${meta} · ${descriptor.description}` : meta
@@ -448,91 +409,22 @@ export function InstructionsFileRow({
     )
 }
 
-/** How many lines of the file the page shows; `max-h-44` also cuts one long paragraph there. */
-const PREVIEW_LINES = 6
-
-/**
- * The instructions file on the Configuration page (canvas A04): the filename and the word count
- * on a header line, then the start of the file with its headings in bold. The whole card opens
- * the editor.
- */
-function InstructionsPagePreview({
-    filename,
-    content,
-    meta,
-    onOpen,
-    status,
-}: {
-    filename: string
-    content: string
-    meta: string
-    onOpen: () => void
-    status?: ItemRowStatus
-}) {
-    const lines = content
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .slice(0, PREVIEW_LINES)
-    return (
-        <div
-            role="button"
-            tabIndex={0}
-            onClick={onOpen}
-            onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault()
-                    onOpen()
-                }
-            }}
-            data-page-row
-            className="focus-ring-inset flex cursor-pointer flex-col hover:bg-accent"
-        >
-            <div className="flex items-center gap-2 border-0 border-b border-solid border-border-muted px-3.5 py-3">
-                <span className="truncate font-mono text-label">{filename}</span>
-                {status ? <StatusTag status={status} /> : null}
-                <span className="ml-auto shrink-0 text-meta text-muted-foreground">{meta}</span>
-            </div>
-            {/* The agent's prompt is prose: `text-body-sm`, headings in `text-subtitle` (TYPE-04). */}
-            <div className="flex max-h-44 flex-col gap-1 overflow-hidden px-3.5 py-3 text-body-sm text-foreground">
-                {lines.map((line, index) =>
-                    line.startsWith("#") ? (
-                        <span key={index} className="mt-1 text-subtitle first:mt-0">
-                            {line.replace(/^#+\s*/, "")}
-                        </span>
-                    ) : (
-                        <span key={index}>{line}</span>
-                    ),
-                )}
-            </div>
-        </div>
-    )
-}
-
-/** Loading rows in a two-line ItemRow's shape for the host's layout: pane, phone, page (STATE-02). */
+/** Loading rows in a two-line ItemRow's shape for the host's layout: pane or phone (STATE-02). */
 export function ItemRowSkeleton({count = 2}: {count?: number}) {
-    const page = useSectionListLayout() === "page"
     const phone = usePhoneSections() !== null
     return Array.from({length: count}).map((_, i) => (
         <div
             key={i}
             aria-hidden
             className={cn(
-                "flex items-center",
-                page
-                    ? PAGE_ROW
-                    : cn(
-                          "box-border min-h-row-double gap-2 rounded-md border border-solid border-transparent px-2 py-1",
-                          phone && "-mx-2.25",
-                      ),
+                "box-border flex min-h-row-double items-center gap-2 rounded-md border border-solid border-transparent px-2 py-1",
+                phone && "-mx-2.25",
             )}
         >
-            <div
-                className={cn("flex min-w-0 flex-1 items-center", page || phone ? "gap-3" : "gap-2")}
-            >
+            <div className={cn("flex min-w-0 flex-1 items-center", phone ? "gap-3" : "gap-2")}>
                 <SkeletonBlock
                     shape="mark"
-                    className={cn("shrink-0", page ? "size-6" : phone ? "size-8" : "size-7")}
+                    className={cn("shrink-0", phone ? "size-8" : "size-7")}
                 />
                 <div className="min-w-0 flex-1">
                     <div className="flex h-5 items-center">

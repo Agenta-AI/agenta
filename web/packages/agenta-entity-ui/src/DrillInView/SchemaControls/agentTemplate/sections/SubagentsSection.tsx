@@ -10,7 +10,6 @@ import {countSummary} from "../agentTemplateUtils"
 import {ConnectedSubagentList} from "../ConnectedSubagents"
 import {describeSubagent, toolReferenceSlug} from "../itemDescriptors"
 import {SectionAddButton} from "../SectionAddButton"
-import {SectionPageAction} from "../SectionPageAction"
 import {savedSubagentSlugs, SubagentCurrentName} from "../SubagentAgent"
 import {findSubagentIndex, subagentItemRef, uniqueSlugRef} from "../subagentReference"
 import {SubagentList, type SubagentListProps} from "../ToolManagementList"
@@ -80,10 +79,6 @@ export const subagentsSection = ({
             !disabled && openAddSubagents
                 ? {label: t("entityUi.agentTemplate.addSubagent"), onClick: openAddSubagents}
                 : undefined,
-        pageAction:
-            !disabled && openAddSubagents ? (
-                <SectionPageAction action="add" onClick={openAddSubagents} />
-            ) : undefined,
         phoneAction:
             !disabled && openAddSubagents
                 ? {

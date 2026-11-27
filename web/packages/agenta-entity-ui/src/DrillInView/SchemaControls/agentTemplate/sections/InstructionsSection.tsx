@@ -6,7 +6,6 @@ import {FileText} from "@phosphor-icons/react"
 import {mdPreview} from "../itemDescriptors"
 import {InstructionsFileRow, StatusTag, type ItemRowStatus} from "../ItemRow"
 import type {PanelSectionKey} from "../sectionChanges"
-import {SectionPageAction} from "../SectionPageAction"
 
 import type {AgentTemplateT, SectionIndicatorFor, SectionResult} from "./types"
 
@@ -58,7 +57,6 @@ export const instructionsSection = ({
             indicator: sectionIndicator("instructions"),
             defaultOpen: true,
             insetBody: true,
-            pageAction: <SectionPageAction action="edit" onClick={openInstruction} />,
             content: (
                 <InstructionsFileRow
                     filename={FILENAME}

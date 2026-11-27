@@ -5,7 +5,6 @@ import {HardDrives, Plus} from "@phosphor-icons/react"
 import {countSummary} from "../agentTemplateUtils"
 import {McpServersSectionBody, type McpServersSectionBodyProps} from "../McpServersSectionBody"
 import {SectionAddButton} from "../SectionAddButton"
-import {SectionPageAction} from "../SectionPageAction"
 
 import type {AgentTemplateT, SectionIndicatorFor, SectionResult} from "./types"
 
@@ -62,10 +61,6 @@ export const agentMcpSection = ({
             !disabled && openAddMcpServer
                 ? {label: t("entityUi.agentTemplate.addMcpServer"), onClick: openAddMcpServer}
                 : undefined,
-        pageAction:
-            !disabled && openAddMcpServer ? (
-                <SectionPageAction action="add" onClick={openAddMcpServer} />
-            ) : undefined,
         phoneAction:
             !disabled && openAddMcpServer
                 ? {

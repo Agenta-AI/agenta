@@ -10,7 +10,6 @@ import type {IntegrationRow} from "../../toolUtils"
 import {countSummary} from "../agentTemplateUtils"
 import {IntegrationLogoStack} from "../IntegrationLogoStack"
 import {SectionAddButton} from "../SectionAddButton"
-import {SectionPageAction} from "../SectionPageAction"
 import {ToolManagementList, type ToolManagementListProps} from "../ToolManagementList"
 
 import type {AgentTemplateT, SectionIndicatorFor, SectionResult} from "./types"
@@ -83,10 +82,6 @@ export const integrationsSection = ({
             !disabled && openAddIntegration
                 ? {label: t("entityUi.agentTemplate.addIntegration"), onClick: openAddIntegration}
                 : undefined,
-        pageAction:
-            !disabled && openAddIntegration ? (
-                <SectionPageAction action="add" onClick={openAddIntegration} />
-            ) : undefined,
         // On a phone the one primary action at the bottom opens the catalog (M08).
         phoneAction:
             !disabled && openAddIntegration

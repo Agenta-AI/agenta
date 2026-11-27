@@ -7,11 +7,10 @@ import {
 import {SkeletonBlock} from "@agenta/ui/ui"
 
 import {usePhoneSections} from "./phoneSections"
-import {useSectionListLayout} from "./sectionListLayout"
 
 /**
- * Loading placeholder for the agent's sections, in the shape of each layout: the panel's cards,
- * the page's titled cards, and two-line rows for the phone. Shown while the revision/schema is still loading so the panel holds
+ * Loading placeholder for the agent's sections, in the shape of each layout: the panel's cards
+ * and two-line rows for the phone. Shown while the revision/schema is still loading so the panel holds
  * its real shape instead of the generic prompt-config pulse boxes. Triggers/Mounts are NOT
  * config sections — their loading shape is `AgentOperationsSkeleton` (sibling regions).
  */
@@ -61,27 +60,8 @@ const ROWS: {title: number; value: number; withAdd?: boolean}[] = [
     {title: 100, value: 110}, // Advanced
 ]
 
-/** The Configuration page's shape (canvas A04): a title and its action over one card per section. */
-const PageSkeleton = () => (
-    <div className="flex flex-col gap-7">
-        {ROWS.map((row, i) => (
-            <div key={i} className="flex flex-col gap-2">
-                <div className="flex min-h-7 items-center justify-between">
-                    <SkeletonBlock active style={{width: row.title, height: 16}} />
-                    <SkeletonBlock active className="h-7 w-14" />
-                </div>
-                <div className="flex h-14 items-center gap-3 rounded-lg border border-solid border-border-muted px-3.5">
-                    <SkeletonBlock active shape="square" className="h-7 w-7" />
-                    <SkeletonBlock active style={{width: row.value + 80, height: 14}} />
-                </div>
-            </div>
-        ))}
-    </div>
-)
-
 const AgentConfigSkeleton = () => {
     const t = useT(configItemsCatalog)
-    const layout = useSectionListLayout()
     const phone = usePhoneSections() !== null
     return (
         // No padding of its own: the surrounding field/fallback wrapper provides the 16px inset.
@@ -93,13 +73,7 @@ const AgentConfigSkeleton = () => {
             aria-busy
             aria-label={t("entityUi.configItems.loadingAgentConfig")}
         >
-            {layout === "page" ? (
-                <PageSkeleton />
-            ) : phone ? (
-                <AgentSectionRowsSkeleton />
-            ) : (
-                <AgentSectionCardsSkeleton />
-            )}
+            {phone ? <AgentSectionRowsSkeleton /> : <AgentSectionCardsSkeleton />}
         </div>
     )
 }

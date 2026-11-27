@@ -1,7 +1,4 @@
-/**
- * The layouts of the agent's sections. Null is the panel (canvas F01): section cards with 40 px
- * rows and no summary on an empty section. "page" is the Configuration page (canvas A04).
- */
+/** The panel layout of the agent's sections (canvas F01): 40 px rows, no summary when empty. */
 import {act, createElement} from "react"
 
 import {createRoot, type Root} from "react-dom/client"
@@ -11,10 +8,6 @@ import {
     AgentTemplateSectionList,
     type AgentTemplateSectionDescriptor,
 } from "../../src/DrillInView/SchemaControls/agentTemplate/AgentTemplateSectionList"
-import {
-    SectionListLayoutContext,
-    type SectionListLayout,
-} from "../../src/DrillInView/SchemaControls/agentTemplate/sectionListLayout"
 
 beforeAll(() => {
     ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
@@ -59,16 +52,7 @@ const sections: AgentTemplateSectionDescriptor[] = [
     },
 ]
 
-const renderList = (layout: SectionListLayout | null) =>
-    act(() =>
-        root.render(
-            createElement(
-                SectionListLayoutContext.Provider,
-                {value: layout},
-                createElement(AgentTemplateSectionList, {sections}),
-            ),
-        ),
-    )
+const renderList = () => act(() => root.render(createElement(AgentTemplateSectionList, {sections})))
 
 /** The clickable header row of one section. */
 const headerRow = (key: string) =>
@@ -78,18 +62,10 @@ const section = (key: string) => container.querySelector(`[data-config-section=$
 
 describe("AgentTemplateSectionList layouts", () => {
     it("panel: 40 px card rows with no summary when empty, and a tinted marked header", () => {
-        renderList(null)
+        renderList()
         expect(headerRow("subagents").className).toContain("h-10")
         expect(section("subagents").textContent).not.toContain("None")
         expect(headerRow("skills").className).toContain("bg-info/10")
         expect(headerRow("subagents").className).not.toContain("bg-info/10")
-    })
-
-    it("page: one titled card per section, with its content always open", () => {
-        renderList("page")
-        const titles = [...container.querySelectorAll("section h3")].map((h) => h.textContent)
-        expect(titles).toEqual(["Subagents", "Skills", "Advanced"])
-        expect(section("subagents").textContent).toContain("No subagents yet")
-        expect(container.querySelector("[role=button][aria-expanded]")).toBeNull()
     })
 })

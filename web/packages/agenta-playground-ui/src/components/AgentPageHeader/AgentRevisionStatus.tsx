@@ -1,7 +1,7 @@
 import {useEffect, useId, useRef, useState} from "react"
 
 import {revalidateAgentRevisionReads, workflowMolecule} from "@agenta/entities/workflow"
-import {formatDate, formatRelativeTime, useT} from "@agenta/i18n"
+import {useT} from "@agenta/i18n"
 import headerCatalog from "@agenta/i18n/catalogs/playground.agentHeader"
 import revisionStatusCatalog from "@agenta/i18n/catalogs/playground.revisionStatus"
 import {
@@ -37,25 +37,6 @@ const AgentVersionHistoryDrawer = dynamic(
  */
 const historyChipsAtomFamily = atomFamily((_workflowId: string) => atom<string[]>([]))
 
-/**
- * When a version was saved, as the Configuration page header writes it (canvas A04): "Today
- * 09:12", "Yesterday 17:40", else "Nov 3 09:12". Null when the date is missing or not a date.
- */
-const savedWhen = (iso: string | null | undefined, now: Date = new Date()): string | null => {
-    const at = iso ? new Date(iso) : null
-    if (!at || Number.isNaN(at.getTime())) return null
-    // A 24-hour clock, as the canvas writes it ("09:12").
-    const time = formatDate(at, {hour: "2-digit", minute: "2-digit", hourCycle: "h23"})
-    const startOf = (date: Date) =>
-        new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
-    const days = Math.round((startOf(now) - startOf(at)) / 86_400_000)
-    if (days === 0 || days === 1) {
-        const day = formatRelativeTime(-days, "day", {numeric: "auto"})
-        return `${day.charAt(0).toLocaleUpperCase()}${day.slice(1)} ${time}`
-    }
-    return `${formatDate(at, {month: "short", day: "numeric"})} ${time}`
-}
-
 /** Wraps in a tooltip only when there is something to say beyond the visible label. */
 const StatusWrap = ({tip, children}: {tip: string | null; children: React.ReactElement}) =>
     tip ? <SimpleTooltip title={tip}>{children}</SimpleTooltip> : <>{children}</>
@@ -85,12 +66,6 @@ export interface AgentRevisionStatusProps {
     phone?: boolean
     /** On a phone, the name of the screen the history's back arrow returns to. */
     backTitle?: string
-    /**
-     * Lay out for the Configuration page header (canvas A04): the version and when it was saved
-     * as a history button ("v4 · Today 09:12"), then the status as a bordered "Saved as vN".
-     * Needs `historyWorkflowId`.
-     */
-    page?: boolean
     className?: string
 }
 
@@ -112,7 +87,6 @@ export const AgentRevisionStatus = ({
     checkKey,
     phone = false,
     backTitle,
-    page = false,
     className,
 }: AgentRevisionStatusProps) => {
     const t = useT(headerCatalog, revisionStatusCatalog)
@@ -168,7 +142,6 @@ export const AgentRevisionStatus = ({
     }, [offersUpdate, historyWorkflowId, projectId, checkKey, historyOpens])
 
     const version = (data?.version as number | null | undefined) ?? null
-    const savedAt = page ? savedWhen(data?.created_at) : null
     const commitMessage = data?.message?.trim() || null
     const newer =
         onUpdate &&
@@ -277,53 +250,6 @@ export const AgentRevisionStatus = ({
             </button>
         ) : null
 
-    // The bordered "Saved as vN" of the page header. A status, not an action: enabled only as
-    // the retry of a failed save.
-    const savedAsButton =
-        page && version !== null ? (
-            <StatusWrap tip={failed ? dot.tip : null}>
-                <Button
-                    variant="outline"
-                    size="compact"
-                    disabled={!failed}
-                    aria-label={failed ? t("playground.agentHeader.retrySaving") : undefined}
-                    onClick={failed ? () => void retrySave({revisionId}) : undefined}
-                    className={cn(
-                        "disabled:opacity-100",
-                        failed ? "text-destructive" : "text-muted-foreground",
-                    )}
-                >
-                    {settled ? t("playground.revisionStatus.savedAs", {version}) : dot.label}
-                </Button>
-            </StatusWrap>
-        ) : null
-
-    if (page) {
-        return (
-            <div className={cn("flex items-center gap-2", className)}>
-                {historyWorkflowId && version !== null ? (
-                    <SimpleTooltip title={t("playground.agentHeader.versionHistory")}>
-                        <Button
-                            variant="ghost"
-                            size="compact"
-                            aria-label={t("playground.agentHeader.openVersionHistory")}
-                            onClick={() => openHistory(historyWorkflowId)}
-                        >
-                            <ClockCounterClockwise className="size-3.5" />
-                            <span className="font-mono text-meta">v{version}</span>
-                            {savedAt ? (
-                                <span className="text-muted-foreground">· {savedAt}</span>
-                            ) : null}
-                        </Button>
-                    </SimpleTooltip>
-                ) : null}
-                {updatePill}
-                {savedAsButton}
-                {historyDrawer}
-            </div>
-        )
-    }
-
     return (
         <div className={`flex items-center gap-2 ${className ?? ""}`}>
             {merged ? (
@@ -341,7 +267,9 @@ export const AgentRevisionStatus = ({
                         onClick={() => openHistory(historyWorkflowId)}
                         className={cn(
                             "gap-1.5",
-                            phone ? "whitespace-nowrap" : "text-muted-foreground hover:text-foreground",
+                            phone
+                                ? "whitespace-nowrap"
+                                : "text-muted-foreground hover:text-foreground",
                         )}
                     >
                         {/* One chip: the save state is a fact about this version. */}
