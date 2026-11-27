@@ -3126,13 +3126,13 @@ const sidebar: SidebarsConfig = {
           type: "doc",
           id: "reference/api/set-session-stream-header",
           label: "Set Session Stream Header",
-          className: "api-method post",
+          className: "api-method put",
         },
         {
           type: "doc",
           id: "reference/api/set-session-stream-header",
           label: "Set Session Stream Header",
-          className: "api-method put",
+          className: "api-method post",
         },
         {
           type: "doc",
@@ -4302,6 +4302,48 @@ const sidebar: SidebarsConfig = {
     },
     {
       type: "category",
+      label: "Instance",
+      items: [
+        {
+          type: "doc",
+          id: "reference/api/fetch-instance-telemetry",
+          label: "Fetch Instance Telemetry",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/fetch-instance-license",
+          label: "Fetch Instance License",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/activate-instance-license",
+          label: "Activate Instance License",
+          className: "api-method put",
+        },
+        {
+          type: "doc",
+          id: "reference/api/fetch-license-usage",
+          label: "Fetch License Usage",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/create-instance-registration",
+          label: "Create Instance Registration",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/dismiss-instance-registration-offer",
+          label: "Dismiss Instance Registration Offer",
+          className: "api-method post",
+        },
+      ],
+    },
+    {
+      type: "category",
       label: "Sharing",
       items: [
         {
@@ -4363,6 +4405,18 @@ const sidebar: SidebarsConfig = {
           id: "reference/api/query-sharing-members",
           label: "Query Sharing Members",
           className: "api-method post",
+        },
+      ],
+    },
+    {
+      type: "category",
+      label: "Releases",
+      items: [
+        {
+          type: "doc",
+          id: "reference/api/fetch-instance-releases",
+          label: "Fetch Instance Releases",
+          className: "api-method get",
         },
       ],
     },
