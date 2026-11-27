@@ -1,7 +1,7 @@
 import {useState, type ReactNode} from "react"
 
+import type {GatewayToolsBridge} from "@agenta/editor/drill-in"
 import {ToolSelectorPopover, type ToolObj} from "@agenta/entity-ui/drill-in"
-import type {GatewayToolsBridge} from "@agenta/ui/drill-in"
 import {Plus} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 

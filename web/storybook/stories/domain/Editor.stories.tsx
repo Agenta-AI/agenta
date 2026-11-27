@@ -3,12 +3,12 @@ import {
     EditorProvider,
     TOGGLE_FORM_VIEW,
     useLexicalComposerContext,
-} from "@agenta/ui/editor"
+} from "@agenta/editor/editor"
 import {Button} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 /**
- * Editor — the @agenta/ui Lexical-based rich/code editor engine (`@agenta/ui/editor`).
+ * Editor — the @agenta/ui Lexical-based rich/code editor engine (`@agenta/editor/editor`).
  *
  * In the app this is fed by playground/eval state (token schemas, remote hydration,
  * onChange wiring). Here it renders entirely off local props with MOCK initial content
@@ -25,7 +25,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "The @agenta/ui Lexical-based rich/code editor engine (`@agenta/ui/editor`). Rendered entirely off local props with mocked content — no atoms, fetchers, or remote hydration.",
+                    "The @agenta/ui Lexical-based rich/code editor engine (`@agenta/editor/editor`). Rendered entirely off local props with mocked content — no atoms, fetchers, or remote hydration.",
             },
         },
     },

@@ -1,7 +1,7 @@
 import {useEffect, type RefObject} from "react"
 
+import type {RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 import {composerPrefillRequestAtom} from "@agenta/shared/state"
-import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {useAtom} from "jotai"
 
 import {composeWithStarterPrompt} from "./composerPrefill"

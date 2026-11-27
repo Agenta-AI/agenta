@@ -1,9 +1,9 @@
 import {memo} from "react"
 
+import {formatLabel} from "@agenta/editor/drill-in"
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
 import {useT} from "@agenta/i18n"
 import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
-import {formatLabel} from "@agenta/ui/drill-in"
 
 import {NumberSliderControl} from "../../SchemaControls/NumberSliderControl"
 import {resolveAnyOfSchema} from "../../SchemaControls/schemaUtils"

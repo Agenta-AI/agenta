@@ -3,8 +3,8 @@
 // switching wrappers would remount the editable drawer below it and reset its playground state.
 import {act, createElement, useEffect} from "react"
 
+import {useTokenPathSuggestions} from "@agenta/editor/editor"
 import * as playground from "@agenta/playground"
-import {useTokenPathSuggestions} from "@agenta/ui/editor"
 import {createStore, Provider, type PrimitiveAtom} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"

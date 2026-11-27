@@ -1,10 +1,10 @@
 import {useCallback, useRef, useState, type CSSProperties, type ReactNode} from "react"
 
 import type {useComposerAttachments} from "@agenta/chat/hooks"
+import type {RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 import {templateBuilderMessage, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import focusCatalog from "@agenta/i18n/catalogs/home.focus"
-import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 
 import {resolveBoundAgentId} from "./boundAgent"
 import {HomeEntityList, type HomeListAgent, type HomeListTab} from "./HomeEntityList"

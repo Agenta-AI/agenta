@@ -7,10 +7,10 @@
 
 import {memo, useState, useMemo} from "react"
 
+import {SharedEditor} from "@agenta/editor/shared-editor"
 import {useT} from "@agenta/i18n"
 import presetModalCatalog from "@agenta/i18n/catalogs/entityUi.presetModal"
 import {Divider, SearchInput, Segmented} from "@agenta/ui/composed"
-import {SharedEditor} from "@agenta/ui/shared-editor"
 import {cn} from "@agenta/ui/styles"
 import yaml from "js-yaml"
 

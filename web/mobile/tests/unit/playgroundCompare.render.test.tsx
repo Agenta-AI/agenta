@@ -50,7 +50,7 @@ vi.mock("@agenta/entity-ui/drill-in", async (original) => ({
     ),
 }))
 vi.mock("@agenta/entity-ui/gatewayTool", () => ({CatalogDrawer: () => null}))
-vi.mock("@agenta/ui/editor", async (original) => ({
+vi.mock("@agenta/editor/editor", async (original) => ({
     ...(await original<object>()),
     preloadEditorPlugins: vi.fn(),
 }))

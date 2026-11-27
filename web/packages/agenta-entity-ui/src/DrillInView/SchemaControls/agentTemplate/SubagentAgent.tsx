@@ -3,10 +3,10 @@
  *  hook conditionally. */
 import type {ReactNode} from "react"
 
+import type {WorkflowReferenceBridge} from "@agenta/editor/drill-in"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
-import type {WorkflowReferenceBridge} from "@agenta/ui/drill-in"
 import {Button} from "@agenta/ui/ui"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"

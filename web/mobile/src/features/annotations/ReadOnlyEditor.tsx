@@ -1,4 +1,4 @@
-import {Editor} from "@agenta/ui/editor"
+import {Editor} from "@agenta/editor/editor"
 
 /**
  * Read-only text in the shared editor: markdown for a queue description, or JSON for an evaluator.

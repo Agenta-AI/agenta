@@ -16,9 +16,9 @@
 
 import {memo, useCallback, useMemo} from "react"
 
+import {EditorProvider} from "@agenta/editor/editor"
+import {SharedEditor} from "@agenta/editor/shared-editor"
 import type {SchemaProperty} from "@agenta/entities/shared"
-import {EditorProvider} from "@agenta/ui/editor"
-import {SharedEditor} from "@agenta/ui/shared-editor"
 import {Field} from "@agenta/ui/ui"
 
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"

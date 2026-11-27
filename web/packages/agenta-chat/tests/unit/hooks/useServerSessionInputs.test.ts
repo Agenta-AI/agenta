@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import {createElement, createRef, Fragment, useMemo, useRef, useState, type RefObject} from "react"
 
+import type {RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 import {projectIdAtom} from "@agenta/shared/state"
-import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {act, cleanup, fireEvent, render, renderHook, screen, waitFor} from "@testing-library/react"
 import type {UIMessage} from "ai"
 import {createStore, getDefaultStore, Provider} from "jotai"
@@ -59,7 +59,7 @@ vi.stubGlobal("fetch", fetchMock)
 
 beforeAll(async () => {
     // Load the real lazy editor before the one-second interaction assertions start.
-    await import("@agenta/ui/rich-chat-input")
+    await import("@agenta/editor/rich-chat-input")
     // Lexical asks the DOM selection's text node for geometry after Enter clears the editor.
     const rect = () => new DOMRect()
     for (const prototype of [

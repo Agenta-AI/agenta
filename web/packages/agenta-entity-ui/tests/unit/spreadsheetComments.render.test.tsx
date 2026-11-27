@@ -1,6 +1,6 @@
 import {act} from "react"
 
-import {clearSessionQuotes, getQuotes} from "@agenta/ui/quote-selection"
+import {clearSessionQuotes, getQuotes} from "@agenta/editor/quote-selection"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it} from "vitest"
 

@@ -1,12 +1,5 @@
 import {useCallback, useEffect, useLayoutEffect, useId, useMemo, useRef, useState} from "react"
 
-import {createT, useT, type CatalogKey} from "@agenta/i18n"
-import commonCatalog from "@agenta/i18n/catalogs/common"
-import spanCatalog from "@agenta/i18n/catalogs/observabilityUi.traceSpan"
-import {messagesToText} from "@agenta/observability/traceDrawer"
-import {sanitizeDataWithBlobUrls} from "@agenta/shared/utils"
-import {getStringOrJson} from "@agenta/shared/utils"
-import {CopyTooltip, Segmented, SimpleTooltip} from "@agenta/ui/composed"
 import {
     Editor as EditorWrapper,
     EditorProvider,
@@ -15,7 +8,14 @@ import {
     ON_CHANGE_LANGUAGE,
     SET_MARKDOWN_VIEW,
     SearchPlugin,
-} from "@agenta/ui/editor"
+} from "@agenta/editor/editor"
+import {createT, useT, type CatalogKey} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import spanCatalog from "@agenta/i18n/catalogs/observabilityUi.traceSpan"
+import {messagesToText} from "@agenta/observability/traceDrawer"
+import {sanitizeDataWithBlobUrls} from "@agenta/shared/utils"
+import {getStringOrJson} from "@agenta/shared/utils"
+import {CopyTooltip, Segmented, SimpleTooltip} from "@agenta/ui/composed"
 import {
     Accordion,
     AccordionContent,

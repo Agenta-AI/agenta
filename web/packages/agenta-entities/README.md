@@ -241,7 +241,7 @@ For heavy UI dependencies (like Lexical editor), use `React.lazy` or `next/dynam
 import {lazy, Suspense} from "react"
 
 const DiffView = lazy(() =>
-    import("@agenta/ui/editor").then((mod) => ({default: mod.DiffView})),
+    import("@agenta/editor/editor").then((mod) => ({default: mod.DiffView})),
 )
 ```
 

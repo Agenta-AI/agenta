@@ -10,7 +10,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "A pure-presentational file pill (icon + truncated filename + optional remove). Composes the @agenta/ui Button and the @agenta/ui Tooltip (Radix) internally.\n\n**Used in:** 1 place — the chat message attachment strip (`@agenta/ui/chat-message` `MessageAttachments`).",
+                    "A pure-presentational file pill (icon + truncated filename + optional remove). Composes the @agenta/ui Button and the @agenta/ui Tooltip (Radix) internally.\n\n**Used in:** 1 place — the chat message attachment strip (`@agenta/editor/chat-message` `MessageAttachments`).",
             },
         },
     },

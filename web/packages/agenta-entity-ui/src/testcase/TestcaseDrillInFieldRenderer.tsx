@@ -5,9 +5,9 @@ import {
     MessagesField,
     type CoreFieldRendererProps,
     type ViewMode,
-} from "@agenta/ui/drill-in"
-import {EditorProvider, SET_MARKDOWN_VIEW, useLexicalComposerContext} from "@agenta/ui/editor"
-import {SharedEditor} from "@agenta/ui/shared-editor"
+} from "@agenta/editor/drill-in"
+import {EditorProvider, SET_MARKDOWN_VIEW, useLexicalComposerContext} from "@agenta/editor/editor"
+import {SharedEditor} from "@agenta/editor/shared-editor"
 
 import {parseCodeString, toCodeString} from "./codeFormat"
 import {inferPrimitiveFromText} from "./TestcasePrimitiveValue.utils"

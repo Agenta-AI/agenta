@@ -1,14 +1,14 @@
 import {memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react"
 
-import {createT} from "@agenta/i18n"
-import drillInCatalog from "@agenta/i18n/catalogs/observabilityUi.drillIn"
-import {isChatMessagesArray, normalizeChatMessages} from "@agenta/ui/cell-renderers"
 import {
     Editor as EditorWrapper,
     EditorProvider,
     useLexicalComposerContext,
     SET_MARKDOWN_VIEW,
-} from "@agenta/ui/editor"
+} from "@agenta/editor/editor"
+import {createT} from "@agenta/i18n"
+import drillInCatalog from "@agenta/i18n/catalogs/observabilityUi.drillIn"
+import {isChatMessagesArray, normalizeChatMessages} from "@agenta/ui/cell-renderers"
 
 // Theme status tokens, which resolve in both apps (the antd color scale exists only in /w).
 const ROLE_COLOR_CLASSES: Record<string, string> = {

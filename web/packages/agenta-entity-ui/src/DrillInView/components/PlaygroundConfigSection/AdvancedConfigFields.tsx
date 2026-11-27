@@ -1,11 +1,11 @@
 import {memo, useCallback, useEffect, useRef, useState} from "react"
 
+import {formatLabel} from "@agenta/editor/drill-in"
+import {SharedEditor} from "@agenta/editor/shared-editor"
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
 import {richText, useT} from "@agenta/i18n"
 import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
-import {formatLabel} from "@agenta/ui/drill-in"
 import {HeightCollapse} from "@agenta/ui/layout"
-import {SharedEditor} from "@agenta/ui/shared-editor"
 import {CaretDown, CaretRight} from "@phosphor-icons/react"
 
 import {validateConfigAgainstSchema} from "../../SchemaControls/schemaValidator"

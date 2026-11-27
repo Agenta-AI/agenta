@@ -1,19 +1,19 @@
 import React, {ComponentProps, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import type {SimpleChatMessage} from "@agenta/playground"
-import {getAttachments} from "@agenta/shared/utils"
-import {message, modal} from "@agenta/ui/app-message"
 import {
     ChatMessageEditor as MessageEditor,
     MessageAttachments,
     createSnippetPdfAttachment,
-} from "@agenta/ui/chat-message"
+} from "@agenta/editor/chat-message"
+import {messageViewModeAtom, toMessageViewMode} from "@agenta/editor/drill-in"
+import type {SimpleChatMessage} from "@agenta/playground"
+import {getAttachments} from "@agenta/shared/utils"
+import {message, modal} from "@agenta/ui/app-message"
 import {
     getCollapseStyle,
     PromptImageUpload,
     PromptDocumentUpload,
 } from "@agenta/ui/components/presentational"
-import {messageViewModeAtom, toMessageViewMode} from "@agenta/ui/drill-in"
 import clsx from "clsx"
 import {useAtom, useSetAtom} from "jotai"
 import {v4 as uuidv4} from "uuid"

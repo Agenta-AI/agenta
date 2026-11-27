@@ -56,7 +56,7 @@ vi.mock("@agenta/entity-ui/drill-in", async (original) => ({
         ) : null,
 }))
 // The rich message editor is not under test: a text box stands in for it.
-vi.mock("@agenta/ui/chat-message", () => ({
+vi.mock("@agenta/editor/chat-message", () => ({
     ChatMessageEditor: ({
         role,
         text,
@@ -77,7 +77,7 @@ vi.mock("@agenta/ui/chat-message", () => ({
     ),
 }))
 vi.mock("@agenta/entity-ui/gatewayTool", () => ({CatalogDrawer: () => null}))
-vi.mock("@agenta/ui/editor", async (original) => ({
+vi.mock("@agenta/editor/editor", async (original) => ({
     ...(await original<object>()),
     preloadEditorPlugins: vi.fn(),
     DiffView: ({original, modified}: {original: string; modified: string}) => (

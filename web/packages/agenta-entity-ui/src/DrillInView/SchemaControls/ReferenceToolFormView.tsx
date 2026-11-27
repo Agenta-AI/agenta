@@ -2,14 +2,14 @@
  *  it calls. A subagent always runs that agent's LATEST revision, and this offers no way to pin. */
 import {useLayoutEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+import type {SubagentDetail, WorkflowReferenceBridge} from "@agenta/editor/drill-in"
+import {useDrillInUI} from "@agenta/editor/drill-in"
 import {harnessCapabilitiesAtomFamily, type HarnessCapabilitiesMap} from "@agenta/entities/workflow"
 import {formatNumber, useT} from "@agenta/i18n"
 import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
 import subagentViewsCatalog from "@agenta/i18n/catalogs/entityUi.subagentViews"
 import toolFormCatalog from "@agenta/i18n/catalogs/entityUi.toolForm"
 import {AutosizeTextarea, IconTile, ItemViewTitle} from "@agenta/ui/composed"
-import type {SubagentDetail, WorkflowReferenceBridge} from "@agenta/ui/drill-in"
-import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
 import {Alert, Button, SkeletonBlock} from "@agenta/ui/ui"

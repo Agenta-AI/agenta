@@ -1,5 +1,5 @@
+import {clearSessionQuotes} from "@agenta/editor/quote-selection"
 import {forgetSessionCreatedHere, freshSessionIds} from "@agenta/entities/session"
-import {clearSessionQuotes} from "@agenta/ui/quote-selection"
 
 import type {StagedUpload} from "../model"
 

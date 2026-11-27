@@ -16,8 +16,8 @@ This is an internal workspace package. Add it to your `package.json`:
 
 ## Usage
 
-Import from a subpath. The root barrel (`@agenta/ui`) re-exports the whole kit, the table and
-the Lexical editors included, so one root import pulls all of it in.
+Import from a subpath. The root barrel (`@agenta/ui`) re-exports the whole kit and the table,
+so one root import pulls all of it in. The Lexical editors are in `@agenta/editor`.
 
 ```typescript
 import {Button, Dialog} from "@agenta/ui/ui"
@@ -45,9 +45,6 @@ import {copyToClipboard} from "@agenta/ui/utils"
 | `@agenta/ui/table` | `src/data/infinite-virtual-table` | `InfiniteVirtualTable`, paginated store utilities |
 | `@agenta/ui/list-table` | `src/data/list-table` | `ListTable` |
 | `@agenta/ui/cell-renderers` | `src/data/cell-renderers` | `SmartCellContent`, `JsonCellContent`, ... |
-| `@agenta/ui/editor` | `src/editor/editor` | `Editor`, `DiffView`, `MarkdownPreview`, JSON parsing utilities |
-| `@agenta/ui/shared-editor` | `src/editor/shared-editor` | `SharedEditor`, `useDebounceInput` |
-| `@agenta/ui/chat-message` | `src/editor/chat-message` | `ChatMessageEditor`, `ChatMessageList` |
 | `@agenta/ui/select-llm-provider` | `src/patterns/select-llm-provider` | `SelectLLMProviderBase` |
 | `@agenta/ui/app-message` | `src/composed/feedback` | `AppMessageContext` (default), `message`, `modal`, `notification` |
 | `@agenta/ui/styles` | `src/foundation/utils` | `cn`, `layoutSizes` |
@@ -58,8 +55,8 @@ import {copyToClipboard} from "@agenta/ui/utils"
 
 See [src/README.md](./src/README.md) for detailed documentation on:
 
-- The nine folders of `src/` and their layer order
-- The module READMEs (table, editors, selection, presentational, utilities)
+- The eight folders of `src/` and their layer order
+- The module READMEs (table, selection, presentational, utilities)
 
 ## Development
 

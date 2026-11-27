@@ -9,6 +9,7 @@
  */
 import {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from "react"
 
+import type {RegistrySkillParams} from "@agenta/editor/drill-in"
 import {AgentChip} from "@agenta/entity-ui/agent"
 import {
     firstBadFile,
@@ -39,7 +40,6 @@ import {
 } from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {message} from "@agenta/ui/app-message"
-import type {RegistrySkillParams} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
 import {
     Alert,

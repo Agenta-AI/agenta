@@ -53,7 +53,6 @@
  * - Types and helpers
  */
 export * from "./data/infinite-virtual-table"
-export {MarkdownPreview, type MarkdownPreviewProps} from "./editor/MarkdownPreview"
 
 // ============================================================================
 // COMPONENTS
@@ -156,90 +155,6 @@ export {
     getProviderIcon,
     getProviderDisplayName,
 } from "./patterns/select-llm-provider"
-
-// ============================================================================
-// EDITOR - Rich text and code editor built on Lexical
-// ============================================================================
-
-export {
-    // Main components
-    Editor,
-    EditorProvider,
-    DiffView,
-    MarkdownToolbar,
-    type MarkdownToolbarProps,
-    preloadEditorPlugins,
-    // Re-exports from Lexical
-    useLexicalComposerContext,
-    ON_HYDRATE_FROM_REMOTE_CONTENT,
-    // State
-    editorStateAtom,
-    markdownViewAtom,
-    // Code editor utilities
-    createHighlightedNodes,
-    TOGGLE_FORM_VIEW,
-    DRILL_IN_TO_PATH,
-    ON_CHANGE_LANGUAGE,
-    PropertyClickPlugin,
-    $getEditorCodeAsString,
-    $isCodeBlockNode,
-    tryParsePartialJson,
-    safeJson5Parse,
-    // Drill-in context for Editor integration
-    DrillInProvider,
-    // Markdown utilities
-    TOGGLE_MARKDOWN_VIEW,
-    SET_MARKDOWN_VIEW,
-    ON_CHANGE_COMMAND,
-    $convertToMarkdownStringCustom,
-    PLAYGROUND_TRANSFORMERS,
-    // Search plugin
-    SearchPlugin,
-    // Hooks
-    useEditorConfig,
-    useEditorInvariant,
-    useEditorResize,
-    // Commands
-    INITIAL_CONTENT_COMMAND,
-    // Types
-    type EditorProps,
-    type EditorPluginsProps,
-    type EditorContextType,
-    type EditorProviderProps,
-    type InitialContentPayload,
-    type CustomRenderFn,
-} from "./editor/editor"
-
-// ============================================================================
-// SHARED EDITOR - Editor wrapper with debounce and styling
-// ============================================================================
-
-export {
-    SharedEditor,
-    useDebounceInput,
-    type SharedEditorProps,
-    type BaseContainerProps,
-} from "./editor/shared-editor"
-
-// ============================================================================
-// CHAT MESSAGE - Chat message editing components
-// ============================================================================
-// NOTE: Chat message types, schemas, and utilities are canonical in @agenta/shared.
-// Import types/utils from @agenta/shared or @agenta/shared/types.
-// Import components from @agenta/ui/chat-message subpath.
-
-export {
-    // Components only — types/schemas/utils available from @agenta/shared
-    ChatMessageEditor,
-    ChatMessageList,
-    MarkdownToggleButton,
-    ToolMessageHeader,
-    MessageAttachments,
-    AttachmentButton,
-    // Component Types
-    type ChatMessageEditorProps,
-    type ChatMessageListProps,
-} from "./editor/chat-message"
 
 // ============================================================================
 // HOOKS - Shared React hooks

@@ -1,5 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {ChatMessageList, type SimpleChatMessage} from "@agenta/editor/chat-message"
+import {SharedEditor} from "@agenta/editor/shared-editor"
 import {
     FormView,
     coerceTextEdit,
@@ -14,8 +16,6 @@ import {
 } from "@agenta/entity-ui/view-types"
 import {useT} from "@agenta/i18n"
 import inputsCatalog from "@agenta/i18n/catalogs/playground.inputs"
-import {ChatMessageList, type SimpleChatMessage} from "@agenta/ui/chat-message"
-import {SharedEditor} from "@agenta/ui/shared-editor"
 import {Input, Switch, Textarea} from "@agenta/ui/ui"
 
 export interface InputValueEditorProps {

@@ -1,5 +1,5 @@
+import type {FieldHeaderSlotProps} from "@agenta/editor/drill-in"
 import {useFieldSlots} from "@agenta/entity-ui/drill-in"
-import type {FieldHeaderSlotProps} from "@agenta/ui/drill-in"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 import {noop} from "./playgroundConfigSectionFixtures"

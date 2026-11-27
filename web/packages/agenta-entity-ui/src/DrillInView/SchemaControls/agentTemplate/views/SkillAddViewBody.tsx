@@ -1,8 +1,8 @@
 import {useCallback, useEffect, useMemo} from "react"
 
+import {useDrillInUI} from "@agenta/editor/drill-in"
 import {useT} from "@agenta/i18n"
 import skillsAgentCatalog from "@agenta/i18n/catalogs/skills.agent"
-import {useDrillInUI} from "@agenta/ui/drill-in"
 import {useViewTitle, type ViewProps, type ViewTarget} from "@agenta/ui/view-stack"
 
 import {isEmbedRefSkill, staticEmbedSlug} from "../itemDescriptors"

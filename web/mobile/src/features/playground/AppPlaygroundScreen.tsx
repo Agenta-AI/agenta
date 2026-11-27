@@ -1,9 +1,9 @@
 import {useCallback, useEffect} from "react"
 
+import {preloadEditorPlugins} from "@agenta/editor/editor"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import {playgroundController} from "@agenta/playground"
-import {preloadEditorPlugins} from "@agenta/ui/editor"
 import {
     AlertDialog,
     AlertDialogAction,

@@ -11,7 +11,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "An inline click-to-edit text control (display mode + @agenta/ui Input edit mode, Enter/Escape/blur handling).\n\n**Used in:** 2 places — the Lexical editor form nodes (`@agenta/ui/editor` primitive and object nodes). No app file imports it.",
+                    "An inline click-to-edit text control (display mode + @agenta/ui Input edit mode, Enter/Escape/blur handling).\n\n**Used in:** 2 places — the Lexical editor form nodes (`@agenta/editor/editor` primitive and object nodes). No app file imports it.",
             },
         },
     },

@@ -8,11 +8,11 @@
 
 import {memo, useCallback, useMemo, useState} from "react"
 
+import {EditorProvider} from "@agenta/editor/editor"
+import {SharedEditor} from "@agenta/editor/shared-editor"
 import {useT, type CatalogKey} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
-import {EditorProvider} from "@agenta/ui/editor"
-import {SharedEditor} from "@agenta/ui/shared-editor"
 import {
     Button,
     Dialog,

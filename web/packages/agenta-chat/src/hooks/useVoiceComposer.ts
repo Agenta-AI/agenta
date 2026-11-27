@@ -1,6 +1,6 @@
 import {type RefObject, useCallback, useRef, useState} from "react"
 
-import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import {type RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 
 import {useAudioRecorder} from "./useAudioRecorder"
 import {useDictationAnalyser} from "./useDictationAnalyser"

@@ -1,6 +1,6 @@
+import {clearQuotes, getQuotes, restoreQuotes} from "@agenta/editor/quote-selection"
+import type {RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 import {quotesToMarkdown} from "@agenta/shared/quotes"
-import {clearQuotes, getQuotes, restoreQuotes} from "@agenta/ui/quote-selection"
-import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 
 /** A composer submit: a synchronous `false` refuses the send and keeps the text in the editor. */
 export type QuotedSend = (text: string) => void | boolean | Promise<void | boolean>

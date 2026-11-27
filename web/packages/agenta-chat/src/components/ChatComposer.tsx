@@ -9,22 +9,22 @@
  */
 import {Suspense, lazy, useEffect, useRef, type ReactNode, type RefObject} from "react"
 
-import {useT} from "@agenta/i18n"
-import chatChatComposerCatalog from "@agenta/i18n/catalogs/chat.chatComposer"
-import {isOverlayOpen} from "@agenta/shared/utils"
-import {SimpleTooltip} from "@agenta/ui/composed"
-import {HeightCollapse} from "@agenta/ui/layout"
 import {
     registerQuoteSubmit,
     removeQuote,
     revealQuote,
     useStagedQuotes,
-} from "@agenta/ui/quote-selection"
+} from "@agenta/editor/quote-selection"
 import type {
     ComposerSurface,
     RichChatInputHandle,
     SlashCommandSection,
-} from "@agenta/ui/rich-chat-input"
+} from "@agenta/editor/rich-chat-input"
+import {useT} from "@agenta/i18n"
+import chatChatComposerCatalog from "@agenta/i18n/catalogs/chat.chatComposer"
+import {isOverlayOpen} from "@agenta/shared/utils"
+import {SimpleTooltip} from "@agenta/ui/composed"
+import {HeightCollapse} from "@agenta/ui/layout"
 import {Button} from "@agenta/ui/ui"
 import {Paperclip} from "@phosphor-icons/react"
 
@@ -43,7 +43,7 @@ import {useStagedFilesViewer} from "./useStagedFilesViewer"
 // Lexical is the heaviest dependency of the chat chunk — keep it out of the synchronous
 // mount. React.lazy (not next/dynamic) so the imperative handle ref forwards.
 const RichChatInput = lazy(() =>
-    import("@agenta/ui/rich-chat-input").then((m) => ({default: m.RichChatInput})),
+    import("@agenta/editor/rich-chat-input").then((m) => ({default: m.RichChatInput})),
 )
 
 export interface ChatComposerProps {

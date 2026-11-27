@@ -1,10 +1,10 @@
 import {useCallback, useEffect, useRef, useState, type RefObject} from "react"
 
+import type {ComposerSurface, RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 import {useT} from "@agenta/i18n"
 import chatVoiceInputButtonCatalog from "@agenta/i18n/catalogs/chat.voiceInputButton"
 import {pushToTalkLabel} from "@agenta/shared/utils"
 import {SimpleTooltip} from "@agenta/ui/composed"
-import type {ComposerSurface, RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {
     Button,
     DropdownMenu,

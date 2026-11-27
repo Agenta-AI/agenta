@@ -1,8 +1,8 @@
 import {useState} from "react"
 
+import {useDrillInUI} from "@agenta/editor/drill-in"
 import {useT} from "@agenta/i18n"
 import subagentViewsCatalog from "@agenta/i18n/catalogs/entityUi.subagentViews"
-import {useDrillInUI} from "@agenta/ui/drill-in"
 import {useViewForm, useViewTitle, type ConfigItemRef, type ViewProps} from "@agenta/ui/view-stack"
 
 import {ReferenceToolFormView} from "../../ReferenceToolFormView"

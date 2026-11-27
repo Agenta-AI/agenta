@@ -37,7 +37,7 @@ const jsonInput = vi.hoisted(() => ({
     text: "",
     type: null as null | ((text: string) => void),
 }))
-vi.mock("@agenta/ui/shared-editor", async (original) => ({
+vi.mock("@agenta/editor/shared-editor", async (original) => ({
     ...(await original<object>()),
     SharedEditor: (props: {initialValue: string; handleChange?: (text: string) => void}) => {
         jsonInput.text = props.initialValue

@@ -11,7 +11,7 @@
  */
 import {useEffect, useRef, useState} from "react"
 
-import {SharedEditor} from "@agenta/ui/shared-editor"
+import {SharedEditor} from "@agenta/editor/shared-editor"
 import {cn} from "@agenta/ui/styles"
 
 /** Languages the shared code editor can highlight; `code` is the generic monospace fallback. */

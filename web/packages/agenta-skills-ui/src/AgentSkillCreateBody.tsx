@@ -1,6 +1,7 @@
 /** The agent's "New skill" view: choose how, then write, upload or import; each skill joins the agent. */
 import {useCallback, useEffect, useRef, useState} from "react"
 
+import type {NewSkillBodyProps} from "@agenta/editor/drill-in"
 import {SkillViewHeader} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
 import skillsAgentCatalog from "@agenta/i18n/catalogs/skills.agent"
@@ -8,7 +9,6 @@ import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import skillsPageCatalog from "@agenta/i18n/catalogs/skills.page"
 import {projectIdAtom} from "@agenta/shared/state"
 import {buildSkillEmbedEntry} from "@agenta/skills"
-import type {NewSkillBodyProps} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
 import {
     Alert,

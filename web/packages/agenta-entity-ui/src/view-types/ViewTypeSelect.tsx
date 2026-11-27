@@ -3,7 +3,7 @@
  * user switch render mode (text/markdown/chat/form/json/yaml) for a
  * single typed value.
  *
- * Thin typed wrapper over `@agenta/ui/drill-in#ViewModeDropdown`, the
+ * Thin typed wrapper over `@agenta/editor/drill-in#ViewModeDropdown`, the
  * same component config-message editors use for their "View as" dropdown.
  * Aligning on a single component gives every view-mode dropdown across
  * the app the same icon (CaretDown @ size 14), the same triggering
@@ -17,7 +17,7 @@
  * constraint on its options stays narrow.
  */
 
-import {ViewModeDropdown, type ViewModeDropdownOption} from "@agenta/ui/drill-in"
+import {ViewModeDropdown, type ViewModeDropdownOption} from "@agenta/editor/drill-in"
 
 import type {ViewOption, ViewType} from "./viewTypes"
 

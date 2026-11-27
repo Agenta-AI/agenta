@@ -16,11 +16,11 @@ import {
     extractEvaluatorParameters,
     parseOutputMetrics,
 } from "@agenta/annotation"
+import {Editor} from "@agenta/editor/editor"
+import {SharedEditor} from "@agenta/editor/shared-editor"
 import {simpleQueueMolecule} from "@agenta/entities/simpleQueue"
 import {resolveOutputSchema, workflowMolecule} from "@agenta/entities/workflow"
 import {EntityDeleteModal} from "@agenta/entity-ui"
-import {Editor} from "@agenta/ui/editor"
-import {SharedEditor} from "@agenta/ui/shared-editor"
 import {ArrowSquareOut, CaretDown} from "@phosphor-icons/react"
 import {Button, Form, Input, Segmented, Skeleton, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"

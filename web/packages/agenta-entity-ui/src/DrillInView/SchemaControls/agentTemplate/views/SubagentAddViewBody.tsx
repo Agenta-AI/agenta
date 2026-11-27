@@ -1,8 +1,8 @@
 import {useCallback, useMemo, useRef} from "react"
 
+import {useDrillInUI, type WorkflowReferencePayload} from "@agenta/editor/drill-in"
 import {useT} from "@agenta/i18n"
 import addSubagentCatalog from "@agenta/i18n/catalogs/entityUi.addSubagent"
-import {useDrillInUI, type WorkflowReferencePayload} from "@agenta/ui/drill-in"
 import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 
 import {ConnectedAddSubagentList} from "../ConnectedSubagents"

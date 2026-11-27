@@ -15,10 +15,11 @@
         ".": "./src/index.ts"
     },
     "dependencies": {
-        "@agenta/i18n": "workspace:../agenta-i18n",
         "@agenta/chat": "workspace:../agenta-chat",
+        "@agenta/editor": "workspace:../agenta-editor",
         "@agenta/entities": "workspace:../agenta-entities",
         "@agenta/entity-ui": "workspace:../agenta-entity-ui",
+        "@agenta/i18n": "workspace:../agenta-i18n",
         "@agenta/observability": "workspace:../agenta-observability",
         "@agenta/observability-ui": "workspace:../agenta-observability-ui",
         "@agenta/sessions": "workspace:../agenta-sessions",

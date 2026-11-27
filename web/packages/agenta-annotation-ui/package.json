@@ -22,9 +22,10 @@
     },
     "dependencies": {
         "@agenta/annotation": "workspace:../agenta-annotation",
+        "@agenta/editor": "workspace:../agenta-editor",
         "@agenta/entities": "workspace:../agenta-entities",
-        "@agenta/i18n": "workspace:../agenta-i18n",
         "@agenta/entity-ui": "workspace:../agenta-entity-ui",
+        "@agenta/i18n": "workspace:../agenta-i18n",
         "@agenta/shared": "workspace:../agenta-shared",
         "@agenta/ui": "workspace:../agenta-ui",
         "@phosphor-icons/react": "^2.1.10",

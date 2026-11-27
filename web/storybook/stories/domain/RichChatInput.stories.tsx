@@ -2,11 +2,6 @@ import {useEffect, useRef, useState} from "react"
 
 import {PermissionsPickerPanel} from "@agenta/chat/components"
 import {
-    PERMISSION_POLICY_OPTIONS,
-    permissionPolicyLabel,
-    type PermissionPolicy,
-} from "@agenta/entity-ui/drill-in"
-import {
     HintKey,
     PalettePanel,
     RichChatInput,
@@ -15,7 +10,12 @@ import {
     type PaletteSpec,
     type RichChatInputHandle,
     type SlashCommandSection,
-} from "@agenta/ui/rich-chat-input"
+} from "@agenta/editor/rich-chat-input"
+import {
+    PERMISSION_POLICY_OPTIONS,
+    permissionPolicyLabel,
+    type PermissionPolicy,
+} from "@agenta/entity-ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {
     ChatCircleDots,

@@ -6,7 +6,7 @@
  */
 import {createRef} from "react"
 
-import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import type {RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 import {act, cleanup, render, screen} from "@testing-library/react"
 import {afterEach, describe, expect, it, vi} from "vitest"
 

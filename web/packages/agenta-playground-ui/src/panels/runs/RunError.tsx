@@ -1,6 +1,6 @@
+import {SharedEditor} from "@agenta/editor/shared-editor"
 import {createT} from "@agenta/i18n"
 import runsCatalog from "@agenta/i18n/catalogs/playground.runs"
-import {SharedEditor} from "@agenta/ui/shared-editor"
 
 export interface RunErrorResult {
     error?: unknown

@@ -7,17 +7,17 @@
 
 import {createContext, useContext, useMemo, useState, useCallback, type ReactNode} from "react"
 
-import {type DataPath, setValueAtPath, deleteValueAtPath} from "@agenta/shared/utils"
-import type {DrillInContextValue} from "@agenta/ui/drill-in"
+import type {DrillInContextValue} from "@agenta/editor/drill-in"
 import type {
     DrillInClassNames,
     DrillInFieldBehaviors,
     DrillInSlots,
     DrillInStyles,
     MoleculeDrillInAdapter,
-} from "@agenta/ui/drill-in"
-import {defaultFieldBehaviors} from "@agenta/ui/drill-in"
-import {mergeClassNames} from "@agenta/ui/drill-in"
+} from "@agenta/editor/drill-in"
+import {defaultFieldBehaviors} from "@agenta/editor/drill-in"
+import {mergeClassNames} from "@agenta/editor/drill-in"
+import {type DataPath, setValueAtPath, deleteValueAtPath} from "@agenta/shared/utils"
 import {useAtomValue, useSetAtom} from "jotai"
 
 // ============================================================================

@@ -12,11 +12,11 @@
 
 import {memo, useCallback, useMemo} from "react"
 
+import {ChatMessageList} from "@agenta/editor/chat-message"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {useT} from "@agenta/i18n"
 import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import type {SimpleChatMessage} from "@agenta/shared/types"
-import {ChatMessageList} from "@agenta/ui/chat-message"
 import clsx from "clsx"
 
 export interface MessagesSchemaControlProps {

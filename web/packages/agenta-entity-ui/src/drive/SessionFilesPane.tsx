@@ -10,12 +10,12 @@
  */
 import {createContext, useCallback, useContext, useEffect, useMemo, useRef} from "react"
 
+import {clearQuoteReveal, getQuotes, useQuoteReveal} from "@agenta/editor/quote-selection"
 import {type DriveId} from "@agenta/entities/drive"
 import {useSessionDriveSummary} from "@agenta/entities/drive"
 import {createT} from "@agenta/i18n"
 import filesPaneCatalog from "@agenta/i18n/catalogs/entityUi.filesPane"
 import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
-import {clearQuoteReveal, getQuotes, useQuoteReveal} from "@agenta/ui/quote-selection"
 import {atom, useAtom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai-family"
 import dynamic from "next/dynamic"

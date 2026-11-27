@@ -1,9 +1,9 @@
 /** The Files pane's body for an editable markdown / text file: the shared {@link MarkdownEditor} over the draft. */
 import {useCallback, useEffect, useRef, useState} from "react"
 
+import {QuoteSelectionLayer} from "@agenta/editor/quote-selection"
 import {type DriveEditorMode, useDriveFileDraft} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
-import {QuoteSelectionLayer} from "@agenta/ui/quote-selection"
 
 import {MarkdownEditor} from "../DrillInView/SchemaControls/MarkdownEditor"
 

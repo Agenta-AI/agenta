@@ -72,6 +72,7 @@
         "./workflow/commitDiff": "./src/workflow/commitDiff/index.ts"
     },
     "dependencies": {
+        "@agenta/editor": "workspace:../agenta-editor",
         "@agenta/sdk": "workspace:../agenta-sdk",
         "@agenta/shared": "workspace:../agenta-shared",
         "@agenta/ui": "workspace:../agenta-ui",

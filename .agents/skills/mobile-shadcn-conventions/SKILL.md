@@ -49,7 +49,7 @@ and the principles and the layout in `web/DESIGN.md`.
   Chat lives in `src/features/chat/` (`ChatScreen`, `Composer`,
   `LiveConversation`, `TranscriptTurns`, ...), built on `@agenta/chat`
   (`state`, `model`, `hooks`, `components`, ... subpaths) and the Lexical-based
-  `@agenta/ui/rich-chat-input`. Markdown streams through `streamdown`.
+  `@agenta/editor/rich-chat-input`. Markdown streams through `streamdown`.
 - Behavior comes from `@agenta/chat` hooks — never re-implement orchestration
   inside a rendered component.
 - A registry component that arrives with `lucide-react` icons gets Phosphor icons instead (`ICON-01`).

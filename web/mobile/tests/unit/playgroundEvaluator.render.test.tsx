@@ -7,10 +7,10 @@
  */
 import {act} from "react"
 
+import {useTokenPathSuggestions} from "@agenta/editor/editor"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {playgroundController} from "@agenta/playground"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
-import {useTokenPathSuggestions} from "@agenta/ui/editor"
 import {QueryClient} from "@tanstack/react-query"
 import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
@@ -90,7 +90,7 @@ vi.mock("@/features/playground/PlaygroundTestsetMenu", () => ({
 vi.mock("@/features/chat/DrillInBridgeProvider", () => ({
     DrillInBridgeProvider: ({children}: {children: React.ReactNode}) => children,
 }))
-vi.mock("@agenta/ui/editor", async (original) => ({
+vi.mock("@agenta/editor/editor", async (original) => ({
     ...(await original<object>()),
     preloadEditorPlugins: vi.fn(),
 }))

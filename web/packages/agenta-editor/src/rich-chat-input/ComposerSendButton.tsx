@@ -1,0 +1,85 @@
+import {type ReactNode} from "react"
+
+import {useT} from "@agenta/i18n"
+import uiChatInputCatalog from "@agenta/i18n/catalogs/ui.chatInput"
+import {cn} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
+import {ArrowUp, CircleNotch} from "@phosphor-icons/react"
+
+import type {ComposerSurface} from "./RichChatInput"
+
+export interface ComposerSendButtonProps {
+    onClick?: () => void
+    disabled?: boolean
+    ariaLabel?: string
+    /** Override the glyph when the primary action is a variant of sending (e.g. attaching a
+     * recording to the message instead of sending it outright). */
+    icon?: ReactNode
+    /**
+     * The send is in flight and has not landed yet — a create that is still minting, a navigation
+     * that has not committed. The arrow becomes a spinner and the button refuses a second press.
+     */
+    sending?: boolean
+    /** The composer cannot send at all (not just empty): drawn inert on every surface. */
+    blocked?: boolean
+    /** `canvas`: a dark 28 px kit icon button; inert grey with nothing to send. */
+    surface?: ComposerSurface
+}
+
+/**
+ * The composer's primary action button.
+ *
+ * Presentational and Lexical-free on purpose: the send affordance appears both inside the editor
+ * and on surfaces that overlay it (the voice recording bar), and those must be the same control —
+ * a second, similar-but-different send button in the most-used flow in the product is worse than
+ * any styling detail it might otherwise get right.
+ */
+export function ComposerSendButton({
+    onClick,
+    disabled,
+    ariaLabel,
+    icon,
+    sending,
+    surface,
+    blocked,
+}: ComposerSendButtonProps) {
+    const t = useT(uiChatInputCatalog)
+    return (
+        <Button
+            // The kit sizes it, the same on every window and on touch (SIZE-01, SIZE-02).
+            size={surface === "canvas" ? "icon-sm" : "icon"}
+            variant="default"
+            aria-label={sending ? t("ui.chatInput.sending") : (ariaLabel ?? t("ui.chatInput.send"))}
+            aria-busy={sending || undefined}
+            disabled={disabled || sending}
+            onClick={onClick}
+            // Filled accent when there's something to send, a clearly-inert grey fill when empty
+            // (never a faint outlined ghost). A send in flight keeps the fill even though the
+            // editor has already emptied under it: a spinner on the inert grey said "nothing to
+            // do" and "working" at once.
+            className={cn(
+                // The kit's control radius, never a circle (SHAPE-01).
+                // Inert grey until there is something to send, on every surface.
+                (disabled || blocked) && !sending
+                    ? "!border-secondary !bg-secondary !text-muted-foreground disabled:!opacity-100"
+                    : surface === "canvas"
+                      ? "!border-[var(--ag-composer-send-bg,var(--foreground))] !bg-[var(--ag-composer-send-bg,var(--foreground))] !text-[var(--ag-composer-send-fg,var(--background))] disabled:!opacity-100 hover:!opacity-90"
+                      : // Re-toned by its CONTAINER, not by a prop: the button sits five levels below
+                        // any host that might want a different fill, and threading a colour down
+                        // that chain is how one control becomes two. Defaults to `primary`.
+                        "!border-[var(--ag-composer-send-bg,var(--primary))] !bg-[var(--ag-composer-send-bg,var(--primary))] !text-[var(--ag-composer-send-fg,var(--background))] hover:!border-[var(--ag-composer-send-hover-bg,var(--primary-hover))] hover:!bg-[var(--ag-composer-send-hover-bg,var(--primary-hover))]",
+            )}
+        >
+            {sending ? (
+                // The ring the rest of the chat surfaces load with, not the antd four-dot
+                // spinner: one glyph swaps for another at the same weight on the same button.
+                <CircleNotch size={16} weight="bold" className="animate-spin" />
+            ) : (
+                (icon ?? (
+                    // The kit's icon size for the button: 14 px in the 28 px canvas button.
+                    <ArrowUp size={16} />
+                ))
+            )}
+        </Button>
+    )
+}

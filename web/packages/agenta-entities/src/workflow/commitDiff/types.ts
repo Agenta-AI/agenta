@@ -5,7 +5,7 @@
  * `ChangeSection`s (tools / instructions / model / params). The commit modal renders
  * these as a plain-language summary; the raw JSON diff stays available separately.
  */
-import type {ExtendedDiffLine} from "@agenta/ui/diff"
+import type {ExtendedDiffLine} from "@agenta/editor/diff"
 
 export type ChangeKind = "added" | "removed" | "edited" | "changed"
 

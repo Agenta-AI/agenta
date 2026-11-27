@@ -10,13 +10,13 @@
 
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import type {DrillInUIComponents} from "@agenta/editor/drill-in"
+import {formatLabel} from "@agenta/editor/drill-in"
 import {selectedOptionLabel} from "@agenta/entities/secret"
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
 import {createT} from "@agenta/i18n"
 import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
 import {getOptionsFromSchema} from "@agenta/shared/utils"
-import type {DrillInUIComponents} from "@agenta/ui/drill-in"
-import {formatLabel} from "@agenta/ui/drill-in"
 import {Button, Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/ui/ui"
 import {ArrowLeft} from "@phosphor-icons/react"
 

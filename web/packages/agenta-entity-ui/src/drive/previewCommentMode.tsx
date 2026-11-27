@@ -1,8 +1,8 @@
 // Comment mode for the Files pane preview: the toolbar toggles it, the preview bodies read it.
 import {createContext, useContext, useEffect, useMemo, useState, type ReactNode} from "react"
 
+import type {PreviewCommentTarget} from "@agenta/editor/quote-selection"
 import type {DriveFileKind} from "@agenta/entities/drive"
-import type {PreviewCommentTarget} from "@agenta/ui/quote-selection"
 
 import {useDriveSessionId} from "./driveSessionContext"
 

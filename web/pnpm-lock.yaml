@@ -424,6 +424,9 @@ importers:
       '@agenta/chat':
         specifier: workspace:../packages/agenta-chat
         version: link:../packages/agenta-chat
+      '@agenta/editor':
+        specifier: workspace:../packages/agenta-editor
+        version: link:../packages/agenta-editor
       '@agenta/entities':
         specifier: workspace:../packages/agenta-entities
         version: link:../packages/agenta-entities
@@ -1066,6 +1069,9 @@ importers:
       '@agenta/annotation':
         specifier: workspace:../agenta-annotation
         version: link:../agenta-annotation
+      '@agenta/editor':
+        specifier: workspace:../agenta-editor
+        version: link:../agenta-editor
       '@agenta/entities':
         specifier: workspace:../agenta-entities
         version: link:../agenta-entities
@@ -1229,6 +1235,9 @@ importers:
 
   packages/agenta-chat:
     dependencies:
+      '@agenta/editor':
+        specifier: workspace:../agenta-editor
+        version: link:../agenta-editor
       '@agenta/entities':
         specifier: workspace:../agenta-entities
         version: link:../agenta-entities
@@ -1312,8 +1321,150 @@ importers:
         specifier: ^4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.11)(jsdom@26.1.0)(vite@8.1.6(@types/node@20.19.39)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4))
 
+  packages/agenta-editor:
+    dependencies:
+      '@agenta/i18n':
+        specifier: workspace:../agenta-i18n
+        version: link:../agenta-i18n
+      '@agenta/shared':
+        specifier: workspace:../agenta-shared
+        version: link:../agenta-shared
+      '@agenta/ui':
+        specifier: workspace:../agenta-ui
+        version: link:../agenta-ui
+      '@floating-ui/react':
+        specifier: ^0.27.13
+        version: 0.27.19(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@lexical/code':
+        specifier: ^0.46.0
+        version: 0.46.0(typescript@5.9.3)
+      '@lexical/code-shiki':
+        specifier: ^0.46.0
+        version: 0.46.0(typescript@5.9.3)
+      '@lexical/hashtag':
+        specifier: ^0.46.0
+        version: 0.46.0(typescript@5.9.3)
+      '@lexical/history':
+        specifier: ^0.46.0
+        version: 0.46.0(typescript@5.9.3)
+      '@lexical/html':
+        specifier: ^0.46.0
+        version: 0.46.0(typescript@5.9.3)
+      '@lexical/link':
+        specifier: ^0.46.0
+        version: 0.46.0(typescript@5.9.3)
+      '@lexical/list':
+        specifier: ^0.46.0
+        version: 0.46.0(typescript@5.9.3)
+      '@lexical/mark':
+        specifier: ^0.46.0
+        version: 0.46.0(typescript@5.9.3)
+      '@lexical/markdown':
+        specifier: ^0.46.0
+        version: 0.46.0(typescript@5.9.3)
+      '@lexical/overflow':
+        specifier: ^0.46.0
+        version: 0.46.0(typescript@5.9.3)
+      '@lexical/react':
+        specifier: ^0.46.0
+        version: 0.46.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@5.9.3)(yjs@13.6.30)
+      '@lexical/rich-text':
+        specifier: ^0.46.0
+        version: 0.46.0(typescript@5.9.3)
+      '@lexical/selection':
+        specifier: ^0.46.0
+        version: 0.46.0(typescript@5.9.3)
+      '@lexical/table':
+        specifier: ^0.46.0
+        version: 0.46.0(typescript@5.9.3)
+      '@lexical/utils':
+        specifier: ^0.46.0
+        version: 0.46.0(typescript@5.9.3)
+      '@phosphor-icons/react':
+        specifier: ^2.1.10
+        version: 2.1.10(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      dompurify:
+        specifier: ^3.4.17
+        version: 3.4.17
+      fast-deep-equal:
+        specifier: ^3.1.3
+        version: 3.1.3
+      jotai:
+        specifier: ^2.16.1
+        version: 2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6)
+      jotai-family:
+        specifier: ^1.0.1
+        version: 1.0.1(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))
+      js-yaml:
+        specifier: 4.3.2
+        version: 4.3.2
+      json5:
+        specifier: ^2.2.3
+        version: 2.2.3
+      lexical:
+        specifier: ^0.46.0
+        version: 0.46.0(typescript@5.9.3)
+      marked:
+        specifier: ^17.0.4
+        version: 17.0.6
+      prismjs:
+        specifier: ^1.30.0
+        version: 1.30.0
+      react:
+        specifier: '>=18.0.0'
+        version: 19.2.6
+      react-dom:
+        specifier: '>=18.0.0'
+        version: 19.2.6(react@19.2.6)
+      uuid:
+        specifier: ^11.1.1
+        version: 11.1.1
+    devDependencies:
+      '@testing-library/dom':
+        specifier: ^10.4.0
+        version: 10.4.1
+      '@testing-library/react':
+        specifier: ^16.3.2
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@types/js-yaml':
+        specifier: ^4.0.9
+        version: 4.0.9
+      '@types/node':
+        specifier: ^20.19.20
+        version: 20.19.39
+      '@types/prismjs':
+        specifier: ^1.26.5
+        version: 1.26.6
+      '@types/react':
+        specifier: ^19.0.10
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.0.4
+        version: 19.2.3(@types/react@19.2.14)
+      '@vitejs/plugin-react-swc':
+        specifier: ^4.3.2
+        version: 4.3.2(@swc/helpers@0.5.23)(vite@8.1.6(@types/node@20.19.39)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4))
+      '@vitest/coverage-v8':
+        specifier: ^4.1.11
+        version: 4.1.11(vitest@4.1.11)
+      jsdom:
+        specifier: ^26.1.0
+        version: 26.1.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.11)(jsdom@26.1.0)(vite@8.1.6(@types/node@20.19.39)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4))
+
   packages/agenta-entities:
     dependencies:
+      '@agenta/editor':
+        specifier: workspace:../agenta-editor
+        version: link:../agenta-editor
       '@agenta/sdk':
         specifier: workspace:../agenta-sdk
         version: link:../agenta-sdk
@@ -1474,6 +1625,9 @@ importers:
 
   packages/agenta-entity-ui:
     dependencies:
+      '@agenta/editor':
+        specifier: workspace:../agenta-editor
+        version: link:../agenta-editor
       '@agenta/entities':
         specifier: workspace:../agenta-entities
         version: link:../agenta-entities
@@ -1649,6 +1803,9 @@ importers:
       '@agenta/chat':
         specifier: workspace:../agenta-chat
         version: link:../agenta-chat
+      '@agenta/editor':
+        specifier: workspace:../agenta-editor
+        version: link:../agenta-editor
       '@agenta/entities':
         specifier: workspace:../agenta-entities
         version: link:../agenta-entities
@@ -1887,6 +2044,9 @@ importers:
       '@agenta/annotation-ui':
         specifier: workspace:../agenta-annotation-ui
         version: link:../agenta-annotation-ui
+      '@agenta/editor':
+        specifier: workspace:../agenta-editor
+        version: link:../agenta-editor
       '@agenta/entities':
         specifier: workspace:../agenta-entities
         version: link:../agenta-entities
@@ -2012,6 +2172,9 @@ importers:
       '@agenta/chat':
         specifier: workspace:../agenta-chat
         version: link:../agenta-chat
+      '@agenta/editor':
+        specifier: workspace:../agenta-editor
+        version: link:../agenta-editor
       '@agenta/entities':
         specifier: workspace:../agenta-entities
         version: link:../agenta-entities
@@ -2431,6 +2594,9 @@ importers:
 
   packages/agenta-skills-ui:
     dependencies:
+      '@agenta/editor':
+        specifier: workspace:../agenta-editor
+        version: link:../agenta-editor
       '@agenta/entity-ui':
         specifier: workspace:../agenta-entity-ui
         version: link:../agenta-entity-ui
@@ -2501,54 +2667,6 @@ importers:
       '@cloudflare/stream-react':
         specifier: ^1.9.3
         version: 1.9.3(react@19.2.6)
-      '@floating-ui/react':
-        specifier: ^0.27.13
-        version: 0.27.19(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      '@lexical/code':
-        specifier: ^0.46.0
-        version: 0.46.0(typescript@5.9.3)
-      '@lexical/code-shiki':
-        specifier: ^0.46.0
-        version: 0.46.0(typescript@5.9.3)
-      '@lexical/hashtag':
-        specifier: ^0.46.0
-        version: 0.46.0(typescript@5.9.3)
-      '@lexical/history':
-        specifier: ^0.46.0
-        version: 0.46.0(typescript@5.9.3)
-      '@lexical/html':
-        specifier: ^0.46.0
-        version: 0.46.0(typescript@5.9.3)
-      '@lexical/link':
-        specifier: ^0.46.0
-        version: 0.46.0(typescript@5.9.3)
-      '@lexical/list':
-        specifier: ^0.46.0
-        version: 0.46.0(typescript@5.9.3)
-      '@lexical/mark':
-        specifier: ^0.46.0
-        version: 0.46.0(typescript@5.9.3)
-      '@lexical/markdown':
-        specifier: ^0.46.0
-        version: 0.46.0(typescript@5.9.3)
-      '@lexical/overflow':
-        specifier: ^0.46.0
-        version: 0.46.0(typescript@5.9.3)
-      '@lexical/react':
-        specifier: ^0.46.0
-        version: 0.46.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@5.9.3)(yjs@13.6.30)
-      '@lexical/rich-text':
-        specifier: ^0.46.0
-        version: 0.46.0(typescript@5.9.3)
-      '@lexical/selection':
-        specifier: ^0.46.0
-        version: 0.46.0(typescript@5.9.3)
-      '@lexical/table':
-        specifier: ^0.46.0
-        version: 0.46.0(typescript@5.9.3)
-      '@lexical/utils':
-        specifier: ^0.46.0
-        version: 0.46.0(typescript@5.9.3)
       '@phosphor-icons/react':
         specifier: ^2.1.10
         version: 2.1.10(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -2624,12 +2742,6 @@ importers:
       cmdk:
         specifier: ^1.1.1
         version: 1.1.1(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      dompurify:
-        specifier: ^3.4.17
-        version: 3.4.17
-      fast-deep-equal:
-        specifier: ^3.1.3
-        version: 3.1.3
       immer:
         specifier: ^10.2.0
         version: 10.2.0
@@ -2648,24 +2760,9 @@ importers:
       jotai-tanstack-query:
         specifier: ^0.11.0
         version: 0.11.0(@tanstack/query-core@5.100.9)(@tanstack/react-query@5.100.9(react@19.2.6))(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))(react@19.2.6)
-      js-yaml:
-        specifier: 4.3.2
-        version: 4.3.2
-      json5:
-        specifier: ^2.2.3
-        version: 2.2.3
-      lexical:
-        specifier: ^0.46.0
-        version: 0.46.0(typescript@5.9.3)
-      marked:
-        specifier: ^17.0.4
-        version: 17.0.6
       motion:
         specifier: ^12.0.0
         version: 12.38.0(@emotion/is-prop-valid@0.7.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      prismjs:
-        specifier: ^1.30.0
-        version: 1.30.0
       react:
         specifier: '>=18.0.0'
         version: 19.2.6
@@ -2700,18 +2797,12 @@ importers:
       '@testing-library/react':
         specifier: ^16.3.2
         version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      '@types/js-yaml':
-        specifier: ^4.0.9
-        version: 4.0.9
       '@types/lodash':
         specifier: ^4.17.23
         version: 4.17.24
       '@types/node':
         specifier: ^20.19.20
         version: 20.19.39
-      '@types/prismjs':
-        specifier: ^1.26.5
-        version: 1.26.6
       '@types/react':
         specifier: ^19.0.10
         version: 19.2.14
@@ -2751,6 +2842,9 @@ importers:
       '@agenta/chat':
         specifier: workspace:*
         version: link:../packages/agenta-chat
+      '@agenta/editor':
+        specifier: workspace:*
+        version: link:../packages/agenta-editor
       '@agenta/entities':
         specifier: workspace:*
         version: link:../packages/agenta-entities

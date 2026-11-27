@@ -1,12 +1,12 @@
 import {useCallback, useMemo, useState} from "react"
 
-import {DrillInContent} from "@agenta/ui/drill-in"
-import type {PathItem} from "@agenta/ui/drill-in"
+import {DrillInContent} from "@agenta/editor/drill-in"
+import type {PathItem} from "@agenta/editor/drill-in"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 /**
  * DrillInContent — the @agenta/ui entity-independent drill-in navigation engine
- * (`@agenta/ui/drill-in`).
+ * (`@agenta/editor/drill-in`).
  *
  * The engine is deliberately dependency-free: it navigates nested data via injected
  * `getValue` / `setValue` / `getRootItems` callbacks and renders field content through

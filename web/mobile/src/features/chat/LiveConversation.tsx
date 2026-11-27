@@ -43,6 +43,8 @@ import {
     type TurnViewModel,
 } from "@agenta/chat/model"
 import {getSessionTurnId} from "@agenta/chat/state"
+import {QuoteSelectionLayer} from "@agenta/editor/quote-selection"
+import type {RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 import {
     cancelSessionExecution,
     dropUnacceptedLocalSessionAtom,
@@ -64,8 +66,6 @@ import chatMobileLiveCatalog from "@agenta/i18n/catalogs/chat.mobileLive"
 import {isOnScreen, isOverlayOpen} from "@agenta/shared/utils"
 import {message, modal} from "@agenta/ui/app-message"
 import {ChatBubble} from "@agenta/ui/components/presentational"
-import {QuoteSelectionLayer} from "@agenta/ui/quote-selection"
-import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {isAltChord} from "@agenta/ui/shortcuts"
 import {cn} from "@agenta/ui/styles"
 import {Button} from "@agenta/ui/ui"

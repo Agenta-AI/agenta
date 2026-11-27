@@ -26,10 +26,10 @@
 
 import {useCallback, useId, useMemo, useState, type ReactNode} from "react"
 
+import {SharedEditor} from "@agenta/editor/shared-editor"
 import {useT} from "@agenta/i18n"
 import formViewCatalog from "@agenta/i18n/catalogs/entityUi.formView"
 import {InputNumber} from "@agenta/ui/composed"
-import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
 import type {ChipVariant} from "@agenta/ui/type-chip"
 import {Button, Input, Switch} from "@agenta/ui/ui"

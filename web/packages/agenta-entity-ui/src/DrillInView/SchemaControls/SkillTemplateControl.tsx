@@ -17,10 +17,10 @@
  */
 import {memo, useCallback, useEffect, useRef, useState} from "react"
 
+import {useDrillInUI} from "@agenta/editor/drill-in"
 import {createT, useT} from "@agenta/i18n"
 import skillFormCatalog from "@agenta/i18n/catalogs/entityUi.skillTemplate"
 import {isPlainObject, safeStringify} from "@agenta/shared/utils"
-import {useDrillInUI} from "@agenta/ui/drill-in"
 import {
     Badge,
     Button,

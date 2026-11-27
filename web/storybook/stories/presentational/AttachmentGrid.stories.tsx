@@ -9,7 +9,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "A pure-presentational flex layout container that wraps ImageAttachment / FileAttachment children. A plain `<div>` wrapper.\n\n**Used in:** 1 place — the chat message attachment strip (`@agenta/ui/chat-message` `MessageAttachments`).",
+                    "A pure-presentational flex layout container that wraps ImageAttachment / FileAttachment children. A plain `<div>` wrapper.\n\n**Used in:** 1 place — the chat message attachment strip (`@agenta/editor/chat-message` `MessageAttachments`).",
             },
         },
     },

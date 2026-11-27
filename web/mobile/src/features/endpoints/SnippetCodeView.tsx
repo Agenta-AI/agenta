@@ -1,5 +1,5 @@
-import {EditorProvider} from "@agenta/ui/editor"
-import {SharedEditor} from "@agenta/ui/shared-editor"
+import {EditorProvider} from "@agenta/editor/editor"
+import {SharedEditor} from "@agenta/editor/shared-editor"
 
 /**
  * Read-only, highlighted code in the shared editor, at its full height. Python and TypeScript

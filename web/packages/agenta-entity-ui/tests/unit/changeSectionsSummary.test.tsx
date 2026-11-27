@@ -2,7 +2,7 @@
  * The version history's summary of a text change (S06): only the changed lines, and a removed and
  * added pair drops the start they share, so the box shows what changed.
  */
-import type {ExtendedDiffLine} from "@agenta/ui/diff"
+import type {ExtendedDiffLine} from "@agenta/editor/diff"
 import {renderToStaticMarkup} from "react-dom/server"
 import {describe, expect, it} from "vitest"
 

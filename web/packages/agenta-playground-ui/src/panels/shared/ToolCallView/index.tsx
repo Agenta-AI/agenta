@@ -1,9 +1,9 @@
 import React, {useMemo} from "react"
 
+import {SharedEditor} from "@agenta/editor/shared-editor"
 import {useT} from "@agenta/i18n"
 import panelsCatalog from "@agenta/i18n/catalogs/playground.panels"
 import {CopyTooltip} from "@agenta/ui/copy-tooltip"
-import {SharedEditor} from "@agenta/ui/shared-editor"
 import clsx from "clsx"
 import JSON5 from "json5"
 

@@ -2,9 +2,9 @@ import type {MutableRefObject} from "react"
 
 import {ChatComposer} from "@agenta/chat/components"
 import type {useComposerAttachments} from "@agenta/chat/hooks"
+import type {RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 import {useT} from "@agenta/i18n"
 import agentsFirstRun from "@agenta/i18n/catalogs/agents.firstRun"
-import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {Button} from "@agenta/ui/ui"
 import {ArrowRightIcon} from "@phosphor-icons/react"
 

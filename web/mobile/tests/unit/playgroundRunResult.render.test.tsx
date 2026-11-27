@@ -7,7 +7,7 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 // The editor is Lexical; here it only needs to show its text and whether it is in code mode.
-vi.mock("@agenta/ui/shared-editor", () => ({
+vi.mock("@agenta/editor/shared-editor", () => ({
     SharedEditor: ({
         initialValue,
         editorProps,

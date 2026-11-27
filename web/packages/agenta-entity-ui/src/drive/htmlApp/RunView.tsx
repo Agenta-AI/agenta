@@ -2,6 +2,15 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
+    frameRectToRoot,
+    PreviewCommentLayer,
+    toPinQueries,
+    usePreviewComments,
+    type PreviewPick,
+    type PreviewPinRect,
+    type PreviewRect,
+} from "@agenta/editor/quote-selection"
+import {
     SANDBOX_FLAGS,
     buildRunFrame,
     isFrameNavigated,
@@ -13,15 +22,6 @@ import {createT, useT} from "@agenta/i18n"
 import driveAppCatalog from "@agenta/i18n/catalogs/entityUi.driveApp"
 import type {PickerRect} from "@agenta/shared/previewPicker"
 import {SimpleTooltip as Tooltip} from "@agenta/ui/composed"
-import {
-    frameRectToRoot,
-    PreviewCommentLayer,
-    toPinQueries,
-    usePreviewComments,
-    type PreviewPick,
-    type PreviewPinRect,
-    type PreviewRect,
-} from "@agenta/ui/quote-selection"
 import {Button, Skeleton, cn} from "@agenta/ui/ui"
 import {ArrowsClockwise, CaretLeft, Copy, LockSimple, Warning} from "@phosphor-icons/react"
 import {createPortal} from "react-dom"

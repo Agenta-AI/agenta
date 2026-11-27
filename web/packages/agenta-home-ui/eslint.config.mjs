@@ -16,7 +16,7 @@ export default [
                         {
                             name: "@agenta/ui",
                             message:
-                                "Import a subpath ('@agenta/ui/ui', '@agenta/ui/composed', '@agenta/ui/layout', '@agenta/ui/components/presentational'): the root barrel re-exports the whole kit, the table and the Lexical editors included.",
+                                "Import a subpath ('@agenta/ui/ui', '@agenta/ui/composed', '@agenta/ui/layout', '@agenta/ui/components/presentational'): the root barrel re-exports the whole kit and the table.",
                         },
                     ],
                     patterns: [

@@ -44,7 +44,7 @@ const config = [
                         {
                             group: ["lexical", "lexical/*", "@lexical/*"],
                             message:
-                                "Lexical is banned in web/mobile. Use the shared composer input from @agenta/ui/rich-chat-input.",
+                                "Lexical is banned in web/mobile. Use the shared composer input from @agenta/editor/rich-chat-input.",
                         },
                         {
                             group: [

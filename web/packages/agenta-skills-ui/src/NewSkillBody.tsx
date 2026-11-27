@@ -1,6 +1,7 @@
 /** The steps of the "New skill" view; in an agent, `onCreated` adds each new skill to it. */
 import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+import type {NewSkillBodyProps as BridgeNewSkillBodyProps} from "@agenta/editor/drill-in"
 import {
     firstBadFile,
     scanSkillFromDataTransfer,
@@ -30,7 +31,6 @@ import {
 } from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {IconTile} from "@agenta/ui/composed"
-import type {NewSkillBodyProps as BridgeNewSkillBodyProps} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
 import {Button, Checkbox, Input, SkeletonBlock, Spinner} from "@agenta/ui/ui"
 import {useViewTitle} from "@agenta/ui/view-stack"

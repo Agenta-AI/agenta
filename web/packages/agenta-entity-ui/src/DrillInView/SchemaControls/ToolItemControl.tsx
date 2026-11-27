@@ -18,11 +18,11 @@
 
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {useDrillInUI} from "@agenta/editor/drill-in"
 import {useT} from "@agenta/i18n"
 import toolFormCatalog from "@agenta/i18n/catalogs/entityUi.toolForm"
 import {safeStringify} from "@agenta/shared/utils"
 import {CollapseToggleButton, getCollapseStyle} from "@agenta/ui/components/presentational"
-import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {CopySimple, GraphIcon, MinusCircle} from "@phosphor-icons/react"

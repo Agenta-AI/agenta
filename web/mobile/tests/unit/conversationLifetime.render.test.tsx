@@ -12,7 +12,7 @@
 import {act, type RefObject, useMemo} from "react"
 
 import {useComposerDraft} from "@agenta/chat/hooks"
-import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import type {RichChatInputHandle} from "@agenta/editor/rich-chat-input"
 import {createStore, Provider, useAtom} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"

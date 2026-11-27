@@ -15,10 +15,10 @@
 
 import {memo, useMemo} from "react"
 
+import {formatLabel} from "@agenta/editor/drill-in"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {useT} from "@agenta/i18n"
 import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
-import {formatLabel} from "@agenta/ui/drill-in"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import clsx from "clsx"
 

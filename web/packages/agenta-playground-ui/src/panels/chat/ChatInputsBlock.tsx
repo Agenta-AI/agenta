@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState} from "react"
 
+import {ChatMessageList} from "@agenta/editor/chat-message"
 import {executionItemController} from "@agenta/playground"
-import {ChatMessageList} from "@agenta/ui/chat-message"
 import {HeightCollapse} from "@agenta/ui/components"
 import {useAtomValue} from "jotai"
 

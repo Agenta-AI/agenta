@@ -7,6 +7,7 @@
 
 import {useState, useEffect, useRef} from "react"
 
+import {DiffView} from "@agenta/editor/editor"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {richText, useT} from "@agenta/i18n"
 import commitModalCatalog from "@agenta/i18n/catalogs/entityUi.commitModal"
@@ -20,7 +21,6 @@ import {
 import {CommitMessageInput} from "@agenta/ui/components/presentational"
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {InputAffix} from "@agenta/ui/composed"
-import {DiffView} from "@agenta/ui/editor"
 import {cn} from "@agenta/ui/styles"
 import {Alert, Badge, Button, Input, RadioGroup, RadioGroupItem} from "@agenta/ui/ui"
 import {ArrowClockwise, WarningCircle} from "@phosphor-icons/react"
@@ -49,7 +49,7 @@ import {
 import AgentChangesSummary from "./changes/AgentChangesSummary"
 
 // Lazy load DiffView to avoid bundling Lexical editor in _app chunk
-// const DiffView = dynamic(() => import("@agenta/ui/editor").then((mod) => ({default: mod.DiffView})))
+// const DiffView = dynamic(() => import("@agenta/editor/editor").then((mod) => ({default: mod.DiffView})))
 
 export interface CommitModeOption {
     id: string

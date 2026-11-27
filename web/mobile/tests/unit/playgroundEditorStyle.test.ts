@@ -28,7 +28,7 @@ const MESSAGE = `
 </div>`
 
 beforeAll(() => {
-    const theme = readFileSync(require.resolve("@agenta/ui/editor-theme.css"), "utf8")
+    const theme = readFileSync(require.resolve("@agenta/editor/editor-theme.css"), "utf8")
     const globals = readFileSync(resolve(__dirname, "../../src/styles/globals.css"), "utf8")
     // Tailwind's preflight gives `code` the monospace face; the editor text sits in a `<code>`.
     const preflight = "code { font-family: ui-monospace, monospace; font-size: 1em; }"
