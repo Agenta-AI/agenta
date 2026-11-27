@@ -596,7 +596,7 @@ The Helm chart uses the Bitnami PostgreSQL subchart. These commands use the defa
 
 The chart pins the bundled image `bitnami/postgresql` by digest in `postgresql.image.digest`. The pinned image runs PostgreSQL 18, and it does not change on a pod restart. Before you upgrade, run the version check below. If the server reports PostgreSQL 17, do not upgrade by changing the image. Use the backup and restore flow described here. Do not change `postgresql.image` to a different major version without a dump and restore.
 
-The digest has priority over `postgresql.image.tag`. If you set your own `postgresql.image.tag` or mirror the image in a private registry, also set `postgresql.image.digest` to your own digest, or to an empty string, or Helm ignores your tag. The `run.sh` launcher upgrades with `--reuse-values`, which keeps the values of the first install. A release that was installed before this pin keeps its old image setting until you pass `--reset-then-reuse-values` to `helm upgrade`.
+The digest has priority over `postgresql.image.tag`. If you set your own `postgresql.image.tag` or mirror the image in a private registry, also set `postgresql.image.digest` to your own digest, or to an empty string, or Helm ignores your tag. The `run.sh` launcher upgrades with `--reuse-values`, which keeps the values of the first install. A release that was installed before this pin keeps its old image setting until you pass `--reset-then-reuse-values` to `helm upgrade`. That flag does not replace a digest you set yourself. To check, run `helm get values agenta -n agenta`. If `postgresql.image.digest` is in the output, that value stays in use.
 
 Check the current Postgres version:
 
