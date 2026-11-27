@@ -1,12 +1,12 @@
-import {useCallback, useState, type ReactNode} from "react"
+import {useState, type ReactNode} from "react"
 
 import {SAVE_AS_TEMPLATE_MESSAGE} from "@agenta/entities/workflow"
-import {AgentKindBadge, useAgentActions, useRenameAgent} from "@agenta/entity-ui/agent"
+import {AgentKindBadge, useAgentActions} from "@agenta/entity-ui/agent"
 import {useT} from "@agenta/i18n"
 import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
 import agentsListCatalog from "@agenta/i18n/catalogs/agents.list"
 import {openAgentVersionHistoryAtom} from "@agenta/playground-ui/agent-version-history"
-import {InlineRenameInput, useDeferredMenuSelect, useInlineRename} from "@agenta/sessions-ui"
+import {InlineRenameInput} from "@agenta/sessions-ui"
 import {BottomSheetMenu} from "@agenta/ui/phone"
 import {
     Button,
@@ -25,6 +25,7 @@ import {
 } from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
+import {useAgentInlineRename} from "../agents/useAgentInlineRename"
 import {useProjectPermission} from "../context/useProjectPermission"
 import {pendingTasksAtom, stashPendingTaskAtom} from "../home/pendingTask"
 
@@ -42,7 +43,7 @@ export interface AgentMenuEntry {
 /**
  * The agent menu of the session header: History, Rename, Export agent, Archive agent. The agent's
  * name and a down arrow are the trigger, after the agent's icon. On a phone the icon is part of the
- * trigger, and the menu opens as a bottom sheet with "Cancel".
+ * trigger, and the menu opens as a bottom sheet with no visible "Cancel".
  */
 export const AgentMenu = ({
     agentId,
@@ -81,16 +82,12 @@ export const AgentMenu = ({
     const [sheetOpen, setSheetOpen] = useState(false)
     // Desktop renames in place: the name becomes a field where it stands.
     const tAgents = useT(agentsListCatalog)
-    const renameAgent = useRenameAgent()
-    const inline = useInlineRename({
-        current: name,
-        onCommit: useCallback((next: string) => renameAgent(agentId, next), [renameAgent, agentId]),
-        errorText: tAgents("agents.list.renameFailed"),
-    })
     // The field mounts after the menu closes, so the menu's focus return does not blur it.
-    const {handleSelect, handleCloseAutoFocus} = useDeferredMenuSelect((key) =>
-        key === "rename" ? () => inline.start() : undefined,
-    )
+    const {
+        rename: inline,
+        startFromMenu,
+        handleCloseAutoFocus,
+    } = useAgentInlineRename({id: agentId, name})
     const entries: AgentMenuEntry[] = [
         {
             key: "history",
@@ -104,7 +101,7 @@ export const AgentMenu = ({
                       key: "rename",
                       label: t("agentLayout.header.rename"),
                       icon: <PencilSimple />,
-                      onSelect: () => (phone ? actions.rename(target) : handleSelect("rename")),
+                      onSelect: () => (phone ? actions.rename(target) : startFromMenu()),
                   },
               ]
             : []),

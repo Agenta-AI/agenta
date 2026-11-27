@@ -1,13 +1,23 @@
 // @vitest-environment jsdom
+import {setSessionStatusAtom} from "@agenta/chat/state"
 import {agentAutoCommitStatusAtomFamily} from "@agenta/playground/state"
 import {activeUserIdAtom, playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {cleanup, fireEvent, render, screen, waitFor, within} from "@testing-library/react"
 import {createStore, Provider} from "jotai"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
+// Radix measures the open menu; jsdom has no ResizeObserver.
+const noop = () => undefined
+globalThis.ResizeObserver ??= class {
+    observe = noop
+    unobserve = noop
+    disconnect = noop
+} as unknown as typeof ResizeObserver
+
 const perms = vi.hoisted(() => ({edit: true}))
 const sessions = vi.hoisted(() => ({failed: false, retry: vi.fn()}))
 const actions = vi.hoisted(() => ({rename: vi.fn(), remove: vi.fn(), copy: vi.fn()}))
+const renameAgent = vi.hoisted(() => vi.fn(async () => true))
 const agentNames = vi.hoisted(() => new Map<string, string>())
 vi.mock("@agenta/navigation", async () => {
     const {atom} = await import("jotai")
@@ -23,6 +33,7 @@ vi.mock("next/router", () => ({useRouter: () => ({push: vi.fn(), query: {}, asPa
 vi.mock("@agenta/entity-ui/agent", () => ({
     AgentKindBadge: () => <span data-testid="agent-kind-badge" />,
     useAgentActions: () => actions,
+    useRenameAgent: () => renameAgent,
 }))
 vi.mock("@agenta/playground-ui/agent-page-header", () => ({
     AgentRevisionStatus: () => (
@@ -31,7 +42,31 @@ vi.mock("@agenta/playground-ui/agent-page-header", () => ({
         </button>
     ),
 }))
-vi.mock("@agenta/sessions-ui", () => ({SessionCardList: () => null}))
+// The rename pieces as small stand-ins: the header only wires them.
+vi.mock("@agenta/sessions-ui", async () => {
+    const {useState} = await import("react")
+    return {
+        SessionCardList: () => null,
+        InlineRenameInput: ({rename, ariaLabel}: {rename: {draft: string}; ariaLabel?: string}) => (
+            <input aria-label={ariaLabel} value={rename.draft} readOnly />
+        ),
+        useDeferredMenuSelect: (onSelect?: (key: string) => (() => void) | undefined) => ({
+            handleSelect: (key: string) => onSelect?.(key)?.(),
+            handleCloseAutoFocus: () => undefined,
+        }),
+        useInlineRename: ({current}: {current: string}) => {
+            const [renaming, setRenaming] = useState(false)
+            return {
+                renaming,
+                draft: current,
+                setDraft: () => undefined,
+                start: () => setRenaming(true),
+                commit: async () => undefined,
+                cancel: () => setRenaming(false),
+            }
+        },
+    }
+})
 vi.mock("@/features/nav/NavDrawer", () => ({NavDrawer: () => null}))
 vi.mock("@/features/sessions/useSessionRowMenu", () => ({useSessionRowMenu: () => ({})}))
 vi.mock("@/features/chat/SessionSharingControl", () => ({SessionSharingControl: () => null}))
@@ -58,6 +93,7 @@ afterEach(() => {
     cleanup()
     perms.edit = true
     agentNames.clear()
+    actions.rename.mockClear()
 })
 
 const panel = (over: Partial<AgentPanelApi> = {}): AgentPanelApi => ({
@@ -75,11 +111,12 @@ const panel = (over: Partial<AgentPanelApi> = {}): AgentPanelApi => ({
 
 const renderHeader = (
     apiIn: AgentPanelApi,
-    {hidden = false, builder = false, inspector = false, saveFailed = false} = {},
+    {hidden = false, builder = false, inspector = false, saveFailed = false, running = false} = {},
 ) => {
     let api = apiIn
     const store = createStore()
     if (saveFailed) store.set(agentAutoCommitStatusAtomFamily("rev-1"), "error")
+    if (running) store.set(setSessionStatusAtom, {id: "s-1", status: "running"})
     store.set(activeUserIdAtom, "qa-user")
     store.set(playgroundInspectorEnabledAtom, inspector)
     if (builder) api = {...api, available: {...api.available, builder: true}}
@@ -187,10 +224,27 @@ describe("the session header", () => {
         expect(await screen.findByRole("menuitem", {name: "History"})).toBeTruthy()
     })
 
-    it("draws the session button with its status dot", () => {
+    it("marks the session button only while a run is live", () => {
         renderHeader(panel())
+        expect(
+            within(screen.getByTitle("Charged twice for March")).queryByTestId(
+                "session-status-running",
+            ),
+        ).toBeNull()
+        cleanup()
+        renderHeader(panel(), {running: true})
         const button = screen.getByTitle("Charged twice for March")
-        expect(within(button).getByTestId("session-status-dot")).toBeTruthy()
+        expect(within(button).getByTestId("session-status-running")).toBeTruthy()
+    })
+
+    it("Rename in the agent menu edits the name in place", async () => {
+        agentNames.set("agent-1", "Support triage")
+        renderHeader(panel())
+        fireEvent.keyDown(screen.getByRole("button", {name: "Support triage"}), {key: "Enter"})
+        fireEvent.click(await screen.findByRole("menuitem", {name: "Rename"}))
+        const field = await screen.findByRole("textbox", {name: "Agent name"})
+        expect((field as HTMLInputElement).value).toBe("Support triage")
+        expect(actions.rename).not.toHaveBeenCalled()
     })
 
     it("names the agent by its id before its revision has loaded", () => {
@@ -219,23 +273,32 @@ describe("the session header on a phone", () => {
         }
     })
 
-    it("opens the agent menu entries from More as a bottom sheet with Cancel", async () => {
+    it("opens the agent menu entries from More as a bottom sheet with no visible Cancel", async () => {
         renderHeader(panel({phone: true}))
         const sheet = await openMore()
         for (const item of ["History", "Rename", "Export agent", "Archive agent"]) {
             expect(within(sheet).getByRole("menuitem", {name: item})).toBeTruthy()
         }
-        fireEvent.click(within(sheet).getByRole("button", {name: "Cancel"}))
+        expect(within(sheet).queryByRole("button", {name: "Cancel"})).toBeNull()
+        fireEvent.click(within(sheet).getByRole("button", {name: "Close"}))
         await waitFor(() => expect(screen.queryByTestId("bottom-sheet-menu")).toBeNull())
     })
 
-    it("opens the latest sessions in a bottom sheet with New session, Sessions and Cancel", async () => {
+    it("Rename on a phone opens the rename dialog, not the in-place field", async () => {
+        renderHeader(panel({phone: true}))
+        const sheet = await openMore()
+        fireEvent.click(within(sheet).getByRole("menuitem", {name: "Rename"}))
+        expect(actions.rename).toHaveBeenCalledWith(expect.objectContaining({id: "agent-1"}))
+    })
+
+    it("opens the latest sessions in a bottom sheet with New session and Sessions, no Cancel", async () => {
         renderHeader(panel({phone: true}))
         fireEvent.click(screen.getByTitle("Charged twice for March"))
         const sheet = await screen.findByTestId("session-sheet")
         expect(within(sheet).getByRole("button", {name: "New session"})).toBeTruthy()
         expect(within(sheet).getByRole("link", {name: "Sessions"})).toBeTruthy()
-        fireEvent.click(within(sheet).getByRole("button", {name: "Cancel"}))
+        expect(within(sheet).queryByRole("button", {name: "Cancel"})).toBeNull()
+        fireEvent.click(within(sheet).getByRole("button", {name: "Close"}))
         await waitFor(() => expect(screen.queryByTestId("session-sheet")).toBeNull())
     })
 

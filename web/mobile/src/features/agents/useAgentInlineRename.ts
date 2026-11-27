@@ -1,11 +1,7 @@
 import {useCallback} from "react"
 
 import {useRenameAgent} from "@agenta/entity-ui/agent"
-import {createT} from "@agenta/i18n"
-import agentsList from "@agenta/i18n/catalogs/agents.list"
 import {useDeferredMenuSelect, useInlineRename} from "@agenta/sessions-ui"
-
-import type {AgentListRow} from "./agentListView"
 
 /** The editor, drawn as the mobile input so the name being edited sits where the name was. */
 export const AGENT_RENAME_INPUT_CLASS =
@@ -13,22 +9,19 @@ export const AGENT_RENAME_INPUT_CLASS =
 
 /**
  * Renaming an agent IN PLACE, the way a session row renames — the editor, and the menu entry
- * that starts it. One hook, because a row and a card both hold this state and must start the
- * same editor from the same kebab.
+ * that starts it. One hook for the agent rows, the agent cards and the session header's agent menu.
  *
  * The editor must not mount inside the menu's focus trap — Radix would restore focus to the
  * trigger as the menu closes, and a blur commits — so the verb runs from the close instead.
  */
-const tNow = createT(agentsList)
-
-export const useAgentInlineRename = (row: AgentListRow) => {
+export const useAgentInlineRename = (agent: {id: string; name: string}) => {
     const renameAgent = useRenameAgent()
-    const onCommit = useCallback((name: string) => renameAgent(row.id, name), [renameAgent, row.id])
-    const rename = useInlineRename({
-        current: row.name,
-        onCommit,
-        errorText: tNow("agents.list.renameFailed"),
-    })
+    const onCommit = useCallback(
+        (name: string) => renameAgent(agent.id, name),
+        [renameAgent, agent.id],
+    )
+    // `useRenameAgent` shows the one error toast.
+    const rename = useInlineRename({current: agent.name, onCommit, errorText: null})
     const {handleSelect, handleCloseAutoFocus} = useDeferredMenuSelect((key) => {
         if (key === "rename") return () => rename.start()
     })

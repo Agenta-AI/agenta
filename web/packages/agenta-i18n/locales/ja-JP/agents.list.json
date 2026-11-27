@@ -33,7 +33,6 @@
     "ownerNone": "オーナーなし",
     "ownerYou": "あなた",
     "pageTitle": "エージェント",
-    "renameFailed": "このエージェントの名前を変更できませんでした",
     "restoreFailed": "このエージェントを復元できませんでした",
     "restored": "エージェントを復元しました",
     "searchPlaceholder": "名前でエージェントを検索…",
