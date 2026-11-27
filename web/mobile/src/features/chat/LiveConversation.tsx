@@ -1250,10 +1250,22 @@ export const LiveConversation = ({
                                 </ContentRail>
                             </div>
                         ) : null}
+                        {/* A new chat's quick actions sit above the banner, which stays next to the
+                        composer it disables. */}
+                        {newChat ? aboveComposer : null}
                         {/* Docked with the other strips, directly above the composer it disables —
                         the same place the desktop banner sits. */}
                         {hideComposer ? null : (
-                            <div className="shrink-0 px-4">
+                            <div
+                                className={cn(
+                                    "shrink-0 px-4",
+                                    // Under the builder's quick actions the composer has no top
+                                    // padding on a desktop: the banner keeps 8 px.
+                                    newChat &&
+                                        Boolean(aboveComposer) &&
+                                        "md:has-[[role=status]]:pb-2",
+                                )}
+                            >
                                 <ContentRail>
                                     <ConnectModelStrip gateActive={modelBlocked} />
                                     {modelBlocked ? null : (
@@ -1313,7 +1325,6 @@ export const LiveConversation = ({
                                 }}
                             />
                         ) : null}
-                        {newChat ? aboveComposer : null}
                         {hideComposer ? null : readOnly ? (
                             <ReadOnlyComposerNotice text={readOnly.notice} />
                         ) : (
