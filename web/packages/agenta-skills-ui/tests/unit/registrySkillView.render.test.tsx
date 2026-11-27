@@ -48,13 +48,9 @@ vi.mock("@agenta/shared/state", async (importOriginal) => ({
     projectIdAtom: (await import("jotai")).atom("proj-1"),
 }))
 vi.mock("@agenta/entity-ui/agent", () => ({AgentChip: () => null}))
-// The editor is the entity-ui form; a textarea for the description stands in for it.
 vi.mock("@agenta/entity-ui/drill-in", () => ({
     SKILL_ACTION_ROW: "",
-    MarkdownBodySkeleton: () => null,
-    MarkdownToolbarSkeleton: () => null,
     SkillBodySkeleton: () => null,
-    SkillFormSkeleton: () => null,
     SkillViewSkeleton: () => null,
     firstBadFile: () => undefined,
     skillFilesOf: () => [],
@@ -66,21 +62,24 @@ vi.mock("@agenta/entity-ui/drill-in", () => ({
         return {onUploadControl: () => undefined}
     },
     SkillViewHeader: ({name}: {name: string}) => createElement("h2", null, name),
-    SkillFormView: ({
-        value,
+}))
+// The editor is the skill page's SkillEditor; a textarea for the description stands in for it.
+vi.mock("../../src/SkillEditor", () => ({
+    SkillEditor: ({
+        draft,
         onChange,
-        valuesAsText,
+        readOnly,
     }: {
-        value: Record<string, unknown>
+        draft: {description: string}
         onChange: (next: Record<string, unknown>) => void
-        valuesAsText?: boolean
+        readOnly?: boolean
     }) =>
         createElement("textarea", {
             "aria-label": "Description",
-            "data-read-only": String(Boolean(valuesAsText)),
-            value: String(value.description ?? ""),
+            "data-read-only": String(Boolean(readOnly)),
+            value: draft.description,
             onChange: (e: {target: {value: string}}) =>
-                onChange({...value, description: e.target.value}),
+                onChange({...draft, description: e.target.value}),
         }),
 }))
 

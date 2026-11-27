@@ -33,7 +33,7 @@ export const OrganizationLimitNotice = ({
     return (
         <div
             role="status"
-            className="bg-colorInfoBg ring-colorInfoBorder flex flex-col gap-2.5 rounded-xl px-3.5 py-3 ring-1 ring-inset"
+            className="bg-info/10 ring-info/30 flex flex-col gap-2.5 rounded-xl px-3.5 py-3 ring-1 ring-inset"
         >
             <LicenseUsageRow
                 label={t("settings.license.usageOrganizations")}
@@ -41,7 +41,7 @@ export const OrganizationLimitNotice = ({
                 count={usage.count}
                 limit={usage.limit}
             />
-            <p className="text-foreground m-0 text-[13px]">
+            <p className="text-foreground m-0 text-body-sm">
                 {t("shell.limitRefusal.organizationLimitInfo")}
             </p>
             <div className="flex flex-wrap gap-2">

@@ -8,8 +8,8 @@ import {ViewStep} from "@agenta/ui/view-stack"
 import {Broadcast, ChatCircleText, Code} from "@phosphor-icons/react"
 
 import {ChannelAgentPicker} from "./ChannelAgentPicker"
-import {ChannelConnectSkeleton} from "./ChannelConnectSkeleton"
 import {ChannelConnectionList} from "./ChannelConnectionList"
+import {ChannelConnectSkeleton} from "./ChannelConnectSkeleton"
 import {ChannelsHubView} from "./ChannelsHubView"
 import {
     agentConnectionsOf,

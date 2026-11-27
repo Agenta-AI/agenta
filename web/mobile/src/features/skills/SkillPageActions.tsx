@@ -2,8 +2,8 @@ import type {ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import skillsPageCatalog from "@agenta/i18n/catalogs/skills.page"
-import {useIsExpandedWindow} from "@agenta/ui/hooks"
 import type {SkillOriginInfo} from "@agenta/skills"
+import {useIsExpandedWindow} from "@agenta/ui/hooks"
 import {
     Button,
     DropdownMenu,

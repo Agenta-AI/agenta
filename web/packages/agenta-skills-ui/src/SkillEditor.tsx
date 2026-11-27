@@ -1,5 +1,4 @@
 import {useCallback, useEffect, useRef, useState, type ReactNode} from "react"
-import {createPortal} from "react-dom"
 
 import {MarkdownToolbarSkeleton} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
@@ -11,6 +10,7 @@ import {useIsPhone} from "@agenta/ui/phone"
 import {cn} from "@agenta/ui/styles"
 import {Button, Field, IconTile, RightPane, SimpleTooltip, Textarea} from "@agenta/ui/ui"
 import {ArrowLeft, CaretRight, Files} from "@phosphor-icons/react"
+import {createPortal} from "react-dom"
 
 import {baseOf, descriptionTooLong, dirOf, isMarkdownPath, type SkillDraft} from "./skillDraft"
 import {SkillFilesPanel} from "./SkillFilesPanel"

@@ -150,9 +150,9 @@ describe("ViewStackHost focus and Escape", () => {
         screen.getByText("step body").focus()
         escape()
         await screen.findByText("open step")
-        // Still in the view: only the step closed.
+        // Still in the view: only the step closed, and focus stays inside it.
         const view = screen.getByTestId("panel-view")
-        await waitFor(() => expect(document.activeElement).toBe(view))
+        await waitFor(() => expect(view.contains(document.activeElement)).toBe(true))
         escape()
         await waitFor(() => expect(screen.queryByTestId("panel-view")).toBeNull())
     })

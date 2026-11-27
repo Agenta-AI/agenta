@@ -1,7 +1,6 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
 import {
-    hostnameLabel,
     mcpEndpointsQueryAtom,
     useMcpConnectJourney,
     type McpConnectedEndpoint,

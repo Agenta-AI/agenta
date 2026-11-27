@@ -109,7 +109,7 @@ export const LicenseTab = ({projectId}: SettingsTabProps) => {
             </Button>
         ) : null
     const keyNote = fromEnvironment ? (
-        <p className="text-muted-foreground m-0 text-[13px]">
+        <p className="text-muted-foreground m-0 text-body-sm">
             {t("settings.license.fromEnvironment")}
         </p>
     ) : null
@@ -127,7 +127,7 @@ export const LicenseTab = ({projectId}: SettingsTabProps) => {
 
             {!key ? (
                 <>
-                    <section className="bg-colorInfoBg ring-colorInfoBorder flex flex-col gap-4 rounded-2xl px-5 py-[18px] ring-1 ring-inset">
+                    <section className="bg-info/10 ring-info/30 flex flex-col gap-4 rounded-2xl px-5 py-[18px] ring-1 ring-inset">
                         <h3 className="text-foreground m-0 text-sm font-semibold">
                             {t("settings.license.freeKeyTitle")}
                         </h3>
@@ -135,7 +135,7 @@ export const LicenseTab = ({projectId}: SettingsTabProps) => {
                         <RegistrationForm projectId={projectId} defaultEmail={user?.email} />
                     </section>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                        <span className="text-muted-foreground text-[13px]">
+                        <span className="text-muted-foreground text-body-sm">
                             {t("settings.license.haveKey")}
                         </span>
                         {keyControl("actionAddLicenseKey")}
@@ -153,7 +153,7 @@ export const LicenseTab = ({projectId}: SettingsTabProps) => {
                         <h3 className="text-foreground m-0 text-sm font-semibold">
                             {t("settings.license.enterpriseUpsellTitle")}
                         </h3>
-                        <p className="text-muted-foreground m-0 text-[13px]">
+                        <p className="text-muted-foreground m-0 text-body-sm">
                             {t("settings.license.enterpriseUpsellDescription")}
                         </p>
                     </div>

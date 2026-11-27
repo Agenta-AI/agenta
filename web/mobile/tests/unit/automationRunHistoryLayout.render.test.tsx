@@ -239,7 +239,11 @@ describe("AutomationRunHistoryView layout", () => {
         render(440, {runHistoryHref: "/m/w/ws/p/pr/automations/sch-1?view=runs"})
         const link = container.querySelector("a[target=_blank]")
         expect(link?.getAttribute("href")).toBe("/m/w/ws/p/pr/automations/sch-1?view=runs")
-        expect(container.querySelector("h1")?.parentElement?.querySelector("button")).toBeNull()
+        // In a panel the pane header names the view: the row holds the caption and the link, no menu.
+        expect(container.querySelector("h1")).toBeNull()
+        const row = link?.closest("div")
+        expect(row?.querySelector("p")).not.toBeNull()
+        expect(row?.querySelector("button")).toBeNull()
     })
 
     it("keeps the filter menu on the full page", () => {

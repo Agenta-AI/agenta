@@ -45,7 +45,7 @@ export const RegistrationForm = ({
 
     if (register.isSuccess) {
         return (
-            <p role="status" className="text-foreground m-0 text-[13px]">
+            <p role="status" className="text-foreground m-0 text-body-sm">
                 {t("settings.license.registrationSent", {email: register.data.email})}
             </p>
         )
@@ -75,12 +75,12 @@ export const RegistrationForm = ({
                     autoComplete="email"
                 />
                 {refused ? (
-                    <span role="alert" className="text-colorError text-sm">
+                    <span role="alert" className="text-destructive text-sm">
                         {t("settings.license.registrationInvalidEmail")}
                     </span>
                 ) : null}
             </label>
-            <label className="flex items-center gap-2 text-[13px]">
+            <label className="flex items-center gap-2 text-body-sm">
                 <Checkbox
                     checked={productUpdates}
                     onCheckedChange={(checked) => setProductUpdates(checked === true)}
@@ -88,7 +88,7 @@ export const RegistrationForm = ({
                 <span>{t("settings.license.registrationProductUpdates")}</span>
             </label>
             {register.isError && !refused ? (
-                <p role="alert" className="text-colorError m-0 text-sm">
+                <p role="alert" className="text-destructive m-0 text-sm">
                     {isRegistrationNotSent(register.error)
                         ? t("settings.license.registrationNotSent")
                         : t("settings.license.registrationSendFailed")}

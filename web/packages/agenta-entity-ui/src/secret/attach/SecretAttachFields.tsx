@@ -16,8 +16,8 @@ import {
 } from "@agenta/ui/ui"
 import {LockSimple, Plus} from "@phosphor-icons/react"
 
-import {OwnerChip} from "../../accounts/OwnerChip"
 import {ACCOUNT_COPY} from "../../accounts/copy"
+import {OwnerChip} from "../../accounts/OwnerChip"
 import {OwnerField} from "../../accounts/OwnerField"
 import {useProjectName} from "../../accounts/useProjectName"
 import {NewSecretButton} from "../../mcpEndpoint/components/NewSecretButton"

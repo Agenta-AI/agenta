@@ -234,7 +234,7 @@ describe("Add MCP server view", () => {
         await openIn(mcpAddView, {})
         await findByText("crumb:Add MCP server")
         expect(byText("Added")).toBeTruthy()
-        await click(await findByText("docs-search", "div"))
+        await click(await findByText("", 'button[aria-label="Add docs-search to this agent"]'))
         expect(mcps().map((item) => item.name)).toEqual(["linear", "docs_search"])
         await findByText("crumb:docs-search")
         expect(byText("crumb:Add MCP server")).toBeUndefined()
@@ -334,16 +334,17 @@ describe("MCP server view", () => {
         expect(mcps().map((item) => item.name)).toEqual(["docs_search"])
     })
 
-    it("puts Remove from agent in the action row, left of Done (F03 f7)", async () => {
+    it("puts Remove from agent at the left of the action row (F03 f7)", async () => {
         await openIn(mcpServerView, {item: mcpItemRef(linear, [linear])!})
         await findByText("crumb:linear")
         const remove = byText("Remove from agent")!.closest("button")!
-        const row = byText("Done")!.closest("button")!.parentElement!
-        expect(row.contains(remove)).toBe(true)
+        // An immediate view's action row keeps only its start slot: no Done, the back leaves.
+        expect(remove.closest("[data-footer-start]")).not.toBeNull()
+        expect(byText("Done")).toBeUndefined()
         expect(remove.querySelector("svg"), "the trash icon").not.toBeNull()
     })
 
-    it("shows a lapsed sign-in as a dashed box with the dark sign-in button", async () => {
+    it("shows a lapsed sign-in as the filled no-account row with its sign-in button", async () => {
         // `user_sign_in` with no ready flag: the viewer signed in once and it lapsed.
         endpoints.rows = [
             {
@@ -356,10 +357,13 @@ describe("MCP server view", () => {
         const own = withMcpAccountSource(linear, "user")
         writer.agent = {mcps: [own]}
         await openIn(mcpServerView, {item: mcpItemRef(own, [own])!})
-        await findByText("Each person's own")
+        await findByText("Personal")
         const box = document.querySelector<HTMLElement>("[data-testid=empty-account-box]")
-        expect(box, "the dashed box").not.toBeNull()
-        expect(box!.className).toContain("border-dashed")
+        expect(box, "the no-account row").not.toBeNull()
+        // Tone, not a dashed line (SURF-01).
+        expect(box!.className).toContain("bg-muted")
+        expect(box!.className).not.toContain("border-dashed")
+        expect(box!.textContent).toContain("Sign in to linear")
     })
 
     it("says nothing about the project's sign-in on each person's own entry", async () => {
@@ -377,7 +381,7 @@ describe("MCP server view", () => {
         toolReads.count = 0
         await openIn(mcpServerView, {item: mcpItemRef(own, [own])!})
         await findByText("crumb:linear")
-        await findByText("Each person's own")
+        await findByText("Personal")
         expect(byText("Not signed in")).toBeUndefined()
         expect(byText("Reconnect")).toBeUndefined()
         // The project's credential cannot read this server's tools: no list and no error.

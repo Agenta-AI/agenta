@@ -184,7 +184,8 @@ describe("the MCP rail rows", () => {
     it("keeps the Remove control on every row", async () => {
         await renderSection({items: [LINEAR, OCTOLENS], expired: new Set(["octolens"])})
 
-        expect(host.querySelectorAll('button[aria-label="Remove"]')).toHaveLength(2)
+        // RowRemoveAction names the row: "Remove linear", "Remove octolens".
+        expect(host.querySelectorAll('button[aria-label^="Remove "]')).toHaveLength(2)
     })
 })
 

@@ -50,16 +50,6 @@ export const SkeletonSectionRow = ({
     </div>
 )
 
-// One entry per section row: title/value widths vary like the real labels do.
-const ROWS: {title: number; value: number; withAdd?: boolean}[] = [
-    {title: 128, value: 130}, // Model (value mirrors the real, truncating summary)
-    {title: 112, value: 48, withAdd: true}, // Instructions
-    {title: 60, value: 56, withAdd: true}, // Tools
-    {title: 122, value: 44, withAdd: true}, // MCP servers
-    {title: 56, value: 44, withAdd: true}, // Skills
-    {title: 100, value: 110}, // Advanced
-]
-
 const AgentConfigSkeleton = () => {
     const t = useT(configItemsCatalog)
     const phone = usePhoneSections() !== null
