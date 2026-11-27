@@ -97,7 +97,7 @@ export const SessionFiltersBar = ({
                             aria-label={t("sessions.filters.filters")}
                             className="box-border flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-md border-0 bg-secondary px-2 text-meta text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:text-foreground focus-ring lg:hidden"
                         >
-                            <FunnelIcon size={14} weight={activeCount ? "fill" : "regular"} />
+                            <FunnelIcon size={14} weight={activeCount ? "fill" : undefined} />
                             {t("sessions.filters.filters")}
                             {activeCount ? (
                                 <span className="rounded bg-secondary px-1 py-0.5 text-caption leading-none text-foreground">

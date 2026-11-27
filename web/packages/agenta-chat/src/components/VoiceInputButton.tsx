@@ -47,9 +47,9 @@ const voiceModeAtom = atomWithStorage<VoiceMode | null>("agenta:agent-chat:voice
  * audio clip, and the microphone every phone keyboard uses for dictation. */
 const modeIcon = (mode: VoiceMode, filled = false) =>
     mode === "audio" ? (
-        <Waveform size={16} weight={filled ? "fill" : "regular"} />
+        <Waveform size={16} weight={filled ? "fill" : undefined} />
     ) : (
-        <Microphone size={16} weight={filled ? "fill" : "regular"} />
+        <Microphone size={16} weight={filled ? "fill" : undefined} />
     )
 
 const VoiceInputButton = ({

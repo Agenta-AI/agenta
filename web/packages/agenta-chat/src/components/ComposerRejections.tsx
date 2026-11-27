@@ -66,7 +66,7 @@ export const ComposerRejections = ({rejections, onDismiss}: ComposerRejectionsPr
                                 onClick={() => onDismiss(index)}
                                 className="shrink-0 text-warning opacity-70 transition-opacity hover:opacity-100"
                             >
-                                <X weight="bold" />
+                                <X />
                             </Button>
                         </motion.div>
                     ))}

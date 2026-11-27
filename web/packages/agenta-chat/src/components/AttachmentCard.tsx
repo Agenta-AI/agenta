@@ -65,7 +65,7 @@ const CornerAction = ({
                 onClick={onRemove}
                 className={CORNER_BUTTON}
             >
-                <X size={10} weight="bold" />
+                <X size={10} />
             </button>
         )
     // Named group: the turn row is a bare `group`, so an unnamed one lit every tile at once.
@@ -175,7 +175,7 @@ export const AttachmentCard = ({
                         onClick={onRetry}
                         className="flex cursor-pointer items-center gap-0.5 rounded border-0 bg-transparent px-1 py-0 text-caption leading-3 text-destructive hover:bg-destructive/10"
                     >
-                        <ArrowClockwise size={10} weight="bold" />
+                        <ArrowClockwise size={10} />
                         {t("chat.attachmentCard.retry")}
                     </button>
                 ) : null}

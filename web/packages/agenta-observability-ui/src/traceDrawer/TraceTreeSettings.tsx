@@ -94,7 +94,6 @@ const TraceTreeSettings = ({
                             </div>
                             <Check
                                 size={14}
-                                weight="bold"
                                 className={clsx("shrink-0 text-primary", {
                                     invisible: visibility !== option.value,
                                 })}

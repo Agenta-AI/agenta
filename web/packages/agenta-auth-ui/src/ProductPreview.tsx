@@ -211,7 +211,7 @@ const Activity = ({
                         · {t("auth.productPreview.elapsed", {seconds})}
                     </span>
                 )}
-                <CaretDown size={10} weight="bold" className="auth-preview-faint flex-none" />
+                <CaretDown size={10} className="auth-preview-faint flex-none" />
             </div>
             <div className="relative mt-1 flex flex-col">
                 {shown > 1 ? (

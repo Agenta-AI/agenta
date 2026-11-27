@@ -308,7 +308,7 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
 
             <div className="flex justify-between items-center pt-1">
                 <Button size="sm" variant="ghost" onClick={handleResetLayout}>
-                    {<ArrowCounterClockwise size={14} weight="bold" />}
+                    {<ArrowCounterClockwise size={14} />}
                     {t("ui.table.resetLayout")}
                 </Button>
                 <Button size="sm" variant="ghost" onClick={onClose}>

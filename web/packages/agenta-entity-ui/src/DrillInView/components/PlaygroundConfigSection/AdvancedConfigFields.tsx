@@ -61,11 +61,7 @@ export const AdvancedConfigFields = memo(function AdvancedConfigFields({
                 onClick={() => setIsAdvancedOpen((prev) => !prev)}
                 disabled={disabled}
             >
-                {isAdvancedOpen ? (
-                    <CaretDown size={14} weight="bold" />
-                ) : (
-                    <CaretRight size={14} weight="bold" />
-                )}
+                {isAdvancedOpen ? <CaretDown size={14} /> : <CaretRight size={14} />}
                 <span className="font-medium text-label">
                     {t("entityUi.playgroundConfig.advanced")}
                 </span>
