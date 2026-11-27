@@ -51,15 +51,21 @@ const buttonNamed = (label: string) =>
 const buttonReading = (label: string) =>
     buttons().find((button) => (button.textContent ?? "").trim() === label)
 
-const rows = () =>
-    [...document.querySelectorAll("[data-state]")].filter(
-        (node) =>
-            node.tagName === "DIV" &&
-            node.hasAttribute("data-state") &&
-            ["added", "connected", "login_expired", "unreachable"].includes(
-                node.getAttribute("data-state") ?? "",
-            ),
-    )
+/** The rows, in screen order; a row has no state attribute, so its state is read from what it offers. */
+const rows = () => [...document.querySelectorAll<HTMLElement>('[class~="group/row"]')]
+
+const rowState = (row: Element) =>
+    (row.textContent ?? "").includes("Added")
+        ? "added"
+        : [...row.querySelectorAll("button")].some((b) =>
+                (b.getAttribute("aria-label") ?? "").startsWith("Reconnect"),
+            )
+          ? "login_expired"
+          : [...row.querySelectorAll("button")].some((b) =>
+                  (b.getAttribute("aria-label") ?? "").startsWith("Add "),
+              )
+            ? "connected"
+            : "unknown"
 
 const type = async (value: string) => {
     const field = document.querySelector<HTMLInputElement>('input[aria-label="Search servers"]')
@@ -96,11 +102,7 @@ describe("McpAddServerList, a project with servers", () => {
     it("draws the three row states, and only those", async () => {
         await render()
 
-        expect(rows().map((row) => row.getAttribute("data-state"))).toEqual([
-            "added",
-            "connected",
-            "login_expired",
-        ])
+        expect(rows().map(rowState)).toEqual(["added", "connected", "login_expired"])
     })
 
     it("offers a server already on the agent no way to be added again", async () => {
@@ -112,6 +114,7 @@ describe("McpAddServerList, a project with servers", () => {
         expect(added.className).not.toContain("opacity")
         // Not merely styled as inert: the row carries no control at all.
         expect([...added.querySelectorAll("button")]).toHaveLength(0)
+        expect(added.getAttribute("role")).toBeNull()
         expect(onAdd).not.toHaveBeenCalled()
     })
 
@@ -220,9 +223,9 @@ describe("McpAddServerList while the registry is in flight", () => {
     it("draws three skeleton rows rather than an empty project", async () => {
         await render({options: [], loading: true})
 
-        const skeleton = document.querySelector('[data-slot="skeleton-rows"]')
-        expect(skeleton, "no skeleton block").not.toBeNull()
-        expect(skeleton!.children).toHaveLength(3)
+        // CatalogGroupSkeleton: a heading, then three 48 px row shapes.
+        const skeletonRows = document.querySelectorAll('[aria-hidden="true"] .h-row-double')
+        expect(skeletonRows, "no skeleton rows").toHaveLength(3)
         expect(text()).not.toContain("No MCP servers in this project yet")
         expect(text()).not.toContain("No servers match")
     })

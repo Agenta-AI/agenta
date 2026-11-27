@@ -70,8 +70,8 @@ import {SkillAgentPicker, skillUsageQueryKey} from "./SkillAgentPicker"
 import {skillNameProblem, toSkillContent, toSkillDraft, type SkillDraft} from "./skillDraft"
 import {SkillEditor} from "./SkillEditor"
 import {skillTitle} from "./skillTitle"
-import {useRegistrySkill} from "./useRegistrySkill"
 import type {SkillListItem, SkillUsageRef} from "./types"
+import {useRegistrySkill} from "./useRegistrySkill"
 
 /** The head-revision query's key; the registry row's Download reads the same cache. */
 export const skillRevisionsQueryKey = (projectId: string, workflowId: string) =>

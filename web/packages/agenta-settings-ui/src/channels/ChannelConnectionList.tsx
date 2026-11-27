@@ -67,7 +67,10 @@ export const ChannelConnectionList = ({
                             {/* A lost connection says so in words; a live one is quiet. */}
                             {connection.status === "revoked" ? (
                                 <span className="flex flex-none items-center gap-1.5 text-meta text-destructive">
-                                    <span aria-hidden className="size-1.5 rounded-round bg-current" />
+                                    <span
+                                        aria-hidden
+                                        className="size-1.5 rounded-round bg-current"
+                                    />
                                     {t("channels.manage.notAnswering")}
                                 </span>
                             ) : null}

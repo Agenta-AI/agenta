@@ -1,7 +1,7 @@
 /**
- * "Add skills" and "New skill" in the agent: row clicks stage adds and removes, and Done writes
- * them to the agent configuration; "New skill" opens at depth 2 and a created skill is added to
- * the agent. The Skills section header has Manage and "+"; its bin asks first.
+ * "Add skills" and "New skill" in the agent: each row click adds or removes a skill in the agent
+ * configuration at once; "New skill" opens at depth 2 and a created skill is added to the
+ * agent. The Skills section header has Manage and "+"; its bin asks first.
  */
 import {act, createElement} from "react"
 
@@ -144,24 +144,21 @@ describe("Add skills", () => {
         await findByText("add refund-check")
     }
 
-    it("clicks stage the adds and removes; Done writes them to the agent", async () => {
+    it("each click adds or removes at once, with no Done", async () => {
         await open()
         expect(byText("added:ticket-triage-8f2a")).toBeTruthy()
         expect(byText("crumb:Add skills")).toBeTruthy()
+        expect(byText("Done", "button")).toBeUndefined()
         await click(byText("add refund-check"))
+        expect(slugs()).toBe("ticket-triage,ticket-labels,refund-check")
         await click(byText("remove ticket-triage"))
-        // Staged only: the list shows the picks, the agent is unchanged until Done.
-        expect(byText("added:refund-check-7c1d")).toBeTruthy()
-        expect(slugs()).toBe("ticket-triage,ticket-labels")
-        await click(byText("Done", "button"))
         expect(slugs()).toBe("ticket-labels,refund-check")
         // The agent-only skill is never touched by the registry list.
         expect((writer.agent.skills as unknown[])[0]).toBe(INLINE)
     })
 
-    it("Done with no picks closes and changes nothing", async () => {
+    it("opening the list with no clicks changes nothing", async () => {
         await open()
-        await click(byText("Done", "button"))
         expect(writer.update).not.toHaveBeenCalled()
         expect(slugs()).toBe("ticket-triage,ticket-labels")
     })
@@ -170,19 +167,19 @@ describe("Add skills", () => {
         writer.agent = {skills: [embed("refund-check-7c1d", "refund-check")]}
         await open()
         await click(byText("add refund-check"))
-        await click(byText("Done", "button"))
         expect(slugs()).toBe("refund-check")
     })
 
-    it("New skill opens at depth 2, and a created skill is added on Done", async () => {
+    it("New skill opens at depth 2, and a created skill is added at once", async () => {
         await open()
         await click(byText("new"))
         await findByText("create weekly-digest")
+        // Depth 2: Agent › Add skills › New skill.
+        expect(document.querySelectorAll("nav span")).toHaveLength(3)
         await click(byText("create weekly-digest"))
-        expect(slugs()).toBe("ticket-triage,ticket-labels")
-        await findByText("Done")
-        await click(byText("Done", "button"))
         expect(slugs()).toBe("ticket-triage,ticket-labels,weekly-digest")
+        // The made skill closes New skill and goes back to Add skills.
+        await findByText("add refund-check")
     })
 })
 

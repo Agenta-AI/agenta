@@ -1,5 +1,4 @@
 import {memo, useId, useMemo, useRef, useState, type DragEvent} from "react"
-import {createPortal} from "react-dom"
 
 import {formatList, useT} from "@agenta/i18n"
 import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
@@ -33,6 +32,7 @@ import {
     UploadSimple,
     Warning,
 } from "@phosphor-icons/react"
+import {createPortal} from "react-dom"
 
 import {baseOf, dirOf} from "./skillDraft"
 import {filePathProblem, SkillFileNameRow} from "./SkillFileNameRow"

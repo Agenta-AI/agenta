@@ -82,9 +82,11 @@ export function ChoiceSwitch<Value extends string>({
         if (!step) return
         event.preventDefault()
         let next = selectedIndex
-        for (let tries = 0; tries < choices.length; tries++) {
+        let tries = 0
+        while (tries < choices.length) {
             next = (next + step + choices.length) % choices.length
             if (!choices[next].disabled) break
+            tries++
         }
         if (choices[next].disabled) return
         onChange(choices[next].value)

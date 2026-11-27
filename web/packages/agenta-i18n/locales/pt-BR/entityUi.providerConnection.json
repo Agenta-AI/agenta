@@ -38,5 +38,6 @@
     "savedUntested": "Este provedor não oferece verificação gratuita de credenciais, então a chave é salva sem teste.",
     "testBeforeSaving": "Teste esta credencial antes de salvá-la.",
     "searchModels_one": "Pesquise {{count}} modelo ou adicione um ID",
-    "searchModels_other": "Pesquise {{count}} modelos ou adicione um ID"
+    "searchModels_other": "Pesquise {{count}} modelos ou adicione um ID",
+    "searchModels_many": "Pesquise {{count}} modelos ou adicione um ID"
 }

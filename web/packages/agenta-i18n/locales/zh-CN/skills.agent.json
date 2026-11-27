@@ -15,6 +15,5 @@
     "importHint": "从公开仓库复制一个或多个 Skill。",
     "createAndAdd": "创建并添加",
     "creating": "正在创建…",
-    "addSkills_one": "添加 {{count}} 个 Skill",
     "addSkills_other": "添加 {{count}} 个 Skill"
 }

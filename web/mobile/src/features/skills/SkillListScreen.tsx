@@ -1,7 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import type {SkillUploadScan} from "@agenta/entity-ui/drill-in"
-
 import {formatList, useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"

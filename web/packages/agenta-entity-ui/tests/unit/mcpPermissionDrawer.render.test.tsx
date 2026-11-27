@@ -34,9 +34,15 @@ import {
     getMcpConnectionStatus,
     McpProtocolError,
     readMcpPolicy,
+    toCatalogTools,
+    toGatewayPermissions,
     type McpServerPolicy,
 } from "@agenta/entities/mcpEndpoint"
 import {buildMcpAgentItem} from "../../src/DrillInView/SchemaControls/agentTemplate/mcpRail"
+import {
+    rollupGroupPermission,
+    rollupLabel,
+} from "../../src/DrillInView/SchemaControls/integrationPolicy"
 
 /** The nine tools the spec's own data block supplies, read-only group then write group. */
 const LINEAR_TOOLS = [
@@ -122,6 +128,26 @@ const render = async (extra: Partial<Parameters<typeof McpPermissionDrawer>[0]> 
 }
 
 const text = () => document.body.textContent ?? ""
+
+/** A tool group's heading reads its label then its count, as "Read-only" and "4" ("Read-only4"). */
+const groupHeading = (label: string) =>
+    [...document.querySelectorAll("button[aria-expanded]")].find(
+        (node) => node.firstElementChild?.textContent === label,
+    )?.textContent ?? null
+
+/** What each group's tools are set to, read through the drawer's own adapter; the heading no longer prints it. */
+const groupRollups = (policy: McpServerPolicy) => {
+    const permissions = toGatewayPermissions(policy)
+    const tools = toCatalogTools(LINEAR_TOOLS)
+    return [true, false].map((readOnly) =>
+        rollupLabel(
+            rollupGroupPermission(
+                tools.filter((tool) => Boolean(tool.readOnly) === readOnly),
+                permissions,
+            ),
+        ),
+    )
+}
 
 const labelled = (label: string) => document.querySelector<HTMLElement>(`[aria-label="${label}"]`)
 
@@ -240,15 +266,20 @@ describe("D1 — the drawer at its default", () => {
     it("splits the tools into the two groups the server's own annotation decides", async () => {
         await render()
 
-        expect(text()).toContain("Read-only · 4")
-        expect(text()).toContain("Write · 4")
+        expect(groupHeading("Read-only")).toBe("Read-only4")
+        expect(groupHeading("Write")).toBe("Write4")
     })
 
     it("summarises each group by what its tools are set to", async () => {
         await render()
 
         // Every tool follows an `allow` server, so both groups run without asking.
-        expect(text()).toContain("runs automatically")
+        expect(groupRollups({permission: "allow"})).toEqual([
+            "runs automatically",
+            "runs automatically",
+        ])
+        // The heading is the label and count alone (section-row style); no summary word.
+        expect(groupHeading("Read-only")).not.toContain("runs automatically")
     })
 
     it("shows the server's title for a tool rather than its raw name", async () => {
@@ -317,7 +348,7 @@ describe("a server just added to an agent", () => {
     it("summarises both groups as following the agent policy", async () => {
         await render({policy: justAdded})
 
-        expect(text()).toContain("follows agent policy")
+        expect(groupRollups(justAdded)).toEqual(["follows agent policy", "follows agent policy"])
     })
 
     it("writes the permission explicitly when Allow all is picked from there", async () => {
@@ -345,8 +376,8 @@ describe("a search that names none of this server's tools", () => {
         await search("nothing here matches this")
 
         expect(text()).toContain("No tool here matches that.")
-        expect(text()).not.toContain("Read-only · 4")
-        expect(text()).not.toContain("Write · 4")
+        expect(groupHeading("Read-only")).toBeNull()
+        expect(groupHeading("Write")).toBeNull()
     })
 
     it("does not say the server has no tools, which is a different answer", async () => {
@@ -496,9 +527,7 @@ describe("a policy whose per-tool table arrives under the runner's field names",
     it("summarises both groups as asking first, never as running automatically", async () => {
         await render({policy: foreignSpelling})
 
-        expect(text()).toContain("asks first")
-        expect(text()).not.toContain("runs automatically")
-        expect(text()).not.toContain("mixed")
+        expect(groupRollups(foreignSpelling)).toEqual(["asks first", "asks first"])
     })
 })
 
@@ -600,10 +629,11 @@ describe("Ask for write and delete — the preset that writes what it says", () 
         await choose(labelled("Default permission"), "Ask for write and delete")
         await render({policy: onChange.mock.calls[0][0] as McpServerPolicy})
 
-        // The promise, visible in the two group headers.
-        expect(text()).toContain("runs automatically")
-        expect(text()).toContain("asks first")
-        expect(text()).not.toContain("mixed")
+        // The promise: reads run automatically, writes ask.
+        expect(groupRollups(onChange.mock.calls[0][0] as McpServerPolicy)).toEqual([
+            "runs automatically",
+            "asks first",
+        ])
     })
 
     it("names no preset while the list is on its way, for a policy shaped like this one", async () => {
@@ -718,12 +748,11 @@ describe("D3 — one tool overridden", () => {
     it("turns the affected group's summary to mixed and the untouched one to the floor", async () => {
         await render({policy: custom})
 
-        expect(text()).toContain("mixed")
         // Not "runs automatically". Declaring a per-tool table moves the governing value from the
         // server permission to the table's own floor, and the floor is `ask` until somebody sets
         // one, so the four read-only tools nobody named now ask first. Saying "runs
         // automatically" here would promise an unapproved run the runner will not perform (D88).
-        expect(text()).toContain("asks first")
+        expect(groupRollups(custom)).toEqual(["asks first", "mixed"])
     })
 
     it("writes an entry for the tool that was set", async () => {
@@ -831,7 +860,7 @@ describe("View tools — the same drawer with nothing to set", () => {
     it("lists the tools and their groups", async () => {
         await render({readOnly: true})
 
-        expect(text()).toContain("Read-only · 4")
+        expect(groupHeading("Read-only")).toBe("Read-only4")
         expect(text()).toContain("Get Linear issue")
     })
 
@@ -923,9 +952,11 @@ describe("while the tool list is being read", () => {
 
         await render()
 
-        // Three placeholder rows, so the list area keeps its shape while the answer is on the way.
-        // An empty frame here reads as a server with no tools, which is a different answer.
-        expect(document.querySelectorAll('[data-slot="skeleton-block"]')).toHaveLength(3)
+        // A group heading over five placeholder rows (ToolGroupsSkeleton), so the list area keeps
+        // its shape while the answer is on the way. An empty frame reads as a server with no tools.
+        const group = document.querySelector('[aria-hidden="true"] > .h-row-single')?.parentElement
+        expect(group, "no tool group skeleton").toBeTruthy()
+        expect(group!.lastElementChild!.children).toHaveLength(5)
         expect(text()).not.toContain("This server exposes no tools yet.")
 
         release(LINEAR_TOOLS)

@@ -619,9 +619,7 @@ export const ChannelManagePanel = ({
             {tokenFields ? (
                 tokenFields.map((field, index) => (
                     <label key={field.name} className="flex flex-col gap-1.5">
-                        <span className={BLOCK_TITLE}>
-                            {field.label}
-                        </span>
+                        <span className={BLOCK_TITLE}>{field.label}</span>
                         {index > 0 ? (
                             <span className="text-meta text-muted-foreground">
                                 {t("channels.manage.leaveEmpty")}

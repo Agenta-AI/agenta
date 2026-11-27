@@ -11,6 +11,9 @@ const {RadioChange} = vi.hoisted(() => {
     return {RadioChange: createContext<(value: string) => void>(() => undefined)}
 })
 vi.mock("@agenta/ui/ui", () => ({
+    Badge: ({children}: {children?: React.ReactNode}) => <span>{children}</span>,
+    IconTile: () => <span />,
+    SkeletonBlock: () => <span />,
     SimpleTooltip: ({children}: {children?: React.ReactNode}) => <>{children}</>,
     Field: ({
         label,

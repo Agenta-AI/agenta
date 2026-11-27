@@ -126,7 +126,9 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
     if (!phone) {
         const brokenOf = (platform: ChannelPlatform) => {
             const mine = agentConnectionsOf(connections, platform)
-            const broken = mine.find((c) => summarizeConnection(platform, c, agentId).needsAttention)
+            const broken = mine.find(
+                (c) => summarizeConnection(platform, c, agentId).needsAttention,
+            )
             return broken ? summarizeConnection(platform, broken, agentId).sub : null
         }
         const connectedItems: SettingsCatalogItem[] = connected.map(({platform, summary}) => {
@@ -226,9 +228,9 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
                             description: props.page
                                 ? undefined
                                 : t("agentPages.channels.intro", {agent: agentName}),
-                            // While loading, the loaded list's own rows as skeletons (STATE-02).
-                            items: loading ? [] : addItems,
-                            pendingRows: loading ? CHANNEL_PLATFORMS.length + 2 : 0,
+                            // While loading, API and Embed stay and the platforms are skeletons (STATE-02).
+                            items: addItems,
+                            pendingRows: loading ? CHANNEL_PLATFORMS.length : 0,
                             list: !props.page,
                             count: null,
                         }}

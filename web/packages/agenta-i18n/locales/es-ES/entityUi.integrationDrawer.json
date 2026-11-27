@@ -3,7 +3,6 @@
     "inactive": "Inactiva",
     "pending": "Pendiente",
     "alreadyAddedOldFormat": "Ya añadida, en el formato antiguo",
-    "connectionCount_many": "{{count}} conexiones",
     "cancel": "Cancelar",
     "addName": "Añadir {{name}}",
     "added": "Añadida",

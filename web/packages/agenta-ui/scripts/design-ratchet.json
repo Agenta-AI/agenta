@@ -1,7 +1,7 @@
 {
     "hover-fill-not-accent": {
-        "mobile": 3,
-        "packages": 22
+        "mobile": 2,
+        "packages": 24
     },
     "legacy-hex-shims": {
         "mobile": 0,
@@ -12,24 +12,24 @@
         "packages": 0
     },
     "antd-color-names": {
-        "mobile": 14,
-        "packages": 130
+        "mobile": 10,
+        "packages": 128
     },
     "var(--ag-color": {
-        "mobile": 3,
+        "mobile": 0,
         "packages": 0
     },
     "text-[Npx]": {
         "mobile": 0,
-        "packages": 4
+        "packages": 2
     },
     "h-[Npx]": {
-        "mobile": 14,
-        "packages": 39
+        "mobile": 8,
+        "packages": 34
     },
     "rounded-full": {
-        "mobile": 1,
-        "packages": 2
+        "mobile": 0,
+        "packages": 1
     },
     "font-bold": {
         "mobile": 0,
@@ -40,23 +40,23 @@
         "packages": 0
     },
     "border-text-color": {
-        "mobile": 14,
-        "packages": 22
+        "mobile": 9,
+        "packages": 15
     },
     "kit-control-height": {
         "mobile": 4,
-        "packages": 27
+        "packages": 22
     },
     "raw-button": {
-        "mobile": 105,
-        "packages": 377
+        "mobile": 99,
+        "packages": 330
     },
     "max-w-[Npx]": {
         "mobile": 11,
-        "packages": 92
+        "packages": 84
     },
     "extra-breakpoint": {
-        "mobile": 184,
-        "packages": 126
+        "mobile": 167,
+        "packages": 130
     }
 }

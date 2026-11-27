@@ -14,5 +14,6 @@
     "firesOn": "Dispara em {{eventKey}}",
     "firesWhenEventArrives": "Dispara quando o evento chega",
     "mcpCount_one": "{{count}} servidor MCP",
-    "mcpCount_other": "{{count}} servidores MCP"
+    "mcpCount_other": "{{count}} servidores MCP",
+    "mcpCount_many": "{{count}} servidores MCP"
 }

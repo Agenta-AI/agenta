@@ -56,8 +56,8 @@ import type {
     GatewayPermission,
 } from "../toolUtils"
 
-import {ExpandableDescription} from "./ExpandableDescription"
 import {FieldHeading} from "./accounts/FieldHeading"
+import {ExpandableDescription} from "./ExpandableDescription"
 import {PolicyGlyph} from "./PermissionGlyph"
 import {PermissionPolicySelect, type PermissionPolicyOption} from "./PermissionPolicySelect"
 

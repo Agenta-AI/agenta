@@ -9,6 +9,5 @@
     "onEvent": "イベント時",
     "firesOn": "{{eventKey}} で実行",
     "firesWhenEventArrives": "イベントの到着時に実行",
-    "mcpCount_one": "{{count}} 個の MCP サーバー",
     "mcpCount_other": "{{count}} 個の MCP サーバー"
 }

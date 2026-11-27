@@ -280,7 +280,7 @@ describe("Attach a secret: the list and the owner chips", () => {
         fx.project = []
         fx.own = []
         await openIn(secretAttachView, {}, AGENT)
-        await findByText("Name", "label")
+        await findByText("Name", "label span")
         expect(saveButton("Save and attach")).toBeTruthy()
     })
 })
@@ -472,7 +472,12 @@ describe("The one secret form (Settings › Secrets)", () => {
         const [name] = [...document.querySelectorAll("input")]
         await change(name!, "STRIPE_KEY")
         await change(document.querySelector("textarea")!, "sk-1")
-        await click(byText("Everyone in Acme Agency"))
+        // Who can use it: the Project choice of the owner switch.
+        await click(
+            [...document.querySelectorAll('[role="radio"]')].find((radio) =>
+                radio.textContent?.startsWith("Project"),
+            ),
+        )
         await click(saveButton("Create secret"))
         await waitFor(() => expect(fx.saved).toHaveLength(1))
         expect(fx.saved[0]).toMatchObject({name: "STRIPE_KEY", content: "sk-1"})
@@ -505,17 +510,17 @@ describe("Remove a secret attachment (F06 f3)", () => {
                 openAttach={() => undefined}
             />,
         )
-        await click(document.querySelector('button[aria-label="Remove"]'))
-        expect(document.body.textContent).toContain("Remove this secret attachment?")
+        await click(document.querySelector('button[aria-label="Remove BILLING_API_KEY"]'))
+        expect(document.body.textContent).toContain("Remove BILLING_API_KEY from this agent?")
         expect(document.body.textContent).toContain(
             "The agent will lose access to this variable. The secret stays in the project vault.",
         )
         await click(saveButton("Remove"))
         await findByText("conflict")
-        expect(document.body.textContent).toContain("Remove this secret attachment?")
+        expect(document.body.textContent).toContain("Remove BILLING_API_KEY from this agent?")
         expect(fx.commits).toHaveLength(0)
         await click(saveButton("Cancel"))
-        await waitFor(() => expect(document.body.textContent).not.toContain("Remove this secret"))
+        await waitFor(() => expect(document.body.textContent).not.toContain("from this agent?"))
     })
 })
 
@@ -536,13 +541,13 @@ describe("The Secrets section", () => {
                 openAttach={() => undefined}
             />,
         )
-        const bins = [...document.querySelectorAll('button[aria-label="Remove"]')]
+        const bins = [...document.querySelectorAll('button[aria-label^="Remove "]')]
         expect(bins).toHaveLength(2)
         await click(bins[1])
         await click(saveButton("Remove"))
         await waitFor(() => expect(fx.commits).toHaveLength(1))
         expect(fx.commits[0]).toEqual({revisionId: "rev-1", bindings: [bindings[0]]})
-        await waitFor(() => expect(document.body.textContent).not.toContain("Remove this secret"))
+        await waitFor(() => expect(document.body.textContent).not.toContain("from this agent?"))
     })
 })
 
@@ -632,7 +637,8 @@ describe("Advanced", () => {
         expect(await options(trigger)).toEqual(["Local", "Daytona"])
         await click([...document.querySelectorAll('[role="option"]')][1])
         expect((writer.agent.sandbox as {kind: string}).kind).toBe("daytona")
-        expect(byText("Done")).toBeTruthy()
+        // An instant view: no Done row (the header's back leaves).
+        expect(byText("Done")).toBeUndefined()
     })
 
     it("Execution: Revert puts back the saved sandbox", async () => {

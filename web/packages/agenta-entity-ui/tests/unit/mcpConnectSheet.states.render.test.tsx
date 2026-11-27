@@ -511,13 +511,28 @@ describe("the OAuth screen's Advanced section", () => {
             scopesSelected: ["read", "write", "offline_access"],
             ...over,
         })
-    const checkboxes = () => [...document.querySelectorAll("[role='checkbox']")]
+    // A shut HeightCollapse keeps its content mounted, but aria-hidden and inert.
+    const shown = (node: Element | null | undefined) =>
+        Boolean(node) && !node!.closest('[aria-hidden="true"]')
+    const checkboxes = () => [...document.querySelectorAll("[role='checkbox']")].filter(shown)
+    /** The help behind a field's info trigger, opened with a click as a mouse does. */
+    const fieldHelpTexts = async () => {
+        const texts: string[] = []
+        for (const trigger of [...document.querySelectorAll('[data-slot="field-help"]')].filter(
+            shown,
+        )) {
+            await press(trigger)
+            texts.push(document.querySelector('[role="tooltip"]')?.textContent ?? "")
+            await press(trigger)
+        }
+        return texts
+    }
 
     it("is collapsed, so the usual screen stays as it was", async () => {
         await open(naming())
 
         expect(advancedRow()?.getAttribute("aria-expanded")).toBe("false")
-        expect(control("Client ID")).toBeNull()
+        expect(shown(control("Client ID"))).toBe(false)
         expect(checkboxes()).toHaveLength(0)
         expect(button("Connect")?.disabled).toBe(false)
     })
@@ -526,17 +541,22 @@ describe("the OAuth screen's Advanced section", () => {
         await open(naming())
         await press(advancedRow())
 
-        expect(control("Client ID")?.getAttribute("placeholder")).toBe("Optional")
+        expect(shown(control("Client ID"))).toBe(true)
         expect(control("Client secret")).not.toBeNull()
-        expect(text()).toContain(
-            "Only needed when the server does not register clients on its own. Most do.",
-        )
+        // Client ID and Client secret each say Optional in a muted word after the label.
+        expect(
+            [...document.querySelectorAll('[data-slot="field-optional"]')].filter(shown),
+        ).toHaveLength(2)
         expect(checkboxes().map((box) => box.getAttribute("aria-checked"))).toEqual([
             "true",
             "true",
             "true",
         ])
-        expect(text()).toContain("Uncheck a scope to ask for less.")
+        const help = await fieldHelpTexts()
+        expect(help).toContain(
+            "Only needed when the server does not register clients on its own. Most do.",
+        )
+        expect(help).toContain("Uncheck a scope to ask for less.")
     })
 
     it("asks for less when a scope is unchecked", async () => {
@@ -556,15 +576,20 @@ describe("the OAuth screen's Advanced section", () => {
         expect(text()).not.toContain("Scopes")
     })
 
-    it("opens by itself and says why when the server registers no clients", async () => {
+    it("puts the app above Advanced, required, and says why when the server registers no clients", async () => {
         const probe = {
             ...OAUTH_PROBE,
             auth: {...OAUTH_PROBE.auth, registration: "unavailable" as const},
         }
         await open(naming({probe}))
 
-        expect(advancedRow()?.getAttribute("aria-expanded")).toBe("true")
-        expect(text()).toContain(
+        // The app's fields leave Advanced and sit above it, required; Advanced keeps the scopes.
+        const app = document.querySelector('[data-testid="mcp-oauth-app"]')
+        expect(shown(app)).toBe(true)
+        expect(app?.contains(control("Client ID"))).toBe(true)
+        expect(app?.querySelectorAll('[data-slot="field-required"]')).toHaveLength(2)
+        expect(advancedRow()?.textContent).toContain("Scopes")
+        expect(await fieldHelpTexts()).toContain(
             "This server needs an OAuth app you register yourself. Add the callback URL to it, then paste its client ID and secret.",
         )
         // Nothing to sign in as until the app is entered.
@@ -1288,8 +1313,8 @@ describe("the Authentication selector", () => {
         expect(
             [...document.querySelectorAll('[role="radio"]')].map((node) => node.textContent),
         ).toEqual(["OAuthDetected", "API key", "None"])
-        // The OAuth-only Advanced row is there.
-        expect(text()).toContain("Callback URL, client ID, scopes")
+        // The OAuth-only Advanced row is there; this probe offers no scopes.
+        expect(advancedRow()?.textContent).toContain("Callback URL, client ID")
         expect(control("Header name")).toBeNull()
     })
 

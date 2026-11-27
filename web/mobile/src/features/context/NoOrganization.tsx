@@ -26,7 +26,7 @@ export const NoOrganization = ({
                 <h1 className="text-foreground m-0 text-lg font-semibold">
                     {t("context.resolver.noOrganizationTitle")}
                 </h1>
-                <p className="text-muted-foreground m-0 text-[13px]">
+                <p className="text-muted-foreground m-0 text-body-sm">
                     {t("context.resolver.noOrganizationBody")}
                 </p>
                 {user?.email ? (
