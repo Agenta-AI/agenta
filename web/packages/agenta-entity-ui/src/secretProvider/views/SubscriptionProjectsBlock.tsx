@@ -13,7 +13,7 @@ export const SubscriptionProjectsBlock = ({
     organization: OrganizationConnectionScope
     draft: ReturnType<typeof useOrganizationProjectsDraft>
 }) => (
-    <div className="flex flex-col gap-2 text-xs">
+    <div className="flex flex-col gap-2 text-meta">
         <OrganizationProjectsSection
             scope={organization}
             value={draft.projects}
@@ -21,7 +21,7 @@ export const SubscriptionProjectsBlock = ({
             saved={draft.saved}
         />
         {draft.error ? (
-            <p role="alert" className="m-0 flex items-center gap-1.5 text-colorError">
+            <p role="alert" className="m-0 flex items-center gap-1.5 text-destructive">
                 <WarningCircle size={14} />
                 {draft.error}
             </p>

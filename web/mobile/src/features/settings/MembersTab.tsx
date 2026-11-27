@@ -226,7 +226,7 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
             }}
         >
             {roleError ? (
-                <p role="alert" className="m-0 mt-2 text-sm text-colorError">
+                <p role="alert" className="m-0 mt-2 text-body text-destructive">
                     {roleError}
                 </p>
             ) : null}
@@ -250,7 +250,7 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
                             placeholder="name@company.com"
                         />
                         {showEmailError ? (
-                            <p className="m-0 text-sm text-colorError">
+                            <p className="m-0 text-body text-destructive">
                                 {t("settings.membersTab.invalidEmail")}
                             </p>
                         ) : null}
@@ -270,7 +270,7 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
                                 </SelectContent>
                             </Select>
                         ) : null}
-                        {error ? <p className="m-0 text-sm text-colorError">{error}</p> : null}
+                        {error ? <p className="m-0 text-body text-destructive">{error}</p> : null}
                     </div>
                     <DialogFooter>
                         <Button
@@ -316,12 +316,12 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
                             {t("settings.membersTab.removeDescription")}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
-                    <p className="m-0 text-sm">
+                    <p className="m-0 text-body">
                         {t("settings.membersTab.removeConfirm", {
                             name: pendingRemoval?.user.username || pendingRemoval?.user.email || "",
                         })}
                     </p>
-                    {error ? <p className="m-0 text-sm text-colorError">{error}</p> : null}
+                    {error ? <p className="m-0 text-body text-destructive">{error}</p> : null}
                     <AlertDialogFooter>
                         <AlertDialogCancel asChild>
                             <Button

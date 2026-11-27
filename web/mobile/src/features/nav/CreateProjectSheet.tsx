@@ -11,6 +11,7 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
+    Field,
     Input,
 } from "@agenta/ui/ui"
 
@@ -22,6 +23,7 @@ export const CreateProjectSheet = ({
     isPending,
     notice,
     submitDisabled,
+    error,
 }: {
     open: boolean
     onOpenChange: (open: boolean) => void
@@ -31,6 +33,8 @@ export const CreateProjectSheet = ({
     notice?: ReactNode
     /** The plan allows no more projects: Create stays off. */
     submitDisabled?: boolean
+    /** Why the last create failed, shown under the field (KIT-05). */
+    error?: string | null
 }) => {
     const t = useT(createProjectCatalog, commonCatalog)
     const [name, setName] = useState("")
@@ -58,12 +62,14 @@ export const CreateProjectSheet = ({
                         submit()
                     }}
                 >
-                    <Input
-                        autoFocus
-                        value={name}
-                        placeholder={t("shell.createProject.namePlaceholder")}
-                        onChange={(event) => setName(event.target.value)}
-                    />
+                    <Field label={t("shell.createProject.namePlaceholder")} error={error}>
+                        <Input
+                            autoFocus
+                            value={name}
+                            aria-invalid={error ? true : undefined}
+                            onChange={(event) => setName(event.target.value)}
+                        />
+                    </Field>
                     {/* Enter submits; the visible Create sits in the footer, outside this form. */}
                     <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
                 </form>
@@ -74,7 +80,9 @@ export const CreateProjectSheet = ({
                         {t("common.cancel")}
                     </Button>
                     <Button disabled={!name.trim() || isPending || submitDisabled} onClick={submit}>
-                        {isPending ? t("shell.createProject.creating") : t("common.create")}
+                        {isPending
+                            ? t("shell.createProject.creating")
+                            : t("shell.createProject.title")}
                     </Button>
                 </DialogFooter>
             </DialogContent>

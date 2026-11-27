@@ -4,7 +4,7 @@ import {Button} from "@agenta/ui/ui"
 export const ScenariosRefreshError = ({onRetry}: {onRetry: () => void}) => (
     <div
         role="alert"
-        className="flex items-center justify-center gap-3 py-3 text-sm text-muted-foreground"
+        className="flex items-center justify-center gap-3 py-3 text-body text-muted-foreground"
     >
         <span>Could not update the latest values</span>
         <Button variant="outline" size="sm" onClick={onRetry}>

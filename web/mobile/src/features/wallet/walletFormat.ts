@@ -17,6 +17,14 @@ export const formatUsd = (musd: number): string =>
 export const formatCredits = (musd: number): string =>
     formatNumber(musd / MUSD_PER_CREDIT, {maximumFractionDigits: 1})
 
+/** Credits short enough for the sidebar: "9,999", then "12.3K", "123M". */
+export const formatCreditsShort = (musd: number): string => {
+    const credits = musd / MUSD_PER_CREDIT
+    return credits < 10_000
+        ? formatNumber(Math.floor(credits))
+        : formatNumber(credits, {notation: "compact", maximumSignificantDigits: 3})
+}
+
 /** A `t` that holds the credits catalog. */
 export type CreditsT = (
     key: CatalogKey<typeof walletCreditsCatalog>,

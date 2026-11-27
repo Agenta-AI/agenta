@@ -20,7 +20,7 @@ import {
 import {LoadAllButton, LoadMoreButton} from "@agenta/ui/components/selection"
 import {cn} from "@agenta/ui/styles"
 import {Button, EmptyState, Spinner} from "@agenta/ui/ui"
-import {ArrowLeft} from "lucide-react"
+import {ArrowLeftIcon} from "@phosphor-icons/react"
 
 import {useBreadcrumbMode} from "../../../hooks"
 import {adapterText, labelInSentence} from "../../../text"
@@ -205,7 +205,7 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
                 )}
                 <div className="flex items-center justify-center py-8">
                     <Spinner size="default" />
-                    <span className="ml-2 text-colorTextSecondary">{displayLoadingMessage}</span>
+                    <span className="ml-2 text-muted-foreground">{displayLoadingMessage}</span>
                 </div>
             </div>
         )
@@ -215,7 +215,7 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
     if (error) {
         return (
             <div className={cn("flex flex-col", className)}>
-                <div className="flex items-center justify-center py-8 text-colorError">
+                <div className="flex items-center justify-center py-8 text-destructive">
                     Error: {error.message}
                 </div>
             </div>
@@ -236,7 +236,7 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
                                 onClick={navigateUp}
                                 disabled={disabled}
                             >
-                                <ArrowLeft size={16} />
+                                <ArrowLeftIcon size={16} />
                             </Button>
                         )}
                         <div className="min-w-0 flex-1">
@@ -296,7 +296,7 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
 
             {/* Load more / Load all buttons */}
             {infiniteScroll && hasNextPage && (
-                <div className="box-border flex items-center justify-center gap-2 border-0 border-t border-solid border-colorBorderSecondary py-2">
+                <div className="box-border flex items-center justify-center gap-2 border-0 border-t border-solid border-border-muted py-2">
                     {loadMoreButton && (
                         <LoadMoreButton
                             onClick={fetchNextPage}
@@ -318,7 +318,7 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
             {isFetchingNextPage && !loadMoreButton && (
                 <div className="flex items-center justify-center py-2">
                     <Spinner size="small" />
-                    <span className="ml-2 text-xs text-colorTextSecondary">Loading more...</span>
+                    <span className="ml-2 text-meta text-muted-foreground">Loading more...</span>
                 </div>
             )}
         </div>

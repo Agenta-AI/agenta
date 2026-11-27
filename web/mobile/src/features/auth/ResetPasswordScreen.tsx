@@ -28,8 +28,8 @@ export const ResetPasswordScreen = () => {
     const subheading = t(`auth.resetPassword.${stage}Subheading`)
 
     return (
-        <AuthShell header={<AgentaLogo className="h-[23px] w-auto text-foreground" />}>
-            <div key={stage} className="flex flex-col gap-[22px] auth-step-fwd">
+        <AuthShell header={<AgentaLogo className="h-6 w-auto text-foreground" />}>
+            <div key={stage} className="flex flex-col gap-6 auth-step-fwd">
                 <header className="flex flex-col gap-1">
                     <h1 className={HEADLINE_CLASS}>{heading}</h1>
                     <p className={SUBLINE_CLASS}>{subheading}</p>

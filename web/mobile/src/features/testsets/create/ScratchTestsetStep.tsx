@@ -23,7 +23,7 @@ export const ScratchTestsetStep = ({base, onClose}: {base: string; onClose: () =
             }}
         >
             <div className="flex flex-col gap-1.5">
-                <label htmlFor="scratch-testset-name" className="text-sm font-medium">
+                <label htmlFor="scratch-testset-name" className="text-label">
                     Test set name
                 </label>
                 <Input

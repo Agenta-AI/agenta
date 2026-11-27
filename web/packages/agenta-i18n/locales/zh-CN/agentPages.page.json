@@ -1,0 +1,5 @@
+{
+    "analyticsDescription": "此智能体的成本、运行次数和成功率。",
+    "configurationDescription": "智能体在什么上运行、可以使用什么，以及谁可以查看它。",
+    "sessionsDescription": "人员和自动化与此智能体进行的所有对话。"
+}

@@ -47,5 +47,6 @@
     "untitledSession": "Session sans titre",
     "waiting": "En attente",
     "waitingCount": "En attente {{count}}",
-    "yesterday": "Hier"
+    "yesterday": "Hier",
+    "pageDescription": "Vos conversations avec les agents. Ouvrez-en une pour reprendre là où vous vous êtes arrêté."
 }

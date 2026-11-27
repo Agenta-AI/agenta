@@ -46,7 +46,7 @@ export const FocusFooter = ({
     return (
         <div className="flex w-full min-w-0 items-center justify-between gap-1.5 sm:gap-4">
             <FocusScenarioPicker scenarioId={scenarioId} compact={!wide} />
-            <div className="flex shrink-0 items-center gap-1 sm:gap-2 lg:gap-4">
+            <div className="flex shrink-0 items-center gap-1 sm:gap-2">
                 <FocusSwitches compact={!wide} onOpenTrace={openTrace} />
                 <div className="flex items-center gap-1 sm:gap-2">
                     <Button
@@ -104,7 +104,7 @@ export const FocusFooter = ({
                         loading={submission.isSubmitting}
                         disabled={!submission.canSubmit}
                         onClick={() => void submission.submit()}
-                        className="sm:min-w-[160px]"
+                        className="sm:min-w-40"
                     >
                         {submission.label}
                         {wide ? (

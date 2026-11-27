@@ -1,16 +1,12 @@
 import {useT} from "@agenta/i18n"
+import agentPagesPageCatalog from "@agenta/i18n/catalogs/agentPages.page"
 import agentSidebarCatalog from "@agenta/i18n/catalogs/agentSidebar"
-import {useIsPhone} from "@agenta/ui/phone"
-
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
-import {AppShell} from "../nav/AppShell"
+import {PageLayout} from "../page-layout/PageLayout"
 import {AnalyticsTab} from "../settings/AnalyticsTab"
 
-import {AgentListPageHeader} from "./AgentListPageHeader"
-import {agentAnalyticsColumnClass} from "./analyticsColumn"
+import {AgentBuilderButton} from "./AgentBuilderButton"
 
 /** The Analytics page of one agent (A09): today's Analytics page, locked to the agent. */
 export const AgentAnalyticsScreen = ({
@@ -22,31 +18,17 @@ export const AgentAnalyticsScreen = ({
     projectId: string
     agentId: string
 }) => {
-    const t = useT(agentSidebarCatalog)
-    const phone = useIsPhone()
+    const t = useT(agentSidebarCatalog, agentPagesPageCatalog)
     useBindProjectContext(projectId)
     return (
-        <>
-            <PageTitle title={t("agentSidebar.analytics")} />
-            <AppShell workspaceId={workspaceId} projectId={projectId}>
-                <ScreenScaffold
-                    header={
-                        <AgentListPageHeader
-                            title={t("agentSidebar.analytics")}
-                            workspaceId={workspaceId}
-                            projectId={projectId}
-                        />
-                    }
-                >
-                    <div className={agentAnalyticsColumnClass(phone)}>
-                        <AnalyticsTab
-                            workspaceId={workspaceId}
-                            projectId={projectId}
-                            lockedAgentId={agentId}
-                        />
-                    </div>
-                </ScreenScaffold>
-            </AppShell>
-        </>
+        <PageLayout
+            workspaceId={workspaceId}
+            projectId={projectId}
+            title={t("agentSidebar.analytics")}
+            description={t("agentPages.page.analyticsDescription")}
+            actions={<AgentBuilderButton />}
+        >
+            <AnalyticsTab workspaceId={workspaceId} projectId={projectId} lockedAgentId={agentId} />
+        </PageLayout>
     )
 }

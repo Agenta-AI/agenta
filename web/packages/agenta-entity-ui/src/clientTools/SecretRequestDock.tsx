@@ -400,13 +400,13 @@ export const SecretRequestDock = ({
     return (
         <>
             <div
-                className="rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer p-3 text-colorText"
+                className="rounded-lg border border-solid border-border-muted bg-background p-3 text-foreground"
                 role="region"
                 aria-label={t("entityUi.clientTools.secretRequestAria")}
             >
-                <p className="m-0 truncate text-sm font-medium">{title}</p>
+                <p className="m-0 truncate text-body font-medium">{title}</p>
                 <p
-                    className={`m-0 mt-0.5 line-clamp-2 text-xs ${alert ? "text-error" : "text-colorTextSecondary"}`}
+                    className={`m-0 mt-0.5 line-clamp-2 text-meta ${alert ? "text-destructive" : "text-muted-foreground"}`}
                     title={detail}
                 >
                     {detail}
@@ -446,14 +446,14 @@ export const SecretRequestDock = ({
                 ) : null}
 
                 <div className="mt-2 flex items-center justify-between gap-3">
-                    <div className="flex min-w-0 flex-1 items-center gap-1.5 text-xs text-colorTextSecondary">
+                    <div className="flex min-w-0 flex-1 items-center gap-1.5 text-meta text-muted-foreground">
                         {request ? (
                             editingEnv ? (
                                 <Input
                                     aria-label={t("entityUi.clientTools.environmentVariable")}
                                     autoFocus
                                     size="sm"
-                                    className="h-6 w-full max-w-72 font-mono text-xs"
+                                    className="h-6 w-full max-w-72 text-code-sm"
                                     value={envVar}
                                     onChange={(event) => changeEnv(event.target.value)}
                                     onBlur={() => {
@@ -478,7 +478,7 @@ export const SecretRequestDock = ({
                             ) : (
                                 <button
                                     type="button"
-                                    className="group inline-flex min-w-0 items-center gap-1.5 border-0 bg-transparent p-0 font-mono text-xs text-colorTextSecondary enabled:cursor-pointer enabled:hover:text-colorText"
+                                    className="group inline-flex min-w-0 items-center gap-1.5 border-0 bg-transparent p-0 text-code-sm text-muted-foreground enabled:cursor-pointer enabled:hover:text-foreground"
                                     aria-label={`Change environment variable ${envName}`}
                                     title={envName}
                                     disabled={!canRename || busy}
@@ -500,7 +500,7 @@ export const SecretRequestDock = ({
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
                         {!ready && request ? (
-                            <span className="px-2 text-xs text-colorTextSecondary">
+                            <span className="px-2 text-meta text-muted-foreground">
                                 {t("entityUi.clientTools.checking")}
                             </span>
                         ) : null}

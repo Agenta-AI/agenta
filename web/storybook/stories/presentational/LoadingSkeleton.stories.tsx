@@ -48,8 +48,8 @@ export const Variants: Story = {
             <Row label="list · no avatar" w={280}>
                 <LoadingSkeleton variant="list" count={3} showAvatar={false} />
             </Row>
-            <Row label="list · circle avatar" w={280}>
-                <LoadingSkeleton variant="list" count={2} showAvatar avatarShape="circle" />
+            <Row label="list · mark avatar" w={280}>
+                <LoadingSkeleton variant="list" count={2} showAvatar avatarShape="mark" />
             </Row>
         </div>
     ),

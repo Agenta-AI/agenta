@@ -14,9 +14,9 @@ export const OverviewEmpty = ({
 }) => (
     <Empty className={cn("py-8", className)}>
         <EmptyHeader>
-            <EmptyTitle className="text-sm">{title}</EmptyTitle>
+            <EmptyTitle className="text-body">{title}</EmptyTitle>
             {description ? (
-                <EmptyDescription className="text-xs">{description}</EmptyDescription>
+                <EmptyDescription className="text-meta">{description}</EmptyDescription>
             ) : null}
         </EmptyHeader>
     </Empty>

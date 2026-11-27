@@ -4,7 +4,9 @@ import {SAVE_AS_TEMPLATE_MESSAGE} from "@agenta/entities/workflow"
 import {AgentKindBadge, useAgentActions} from "@agenta/entity-ui/agent"
 import {useT} from "@agenta/i18n"
 import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
+import agentsListCatalog from "@agenta/i18n/catalogs/agents.list"
 import {openAgentVersionHistoryAtom} from "@agenta/playground-ui/agent-version-history"
+import {InlineRenameInput} from "@agenta/sessions-ui"
 import {BottomSheetMenu} from "@agenta/ui/phone"
 import {
     Button,
@@ -12,6 +14,7 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
+    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {
     Archive,
@@ -22,12 +25,13 @@ import {
 } from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
+import {useAgentInlineRename} from "../agents/useAgentInlineRename"
 import {useProjectPermission} from "../context/useProjectPermission"
 import {pendingTasksAtom, stashPendingTaskAtom} from "../home/pendingTask"
 
 import {LeaveWhenArchived} from "./LeaveWhenArchived"
 
-interface AgentMenuEntry {
+export interface AgentMenuEntry {
     key: string
     label: ReactNode
     /** Each menu sizes it: 16 px in the desktop menu, 18 px in the phone sheet. */
@@ -39,7 +43,7 @@ interface AgentMenuEntry {
 /**
  * The agent menu of the session header: History, Rename, Export agent, Archive agent. The agent's
  * name and a down arrow are the trigger, after the agent's icon. On a phone the icon is part of the
- * trigger, and the menu opens as a bottom sheet with "Cancel".
+ * trigger, and the menu opens as a bottom sheet with no visible "Cancel".
  */
 export const AgentMenu = ({
     agentId,
@@ -49,6 +53,8 @@ export const AgentMenu = ({
     projectId,
     base,
     phone = false,
+    phoneTrigger,
+    leadingEntries = [],
 }: {
     agentId: string
     name: string
@@ -58,6 +64,10 @@ export const AgentMenu = ({
     /** The project URL: an archived agent leaves for its Agents list. */
     base: string
     phone?: boolean
+    /** Replaces the phone trigger (the name), so the sheet can open from a More button. */
+    phoneTrigger?: ReactNode
+    /** Entries before the agent's own ones in the phone sheet. */
+    leadingEntries?: AgentMenuEntry[]
 }) => {
     const t = useT(agentLayoutHeaderCatalog)
     const canEdit = useProjectPermission(projectId, "edit_workflows")
@@ -70,6 +80,14 @@ export const AgentMenu = ({
     // agent actions, so the menu learns the result from the agent list.
     const [archiveAskedFor, setArchiveAskedFor] = useState<string | null>(null)
     const [sheetOpen, setSheetOpen] = useState(false)
+    // Desktop renames in place: the name becomes a field where it stands.
+    const tAgents = useT(agentsListCatalog)
+    // The field mounts after the menu closes, so the menu's focus return does not blur it.
+    const {
+        rename: inline,
+        startFromMenu,
+        handleCloseAutoFocus,
+    } = useAgentInlineRename({id: agentId, name})
     const entries: AgentMenuEntry[] = [
         {
             key: "history",
@@ -83,7 +101,7 @@ export const AgentMenu = ({
                       key: "rename",
                       label: t("agentLayout.header.rename"),
                       icon: <PencilSimple />,
-                      onSelect: () => actions.rename(target),
+                      onSelect: () => (phone ? actions.rename(target) : startFromMenu()),
                   },
               ]
             : []),
@@ -132,29 +150,29 @@ export const AgentMenu = ({
                     open={sheetOpen}
                     onOpenChange={setSheetOpen}
                     title={name}
-                    items={entries}
+                    items={[...leadingEntries, ...entries]}
                     trigger={
-                        <div
-                            role="button"
-                            tabIndex={0}
-                            aria-haspopup="dialog"
-                            className="ml-0.5 box-border flex h-11 min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 text-colorText outline-none active:bg-colorFillTertiary focus-visible:bg-colorFillTertiary"
-                            onKeyDown={(event) => {
-                                if (event.key !== "Enter" && event.key !== " ") return
-                                event.preventDefault()
-                                setSheetOpen(true)
-                            }}
-                        >
-                            <AgentKindBadge workflowId={agentId} editable={false} />
-                            <span className="min-w-0 truncate text-base font-semibold leading-5">
-                                {name}
-                            </span>
-                            <CaretDown
-                                size={14}
-                                aria-hidden
-                                className="shrink-0 text-colorTextTertiary"
-                            />
-                        </div>
+                        phoneTrigger ?? (
+                            <div
+                                role="button"
+                                tabIndex={0}
+                                aria-haspopup="dialog"
+                                className=" ml-0.5 box-border flex h-8 min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 text-foreground outline-none active:bg-secondary focus-visible:bg-secondary"
+                                onKeyDown={(event) => {
+                                    if (event.key !== "Enter" && event.key !== " ") return
+                                    event.preventDefault()
+                                    setSheetOpen(true)
+                                }}
+                            >
+                                <AgentKindBadge workflowId={agentId} editable={false} />
+                                <span className="min-w-0 truncate text-label">{name}</span>
+                                <CaretDown
+                                    size={14}
+                                    aria-hidden
+                                    className="shrink-0 text-muted-foreground"
+                                />
+                            </div>
+                        )
                     }
                 />
             </>
@@ -165,32 +183,48 @@ export const AgentMenu = ({
             {leave}
             {/* The icon (it opens the icon picker), then the name and the arrow as one button. */}
             <AgentKindBadge workflowId={agentId} />
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button
-                        variant="ghost"
-                        className="h-[30px] min-w-0 shrink gap-2 rounded-[6px] px-2 text-[15px] font-semibold text-colorText"
+            {inline.renaming ? (
+                <InlineRenameInput
+                    rename={inline}
+                    ariaLabel={tAgents("agents.list.agentName")}
+                    className="ml-0.5 box-border h-control-sm w-56 min-w-0 rounded-control-sm border border-solid border-border bg-background px-2 text-btn-sm font-medium text-foreground outline-none [font-family:inherit] focus-ring-field"
+                />
+            ) : (
+                <DropdownMenu>
+                    {/* The full name on hover: a narrow column cuts it first. */}
+                    <SimpleTooltip title={name}>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="min-w-0 shrink gap-1.5 px-2 text-foreground"
+                            >
+                                <span className="truncate">{name}</span>
+                                <CaretDown
+                                    aria-hidden
+                                    className="ag-caret size-3.5 shrink-0 text-muted-foreground"
+                                />
+                            </Button>
+                        </DropdownMenuTrigger>
+                    </SimpleTooltip>
+                    <DropdownMenuContent
+                        align="start"
+                        className="w-52"
+                        onCloseAutoFocus={handleCloseAutoFocus}
                     >
-                        <span className="truncate">{name}</span>
-                        <CaretDown
-                            aria-hidden
-                            className="size-3.5 shrink-0 text-colorTextTertiary"
-                        />
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-52">
-                    {entries.map((entry) => (
-                        <DropdownMenuItem
-                            key={entry.key}
-                            disabled={entry.disabled}
-                            onSelect={entry.onSelect}
-                        >
-                            {entry.icon}
-                            {entry.label}
-                        </DropdownMenuItem>
-                    ))}
-                </DropdownMenuContent>
-            </DropdownMenu>
+                        {entries.map((entry) => (
+                            <DropdownMenuItem
+                                key={entry.key}
+                                disabled={entry.disabled}
+                                onSelect={entry.onSelect}
+                            >
+                                {entry.icon}
+                                {entry.label}
+                            </DropdownMenuItem>
+                        ))}
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            )}
         </>
     )
 }

@@ -9,6 +9,7 @@
     "presetWithOverrides_many": "{{label}} · {{count}} substituições",
     "presetWithOverrides_other": "{{label}} · {{count}} substituições",
     "defaultPermission": "Permissão padrão",
+    "defaultPermissionNote": "O que o agente pode fazer sem perguntar a você",
     "searchToolCount_one": "Pesquisar {{count}} ferramenta",
     "searchToolCount_many": "Pesquisar {{count}} ferramentas",
     "searchToolCount_other": "Pesquisar {{count}} ferramentas",

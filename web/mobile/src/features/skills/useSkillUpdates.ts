@@ -7,21 +7,25 @@ import {applySkillUpdates, checkSkillUpdates} from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {message} from "@agenta/ui/app-message"
 import {atom, useAtomValue, useSetAtom} from "jotai"
+import Router from "next/router"
 
-/**
- * Where an imported skill stands against its upstream, once someone asked.
- *
- * `available` is the one that changes what is on screen: the row grows an Update button and the
- * group heading counts it. The rest are the answer to "Check for updates", said once as a toast.
- */
+/** Where an imported skill stands against its upstream, once someone asked. */
 export type SkillUpdateStatus = "checking" | "available" | "up_to_date" | "updated" | "failed"
 
-/**
- * One map for the whole screen, so a group heading and the rows under it read the same answer
- * without the screen threading it through the table. Module-scoped, not persisted: an update
- * check is a question asked now, and the next visit asks again.
- */
-const skillUpdatesAtom = atom<Map<string, SkillUpdateStatus>>(new Map())
+interface StatusEntry {
+    status: SkillUpdateStatus
+    at: number
+}
+
+/** A finished answer older than this is stale and no longer shown. */
+const STATUS_TTL_MS = 5 * 60_000
+
+const skillUpdatesAtom = atom<Map<string, StatusEntry>>(new Map())
+
+const fresh = (entry: StatusEntry | undefined): SkillUpdateStatus | undefined =>
+    entry && (entry.status === "checking" || Date.now() - entry.at < STATUS_TTL_MS)
+        ? entry.status
+        : undefined
 
 const tNow = createT(skillsListCatalog)
 
@@ -40,19 +44,21 @@ const checkToast = (status: string): string =>
             : CHECK_TOAST.check_failed,
     )
 
+const currentPath = () => Router.asPath.split("?")[0]
+
 export const useSkillUpdateStatus = (workflowId: string): SkillUpdateStatus | undefined =>
-    useAtomValue(skillUpdatesAtom).get(workflowId)
+    fresh(useAtomValue(skillUpdatesAtom).get(workflowId))
 
 /** The ids among `ids` an update is known to be waiting for. */
 export const useSkillsWithUpdates = (ids: string[]): string[] => {
     const statuses = useAtomValue(skillUpdatesAtom)
-    return ids.filter((id) => statuses.get(id) === "available")
+    return ids.filter((id) => fresh(statuses.get(id)) === "available")
 }
 
 /** True while any of `ids` is being checked or applied. */
 export const useSkillUpdatesBusy = (ids: string[]): boolean => {
     const statuses = useAtomValue(skillUpdatesAtom)
-    return ids.some((id) => statuses.get(id) === "checking")
+    return ids.some((id) => statuses.get(id)?.status === "checking")
 }
 
 export const useSkillUpdates = () => {
@@ -63,20 +69,21 @@ export const useSkillUpdates = () => {
         (entries: [string, SkillUpdateStatus][]) =>
             setStatuses((current) => {
                 const next = new Map(current)
-                for (const [id, status] of entries) next.set(id, status)
+                const at = Date.now()
+                for (const [id, status] of entries) next.set(id, {status, at})
                 return next
             }),
         [setStatuses],
     )
 
-    /**
-     * Read-only: asks upstream where each skill stands. A single skill's answer is said aloud;
-     * a group's is only shown through what changes on the rows.
-     */
+    /** Read-only: asks upstream where each skill stands; the result toast replaces a "Checking…" one. */
     const check = useCallback(
         async (ids: string[]) => {
             if (!ids.length) return
+            const key = `skill-check-${ids.join(",")}`
+            const startedOn = currentPath()
             mark(ids.map((id): [string, SkillUpdateStatus] => [id, "checking"]))
+            message.loading({content: tNow("skills.list.checkingUpdates"), key, duration: 0})
             const results = await checkSkillUpdates({projectId, workflowIds: ids})
             mark(
                 results.map(({workflowId, status}): [string, SkillUpdateStatus] => [
@@ -88,20 +95,23 @@ export const useSkillUpdates = () => {
                           : "failed",
                 ]),
             )
-            if (results.length === 1) {
-                const {status} = results[0]
-                if (status === "update_available") message.info(tNow("skills.list.updateAvailable"))
-                else message.info(checkToast(status))
-            } else {
-                const available = results.filter(({status}) => status === "update_available")
-                message.info(
-                    available.length
-                        ? tNow("skills.list.updatesAvailable", {count: available.length})
-                        : tNow("skills.list.allUpToDate"),
-                )
-            }
             // Detachment is derived server-side; a check can change what the list shows.
             invalidateSkillsListCache()
+            // The reader left the screen that asked: no late toast on another page.
+            if (currentPath() !== startedOn) {
+                message.destroy(key)
+                return
+            }
+            const available = results.filter(({status}) => status === "update_available")
+            const content =
+                results.length === 1
+                    ? available.length
+                        ? tNow("skills.list.updateAvailable")
+                        : checkToast(results[0].status)
+                    : available.length
+                      ? tNow("skills.list.updatesAvailable", {count: available.length})
+                      : tNow("skills.list.allUpToDate")
+            message.info({content, key})
         },
         [mark, projectId],
     )

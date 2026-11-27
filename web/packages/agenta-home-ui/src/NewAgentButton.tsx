@@ -2,7 +2,7 @@ import {useT} from "@agenta/i18n"
 import newAgentCatalog from "@agenta/i18n/catalogs/home.newAgent"
 import {CreateMenuButton, type CreateMenuOption} from "@agenta/ui/create-menu"
 import {DropdownMenuItem} from "@agenta/ui/ui"
-import {ArrowRightIcon} from "@phosphor-icons/react"
+import {ListBulletsIcon} from "@phosphor-icons/react"
 import Link from "next/link"
 
 export interface NewAgentButtonProps {
@@ -61,12 +61,12 @@ export const NewAgentButton = ({
             options={options}
             footer={
                 <DropdownMenuItem asChild>
-                    <Link
-                        href={browseHref}
-                        className="inline-flex items-center gap-1 !text-colorPrimary"
-                    >
+                    {/* A leading icon, so its label starts on the other labels' edge (ALIGN-01). */}
+                    <Link href={browseHref}>
+                        <span className="flex size-6 shrink-0 items-center justify-center">
+                            <ListBulletsIcon aria-hidden className="text-muted-foreground" />
+                        </span>
                         {t("home.newAgent.browseAll")}
-                        <ArrowRightIcon size={12} />
                     </Link>
                 </DropdownMenuItem>
             }

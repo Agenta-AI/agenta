@@ -41,7 +41,7 @@ const TraceLinkedSpans = () => {
 
     if (!validLinks.length) {
         return (
-            <span className="text-colorTextSecondary">
+            <span className="text-muted-foreground">
                 {t("observabilityUi.traceDrawer.noLinkedSpans")}
             </span>
         )
@@ -55,7 +55,7 @@ const TraceLinkedSpans = () => {
                         return (
                             <Tag
                                 key={`${link.trace_id}-${link.span_id}-${link.key || ""}`}
-                                className="cursor-pointer self-start bg-[var(--ag-c-0517290F)] flex gap-1 items-center"
+                                className="cursor-pointer self-start bg-secondary flex gap-1 items-center"
                                 onClick={() => handleNavigate(link)}
                                 icon={<TreeStructureIcon size={14} />}
                                 // `trace` is not declared on the link type; the read is kept

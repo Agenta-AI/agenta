@@ -40,19 +40,19 @@ export interface WorkflowTypeTagProps {
 
 // All 13 antd preset hues now exist as Badge variants (palette `presetTag`).
 const BADGE_PRESET: Partial<Record<string, BadgeProps["variant"]>> = {
-    blue: "blue",
-    green: "green",
-    orange: "orange",
-    red: "red",
-    purple: "purple",
-    cyan: "cyan",
-    magenta: "magenta",
-    gold: "gold",
-    pink: "pink",
-    yellow: "yellow",
-    volcano: "volcano",
-    geekblue: "geekblue",
-    lime: "lime",
+    blue: "info",
+    green: "success",
+    orange: "warning",
+    red: "destructive",
+    purple: "default",
+    cyan: "info",
+    magenta: "default",
+    gold: "warning",
+    pink: "default",
+    yellow: "warning",
+    volcano: "destructive",
+    geekblue: "info",
+    lime: "success",
 }
 
 /**

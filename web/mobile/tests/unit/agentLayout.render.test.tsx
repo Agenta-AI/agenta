@@ -19,6 +19,12 @@ vi.mock("@agenta/ui/hooks", async (importOriginal) => ({
     ...(await importOriginal<object>()),
     useMediaQuery: (query: string) => media.width >= Number(/(\d+)px/.exec(query)?.[1] ?? 0),
 }))
+// The stored-Files restore reads the width itself; it answers from the same width.
+vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: media.width >= Number(/(\d+)px/.exec(query)?.[1] ?? 0),
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+}))
 vi.mock("next/router", () => ({
     useRouter: () => ({
         push: vi.fn(),
@@ -168,6 +174,23 @@ describe("the session screen on the agent layout", () => {
         expect(panel.className).toContain("top-12")
     })
 
+    it("dims the page under the overlay with a scrim that closes the panel (LAYOUT-04)", async () => {
+        openConfiguration()
+        media.width = 1000
+        await render(createStore())
+        const scrim = q("agent-panel-scrim")[0] as HTMLElement
+        expect(scrim.className).toContain("bg-overlay")
+        expect(scrim.className).toContain("top-12")
+        await act(async () => scrim.click())
+        expect(q("agent-panel-scrim")).toHaveLength(0)
+    })
+
+    it("draws no scrim beside the page", async () => {
+        openConfiguration()
+        await render(createStore())
+        expect(q("agent-panel-scrim")).toHaveLength(0)
+    })
+
     it("never mounts the configuration of a hidden agent", async () => {
         openConfiguration()
         await render(createStore(), true)
@@ -191,12 +214,25 @@ describe("the session screen on the agent layout", () => {
         expect(panel.className).toContain("absolute")
         expect(q("chat-column")).toHaveLength(1)
 
+        // On a phone the panel opens only when the person opens it (here a reveal request).
         media.width = 390
-        await render(createStore())
+        const phoneStore = createStore()
+        phoneStore.set(configPaneRevealRequestAtom, Date.now())
+        await render(phoneStore)
+        await act(async () => undefined)
         const chatWrapper = q("chat-column")[0]?.parentElement?.parentElement as HTMLElement
         expect(chatWrapper.className).toContain("hidden")
         // Still mounted once, so a running answer goes on.
         expect(q("chat-column")).toHaveLength(1)
+    })
+
+    it("on a phone keeps a panel left open on the desktop closed, so the chat shows", async () => {
+        openConfiguration()
+        media.width = 390
+        await render(createStore())
+        const chatWrapper = q("chat-column")[0]?.parentElement?.parentElement as HTMLElement
+        expect(chatWrapper.className).not.toContain("hidden")
+        expect(q("configuration")).toHaveLength(0)
     })
 
     it("opens Configuration on a reveal request made before it mounted, and clears it", async () => {
@@ -263,10 +299,11 @@ describe("the session screen on the agent layout", () => {
     })
 
     it("hands the screen back to the composer on a phone when a prompt is prefilled", async () => {
-        openConfiguration()
         media.width = 390
         const store = createStore()
+        store.set(configPaneRevealRequestAtom, Date.now())
         await render(store)
+        await act(async () => undefined)
         const panel = q("agent-panel")[0]?.parentElement as HTMLElement
         expect(panel.className).not.toContain("hidden")
         await act(async () => {

@@ -94,7 +94,7 @@ const copyText = async (text: string) => {
 const CodeStep = ({index, title, code}: {index: number; title: string; code: string}) => (
     <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-2">
-            <p className="m-0 text-sm text-foreground">
+            <p className="m-0 text-body text-foreground">
                 {index}. {title}
             </p>
             <Button
@@ -107,7 +107,7 @@ const CodeStep = ({index, title, code}: {index: number; title: string; code: str
                 <Copy aria-hidden size={14} />
             </Button>
         </div>
-        <pre className="m-0 max-h-[360px] overflow-auto rounded-lg bg-muted p-3 font-mono text-[12px] leading-[1.5] text-foreground">
+        <pre className="m-0 max-h-90 overflow-auto rounded-lg bg-muted p-3 text-code text-foreground">
             {code}
         </pre>
     </div>
@@ -170,7 +170,7 @@ export const SdkEvaluationSheet = ({
                         </Button>
                     </div>
                     <div className="flex flex-col gap-2">
-                        <label htmlFor="sdk-evaluation-api-key" className="text-sm font-medium">
+                        <label htmlFor="sdk-evaluation-api-key" className="text-label">
                             Create or enter your API key
                         </label>
                         <div className="flex gap-2">

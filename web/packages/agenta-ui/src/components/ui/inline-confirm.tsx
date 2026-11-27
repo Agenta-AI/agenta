@@ -109,7 +109,7 @@ export function InlineConfirm({
                 // is not; and named as the description of both buttons, so the consequence is read
                 // out wherever focus is rather than only at the moment it appeared.
                 role="alert"
-                className="text-sm text-colorTextSecondary"
+                className="text-body text-muted-foreground"
             >
                 {message}
             </span>

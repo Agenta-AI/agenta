@@ -33,7 +33,7 @@ export const SamplingRateControl = ({
                 disabled={disabled}
                 onChange={(next) => onChange(parseSamplingRate(next))}
             />
-            <span className="text-sm text-muted-foreground">%</span>
+            <span className="text-body text-muted-foreground">%</span>
         </div>
     </div>
 )

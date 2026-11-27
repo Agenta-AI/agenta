@@ -28,7 +28,7 @@ const SwitchRow = ({
             <Switch id={id} size="sm" checked={checked} onCheckedChange={onChange} />
             <label
                 htmlFor={id}
-                className="cursor-pointer select-none text-xs text-muted-foreground"
+                className="cursor-pointer select-none text-meta text-muted-foreground"
             >
                 {label}
             </label>
@@ -58,7 +58,7 @@ export const FocusSwitches = ({
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <Button type="button" size="icon-sm" variant="ghost" aria-label="More">
-                        <DotsThree aria-hidden size={16} weight="bold" />
+                        <DotsThree aria-hidden size={16} />
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">

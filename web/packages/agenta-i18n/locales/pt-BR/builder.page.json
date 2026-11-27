@@ -3,7 +3,7 @@
     "newChat": "Novo chat",
     "chats": "Chats",
     "chatsLoading": "Carregando chats…",
-    "chatsFailed": "Não foi possível carregar os chats.",
+    "chatsFailed": "Não foi possível carregar as sessões",
     "retry": "Tentar novamente",
     "untitledChat": "Chat sem título",
     "today": "Hoje",
@@ -88,5 +88,6 @@
     "kindTool": "Ferramenta",
     "kindApp": "App",
     "itemNotShown": "Este item ainda não pode ser exibido aqui.",
-    "changedByBuilder": "Alterado pelo Builder"
+    "changedByBuilder": "Alterado pelo Builder",
+    "noChatsYet": "Ainda não há sessões. Inicie uma com Nova sessão."
 }

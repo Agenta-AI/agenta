@@ -114,7 +114,7 @@ export function SearchableList<T>({
 
     const renderError = () =>
         errorState ?? (
-            <div className={cn("py-6 text-center text-colorError")}>{resolvedErrorMessage}</div>
+            <div className={cn("py-6 text-center text-destructive")}>{resolvedErrorMessage}</div>
         )
 
     const renderList = () => {

@@ -212,7 +212,7 @@ afterEach(async () => {
 })
 
 describe("Add subagents view", () => {
-    it("adds an agent with one click and removes it with a second click", async () => {
+    it("adds an agent with one click and removes it from the added row's menu", async () => {
         await openIn(subagentAddView, {})
         await findByText("crumb:Add subagents")
         await click(await findByText("Lead finder"))
@@ -222,15 +222,25 @@ describe("Add subagents view", () => {
         // The added row says so; the schema came from the agent's latest revision.
         expect(tools()[1].input_schema).toEqual({type: "object", properties: {q: {type: "string"}}})
         expect(tools()[1].name).toBeUndefined()
-        await waitFor(() =>
-            expect(
-                document.querySelector('[aria-label="Remove Lead finder as a subagent"]'),
-            ).toBeTruthy(),
+        // The added row moves under Added, with Remove in its menu.
+        const menuButton = () =>
+            byText("Lead finder", "span")
+                ?.closest(".group\\/row")
+                ?.querySelector<HTMLButtonElement>('button[aria-label="More actions"]')
+        await waitFor(() => expect(menuButton()).toBeTruthy())
+        // Radix opens a menu on pointerdown.
+        await act(async () => {
+            menuButton()!.dispatchEvent(new MouseEvent("pointerdown", {bubbles: true, button: 0}))
+        })
+        await click(
+            await findByText(
+                "",
+                '[role="menuitem"][aria-label="Remove Lead finder as a subagent"]',
+            ),
         )
-        await click(byText("Lead finder"))
         await waitFor(() => expect(tools().map((tool) => tool.slug)).toEqual(["email-writer"]))
-        // A picker: Done, no Save.
-        expect(byText("Done")).toBeTruthy()
+        // A picker: no Save, and no Done (the header's back leaves).
+        expect(byText("Done")).toBeUndefined()
         expect(byText("Save")).toBeUndefined()
     })
 

@@ -7,6 +7,7 @@
     "writeGroup": "写入和删除",
     "presetWithOverrides_other": "{{label}} · {{count}} 项覆盖",
     "defaultPermission": "默认权限",
+    "defaultPermissionNote": "代理无需询问你即可执行的操作",
     "searchToolCount_other": "搜索 {{count}} 个工具",
     "searchTools": "搜索工具",
     "noToolMatches": "这里没有匹配的工具。",

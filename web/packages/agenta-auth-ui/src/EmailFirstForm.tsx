@@ -68,7 +68,7 @@ export const EmailFirstForm = ({
     const invalid = message.type === "error" || validation !== null
 
     return (
-        <form className="flex w-full flex-col gap-[10px]" onSubmit={handleSubmit} noValidate>
+        <form className="flex w-full flex-col gap-2" onSubmit={handleSubmit} noValidate>
             <div className={cn("relative", shakeClass)}>
                 <Input
                     type="email"

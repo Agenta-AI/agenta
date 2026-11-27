@@ -1,6 +1,6 @@
 ---
 name: mobile-shadcn-conventions
-description: How the Agenta mobile app (web/mobile) installs and extends shadcn/ui registry components, themes them via the palette token bridge, and builds chat UI on @agenta/chat. Use when adding UI components under web/mobile, changing theme colors, editing components.json or globals.css, or building chat UI.
+description: How the Agenta mobile app (web/mobile) installs and extends shadcn/ui registry components and builds chat UI on @agenta/chat. Use when adding a registry component under web/mobile, editing components.json, or building chat UI. For colors, sizes and design rules, read web/DESIGN.md instead.
 ---
 
 # Mobile shadcn conventions
@@ -21,34 +21,21 @@ description: How the Agenta mobile app (web/mobile) installs and extends shadcn/
   `pnpm dlx shadcn@latest add <component>`.
 - Components land in `src/components/ui/` (aliases in `components.json`). They
   are owned code: you may adapt them, but keep diffs minimal and expressed in
-  semantic tokens so upstream refreshes stay cheap.
+  theme variables so upstream refreshes stay cheap.
 - The CLI adds any peer deps (e.g. `@radix-ui/react-slot`) to
   `web/mobile/package.json` — commit the manifest and `web/pnpm-lock.yaml`
   changes together with the component.
 - Never copy component source from the shadcn website by hand; the CLI resolves
   the Tailwind v4 variant correctly.
-- Installing a shadcn component that references a NEW token (e.g. `bg-sidebar`,
-  `chart-*`) requires extending VARS in `scripts/generate-shadcn-tokens.ts` +
-  the `@theme inline` map in `globals.css` first — Tailwind v4 silently
-  generates nothing for unmapped tokens.
+- Installing a shadcn component that references a new theme variable (e.g. `chart-*`)
+  requires adding it to `web/packages/agenta-ui/src/design/theme.config.ts` (a color, or a
+  `colorAliases` entry) and running `pnpm --filter @agenta/ui generate:theme` first — Tailwind v4
+  silently generates nothing for an unmapped name.
 
-## Theming — the token bridge
+## Theme and design rules
 
-- shadcn variables (`--background`, `--primary`, ...) are NOT hand-maintained.
-  They are generated into `src/styles/theme.generated.css` from
-  `web/oss/src/styles/theme/palette.ts` by `scripts/generate-shadcn-tokens.ts`.
-  The script also reads `controlScale.ts` from the same folder. That theme
-  folder is the one part of `web/oss` still in use: edit it for color changes,
-  but touch nothing else in `web/oss`.
-- To change a color: edit `palette.ts` (if the design-system value is wrong) or
-  the ROLE MAP in the script (if the mapping is wrong), then run
-  `pnpm --filter @agenta/mobile generate:tokens` and commit the regenerated CSS.
-- Never edit `theme.generated.css` directly; never introduce raw hex values in
-  components — if a needed role is missing, extend the bridge.
-- Dark mode is the `.dark` class on `<html>` (`@custom-variant dark` in
-  `globals.css`), set pre-paint by the `_document.tsx` init script from the
-  shared `agenta-theme` localStorage key. Both themes must be checked for every
-  new surface.
+Not here. Values and rules live in `web/packages/agenta-ui/src/design/` (`theme.config.ts`, `rules.json`),
+and the principles and the layout in `web/DESIGN.md`.
 
 ## Extending components
 
@@ -65,5 +52,4 @@ description: How the Agenta mobile app (web/mobile) installs and extends shadcn/
   `@agenta/ui/rich-chat-input`. Markdown streams through `streamdown`.
 - Behavior comes from `@agenta/chat` hooks — never re-implement orchestration
   inside a rendered component.
-- Icons: both `@phosphor-icons/react` (most files) and `lucide-react` (older
-  files and shadcn registry output) are in use. Match the surrounding feature.
+- A registry component that arrives with `lucide-react` icons gets Phosphor icons instead (`ICON-01`).

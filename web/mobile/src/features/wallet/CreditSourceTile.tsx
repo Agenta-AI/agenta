@@ -14,26 +14,26 @@ export const CreditSourceTile = ({credit}: {credit: WalletCredit}) => {
     const color = analyticsColor(kind.color)
     const left = credit.amount_musd > 0 ? (credit.remaining_musd / credit.amount_musd) * 100 : 0
     return (
-        <section className="bg-muted box-border flex h-[140px] min-w-0 flex-col rounded-xl px-3.5 py-3.5">
-            <span className="text-muted-foreground flex items-center gap-2 truncate text-[13px]">
-                <span className="size-2 shrink-0 rounded-full" style={{background: color}} />
+        <section className="bg-muted box-border flex h-35 min-w-0 flex-col rounded-lg px-3 py-3">
+            <span className="text-muted-foreground flex items-center gap-2 truncate text-label">
+                <span className="size-2 shrink-0 rounded-xs" style={{background: color}} />
                 {kind.label}
             </span>
             <span className="mt-auto flex min-w-0 items-baseline gap-1.5">
-                <span className="text-foreground truncate text-xl font-medium tabular-nums leading-[26px]">
+                <span className="text-foreground truncate text-heading font-medium tabular-nums">
                     <AnimatedNumber value={formatCredits(credit.remaining_musd)} />
                 </span>
-                <span className="text-muted-foreground truncate text-xs tabular-nums">
+                <span className="text-muted-foreground truncate text-meta tabular-nums">
                     {t("wallet.credits.ofAmount", {amount: formatCredits(credit.amount_musd)})}
                 </span>
             </span>
-            <span className="bg-accent my-1.5 block h-[3px] overflow-hidden rounded-full">
+            <span className="bg-secondary my-1.5 block h-1 overflow-hidden rounded-xs">
                 <span
-                    className="block h-full rounded-full"
+                    className="block h-full rounded-xs"
                     style={{width: `${Math.min(100, left)}%`, background: color}}
                 />
             </span>
-            <span className="text-muted-foreground truncate text-[13px]">
+            <span className="text-muted-foreground truncate text-label">
                 {kind.lasts(credit.end_time)}
             </span>
         </section>

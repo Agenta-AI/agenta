@@ -1,10 +1,7 @@
 {
     "chooseWhose": "Choisissez la connexion {{name}} que l'agent utilise",
     "eachPersonsOwnNote": "Chacun utilise sa propre connexion {{name}}.",
-    "oneShared": "Une connexion partagée",
     "oneSharedNote": "Tout le monde utilise la connexion du projet.",
-    "sharedSignIn": "Connexion partagée",
-    "sharedSignInNote": "Chaque exécution utilise cette connexion, quelle que soit la personne qui la lance",
     "yourSignIn": "Votre connexion",
     "yourSignInNote": "La connexion {{name}} qu'utilisent vos propres exécutions",
     "notSignedInYet": "Pas encore connecté",

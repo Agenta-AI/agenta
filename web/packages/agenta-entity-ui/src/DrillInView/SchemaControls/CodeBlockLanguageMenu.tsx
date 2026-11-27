@@ -107,7 +107,7 @@ export function CodeBlockLanguageMenu({editable = true}: {editable?: boolean}) {
             {menus.map((m) => (
                 <div
                     key={m.key}
-                    className="fixed z-[1100] rounded-md bg-[var(--ant-color-bg-elevated)]"
+                    className="fixed z-[1100] rounded-md bg-popover"
                     style={{
                         top: m.top + 7,
                         right: m.right + 8,
@@ -124,7 +124,7 @@ export function CodeBlockLanguageMenu({editable = true}: {editable?: boolean}) {
                         options={options}
                         onChange={(lang) => lang && setLanguage(m.key, lang)}
                         variant="ghost"
-                        className="h-6 min-w-[96px] text-xs"
+                        className="h-6 min-w-[96px] text-meta"
                         contentClassName="w-auto min-w-[160px]"
                     />
                 </div>

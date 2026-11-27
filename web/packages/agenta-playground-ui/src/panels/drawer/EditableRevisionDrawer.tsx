@@ -12,11 +12,23 @@ import {useT} from "@agenta/i18n"
 import panelsCatalog from "@agenta/i18n/catalogs/playground.panels"
 import {playgroundController} from "@agenta/playground"
 import {cn} from "@agenta/ui/styles"
-import {Button, Sheet, SheetContent, SheetHeader} from "@agenta/ui/ui"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+    Sheet,
+    SheetContent,
+    SheetHeader,
+} from "@agenta/ui/ui"
 import {ArrowsIn, ArrowsOut, CaretDownIcon, CaretUpIcon} from "@phosphor-icons/react"
 import {atom, useStore, type Getter} from "jotai"
 
-import {DiscardChangesDialog} from "./DiscardChangesDialog"
 import {DrawerTitle} from "./DrawerTitle"
 import {EditableRevisionDrawerBody} from "./EditableRevisionDrawerBody"
 import type {EditableRevisionDrawerProps} from "./types"
@@ -231,15 +243,37 @@ export const EditableRevisionDrawer = ({
                     ) : null}
                 </SheetContent>
             </Sheet>
-            <DiscardChangesDialog
+            {/* Asks before a close or a switch drops unsaved edits. */}
+            <AlertDialog
                 open={pending !== null}
-                onCancel={() => setPending(null)}
-                onDiscard={() => {
-                    const next = pending
-                    setPending(null)
-                    if (next) act(next)
-                }}
-            />
+                onOpenChange={(next) => (next ? undefined : setPending(null))}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{t("playground.panels.discardTitle")}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t("playground.panels.discardBody")}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button variant="outline">{t("playground.panels.keepEditing")}</Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant="destructive"
+                                onClick={() => {
+                                    const next = pending
+                                    setPending(null)
+                                    if (next) act(next)
+                                }}
+                            >
+                                {t("playground.panels.discard")}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     )
 }

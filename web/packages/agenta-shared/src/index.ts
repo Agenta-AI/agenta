@@ -177,6 +177,7 @@ export {
     formatCompact,
     formatCompactNumber, // deprecated alias
     formatCurrency,
+    formatCurrencyPrecise,
     formatLatency,
     formatTokens,
     formatTokenUsage, // deprecated alias

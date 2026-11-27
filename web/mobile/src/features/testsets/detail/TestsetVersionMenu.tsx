@@ -69,7 +69,7 @@ const VersionMenuBody = ({
                 >
                     <span className="flex items-center gap-2">
                         <span className="font-medium">v{revision.version}</span>
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-meta text-muted-foreground">
                             {formatTestsetDate(revision.createdAt)}
                         </span>
                         {revision.id === currentRevisionId ? (
@@ -77,12 +77,12 @@ const VersionMenuBody = ({
                         ) : null}
                     </span>
                     {revision.message ? (
-                        <span className="truncate text-xs text-muted-foreground">
+                        <span className="truncate text-meta text-muted-foreground">
                             {revision.message}
                         </span>
                     ) : null}
                     {revision.authorId ? (
-                        <span className="truncate text-xs text-muted-foreground">
+                        <span className="truncate text-meta text-muted-foreground">
                             <UserAuthorLabel userId={revision.authorId} fallback="" />
                         </span>
                     ) : null}
@@ -93,5 +93,5 @@ const VersionMenuBody = ({
 }
 
 const MenuNote = ({children}: {children: string}) => (
-    <p className="m-0 px-2 py-1.5 text-sm text-muted-foreground">{children}</p>
+    <p className="m-0 px-2 py-1.5 text-body text-muted-foreground">{children}</p>
 )

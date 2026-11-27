@@ -88,7 +88,7 @@ export const CompletionCompareRow = memo(
                         <button
                             type="button"
                             onClick={showDetails}
-                            className="flex items-center gap-1 whitespace-nowrap rounded-md border-0 bg-muted px-2 py-0.5 text-xs text-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+                            className="flex items-center gap-1 whitespace-nowrap rounded-md border-0 bg-muted px-2 py-0.5 text-label font-normal text-foreground outline-none hover:bg-accent focus-ring"
                         >
                             <Rows size={12} aria-hidden />
                             {`testcase ${index + 1}`}

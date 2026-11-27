@@ -174,10 +174,11 @@ const openList = async () => {
     await findByText("here:Model providers")
 }
 
+// The add view is the Settings catalog; a subscription row's Connect starts its sign-in.
 const pick = async (name: string) => {
     await click(byText("Add a provider or subscription"))
-    await findByText("here:Add")
-    await click(byText(name, "button span"))
+    await findByText("", 'input[placeholder="Search providers"]')
+    await click(document.querySelector(`[role="button"][aria-label="Connect ${name}"]`))
     await findByText(`here:${name}`)
 }
 
@@ -299,7 +300,7 @@ describe("ChatGPT device code view", {timeout: 30_000}, () => {
         expect(fx.polling.size).toBe(0)
     })
 
-    it("Sign in again on the list row starts a sign-in on that connection", async () => {
+    it("Sign in again on the list row opens that connection's sign-in; Connect starts it", async () => {
         store.set(fx.atoms.connections, [
             {
                 id: "chatgpt-1",
@@ -313,6 +314,8 @@ describe("ChatGPT device code view", {timeout: 30_000}, () => {
         await openList()
         await click(button("Sign in again"))
         await findByText("here:ChatGPT")
+        expect(fx.started).toBe(0)
+        await click(button("Connect ChatGPT"))
         await findByText("KXRT-9P4M")
         // From the list, Cancel goes back to the list.
         await click(button("Cancel"))

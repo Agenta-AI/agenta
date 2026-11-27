@@ -12,8 +12,8 @@ export function EntityTypeIcon({
     entityType,
     size = 14,
     className,
-    appClassName = "text-colorPrimary",
-    evaluatorClassName = "text-colorInfo",
+    appClassName = "text-primary",
+    evaluatorClassName = "text-info",
 }: EntityTypeIconProps) {
     if (entityType === "evaluatorRevision") {
         return <Flask size={size} weight="fill" className={evaluatorClassName || className} />

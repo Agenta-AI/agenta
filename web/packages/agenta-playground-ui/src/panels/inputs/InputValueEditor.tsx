@@ -220,7 +220,7 @@ const CodeEditor = ({
             initialValue={buffer}
             handleChange={editable ? handleChange : undefined}
             editorType="borderless"
-            className="min-h-[60px] overflow-hidden !border-transparent !p-0"
+            className="min-h-15 overflow-hidden !border-transparent !p-0"
             disableDebounce
             disabled={!editable}
             state={editable ? "filled" : "readOnly"}

@@ -13,7 +13,7 @@ import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {cn} from "@agenta/ui/styles"
 import {Button, RadioGroup, RadioGroupItem, Spinner} from "@agenta/ui/ui"
 import {useViewForm, type ViewForm} from "@agenta/ui/view-stack"
-import {ArrowUp, File as FileIcon} from "@phosphor-icons/react"
+import {File as FileIcon, UploadSimple} from "@phosphor-icons/react"
 
 import {
     readSkillUploadFromDataTransfer,
@@ -127,16 +127,20 @@ export function SkillUploadStep({fileCount, onUpload, onCancel, onControl}: Skil
                     void read(() => readSkillUploadFromDataTransfer(dt), first)
                 }}
                 className={cn(
-                    "flex flex-col items-center justify-center gap-2 rounded-[10px] border border-dashed border-colorBorder bg-colorBgContainer px-4 py-7 text-center transition-colors",
-                    over && "border-[var(--ag-c-586673)] bg-[var(--ag-c-F5F7FA)]",
+                    "flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-background px-4 py-7 text-center transition-colors duration-[var(--duration-fast)] motion-reduce:transition-none",
+                    over && "border-border-strong bg-accent",
                 )}
             >
-                {busy ? <Spinner size="small" /> : <ArrowUp size={16} className="text-colorText" />}
-                <span className="text-[13px] font-medium leading-5 text-colorText">
+                {busy ? (
+                    <Spinner size="small" />
+                ) : (
+                    <UploadSimple size={16} className="text-foreground" />
+                )}
+                <span className="text-label font-medium leading-5 text-foreground">
                     {/* ".zip" and ".skill" in the line's own font (F07 f7). */}
                     {richText(t("entityUi.skillTemplate.dragHint"), {mono: (text) => text})}
                 </span>
-                <span className="text-[12px] leading-4 text-colorTextSecondary">
+                <span className="text-meta text-muted-foreground">
                     {t("entityUi.skillView.or")}
                 </span>
                 <Button
@@ -148,7 +152,7 @@ export function SkillUploadStep({fileCount, onUpload, onCancel, onControl}: Skil
                     {t("entityUi.skillTemplate.browseFiles")}
                 </Button>
                 {upload ? (
-                    <span className="flex items-center gap-1 text-xs">
+                    <span className="flex items-center gap-1 text-meta">
                         <FileIcon size={13} className="text-muted-foreground" />
                         <span className="font-mono">{label}</span>
                         <span className="text-muted-foreground">
@@ -199,28 +203,26 @@ export function SkillUploadStep({fileCount, onUpload, onCancel, onControl}: Skil
                     <label
                         key={value}
                         className={cn(
-                            "flex cursor-pointer items-start gap-2.5 rounded-[10px] border border-solid px-3 py-3",
+                            "flex cursor-pointer items-start gap-2.5 rounded-lg border border-solid px-3 py-3",
                             mode === value
-                                ? "border-colorText bg-[var(--ag-surface-raised)]"
-                                : "border-colorBorderSecondary bg-colorBgContainer",
+                                ? "border-foreground bg-muted"
+                                : "border-border-muted bg-background",
                         )}
                     >
                         <RadioGroupItem value={value} className="mt-0.5" />
                         <span className="flex flex-col gap-0.5">
-                            <span className="text-[13px] font-semibold leading-5 text-colorText">
+                            <span className="text-label font-semibold leading-5 text-foreground">
                                 {title}
                             </span>
-                            <span className="text-[12px] leading-4 text-colorTextSecondary">
-                                {hint}
-                            </span>
+                            <span className="text-meta text-muted-foreground">{hint}</span>
                         </span>
                     </label>
                 ))}
             </RadioGroup>
-            <span className="text-[12px] leading-4 text-colorTextTertiary">
+            <span className="text-meta text-muted-foreground">
                 {t("entityUi.skillView.textOnly")}
             </span>
-            {error ? <span className="text-xs text-[var(--ag-colorError)]">{error}</span> : null}
+            {error ? <span className="text-meta text-destructive">{error}</span> : null}
             {onControl ? null : (
                 <div className="flex justify-end gap-2">
                     <Button variant="outline" onClick={onCancel}>

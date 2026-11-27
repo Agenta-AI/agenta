@@ -4,8 +4,7 @@ import {workflowLatestRevisionIdAtomFamily, type Workflow} from "@agenta/entitie
 import {useSettledValue} from "@agenta/shared/hooks"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
-import {ListTableToolbar} from "@agenta/ui/list-table"
-import {Button, Segmented} from "@agenta/ui/ui"
+import {Button, Segmented, PageToolbar} from "@agenta/ui/ui"
 import {ArrowsLeftRight, CloudArrowUp, Code, Trash} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -190,7 +189,7 @@ export const VariantsTab = ({
 
     return (
         <>
-            <ListTableToolbar
+            <PageToolbar
                 search={search}
                 onSearchChange={(next) => {
                     setSearch(next)

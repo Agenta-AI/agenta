@@ -129,7 +129,7 @@ export const AgentOverviewScreen = ({
                     {/* `min-h-0 flex-1` is load-bearing: the body IS the scroller. */}
                     <div
                         // The header's gutter less the 12px the body's scroller carries itself (see the body).
-                        className={`${pageContentWidthClass} flex min-h-0 flex-1 flex-col px-1 pb-4 pt-3 lg:px-[52px] lg:pb-6 lg:pt-2`}
+                        className={`${pageContentWidthClass} flex min-h-0 flex-1 flex-col px-1 pb-4 pt-3 lg:px-13 lg:pb-6 lg:pt-2`}
                     >
                         <AgentOverviewBody
                             agentId={agentId}

@@ -48,7 +48,6 @@ export const CreditsHero = ({
                 balanceMusd={balance}
                 status={t(status.label)}
                 statusTone={status.tone}
-                interactive
                 size="compact"
             />
             {credits.length ? (
@@ -77,7 +76,7 @@ export const CreditsHero = ({
                     )}
                 </div>
             ) : (
-                <div className="bg-muted text-muted-foreground flex h-[140px] items-center justify-center rounded-xl p-4 text-center text-[13px]">
+                <div className="bg-muted text-muted-foreground flex h-35 items-center justify-center rounded-xl p-4 text-center text-label">
                     {t("wallet.credits.noCredits")}
                 </div>
             )}

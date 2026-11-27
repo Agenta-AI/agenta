@@ -62,7 +62,7 @@ const RunButton = memo(({mode = "run", label, onTrackRun, ...props}: RunButtonPr
 
     return (
         <Button
-            variant={isCancel ? "destructive-outline" : "outline"}
+            variant={isCancel ? "destructive-ghost" : "outline"}
             className="self-start"
             size="sm"
             onClick={handleClick}

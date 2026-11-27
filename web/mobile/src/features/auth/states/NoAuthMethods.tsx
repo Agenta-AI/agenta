@@ -5,7 +5,7 @@ import signInCatalog from "@agenta/i18n/catalogs/auth.signIn"
 export const NoAuthMethods = () => {
     const t = useT(signInCatalog)
     return (
-        <p className="text-muted-foreground text-center text-xs">
+        <p className="text-muted-foreground text-center text-meta">
             {t("auth.signIn.noAuthMethods")}
         </p>
     )

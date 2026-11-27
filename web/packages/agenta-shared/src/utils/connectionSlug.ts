@@ -65,9 +65,8 @@ const asIdentifier = (value: string): string =>
  * What a connection is CALLED in the UI. A slug is an identifier, never a label.
  *
  * Connections made outside the connect form often store their slug or integration key as their
- * name ("youtube-main", "google_maps"). With the app's name, such a connection reads as the app,
- * plus what the slug adds after the integration key: "youtube-main" → "YouTube (main)".
- * Without it, or with a real name, the name (else the slug) is shown as stored.
+ * name ("youtube-main", "google_maps"). With the app's name, such a connection reads as the app:
+ * "youtube-main" → "YouTube". Without it, or with a real name, the name (else the slug) is shown.
  */
 export function connectionDisplayName(
     connection:
@@ -83,10 +82,5 @@ export function connectionDisplayName(
 
     const identifiers = [slug, key].filter(Boolean).map(asIdentifier)
     const nameIsIdentifier = !name || identifiers.includes(asIdentifier(name))
-    if (!nameIsIdentifier || !app) return name || slug
-
-    const slugId = asIdentifier(slug)
-    const keyId = asIdentifier(key)
-    const rest = keyId && slugId.startsWith(`${keyId}-`) ? slugId.slice(keyId.length + 1) : ""
-    return rest ? `${app} (${rest})` : app
+    return nameIsIdentifier && app ? app : name || slug
 }

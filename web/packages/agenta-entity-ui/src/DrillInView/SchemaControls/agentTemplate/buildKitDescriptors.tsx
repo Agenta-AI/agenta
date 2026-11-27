@@ -127,6 +127,51 @@ const BUILD_KIT_TOOL_COPY: Record<string, BuildKitCopyKeys> = {
         name: "entityUi.buildKit.removeSubscriptionName",
         description: "entityUi.buildKit.removeSubscriptionDescription",
     },
+    // The Agenta tools too, so both lists name a tool the same way (CONS-02).
+    get_current_session: {
+        name: "entityUi.buildKit.getCurrentSessionName",
+        description: "entityUi.buildKit.getCurrentSessionDescription",
+    },
+    list_subscriptions: {
+        name: "entityUi.buildKit.listSubscriptionsName",
+        description: "entityUi.buildKit.listSubscriptionsDescription",
+    },
+    check_skill_updates: {
+        name: "entityUi.buildKit.checkSkillUpdatesName",
+        description: "entityUi.buildKit.checkSkillUpdatesDescription",
+    },
+    apply_skill_update: {
+        name: "entityUi.buildKit.applySkillUpdateName",
+        description: "entityUi.buildKit.applySkillUpdateDescription",
+    },
+    start_session: {
+        name: "entityUi.buildKit.startSessionName",
+        description: "entityUi.buildKit.startSessionDescription",
+    },
+    send_session_message: {
+        name: "entityUi.buildKit.sendSessionMessageName",
+        description: "entityUi.buildKit.sendSessionMessageDescription",
+    },
+    wait_for_sessions: {
+        name: "entityUi.buildKit.waitForSessionsName",
+        description: "entityUi.buildKit.waitForSessionsDescription",
+    },
+    cancel_session: {
+        name: "entityUi.buildKit.cancelSessionName",
+        description: "entityUi.buildKit.cancelSessionDescription",
+    },
+    list_sessions: {
+        name: "entityUi.buildKit.listSessionsName",
+        description: "entityUi.buildKit.listSessionsDescription",
+    },
+    read_session: {
+        name: "entityUi.buildKit.readSessionName",
+        description: "entityUi.buildKit.readSessionDescription",
+    },
+    read_session_spans: {
+        name: "entityUi.buildKit.readSessionSpansName",
+        description: "entityUi.buildKit.readSessionSpansDescription",
+    },
 }
 
 /** Copy for the Agenta-owned tools and skills the kit embeds, keyed by the referenced slug. */
@@ -156,8 +201,7 @@ const buildKitDescriptor = ({name, description}: BuildKitCopy): ItemDescriptor =
     monoName: false,
     description,
     mono: "",
-    color: "#0d9488",
-    icon: <Wrench size={15} weight="fill" />,
+    icon: <Wrench />,
     // No type tag: "platform" and "@ag.embed" are internal vocabulary (#6025).
     tags: [],
     typeLabel: t("entityUi.buildKit.playgroundToolType"),

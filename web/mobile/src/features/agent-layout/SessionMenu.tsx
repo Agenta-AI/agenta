@@ -7,10 +7,10 @@ import chatMobileSessionsCatalog from "@agenta/i18n/catalogs/chat.mobileSessions
 import type {SessionRowVm} from "@agenta/sessions/row"
 import {SessionCardList} from "@agenta/sessions-ui"
 import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
-import {BottomSheet, PHONE_BUTTON_CLASS} from "@agenta/ui/phone"
+import {BottomSheet} from "@agenta/ui/phone"
 import {cn} from "@agenta/ui/styles"
-import {Button, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
-import {CaretUpDown, CircleNotchIcon, Plus} from "@phosphor-icons/react"
+import {Button, MENU_ITEM, Popover, PopoverContent, PopoverTrigger, Spinner} from "@agenta/ui/ui"
+import {CaretDown, ListBullets, MagnifyingGlass, Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"
@@ -20,6 +20,9 @@ import {useStartBlankSession} from "../chat/useStartBlankSession"
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
 import {sessionMenuListArgs} from "./useAgentSessionOrder"
+
+const MENU_ROW =
+    "border-0 bg-transparent text-left font-[inherit] text-foreground hover:bg-accent focus-visible:bg-accent"
 
 /**
  * The session menu of the session header: latest sessions, New session, Inspect session, Sessions.
@@ -65,24 +68,21 @@ export const SessionMenu = ({
         if (vm.id !== sessionId) void router.push(`${base}/sessions/${vm.id}`)
     }
     const running = useAtomValue(sessionStatusAtomFamily(sessionId)) === "running"
-    // The session's status: a ring, filled while a run is active.
-    const statusDot = (
+    // Shown only while a run is live (MOTION-02); an idle session has no mark.
+    const runningMark = running ? (
         <span
             aria-hidden
-            data-testid="session-status-dot"
-            className={cn(
-                "mx-0.5 box-border size-2 shrink-0 rounded-full border-[1.25px] border-solid",
-                running ? "border-colorText bg-colorText" : "border-colorTextTertiary",
-            )}
-        />
-    )
-    // One list for both widths: the rail's compact rows in the popover, the taller card rows
-    // in the phone sheet. The row menu (rename, pin, archive) is the same on both; on a touch
-    // screen the pin lives in that menu.
-    const list = (density: "card" | "compact") => (
+            data-testid="session-status-running"
+            className="flex shrink-0 text-muted-foreground"
+        >
+            <Spinner className="size-3" />
+        </span>
+    ) : null
+    // One list for both widths: menu rows in the popover and the phone sheet; the row menu pins.
+    const list = (
         <SessionCardList
             {...sessionMenuListArgs(agentId)}
-            density={density}
+            density="compact"
             activeRowId={sessionId}
             emptyText=""
             onOpenRow={openRow}
@@ -93,9 +93,9 @@ export const SessionMenu = ({
     )
 
     const loadError = loadFailed ? (
-        <div role="alert" className="flex items-center justify-between gap-2 px-2 py-1 text-xs">
-            <span className="text-colorTextSecondary">{t("agentLayout.header.loadFailed")}</span>
-            <Button variant="ghost" size="sm" className="max-md:h-11" onClick={onRetry}>
+        <div role="alert" className="flex items-center justify-between gap-2 px-2 py-1 text-meta">
+            <span className="text-muted-foreground">{t("agentLayout.header.loadFailed")}</span>
+            <Button variant="ghost" size="sm" className="" onClick={onRetry}>
                 {t("agentLayout.header.retry")}
             </Button>
         </div>
@@ -107,6 +107,38 @@ export const SessionMenu = ({
             onOpenChange={setInspecting}
         />
     ) : null
+
+    // The menu's own rows under the sessions, the same in the popover and the phone sheet.
+    const menuRows = (
+        <div className="flex flex-col border-0 border-t border-solid border-border-muted pt-1">
+            {/* Menu rows, as in every menu (ROW-02). */}
+            <button type="button" className={cn(MENU_ITEM, MENU_ROW)} onClick={newSession}>
+                <Plus aria-hidden className="text-muted-foreground" />
+                {t("agentLayout.header.newSession")}
+            </button>
+            {inspectorEnabled ? (
+                <button
+                    type="button"
+                    className={cn(MENU_ITEM, MENU_ROW)}
+                    onClick={() => {
+                        setOpen(false)
+                        setInspecting(true)
+                    }}
+                >
+                    <MagnifyingGlass aria-hidden className="text-muted-foreground" />
+                    {tSessions("chat.mobileSessions.inspectSession")}
+                </button>
+            ) : null}
+            <Link
+                href={`${base}/agents/${agentId}?view=sessions`}
+                onClick={() => setOpen(false)}
+                className={cn(MENU_ITEM, MENU_ROW, "no-underline")}
+            >
+                <ListBullets aria-hidden className="text-muted-foreground" />
+                {t("agentLayout.header.sessions")}
+            </Link>
+        </div>
+    )
 
     if (phone) {
         return (
@@ -121,54 +153,25 @@ export const SessionMenu = ({
                             type="button"
                             aria-haspopup="dialog"
                             title={title}
-                            className="relative box-border flex h-9 min-w-0 max-w-full cursor-pointer items-center gap-2 rounded-md border border-solid border-colorBorder bg-colorBgContainer px-2.5 font-[inherit] text-sm font-medium leading-5 text-colorText after:absolute after:-inset-y-[5px] after:inset-x-0 after:content-[''] active:bg-colorFillTertiary"
+                            className="box-border flex h-control-sm min-w-0 max-w-full cursor-pointer items-center gap-2 rounded-control-sm border-0 bg-transparent px-2 font-[inherit] text-label text-foreground focus-ring active:bg-secondary"
                         >
-                            {running ? (
-                                <span aria-hidden className="flex shrink-0 text-colorTextTertiary">
-                                    <CircleNotchIcon size={12} className="animate-spin" />
-                                </span>
-                            ) : (
-                                statusDot
-                            )}
+                            {runningMark}
                             <span className="truncate">{title}</span>
-                            <CaretUpDown
+                            <CaretDown
                                 size={14}
                                 aria-hidden
-                                className="shrink-0 text-colorTextSecondary"
+                                className="ag-caret shrink-0 text-muted-foreground"
                             />
                         </button>
                     }
-                    actions={
-                        <>
-                            <Button className={PHONE_BUTTON_CLASS} onClick={newSession}>
-                                <Plus size={14} />
-                                {t("agentLayout.header.newSession")}
-                            </Button>
-                            {inspectorEnabled ? (
-                                <Button
-                                    variant="outline"
-                                    className={PHONE_BUTTON_CLASS}
-                                    onClick={() => {
-                                        setOpen(false)
-                                        setInspecting(true)
-                                    }}
-                                >
-                                    {tSessions("chat.mobileSessions.inspectSession")}
-                                </Button>
-                            ) : null}
-                            <Button variant="outline" className={PHONE_BUTTON_CLASS} asChild>
-                                <Link
-                                    href={`${base}/agents/${agentId}?view=sessions`}
-                                    onClick={() => setOpen(false)}
-                                >
-                                    {t("agentLayout.header.sessions")}
-                                </Link>
-                            </Button>
-                        </>
-                    }
+                    // Menu rows, no Cancel: a row acts, a tap outside closes (as BottomSheetMenu).
+                    hideClose
                 >
                     {loadError}
-                    <div className="px-2">{list("card")}</div>
+                    <div className="flex flex-col gap-1 px-2">
+                        {list}
+                        {menuRows}
+                    </div>
                 </BottomSheet>
                 {inspector}
             </>
@@ -178,47 +181,23 @@ export const SessionMenu = ({
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
+                {/* The agent trigger's twin: ghost, 6px gaps, one caret; the session reads quieter. */}
                 <Button
-                    variant="outline"
-                    size="compact"
-                    className="min-w-[88px] max-w-[240px] shrink gap-2 pl-2.5 pr-2 font-medium max-md:h-11"
+                    variant="ghost"
+                    size="sm"
+                    className="min-w-36 max-w-60 shrink gap-1.5 px-2 font-normal text-muted-foreground hover:text-foreground aria-expanded:text-foreground"
                     title={title}
                 >
-                    {statusDot}
+                    {runningMark}
                     <span className="truncate">{title}</span>
-                    <CaretUpDown aria-hidden className="size-3.5 shrink-0 text-colorTextTertiary" />
+                    <CaretDown aria-hidden className="ag-caret size-3.5 shrink-0" />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="flex w-[320px] flex-col gap-1 p-2">
+            <PopoverContent align="end" className="flex w-80 flex-col gap-1 p-1">
                 {loadError}
-                <div className="ag-scroll-quiet bg-popover max-h-[320px] min-h-0 overflow-y-auto">
-                    {list("compact")}
-                </div>
-                <div className="flex flex-col border-0 border-t border-solid border-colorBorderSecondary pt-1">
-                    <Button variant="ghost" className="justify-start" onClick={newSession}>
-                        {t("agentLayout.header.newSession")}
-                    </Button>
-                    {inspectorEnabled ? (
-                        <Button
-                            variant="ghost"
-                            className="justify-start"
-                            onClick={() => {
-                                setOpen(false)
-                                setInspecting(true)
-                            }}
-                        >
-                            {tSessions("chat.mobileSessions.inspectSession")}
-                        </Button>
-                    ) : null}
-                    <Button variant="ghost" className="justify-start" asChild>
-                        <Link
-                            href={`${base}/agents/${agentId}?view=sessions`}
-                            onClick={() => setOpen(false)}
-                        >
-                            {t("agentLayout.header.sessions")}
-                        </Link>
-                    </Button>
-                </div>
+                {/* No reserved gutter: the session rows span the same width as the menu rows. */}
+                <div className="bg-popover max-h-80 min-h-0 overflow-y-auto">{list}</div>
+                {menuRows}
             </PopoverContent>
             {inspector}
         </Popover>

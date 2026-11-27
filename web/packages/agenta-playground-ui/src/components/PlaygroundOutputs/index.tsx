@@ -175,7 +175,9 @@ function DownstreamNodeCard({
                 : "Error"
         return (
             <NodeResultCard name={nodeName} status={rawStatus}>
-                <span className="text-[var(--ant-color-error)] text-xs leading-5">{errorMsg}</span>
+                <span className="text-destructive text-label font-normal leading-5">
+                    {errorMsg}
+                </span>
             </NodeResultCard>
         )
     }
@@ -188,9 +190,7 @@ function DownstreamNodeCard({
                 : "Skipped"
         return (
             <NodeResultCard name={nodeName} status={rawStatus}>
-                <span className="text-[var(--ant-color-text-tertiary)] text-xs leading-5 italic">
-                    {skipMsg}
-                </span>
+                <span className="text-muted-foreground text-meta leading-5 italic">{skipMsg}</span>
             </NodeResultCard>
         )
     }
@@ -200,7 +200,7 @@ function DownstreamNodeCard({
     if (!entries || entries.length === 0) {
         return (
             <NodeResultCard name={nodeName} status={rawStatus}>
-                <span className="text-xs leading-5">—</span>
+                <span className="text-label font-normal leading-5">—</span>
             </NodeResultCard>
         )
     }
@@ -208,12 +208,12 @@ function DownstreamNodeCard({
     return (
         <NodeResultCard name={nodeName} status={rawStatus}>
             <div
-                className="grid items-baseline text-xs leading-5"
+                className="grid items-baseline text-label font-normal leading-5"
                 style={{gridTemplateColumns: "auto 1fr", columnGap: 12, rowGap: 6}}
             >
                 {entries.map(([key, value]) => (
                     <Fragment key={key}>
-                        <span className="text-[var(--ant-color-text-tertiary)] whitespace-nowrap leading-5">
+                        <span className="text-muted-foreground whitespace-nowrap leading-5">
                             {formatFieldLabel(key)}:
                         </span>
                         <span className="break-words min-w-0 leading-5">
@@ -232,7 +232,7 @@ function DownstreamNodeCard({
                                 return (
                                     <Tag
                                         color={verdictBoolean ? "success" : "error"}
-                                        className="!m-0 text-xs rounded-md px-2 py-0 leading-5"
+                                        className="!m-0 text-label font-normal rounded-md px-2 py-0 leading-5"
                                     >
                                         {verdictBoolean ? "true" : "false"}
                                     </Tag>
@@ -369,8 +369,8 @@ const PlaygroundOutputs = ({rowId, primaryEntityId}: PlaygroundOutputsProps) => 
         <div className="flex flex-col gap-3">
             {/* Header styling mirrors DrillInRootToolbar so the Testcase Data and
                 Outputs sections read as a matched pair. */}
-            <div className="flex min-h-9 select-none items-center justify-between gap-2 border-b border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-FAFAFA)] px-4 py-1.5">
-                <span className="text-[13px] font-semibold text-[var(--ag-c-051729)]">Outputs</span>
+            <div className="flex min-h-9 select-none items-center justify-between gap-2 border-b border-border-muted bg-muted px-4 py-1.5">
+                <span className="text-label font-semibold text-foreground">Outputs</span>
             </div>
             <div className="px-4 pb-3">
                 {isComparisonView ? (

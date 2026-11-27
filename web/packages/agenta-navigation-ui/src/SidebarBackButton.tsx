@@ -1,46 +1,51 @@
-import {useContext} from "react"
-
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import {CaretLeft} from "@phosphor-icons/react"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
+import {SimpleTooltip} from "@agenta/ui/ui"
+import {ArrowLeft} from "@phosphor-icons/react"
 import clsx from "clsx"
 
-import {SidebarLayoutContext} from "./sidebarLayout"
+import {ROW_HEIGHT} from "./rowStyles"
 
 export interface SidebarBackButtonProps {
     collapsed: boolean
     /** Where "Back" goes; the app decides (route history fallback lives app-side). */
     onBack: () => void
+    /** The row's text; "Back" by default. */
+    label?: string
     className?: string
 }
 
-/** The scope header's way out (settings, workflow scopes). */
-export const SidebarBackButton = ({collapsed, onBack, className}: SidebarBackButtonProps) => {
-    const t = useT(commonCatalog)
-    const phone = useContext(SidebarLayoutContext) === "phone"
-    return (
+/** The scope header's way out (settings, workflow scopes): a rail row, or a 28px icon when collapsed. */
+export const SidebarBackButton = ({
+    collapsed,
+    onBack,
+    label,
+    className,
+}: SidebarBackButtonProps) => {
+    const t = useT(commonCatalog, navigationCatalog)
+    const text = label ?? t("common.back")
+    const button = (
         <button
             type="button"
-            aria-label={t("common.back")}
+            aria-label={label === undefined ? text : t("navigation.chrome.backFrom", {label})}
             onClick={onBack}
             className={clsx(
-                // A white chip on the rail, as the design draws it, 13 px in the label's ink. The
-                // phone sheet draws no ground: 15 px in the secondary ink (M02).
-                // [font-family:inherit] is load-bearing — preflight is off, so a bare <button>
-                // falls back to Arial while every <div> row beside it renders Inter.
-                "flex cursor-pointer items-center justify-center rounded-sm border-0 [font-family:inherit]",
-                collapsed
-                    ? "size-8 bg-transparent text-colorText hover:bg-colorFillTertiary"
-                    : "gap-1.5 hover:bg-colorSplit",
-                !collapsed &&
-                    (phone
-                        ? "h-11 bg-transparent px-[9px] text-[15px] leading-5 text-colorTextSecondary"
-                        : "h-7 bg-colorBgContainer pl-1 pr-2 text-[13px] text-colorText"),
+                // [font-family:inherit]: preflight is off, so a bare <button> renders Arial.
+                "flex cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent [font-family:inherit] text-foreground outline-none focus-ring hover:bg-accent",
+                collapsed ? "size-7 justify-center" : `${ROW_HEIGHT} min-w-0 justify-start px-2`,
                 className,
             )}
         >
-            <CaretLeft size={14} />
-            {!collapsed && t("common.back")}
+            <ArrowLeft size={16} className="shrink-0" />
+            {!collapsed && <span className="truncate">{text}</span>}
         </button>
+    )
+    return collapsed ? (
+        <SimpleTooltip title={text} side="right">
+            {button}
+        </SimpleTooltip>
+    ) : (
+        button
     )
 }

@@ -9,6 +9,7 @@ import {ViewDrawerHost, type ViewRequest} from "@agenta/ui/view-stack"
 
 import {registrySkillView} from "./registrySkillView"
 import {SkillAgentHrefContext} from "./RegistrySkillViewBody"
+import {skillTitle} from "./skillTitle"
 import type {SkillListItem} from "./types"
 
 export {skillRevisionsQueryKey} from "./RegistrySkillViewBody"
@@ -41,7 +42,13 @@ export function SkillDetailDrawer({
     if (!open || !skill) return null
     return (
         <SkillAgentHrefContext.Provider value={agentHref ?? null}>
-            <ViewDrawerHost key={skill.id} request={request} onClosed={onClose} width={width} />
+            <ViewDrawerHost
+                key={skill.id}
+                request={request}
+                onClosed={onClose}
+                width={width}
+                title={skillTitle(skill)}
+            />
         </SkillAgentHrefContext.Provider>
     )
 }

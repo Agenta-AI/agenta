@@ -337,9 +337,7 @@ same standard, per the repo's instruction-organization model:
   components, one component per file, motion presets usage, shadcn registry workflow, token
   bridge rules.
 - Skills in `.agents/skills/` (symlinked into `.claude/skills/`):
-  - `mobile-shadcn-conventions` — how we install/extend registry components, theming via the
-    palette bridge, AI Elements usage patterns;
-  - `mobile-motion-patterns` — the shared presets, when to animate, reduced-motion rules;
+  - `mobile-shadcn-conventions` — how we install/extend registry components and build chat UI;
   - `mobile-app-structure` — feature-folder layout, states/ convention, data-flow rules
     (entities wrappers only, no app-layer imports).
 - Wire the existing plugin skills (Next.js, shadcn, React best practices) into the workflow by

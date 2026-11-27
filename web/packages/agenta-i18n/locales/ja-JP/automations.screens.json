@@ -41,9 +41,12 @@
     "setUpAutomation": "自動化を設定",
     "agentMeta": "エージェント",
     "detailFallbackTitle": "自動化",
-    "leaveTitle": "保存せずに移動しますか?",
-    "leaveMessage": "この自動化には保存されていない変更があります。移動すると変更は破棄されます。",
     "noLongerExists": "この自動化はもう存在しません。",
+    "noLongerExistsBody": "削除されたか、このリンクが古くなっています。戻ってこのエージェントの自動化を確認してください。",
+    "backToAutomations": "自動化に戻る",
+    "loadOneFailed": "この自動化を読み込めませんでした",
+    "loadOneFailedBody": "自動化の一覧を読み込めなかったため、この自動化を表示できません。接続を確認してから、もう一度お試しください。",
     "cancel": "キャンセル",
-    "createAutomation": "自動化を作成"
+    "createAutomation": "自動化を作成",
+    "pageDescription": "スケジュールに沿って、または接続したアプリで何かが起きたときに実行されるエージェントです。"
 }

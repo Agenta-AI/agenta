@@ -113,7 +113,7 @@ export const PaneSessions = ({
                 </div>
             )
         return (
-            <p className="m-0 p-4 text-[13px] text-colorTextSecondary">
+            <p className="m-0 p-4 text-body text-muted-foreground">
                 {t("builder.page.noSessions")}
             </p>
         )

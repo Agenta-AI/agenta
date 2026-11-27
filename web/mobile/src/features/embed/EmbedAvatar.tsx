@@ -8,7 +8,7 @@ export const EmbedAvatar = ({
     large = false,
 }: {
     appearance: EmbedAppearance
-    /** 44 px, for the greeting; 28 px otherwise. */
+    /** 40 px, for the greeting; 24 px otherwise. */
     large?: boolean
 }) =>
     appearance.avatarUrl ? (
@@ -16,12 +16,12 @@ export const EmbedAvatar = ({
             src={appearance.avatarUrl}
             alt=""
             referrerPolicy="no-referrer"
-            className={`${large ? "size-11" : "size-7"} shrink-0 rounded-full object-cover`}
+            className={`${large ? "size-10 rounded-lg" : "size-6 rounded-md"} shrink-0 object-cover`}
         />
     ) : (
         <span
             aria-hidden
-            className={`${large ? "size-11 text-base" : "size-7 text-[11px]"} flex shrink-0 items-center justify-center rounded-full bg-primary font-semibold text-primary-foreground`}
+            className={`${large ? "size-10 rounded-lg text-title" : "size-6 rounded-md text-caption"} flex shrink-0 items-center justify-center bg-secondary text-muted-foreground`}
         >
             {getInitials(appearance.name)}
         </span>

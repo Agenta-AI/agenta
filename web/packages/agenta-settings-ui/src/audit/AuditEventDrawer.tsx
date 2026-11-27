@@ -40,7 +40,7 @@ const Section = ({
 }) => (
     <section className="flex flex-col gap-2">
         <div className="flex min-h-6 items-center justify-between">
-            <h3 className="m-0 text-[13px] font-medium text-muted-foreground">{title}</h3>
+            <h3 className="m-0 text-label font-medium text-muted-foreground">{title}</h3>
             {action}
         </div>
         {children}
@@ -50,15 +50,15 @@ const Section = ({
 /** One `label: value` pair in a framed list. */
 const Row = ({label, children}: {label: string; children: ReactNode}) => (
     <div className="grid grid-cols-[112px_minmax(0,1fr)] items-center gap-3 px-3.5 py-2.5">
-        <span className="text-[13px] text-muted-foreground">{label}</span>
-        <div className="flex min-w-0 items-center gap-1.5 text-[13px] text-foreground">
+        <span className="text-label text-muted-foreground">{label}</span>
+        <div className="flex min-w-0 items-center gap-1.5 text-label text-foreground">
             {children}
         </div>
     </div>
 )
 
 const List = ({children}: {children: ReactNode}) => (
-    <div className="flex flex-col divide-y divide-solid divide-border overflow-hidden rounded-[10px] border border-solid border-border">
+    <div className="flex flex-col divide-y divide-solid divide-border overflow-hidden rounded-lg border border-solid border-border">
         {children}
     </div>
 )
@@ -76,7 +76,7 @@ const Copy = ({text, label}: {text: string; label: string}) => (
 )
 
 const Mono = ({children}: {children: ReactNode}) => (
-    <span className="min-w-0 break-all font-mono text-[12.5px]">{children}</span>
+    <span className="min-w-0 break-all text-code">{children}</span>
 )
 
 type Reference = Record<string, {id?: string; slug?: string; version?: string | number}>
@@ -120,7 +120,7 @@ export const AuditEventDrawer = ({
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetContent className="w-full sm:max-w-[560px]">
+            <SheetContent className="w-full sm:max-w-content-sm">
                 <SheetHeader>
                     <SheetTitle className="truncate">
                         {event
@@ -240,7 +240,7 @@ export const AuditEventDrawer = ({
                                     />
                                 }
                             >
-                                <pre className="m-0 max-h-[360px] overflow-y-auto whitespace-pre-wrap break-all rounded-[10px] border border-solid border-border bg-muted/40 p-3.5 font-mono text-[12px] leading-relaxed text-foreground">
+                                <pre className="m-0 max-h-90 overflow-y-auto whitespace-pre-wrap break-all rounded-lg border border-solid border-border bg-muted p-3.5 text-code-sm leading-relaxed text-foreground">
                                     {json}
                                 </pre>
                             </Section>

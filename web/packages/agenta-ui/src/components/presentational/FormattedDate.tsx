@@ -60,7 +60,7 @@ export function FormattedDate({
     ) : (
         <Copy
             size={12}
-            className="flex-shrink-0 opacity-0 group-hover/date:opacity-100 transition-opacity"
+            className="flex-shrink-0 opacity-0 group-hover/date:opacity-100 transition-opacity pointer-coarse:opacity-100"
         />
     )
 
@@ -89,7 +89,7 @@ export function FormattedDate({
     )
 
     if (asTag) {
-        return <Badge className={cn("bg-colorFillTertiary", className)}>{inner}</Badge>
+        return <Badge className={cn("bg-secondary", className)}>{inner}</Badge>
     }
 
     return inner

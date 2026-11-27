@@ -39,7 +39,7 @@ export const AgentAutomationsCard = ({
                     onRetry={retry}
                 />
             ) : rows.length === 0 ? (
-                <p className="m-0 py-2 text-[13px] text-muted-foreground">
+                <p className="m-0 py-2 text-label text-muted-foreground">
                     {t("agents.overview.automationsEmpty")}
                 </p>
             ) : (
@@ -58,7 +58,7 @@ export const AgentAutomationsCard = ({
                         detail={row.detail}
                         title={row.tooltip}
                         onClick={() => void router.push(`${base}/automations/${row.id}`)}
-                        className="text-[13.5px]"
+                        className="text-label"
                     />
                 ))
             )}

@@ -18,7 +18,7 @@ export const TemplatePagerButton = ({
         title={label}
         disabled={disabled}
         onClick={onClick}
-        className={`box-border flex size-[22px] items-center justify-center rounded-md border border-solid bg-transparent p-0 transition-colors ${
+        className={`box-border flex size-control-xs items-center justify-center rounded-md border border-solid bg-transparent p-0 transition-colors ${
             disabled
                 ? "border-border text-muted-foreground/50 cursor-default"
                 : "border-foreground text-foreground hover:bg-accent cursor-pointer"

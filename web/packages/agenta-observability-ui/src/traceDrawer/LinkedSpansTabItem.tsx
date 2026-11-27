@@ -121,7 +121,7 @@ const LinkedSpansTabItem = ({isActive}: LinkedSpansTabItemProps) => {
                         title={t("observabilityUi.traceDrawer.copySpanId")}
                     >
                         <Tag
-                            className="font-mono bg-[var(--ag-c-0517290F)]"
+                            className="font-mono bg-secondary"
                             onClick={() => navigateToLink(record)}
                             label={`# ${shortId}`}
                         />
@@ -150,7 +150,7 @@ const LinkedSpansTabItem = ({isActive}: LinkedSpansTabItemProps) => {
     if (!hasLinks) {
         return (
             <div className="flex items-center justify-center">
-                <span className="text-colorTextSecondary">
+                <span className="text-muted-foreground">
                     {t("observabilityUi.traceDrawer.noLinkedSpans")}
                 </span>
             </div>

@@ -96,13 +96,13 @@ export const TemporalMetricCard = ({
             className="box-border flex min-w-0 flex-col gap-3 rounded-lg border border-solid border-border bg-card p-4"
         >
             <header className="flex min-w-0 flex-col">
-                <span className="truncate text-xs text-muted-foreground">{evaluator}</span>
-                <h3 className="m-0 truncate text-sm font-semibold capitalize text-foreground">
+                <span className="truncate text-meta text-muted-foreground">{evaluator}</span>
+                <h3 className="m-0 truncate text-title capitalize text-foreground">
                     {metric.label}
                 </h3>
-                <span className="truncate text-xs text-muted-foreground">{metric.metricKey}</span>
+                <span className="truncate text-meta text-muted-foreground">{metric.metricKey}</span>
                 {runValue ? (
-                    <span className="mt-1 text-sm tabular-nums text-foreground">
+                    <span className="mt-1 text-body tabular-nums text-foreground">
                         {runName}: {runValue.formatted}
                     </span>
                 ) : null}

@@ -1,54 +1,30 @@
-import {AutomationBackLink} from "@agenta/automation-ui"
+import {PageBackBar} from "../page-layout/PageBackBar"
+import {PageBackControl, type PageBack} from "../page-layout/PageBackControl"
 
-import {NavDrawer} from "../nav/NavDrawer"
-
-import {AutomationRunHistoryCrumb} from "./AutomationRunHistoryCrumb"
+/** The form's own column: 16px gutters on a phone, 32px from `sm`, the page frame's. */
+export const AUTOMATION_COLUMN = "mx-auto box-border w-full max-w-content-md px-4 sm:px-8"
 
 /**
- * The header over an automation's form, in the form's own column at every width.
- *
- * Below `lg` the drawer button is visible, so the bar is the list pages' bar — hamburger, then a
- * title — with the back link on its own line under it. From `lg` the drawer is a sidebar, the
- * editable name is the heading, and the header is only the back link.
+ * The top of an automation's page. Below `lg` it is the inside page's bar: Back to the parent,
+ * no menu and no title (the editable name below is the heading). From `lg` the sidebar is docked,
+ * so the bar goes and the back link sits over the heading.
  */
 export const AutomationScreenHeader = ({
-    workspaceId,
-    projectId,
-    title,
-    backHref,
-    runHistory,
+    back,
     className,
 }: {
-    workspaceId: string
-    projectId: string
-    title: string
-    backHref?: string
-    /** The run history page: a crumb up to the list and the automation, in place of the back link. */
-    runHistory?: {listHref: string; name: string; onAutomation: () => void}
-    /** The frame around it, where the screen's own column differs from the form's. */
+    /** Back to the parent: the compact bar's on small windows, the link over the heading on lg. */
+    back: PageBack
+    /** The frame around the expanded back link, where the screen's own column differs. */
     className?: string
 }) => (
-    <div
-        className={
-            className ??
-            "mx-auto w-full max-w-[760px] shrink-0 px-8 pb-4 pt-3 max-md:pb-3 lg:pb-2.5 lg:pt-[30px]"
-        }
-    >
-        {/* -ml-1.5: the glyph sits 6px inside its button, and the column edge is the glyph's. */}
-        <div className="-ml-1.5 flex min-w-0 items-center gap-2 lg:hidden">
-            <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-            {/* Not an h1: the body below already carries the page's heading (the editable name,
-                or "Run history"), and a second h1 gave the page two roots. */}
-            <p className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground md:text-[20px] md:leading-[1.4]">
-                {title}
-            </p>
+    <>
+        <PageBackBar back={back} column={className ?? AUTOMATION_COLUMN} />
+        {/* On a compact window only its top padding shows: the 24px every page has under the bar. */}
+        <div className={`${className ?? AUTOMATION_COLUMN} shrink-0 pt-6 lg:pb-1 lg:pt-8`}>
+            <div className="flex min-w-0 max-lg:hidden">
+                <PageBackControl back={back} />
+            </div>
         </div>
-        <div className="mt-4 flex min-w-0 lg:mt-0">
-            {runHistory ? (
-                <AutomationRunHistoryCrumb {...runHistory} />
-            ) : (
-                <AutomationBackLink href={backHref} />
-            )}
-        </div>
-    </div>
+    </>
 )

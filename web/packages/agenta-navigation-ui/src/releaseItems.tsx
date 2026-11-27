@@ -9,20 +9,10 @@ import {
     type SidebarConfig,
     type UpdateSize,
 } from "@agenta/navigation"
-import {
-    ArrowCircleUpIcon,
-    CircleIcon,
-    InfoIcon,
-    PackageIcon,
-    WarningIcon,
-} from "@phosphor-icons/react"
+import {ArrowCircleUpIcon, InfoIcon, PackageIcon, WarningIcon} from "@phosphor-icons/react"
 
 /** Newest first, capped: the menu says what changed lately, not the whole changelog. */
 const RECENT_RELEASE_COUNT = 3
-
-/** The list breathes a little more than the destinations above it: four titles read down as a
- * timeline, and at the destinations' rhythm they ran together. */
-const RELEASE_ROW = "py-1"
 
 /**
  * The glyph column, drawn as a timeline: a hairline runs between the entries and each one
@@ -38,31 +28,27 @@ const ReleaseGlyph = ({first, last}: {first?: boolean; last?: boolean}): ReactNo
         {/* Overshoot the glyph box at each end: segments that stopped at its edge left a gap at
             every row boundary and the timeline read as four detached ticks. `colorBorder`, not
             the secondary step: in dark that is #303030 against a #242424 popover, a hairline you
-            cannot see. The 10px height leaves 16px clear in the middle, which the 14px package
-            icon fits inside. */}
+            cannot see. The 10px height leaves 16px clear in the middle, which the 16px package
+            icon fills. */}
         {first ? null : (
-            <span className="absolute left-1/2 -top-1.5 h-[10px] w-px -translate-x-1/2 bg-colorBorder" />
+            <span className="absolute left-1/2 -top-1.5 h-[10px] w-px -translate-x-1/2 bg-border" />
         )}
         {last ? null : (
-            <span className="absolute -bottom-1.5 left-1/2 h-[10px] w-px -translate-x-1/2 bg-colorBorder" />
+            <span className="absolute -bottom-1.5 left-1/2 h-[10px] w-px -translate-x-1/2 bg-border" />
         )}
         <span className="relative flex items-center justify-center">
             {last ? (
-                <PackageIcon size={14} className="text-colorTextSecondary" />
+                <PackageIcon size={16} className="text-muted-foreground" />
             ) : (
-                <CircleIcon
-                    size={8}
-                    weight="fill"
-                    // size-2: the menu item scales unsized svgs to 16px.
-                    className="size-2 text-colorTextQuaternary"
-                />
+                // A timeline node, not a filled icon (ICON-01; radius-xs is for timeline nodes).
+                <span className="size-2 rounded-round bg-muted-foreground" />
             )}
         </span>
     </span>
 )
 
 const RowNote = ({children}: {children: ReactNode}) => (
-    <span className="text-[11px] leading-none text-colorTextTertiary">{children}</span>
+    <span className="text-caption leading-none text-muted-foreground">{children}</span>
 )
 
 /**
@@ -71,9 +57,9 @@ const RowNote = ({children}: {children: ReactNode}) => (
  * only patches are missing. Theme tokens, so both themes stay right.
  */
 export const UPDATE_SIZE_COLOR: Record<UpdateSize, {text: string; bg: string}> = {
-    security: {text: "text-colorError", bg: "bg-colorError"},
-    minor: {text: "text-colorWarning", bg: "bg-colorWarning"},
-    patch: {text: "text-colorTextTertiary", bg: "bg-colorTextTertiary"},
+    security: {text: "text-destructive", bg: "bg-destructive"},
+    minor: {text: "text-warning", bg: "bg-warning"},
+    patch: {text: "text-muted-foreground", bg: "bg-muted-foreground"},
 }
 
 /** The red tag on a release that carries a security fix. */
@@ -143,9 +129,9 @@ export const buildReleaseNavItems = (
             ...(onOpenNotice ? {onClick: () => onOpenNotice(notice)} : {link: notice.link}),
             icon:
                 notice.severity === "warning" ? (
-                    <WarningIcon size={14} className="text-colorWarning" />
+                    <WarningIcon size={16} className="text-warning" />
                 ) : (
-                    <InfoIcon size={14} className="text-colorTextSecondary" />
+                    <InfoIcon size={16} className="text-muted-foreground" />
                 ),
         })),
         ...(newest
@@ -158,7 +144,7 @@ export const buildReleaseNavItems = (
                           : {link: UPGRADE_GUIDE_LINK}),
                       icon: (
                           <ArrowCircleUpIcon
-                              size={14}
+                              size={16}
                               weight="fill"
                               className={UPDATE_SIZE_COLOR[updateSize ?? "patch"].text}
                           />
@@ -173,7 +159,6 @@ export const buildReleaseNavItems = (
             title: release.features[0]?.title ?? release.id,
             link: release.features[0]?.link ?? ALL_RELEASES_LINK,
             icon: <ReleaseGlyph first={index === 0} />,
-            rowClassName: RELEASE_ROW,
             suffix: newer.has(release.id) ? (
                 <span className="flex items-center gap-1">
                     {release.securityFix ? <SecurityTag>{labels.securityFix}</SecurityTag> : null}
@@ -186,7 +171,6 @@ export const buildReleaseNavItems = (
             title: labels.viewAll,
             link: ALL_RELEASES_LINK,
             icon: <ReleaseGlyph last />,
-            rowClassName: RELEASE_ROW,
             suffix: appVersion ? <RowNote>v{appVersion}</RowNote> : undefined,
         },
     ]

@@ -1,26 +1,17 @@
-/**
- * The "Account" part of an MCP server view (F03 f6, f7): whose sign-in the agent uses.
- *
- * The switch writes the item's account source: each person's own sign-in to the project's server
- * (`"user"`, the slug stays) or the project's sign-in. With "Each person's own", "Your sign-in"
- * says whether the viewer is signed in, with the account name when the server gave one, and signs
- * them in or out. The state is the server row's own `user_sign_in`, which the server list already
- * carries, so the part costs no request.
- */
+/** The "Owner" part of an MCP server view (F03 f6, f7): Personal or Project sign-in, and "Your sign-in". */
 import {USER_ACCOUNT_SOURCE, type AccountSource} from "@agenta/entities/accountChoice"
 import {usePersonalMcpSignIn, type MCPEndpoint} from "@agenta/entities/mcpEndpoint"
 import {personalAccountsAccessAtom} from "@agenta/entities/secret"
 import {useT} from "@agenta/i18n"
 import accountsCatalog from "@agenta/i18n/catalogs/entityUi.accounts"
-import accountSwitchCatalog from "@agenta/i18n/catalogs/entityUi.accountSwitch"
 import mcpAccountCatalog from "@agenta/i18n/catalogs/entityUi.mcpAccount"
-import {Button} from "@agenta/ui/ui"
+import {Button, ChoiceSwitch} from "@agenta/ui/ui"
 import {Warning} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {AccountLine, AccountLineAction} from "../../../../accounts/AccountLine"
-import {AccountSwitch} from "../../../../accounts/AccountSwitch"
 import {McpSignIn} from "../../../../accounts/McpSignIn"
+import {useOwnerWord} from "../../../../accounts/OwnerField"
 import {useItemWorkflowId, type ItemAccountContext} from "../../../../accounts/useItemAccount"
 
 import {mcpAccountOptions} from "./accountOptions"
@@ -44,14 +35,13 @@ export function McpAccountBlock({
     context,
     disabled,
 }: McpAccountBlockProps) {
-    const t = useT(mcpAccountCatalog, accountSwitchCatalog, accountsCatalog)
+    const t = useT(mcpAccountCatalog, accountsCatalog)
+    const ownerWord = useOwnerWord()
     const access = useAtomValue(personalAccountsAccessAtom)
     const name = endpoint?.name || endpoint?.slug || ""
     const eachPerson = source === USER_ACCOUNT_SOURCE
-    // Each person's own sign-in exists for a project server (the view resolves only those) that
-    // takes a sign-in, with personal accounts on. A saved "each person's own" stays visible
-    // when personal accounts are off.
-    const showSwitch =
+    // Personal needs a server that takes a sign-in and personal accounts on, or a saved Personal.
+    const offerPersonal =
         Boolean(endpoint) &&
         mcpAccountOptions({
             source,
@@ -59,62 +49,47 @@ export function McpAccountBlock({
             authMode: endpoint?.auth_mode,
         }).length > 1
     // A server that takes no sign-in has no account to name (canvas F03 f6).
-    if (!showSwitch && !eachPerson && endpoint?.auth_mode === "none") return null
+    if (!eachPerson && endpoint?.auth_mode === "none") return null
 
     return (
-        <div className="flex flex-col gap-3.5">
-            {showSwitch ? (
+        <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+                <FieldHeading
+                    label={t("entityUi.accounts.owner")}
+                    note={t("entityUi.mcpAccount.chooseWhose", {name})}
+                />
+                <ChoiceSwitch
+                    value={source}
+                    choices={[
+                        {
+                            value: USER_ACCOUNT_SOURCE,
+                            label: ownerWord("user"),
+                            note: t("entityUi.mcpAccount.eachPersonsOwnNote", {name}),
+                            disabled: !offerPersonal,
+                        },
+                        {
+                            value: "agent",
+                            label: ownerWord("project"),
+                            note: t("entityUi.mcpAccount.oneSharedNote"),
+                        },
+                    ]}
+                    onChange={onChange}
+                    aria-label={t("entityUi.accounts.owner")}
+                    disabled={disabled}
+                />
+                {eachPerson ? <NoPersonWarning context={context} /> : null}
+            </div>
+
+            {/* No sign-in for a viewer who may not edit, or who can hold no own sign-in. */}
+            {eachPerson && !disabled && endpoint && endpoint.user_sign_in !== undefined ? (
                 <div className="flex flex-col gap-2">
                     <FieldHeading
-                        label={t("entityUi.accounts.label")}
-                        note={t("entityUi.mcpAccount.chooseWhose", {name})}
+                        label={t("entityUi.mcpAccount.yourSignIn")}
+                        note={t("entityUi.mcpAccount.yourSignInNote", {name})}
                     />
-                    <AccountSwitch
-                        value={source}
-                        choices={[
-                            {
-                                value: USER_ACCOUNT_SOURCE,
-                                label: t("entityUi.accountSwitch.eachPersonsOwn"),
-                                note: t("entityUi.mcpAccount.eachPersonsOwnNote", {name}),
-                            },
-                            {
-                                value: "agent",
-                                label: t("entityUi.mcpAccount.oneShared"),
-                                note: t("entityUi.mcpAccount.oneSharedNote"),
-                            },
-                        ]}
-                        onChange={onChange}
-                        aria-label={t("entityUi.accounts.label")}
-                        disabled={disabled}
-                    />
-                    {eachPerson ? <NoPersonWarning context={context} /> : null}
+                    <YourSignInLine endpoint={endpoint} name={name} />
                 </div>
             ) : null}
-
-            {eachPerson ? (
-                // Disabled means the viewer may not edit the agent; those roles may not use the
-                // project's MCP servers either, so a sign-in would lead nowhere. The API leaves
-                // `user_sign_in` out when the viewer can hold no own sign-in at all.
-                !disabled && endpoint && endpoint.user_sign_in !== undefined ? (
-                    <div className="flex flex-col gap-2">
-                        <FieldHeading
-                            label={t("entityUi.mcpAccount.yourSignIn")}
-                            note={t("entityUi.mcpAccount.yourSignInNote", {name})}
-                        />
-                        <YourSignInLine endpoint={endpoint} name={name} />
-                    </div>
-                ) : null
-            ) : (
-                <div className="flex flex-col gap-2">
-                    <FieldHeading
-                        label={t("entityUi.mcpAccount.sharedSignIn")}
-                        note={t("entityUi.mcpAccount.sharedSignInNote")}
-                    />
-                    <span className="text-[13px] text-colorText">
-                        {t("entityUi.accounts.projectSignIn")}
-                    </span>
-                </div>
-            )}
         </div>
     )
 }
@@ -156,7 +131,6 @@ export function YourSignInLine({endpoint, name}: {endpoint: MCPEndpoint; name: s
                 submitLabel={t("entityUi.accounts.saveToken")}
             >
                 {(start, pending) => (
-                    // Canvas F03 f7: a dashed box with the dark sign-in button.
                     <EmptyAccountBox
                         text={
                             own
@@ -167,7 +141,7 @@ export function YourSignInLine({endpoint, name}: {endpoint: MCPEndpoint; name: s
                         {start ? (
                             <Button
                                 size="compact"
-                                className="max-md:h-11"
+                                variant="outline"
                                 disabled={pending}
                                 onClick={start}
                             >
@@ -186,8 +160,8 @@ function NoPersonWarning({context}: {context: ItemAccountContext}) {
     const t = useT(mcpAccountCatalog)
     if (!useRunsWithoutPerson(useItemWorkflowId(context))) return null
     return (
-        <div className="flex items-start gap-2 rounded-lg border border-solid border-colorWarningBorder bg-colorWarningBg px-3 py-2 text-xs leading-4 text-colorText">
-            <Warning size={14} className="mt-px shrink-0 text-colorWarning" />
+        <div className="flex items-start gap-2 rounded-lg border border-solid border-warning/30 bg-warning/10 px-3 py-2 text-meta leading-4 text-foreground">
+            <Warning size={14} className="mt-px shrink-0 text-warning" />
             <span>{t("entityUi.mcpAccount.noPersonWarning")}</span>
         </div>
     )

@@ -9,7 +9,7 @@ import {useAtomValue} from "jotai"
 
 import {getTraceDrawerReferences} from "./referenceSlots"
 
-const titleClass = "text-sm leading-[1.5714285714285714] font-medium"
+const titleClass = "text-label"
 
 // The side panel hugs the right edge of the screen, so hovercards open leftward.
 const HOVERCARD_PLACEMENT = "bottomRight" as const
@@ -170,7 +170,7 @@ const TraceReferences = () => {
 
     if (!Object.keys(groupedReferences ?? {}).length) {
         return (
-            <span className="text-colorTextSecondary">
+            <span className="text-muted-foreground">
                 {t("observabilityUi.traceDrawer.noReferences")}
             </span>
         )
