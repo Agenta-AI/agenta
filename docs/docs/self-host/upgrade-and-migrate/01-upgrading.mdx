@@ -508,7 +508,7 @@ For full details, see the [Deploy on Kubernetes](/self-host/guides/deploy-to-kub
 
 ### PostgreSQL major-version upgrade
 
-Agenta's Docker Compose and Helm deployments pin PostgreSQL to major version 17. If your existing Docker Compose deployment was created with an older major version, do not upgrade by only changing the image tag while reusing the same Postgres data volume.
+Agenta's Docker Compose deployment pins PostgreSQL to major version 17. The Helm chart pins the bundled PostgreSQL image to major version 18. If your existing Docker Compose deployment was created with an older major version, do not upgrade by only changing the image tag while reusing the same Postgres data volume.
 
 PostgreSQL data directories are tied to the major version that created them. A newer major version container cannot start against an older major version data directory. Use a backup and restore flow instead.
 
@@ -593,6 +593,8 @@ Open the Agenta web UI and confirm that existing projects, prompts, traces, and 
 #### Kubernetes / Helm
 
 The Helm chart uses the Bitnami PostgreSQL subchart. These commands use the default release and namespace from the Kubernetes guide: `agenta`.
+
+The chart pins the bundled image `bitnami/postgresql` by digest in `postgresql.image.digest`, so an existing install keeps the same PostgreSQL major version across restarts and upgrades. Do not change `postgresql.image` to a different major version without a dump and restore.
 
 Check the current Postgres version:
 

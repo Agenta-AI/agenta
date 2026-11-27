@@ -216,9 +216,19 @@ releases:
 #  - global.postgresql.auth.{existingSecret,secretKeys}: tell Bitnami to
 #    read POSTGRES_PASSWORD from the chart-managed `<release>-pgauth`
 #    Secret instead of generating its own
+#  - image: pinned by digest. The subchart default is `bitnami/postgresql:latest`,
+#    and docker.io/bitnami keeps no versioned tags, so `latest` can move to a
+#    new Postgres major version on any pod restart. A new major version cannot
+#    start on the old data directory. This digest is the multi-arch `latest`
+#    of 2026-11-26, PostgreSQL 18.7.0, the major version that installs already
+#    run. Do not change the major version without a dump and restore.
 # ================================================================== #
 postgresql:
   enabled: true
+  image:
+    registry: registry-1.docker.io
+    repository: bitnami/postgresql
+    digest: "sha256:17db3b66b9701262c495a5463605e75e8de1909c9c7e6c2b3cfe6b4c6958542a"
   auth:
     username: "agenta"
   primary:
