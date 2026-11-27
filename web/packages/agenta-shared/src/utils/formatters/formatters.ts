@@ -69,6 +69,11 @@ const intlCompactNumber = new Intl.NumberFormat("en-US", {
     compactDisplay: "short",
     maximumFractionDigits: 1,
 })
+const intlCurrencyPrecise = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 6,
+})
 const intlCurrencyByDigits = new Map<number, Intl.NumberFormat>()
 /** Cents from a dollar up; below it, two digits past the leading zeros, at most six decimals. */
 const formatUsd = (value: number): string => {
@@ -180,7 +185,7 @@ export const formatCompact = (value: number | undefined | null): string => {
 }
 
 /**
- * Formats a number as USD currency with up to 6 decimal places.
+ * Formats a number as USD currency for display: cents from a dollar up, two digits past the leading zeros below it.
  *
  * @example
  * ```typescript
@@ -191,6 +196,19 @@ export const formatCompact = (value: number | undefined | null): string => {
  */
 export const formatCurrency = (value: number | undefined | null): string => {
     return withFallback(value, formatUsd)
+}
+
+/**
+ * Formats a number as USD currency with up to 6 decimal places, for data exports.
+ *
+ * @example
+ * ```typescript
+ * formatCurrencyPrecise(1.234567)  // "$1.234567"
+ * formatCurrencyPrecise(0.150026)  // "$0.150026"
+ * ```
+ */
+export const formatCurrencyPrecise = (value: number | undefined | null): string => {
+    return withFallback(value, intlCurrencyPrecise.format)
 }
 
 /**

@@ -4,6 +4,7 @@ import {
     createFormatter,
     formatCompact,
     formatCurrency,
+    formatCurrencyPrecise,
     formatLatency,
     formatNumber,
     formatPercent,
@@ -59,6 +60,16 @@ describe("formatCurrency", () => {
     })
 
     it("returns '-' for null", () => expect(formatCurrency(null)).toBe("-"))
+})
+
+describe("formatCurrencyPrecise", () => {
+    it("keeps up to six decimals at every size", () => {
+        expect(formatCurrencyPrecise(1.234567)).toBe("$1.234567")
+        expect(formatCurrencyPrecise(0.150026)).toBe("$0.150026")
+        expect(formatCurrencyPrecise(1234.5)).toBe("$1,234.50")
+    })
+
+    it("returns '-' for null", () => expect(formatCurrencyPrecise(null)).toBe("-"))
 })
 
 // ---------------------------------------------------------------------------
