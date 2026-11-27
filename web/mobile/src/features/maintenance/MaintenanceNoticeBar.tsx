@@ -97,10 +97,10 @@ export const MaintenanceNoticeBar = () => {
             ref={barRef}
             role="status"
             className={cn(
-                "flex shrink-0 items-center gap-2 px-3 pt-[calc(8px+env(safe-area-inset-top))] pb-2 text-sm font-medium",
+                "flex shrink-0 items-center gap-2 px-3 pt-[calc(8px+env(safe-area-inset-top))] pb-2 text-label",
                 notice.tone === "warning"
-                    ? "border-b border-[var(--ag-status-warning-border)] bg-[var(--ag-status-warning-bg)] text-[var(--ag-status-warning-text)]"
-                    : "bg-primary text-primary-foreground",
+                    ? "border-b border-solid border-warning/30 bg-warning/10 text-warning"
+                    : "border-b border-solid border-info/30 bg-info/10 text-info",
             )}
         >
             {/* Balances the close button so the text stays centred. */}
@@ -136,7 +136,7 @@ export const MaintenanceNoticeBar = () => {
                 type="button"
                 aria-label="Dismiss this notice"
                 onClick={handleDismiss}
-                className="grid size-6 shrink-0 place-items-center rounded hover:opacity-80"
+                className="grid size-6 shrink-0 place-items-center rounded-md hover:bg-accent focus-ring"
             >
                 <X size={14} />
             </button>

@@ -41,7 +41,7 @@ export const AgentOverviewSkeleton = () => {
         <AgentOverviewLayout
             main={
                 <>
-                    <SkeletonBlock active className="h-[92px] w-full rounded-xl" />
+                    <SkeletonBlock active className="h-23 w-full rounded-xl" />
                     <div className="flex flex-col gap-10">
                         <PanelSection variant="page" title={t("entityUi.agentOverview.sessions")}>
                             <ListRows />
@@ -49,7 +49,7 @@ export const AgentOverviewSkeleton = () => {
                         <PanelSection
                             variant="page"
                             title={t("entityUi.agentOverview.automationRuns")}
-                            minHeightClassName="min-h-[100px]"
+                            minHeightClassName="min-h-25"
                         >
                             <ListRows />
                         </PanelSection>

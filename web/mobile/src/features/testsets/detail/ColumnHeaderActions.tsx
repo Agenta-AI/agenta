@@ -44,10 +44,10 @@ export const ColumnHeaderActions = ({
                     className="shrink-0"
                     onClick={(event) => event.stopPropagation()}
                 >
-                    <DotsThreeVertical aria-hidden className="size-3.5" weight="bold" />
+                    <DotsThreeVertical aria-hidden className="size-3.5" />
                 </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[180px]">
+            <DropdownMenuContent align="end" className="w-60">
                 {header.isGroup ? null : (
                     <DropdownMenuItem onSelect={onRename}>
                         <PencilSimple aria-hidden size={14} />

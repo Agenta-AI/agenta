@@ -1,0 +1,19 @@
+{
+    "newSkill": "新建 Skill",
+    "addTitle": "添加 Skill",
+    "addedGroup": "已添加",
+    "added": "已添加",
+    "allSkills": "所有 Skill",
+    "addSkillToAgent": "将 {{name}} 添加到 Agent",
+    "removeSkillFromAgent": "从 Agent 中移除 {{name}}",
+    "chooseDescription": "选择开始的方式。新 Skill 会保存到注册表，并添加到此 Agent。",
+    "writeTitle": "编写 Skill",
+    "writeHint": "从空白页开始。为它命名、描述它，并写下步骤。",
+    "uploadTitle": "上传",
+    "uploadHint": "选择 SKILL.md 文件或 .zip，或将 Skill 文件夹拖放到这里。",
+    "importTitle": "从 GitHub 导入",
+    "importHint": "从公开仓库复制一个或多个 Skill。",
+    "createAndAdd": "创建并添加",
+    "creating": "正在创建…",
+    "addSkills_other": "添加 {{count}} 个 Skill"
+}

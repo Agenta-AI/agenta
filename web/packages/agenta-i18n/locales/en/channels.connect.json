@@ -99,5 +99,7 @@
     "whatsappNote": "Meta bills your business directly for WhatsApp messages.",
     "whatsappPricing": "WhatsApp pricing",
     "yourAgent": "your agent",
-    "yourApp": "Your app"
+    "yourApp": "Your app",
+    "getLink": "Get link",
+    "getLinkBody": "Get a one-time link to {{handle}}, then open it in Telegram."
 }

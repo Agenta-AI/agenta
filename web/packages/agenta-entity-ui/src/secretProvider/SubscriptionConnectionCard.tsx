@@ -37,7 +37,7 @@ const CodeBlock = ({code}: {code: string}) => {
 
     return (
         <div className="flex items-center gap-2">
-            <span className="select-all font-mono text-lg tracking-[0.2em] text-colorText">
+            <span className="select-all font-mono text-title tracking-[0.2em] text-foreground">
                 {code}
             </span>
             <Button
@@ -76,21 +76,21 @@ const SubscriptionConnectionCard = ({
     } = useSubscriptionSignIn({provider, connection})
 
     return (
-        <section className="flex flex-col gap-3 rounded-md border border-solid border-colorBorderSecondary p-4 text-xs">
+        <section className="flex flex-col gap-3 rounded-md border border-solid border-border-muted p-4 text-meta">
             <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-col gap-0.5">
-                    <span className="text-sm font-medium text-colorText">{name}</span>
+                    <span className="text-label font-medium text-foreground">{name}</span>
                     <span
                         className={
                             isReady && !pending
-                                ? "flex items-center gap-1.5 text-colorSuccess"
-                                : "flex items-center gap-1.5 text-colorTextSecondary"
+                                ? "flex items-center gap-1.5 text-success"
+                                : "flex items-center gap-1.5 text-muted-foreground"
                         }
                     >
                         {isReady && !pending ? (
                             <span
                                 aria-hidden
-                                className="size-1.5 shrink-0 rounded-full bg-colorSuccess"
+                                className="size-1.5 shrink-0 rounded-round bg-success"
                             />
                         ) : null}
                         {pending ? <Spinner className="size-3 shrink-0" /> : null}
@@ -117,8 +117,8 @@ const SubscriptionConnectionCard = ({
             </div>
 
             {pending ? (
-                <div className="flex flex-col gap-3 rounded-md bg-colorFillQuaternary p-3">
-                    <span className="text-colorTextSecondary">
+                <div className="flex flex-col gap-3 rounded-md bg-secondary p-3">
+                    <span className="text-muted-foreground">
                         {t("entityUi.subscriptionSignIn.openChatgptEnterCode")}
                     </span>
                     <CodeBlock code={pending.userCode} />
@@ -133,7 +133,7 @@ const SubscriptionConnectionCard = ({
                             <ArrowSquareOut size={12} />
                         </a>
                         {pending.expiresAt ? (
-                            <span className="text-colorTextTertiary">
+                            <span className="text-muted-foreground">
                                 {t("entityUi.subscriptionSignIn.expiresIn", {
                                     time: countdownLabel(pending.expiresAt, now),
                                 })}
@@ -147,14 +147,14 @@ const SubscriptionConnectionCard = ({
             ) : null}
 
             {lostPoll && !isReady ? (
-                <span className="flex items-center gap-1 text-colorWarning">
+                <span className="flex items-center gap-1 text-warning">
                     <WarningCircle size={14} />
                     {t("entityUi.subscriptionSignIn.lostTrack", {name: "ChatGPT"})}
                 </span>
             ) : null}
 
             {error ? (
-                <span className="flex items-center gap-1 text-colorError">
+                <span className="flex items-center gap-1 text-destructive">
                     <WarningCircle size={14} />
                     {error}
                 </span>

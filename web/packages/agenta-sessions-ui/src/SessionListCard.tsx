@@ -35,7 +35,7 @@ export interface SessionListCardProps {
 }
 
 const WAITING_BADGE_CLASS =
-    "shrink-0 rounded bg-colorWarningBg px-1.5 py-0.5 text-xs leading-none text-colorWarningText"
+    "shrink-0 rounded bg-warning/10 px-1.5 py-0.5 text-meta leading-none text-warning"
 
 /** The waiting badge, as a link when the host knows where it goes and as plain text until then. */
 const BadgeShell = ({

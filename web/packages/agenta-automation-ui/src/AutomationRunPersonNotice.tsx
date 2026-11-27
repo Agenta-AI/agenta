@@ -1,22 +1,18 @@
 /**
  * The notice beside an automation's save bar (spec 5.6): saving makes the viewer the person the
- * automation runs as, and the agent has items that use each person's own account. It lists the
- * items the viewer has not set up, with the same fixes as the chat's "Connect your accounts". The
- * save is never blocked.
+ * automation runs as, and the agent has items that use each person's own account. The save is
+ * never blocked.
  *
- * It reads only while there is an edit to save, and only when the save changes the run person:
- * the revision the references resolve to now, then that revision's Needs setup answer.
+ * It reads only while there is an edit to save, and only when the save changes the run person.
  */
 import {useMemo} from "react"
 
 import {hasUserItems} from "@agenta/entities/accountChoice"
 import {
-    agentRequirementsAtomFamily,
     retrievedWorkflowRevisionQueryAtomFamily,
     workflowLatestRevisionQueryAtomFamily,
     retrievedWorkflowRevisionFamilyKey,
 } from "@agenta/entities/workflow"
-import {PersonalAccountsCard, personalSetupItems} from "@agenta/entity-ui/onboarding"
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {userAtom} from "@agenta/shared/state"
@@ -64,39 +60,19 @@ export const AutomationRunPersonNotice = ({
     const agentHasUserItems = Boolean(revision && hasUserItems(revision.parameters?.agent))
     // Shown only when the save changes the run person and the agent has "user" items.
     const shown = changesRunPerson && agentHasUserItems
-    const requirements = useAtomValue(
-        agentRequirementsAtomFamily(shown ? (revision?.id ?? "") : ""),
-    )
-    const items = useMemo(() => personalSetupItems(requirements), [requirements])
-    const pendingKeys = useMemo(() => new Set(items.map((item) => item.key)), [items])
-    const workflowId = revision?.workflowId ?? ""
 
     if (!shown) return null
     return (
         <div
             role="status"
-            className="mt-[30px] flex flex-col gap-1.5 rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] p-3"
+            className="mt-8 flex flex-col gap-1.5 rounded-lg border border-solid border-border-muted p-3"
         >
-            <span className="text-xs font-medium text-[var(--ag-colorText)]">
+            <span className="text-label text-foreground">
                 {t("automations.editor.personTitle")}
             </span>
-            <span className="text-xs text-[var(--ag-colorTextSecondary)]">
+            <span className="text-meta text-muted-foreground">
                 {t("automations.editor.personBody")}
             </span>
-            {items.length > 0 && workflowId ? (
-                <>
-                    <span className="pt-1 text-xs text-[var(--ag-colorTextSecondary)]">
-                        {t("automations.editor.personMissing")}
-                    </span>
-                    <PersonalAccountsCard
-                        bare
-                        className="-mx-4"
-                        workflowId={workflowId}
-                        items={items}
-                        pendingKeys={pendingKeys}
-                    />
-                </>
-            ) : null}
         </div>
     )
 }

@@ -9,4 +9,4 @@ import {pageContentWidthClass} from "@agenta/ui/components/page-width"
  * the skeleton keeps the old inset the moment the screen's changes and the page shifts as it
  * settles.
  */
-export const HOME_PAGE_FRAME = `${pageContentWidthClass} px-4 pb-12 pt-10 lg:px-16 lg:pb-16 lg:pt-[120px]`
+export const HOME_PAGE_FRAME = `${pageContentWidthClass} px-4 pb-12 pt-10 lg:px-16 lg:pb-16 lg:pt-30`

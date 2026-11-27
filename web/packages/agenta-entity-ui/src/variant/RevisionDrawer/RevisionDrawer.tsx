@@ -34,7 +34,7 @@ const RevisionDrawerBody = ({revisionId, kind}: {revisionId: string; kind: Revis
     if (query.isPending) return <RevisionDrawerSkeleton />
     if (!query.data) {
         return (
-            <p className="text-muted-foreground m-0 p-6 text-center text-sm">
+            <p className="text-muted-foreground m-0 p-6 text-center text-body">
                 {t("entityUi.revisionDrawer.notAvailable")}
             </p>
         )

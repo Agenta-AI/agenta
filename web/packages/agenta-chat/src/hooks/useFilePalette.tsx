@@ -33,7 +33,8 @@ import {
     type PaletteSection,
     type PaletteSpec,
 } from "@agenta/ui/rich-chat-input"
-import {CircleNotch, FolderOpen, FolderSimple, MagnifyingGlass} from "@phosphor-icons/react"
+import {Spinner} from "@agenta/ui/ui"
+import {FolderOpen, FolderSimple, MagnifyingGlass} from "@phosphor-icons/react"
 
 import {
     browseRows,
@@ -189,8 +190,8 @@ export function useFilePalette({enabled = false}: {enabled?: boolean} = {}): Fil
 
     const header = useMemo<ReactNode>(() => {
         const status = loading ? (
-            <span className="ml-auto flex items-center gap-1.5 text-[11.5px] text-[var(--ag-colorTextTertiary)]">
-                <CircleNotch size={11} className="animate-spin" />
+            <span className="ml-auto flex items-center gap-1.5 text-meta text-muted-foreground">
+                <Spinner aria-hidden className="size-3" />
                 {t("chat.filePalette.listing")}
             </span>
         ) : null
@@ -210,13 +211,13 @@ export function useFilePalette({enabled = false}: {enabled?: boolean} = {}): Fil
         return (
             <>
                 {searching ? (
-                    <MagnifyingGlass size={14} className="text-[var(--ag-colorTextTertiary)]" />
+                    <MagnifyingGlass size={14} className="text-muted-foreground" />
                 ) : (
-                    <FolderOpen size={14} className="text-[var(--ag-colorTextTertiary)]" />
+                    <FolderOpen size={14} className="text-muted-foreground" />
                 )}
                 <span className="font-medium">{t("chat.filePalette.files")}</span>
                 {searching ? (
-                    <span className="text-[11.5px] text-[var(--ag-colorTextTertiary)]">
+                    <span className="text-caption text-muted-foreground">
                         {t("chat.filePalette.acrossDrive")}
                     </span>
                 ) : null}
@@ -279,7 +280,7 @@ export function useFilePalette({enabled = false}: {enabled?: boolean} = {}): Fil
                 q ? (
                     <>
                         {t("chat.filePalette.noMatch", {query: q})}
-                        <div className="mt-[5px] text-[11px] text-[var(--ag-colorTextTertiary)]">
+                        <div className="mt-1 text-meta text-muted-foreground">
                             {t("chat.filePalette.enterSends")}
                         </div>
                     </>

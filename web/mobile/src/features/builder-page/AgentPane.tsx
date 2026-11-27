@@ -1,9 +1,8 @@
 import {useEffect, useMemo, useRef, useState, type MutableRefObject} from "react"
 
 import {
-    AgentEditorContext,
+    AgentConfigSkeleton,
     SectionMarksContext,
-    type AgentEditor,
     type MarkableSectionKey,
     type SectionMarks,
 } from "@agenta/entity-ui/drill-in"
@@ -17,22 +16,23 @@ import agentLayoutPanelCatalog from "@agenta/i18n/catalogs/agentLayout.panel"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {LoadError} from "@agenta/ui/components/presentational"
-import {SkeletonBlock} from "@agenta/ui/ui"
-import {DrawerViewChrome, useViewStack, ViewStackHost} from "@agenta/ui/view-stack"
+import {PANE_FOOTER_CLASS, PaneFooterSlotContext} from "@agenta/ui/view-stack"
 import {useSetAtom} from "jotai"
 
-import {cn} from "@/lib/utils"
-
 import {AccessTab} from "../agent-layout/AccessTab"
+import {AgentConfigHost} from "../agent-layout/AgentConfigHost"
+import {
+    AGENT_CONFIG_TABPANEL_ID,
+    AgentConfigTabs,
+    agentConfigTabId,
+} from "../agent-layout/AgentConfigTabs"
 import {AutomationsTab} from "../agent-layout/AutomationsTab"
 import {ChannelsTab} from "../agent-layout/ChannelsTab"
-import {PageViewStackGuard, type PageViewStackGuardApi} from "../agent-pages/PageViewStackGuard"
+import {PaneBackContext, type PaneBack} from "../agent-layout/paneBack"
+import type {PageViewStackGuardApi} from "../agent-pages/PageViewStackGuard"
 import {useConfigurationRevision} from "../agent-pages/useConfigurationRevision"
 import {ConfigPane} from "../chat/ConfigPane"
-import {DrillInBridgeProvider} from "../chat/DrillInBridgeProvider"
 import {useTriggerTestRun} from "../chat/useTriggerTestRun"
-import {viewFormDirtyAtom} from "../chat/viewFormDirty"
-import {useProjectPermissionState} from "../context/useProjectPermission"
 
 import {followAction} from "./followBuilder"
 import {PaneSessionBar} from "./PaneSessionBar"
@@ -85,12 +85,6 @@ export const AgentPane = ({
     const tControls = useT(schemaControlsCatalog)
     const [tab, setTab] = useState<PaneTab>("agent")
     const {revisionId, pin, failed, retry} = useConfigurationRevision(agentId)
-    const editAccess = useProjectPermissionState(projectId, "edit_workflows")
-    const readOnly = !editAccess.pending && !editAccess.allowed
-    const editor = useMemo<AgentEditor | null>(
-        () => (revisionId ? {revisionId, readOnly} : null),
-        [readOnly, revisionId],
-    )
     const sessionPick = usePaneSessionPick(projectId, agentId)
     const sessions = sessionPick.query
     const sessionCount = sessions.data?.total ?? sessions.data?.sessions?.length ?? 0
@@ -98,6 +92,9 @@ export const AgentPane = ({
     useTriggerTestRun({entityId: revisionId, agentId, base: `/w/${workspaceId}/p/${projectId}`})
     // The Agent pane tab's dot: the builder saved a change the pane did not move to show.
     const [agentDot, setAgentDot] = useState(false)
+    // A view open inside a tab (a channel's manage view) puts its back link in the header.
+    const [paneBack, setPaneBack] = useState<PaneBack | null>(null)
+    const [footerSlot, setFooterSlot] = useState<HTMLDivElement | null>(null)
     // The open pane tab's views: an open form with edits asks before a switch.
     const openTab = async (next: PaneTab) => {
         if (next === tab) return
@@ -127,8 +124,12 @@ export const AgentPane = ({
             dirty,
         })
         if (action === "show") {
-            setTab("agent")
-            setAgentDot(false)
+            // The tab's open (clean) views close first, as on a tab switch, so Agent shows.
+            void (async () => {
+                if (guardRef.current && !(await guardRef.current.stack.closeAll())) return
+                setTab("agent")
+                setAgentDot(false)
+            })()
         } else if (action === "dot") setAgentDot(true)
         // Only a new save is followed; the pane tab on screen is read at that moment.
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -157,9 +158,9 @@ export const AgentPane = ({
         )
     else if (needsRevision && !revisionId)
         body = (
-            <div className="flex flex-col gap-3 p-4" aria-busy>
-                <SkeletonBlock active className="h-12 w-full" />
-                <SkeletonBlock active className="h-24 w-full" />
+            // The loaded tab's 16 px line; the cards hang 10 px out of it, as loaded.
+            <div className="h-full px-4">
+                <AgentConfigSkeleton />
             </div>
         )
     else if (tab === "agent" && revisionId)
@@ -207,73 +208,64 @@ export const AgentPane = ({
 
     return (
         <div
-            className="flex h-full min-h-0 flex-col"
+            className="h-full min-h-0"
             data-testid="builder-agent-pane"
             onPointerDownCapture={() => {
                 lastPointerDown.current = Date.now()
             }}
         >
-            {/* The tab row holds only the tabs (B07, B08); they scroll in a narrow pane. */}
-            <div
-                role="tablist"
-                className="ag-scroll-quiet flex h-12 shrink-0 items-center gap-4 overflow-x-auto border-0 border-b border-solid border-colorBorderSecondary px-4 max-md:gap-[9px] max-md:px-3"
+            <AgentConfigHost
+                agentId={agentId}
+                revisionId={revisionId}
+                projectId={projectId}
+                readChannels={tab === "agent"}
+                rootTitle={label(tab)}
+                onWorkflowRevisionCommitted={pin}
+                guardRef={guardRef}
             >
-                {PANE_TABS.map((key) => (
-                    <button
-                        key={key}
-                        type="button"
-                        role="tab"
-                        aria-selected={tab === key}
-                        onClick={() => void openTab(key)}
-                        className={cn(
-                            "flex h-12 shrink-0 cursor-pointer items-center gap-1 border-0 border-b-2 border-solid bg-transparent px-0 text-[13px] max-md:text-[14px]",
-                            tab === key
-                                ? "border-colorText font-medium text-colorText"
-                                : "border-transparent text-colorTextSecondary hover:text-colorText",
-                        )}
-                    >
-                        {label(key)}
-                        {key === "agent" && agentDot ? (
-                            <span
-                                data-testid="pane-tab-dot"
-                                role="img"
-                                aria-label={t("builder.page.changedByBuilder")}
-                                className="size-1.5 shrink-0 rounded-full bg-colorPrimary"
-                            />
-                        ) : null}
-                        {key === "sessions" && sessionCount > 0 ? (
-                            <span className="text-[12px] font-normal leading-5 text-colorTextTertiary">
-                                {formatNumber(sessionCount)}
-                            </span>
-                        ) : null}
-                    </button>
-                ))}
-            </div>
-            {tab === "sessions" ? <PaneSessionBar pick={sessionPick} /> : null}
-            <div role="tabpanel" className="min-h-0 flex-1">
-                <DrillInBridgeProvider projectId={projectId} onWorkflowRevisionCommitted={pin}>
-                    <AgentEditorContext.Provider value={editor}>
-                        <ViewStackHost key={tab} chrome={DrawerViewChrome} rootTitle={label(tab)}>
-                            <PageViewStackGuard guardRef={guardRef} />
-                            <PublishFormDirty />
-                            {body}
-                        </ViewStackHost>
-                    </AgentEditorContext.Provider>
-                </DrillInBridgeProvider>
-            </div>
+                {() => (
+                    <div data-pane="" className="ag-panel-raised flex h-full min-h-0 flex-col">
+                        <AgentConfigTabs
+                            tabs={PANE_TABS.map((key) => ({
+                                key,
+                                label: label(key),
+                                adornment:
+                                    key === "agent" && agentDot ? (
+                                        <span
+                                            data-testid="pane-tab-dot"
+                                            role="img"
+                                            aria-label={t("builder.page.changedByBuilder")}
+                                            className="size-1.5 shrink-0 bg-primary"
+                                        />
+                                    ) : key === "sessions" && sessionCount > 0 ? (
+                                        <span className="text-meta tabular-nums text-muted-foreground">
+                                            {formatNumber(sessionCount)}
+                                        </span>
+                                    ) : null,
+                            }))}
+                            value={tab}
+                            onSelect={(key) => void openTab(key)}
+                            back={paneBack}
+                        />
+                        {tab === "sessions" ? <PaneSessionBar pick={sessionPick} /> : null}
+                        <PaneBackContext.Provider value={setPaneBack}>
+                            <PaneFooterSlotContext.Provider value={footerSlot}>
+                                <div
+                                    id={AGENT_CONFIG_TABPANEL_ID}
+                                    role="tabpanel"
+                                    aria-labelledby={agentConfigTabId(tab)}
+                                    className="min-h-0 flex-1"
+                                >
+                                    {body}
+                                </div>
+                            </PaneFooterSlotContext.Provider>
+                        </PaneBackContext.Provider>
+                        <div ref={setFooterSlot} className={PANE_FOOTER_CLASS} />
+                    </div>
+                )}
+            </AgentConfigHost>
         </div>
     )
-}
-
-/** Tells the builder chat that a pane form has edits (`has_unsaved_draft` in its context line). */
-const PublishFormDirty = () => {
-    const stack = useViewStack()
-    const setViewFormDirty = useSetAtom(viewFormDirtyAtom)
-    useEffect(() => {
-        setViewFormDirty(stack.dirty)
-    }, [stack.dirty, setViewFormDirty])
-    useEffect(() => () => setViewFormDirty(false), [setViewFormDirty])
-    return null
 }
 
 /**

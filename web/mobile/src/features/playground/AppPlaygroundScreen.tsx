@@ -1,7 +1,20 @@
 import {useCallback, useEffect} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {playgroundController} from "@agenta/playground"
 import {preloadEditorPlugins} from "@agenta/ui/editor"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
 import {useStore} from "jotai"
 import {useRouter} from "next/router"
 
@@ -35,6 +48,7 @@ export const AppPlaygroundScreen = ({
     const store = useStore()
     const selection = usePlaygroundSelection({appId})
     const leaveDialog = usePlaygroundLeaveGuard()
+    const t = useT(commonCatalog)
     const {status, appKind, primaryRevisionId, revisionIds} = selection
 
     useEffect(() => {
@@ -76,7 +90,53 @@ export const AppPlaygroundScreen = ({
                     onWorkflowRevisionCommitted={followCommit}
                 />
             )}
-            {leaveDialog}
+            <AlertDialog
+                open={Boolean(leaveDialog.request)}
+                onOpenChange={(next) => {
+                    if (!next && !leaveDialog.pending) leaveDialog.close()
+                }}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{leaveDialog.request?.title ?? ""}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {leaveDialog.request?.message ?? ""}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {leaveDialog.error ? (
+                        <p className="m-0 text-body text-destructive">{leaveDialog.error}</p>
+                    ) : null}
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                variant="outline"
+                                onClick={leaveDialog.close}
+                                disabled={leaveDialog.pending}
+                            >
+                                {leaveDialog.request?.cancelText ?? t("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant={
+                                    leaveDialog.request?.danger === false
+                                        ? "default"
+                                        : "destructive"
+                                }
+                                disabled={leaveDialog.pending}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    void leaveDialog.runConfirm()
+                                }}
+                            >
+                                {leaveDialog.pending
+                                    ? t("common.working")
+                                    : (leaveDialog.request?.okText ?? t("common.confirm"))}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     )
 }

@@ -1,29 +1,11 @@
 /** @vitest-environment jsdom */
 // The filter dialog edits a draft: Clear and Cancel never touch the applied filters.
-import {act, type ReactNode} from "react"
+import {act} from "react"
 
 import {FILTER_COLUMNS} from "@agenta/observability/filters"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, expect, it, vi} from "vitest"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
-
-vi.mock("@agenta/ui/components/presentational", () => ({
-    EnhancedButton: ({
-        children,
-        icon,
-        htmlType: _htmlType,
-        ...rest
-    }: {
-        children?: ReactNode
-        icon?: ReactNode
-        htmlType?: string
-    }) => (
-        <button type="button" {...(rest as object)}>
-            {icon}
-            {children}
-        </button>
-    ),
-}))
 
 import {FilterDialog} from "../../src/filters/FilterDialog"
 

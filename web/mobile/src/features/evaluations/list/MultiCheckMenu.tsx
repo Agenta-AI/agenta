@@ -34,7 +34,7 @@ export const MultiCheckMenu = ({
               : `${value.length} selected`
     return (
         <div className="flex min-w-0 flex-col gap-1.5">
-            <span className="text-sm font-medium text-foreground">{label}</span>
+            <span className="text-label text-foreground">{label}</span>
             <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild disabled={disabled}>
                     <Button
@@ -52,12 +52,11 @@ export const MultiCheckMenu = ({
                         <CaretDownIcon aria-hidden size={12} className="shrink-0" />
                     </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent
-                    align="start"
-                    className="max-h-[280px] min-w-[200px] overflow-y-auto"
-                >
+                <DropdownMenuContent align="start" className="max-h-70 min-w-50 overflow-y-auto">
                     {options.length === 0 ? (
-                        <p className="m-0 px-2 py-1.5 text-sm text-muted-foreground">No options</p>
+                        <p className="m-0 px-2 py-1.5 text-body text-muted-foreground">
+                            No options
+                        </p>
                     ) : (
                         options.map((option) => (
                             <DropdownMenuCheckboxItem

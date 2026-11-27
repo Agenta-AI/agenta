@@ -41,9 +41,12 @@
     "setUpAutomation": "Configurar uma automação",
     "agentMeta": "Agente",
     "detailFallbackTitle": "Automação",
-    "leaveTitle": "Sair sem salvar?",
-    "leaveMessage": "Esta automação tem alterações não salvas. Se você sair, elas serão descartadas.",
     "noLongerExists": "Esta automação não existe mais.",
+    "noLongerExistsBody": "Alguém a excluiu ou este link é antigo. Volte para ver as automações deste agente.",
+    "backToAutomations": "Voltar para as automações",
+    "loadOneFailed": "Não foi possível carregar esta automação",
+    "loadOneFailedBody": "A lista de automações não carregou, então esta automação não pode ser exibida. Verifique sua conexão e tente novamente.",
     "cancel": "Cancelar",
-    "createAutomation": "Criar automação"
+    "createAutomation": "Criar automação",
+    "pageDescription": "Agentes que rodam em um horário definido ou quando algo acontece em um app conectado."
 }

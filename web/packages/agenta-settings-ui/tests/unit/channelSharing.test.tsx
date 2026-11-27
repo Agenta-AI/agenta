@@ -13,6 +13,25 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 vi.mock("@agenta/ui/ui", () => {
     const Wrap = ({children}: {children?: React.ReactNode}) => <div>{children}</div>
     return {
+        ItemViewTitle: ({
+            title,
+            description,
+            status,
+            actions,
+        }: {
+            title: string
+            description?: React.ReactNode
+            status?: React.ReactNode
+            actions?: React.ReactNode
+        }) => (
+            <div>
+                <h2>{title}</h2>
+                {status}
+                {actions}
+                {description ? <div>{description}</div> : null}
+            </div>
+        ),
+        SimpleTooltip: ({children}: {children?: React.ReactNode}) => <>{children}</>,
         Alert: ({
             message,
             action,
@@ -93,7 +112,6 @@ describe("ChannelAgentPicker", () => {
                 connections={EMPTY_CONNECTIONS}
                 onSelect={onSelect}
                 platform="slack"
-                projectName="Acme support"
             />,
         )
         const privateRow = byTestId("channels-agent-mine-private")!
@@ -113,7 +131,7 @@ describe("ChannelAgentPicker", () => {
             />,
         )
         expect(byTestId("channels-picker-audience")?.textContent).toBe(
-            "For a shared agent, everyone in Acme support can read its Slack conversations in Agenta, including direct messages. For a private agent, new conversations are private to its owner.",
+            "Everyone in this project can read a shared agent's Slack chats, including direct messages. New chats with a private agent are visible only to its owner.",
         )
     })
 })

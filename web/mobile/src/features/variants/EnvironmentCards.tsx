@@ -8,7 +8,7 @@ import Link from "next/link"
 import {useLastDeployedAt, type LastDeployedTarget} from "./useLastDeployedAt"
 
 const CARD_CLASS =
-    "flex min-w-0 flex-col gap-2 rounded-lg border border-solid bg-card p-3 text-left text-sm"
+    "flex min-w-0 flex-col gap-2 rounded-lg border border-solid bg-card p-3 text-left text-body"
 
 const CardBody = ({environment}: {environment: AppEnvironmentDeployment}) => {
     // Beta developer mode matches /w: an environment with nothing deployed has no date.

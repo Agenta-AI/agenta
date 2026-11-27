@@ -9,12 +9,17 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
 import {useT, type CatalogKey} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
-import {EnhancedModal, ModalFooter} from "@agenta/ui/components/modal"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {
     Button,
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
     Select,
     SelectContent,
     SelectItem,
@@ -69,6 +74,7 @@ export const ResponseFormatControlView = memo(function ResponseFormatControlView
     onOpenChange,
 }: ResponseFormatControlViewProps) {
     const t = useT(schemaControlsCatalog)
+    const tCommon = useT(commonCatalog)
     // Local editor state - buffers changes until Save
     const [editorState, setEditorState] = useState<string>(() => {
         if (value?.json_schema) {
@@ -186,26 +192,31 @@ export const ResponseFormatControlView = memo(function ResponseFormatControlView
 
             {/* JSON Schema Editor Modal */}
             {!disabled && (
-                <EnhancedModal
-                    title={t("entityUi.schemaControls.structuredOutputSchema")}
-                    open={open}
-                    onCancel={handleCancel}
-                    width={600}
-                    footer={
-                        <ModalFooter
-                            onCancel={handleCancel}
-                            onConfirm={handleSave}
-                            confirmLabel={t("entityUi.schemaControls.save")}
-                        />
-                    }
-                >
-                    <span className="mb-2 block text-colorText">
-                        {t("entityUi.schemaControls.defineJsonSchema")}
-                    </span>
-                    <div className="flex flex-col w-full gap-1 [&_.agenta-shared-editor]:box-border [&_.agenta-shared-editor]:!overflow-y-auto [&_.agenta-rich-text-editor]:!min-h-0 [&_.editor-code]:!pt-0 [&_.editor-code]:!pb-0 [&_.code-segment:first-child>br]:hidden">
-                        {editorContent}
-                    </div>
-                </EnhancedModal>
+                <Dialog open={open} onOpenChange={(next) => !next && handleCancel()}>
+                    <DialogContent className="max-w-[600px]">
+                        <DialogHeader>
+                            <DialogTitle>
+                                {t("entityUi.schemaControls.structuredOutputSchema")}
+                            </DialogTitle>
+                        </DialogHeader>
+                        <div>
+                            <span className="mb-2 block text-foreground">
+                                {t("entityUi.schemaControls.defineJsonSchema")}
+                            </span>
+                            <div className="flex flex-col w-full gap-1 [&_.agenta-shared-editor]:box-border [&_.agenta-shared-editor]:!overflow-y-auto [&_.agenta-rich-text-editor]:!min-h-0 [&_.editor-code]:!pt-0 [&_.editor-code]:!pb-0 [&_.code-segment:first-child>br]:hidden">
+                                {editorContent}
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={handleCancel}>
+                                {tCommon("common.cancel")}
+                            </Button>
+                            <Button onClick={handleSave}>
+                                {t("entityUi.schemaControls.save")}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             )}
         </div>
     )

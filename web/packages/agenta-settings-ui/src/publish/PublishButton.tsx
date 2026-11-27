@@ -15,8 +15,8 @@ export const PublishButton = ({onClick, disabled, className}: PublishButtonProps
     return (
         <Button
             size="sm"
-            // The design's one yellow action per screen: the hero-action token.
-            className={`bg-hero-action text-hero-action-foreground hover:bg-hero-action-hover ${className ?? ""}`}
+            // The design's one yellow action per screen: the brand color.
+            className={`bg-brand text-brand-foreground hover:bg-brand-hover ${className ?? ""}`}
             disabled={disabled}
             onClick={onClick}
             data-testid="publish-button"

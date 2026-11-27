@@ -1,3 +1,5 @@
+import {useMemo} from "react"
+
 import {
     agentRequirementsAtomFamily,
     isPersonalRequirement,
@@ -9,7 +11,7 @@ import {defineView, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import deepEqual from "fast-deep-equal"
 import {useAtomValue, useStore} from "jotai"
 
-import {ModelPickerLayoutContext} from "../modelPickerLayout"
+import {ModelPickerLayoutContext, ModelViewContext} from "../modelPickerLayout"
 import {NeedsSetupTag} from "../NeedsSetupTag"
 import {needsSetupReasonText} from "../needsSetupText"
 import {rememberModelPick} from "../rememberModelPick"
@@ -19,10 +21,10 @@ import {useAgentConfigWriter} from "../useAgentConfigWriter"
 export type ModelViewParams = Record<string, never>
 
 /**
- * The model list grouped by connection (F01 f2). A pick changes the agent configuration at once;
+ * The model list grouped by connection (F01 f2); with nothing connected, the provider catalog. A pick changes the agent configuration at once;
  * auto-save then saves the version, so the view has Done and no form.
  */
-const ModelViewBody = ({target}: ViewProps<ModelViewParams>) => {
+const ModelViewBody = ({target, nav}: ViewProps<ModelViewParams>) => {
     const t = useT(agentTemplateCatalog)
     const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
     const store = useStore()
@@ -30,36 +32,42 @@ const ModelViewBody = ({target}: ViewProps<ModelViewParams>) => {
     const requirements = useAtomValue(agentRequirementsAtomFamily(writer.revisionId))
     const modelReq = modelRequirement(requirements?.filter((r) => !isPersonalRequirement(r)) ?? [])
     useViewTitle(t("entityUi.agentTemplate.model"))
+    const reason = modelReq?.reason
+    const viewContext = useMemo(
+        () => ({
+            nav,
+            notice: reason ? (
+                <NeedsSetupTag tag={false} reason={needsSetupReasonText(reason)} />
+            ) : null,
+        }),
+        [nav, reason],
+    )
     return (
-        // No side or bottom padding: the list sets its own gutter, and "Manage model providers"
-        // ends the view on a full-width band.
-        <div className="flex min-h-0 flex-1 flex-col gap-2 pt-3.5">
-            {modelReq ? (
-                <div className="px-4">
-                    <NeedsSetupTag tag={false} reason={needsSetupReasonText(modelReq.reason)} />
-                </div>
-            ) : null}
-            <ModelPickerLayoutContext.Provider value="list">
-                <ModelHarnessSectionBody
-                    section="model-harness"
-                    schema={writer.schema}
-                    config={writer.agent}
-                    onChange={(next) => {
-                        writer.update(() => next)
-                        // A model or harness pick is remembered for the next agent, as the old
-                        // Model drawer's Save did.
-                        if (
-                            !deepEqual(next.llm, writer.agent.llm) ||
-                            !deepEqual(next.harness, writer.agent.harness)
-                        )
-                            rememberModelPick(store, next)
-                    }}
-                    disabled={writer.readOnly}
-                    revisionId={writer.revisionId}
-                    // A model the chosen key no longer offers: list only that key's models.
-                    onlyCurrentConnection={modelReq?.kind === "model"}
-                />
-            </ModelPickerLayoutContext.Provider>
+        // No side or bottom padding: the list and the catalog set their own gutter.
+        <div className="flex min-h-0 flex-1 flex-col pt-3.5">
+            <ModelViewContext.Provider value={viewContext}>
+                <ModelPickerLayoutContext.Provider value="list">
+                    <ModelHarnessSectionBody
+                        section="model-harness"
+                        schema={writer.schema}
+                        config={writer.agent}
+                        onChange={(next) => {
+                            writer.update(() => next)
+                            // A model or harness pick is remembered for the next agent, as the old
+                            // Model drawer's Save did.
+                            if (
+                                !deepEqual(next.llm, writer.agent.llm) ||
+                                !deepEqual(next.harness, writer.agent.harness)
+                            )
+                                rememberModelPick(store, next)
+                        }}
+                        disabled={writer.readOnly}
+                        revisionId={writer.revisionId}
+                        // A model the chosen key no longer offers: list only that key's models.
+                        onlyCurrentConnection={modelReq?.kind === "model"}
+                    />
+                </ModelPickerLayoutContext.Provider>
+            </ModelViewContext.Provider>
         </div>
     )
 }

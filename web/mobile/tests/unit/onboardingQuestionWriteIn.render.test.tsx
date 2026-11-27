@@ -6,7 +6,8 @@ import {afterEach, describe, expect, it, vi} from "vitest"
 
 vi.mock("motion/react", () => ({useReducedMotion: () => true}))
 
-vi.mock("@agenta/ui/ui", () => ({
+vi.mock("@agenta/ui/ui", async (importOriginal) => ({
+    cn: (await importOriginal<typeof import("@agenta/ui/ui")>()).cn,
     Button: ({children, ...props}: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
         <button {...props}>{children}</button>
     ),

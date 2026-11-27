@@ -12,6 +12,7 @@ import {
     type NavItem,
 } from "@agenta/navigation-ui"
 import {
+    ArrowsOutLineVerticalIcon,
     ChatsCircleIcon,
     CircleIcon,
     CompassIcon,
@@ -21,7 +22,6 @@ import {
 } from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {atom, type PrimitiveAtom} from "jotai"
-import {UnfoldVertical} from "lucide-react"
 
 import {AgentSidebarHeader} from "../../../../mobile/src/features/agent-sidebar/AgentSidebarHeader"
 import {agentSidebarItems} from "../../../../mobile/src/features/agent-sidebar/agentSidebarItems"
@@ -84,7 +84,7 @@ const mainScope = {
                     },
                     groupEnter: {
                         label: t("nav.agentSections.openAgent", {agent: agent.name}),
-                        icon: createElement(UnfoldVertical, {size: 14}),
+                        icon: createElement(ArrowsOutLineVerticalIcon, {size: 14}),
                         onClick: noop,
                     },
                 },
@@ -149,21 +149,21 @@ const agentScope = {
     useSelection: () => ROUTE,
     useSections: () => {
         const t = useT(agentSidebarCatalog)
-        return useMemo(
-            () => [
-                {
-                    key: "agent",
-                    items: agentSidebarItems({
-                        projectURL: P,
-                        agentId: SUPPORT_TRIAGE.id,
-                        sessions: SUPPORT_TRIAGE_SESSIONS,
-                        total: SUPPORT_TRIAGE_TOTAL,
-                        t,
-                    }),
-                },
-            ],
-            [t],
-        )
+        return useMemo(() => {
+            const {pages, sessions} = agentSidebarItems({
+                projectURL: P,
+                agentId: SUPPORT_TRIAGE.id,
+                newSessionHref: `${P}/agents/${SUPPORT_TRIAGE.id}`,
+                onNewSession: noop,
+                sessions: SUPPORT_TRIAGE_SESSIONS,
+                total: SUPPORT_TRIAGE_TOTAL,
+                t,
+            })
+            return [
+                {key: "agent", items: pages},
+                {key: "sessions", items: [sessions], dividerBefore: true},
+            ]
+        }, [t])
     },
     header: ({collapsed}: {collapsed: boolean}) => (
         <AgentSidebarHeader
@@ -173,12 +173,14 @@ const agentScope = {
             switcher={
                 <AgentSidebarSwitcher
                     agents={SIDEBARS_AGENTS}
-                    agentId={SUPPORT_TRIAGE.id}
+                    current={{kind: "agent", agentId: SUPPORT_TRIAGE.id}}
                     collapsed={collapsed}
+                    projectName="Production"
                     onPick={noop}
+                    onAllAgents={noop}
+                    onNewAgent={noop}
                 />
             }
-            onFold={noop}
         />
     ),
 }

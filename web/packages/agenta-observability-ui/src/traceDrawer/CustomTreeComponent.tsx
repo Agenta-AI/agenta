@@ -126,7 +126,7 @@ const TreeNodeComponent = <TNode,>({
                         className={
                             nodeLabelContentClass +
                             " " +
-                            (nodeKey === selectedKey ? "bg-[var(--ag-c-F5F7FA)]" : "")
+                            (nodeKey === selectedKey ? "bg-muted" : "")
                         }
                     >
                         {renderLabel(node)}

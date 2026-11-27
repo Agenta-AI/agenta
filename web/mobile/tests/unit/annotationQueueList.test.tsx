@@ -30,8 +30,10 @@ vi.mock("@agenta/ui/app-message", () => ({
     message: {success: http.success, error: vi.fn()},
 }))
 
-import {QueueDeleteDialog} from "@/features/annotations/QueueDeleteDialog"
-import {useQueueDelete} from "@/features/annotations/useQueueDelete"
+const router = vi.hoisted(() => ({push: vi.fn(async () => true)}))
+vi.mock("next/router", () => ({useRouter: () => router}))
+
+import {QueueDeleteCard} from "@/features/annotations/QueueDeleteCard"
 import {useQueueList} from "@/features/annotations/useQueueList"
 
 const queue = (id: string, name: string, extra: Record<string, unknown> = {}) => ({
@@ -179,25 +181,23 @@ describe("annotation queue list data", () => {
 describe("annotation queue delete", () => {
     let root: Root
     let host: HTMLElement
-    let latest: ReturnType<typeof useQueueDelete>
 
-    const DeleteProbe = () => {
-        latest = useQueueDelete()
-        return (
-            <QueueDeleteDialog
-                target={latest.target}
-                pending={latest.isDeleting}
-                error={latest.error}
-                onConfirm={latest.confirm}
-                onClose={latest.cancel}
-            />
+    const buttonNamed = (name: string) =>
+        [...document.querySelectorAll("button")].find(
+            (button) => button.textContent?.trim() === name,
         )
+    const mountCard = async (queueName: string | null) => {
+        await act(async () =>
+            root.render(<QueueDeleteCard queueId="q-1" queueName={queueName} listHref="/queues" />),
+        )
+        await act(async () => buttonNamed("Delete queue")?.click())
     }
 
-    beforeEach(async () => {
+    beforeEach(() => {
         http.delete.mockReset()
         http.post.mockReset()
         http.success.mockReset()
+        router.push.mockClear()
         const store = getDefaultStore()
         store.set(
             queryClientAtom,
@@ -207,7 +207,6 @@ describe("annotation queue delete", () => {
         host = document.createElement("div")
         document.body.appendChild(host)
         root = createRoot(host)
-        await act(async () => root.render(<DeleteProbe />))
     })
 
     afterEach(async () => {
@@ -216,38 +215,38 @@ describe("annotation queue delete", () => {
         getDefaultStore().set(projectIdAtom, null)
     })
 
-    it("Confirming delete calls the delete endpoint once", async () => {
+    it("Confirming delete calls the delete endpoint once, then returns to the list", async () => {
         let release: (value: unknown) => void = () => undefined
         http.delete.mockImplementation(() => new Promise((resolve) => (release = resolve)))
-        await act(async () => latest.requestDelete({id: "q-1", name: "Triage"}))
+        await mountCard("Triage")
         expect(document.body.textContent).toContain(
             "Are you sure you want to delete the following?",
         )
         expect(document.body.textContent).toContain("Annotation queue")
         expect(document.body.textContent).toContain("Triage")
 
-        // Two confirms while the request runs: one request.
+        // Two clicks while the request runs: one request.
+        const confirm = buttonNamed("Delete")
         await act(async () => {
-            void latest.confirm()
-            void latest.confirm()
+            confirm?.click()
+            confirm?.click()
         })
         expect(http.delete).toHaveBeenCalledTimes(1)
         expect(String(http.delete.mock.calls[0][0])).toBe("http://api.test/simple/queues/q-1")
 
         await act(async () => release({data: {count: 1, queue_id: "q-1"}}))
         expect(http.success).toHaveBeenCalledWith("Deleted successfully")
-        expect(latest.target).toBeNull()
+        expect(router.push).toHaveBeenCalledWith("/queues")
+        expect(document.querySelector("[role='alertdialog']")).toBeNull()
     })
 
     it("A failed delete shows Couldn't delete this queue without the API text", async () => {
         const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined)
         http.delete.mockRejectedValue(new Error("403 forbidden: secret detail"))
-        await act(async () => latest.requestDelete({id: "q-1", name: null}))
+        await mountCard(null)
         expect(document.body.textContent).toContain("Untitled queue")
 
-        await act(async () => {
-            await latest.confirm()
-        })
+        await act(async () => buttonNamed("Delete")?.click())
 
         expect(document.body.textContent).toContain("Couldn't delete this queue")
         expect(document.body.textContent).not.toContain("secret detail")

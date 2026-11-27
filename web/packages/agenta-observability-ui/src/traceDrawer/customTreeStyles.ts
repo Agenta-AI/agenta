@@ -8,10 +8,10 @@
  * cut only at the column edge.
  */
 export const treeLineClass =
-    "before:content-[''] before:absolute before:left-[6px] before:top-0 before:-bottom-[12px] before:w-px before:bg-colorBorder [&.last]:before:h-1/2 [&.last]:before:bottom-auto"
+    "before:content-[''] before:absolute before:left-[6px] before:top-0 before:-bottom-[12px] before:w-px before:bg-border [&.last]:before:h-1/2 [&.last]:before:bottom-auto"
 
 export const nodeLabelClass =
-    "relative cursor-default flex items-center mt-3 mb-3 before:content-[''] before:absolute before:top-1/2 before:-left-[13px] before:w-3 before:h-px before:bg-colorBorder"
+    "relative cursor-default flex items-center mt-3 mb-3 before:content-[''] before:absolute before:top-1/2 before:-left-[13px] before:w-3 before:h-px before:bg-border"
 
 export const nodeLabelContentClass =
-    "min-w-0 py-0.5 px-1 rounded-control cursor-pointer hover:bg-colorFillSecondary"
+    "min-w-0 py-0.5 px-1 rounded-control cursor-pointer hover:bg-accent"

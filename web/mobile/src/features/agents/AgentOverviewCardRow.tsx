@@ -27,11 +27,11 @@ export const AgentOverviewCardRow = ({
             </span>
             {/* The label takes what the fact leaves: a long file or automation name truncates,
                 while a long model id stops at just over half the row so the label stays whole. */}
-            <span className="min-w-0 flex-1 truncate text-left text-[14px] text-foreground">
+            <span className="min-w-0 flex-1 truncate text-left text-body text-foreground">
                 {label}
             </span>
             {typeof detail === "string" ? (
-                <span className="max-w-[55%] shrink-0 truncate text-right text-[13px] text-muted-foreground">
+                <span className="max-w-[55%] shrink-0 truncate text-right text-label text-muted-foreground">
                     {detail}
                 </span>
             ) : detail ? (
@@ -40,7 +40,7 @@ export const AgentOverviewCardRow = ({
         </>
     )
     const shared = cn(
-        "-mx-2 box-border flex w-[calc(100%+16px)] items-center gap-3 rounded-lg px-2 py-[7px]",
+        "-mx-2 box-border flex w-[calc(100%+16px)] items-center gap-3 rounded-md px-2 py-2",
         className,
     )
     // A div with the button role, not a <button>: the Integrations row's fact is a list of
@@ -57,10 +57,7 @@ export const AgentOverviewCardRow = ({
                     onClick()
                 }
             }}
-            className={cn(
-                shared,
-                "cursor-pointer outline-none transition-colors hover:bg-accent focus-visible:bg-accent",
-            )}
+            className={cn(shared, "focus-ring cursor-pointer transition-colors hover:bg-accent")}
         >
             {body}
         </div>

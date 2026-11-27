@@ -78,7 +78,7 @@ const PageLayout = ({
             onValueChange={(value) => headerTabsProps.onChange?.(value)}
             // mb-0 replaces the old `[&_.ant-tabs-nav]:mb-0`: a bar-only tab list must not keep
             // the 16px gap the primitive leaves for panels, or it rides 8px high in the header.
-            className="[&_[data-slot=tabs-list]]:mb-0 [&_[data-slot=tabs-trigger]]:text-sm [&_[data-slot=tabs-trigger]]:font-medium"
+            className="[&_[data-slot=tabs-list]]:mb-0"
         >
             <TabsList>
                 {headerTabsProps.items.map((item) => (
@@ -136,7 +136,7 @@ const PageLayout = ({
                             {title}
                         </HeadingTag>
                         {description ? (
-                            <p className="m-0 text-colorTextSecondary">{description}</p>
+                            <p className="m-0 text-muted-foreground">{description}</p>
                         ) : null}
                     </div>
                     {headerTabsContent ? (

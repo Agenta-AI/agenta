@@ -156,7 +156,7 @@ export const ContextResolver = ({workspaceId, forwardTo}: ContextResolverProps =
         return (
             <ScreenScaffold>
                 <div className="flex grow flex-col items-center justify-center gap-3 p-6 text-center">
-                    <p className="text-muted-foreground text-xs">
+                    <p className="text-muted-foreground text-body">
                         {memberWithoutProject
                             ? t("context.resolver.noProjects")
                             : t("context.resolver.somethingWrong")}

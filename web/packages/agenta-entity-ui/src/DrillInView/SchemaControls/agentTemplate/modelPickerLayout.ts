@@ -1,6 +1,7 @@
-import {createContext} from "react"
+import {createContext, type ReactNode} from "react"
 
 import type {ProviderGroup} from "@agenta/ui/select-llm-provider"
+import type {ViewNav} from "@agenta/ui/view-stack"
 
 import type {PickerConnectionRow} from "../connectionPicker"
 import {buildPickerGroupsWithSections} from "../pickerSections"
@@ -10,6 +11,9 @@ import {buildPickerGroupsWithSections} from "../pickerSections"
  * grouped list of a view with room for it (the Model view, F01 f2).
  */
 export const ModelPickerLayoutContext = createContext<"popover" | "list">("popover")
+
+/** The Model view's stack, where the picker opens provider views, and its needs-setup line. */
+export const ModelViewContext = createContext<{nav: ViewNav; notice: ReactNode} | null>(null)
 
 const isBuiltinRow = (row: PickerConnectionRow) =>
     row.models.some((model) => model.namespace === "builtin")

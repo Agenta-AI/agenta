@@ -35,7 +35,7 @@ describe("Tooltip shortcut", () => {
         )
         const content = document.querySelector('[data-slot="tooltip-content"]')
         expect(content).not.toBeNull()
-        expect(content!.className).toContain("text-field-sm")
+        expect(content!.className).toContain("text-meta")
         expect(content!.className).not.toContain("text-field-md")
         const caps = content!.querySelectorAll('[data-slot="kbd"]')
         expect(Array.from(caps).map((c) => c.textContent)).toEqual(["Esc"])
@@ -59,14 +59,14 @@ describe("Tooltip shortcut", () => {
         render(<ShortcutKeys chord={{modifiers: ["mod"], key: "k"}} tone="inverse" size="md" />)
         const caps = document.querySelectorAll('[data-slot="kbd"]')
         expect(caps.length).toBe(2)
-        expect(caps[0].className).toContain("bg-white/20")
+        expect(caps[0].className).toContain("bg-background/20")
         expect(caps[0].className).toContain("h-5")
     })
 
     it("Kbd flips to the inverse tone only under tooltip content", () => {
         render(<Kbd>K</Kbd>)
         expect(screen.getByText("K").className).toContain(
-            "[[data-slot=tooltip-content]_&]:bg-white/20",
+            "[[data-slot=tooltip-content]_&]:bg-background/20",
         )
     })
 })

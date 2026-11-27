@@ -1,160 +1,303 @@
-/** The registry list of the agent's "Add skills" view: each row toggles one reference. */
-import {useMemo, useState} from "react"
+/** The registry list of the agent's "Add skills" view: the agent's skills, then all the others. */
+import {useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+import {CatalogGroupSkeleton, CatalogListRow} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
-import skillNewCatalog from "@agenta/i18n/catalogs/entityUi.skillNew"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
+import skillsAgentCatalog from "@agenta/i18n/catalogs/skills.agent"
 import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
+import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {skillsResolveDataAtom, skillsResolveQueryAtom} from "@agenta/skills/state"
 import {SkillMark} from "@agenta/ui/agent-icon"
 import type {AddSkillsBodyProps} from "@agenta/ui/drill-in"
-import {Button, EmptyState, SearchInput, SkeletonBlock} from "@agenta/ui/ui"
-import {Check, Plus} from "@phosphor-icons/react"
+import {useScrollFadeEdges} from "@agenta/ui/hooks"
+import {
+    Alert,
+    Button,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    Empty,
+    EmptyContent,
+    EmptyDescription,
+    EmptyHeader,
+    EmptyMedia,
+    EmptyTitle,
+    SearchInput,
+    SimpleTooltip,
+} from "@agenta/ui/ui"
+import {Check, DotsThreeVertical, MagnifyingGlass, Plus, Trash} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {filterSkillOptions, pickerEmbedEntry, toPickerItem} from "./pickerOptions"
-import {toSourceInfo} from "./registrySections"
 import {skillTitle} from "./skillTitle"
 import type {SkillListItem} from "./types"
 
-/** Canvas F04 f2: rows on the search field's edge, 8 px above and below, 60 px apart; the hover
- *  fill bleeds 8 px past the column. */
-const ROW =
-    "box-border flex w-full cursor-pointer appearance-none items-center gap-2.5 rounded-[10px] border-0 bg-transparent px-2 py-2 text-left font-[inherit] outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
+const useCatalogT = () =>
+    useT(
+        skillsGalleryCatalog,
+        skillsAgentCatalog,
+        skillsListCatalog,
+        commonCatalog,
+        integrationViewsCatalog,
+        uiControlsCatalog,
+    )
 
-function SkillRow({option, onToggle}: {option: SkillListItem; onToggle: () => void}) {
-    const t = useT(skillsGalleryCatalog, skillNewCatalog)
+/** The catalog's quiet row action: `secondary` stacks on the row's hover fill (SURF-06). */
+const ROW_ACTION = "text-muted-foreground hover:bg-secondary hover:text-foreground"
+
+/** A skill on the agent: "✓ Added" and a menu that removes it, as a connected app's row. */
+function AddedRow({option, onRemove}: {option: SkillListItem; onRemove: () => void}) {
+    const t = useCatalogT()
     const title = skillTitle(option)
-    const description = option.description?.trim() || t("skills.gallery.noDescription")
     return (
-        <button
-            type="button"
-            onClick={onToggle}
-            aria-pressed={Boolean(option.added)}
-            aria-label={t(
-                option.added
-                    ? "entityUi.skillNew.removeSkillAria"
-                    : "entityUi.skillNew.addSkillAria",
-                {name: title},
-            )}
-            className={ROW}
+        <CatalogListRow
+            variant="canvas"
+            leading={<SkillMark size={32} />}
+            title={title}
+            action={
+                <span className="flex items-center gap-1">
+                    <span className="flex shrink-0 items-center gap-1 text-meta text-muted-foreground">
+                        <Check size={14} />
+                        {t("skills.agent.added")}
+                    </span>
+                    <DropdownMenu>
+                        <SimpleTooltip title={t("ui.controls.moreActions")}>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    type="button"
+                                    size="icon-sm"
+                                    variant="ghost"
+                                    aria-label={t("ui.controls.moreActions")}
+                                    className={`${ROW_ACTION} aria-expanded:bg-secondary`}
+                                >
+                                    <DotsThreeVertical aria-hidden />
+                                </Button>
+                            </DropdownMenuTrigger>
+                        </SimpleTooltip>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                                onSelect={onRemove}
+                                aria-label={t("skills.agent.removeSkillFromAgent", {name: title})}
+                            >
+                                <Trash />
+                                {t("entityUi.integrationViews.removeFromAgent")}
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </span>
+            }
         >
-            <SkillMark size={28} />
-            <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-[13px] font-medium leading-5 text-colorText">
-                    {title}
-                </span>
-                <span className="truncate text-[12px] leading-4 text-colorTextSecondary">
-                    {option.source ? `${description} · ${option.source.label}` : description}
-                </span>
-            </span>
-            {option.added ? (
-                <span className="flex shrink-0 items-center gap-1 pl-2 text-[12px] leading-4 text-colorTextSecondary">
-                    <Check aria-hidden size={14} />
-                    {t("entityUi.skillNew.added")}
-                </span>
-            ) : (
-                <Plus aria-hidden size={14} className="ml-2 shrink-0 text-muted-foreground" />
-            )}
-        </button>
+            <Description option={option} />
+        </CatalogListRow>
     )
 }
 
-function RowsSkeleton() {
+/** A skill not on the agent: the row and its "+" add it, as an app in "All apps". */
+function AvailableRow({option, onAdd}: {option: SkillListItem; onAdd: () => void}) {
+    const t = useCatalogT()
+    const label = t("skills.agent.addSkillToAgent", {name: skillTitle(option)})
     return (
-        <div aria-hidden className="flex flex-col">
-            {Array.from({length: 5}).map((_, i) => (
-                <div key={i} className="flex items-center gap-3 px-2 py-2">
-                    <SkeletonBlock active className="size-8 shrink-0 rounded-lg" />
-                    <div className="flex flex-1 flex-col gap-1.5">
-                        <SkeletonBlock active className="h-3.5 w-1/3 rounded" />
-                        <SkeletonBlock active className="h-3 w-2/3 rounded" />
-                    </div>
-                </div>
-            ))}
+        <CatalogListRow
+            variant="canvas"
+            onClick={onAdd}
+            actionLabel={label}
+            leading={<SkillMark size={32} />}
+            title={skillTitle(option)}
+            action={
+                <SimpleTooltip title={t("common.add")}>
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        // Shown on row hover and focus, always on touch (TOUCH-02).
+                        className={`${ROW_ACTION} focus-visible:opacity-100 group-hover/row:opacity-100 group-focus-within/row:opacity-100 [@media(hover:hover)]:opacity-0`}
+                        aria-label={label}
+                        onClick={onAdd}
+                    >
+                        <Plus />
+                    </Button>
+                </SimpleTooltip>
+            }
+        >
+            <Description option={option} />
+        </CatalogListRow>
+    )
+}
+
+function Description({option}: {option: SkillListItem}) {
+    const t = useCatalogT()
+    const text = option.description?.trim() || t("skills.gallery.noDescription")
+    return (
+        <span className="truncate text-meta text-muted-foreground" title={text}>
+            {text}
+        </span>
+    )
+}
+
+/** The agent panel's group header, as the integration catalog's (canvas F02 f4). */
+function GroupHeader({children}: {children: ReactNode}) {
+    return <div className="flex items-center pt-3 text-subtitle text-foreground">{children}</div>
+}
+
+function RowGroup({label, children}: {label: ReactNode; children: ReactNode}) {
+    return (
+        <div className="flex flex-col">
+            <GroupHeader>{label}</GroupHeader>
+            {/* -mx/px: the rows' hover fill and focus ring stay inside the scroll's clip. */}
+            <div className="-mx-2 flex flex-col gap-2 px-2 pt-2">{children}</div>
+        </div>
+    )
+}
+
+/** The loading list: Added, then All skills. */
+function AddSkillsListSkeleton() {
+    return (
+        <div aria-hidden className="flex flex-col gap-2">
+            <CatalogGroupSkeleton rows={3} />
+            <CatalogGroupSkeleton rows={3} />
         </div>
     )
 }
 
 export function AddSkillsBody({addedSlugs, onAdd, onRemove, onNewSkill}: AddSkillsBodyProps) {
-    const t = useT(skillsGalleryCatalog)
+    const t = useCatalogT()
     // The unfiltered registry: the Skills page search must not narrow this list.
     const query = useAtomValue(skillsResolveQueryAtom)
     const registry = useAtomValue(skillsResolveDataAtom)
     const [search, setSearch] = useState("")
+    // The registry as first loaded: a skill made after that (a new skill) goes on top.
+    const [known, setKnown] = useState<Set<string> | null>(null)
+    if (known === null && !query.isPending) {
+        setKnown(
+            new Set(registry.flatMap((item) => (item.workflow_slug ? [item.workflow_slug] : []))),
+        )
+    }
 
     const options = useMemo<SkillListItem[]>(() => {
         const added = new Map(addedSlugs.map((slug) => [slug, {}]))
-        return (
-            registry
-                .filter((item) => !item.archived)
-                .map((item) => {
-                    const mapped = toPickerItem(
-                        item,
-                        item.origin && !item.origin.detached ? "imported" : "project",
-                        added,
-                    )
-                    if (!mapped) return null
-                    return item.origin ? {...mapped, source: toSourceInfo(item.origin)} : mapped
-                })
-                .filter((item): item is SkillListItem => item !== null)
-                // The agent's skills first (F04 f2); the sort keeps the registry order within each part.
-                .sort((a, b) => Number(Boolean(b.added)) - Number(Boolean(a.added)))
-        )
-    }, [addedSlugs, registry])
+        const rank = (slug: string) => (known && !known.has(slug) ? 0 : 1)
+        return registry
+            .filter((item) => !item.archived)
+            .map((item) =>
+                toPickerItem(
+                    item,
+                    item.origin && !item.origin.detached ? "imported" : "project",
+                    added,
+                ),
+            )
+            .filter((item): item is SkillListItem => item !== null)
+            .sort((a, b) => rank(a.slug) - rank(b.slug))
+    }, [addedSlugs, known, registry])
     const visible = useMemo(() => filterSkillOptions(options, search), [options, search])
+    const onAgent = visible.filter((option) => option.added)
+    const others = visible.filter((option) => !option.added)
+
+    // A click opened the view: move focus into it, so Escape and Tab start here.
+    const rootRef = useRef<HTMLDivElement>(null)
+    useEffect(() => {
+        const root = rootRef.current
+        if (root && !root.contains(document.activeElement)) root.focus({preventScroll: true})
+    }, [])
+    const listRef = useRef<HTMLDivElement>(null)
+    useScrollFadeEdges(listRef)
+
     const searching = Boolean(search.trim())
+    const failed = query.isError && registry.length === 0
 
     return (
-        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4 pb-3 pt-3.5">
-            <div className="flex items-center gap-2">
+        <div ref={rootRef} tabIndex={-1} className="flex min-h-0 flex-1 flex-col pt-3 outline-none">
+            {/* Fixed above the scroll. pt-1 keeps the focus ring inside the body's clip. */}
+            <div className="flex shrink-0 items-center gap-2 px-4 pb-2 pt-1">
                 <SearchInput
-                    size="compact-search"
-                    className="border-colorBorderSecondary max-md:h-11"
+                    className="min-w-0 flex-1 border-border-muted"
                     placeholder={t("skills.gallery.searchPlaceholder")}
                     aria-label={t("skills.gallery.searchAria")}
                     value={search}
                     onValueChange={setSearch}
                 />
-                <Button variant="outline" size="compact" onClick={onNewSkill} className="shrink-0">
-                    <Plus size={14} />
-                    {t("skills.gallery.newSkill")}
+                <Button variant="outline" onClick={onNewSkill} className="shrink-0">
+                    <Plus />
+                    {t("skills.agent.newSkill")}
                 </Button>
             </div>
-            {query.isPending ? (
-                <RowsSkeleton />
-            ) : visible.length === 0 ? (
-                <EmptyState
-                    image="simple"
-                    description={
-                        <span className="flex flex-col gap-1 text-xs">
-                            <span className="font-medium text-colorText">
+            <div
+                ref={listRef}
+                className="ag-scroll-fade flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4 pb-3"
+            >
+                {query.isPending ? (
+                    <AddSkillsListSkeleton />
+                ) : failed ? (
+                    <Alert
+                        type="warning"
+                        showIcon
+                        className="mt-3"
+                        message={t("skills.list.loadFailed")}
+                        description={t("skills.list.loadFailedBody")}
+                        action={
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => void query.refetch()}
+                            >
+                                {t("common.retry")}
+                            </Button>
+                        }
+                    />
+                ) : visible.length === 0 ? (
+                    <Empty className="py-10">
+                        <EmptyHeader>
+                            <EmptyMedia variant="icon">
+                                <MagnifyingGlass />
+                            </EmptyMedia>
+                            <EmptyTitle>
                                 {searching
                                     ? t("skills.gallery.noMatchTitle")
                                     : t("skills.gallery.noSkillsTitle")}
-                            </span>
-                            <span>
+                            </EmptyTitle>
+                            <EmptyDescription>
                                 {searching
                                     ? t("skills.gallery.noMatchName")
                                     : t("skills.gallery.createBelow")}
-                            </span>
-                        </span>
-                    }
-                />
-            ) : (
-                <div className="-mx-2 flex flex-col gap-2">
-                    {visible.map((option) => (
-                        <SkillRow
-                            key={option.id}
-                            option={option}
-                            onToggle={() =>
-                                option.added
-                                    ? onRemove(option.slug)
-                                    : onAdd(pickerEmbedEntry(option, "latest"))
-                            }
-                        />
-                    ))}
-                </div>
-            )}
+                            </EmptyDescription>
+                        </EmptyHeader>
+                        {searching ? (
+                            <EmptyContent>
+                                <Button variant="outline" onClick={() => setSearch("")}>
+                                    {t("common.clearSearch")}
+                                </Button>
+                            </EmptyContent>
+                        ) : null}
+                    </Empty>
+                ) : (
+                    <>
+                        {onAgent.length > 0 ? (
+                            <RowGroup label={t("skills.agent.addedGroup")}>
+                                {onAgent.map((option) => (
+                                    <AddedRow
+                                        key={option.id}
+                                        option={option}
+                                        onRemove={() => onRemove(option.slug)}
+                                    />
+                                ))}
+                            </RowGroup>
+                        ) : null}
+                        {others.length > 0 ? (
+                            <RowGroup label={t("skills.agent.allSkills")}>
+                                {others.map((option) => (
+                                    <AvailableRow
+                                        key={option.id}
+                                        option={option}
+                                        onAdd={() => onAdd(pickerEmbedEntry(option, "latest"))}
+                                    />
+                                ))}
+                            </RowGroup>
+                        ) : null}
+                    </>
+                )}
+            </div>
         </div>
     )
 }

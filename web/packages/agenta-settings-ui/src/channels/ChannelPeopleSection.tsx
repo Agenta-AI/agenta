@@ -14,11 +14,12 @@ import {
     SelectItem,
     SelectTrigger,
     SelectValue,
+    SimpleTooltip,
     Spinner,
 } from "@agenta/ui/ui"
 import {UsersThree, X} from "@phosphor-icons/react"
 
-import {errorMessage, splitIdList} from "./helpers"
+import {errorMessage, ROW_BUTTON, splitIdList} from "./helpers"
 import type {
     ChannelAudiencePerson,
     ChannelPeopleDirectory,
@@ -53,10 +54,10 @@ export interface ChannelPeopleSectionProps {
     workspaceName?: string | null
 }
 
-const ROW = "border-0 border-b border-solid border-border py-3"
-const PERSON_ROW = "flex items-center gap-2.5 border-0 border-b border-solid border-border py-2.5"
-const GROUP =
-    "flex items-center justify-between pt-2 pb-1 text-xs font-medium text-muted-foreground"
+const ROW = "border-0 border-b border-solid border-border-muted py-3"
+const PERSON_ROW =
+    "flex items-center gap-2.5 border-0 border-b border-solid border-border-muted py-2.5"
+const GROUP = "flex items-center justify-between pt-2 pb-1 text-label text-muted-foreground"
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 // How long the picker waits after the last key before it searches.
 const SEARCH_DELAY_MS = 250
@@ -273,22 +274,23 @@ export const ChannelPeopleSection = ({
     })()
 
     const personItem = (person: ChannelPerson) => (
-        <button
+        <Button
             key={person.id}
             type="button"
+            variant="ghost"
             disabled={person.isBot || saving}
             onClick={() => void pick(person)}
-            className="flex w-full cursor-pointer items-center gap-2.5 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+            className={`${ROW_BUTTON} w-full gap-2.5 px-1.5 py-1.5`}
             data-testid="channels-people-result"
         >
-            <span className="flex size-6 flex-none items-center justify-center rounded-md bg-muted text-[10px] font-semibold text-muted-foreground">
+            <span className="flex size-6 flex-none items-center justify-center rounded-md bg-secondary text-caption font-medium text-muted-foreground">
                 {initials(person.name, person.id)}
             </span>
             <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-[13px] text-foreground">
+                <span className="truncate text-label text-foreground">
                     {person.name ?? person.username ?? person.id}
                 </span>
-                <span className="truncate text-xs text-muted-foreground">
+                <span className="truncate text-meta text-muted-foreground">
                     {person.isBot
                         ? t("channels.people.botCannotBeAdded")
                         : [person.email, person.isGuest ? t("channels.people.guest") : null]
@@ -296,12 +298,12 @@ export const ChannelPeopleSection = ({
                               .join(" · ") || person.id}
                 </span>
             </span>
-        </button>
+        </Button>
     )
 
     const slackResults = (
         <div
-            className="flex flex-col rounded-lg border border-solid border-border p-1.5"
+            className="flex flex-col rounded-lg bg-muted p-1.5"
             data-testid="channels-people-results"
         >
             {searchError ? <Alert type="error" showIcon message={searchError} /> : null}
@@ -311,13 +313,13 @@ export const ChannelPeopleSection = ({
                 </div>
             )}
             {found === null ? (
-                <span className="flex items-center gap-2 px-1.5 py-1 text-xs text-muted-foreground">
+                <span className="flex items-center gap-2 px-1.5 py-1 text-meta text-muted-foreground">
                     <Spinner size="small" /> {t("channels.labels.looking")}
                 </span>
             ) : wrote.length ? (
                 wrote.map(personItem)
             ) : otherMatch ? null : (
-                <span className="px-1.5 py-1 text-xs text-muted-foreground">
+                <span className="px-1.5 py-1 text-meta text-muted-foreground">
                     {t("channels.people.noMatch")}
                 </span>
             )}
@@ -334,37 +336,39 @@ export const ChannelPeopleSection = ({
                                             ago: ago(t, directory.updatedAt),
                                         })} · `
                                       : ""}
-                                <button
+                                <Button
                                     type="button"
-                                    className="cursor-pointer border-0 bg-transparent p-0 text-xs text-primary"
+                                    variant="link"
+                                    size="sm"
+                                    className="h-auto p-0 text-label"
                                     disabled={refreshing}
                                     onClick={() => void refresh()}
                                     data-testid="channels-people-refresh"
                                 >
                                     {t("common.refresh")}
-                                </button>
+                                </Button>
                             </span>
                         ) : null}
                     </div>
                     {directory.state === "failed" ? (
                         <span
-                            className="px-1.5 py-1 text-xs text-muted-foreground"
+                            className="px-1.5 py-1 text-meta text-muted-foreground"
                             data-testid="channels-people-failed"
                         >
                             {t("channels.people.loadFailed", {workspace})}
                         </span>
                     ) : directory.state === "loading" ? (
-                        <span className="flex items-center gap-2 px-1.5 py-1 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-2 px-1.5 py-1 text-meta text-muted-foreground">
                             <Spinner size="small" /> {t("channels.people.loadingFromSlack")}
                         </span>
                     ) : !draft.trim() ? (
-                        <span className="px-1.5 py-1 text-xs text-muted-foreground">
+                        <span className="px-1.5 py-1 text-meta text-muted-foreground">
                             {t("channels.people.typeToSearch")}
                         </span>
                     ) : inWorkspace.length ? (
                         inWorkspace.map(personItem)
                     ) : wrote.length || byEmail.length ? null : (
-                        <span className="px-1.5 py-1 text-xs text-muted-foreground">
+                        <span className="px-1.5 py-1 text-meta text-muted-foreground">
                             {t("channels.people.noMatch")}
                         </span>
                     )}
@@ -381,7 +385,7 @@ export const ChannelPeopleSection = ({
                           (person) =>
                               (person.email ?? "").toLowerCase() === draft.trim().toLowerCase(),
                       ) ? null : (
-                        <span className="px-1.5 py-1 text-xs text-muted-foreground">
+                        <span className="px-1.5 py-1 text-meta text-muted-foreground">
                             {t("channels.people.noOneWithEmail", {workspace})}
                         </span>
                     )}
@@ -394,10 +398,10 @@ export const ChannelPeopleSection = ({
         <>
             <div className={`flex items-center gap-4 ${ROW}`}>
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span className="text-sm text-foreground">
+                    <span className="text-body text-foreground">
                         {t("channels.people.whoCanMessage")}
                     </span>
-                    <span className="text-[13px] text-muted-foreground">{whoLine}</span>
+                    <span className="text-label text-muted-foreground">{whoLine}</span>
                 </span>
                 {saving ? <Spinner size="small" /> : null}
                 <Select
@@ -446,10 +450,10 @@ export const ChannelPeopleSection = ({
                                     value={draft}
                                     onChange={(e) => setDraft(e.target.value)}
                                     placeholder={t("channels.people.searchPlaceholder")}
-                                    className="min-w-0 text-[13px]"
+                                    className="min-w-0 text-label"
                                     data-testid="channels-allowed-input"
                                 />
-                                <span className="text-xs text-muted-foreground">
+                                <span className="text-meta text-muted-foreground">
                                     {t("channels.people.searchHelp", {workspace})}
                                 </span>
                                 {slackResults}
@@ -468,7 +472,7 @@ export const ChannelPeopleSection = ({
                                         }}
                                         placeholder={t("channels.people.telegramIdPlaceholder")}
                                         inputMode="numeric"
-                                        className="min-w-0 flex-1 font-mono text-xs"
+                                        className="min-w-0 flex-1 text-code"
                                         data-testid="channels-allowed-input"
                                     />
                                     <Button
@@ -482,13 +486,13 @@ export const ChannelPeopleSection = ({
                                 </div>
                                 {draftError ? (
                                     <span
-                                        className="text-xs text-destructive"
+                                        className="text-meta text-destructive"
                                         data-testid="channels-allowed-error"
                                     >
                                         {draftError}
                                     </span>
                                 ) : (
-                                    <span className="text-xs text-muted-foreground">
+                                    <span className="text-meta text-muted-foreground">
                                         {t("channels.people.telegramIdHelp")}
                                     </span>
                                 )}
@@ -497,20 +501,20 @@ export const ChannelPeopleSection = ({
                     </div>
                     {!isSlack && wrote.length ? (
                         <div className="flex flex-col" data-testid="channels-people-wrote">
-                            <span className="pt-2.5 pb-0.5 text-xs font-medium text-muted-foreground">
+                            <span className="pt-2.5 pb-0.5 text-label text-muted-foreground">
                                 {t("channels.people.wroteToBot")}
                             </span>
                             {wrote.map((person) => (
                                 <div key={person.id} className={PERSON_ROW}>
-                                    <span className="box-border flex size-6 flex-none items-center justify-center rounded-md border border-solid border-border bg-muted text-muted-foreground">
+                                    <span className="box-border flex size-6 flex-none items-center justify-center rounded-md bg-secondary text-muted-foreground">
                                         <UsersThree size={12} />
                                     </span>
                                     <span className="flex min-w-0 flex-1 flex-col">
-                                        <span className="truncate text-[13px] text-foreground">
+                                        <span className="truncate text-label text-foreground">
                                             {person.name ?? person.id}
                                             {person.username ? ` (@${person.username})` : ""}
                                         </span>
-                                        <span className="truncate font-mono text-xs text-muted-foreground">
+                                        <span className="truncate text-code-sm text-muted-foreground">
                                             {person.id}
                                         </span>
                                     </span>
@@ -541,7 +545,7 @@ export const ChannelPeopleSection = ({
                             className={PERSON_ROW}
                             data-testid="channels-allowed-user"
                         >
-                            <span className="box-border flex size-6 flex-none items-center justify-center rounded-md border border-solid border-border bg-muted text-[10px] font-semibold text-muted-foreground">
+                            <span className="box-border flex size-6 flex-none items-center justify-center rounded-md bg-secondary text-caption font-medium text-muted-foreground">
                                 {isSlack ? (
                                     initials(person.name, person.id)
                                 ) : (
@@ -551,10 +555,10 @@ export const ChannelPeopleSection = ({
                             <span className="flex min-w-0 flex-1 flex-col">
                                 {isSlack ? (
                                     <>
-                                        <span className="truncate text-[13px] text-foreground">
+                                        <span className="truncate text-label text-foreground">
                                             {person.name ?? person.id}
                                         </span>
-                                        <span className="truncate text-xs text-muted-foreground">
+                                        <span className="truncate text-meta text-muted-foreground">
                                             {leftIds.includes(person.id)
                                                 ? t("channels.people.leftSlack")
                                                 : (person.email ?? person.id)}
@@ -562,31 +566,36 @@ export const ChannelPeopleSection = ({
                                     </>
                                 ) : (
                                     <>
-                                        <span className="truncate font-mono text-[13px] text-foreground">
+                                        <span className="truncate text-code text-foreground">
                                             {person.id}
                                         </span>
                                         {person.name ? (
-                                            <span className="truncate text-xs text-muted-foreground">
+                                            <span className="truncate text-meta text-muted-foreground">
                                                 {person.name}
                                             </span>
                                         ) : null}
                                     </>
                                 )}
                             </span>
-                            <Button
-                                variant="ghost"
-                                size="icon-xs"
-                                title={t("common.remove")}
-                                aria-label={t("channels.people.removePerson", {
+                            <SimpleTooltip
+                                title={t("channels.people.removePerson", {
                                     name: person.name ?? person.id,
                                 })}
-                                disabled={saving}
-                                onClick={() =>
-                                    void write(people.filter((other) => other.id !== person.id))
-                                }
                             >
-                                <X />
-                            </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="icon-xs"
+                                    aria-label={t("channels.people.removePerson", {
+                                        name: person.name ?? person.id,
+                                    })}
+                                    disabled={saving}
+                                    onClick={() =>
+                                        void write(people.filter((other) => other.id !== person.id))
+                                    }
+                                >
+                                    <X />
+                                </Button>
+                            </SimpleTooltip>
                         </div>
                     ))}
                 </>

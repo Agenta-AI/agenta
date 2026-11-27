@@ -4,7 +4,7 @@ import {cn} from "@/lib/utils"
 
 /** The rail card's action link: 13px, secondary, no chrome — a word at the title's right. */
 const ACTION_CLASS =
-    "m-0 shrink-0 cursor-pointer appearance-none border-0 bg-transparent p-0 font-[inherit] text-[13px] leading-none text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:text-foreground"
+    "m-0 shrink-0 cursor-pointer appearance-none border-0 bg-transparent p-0 font-[inherit] text-label leading-none text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:text-foreground"
 
 /**
  * One card of the agent overview's rail — Configuration, Files, Automations. A soft fill on the
@@ -25,9 +25,9 @@ export const AgentOverviewCard = ({
     children: ReactNode
     className?: string
 }) => (
-    <section className={cn("rounded-[10px] bg-muted/50 px-4 pb-2.5 pt-3.5", className)}>
+    <section className={cn("rounded-lg bg-muted px-4 pb-2.5 pt-3.5", className)}>
         <div className="mb-1.5 flex items-center gap-2.5">
-            <h2 className="m-0 min-w-0 flex-1 truncate text-[14px] font-medium leading-[1.4] text-foreground">
+            <h2 className="m-0 min-w-0 flex-1 truncate text-body font-medium leading-[1.4] text-foreground">
                 {title}
             </h2>
             {action && onAction ? (

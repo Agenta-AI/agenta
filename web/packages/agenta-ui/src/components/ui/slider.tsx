@@ -24,18 +24,16 @@ import {cn} from "./utils"
  * antd token → class mapping. NOTE `colorPrimaryBorder`/`colorPrimaryBorderHover` reach
  * Tailwind through `themeAwareColors` (var-backed); the raw antd-tailwind.json entries of the
  * same name are LIGHT-ONLY hexes, which is what froze this track light-blue in dark mode.
- *   - rail (Track bg)   = `railBg` colorFillTertiary → `bg-colorFillTertiary`;
- *                          hover `railHoverBg` colorFillSecondary → `group-hover:bg-colorFillSecondary`.
- *   - track (Range fill) = `trackBg` colorPrimaryBorder → `bg-colorPrimaryBorder`;
- *                          hover `trackHoverBg` colorPrimaryBorderHover → `group-hover:bg-colorPrimaryBorderHover`.
+ *   - rail (Track bg)   = `railBg` colorFillTertiary → `bg-secondary`;
+ *                          hover `railHoverBg` colorFillSecondary → `group-hover:bg-accent`.
+ *   - track (Range fill) = `trackBg` colorPrimaryBorder → `bg-border`;
+ *                          hover `trackHoverBg` colorPrimaryBorderHover → `group-hover:bg-border-strong`.
  *     NOTE: antd's RESTING track is `colorPrimaryBorder` (a light primary tint), NOT full
  *     `colorPrimary` — using colorPrimary at rest would render a dark bar unlike antd. Primary
  *     only appears on the HANDLE RING when hovered/focused/dragged. This is the faithful match.
- *   - handle = 10px white circle (`colorBgElevated`) with antd's 2px RING drawn as a box-shadow
- *     (antd uses `box-shadow: 0 0 0 handleLineWidth handleColor`, not a border — the ring sits
- *     OUTSIDE the 10px fill, giving the ~14px visual handle). Ring `handleColor` colorPrimaryBorder
- *     at rest → `handleActiveColor` colorPrimary on hover/focus/drag. Disabled ring = colorTextDisabled.
- *   - rail/track radius `borderRadiusXS`=4 on a 4px rail == fully rounded → `rounded-full`.
+ *   - handle = 10px circle (`rounded-round`, round by nature: SHAPE-01) with a 1px `border-strong` ring drawn as a
+ *     box-shadow outside the fill; `primary` on hover; the shared `focus-ring` on keyboard focus.
+ *   - rail/track radius 1px, a quarter of the 4px rail (SHAPE-01).
  *
  * antd → @agenta/ui mapping: <Slider value={n} min max step onChange /> → shadcn-native
  * <Slider value={[n]} onValueChange={([v]) => ...} min max step /> (arrays, one Thumb per entry).
@@ -76,8 +74,8 @@ function Slider({
                 data-slot="slider-track"
                 // antd rail: 4px, colorFillTertiary → colorFillSecondary on hover. motionDurationMid.
                 className={cn(
-                    "relative box-border grow overflow-hidden rounded-full bg-colorFillTertiary h-1",
-                    "transition-colors group-hover:bg-colorFillSecondary",
+                    "relative box-border grow overflow-hidden rounded-[1px] bg-secondary h-1",
+                    "transition-colors group-hover:bg-accent",
                 )}
             >
                 <SliderPrimitive.Range
@@ -85,9 +83,9 @@ function Slider({
                     // antd track (filled): colorPrimaryBorder → colorPrimaryBorderHover on hover;
                     // colorBgContainerDisabled when disabled (antd `trackBgDisabled`).
                     className={cn(
-                        "absolute box-border h-full rounded-full bg-colorPrimaryBorder",
-                        "transition-colors group-hover:bg-colorPrimaryBorderHover",
-                        "data-[disabled]:!bg-colorBgContainerDisabled",
+                        "absolute box-border h-full rounded-[1px] bg-border",
+                        "transition-colors group-hover:bg-border-strong",
+                        "data-[disabled]:!bg-secondary",
                     )}
                 />
             </SliderPrimitive.Track>
@@ -106,21 +104,16 @@ function Slider({
                         aria-label={ariaLabel}
                         aria-labelledby={ariaLabelledby}
                         className={cn(
-                            // antd handle: 10px white circle. The 2px ring is a box-shadow OUTSIDE
-                            // the fill (antd `box-shadow: 0 0 0 handleLineWidth handleColor`), so the
-                            // fill stays 10px and the visual handle reads ~14px — matching antd.
-                            "block box-border size-2.5 shrink-0 rounded-full bg-colorBgElevated outline-none",
+                            // 10px handle; the 1px ring is a box-shadow outside the fill, so the fill stays 10px.
+                            "block box-border size-2.5 shrink-0 rounded-round bg-background outline-none focus-ring",
                             // Re-enables hits the wrapper turns off, so the hit surface is unchanged.
                             "pointer-events-auto",
-                            "shadow-[0_0_0_2px_var(--ag-colorPrimaryBorder)]",
+                            "shadow-[0_0_0_1px_var(--border-strong)]",
                             "transition-[box-shadow,transform] duration-200 cursor-grab",
                             // hover: ring → colorPrimary + antd's 10→12px grow (handleSizeHover, ~1.2x).
-                            "group-hover:scale-[1.2] group-hover:shadow-[0_0_0_2px_var(--ag-colorPrimary)]",
-                            // keyboard/drag focus: primary ring + antd's translucent outer outline
-                            // (approx via colorPrimaryBorder — antd uses colorPrimary@20%, no token).
-                            "focus-visible:shadow-[0_0_0_2px_var(--ag-colorPrimary),0_0_0_6px_var(--ag-colorPrimaryBorder)]",
+                            "group-hover:scale-[1.2] group-hover:shadow-[0_0_0_1px_var(--primary)]",
                             // disabled: muted ring, no grow, not-allowed (wins over group-hover via `!`).
-                            "data-[disabled]:cursor-not-allowed data-[disabled]:!scale-100 data-[disabled]:!shadow-[0_0_0_2px_var(--ag-colorTextDisabled)]",
+                            "data-[disabled]:cursor-not-allowed data-[disabled]:!scale-100 data-[disabled]:!shadow-[0_0_0_1px_var(--muted-foreground)]",
                         )}
                     />
                 ))}

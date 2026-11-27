@@ -1,7 +1,7 @@
 import {queueStatusLabel, queueStatusTone} from "@agenta/annotation"
-import {Badge} from "@agenta/ui/ui"
+import {Badge, statusBadgeVariant} from "@agenta/ui/ui"
 
-/** The queue status as a badge. The tone names match the badge variants one to one. */
+/** The queue status as a badge. */
 export const QueueStatusBadge = ({status}: {status: string | null | undefined}) => (
-    <Badge variant={queueStatusTone(status)}>{queueStatusLabel(status)}</Badge>
+    <Badge variant={statusBadgeVariant(queueStatusTone(status))}>{queueStatusLabel(status)}</Badge>
 )

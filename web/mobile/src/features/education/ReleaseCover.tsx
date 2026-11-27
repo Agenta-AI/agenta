@@ -2,7 +2,7 @@ import type {ReactNode} from "react"
 
 import type {ReleaseCover as ReleaseCoverKind} from "@agenta/navigation"
 import {DiscordLogo, TeamsLogo} from "@agenta/settings-ui/channel-icons"
-import {Anthropic, Gemini, Mistral, OpenAi} from "@agenta/ui/llm-icons"
+import {Claude, Gemini, Mistral, OpenAi} from "@agenta/ui/llm-icons"
 import dynamic from "next/dynamic"
 
 import {cn} from "@/lib/utils"
@@ -10,7 +10,7 @@ import {cn} from "@/lib/utils"
 // The ribbon's shader loads on its own, only when a builder cover is on screen.
 const BuilderHero = dynamic(
     () => import("../builder-page/hero/BuilderHero").then((m) => m.BuilderHero),
-    {ssr: false, loading: () => <div className="size-[140px] md:size-[220px]" />},
+    {ssr: false, loading: () => <div className="size-35 md:size-55" />},
 )
 
 // Proper names, so they stay the same in every app language.
@@ -31,8 +31,8 @@ const MODEL_NAMES = [
 const Tile = ({children, large = false}: {children: ReactNode; large?: boolean}) => (
     <span
         className={cn(
-            "flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-background text-foreground shadow-tertiary md:size-[72px] md:rounded-[18px]",
-            large ? "[&>svg]:size-5 md:[&>svg]:size-10" : "[&>svg]:size-[18px] md:[&>svg]:size-9",
+            "flex size-9 shrink-0 items-center justify-center rounded-lg bg-background text-foreground md:size-18 md:rounded-xl",
+            large ? "[&>svg]:size-5 md:[&>svg]:size-10" : "[&>svg]:size-4 md:[&>svg]:size-9",
         )}
     >
         {children}
@@ -40,11 +40,11 @@ const Tile = ({children, large = false}: {children: ReactNode; large?: boolean})
 )
 
 const Chips = ({names, className}: {names: string[]; className?: string}) => (
-    <div className={cn("flex flex-wrap justify-center gap-1 md:gap-1.5", className)}>
+    <div className={cn("flex flex-wrap justify-center gap-1", className)}>
         {names.map((name) => (
             <span
                 key={name}
-                className="rounded-full border border-solid border-colorBorderSecondary bg-background px-2 py-px text-[11px] leading-4 text-foreground md:px-2.5 md:py-[3px] md:text-[12.5px] md:leading-[18px]"
+                className="rounded-sm border border-solid border-border-muted bg-background px-2 py-0.5 text-caption text-foreground"
             >
                 {name}
             </span>
@@ -58,13 +58,11 @@ export const ReleaseCover = ({cover}: {cover: ReleaseCoverKind}) => (
         aria-hidden
         data-release-cover={cover}
         className={cn(
-            "flex w-full flex-wrap content-center items-center justify-center gap-2 overflow-hidden rounded-xl border border-solid border-colorBorderSecondary bg-muted aspect-[16/7] md:gap-[18px]",
+            "flex w-full flex-wrap content-center items-center justify-center gap-2 overflow-hidden rounded-xl bg-muted aspect-[16/7] md:gap-4",
             cover === "builder" ? "p-0" : "p-3 md:p-5",
         )}
     >
-        {cover === "builder" ? (
-            <BuilderHero state="idle" className="size-[140px] md:size-[220px]" />
-        ) : null}
+        {cover === "builder" ? <BuilderHero state="idle" className="size-35 md:size-55" /> : null}
         {cover === "channels" ? (
             <>
                 <Tile large>
@@ -73,7 +71,7 @@ export const ReleaseCover = ({cover}: {cover: ReleaseCoverKind}) => (
                 <Tile large>
                     <TeamsLogo />
                 </Tile>
-                <Chips names={LANGUAGE_NAMES} className="max-w-[300px]" />
+                <Chips names={LANGUAGE_NAMES} className="max-w-75" />
             </>
         ) : null}
         {cover === "models" ? (
@@ -82,7 +80,7 @@ export const ReleaseCover = ({cover}: {cover: ReleaseCoverKind}) => (
                     <Gemini />
                 </Tile>
                 <Tile>
-                    <Anthropic />
+                    <Claude />
                 </Tile>
                 <Tile>
                     <OpenAi />
@@ -90,7 +88,7 @@ export const ReleaseCover = ({cover}: {cover: ReleaseCoverKind}) => (
                 <Tile>
                     <Mistral />
                 </Tile>
-                <Chips names={MODEL_NAMES} className="max-w-[420px]" />
+                <Chips names={MODEL_NAMES} className="max-w-105" />
             </>
         ) : null}
     </div>

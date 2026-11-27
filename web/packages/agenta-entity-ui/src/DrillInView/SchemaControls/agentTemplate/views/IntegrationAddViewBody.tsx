@@ -3,12 +3,14 @@ import {useCallback, useEffect, useMemo} from "react"
 import {personalAccountsAccessAtom} from "@agenta/entities/secret"
 import {invalidateAgentRequirements} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
+import agentTemplateCatalog from "@agenta/i18n/catalogs/entityUi.agentTemplate"
 import integrationDrawerCatalog from "@agenta/i18n/catalogs/entityUi.integrationDrawer"
 import toolCatalogCatalog from "@agenta/i18n/catalogs/entityUi.toolCatalog"
 import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 
 import type {CreatedConnection} from "../../../../gatewayTool/components/ConnectForm"
+import {CreateWithAIRow} from "../CreateWithAIAddMenu"
 import {
     IntegrationCatalog,
     type IntegrationCatalogAdding,
@@ -48,10 +50,26 @@ const useAgentAdding = (revisionId: string): IntegrationCatalogAdding => {
 const AgentCatalog = ({
     revisionId,
     onConnect,
+    onLeave,
 }: {
     revisionId: string
     onConnect: IntegrationCatalogProps["onConnect"]
-}) => <IntegrationCatalog adding={useAgentAdding(revisionId)} onConnect={onConnect} />
+    onLeave: () => void
+}) => {
+    const t = useT(agentTemplateCatalog)
+    return (
+        <IntegrationCatalog
+            adding={useAgentAdding(revisionId)}
+            onConnect={onConnect}
+            leadingRows={
+                <CreateWithAIRow
+                    starterPrompt={t("entityUi.agentTemplate.integrationStarter")}
+                    onDone={onLeave}
+                />
+            }
+        />
+    )
+}
 
 const IntegrationAddViewBody = ({target, nav}: ViewProps<IntegrationAddViewParams>) => {
     const t = useT(integrationDrawerCatalog, toolCatalogCatalog)
@@ -81,7 +99,11 @@ const IntegrationAddViewBody = ({target, nav}: ViewProps<IntegrationAddViewParam
     return (
         <div className="flex min-h-0 flex-1 flex-col pt-3">
             {forAgent ? (
-                <AgentCatalog revisionId={target.revisionId} onConnect={connect} />
+                <AgentCatalog
+                    revisionId={target.revisionId}
+                    onConnect={connect}
+                    onLeave={nav.cancel}
+                />
             ) : (
                 // No agent here (chat, playground, prompts): browse and connect only.
                 <IntegrationCatalog onConnect={connect} />

@@ -81,7 +81,7 @@ const PrimitiveNodeComponent: FC<PrimitiveNodeProps> = ({
     return (
         <TreeRow depth={depth} className={clsx("primitive", className)}>
             {typeof k === "number" ? (
-                <span className="text-xs font-semibold leading-5 mr-1">{k}</span>
+                <span className="text-label leading-5 mr-1">{k}</span>
             ) : (
                 <EditableText
                     value={k}

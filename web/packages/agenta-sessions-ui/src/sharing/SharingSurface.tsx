@@ -42,7 +42,7 @@ export const SharingSurface = ({
     if (wide) {
         return (
             <Dialog open={open} onOpenChange={onOpenChange}>
-                <DialogContent className="max-w-[560px]">
+                <DialogContent className="max-w-content-sm">
                     <DialogHeader>
                         <DialogTitle>{title}</DialogTitle>
                         {description ? <DialogDescription>{description}</DialogDescription> : null}

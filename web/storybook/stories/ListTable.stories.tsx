@@ -2,13 +2,12 @@ import {useState} from "react"
 
 import {
     ListTable,
-    ListTableToolbar,
     ListTableViewToggle,
     type ListTableColumn,
     type ListTableGroup,
     type ListTableView,
 } from "@agenta/ui/list-table"
-import {Button} from "@agenta/ui/ui"
+import {Button, PageToolbar} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 /**
@@ -123,7 +122,7 @@ const Frame = ({
     const [search, setSearch] = useState("")
     return (
         <div className="w-full max-w-[720px]">
-            <ListTableToolbar
+            <PageToolbar
                 search={search}
                 onSearchChange={setSearch}
                 searchPlaceholder="Search…"

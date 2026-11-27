@@ -64,12 +64,12 @@ export const AutoRefreshControl = ({
                 aria-label={t("observabilityUi.toolbar.autoRefreshAria")}
             />
             <div className="relative inline-block">
-                <span className="text-[12px] text-colorTextSecondary">
+                <span className="text-meta text-muted-foreground">
                     {t("observabilityUi.toolbar.autoRefreshLabel")}
                 </span>
                 {checked ? (
                     <div
-                        className="absolute bottom-0 left-0 h-[2px] bg-colorTextSecondary transition-[width] duration-100"
+                        className="absolute bottom-0 left-0 h-px bg-muted-foreground transition-[width] duration-100"
                         style={{width: `${progress}%`}}
                     />
                 ) : null}

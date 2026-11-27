@@ -16,7 +16,7 @@ import {useT} from "@agenta/i18n"
 import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
 import {FilterMenu, type FilterMenuSection} from "@agenta/ui/filter-menu"
 import {
-    ClockClockwise,
+    CalendarBlank,
     Lightning,
     Minus,
     Robot,
@@ -29,7 +29,7 @@ const ICON = 14
 
 /** The two status filters get the dot the Status column paints, so filter and column read alike. */
 const StatusDot = ({className}: {className: string}) => (
-    <span aria-hidden className={`size-1.5 rounded-full ${className}`} />
+    <span aria-hidden className={`size-1.5 rounded-round ${className}`} />
 )
 
 /**
@@ -61,6 +61,7 @@ export const AutomationFilterMenu = ({
                 label: t("automations.screens.filterType"),
                 icon: <Lightning size={ICON} />,
                 value: view.type,
+                defaultValue: DEFAULT_AUTOMATION_LIST_VIEW.type,
                 options: [
                     {
                         value: "all",
@@ -70,7 +71,7 @@ export const AutomationFilterMenu = ({
                     {
                         value: "schedule",
                         label: automationTypeLabel("schedule"),
-                        icon: <ClockClockwise size={ICON} />,
+                        icon: <CalendarBlank size={ICON} />,
                     },
                     {
                         value: "event",
@@ -85,6 +86,7 @@ export const AutomationFilterMenu = ({
                 label: t("automations.screens.filterStatus"),
                 icon: <Waveform size={ICON} />,
                 value: view.status,
+                defaultValue: DEFAULT_AUTOMATION_LIST_VIEW.status,
                 options: [
                     {
                         value: "all",
@@ -109,6 +111,7 @@ export const AutomationFilterMenu = ({
                 label: t("automations.screens.filterAgent"),
                 icon: <Robot size={ICON} />,
                 value: view.agent,
+                defaultValue: DEFAULT_AUTOMATION_LIST_VIEW.agent,
                 options: [
                     {
                         value: "all",
@@ -170,13 +173,7 @@ export const AutomationFilterMenu = ({
         <FilterMenu
             sections={sections}
             align="start"
-            // Icon alone: the table beside it is already the subject, and the word "Filter"
-            // added a second label to a toolbar that has one.
-            label={null}
             size="default"
-            // The square icon size is 28; the search field and New automation are both 32.
-            triggerClassName="size-8"
-            active={!isDefaultAutomationListView(view)}
             // The mode survives a reset: it is how the reader chose to read the list, not what
             // they narrowed it to.
             onReset={() => onChange({...DEFAULT_AUTOMATION_LIST_VIEW, mode: view.mode})}

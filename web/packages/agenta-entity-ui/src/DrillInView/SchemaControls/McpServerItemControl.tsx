@@ -95,7 +95,7 @@ export const McpServerItemControl = memo(function McpServerItemControl({
 
     const header = (
         <div className="w-full flex items-center justify-between py-1">
-            <span className="text-sm font-semibold truncate">{name}</span>
+            <span className="text-label truncate">{name}</span>
             {!disabled && onDelete && (
                 <TooltipProvider>
                     <Tooltip>
@@ -123,7 +123,7 @@ export const McpServerItemControl = memo(function McpServerItemControl({
                 {header}
                 <textarea
                     aria-label={t("entityUi.toolForm.mcpServerConfiguration")}
-                    className="font-mono text-xs p-2 border rounded min-h-[120px] resize-y w-full"
+                    className=" text-code-sm p-2 border rounded min-h-30 resize-y w-full"
                     value={editorText}
                     onChange={(e) => handleEditorChange(e.target.value)}
                     readOnly={disabled}

@@ -37,7 +37,7 @@ export const LicenseUsageRow = ({
     const percent = bar ? Math.min(100, Math.round((count / limit) * 100)) : 0
     return (
         <div className="flex flex-col gap-1.5">
-            <div className="flex items-baseline justify-between gap-3 text-[13px]">
+            <div className="flex items-baseline justify-between gap-3 text-body-sm">
                 <span className="text-muted-foreground">{label}</span>
                 <span className="text-foreground truncate text-right tabular-nums">{value}</span>
             </div>
@@ -48,12 +48,9 @@ export const LicenseUsageRow = ({
                     aria-valuemin={0}
                     aria-valuemax={limit}
                     aria-valuenow={count}
-                    className="bg-muted h-1.5 overflow-hidden rounded-full"
+                    className="bg-muted h-1.5 overflow-hidden rounded-round"
                 >
-                    <div
-                        className="bg-colorInfo h-full rounded-full"
-                        style={{width: `${percent}%`}}
-                    />
+                    <div className="bg-info h-full rounded-round" style={{width: `${percent}%`}} />
                 </div>
             ) : null}
         </div>

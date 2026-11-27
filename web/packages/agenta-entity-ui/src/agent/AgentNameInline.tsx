@@ -13,18 +13,18 @@ export type AgentNameSize = "bar" | "title"
 
 const NAME_SIZE: Record<AgentNameSize, {label: string; input: string}> = {
     bar: {
-        label: "text-sm font-[600] leading-[18px] sm:text-[16px]",
-        input: "h-6 w-32 text-[14px] font-[600]",
+        label: "text-title font-[600]",
+        input: "h-6 w-32 text-body font-[600]",
     },
     title: {
-        label: "text-[16px] font-semibold leading-[1.5] sm:text-[24px] sm:leading-[1.3333333333333333]",
-        input: "h-7 w-40 text-[16px] font-semibold sm:h-8 sm:w-48 sm:text-[20px]",
+        label: "text-heading",
+        input: "h-8 w-40 text-heading sm:w-48",
     },
 }
 
 /** The label's classes on their own, for a host that shows the name without the rename affordance. */
 export const agentNameLabelClass = (size: AgentNameSize = "bar") =>
-    `m-0 min-w-0 truncate whitespace-nowrap text-colorText ${NAME_SIZE[size].label}`
+    `m-0 min-w-0 truncate whitespace-nowrap text-foreground ${NAME_SIZE[size].label}`
 
 export interface AgentNameInlineProps {
     /** Workflow (artifact) id — the rename target. */
@@ -123,7 +123,7 @@ export const AgentNameInline = ({
                     className={NAME_SIZE[size].input}
                 />
                 {nameTaken && (
-                    <span className="mt-0.5 text-xs text-colorError">
+                    <span className="mt-0.5 text-meta text-destructive">
                         {t("entityUi.agentActions.nameTaken")}
                     </span>
                 )}

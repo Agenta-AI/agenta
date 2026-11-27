@@ -14,8 +14,8 @@ export const EvaluatorsEmpty = ({
     onCreate?: () => void
 }) => (
     <div className="flex flex-col items-start gap-1 rounded-lg border border-dashed border-border px-4 py-5">
-        <p className="m-0 text-sm font-medium text-foreground">No evaluators yet</p>
-        <p className="m-0 text-sm text-muted-foreground">
+        <p className="m-0 text-label text-foreground">No evaluators yet</p>
+        <p className="m-0 text-body text-muted-foreground">
             Evaluators help you measure and analyze your model&apos;s responses.
         </p>
         {onCreate ? (

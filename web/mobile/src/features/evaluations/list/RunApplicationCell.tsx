@@ -20,14 +20,14 @@ export const RunApplicationCell = ({refs}: {refs: RunReferences}) => {
         : undefined
     const variantName = variant?.name || variant?.slug || null
 
-    if (!refs.applicationId) return <span className="text-[13px] text-muted-foreground">—</span>
+    if (!refs.applicationId) return <span className="text-label text-muted-foreground">—</span>
     return (
         <span className="flex min-w-0 flex-col gap-0.5">
-            <span className="truncate text-[13px] text-muted-foreground">
+            <span className="truncate text-label text-muted-foreground">
                 {app ? app.name || app.slug || "—" : "—"}
             </span>
             {variantName || refs.applicationRevisionVersion ? (
-                <span className="flex min-w-0 items-center gap-1.5 text-[12px] text-muted-foreground">
+                <span className="flex min-w-0 items-center gap-1.5 text-meta text-muted-foreground">
                     {variantName ? <span className="truncate">{variantName}</span> : null}
                     <RunVersionChip version={refs.applicationRevisionVersion} />
                 </span>

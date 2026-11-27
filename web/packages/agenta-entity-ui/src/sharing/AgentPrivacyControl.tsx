@@ -51,8 +51,10 @@ export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
                 }}
             >
                 <PopoverTrigger asChild>
-                    <button
+                    <Button
                         type="button"
+                        variant="outline"
+                        size="xs"
                         data-testid="agent-privacy-trigger"
                         aria-label={
                             shownPrivate
@@ -62,7 +64,7 @@ export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
                                   : undefined
                         }
                         disabled={!sharing && loading}
-                        className="relative box-border flex h-6 w-[92px] shrink-0 cursor-pointer items-center justify-between gap-1 rounded-control-sm border border-solid border-border bg-background pl-2 pr-1.5 text-xs text-foreground [font-family:inherit] hover:bg-accent disabled:cursor-default max-md:after:absolute max-md:after:inset-x-0 max-md:after:-inset-y-[10px] max-md:after:content-['']"
+                        className="w-[92px] shrink-0 justify-between"
                     >
                         {loadError ? (
                             <WarningCircleIcon size={12} aria-hidden />
@@ -78,19 +80,19 @@ export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
                         ) : (
                             <SkeletonBlock className="h-3 w-12" />
                         )}
-                        <CaretDownIcon size={11} aria-hidden />
-                    </button>
+                        <CaretDownIcon aria-hidden />
+                    </Button>
                 </PopoverTrigger>
                 <PopoverContent align="end" className="flex w-[300px] flex-col gap-2.5 p-3.5">
-                    <span className="text-sm font-semibold">{copy.panelTitle}</span>
+                    <span className="text-label font-semibold">{copy.panelTitle}</span>
                     {loadError ? (
                         <>
-                            <p className="m-0 text-sm">{copy.loadError}</p>
+                            <p className="m-0 text-body">{copy.loadError}</p>
                             {onRetry ? (
                                 <Button
                                     size="sm"
                                     variant="outline"
-                                    className="self-start max-md:h-11"
+                                    className="self-start"
                                     onClick={onRetry}
                                 >
                                     {copy.retry}
@@ -100,13 +102,13 @@ export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
                     ) : !known ? (
                         <SkeletonBlock className="h-4 w-full" />
                     ) : (
-                        <p className="m-0 text-sm">
+                        <p className="m-0 text-body">
                             {shownPrivate ? copy.linePrivate : copy.lineProject(projectName)}
                         </p>
                     )}
                     {known && ownerless && !isOwner ? (
                         // Why the agent has no owner, as the dialog says it (QA D10).
-                        <p className="m-0 text-xs text-muted-foreground">
+                        <p className="m-0 text-meta text-muted-foreground">
                             {!sharing?.policy.owner_user_id
                                 ? copy.noOwner
                                 : sharing?.can_take_ownership
@@ -119,7 +121,7 @@ export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
                         </p>
                     ) : null}
                     {known && owner && !ownerless ? (
-                        <span className="text-xs">
+                        <span className="text-meta">
                             {isOwner ? copy.panelOwnerYou(personName(owner)) : personName(owner)}
                             {isOwner ? null : (
                                 <span className="text-muted-foreground"> · {copy.ownerRole}</span>
@@ -130,7 +132,7 @@ export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
                         <Button
                             size="sm"
                             variant="outline"
-                            className="self-start max-md:h-11"
+                            className="self-start"
                             onClick={() => {
                                 setPanelOpen(false)
                                 setDialogOpen(true)
@@ -142,7 +144,7 @@ export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
                         <>
                             <LoadingButton
                                 size="sm"
-                                className="self-start max-md:h-11"
+                                className="self-start"
                                 loading={writes.saving === "take"}
                                 onClick={() => {
                                     void writes.takeOwnership().then((ok) => {
@@ -155,7 +157,7 @@ export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
                             >
                                 {copy.takeOwnership}
                             </LoadingButton>
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-meta text-muted-foreground">
                                 {copy.takeOwnershipHelp}
                             </span>
                         </>

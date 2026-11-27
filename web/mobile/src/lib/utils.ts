@@ -1,6 +1,2 @@
-import {clsx, type ClassValue} from "clsx"
-import {twMerge} from "tailwind-merge"
-
-export function cn(...inputs: ClassValue[]) {
-    return twMerge(clsx(inputs))
-}
+// The kit's `cn`: one tailwind-merge config that knows every design-system text style and size.
+export {cn} from "@agenta/ui/ui"

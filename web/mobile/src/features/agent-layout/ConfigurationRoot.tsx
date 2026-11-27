@@ -1,48 +1,30 @@
+import {useState} from "react"
+
 import type {PhoneSection} from "@agenta/entity-ui/drill-in"
-import {useT} from "@agenta/i18n"
-import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
-import agentLayoutPanelCatalog from "@agenta/i18n/catalogs/agentLayout.panel"
-import agentPagesPhoneCatalog from "@agenta/i18n/catalogs/agentPages.phone"
-import {AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
-import {BuilderIcon} from "@agenta/ui/agent-icon"
-import {PhoneScreenHeader} from "@agenta/ui/phone"
 import {cn} from "@agenta/ui/styles"
-import {Button} from "@agenta/ui/ui"
-import {useSetAtom} from "jotai"
+import {PANE_FOOTER_CLASS, PaneFooterSlotContext} from "@agenta/ui/view-stack"
 
 import {ConfigPane} from "../chat/ConfigPane"
-import {selectedRevisionAtomFamily} from "../chat/selectedRevision"
 
 import {AccessTab} from "./AccessTab"
+import {AGENT_CONFIG_TABPANEL_ID, agentConfigTabId} from "./AgentConfigTabs"
 import {useAgentPanel} from "./agentPanelContext"
 import type {ConfigTab} from "./agentPanelState"
 import {AutomationsTab} from "./AutomationsTab"
 import {ChannelsTab} from "./ChannelsTab"
 import type {ConfigurationContentProps} from "./ConfigurationContent"
-import {PanelCloseButton} from "./PanelCloseButton"
+import {ConfigurationHeader} from "./ConfigurationHeader"
+import {PaneBackContext, type PaneBack} from "./paneBack"
 import {shownConfigTab} from "./shownConfigTab"
-
-const TABS: {key: ConfigTab; label: "agent" | "automations" | "channels" | "access"}[] = [
-    {key: "agent", label: "agent"},
-    {key: "automations", label: "automations"},
-    {key: "channels", label: "channels"},
-    {key: "access", label: "access"},
-]
-
-// Channels is a page of its own on a phone (the agent sidebar opens it).
-const PHONE_TABS = TABS.filter((tab) => tab.key !== "channels")
 
 /**
  * The root of the Configuration content: the four tabs and the open tab's body. On a phone (M07)
- * it is a full screen: the back arrow to the session, three tabs with the version status at the
- * end of the tab row, and on the Agent tab a row per section; a section opened from its row shows
- * as its own screen.
+ * it is a full screen: the back arrow to the session, three tabs, and on the Agent tab a row per
+ * section; a section opened from its row shows as its own screen.
  */
 export const ConfigurationRoot = ({
     agentId,
     revisionId,
-    sessionId,
-    filesScope,
     workspaceId,
     projectId,
     phoneSection,
@@ -52,155 +34,75 @@ export const ConfigurationRoot = ({
     phoneSection: PhoneSection | null
     onCloseSection: () => void
 }) => {
-    const t = useT(agentLayoutPanelCatalog, agentLayoutHeaderCatalog, agentPagesPhoneCatalog)
     const panel = useAgentPanel()
-    const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
-    const tabs = panel.phone ? PHONE_TABS : TABS
     const configTab = shownConfigTab(panel)
+    // The pane's own entry animates its first tab; only a tab switch animates the tab body.
+    const [tabSwitched, setTabSwitched] = useState(false)
+    // A view open inside a tab (a channel's manage view) puts its back link in the header.
+    const [paneBack, setPaneBack] = useState<PaneBack | null>(null)
+    // Its action row, drawn by the pane like a stack view's (`PaneFooter`).
+    const [footerSlot, setFooterSlot] = useState<HTMLDivElement | null>(null)
     const selectTab = (tab: ConfigTab) => {
         onCloseSection()
         panel.setConfigTab(tab)
+        setTabSwitched(true)
     }
-    const tabList = (
-        <div
-            role="tablist"
-            className={cn(
-                "flex min-w-0 flex-1 self-stretch",
-                // A long word in another language scrolls the row, never the screen.
-                panel.phone ? "ag-scroll-no-bar gap-5 overflow-x-auto" : "ml-2.5 gap-3.5",
-            )}
-            onKeyDown={(event) => {
-                // Arrow keys move between the tabs (one Tab stop for the row).
-                const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0
-                if (!step) return
-                event.preventDefault()
-                const index = tabs.findIndex((tab) => tab.key === configTab)
-                const next = tabs[(index + step + tabs.length) % tabs.length]
-                selectTab(next.key)
-                document.getElementById(`agent-config-tab-${next.key}`)?.focus()
-            }}
-        >
-            {tabs.map((tab) => (
-                <button
-                    key={tab.key}
-                    id={`agent-config-tab-${tab.key}`}
-                    type="button"
-                    role="tab"
-                    aria-selected={configTab === tab.key}
-                    aria-controls="agent-config-tabpanel"
-                    tabIndex={configTab === tab.key ? 0 : -1}
-                    // Underline tabs (canvas S02, M07): the open tab has a 2 px bar on the row's line.
-                    className={cn(
-                        "relative flex shrink-0 items-center truncate rounded-none",
-                        // Canvas `.ltabs button`: 2 px on each side, on a phone too (M07).
-                        panel.phone ? "h-11 min-w-11 px-0.5 text-sm" : "px-0.5 text-[13px]",
-                        configTab === tab.key
-                            ? "font-medium text-colorText after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:rounded-[1px] after:bg-colorText after:content-['']"
-                            : "text-colorTextSecondary hover:text-colorText",
-                    )}
-                    onClick={() => selectTab(tab.key)}
-                >
-                    {t(`agentLayout.panel.${tab.label}`)}
-                </button>
-            ))}
-        </div>
-    )
     return (
-        <div className="ag-panel-raised flex h-full min-h-0 flex-col">
-            {panel.phone ? (
-                phoneSection ? (
-                    <PhoneScreenHeader
-                        title={phoneSection.title}
-                        backTitle={t("agentLayout.header.configuration")}
-                        onBack={onCloseSection}
-                    />
-                ) : (
-                    <>
-                        <PhoneScreenHeader
-                            title={t("agentLayout.header.configuration")}
-                            backTitle={t("agentPages.phone.session")}
-                            onBack={() => void panel.close()}
-                            trailing={
-                                panel.available.builder ? (
-                                    <Button
-                                        variant="ghost"
-                                        size="icon-compact"
-                                        aria-label={t("agentLayout.header.builder")}
-                                        onClick={() => void panel.toggle("builder")}
-                                    >
-                                        <BuilderIcon />
-                                    </Button>
-                                ) : null
-                            }
-                        />
-                        {/* The tabs, and on the Agent tab the version status at the end of the
-                            row (M07; version control is only on the Agent tab, M10). */}
-                        <div className="flex shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary pl-4 pr-1">
-                            {tabList}
-                            {configTab === "agent" ? (
-                                <AgentRevisionStatus
-                                    revisionId={revisionId}
-                                    historyWorkflowId={agentId}
-                                    onUpdate={pinRevision}
-                                    checkKey={sessionId}
-                                    phone
-                                    backTitle={t("agentLayout.header.configuration")}
-                                    className="shrink-0"
-                                />
-                            ) : null}
-                        </div>
-                    </>
-                )
-            ) : (
-                <div className="flex h-12 shrink-0 items-center border-0 border-b border-solid border-colorBorderSecondary pl-1 pr-1.5">
-                    {tabList}
-                    <PanelCloseButton />
-                </div>
-            )}
-            <div
-                id="agent-config-tabpanel"
-                role="tabpanel"
-                aria-labelledby={`agent-config-tab-${configTab}`}
-                className="min-h-0 flex-1"
-            >
-                {configTab === "agent" ? (
-                    <div className="flex h-full min-h-0 flex-col">
-                        <div className="min-h-0 flex-1">
-                            <ConfigPane entityId={revisionId} />
-                        </div>
-                        {panel.phone ? null : (
-                            // Save status and version in the footer (S02, configuration-draft).
-                            <div className="flex shrink-0 justify-end border-0 border-t border-solid border-colorBorderSecondary p-3">
-                                <AgentRevisionStatus
-                                    revisionId={revisionId}
-                                    historyWorkflowId={agentId}
-                                    // The newest status draws the history drawer: keep its
-                                    // "Update to vN", as the header's status passes it.
-                                    onUpdate={pinRevision}
-                                    checkKey={sessionId}
-                                    footer
-                                />
+        <div data-pane="" className="ag-panel-raised flex h-full min-h-0 flex-col">
+            <ConfigurationHeader
+                configTab={configTab}
+                onSelectTab={selectTab}
+                paneBack={paneBack}
+                phoneSection={phoneSection}
+                onCloseSection={onCloseSection}
+            />
+            <PaneBackContext.Provider value={setPaneBack}>
+                <PaneFooterSlotContext.Provider value={panel.phone ? null : footerSlot}>
+                    <div
+                        id={AGENT_CONFIG_TABPANEL_ID}
+                        role="tabpanel"
+                        aria-labelledby={agentConfigTabId(configTab)}
+                        // The part that moves when a view gives the root back its place.
+                        data-view-body=""
+                        className={cn("min-h-0 flex-1", tabSwitched && "ag-view-enter-children")}
+                        // Done once: a later display change (a view closing) must not replay it.
+                        onAnimationEnd={(event) => {
+                            const parent = (event.target as Element).parentElement
+                            if (
+                                parent === event.currentTarget &&
+                                event.animationName === "ag-view-in"
+                            )
+                                setTabSwitched(false)
+                        }}
+                    >
+                        {configTab === "agent" ? (
+                            // Save status and History live in the session header's version pill.
+                            <div className="flex h-full min-h-0 flex-col">
+                                <ConfigPane entityId={revisionId} />
                             </div>
+                        ) : configTab === "automations" ? (
+                            <AutomationsTab
+                                revisionId={revisionId}
+                                workspaceId={workspaceId}
+                                projectId={projectId}
+                            />
+                        ) : configTab === "channels" ? (
+                            <ChannelsTab
+                                agentId={agentId}
+                                workspaceId={workspaceId}
+                                projectId={projectId}
+                            />
+                        ) : (
+                            <AccessTab
+                                agentId={agentId}
+                                workspaceId={workspaceId}
+                                projectId={projectId}
+                            />
                         )}
                     </div>
-                ) : configTab === "automations" ? (
-                    <AutomationsTab
-                        revisionId={revisionId}
-                        workspaceId={workspaceId}
-                        sessionId={sessionId}
-                        filesScope={filesScope}
-                        projectId={projectId}
-                    />
-                ) : configTab === "channels" ? (
-                    <ChannelsTab
-                        agentId={agentId}
-                        workspaceId={workspaceId}
-                        projectId={projectId}
-                    />
-                ) : (
-                    <AccessTab agentId={agentId} workspaceId={workspaceId} projectId={projectId} />
-                )}
-            </div>
+                </PaneFooterSlotContext.Provider>
+            </PaneBackContext.Provider>
+            {panel.phone ? null : <div ref={setFooterSlot} className={PANE_FOOTER_CLASS} />}
         </div>
     )
 }

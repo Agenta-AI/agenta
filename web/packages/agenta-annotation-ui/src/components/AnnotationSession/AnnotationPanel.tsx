@@ -54,7 +54,7 @@ const EvaluatorSection = memo(function EvaluatorSection({
 
     if (fieldEntries.length === 0) {
         return (
-            <Typography.Text type="secondary" className="text-sm py-2 block">
+            <Typography.Text type="secondary" className="text-body py-2 block">
                 No annotation fields available
             </Typography.Text>
         )
@@ -199,7 +199,7 @@ const AnnotationPanel = memo(function AnnotationPanel({
                                 {evaluator.name ?? slug}
                             </Typography.Text>
                             <Typography.Text
-                                className="text-[var(--ag-c-758391)] truncate max-w-[40%] text-end"
+                                className="text-muted-foreground truncate max-w-[40%] text-end"
                                 title={slug}
                             >
                                 {slug}
@@ -218,7 +218,7 @@ const AnnotationPanel = memo(function AnnotationPanel({
     }, [evaluators, metrics, handleFieldChange])
 
     const panelHeader = (
-        <div className="flex items-center justify-between px-3 py-3 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
+        <div className="flex items-center justify-between px-3 py-3 border-0 border-b border-solid border-border-muted">
             <div className="flex items-center gap-1">
                 <Typography.Text className="font-medium">Annotations</Typography.Text>
                 {queueDescription && (
@@ -231,7 +231,7 @@ const AnnotationPanel = memo(function AnnotationPanel({
                                 className="overflow-y-auto"
                                 style={{
                                     width: "min(350px, calc(100vw - 250px))",
-                                    maxHeight: "min(320px, calc(100vh - 160px))",
+                                    maxHeight: "min(320px, calc(100dvh - 160px))",
                                 }}
                             >
                                 <Editor
@@ -250,7 +250,7 @@ const AnnotationPanel = memo(function AnnotationPanel({
                             type="text"
                             size="small"
                             icon={<Info size={14} />}
-                            className="!text-[var(--ag-c-758391)] !w-6 !h-6 !min-w-0 !p-0"
+                            className="!text-muted-foreground !w-6 !h-6 !min-w-0 !p-0"
                         />
                     </Popover>
                 )}
@@ -274,7 +274,7 @@ const AnnotationPanel = memo(function AnnotationPanel({
 
     if (!evaluatorResolution.isPending && evaluatorStepRefs.length > 0 && evaluators.length === 0) {
         return (
-            <div className="flex flex-col h-full border-l border-solid border-[var(--ant-color-border-secondary)]">
+            <div className="flex flex-col h-full border-l border-solid border-border-muted">
                 {panelHeader}
                 <div className="flex-1 flex items-center justify-center p-4">
                     <Typography.Text type="secondary">
@@ -331,14 +331,14 @@ const AnnotationPanel = memo(function AnnotationPanel({
                     activeKey={activeKeys}
                     onChange={handleCollapseChange}
                     items={collapseItems}
-                    className="rounded-none [&_.ant-collapse-item]:!bg-[var(--ag-c-FFFFFF)] [&_.ant-collapse-header]:!bg-[var(--ag-c-05172905)] [&_.ant-collapse-content-box]:!p-0 [&_.ant-collapse-content]:!bg-[var(--ag-c-FFFFFF)] [&_.ant-collapse-content]:p-3 [&_.playground-property-control]:!mb-0 [&_.ant-slider]:!mb-0 [&_.ant-slider]:!mt-1"
+                    className="rounded-none [&_.ant-collapse-item]:!bg-background [&_.ant-collapse-header]:!bg-muted [&_.ant-collapse-content-box]:!p-0 [&_.ant-collapse-content]:!bg-background [&_.ant-collapse-content]:p-3 [&_.playground-property-control]:!mb-0 [&_.ant-slider]:!mb-0 [&_.ant-slider]:!mt-1"
                     bordered={false}
                 />
             </div>
 
             {/* Mark completed button (drawer mode) */}
             {showMarkComplete && (
-                <div className="shrink-0 border-0 border-t border-solid border-[var(--ag-rgba-051729-06)] px-3 py-3">
+                <div className="shrink-0 border-0 border-t border-solid border-border-muted px-3 py-3">
                     <Button
                         type="primary"
                         block

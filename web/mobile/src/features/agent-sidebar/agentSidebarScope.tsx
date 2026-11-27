@@ -2,7 +2,6 @@ import {createElement, useCallback, useContext, useMemo} from "react"
 
 import {useT} from "@agenta/i18n"
 import agentSidebarCatalog from "@agenta/i18n/catalogs/agentSidebar"
-import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {
     livePollInterval,
     setSidebarSessionFilterDefaults,
@@ -17,7 +16,6 @@ import type {
 } from "@agenta/navigation"
 import {
     SessionFilterMenu,
-    SessionSearchButton,
     SidebarBackButton,
     SidebarLayoutContext,
     SidebarToggleButton,
@@ -30,12 +28,7 @@ import {useRouter} from "next/router"
 
 import {agentEntryHref} from "../agents/agentEntry"
 import {startBlankSession} from "../chat/useStartBlankSession"
-import {DrawerProjectSwitcher} from "../nav/DrawerProjectSwitcher"
-import {
-    useMobileBottomNavItems,
-    usePaletteShortcut,
-    useRailSessionRowWrapper,
-} from "../nav/useMobileNavItems"
+import {useMobileBottomNavItems, useRailSessionRowWrapper} from "../nav/useMobileNavItems"
 import {CreditsRemainingWidget} from "../wallet/CreditsRemainingWidget"
 
 import {agentSessionsNarrowing, agentSessionsQuery} from "./agentSessionsQuery"
@@ -47,7 +40,6 @@ import {
 } from "./agentSidebarItems"
 import {ConnectedAgentSwitcher} from "./ConnectedAgentSwitcher"
 import {openMainSidebar, useSelectedSidebar} from "./selectedSidebar"
-import {SidebarNewButton} from "./SidebarNewButton"
 
 /** The filter menu's facets in the agent sidebar. */
 const AGENT_SIDEBAR_FILTER_FACETS = ["type", "status", "activity"] as const
@@ -118,7 +110,6 @@ const useAgentSessions = (projectId: string, agentId: string) => {
                     title: vm.title,
                     activityAt: vm.activityAt,
                     status: vm.status.status,
-                    isAutomation: vm.isAutomation,
                 }
             }),
         [pending, query.data?.sessions, waitingFailed],
@@ -159,7 +150,16 @@ export const createAgentSidebarScope = (
 
     const useSelection = (): SidebarSelection => {
         const router = useRouter()
-        const selectedKeyOverride = agentSidebarSelectedKey(router.query, agentId)
+        // A filtered or loading list cannot say a session is new.
+        const {sessions, status, filtered} = useAgentSessions(projectId, agentId)
+        const listed = useMemo(
+            () =>
+                status === "ready" && !filtered
+                    ? new Set(sessions.map((row) => row.sessionId))
+                    : null,
+            [filtered, sessions, status],
+        )
+        const selectedKeyOverride = agentSidebarSelectedKey(router.query, agentId, listed)
         return useMemo(
             () => (selectedKeyOverride ? {mode: "route", selectedKeyOverride} : {mode: "route"}),
             [selectedKeyOverride],
@@ -174,49 +174,41 @@ export const createAgentSidebarScope = (
         const bottomItems = useMobileBottomNavItems(projectURL)
         const wrapSessionRow = useRailSessionRowWrapper(projectURL)
         const {sessions, total, status, retry, filtered} = useAgentSessions(projectId, agentId)
-        const tNav = useT(navigationCatalog)
-        const paletteShortcut = usePaletteShortcut()
-        // The main sidebar's Sessions controls: search opens the search window, the filter
-        // narrows this list. No Group by and no Agent: the agent is this one, and the list keeps
-        // its day groups.
+        // The main sidebar's filter, without Group by and Agent: the agent is this one. No search
+        // button: the command palette covers it.
         const sessionsActions = useMemo(
             () =>
-                createElement(
-                    "span",
-                    {className: "flex items-center gap-0.5"},
-                    createElement(SessionSearchButton, {
-                        label: tNav("navigation.items.search"),
-                        shortcut: paletteShortcut,
-                    }),
-                    createElement(SessionFilterMenu, {
-                        scopeId: agentSidebarFilterScope(agentId),
-                        facets: AGENT_SIDEBAR_FILTER_FACETS,
-                    }),
-                ),
-            [paletteShortcut, tNav],
+                createElement(SessionFilterMenu, {
+                    scopeId: agentSidebarFilterScope(agentId),
+                    facets: AGENT_SIDEBAR_FILTER_FACETS,
+                }),
+            [],
         )
 
         return useMemo(() => {
-            const agent: SidebarSection = {
-                key: "agent",
-                items: agentSidebarItems({
-                    projectURL,
-                    agentId,
-                    sessions,
-                    total,
-                    status,
-                    onRetry: retry,
-                    t,
-                    phone,
-                    wrapSessionRow: phone ? undefined : wrapSessionRow,
-                    sessionsActions,
-                    filtered,
-                }),
-            }
+            const {pages, sessions: sessionsRow} = agentSidebarItems({
+                projectURL,
+                agentId,
+                newSessionHref: agentEntryHref(projectURL, agentId),
+                onNewSession: () => startBlankSession(projectURL, agentId),
+                sessions,
+                total,
+                status,
+                onRetry: retry,
+                t,
+                phone,
+                wrapSessionRow: phone ? undefined : wrapSessionRow,
+                sessionsActions,
+                filtered,
+            })
+            const top: SidebarSection[] = [
+                {key: "agent", items: pages},
+                {key: "sessions", items: [sessionsRow], dividerBefore: true},
+            ]
             return phone
-                ? [agent]
+                ? top
                 : [
-                      agent,
+                      ...top,
                       {key: "bottom", items: bottomItems, placement: "bottom", mode: "vertical"},
                   ]
         }, [
@@ -234,7 +226,6 @@ export const createAgentSidebarScope = (
     }
 
     const Header = ({collapsed, onDismiss}: SidebarSlotContext) => {
-        const t = useT(agentSidebarCatalog)
         const router = useRouter()
         const selected = useSelectedSidebar()
         return (
@@ -260,28 +251,9 @@ export const createAgentSidebarScope = (
                         collapsed={collapsed}
                     />
                 }
-                newSession={
-                    <SidebarNewButton
-                        label={t("agentSidebar.newSession")}
-                        href={agentEntryHref(projectURL, agentId)}
-                        collapsed={collapsed}
-                        onPlainClick={() => startBlankSession(projectURL, agentId)}
-                    />
-                }
-                onFold={openMainSidebar}
             />
         )
     }
-
-    // Forwarded, or the switcher keeps its expanded padding inside the 48px rail.
-    const AfterBottom = ({collapsed}: {collapsed: boolean}) =>
-        useContext(SidebarLayoutContext) === "phone" ? null : (
-            <DrawerProjectSwitcher
-                workspaceId={workspaceId}
-                projectId={projectId}
-                collapsed={collapsed}
-            />
-        )
 
     const Footer = ({collapsed}: SidebarSlotContext) =>
         useContext(SidebarLayoutContext) === "phone" ? null : (
@@ -298,6 +270,5 @@ export const createAgentSidebarScope = (
         useSections,
         header: Header,
         footer: Footer,
-        afterBottom: AfterBottom,
     }
 }

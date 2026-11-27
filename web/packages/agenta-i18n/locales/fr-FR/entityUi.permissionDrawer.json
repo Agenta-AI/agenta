@@ -9,6 +9,7 @@
     "presetWithOverrides_many": "{{label}} · {{count}} exceptions",
     "presetWithOverrides_other": "{{label}} · {{count}} exceptions",
     "defaultPermission": "Autorisation par défaut",
+    "defaultPermissionNote": "Ce que l’agent peut faire sans vous demander",
     "searchToolCount_one": "Rechercher parmi {{count}} outil",
     "searchToolCount_many": "Rechercher parmi {{count}} outils",
     "searchToolCount_other": "Rechercher parmi {{count}} outils",

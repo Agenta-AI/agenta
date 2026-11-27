@@ -8,7 +8,7 @@ import {cn} from "./utils"
  * Divider — a presentational @agenta/ui port of antd `Divider` (no Radix). Reproduces antd's
  * horizontal/vertical rules, the with-text rail-both-sides layout, dashed + plain variants.
  *
- * Line colour = antd `colorSplit` (`border-colorSplit`), text colour = `colorTextHeading`
+ * Line colour = antd `colorSplit` (`border-border-muted`), text colour = `colorTextHeading`
  * (default) / `colorText` (plain). Margins come from the Tailwind spacing scale mapping
  * antd's measured tokens: horizontal `marginLG` 24px (`my-6`), with-text `margin` 16px
  * (`my-4`), vertical `marginXS` 8px (`mx-2`). `border-0` first is REQUIRED: preflight is off
@@ -16,7 +16,7 @@ import {cn} from "./utils"
  * all borders then re-add only the one it draws (`border-t`/`border-l`). `border-solid` sets
  * the style (the `border` utility only sets width).
  */
-const dividerVariants = cva("box-border border-0 border-solid border-colorSplit", {
+const dividerVariants = cva("box-border border-0 border-solid border-border-muted", {
     variants: {
         type: {
             // Full-width 1px line; margin marginLG 24px.
@@ -30,19 +30,16 @@ const dividerVariants = cva("box-border border-0 border-solid border-colorSplit"
     defaultVariants: {type: "horizontal", dashed: false},
 })
 
-// with-text root: rails carry the line, so the root has no border of its own. antd's text
-// line-height is 5/3 (1.6667) at every size; Tailwind's text-sm/text-xs bundle a shorter one,
-// so `leading-[..]` overrides it (last, after the text-size class — it drives the row height:
-// 14px→23.33px, 12px→20px).
+// with-text root: rails carry the line, so the root has no border of its own.
 const withTextVariants = cva(
     "box-border flex items-center w-full min-w-full my-4 whitespace-nowrap",
     {
         variants: {
             plain: {
-                // Default: heading colour, weight 500, fontSizeLG 16px.
-                false: "text-colorTextHeading font-medium text-base leading-[1.4285714285714286]",
-                // plain: base text colour, normal weight, fontSize 14px.
-                true: "text-colorText font-normal text-sm leading-[1.4285714285714286]",
+                // Default: a section title.
+                false: "text-foreground text-title",
+                // plain: body text.
+                true: "text-foreground text-body",
             },
         },
         defaultVariants: {plain: false},
@@ -80,7 +77,7 @@ export function Divider({
     if (children && type === "horizontal") {
         const [startW, endW] = RAIL_WIDTH[orientation]
         const rail = cn(
-            "border-0 border-t border-solid border-colorSplit",
+            "border-0 border-t border-solid border-border-muted",
             dashed && "border-dashed",
         )
         return (

@@ -7,7 +7,7 @@ import {
 } from "@agenta/automation-ui"
 import {useT} from "@agenta/i18n"
 import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
-import {Button, PHONE_TOUCH_TARGET_CLASS, Spinner} from "@agenta/ui/ui"
+import {Button, Spinner} from "@agenta/ui/ui"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -49,25 +49,25 @@ export const AutomationDraftScreen = ({
                 <ScreenScaffold
                     header={
                         <AutomationScreenHeader
-                            workspaceId={workspaceId}
-                            projectId={projectId}
-                            title={t("automations.screens.newAutomation")}
-                            backHref={`${base}/automations`}
+                            back={{
+                                label: t("automations.screens.pageTitle"),
+                                href: `${base}/automations`,
+                            }}
+                            className="mx-auto box-border w-full max-w-content-sm px-4 md:px-6"
                         />
                     }
                 >
                     {/* pt-1: the name field's focus ring would otherwise be clipped by the scroller's edge.
                         A phone takes back the 4px the header gives up, as the detail screen does. */}
-                    <div className="mx-auto flex w-full max-w-[760px] flex-col px-8 pb-[70px] pt-1 max-md:pt-2">
+                    <div className="mx-auto box-border flex w-full max-w-content-sm flex-col px-4 pb-18 pt-1 max-md:pt-2 md:px-6">
                         <AutomationCreateBody
                             state={state}
                             autoEditName
                             footer={
-                                <div className="mt-[30px] flex items-center justify-end gap-2.5 border-0 border-t border-solid border-border pt-5">
+                                <div className="mt-8 flex items-center justify-end gap-2 border-0 border-t border-solid border-border pt-5">
                                     <Button
                                         type="button"
                                         variant="outline"
-                                        className={PHONE_TOUCH_TARGET_CLASS}
                                         onClick={() => void router.push(`${base}/automations`)}
                                     >
                                         {t("automations.screens.cancel")}
@@ -77,7 +77,6 @@ export const AutomationDraftScreen = ({
                                         how the reader learns what to do. */}
                                     <Button
                                         type="button"
-                                        className={PHONE_TOUCH_TARGET_CLASS}
                                         disabled={state.saving}
                                         onClick={() => void onCreate()}
                                     >

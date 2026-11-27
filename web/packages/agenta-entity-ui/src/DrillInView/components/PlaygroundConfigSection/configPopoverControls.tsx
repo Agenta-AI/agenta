@@ -89,7 +89,7 @@ export function ConfigSelect({
                             <span className="flex items-center justify-between gap-3">
                                 <span className="shrink-0">{option.label}</span>
                                 {option.description ? (
-                                    <span className="min-w-0 text-right text-colorTextDescription [[data-slot=select-value]_&]:hidden">
+                                    <span className="min-w-0 text-right text-muted-foreground [[data-slot=select-value]_&]:hidden">
                                         {option.description}
                                     </span>
                                 ) : null}
@@ -106,7 +106,7 @@ export function ConfigSelect({
                         e.stopPropagation()
                         onChange(null)
                     }}
-                    className="absolute right-2 top-1/2 hidden -translate-y-1/2 cursor-pointer border-0 bg-colorBgContainer p-0 text-colorTextTertiary hover:text-colorTextSecondary group-hover/select:block"
+                    className="absolute right-2 top-1/2 hidden -translate-y-1/2 cursor-pointer border-0 bg-background p-0 text-muted-foreground hover:text-muted-foreground group-hover/select:block"
                 >
                     <XCircle size={12} weight="fill" />
                 </button>

@@ -230,12 +230,12 @@ const PromptImageUpload = ({
                 ) : (
                     <ImageIcon
                         size={48}
-                        className={clsx(error ? "text-colorError" : "text-colorTextTertiary")}
+                        className={clsx(error ? "text-destructive" : "text-muted-foreground")}
                     />
                 )}
 
                 <div className="flex flex-col w-full items-start">
-                    <span className="text-xs">
+                    <span className="text-meta">
                         {richText(t("ui.chat.dragImage"), {
                             link: (text) => (
                                 <Button
@@ -266,7 +266,7 @@ const PromptImageUpload = ({
                         <Progress size="small" percent={imageFile?.percent} showInfo={false} />
                     )}
 
-                    {error && <span className="mt-1 text-xs text-colorError">{error}</span>}
+                    {error && <span className="mt-1 text-meta text-destructive">{error}</span>}
                 </div>
             </div>
         )
@@ -291,8 +291,8 @@ const PromptImageUpload = ({
                     // and border add to `w-full` and the row overflows its container by 14px
                     // (antd's own reset gave the Dragger border-box for free).
                     "w-full box-border flex items-center gap-4 py-2 pr-1 pl-2 rounded-md border border-solid",
-                    error ? "border-colorError" : "border-colorBorder",
-                    isDragging && !disabled && "border-colorPrimary",
+                    error ? "border-destructive" : "border-border",
+                    isDragging && !disabled && "border-primary",
                     disabled ? "cursor-not-allowed" : "cursor-pointer",
                 )}
             >

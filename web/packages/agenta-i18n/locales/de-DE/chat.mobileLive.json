@@ -3,7 +3,6 @@
     "couldNotIdentifyRun": "Der zu beendende Lauf konnte nicht ermittelt werden. Bitte versuchen Sie es erneut.",
     "couldNotLoadEarlier": "Frühere Nachrichten dieser Sitzung konnten nicht geladen werden.",
     "couldNotStopRun": "Der Lauf konnte nicht beendet werden. Er läuft möglicherweise noch.",
-    "noMessagesSaved": "In dieser Sitzung sind keine Nachrichten gespeichert. Nicht gesendete Nachrichten werden nicht aufbewahrt, und alte Nachrichten können ablaufen.",
     "rewindAnyway": "Trotzdem zurückspulen",
     "rewindBody": "{{tools}} wurde bereits ausgeführt. Beim Zurückspulen wird die Unterhaltung ab hier erneut ausgeführt, das Ergebnis wird aber NICHT rückgängig gemacht.",
     "rewindTitle": "Über ein bereits ausgeführtes Werkzeug hinaus zurückspulen?",

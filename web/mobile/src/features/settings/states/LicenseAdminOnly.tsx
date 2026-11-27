@@ -5,7 +5,7 @@ import settingsLicenseCatalog from "@agenta/i18n/catalogs/settings.license"
 export const LicenseAdminOnly = () => {
     const t = useT(settingsLicenseCatalog)
     return (
-        <div className="border-border text-muted-foreground rounded-xl border border-dashed px-4 py-3 text-[13px]">
+        <div className="border-border text-muted-foreground rounded-xl border border-dashed px-4 py-3 text-body-sm">
             {t("settings.license.adminOnly")}
         </div>
     )

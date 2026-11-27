@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 /**
  * The Automations tab of the Configuration page is the panel's AutomationsTab, without its Files
- * part, inside a view stack of the page (its automation views open there).
+ * part, inside a view stack of the page (its automation views open there). An open automation
+ * hides the page head and its switch until Back.
  */
 import {act, useEffect, type ReactNode} from "react"
 
@@ -53,10 +54,11 @@ vi.mock("@/features/agent-pages/useConfigurationRevision", () => ({
         retry: vi.fn(),
     }),
 }))
-vi.mock("@/features/agent-pages/ConfigurationEditorProvider", () => ({
-    ConfigurationEditorProvider: Pass,
-}))
-vi.mock("@/features/agent-pages/ConfigurationAgentTab", () => ({ConfigurationAgentTab: () => null}))
+vi.mock("@/features/chat/ConfigPane", () => ({ConfigPane: () => null}))
+vi.mock("@/features/chat/useStartBlankSession", () => ({startBlankSession: vi.fn()}))
+vi.mock("@/features/builder/pageContext", () => ({usePublishPageContext: () => undefined}))
+vi.mock("@/features/agent-pages/AgentBuilderButton", () => ({AgentBuilderButton: () => null}))
+vi.mock("@/features/agent-layout/AgentChannelPresence", () => ({default: () => null}))
 vi.mock("@/features/agent-layout/AccessTab", () => ({AccessTab: () => null}))
 vi.mock("@/features/agent-layout/AutomationsTab", () => ({
     AutomationsTab: (props: Record<string, unknown>) => {
@@ -72,12 +74,11 @@ vi.mock("@/features/agent-layout/AutomationsTab", () => ({
         return <div data-testid="automations-tab" />
     },
 }))
-vi.mock("@agenta/playground-ui/agent-page-header", () => ({AgentRevisionStatus: () => null}))
 
 /** An automation form with edits. */
 const DirtyBody = () => {
     useViewTitle("Morning check")
-    useViewForm({dirty: true, valid: true, save: async () => true, leaveDescription: "Leave?"})
+    useViewForm({dirty: true, valid: true, save: async () => true})
     return <span>form</span>
 }
 const dirtyView = defineView<Record<string, never>>({
@@ -121,39 +122,25 @@ const mount = () =>
 
 const button = (text: string) =>
     [...document.querySelectorAll("button")].find((node) => node.textContent === text)
+/** The page's Agent / Automations / Access switch is a radio group. */
+const checkedOption = () =>
+    document.querySelector<HTMLElement>('[role="radio"][aria-checked="true"]')
 
 describe("Configuration page, Automations tab", () => {
-    it("asks before a tab switch drops an automation form with edits", async () => {
+    it("hides the page head and switch inside an automation; Back shows them on the tab", async () => {
         automations.openDirty = true
         await mount()
-        const agentTab = [...document.querySelectorAll('[role="tab"]')].find(
-            (node) => node.textContent === "Agent",
-        ) as HTMLElement
-        // Radix tabs select on pointer down.
-        await act(async () => {
-            agentTab.dispatchEvent(new MouseEvent("mousedown", {bubbles: true, button: 0}))
-        })
-        expect(button("Keep editing")).toBeTruthy()
-        expect(router.replace).not.toHaveBeenCalled()
-        await act(async () => button("Discard")!.click())
-        await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
-        expect(router.replace).toHaveBeenCalledTimes(1)
-        expect(button("Save")).toBeUndefined()
-    })
-
-    it("stays on the tab when the person keeps editing", async () => {
-        automations.openDirty = true
-        await mount()
-        const agentTab = [...document.querySelectorAll('[role="tab"]')].find(
-            (node) => node.textContent === "Agent",
-        ) as HTMLElement
-        await act(async () => {
-            agentTab.dispatchEvent(new MouseEvent("mousedown", {bubbles: true, button: 0}))
-        })
-        await act(async () => button("Keep editing")!.click())
-        await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
-        expect(router.replace).not.toHaveBeenCalled()
         expect(button("Save")).toBeTruthy()
+        expect(document.querySelector('[role="radiogroup"]')).toBeNull()
+        expect(document.querySelector("h1")?.closest(".hidden")).not.toBeNull()
+        await act(async () => button("Automations")!.click())
+        // The form has edits: leaving asks first.
+        if (button("Discard")) await act(async () => button("Discard")!.click())
+        await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
+        expect(button("Save")).toBeUndefined()
+        expect(document.querySelector("h1")?.closest(".hidden")).toBeNull()
+        expect(checkedOption()?.textContent).toBe("Automations")
+        expect(router.replace).not.toHaveBeenCalled()
     })
 
     it("mounts the panel's AutomationsTab in a view stack, with no Files part", async () => {

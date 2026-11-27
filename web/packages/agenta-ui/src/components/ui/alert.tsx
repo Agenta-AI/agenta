@@ -2,8 +2,14 @@ import * as React from "react"
 
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
+import {
+    CheckCircleIcon,
+    InfoIcon,
+    WarningCircleIcon,
+    WarningIcon,
+    XIcon,
+} from "@phosphor-icons/react"
 import {cva, type VariantProps} from "class-variance-authority"
-import {CircleAlert, CircleCheck, Info, TriangleAlert, X} from "lucide-react"
 
 import {cn} from "./utils"
 
@@ -15,7 +21,7 @@ const alertVariants = cva(
     [
         // CONTROL_RESET — preflight is off app-wide (see button.tsx).
         "box-border border-solid",
-        "relative flex w-full items-start gap-2 border px-2.5 py-2 text-left text-sm",
+        "relative flex w-full items-start gap-2 border px-2.5 py-2 text-left text-body",
         "bg-card text-card-foreground",
     ],
     {
@@ -25,10 +31,10 @@ const alertVariants = cva(
                 info: "border-border",
                 warning: "border-border",
                 // Error text, description at 90%.
-                error: "border-border text-error [&_[data-slot=alert-description]]:text-[color:color-mix(in_srgb,var(--ag-colorError)_90%,transparent)]",
+                error: "border-border text-destructive [&_[data-slot=alert-description]]:text-destructive/90",
             },
             // antd banner: no border, no radius.
-            banner: {true: "rounded-none border-0", false: "rounded-control-lg"},
+            banner: {true: "rounded-none border-0", false: "rounded-lg"},
         },
         defaultVariants: {type: "info", banner: false},
     },
@@ -36,17 +42,17 @@ const alertVariants = cva(
 
 // warning = colorWarning, not colorWarningText (which diverges in dark).
 const alertIconColor: Record<NonNullable<AlertProps["type"]>, string> = {
-    success: "text-colorSuccess",
+    success: "text-success",
     info: "text-info",
-    warning: "text-colorWarning",
+    warning: "text-warning",
     error: "text-current",
 }
 
 const alertDefaultIcon: Record<NonNullable<AlertProps["type"]>, React.ReactNode> = {
-    success: <CircleCheck />,
-    info: <Info />,
-    warning: <TriangleAlert />,
-    error: <CircleAlert />,
+    success: <CheckCircleIcon />,
+    info: <InfoIcon />,
+    warning: <WarningIcon />,
+    error: <WarningCircleIcon />,
 }
 
 export interface AlertProps
@@ -97,9 +103,9 @@ export function Alert({
             {iconVisible ? (
                 <span
                     data-slot="alert-icon"
-                    // Nudged 2px down to sit on the title line.
+                    // As tall as one text-body line, so the icon sits on the title line.
                     className={cn(
-                        "flex size-4 shrink-0 translate-y-0.5 items-center justify-center [&_svg]:size-4",
+                        "flex h-5.5 w-4 shrink-0 items-center justify-center [&_svg]:size-4",
                         alertIconColor[resolvedType],
                     )}
                 >
@@ -110,7 +116,7 @@ export function Alert({
                 {message != null ? (
                     <div
                         data-slot="alert-title"
-                        className="font-medium leading-5 [&_a]:underline [&_a]:underline-offset-[3px] [&_a:hover]:text-foreground"
+                        className="text-body font-medium [&_a]:underline [&_a]:underline-offset-[3px] [&_a:hover]:text-foreground"
                     >
                         {message}
                     </div>
@@ -118,7 +124,7 @@ export function Alert({
                 {hasDescription ? (
                     <div
                         data-slot="alert-description"
-                        className="text-sm text-muted-foreground [&_a]:underline [&_a]:underline-offset-[3px] [&_a:hover]:text-foreground [&_p:not(:last-child)]:mb-4"
+                        className="text-body text-muted-foreground [&_a]:underline [&_a]:underline-offset-[3px] [&_a:hover]:text-foreground [&_p:not(:last-child)]:mb-4"
                     >
                         {description}
                     </div>
@@ -140,7 +146,7 @@ export function Alert({
                     onClick={onClose}
                     className="flex size-4 shrink-0 translate-y-0.5 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-muted-foreground transition-colors hover:text-foreground [&_svg]:size-4"
                 >
-                    <X />
+                    <XIcon />
                 </button>
             ) : null}
         </div>

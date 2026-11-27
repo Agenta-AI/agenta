@@ -21,7 +21,7 @@ export const registerDriveCodeBlock = (component: ComponentType<DriveCodeBlockPr
 export const DriveCodeBlock = ({language, value}: DriveCodeBlockProps) => {
     const Renderer = codeBlockRenderer
     if (Renderer) return <Renderer language={language} value={value} />
-    return <pre className="whitespace-pre-wrap break-words text-xs">{value}</pre>
+    return <pre className="whitespace-pre-wrap break-words text-code">{value}</pre>
 }
 
 export interface DriveMarkdownProps {
@@ -46,7 +46,7 @@ export const DriveMarkdown = ({content, className}: DriveMarkdownProps) => {
     const Renderer = markdownRenderer
     if (Renderer) return <Renderer content={content} className={className} />
     return (
-        <pre className={`whitespace-pre-wrap break-words text-xs ${className ?? ""}`}>
+        <pre className={`whitespace-pre-wrap break-words text-code ${className ?? ""}`}>
             {content}
         </pre>
     )

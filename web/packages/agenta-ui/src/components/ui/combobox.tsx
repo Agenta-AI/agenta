@@ -3,9 +3,11 @@ import * as React from "react"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
-import {X} from "@phosphor-icons/react"
-import {ChevronDown, LoaderCircle} from "lucide-react"
+import {CaretDownIcon, CircleNotchIcon, X} from "@phosphor-icons/react"
 
+import {TOUCH_SHEET_QUERY, useWindowMatch} from "../../hooks/useWindowMatch"
+
+import {MENU_ITEM} from "./menu-item"
 import {Popover, PopoverAnchor, PopoverContent} from "./popover"
 import {selectTriggerVariants, type SelectTriggerProps} from "./select"
 import {cn} from "./utils"
@@ -28,6 +30,8 @@ import {cn} from "./utils"
  * children carrying stable ids + `aria-selected` / `aria-disabled`. Keyboard: Up/Down (skip
  * disabled, wrap), Home/End, Enter, Escape, Backspace-to-clear. Provide `aria-label` /
  * `aria-labelledby` (or wrap with a `<label htmlFor={id}>`) so it has an accessible name.
+ *
+ * Compact window on touch (COMPACT-04): a bottom sheet (touch.css) with a read-only input, so no keyboard.
  *
  * antd → this:
  *   value → value · onChange → onChange · placeholder → placeholder
@@ -78,6 +82,8 @@ export interface ComboboxProps extends Pick<SelectTriggerProps, "size" | "varian
     /** className for the trigger. */
     className?: string
     contentClassName?: string
+    /** Which trigger edge the menu lines up with. */
+    align?: "start" | "center" | "end"
     /** Start open (for forced-open parity stories / initial-open UX). */
     defaultOpen?: boolean
     /** Portal target for the dropdown; defaults to document.body. */
@@ -104,6 +110,7 @@ export function Combobox({
     variant,
     className,
     contentClassName,
+    align = "start",
     defaultOpen = false,
     container,
     icon,
@@ -118,6 +125,8 @@ export function Combobox({
     const [query, setQuery] = React.useState("")
     const [activeIndex, setActiveIndex] = React.useState(0)
     const inputRef = React.useRef<HTMLInputElement>(null)
+    // A compact window on touch: pick from the sheet, no typing (the keyboard would cover it).
+    const sheet = useWindowMatch(TOUCH_SHEET_QUERY)
     const listRef = React.useRef<HTMLDivElement>(null)
 
     // Stable ids so the input's aria-controls/aria-activedescendant can point at the listbox
@@ -187,7 +196,7 @@ export function Combobox({
     const openMenu = () => {
         if (disabled || loading) return
         setOpen(true)
-        inputRef.current?.focus()
+        if (!sheet) inputRef.current?.focus()
     }
     const closeMenu = () => {
         setOpen(false)
@@ -228,7 +237,7 @@ export function Combobox({
 
     // antd reddens only the border and the VALUE on error; the placeholder, arrow and clear keep
     // their own colours (select/style/index.js L128, select-input.js L156).
-    const adornmentColor = "text-placeholder"
+    const adornmentColor = "text-muted-foreground"
     const showClear = allowClear && selected != null && !disabled && !loading
     const activeDescendant = open && items[activeIndex] ? optionId(activeIndex) : undefined
 
@@ -256,7 +265,7 @@ export function Combobox({
                         // The trigger is a div, so the variant's `disabled:` classes (which only
                         // fire on real form controls) don't apply — set the disabled skin here.
                         disabled &&
-                            "pointer-events-none cursor-not-allowed border-disabled-border bg-disabled-bg text-disabled",
+                            "pointer-events-none cursor-not-allowed border-border-muted bg-secondary text-muted-foreground",
                         loading && "pointer-events-none",
                         className,
                     )}
@@ -291,6 +300,8 @@ export function Combobox({
                             aria-activedescendant={activeDescendant}
                             value={query}
                             disabled={disabled}
+                            readOnly={sheet}
+                            inputMode={sheet ? "none" : undefined}
                             onChange={(e) => {
                                 setQuery(e.target.value)
                                 if (!open) setOpen(true)
@@ -301,13 +312,18 @@ export function Combobox({
                         />
                     </div>
                     {loading ? (
-                        <LoaderCircle
+                        <CircleNotchIcon
                             className={cn("size-3 shrink-0 animate-spin", adornmentColor)}
                         />
                     ) : (
                         <span className="relative flex shrink-0 items-center">
                             {/* antd Select's closed arrow is a single down chevron (not an up/down caret). */}
-                            {icon ?? <ChevronDown className={cn("size-3", adornmentColor)} />}
+                            {icon ?? (
+                                <CaretDownIcon
+                                    data-open={open}
+                                    className={cn("ag-caret size-3", adornmentColor)}
+                                />
+                            )}
                             {showClear ? (
                                 <button
                                     type="button"
@@ -317,7 +333,7 @@ export function Combobox({
                                     // antd stacks the clear ON the arrow at `opacity: 0` and only
                                     // reveals it on hover (select/style/index.js L22-27, L67).
                                     className={cn(
-                                        "absolute inset-0 flex cursor-pointer items-center justify-center rounded-full border-0 bg-background p-0 opacity-0 transition-opacity hover:text-foreground group-hover/combobox:opacity-100",
+                                        "absolute inset-0 flex cursor-pointer items-center justify-center rounded-sm border-0 bg-background p-0 opacity-0 transition-opacity hover:text-foreground group-hover/combobox:opacity-100 pointer-coarse:opacity-100",
                                         adornmentColor,
                                     )}
                                     onClick={(e) => {
@@ -334,13 +350,16 @@ export function Combobox({
                 </div>
             </PopoverAnchor>
             <PopoverContent
-                align="start"
+                align={align}
+                collisionPadding={8}
                 container={container}
                 // The popup is the listbox; name the Radix Popover dialog wrapper so it isn't an
                 // unnamed dialog, and stop it stealing focus from the input (activedescendant pattern).
                 aria-label={ariaLabel ?? t("ui.listControls.suggestions")}
                 onOpenAutoFocus={(e) => e.preventDefault()}
                 onCloseAutoFocus={(e) => e.preventDefault()}
+                // touch.css makes this slot a bottom sheet on a compact window on touch.
+                data-slot="combobox-content"
                 className={cn(
                     "w-[var(--radix-popover-trigger-width)] p-1 font-portal",
                     contentClassName,
@@ -354,7 +373,7 @@ export function Combobox({
                     className="max-h-[300px] overflow-y-auto"
                 >
                     {items.length === 0 ? (
-                        <div className="py-4 text-center text-field-sm text-placeholder">
+                        <div className="py-4 text-center text-field-sm text-muted-foreground">
                             {emptyText}
                         </div>
                     ) : (
@@ -363,7 +382,7 @@ export function Combobox({
                                 <div
                                     key={row.key}
                                     role="presentation"
-                                    className="px-input-sm py-input-y-sm text-field-sm text-placeholder"
+                                    className="px-input-sm py-input-y-sm text-field-sm text-muted-foreground"
                                 >
                                     {row.label}
                                 </div>
@@ -371,6 +390,7 @@ export function Combobox({
                                 <div
                                     key={row.option.value}
                                     id={optionId(row.index)}
+                                    data-slot="combobox-item"
                                     role="option"
                                     aria-selected={row.option.value === value}
                                     aria-disabled={row.option.disabled || undefined}
@@ -382,15 +402,11 @@ export function Combobox({
                                     onMouseDown={(e) => e.preventDefault()}
                                     onClick={() => commit(row.option)}
                                     className={cn(
-                                        // antd option geometry: min-h 28px, 4px×12px padding, selected weight 600.
-                                        "flex w-full cursor-pointer select-none items-center justify-between gap-2 box-border min-h-control-sm rounded-control-sm px-3 py-1 text-field-md",
-                                        // antd: selected row = controlItemBgActive (always); a
-                                        // non-selected active/hovered row = controlItemBgHover.
-                                        // `accent`, not `muted`: in dark, muted is the popover's own fill.
-                                        row.option.value === value
-                                            ? "bg-controlItemBgActive font-semibold"
-                                            : "data-[active=true]:bg-accent",
-                                        row.option.disabled && "pointer-events-none text-disabled",
+                                        MENU_ITEM,
+                                        "justify-between data-[active=true]:bg-accent",
+                                        row.option.value === value && "bg-accent",
+                                        row.option.disabled &&
+                                            "pointer-events-none text-muted-foreground",
                                     )}
                                 >
                                     {row.option.label}

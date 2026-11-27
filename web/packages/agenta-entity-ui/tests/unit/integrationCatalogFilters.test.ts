@@ -69,10 +69,10 @@ describe("filterConnectedGroups", () => {
         ])
     })
 
-    it("finds an app by the name of one of its connections", () => {
+    it("finds a connection by its own name", () => {
         const named = [
-            {integrationKey: "gmail", connections: [{name: "Finance", slug: "gmail-1"}]},
-            {integrationKey: "slack", connections: [{name: "Ops", slug: "slack-ops"}]},
+            {integrationKey: "gmail", connection: {name: "Finance", slug: "gmail-1"}},
+            {integrationKey: "slack", connection: {name: "Ops", slug: "slack-ops"}},
         ]
         expect(
             keys(filterConnectedGroups({...base, groups: named, query: "finance", category: null})),

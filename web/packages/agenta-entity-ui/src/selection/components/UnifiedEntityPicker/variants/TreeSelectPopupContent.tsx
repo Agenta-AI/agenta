@@ -323,7 +323,7 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
         <div className={cn("flex flex-col", className)} style={{width}}>
             {/* Search input row with optional action */}
             {(showSearch || popupHeaderAction) && (
-                <div className="flex items-center gap-2 px-2 py-1 box-border border-0 border-b border-solid border-colorBorderSecondary mb-2">
+                <div className="flex items-center gap-2 px-2 py-1 box-border border-0 border-b border-solid border-border-muted mb-2">
                     {showSearch && (
                         <InputAffix
                             ref={searchInputRef}
@@ -346,7 +346,7 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
             {(isLoadingParents || isLoadingChildren) && treeData.length === 0 && (
                 <div className="flex items-center justify-center py-4">
                     <Spinner size="small" />
-                    <span className="ml-2 text-xs text-colorTextSecondary">
+                    <span className="ml-2 text-meta text-muted-foreground">
                         {displayLoadingMessage}
                     </span>
                 </div>
@@ -354,14 +354,14 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
 
             {/* Error state */}
             {parentsError && (
-                <div className="px-3 py-4 text-xs text-colorError">
+                <div className="px-3 py-4 text-meta text-destructive">
                     Error: {parentsError.message}
                 </div>
             )}
 
             {/* Empty state: not while anything still loads, or it shows beside the loading line */}
             {!isLoadingParents && !isLoadingChildren && !parentsError && treeData.length === 0 && (
-                <div className="px-3 py-4 text-xs text-colorTextSecondary text-center">
+                <div className="px-3 py-4 text-meta text-muted-foreground text-center">
                     {displayEmptyMessage}
                 </div>
             )}
@@ -375,7 +375,7 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
                 >
                     <ul
                         role="tree"
-                        className="m-0 list-none p-0 text-xs text-colorText"
+                        className="m-0 list-none p-0 text-meta text-foreground"
                         onKeyDown={handleKeyDown}
                     >
                         {treeData.map((parent) => {
@@ -395,11 +395,11 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
                                     <div
                                         data-row
                                         onClick={() => toggleParent(parent)}
-                                        className="sticky top-0 z-[1] flex items-center bg-colorBgElevated pb-1"
+                                        className="sticky top-0 z-[1] flex items-center bg-popover pb-1"
                                     >
                                         <span
                                             aria-hidden="true"
-                                            className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center text-colorTextSecondary"
+                                            className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center text-muted-foreground"
                                         >
                                             {isExpanded ? (
                                                 <CaretDown size={12} />
@@ -412,7 +412,7 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
                                                 "flex min-h-6 min-w-0 flex-1 cursor-pointer items-center justify-between rounded-md pl-1",
                                                 parent.disabled
                                                     ? "cursor-not-allowed opacity-80"
-                                                    : "hover:bg-muted",
+                                                    : "hover:bg-accent",
                                             )}
                                         >
                                             {parent.title}
@@ -438,7 +438,7 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
                                                         }
                                                         onClick={() => handleTreeSelect(child)}
                                                         className={cn(
-                                                            "m-0 flex list-none bg-colorBgElevated pb-1 pl-6",
+                                                            "m-0 flex list-none bg-popover pb-1 pl-6",
                                                             ROW_FOCUS_RING,
                                                         )}
                                                     >
@@ -454,7 +454,7 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
                                                                     "bg-controlItemBgActive opacity-100",
                                                                 !isSelected &&
                                                                     !child.disabled &&
-                                                                    "hover:bg-muted",
+                                                                    "hover:bg-accent",
                                                             )}
                                                         >
                                                             {child.title}

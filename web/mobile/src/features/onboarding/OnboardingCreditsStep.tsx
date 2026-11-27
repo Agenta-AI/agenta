@@ -23,8 +23,8 @@ import {OnboardingCreditsSkeleton} from "./states/OnboardingCreditsSkeleton"
 import type {OnboardingModel} from "./useOnboardingModel"
 
 const PILL =
-    "bg-success-bg text-success inline-flex h-[22px] items-center gap-1 rounded-md px-2 text-xs font-medium leading-4"
-const ACTION = "h-7 rounded-md px-2.5 text-xs font-medium"
+    "bg-success/10 text-success inline-flex h-5 items-center gap-1 rounded-sm px-1.5 text-caption"
+const ACTION = "h-control-sm px-2 text-label"
 const ClaudeLogo = providerIconFor("anthropic")
 
 /** The wallet step: the organization's real credits, and the other ways to pay for runs. */
@@ -44,7 +44,7 @@ export const OnboardingCreditsStep = ({
         chatgpt.setDialogOpen(true)
         void views.open(
             subscriptionSignInView,
-            {provider: "chatgpt", connectionId: chatgpt.connection?.id},
+            {provider: "chatgpt", connectionId: chatgpt.connection?.id, start: true},
             {kind: "project"},
         )
     }
@@ -89,7 +89,7 @@ export const OnboardingCreditsStep = ({
                     action={
                         credits.inUse ? (
                             <span className={PILL}>
-                                <Check size={11} weight="bold" />
+                                <Check size={11} />
                                 {t("onboarding.credits.inUse")}
                             </span>
                         ) : null
@@ -109,7 +109,7 @@ export const OnboardingCreditsStep = ({
                     action={
                         chatgpt.ready ? (
                             <span className={PILL}>
-                                <Check size={11} weight="bold" />
+                                <Check size={11} />
                                 {chatgpt.inUse
                                     ? t("onboarding.credits.inUse")
                                     : t("onboarding.credits.connected")}
@@ -125,7 +125,7 @@ export const OnboardingCreditsStep = ({
             {claude.available ? (
                 <OnboardingWayRow
                     delay={0.38}
-                    icon={<ClaudeLogo className="size-[15px]" />}
+                    icon={<ClaudeLogo className="size-4" />}
                     title={t("onboarding.credits.claude")}
                     hint={
                         claude.ready
@@ -135,7 +135,7 @@ export const OnboardingCreditsStep = ({
                     action={
                         claude.ready ? (
                             <span className={PILL}>
-                                <Check size={11} weight="bold" />
+                                <Check size={11} />
                                 {claude.inUse
                                     ? t("onboarding.credits.inUse")
                                     : t("onboarding.credits.connected")}
@@ -159,11 +159,11 @@ export const OnboardingCreditsStep = ({
                 <h1
                     id={onboardingHeadingId("credits")}
                     tabIndex={-1}
-                    className="m-0 text-[32px] font-semibold leading-[38px] tracking-[-0.02em] text-balance outline-none"
+                    className="m-0 text-heading text-balance outline-none"
                 >
                     {heading.title}
                 </h1>
-                <p className="text-muted-foreground m-0 text-sm leading-[21px] text-pretty">
+                <p className="text-muted-foreground m-0 text-body text-pretty">
                     {heading.subtitle}
                 </p>
             </div>
@@ -189,9 +189,6 @@ export const OnboardingCreditsStep = ({
                                     emptyHint={t("onboarding.credits.creditsHint")}
                                     countUp
                                     entrance
-                                    interactive
-                                    glow
-                                    // Fills the column, so the glow lands under the row as in the design.
                                     className="sm:flex-1"
                                 />
                             </div>
@@ -206,7 +203,7 @@ export const OnboardingCreditsStep = ({
                         </div>
                     </div>
                     {!model.ready ? (
-                        <p role="status" className="text-muted-foreground m-0 pt-2 text-sm">
+                        <p role="status" className="text-muted-foreground m-0 pt-2 text-body">
                             {t("onboarding.credits.noneRunnable")}
                         </p>
                     ) : null}
@@ -216,7 +213,7 @@ export const OnboardingCreditsStep = ({
                 <Button
                     onClick={onContinue}
                     disabled={model.status === "loading"}
-                    className="max-sm:h-11 max-sm:w-full"
+                    className="max-sm:w-full"
                 >
                     {t("onboarding.credits.continue")}
                     <ArrowRight data-icon="inline-end" />

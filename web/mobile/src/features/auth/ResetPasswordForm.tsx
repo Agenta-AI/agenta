@@ -39,7 +39,7 @@ export const ResetPasswordForm = ({onDone, onInvalidLink}: ResetPasswordFormProp
     const invalid = error !== null ? true : undefined
 
     return (
-        <form className="flex w-full flex-col gap-[10px]" onSubmit={submit} noValidate>
+        <form className="flex w-full flex-col gap-2.5" onSubmit={submit} noValidate>
             <Input
                 type="password"
                 autoComplete="new-password"

@@ -71,10 +71,10 @@ function DatePicker({
                     aria-labelledby={ariaLabelledby}
                     className={cn("w-full justify-between font-normal", className)}
                 >
-                    <span className={cn(!valid && "text-[var(--ag-colorTextPlaceholder)]")}>
+                    <span className={cn(!valid && "text-muted-foreground")}>
                         {valid ? valid.format(format) : placeholder}
                     </span>
-                    <CalendarBlank size={14} className="text-[var(--ag-colorIcon)]" />
+                    <CalendarBlank size={14} className="text-muted-foreground" />
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">

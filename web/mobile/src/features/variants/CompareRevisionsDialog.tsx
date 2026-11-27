@@ -28,8 +28,8 @@ const VersionCard = ({
         <h3
             className={
                 tone === "removed"
-                    ? "m-0 text-sm font-semibold text-destructive"
-                    : "m-0 text-sm font-semibold text-success"
+                    ? "m-0 text-label text-destructive"
+                    : "m-0 text-label text-success"
             }
         >
             {title}
@@ -37,8 +37,8 @@ const VersionCard = ({
         <div
             className={
                 tone === "removed"
-                    ? "flex flex-col gap-2 rounded-lg border border-solid border-destructive/30 bg-destructive/5 p-3 text-[13px]"
-                    : "flex flex-col gap-2 rounded-lg border border-solid border-success/30 bg-success/5 p-3 text-[13px]"
+                    ? "flex flex-col gap-2 rounded-lg border border-solid border-destructive/30 bg-destructive/5 p-3 text-label"
+                    : "flex flex-col gap-2 rounded-lg border border-solid border-success/30 bg-success/5 p-3 text-label"
             }
         >
             <VariantDetailsWithStatus
@@ -100,7 +100,7 @@ export const CompareRevisionsDialog = ({
                             row={modified}
                         />
                     </div>
-                    <div className="min-h-[320px] min-w-0 flex-1 overflow-auto rounded-lg border border-solid border-border">
+                    <div className="min-h-80 min-w-0 flex-1 overflow-auto rounded-lg border border-solid border-border">
                         {loaded ? (
                             <DiffView
                                 language="json"
@@ -109,7 +109,7 @@ export const CompareRevisionsDialog = ({
                                 computeOnMountOnly
                             />
                         ) : (
-                            <p className="m-0 p-4 text-sm text-muted-foreground">Loading…</p>
+                            <p className="m-0 p-4 text-body text-muted-foreground">Loading…</p>
                         )}
                     </div>
                 </div>

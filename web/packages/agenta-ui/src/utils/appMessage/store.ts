@@ -164,6 +164,8 @@ function openMessage(args: ArgsProps): MessageType {
         duration: duration > 0 ? duration * 1000 : Infinity,
         icon: args.icon ?? undefined,
         action: args.action,
+        // Undo is the way out, so a toast with an action drops the X.
+        closeButton: args.action ? false : undefined,
         className: args.className,
         style: args.style,
         onDismiss: () => settleToast(key, handle, true),

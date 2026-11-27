@@ -19,12 +19,12 @@ export interface ToolIOBlockProps {
 
 export const ToolIOBlock = ({label, value, danger = false}: ToolIOBlockProps) => (
     <div className="flex min-w-0 flex-col gap-0.5">
-        <span className="font-mono text-[12px] text-colorTextTertiary">{label}</span>
+        <span className="font-mono text-meta text-muted-foreground">{label}</span>
         <pre
-            className={`ag-surface-inset m-0 max-h-40 overflow-auto overscroll-contain whitespace-pre-wrap break-all rounded px-2 py-1.5 font-mono text-xs leading-snug ${
+            className={`ag-surface-inset m-0 max-h-40 overflow-auto overscroll-contain whitespace-pre-wrap break-all rounded-md px-2 py-1.5 font-mono text-code ${
                 danger
-                    ? "!border-transparent !bg-[var(--ag-colorErrorBg)] !text-[var(--ag-colorErrorText)]"
-                    : "text-colorTextSecondary"
+                    ? "!border-transparent !bg-destructive/10 !text-destructive"
+                    : "text-muted-foreground"
             }`}
         >
             {formatToolValue(value)}

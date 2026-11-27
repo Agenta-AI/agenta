@@ -33,7 +33,7 @@ export const ScenarioSection = ({
                 onClick={onToggle}
             >
                 {collapsed ? <CaretRight aria-hidden /> : <CaretDown aria-hidden />}
-                <span className="truncate text-sm font-medium">{title}</span>
+                <span className="truncate text-label">{title}</span>
             </Button>
             {tools}
         </div>

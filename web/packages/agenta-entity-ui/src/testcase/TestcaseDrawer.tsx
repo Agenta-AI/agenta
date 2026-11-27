@@ -4,11 +4,16 @@ import {createT, useT} from "@agenta/i18n"
 import testcaseCatalog from "@agenta/i18n/catalogs/entityUi.testcase"
 import {copyToClipboard} from "@agenta/ui"
 import {DropdownButton, type DropdownButtonOption} from "@agenta/ui/components"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {ViewModeDropdown} from "@agenta/ui/drill-in"
 import {
     Alert,
     Button,
+    cn,
+    Sheet,
+    SheetContent,
+    SheetFooter,
+    SheetHeader,
+    SheetTitle,
     Skeleton,
     Tooltip,
     TooltipContent,
@@ -322,7 +327,7 @@ function TestcaseDrawer<TData = unknown>({
                                 </Button>
                             </div>
                         )}
-                        <span className="font-medium text-sm">
+                        <span className="font-medium text-label">
                             {isNewRow
                                 ? tNow("entityUi.testcase.newTestcase")
                                 : tNow("entityUi.testcase.testcaseNumber", {
@@ -330,7 +335,7 @@ function TestcaseDrawer<TData = unknown>({
                                   })}
                         </span>
                         {!skipDeferredFlow && isDirty && (
-                            <span className="text-[12px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">
+                            <span className="text-caption bg-info/10 text-info px-1.5 py-0.5 rounded-sm">
                                 {tNow("entityUi.testcase.edited")}
                             </span>
                         )}
@@ -435,75 +440,89 @@ function TestcaseDrawer<TData = unknown>({
     )
 
     return (
-        <EnhancedDrawer
-            title={title}
+        <Sheet
             open={open}
-            onClose={handleCancel}
-            size="large"
-            width={isDrawerExpanded ? EXPANDED_DRAWER_WIDTH : (initialWidth ?? undefined)}
-            closeIcon={null}
-            afterOpenChange={afterOpenChange}
-            destroyOnHidden
-            styles={{
-                body: {padding: "0px"},
-                footer: {padding: "12px 24px", display: "flex", justifyContent: "flex-end"},
+            onOpenChange={(next) => {
+                if (!next) handleCancel()
             }}
-            footer={
-                skipDeferredFlow ? null : (
-                    <div className="w-full flex items-center justify-end gap-3">
-                        <Button variant="outline" onClick={handleCancel}>
-                            {t("entityUi.testcase.cancel")}
-                        </Button>
-                        {/* Split button (replaces antd Space.Compact + Dropdown) — main action
-                         *  applies, the chevron menu holds commit/save variants. */}
-                        <DropdownButton
-                            label={t("entityUi.testcase.applyAndContinue")}
-                            variant="default"
-                            onClick={handleApply}
-                            disabled={!hasSessionDirty}
-                            loading={isSavingTestset}
-                            dropdownDisabled={!onOpenCommitModal && !onSaveTestset}
-                            placement="topRight"
-                            dropdownIcon={<CaretUp size={14} />}
-                            options={applyMenuOptions}
-                            onOptionSelect={(key) => {
-                                if (key === "commit") handleOpenCommitModal()
-                                else if (key === "save") void handleSaveTestset()
-                            }}
-                        />
-                    </div>
-                )
-            }
         >
-            {open && testcaseId && (
-                <>
-                    {isLoading && (
-                        <div className="p-6 space-y-4">
-                            <Skeleton active paragraph={{rows: 8}} />
-                        </div>
+            <SheetContent
+                side="right"
+                style={{
+                    width: isDrawerExpanded ? EXPANDED_DRAWER_WIDTH : (initialWidth ?? 736),
+                    maxWidth: "calc(100% - 1rem)",
+                }}
+                onOpenAutoFocus={() => afterOpenChange?.(true)}
+                onCloseAutoFocus={() => afterOpenChange?.(false)}
+            >
+                <SheetHeader showCloseButton={false}>
+                    <SheetTitle className="min-w-0">{title}</SheetTitle>
+                </SheetHeader>
+                <div
+                    className={cn(
+                        "min-h-0 flex-1 overflow-y-auto p-0 text-field-md text-foreground",
+                        skipDeferredFlow && "rounded-b-[inherit]",
                     )}
-                    {isError && (
-                        <div className="p-6">
-                            <Alert
-                                type="error"
-                                message={t("entityUi.testcase.loadFailed")}
-                                description={errorMessage ?? t("entityUi.testcase.unknownError")}
-                                showIcon
+                >
+                    {open && testcaseId && (
+                        <>
+                            {isLoading && (
+                                <div className="p-6 space-y-4">
+                                    <Skeleton active paragraph={{rows: 8}} />
+                                </div>
+                            )}
+                            {isError && (
+                                <div className="p-6">
+                                    <Alert
+                                        type="error"
+                                        message={t("entityUi.testcase.loadFailed")}
+                                        description={
+                                            errorMessage ?? t("entityUi.testcase.unknownError")
+                                        }
+                                        showIcon
+                                    />
+                                </div>
+                            )}
+                            {testcaseData &&
+                                renderContent({
+                                    initialPath: drillInPath,
+                                    onPathChange: setDrillInPath,
+                                    rootViewMode,
+                                    collapseSignal,
+                                })}
+                            {testcaseData && testcaseId && renderOutputs?.(testcaseId)}
+                            {testcaseData && testcaseId && renderEvaluatorMetrics?.(testcaseId)}
+                        </>
+                    )}
+                </div>
+                {skipDeferredFlow ? null : (
+                    <SheetFooter className="justify-end px-6 py-3">
+                        <div className="w-full flex items-center justify-end gap-3">
+                            <Button variant="outline" onClick={handleCancel}>
+                                {t("entityUi.testcase.cancel")}
+                            </Button>
+                            {/* Split button (replaces antd Space.Compact + Dropdown) — main action
+                             *  applies, the chevron menu holds commit/save variants. */}
+                            <DropdownButton
+                                label={t("entityUi.testcase.applyAndContinue")}
+                                variant="default"
+                                onClick={handleApply}
+                                disabled={!hasSessionDirty}
+                                loading={isSavingTestset}
+                                dropdownDisabled={!onOpenCommitModal && !onSaveTestset}
+                                placement="topRight"
+                                dropdownIcon={<CaretUp size={14} />}
+                                options={applyMenuOptions}
+                                onOptionSelect={(key) => {
+                                    if (key === "commit") handleOpenCommitModal()
+                                    else if (key === "save") void handleSaveTestset()
+                                }}
                             />
                         </div>
-                    )}
-                    {testcaseData &&
-                        renderContent({
-                            initialPath: drillInPath,
-                            onPathChange: setDrillInPath,
-                            rootViewMode,
-                            collapseSignal,
-                        })}
-                    {testcaseData && testcaseId && renderOutputs?.(testcaseId)}
-                    {testcaseData && testcaseId && renderEvaluatorMetrics?.(testcaseId)}
-                </>
-            )}
-        </EnhancedDrawer>
+                    </SheetFooter>
+                )}
+            </SheetContent>
+        </Sheet>
     )
 }
 

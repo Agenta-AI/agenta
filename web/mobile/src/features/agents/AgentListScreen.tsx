@@ -11,21 +11,17 @@ import {useWaitingByAgent} from "@agenta/sessions/state"
 import {userAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
-import {ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
-import {Button, PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
+import {ListTableViewToggle} from "@agenta/ui/list-table"
+import {Button, PageToolbar} from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtom, useAtomValue} from "jotai"
-
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {openAgentFromList} from "../agent-pages/openAgentFromList"
 import {startBlankSession} from "../chat/useStartBlankSession"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {FeatureOnboarding} from "../education/FeatureOnboarding"
 import {HowThisWorksButton} from "../education/HowThisWorksButton"
-import {AppShell} from "../nav/AppShell"
-import {NavDrawer} from "../nav/NavDrawer"
+import {PageLayout} from "../page-layout/PageLayout"
 
 import {AgentFilterMenu} from "./AgentFilterMenu"
 import {AgentListTable} from "./AgentListTable"
@@ -43,9 +39,6 @@ import {useAgentOwners} from "./useAgentOwners"
 import {useAgentRowActions} from "./useAgentRowActions"
 import {useArchivedAgents} from "./useArchivedAgents"
 import {useNewAgentAction} from "./useNewAgentAction"
-
-/** The page column: centered, 960 px wide with 24 px gutters on a desktop (A03). */
-const PAGE_FRAME = "mx-auto box-border w-full max-w-[960px] px-4 md:px-6"
 
 /**
  * The full agent roster — where the nav's Agents entry lands.
@@ -155,6 +148,13 @@ export const AgentListScreen = ({
     const emptyState = isLoading ? null : (
         <AgentsNoMatch
             term={term || undefined}
+            // Only the archive is chosen: nothing is archived, not a filter that hid it.
+            archiveEmpty={
+                !term &&
+                view.type === "archived" &&
+                isDefaultAgentFilters({...view, type: DEFAULT_AGENT_LIST_VIEW.type})
+            }
+            onShowActive={() => setView({...view, type: DEFAULT_AGENT_LIST_VIEW.type})}
             onClear={
                 term ? () => setSearch("") : isDefaultAgentFilters(view) ? undefined : resetFilters
             }
@@ -178,85 +178,52 @@ export const AgentListScreen = ({
 
     return (
         <>
-            <PageTitle title={t("agents.list.pageTitle")} />
-            <AppShell workspaceId={workspaceId} projectId={projectId}>
-                <ScreenScaffold
-                    header={
-                        <div className={`shrink-0 pb-3 pt-3 md:pt-10 ${PAGE_FRAME}`}>
-                            <div className="flex min-w-0 items-center gap-2">
-                                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                {/* From `sm`, 24px is the desktop page-title rung; on a phone it
-                                    eats the row, so the title drops to the 16px body ramp. */}
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-8">
-                                    {t("agents.list.pageTitle")}
-                                </h1>
-                                {projectEmpty ? null : (
-                                    <HowThisWorksButton guide="agents" className="max-sm:hidden" />
-                                )}
-                                <NewAgentAction
-                                    newAgent={newAgent}
-                                    base={base}
-                                    align="end"
-                                    // The canvas size (A03): 28 px high, radius 6, 13 px; a 44 px
-                                    // tap area on a phone.
-                                    className={`h-control-sm rounded-[6px] px-btn-sm text-btn-sm ${PHONE_TOUCH_TARGET_CLASS}`}
-                                />
-                            </div>
-                        </div>
-                    }
-                >
-                    <div className={`min-w-0 pb-12 pt-3 md:pt-0 ${PAGE_FRAME}`}>
-                        {projectEmpty ? (
-                            <>
-                                <FeatureOnboarding guideKey="agents" base={base} />
-                                {archived.agents.length > 0 ? (
-                                    <div className="mt-6 flex justify-center">
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => setView({...view, type: "archived"})}
-                                        >
-                                            {t("agents.list.viewArchived")}
-                                        </Button>
-                                    </div>
-                                ) : null}
-                            </>
-                        ) : (
-                            <>
-                                {/* Search belongs to the list, not to the page: it sits on the
-                                    results' own left edge so it reads as the control that narrows
-                                    what is below it. The facets and the grouping ride one control
-                                    beside it, so the bar stays a search bar; the view switch takes
-                                    the far edge, where it changes how the results are drawn rather
-                                    than which ones are. */}
-                                <ListTableToolbar
-                                    // A 300 x 30 field with a light border, 10 px above the
-                                    // table (A03).
-                                    className="mb-2.5 md:[&_[data-slot=input-group]]:h-[30px] md:[&_[data-slot=input-group]]:max-w-[300px] md:[&_[data-slot=input-group]]:rounded-[6px] md:[&_[data-slot=input-group]]:border-colorBorderSecondary"
-                                    search={search}
-                                    onSearchChange={setSearch}
-                                    searchPlaceholder={t("agents.list.searchPlaceholder")}
-                                    actions={
-                                        <>
-                                            <AgentFilterMenu
-                                                view={view}
-                                                onChange={setView}
-                                                owners={owners}
-                                            />
-                                            <ListTableViewToggle
-                                                value={view.mode}
-                                                onChange={setMode}
-                                                className="ml-auto"
-                                            />
-                                        </>
-                                    }
-                                />
-                                {body}
-                            </>
+            <PageLayout
+                workspaceId={workspaceId}
+                projectId={projectId}
+                title={t("agents.list.pageTitle")}
+                description={t("agents.list.pageDescription")}
+                toolbar={
+                    projectEmpty ? undefined : (
+                        <PageToolbar
+                            search={search}
+                            onSearchChange={setSearch}
+                            searchPlaceholder={t("agents.list.searchPlaceholder")}
+                            actions={
+                                <AgentFilterMenu view={view} onChange={setView} owners={owners} />
+                            }
+                            end={<ListTableViewToggle value={view.mode} onChange={setMode} />}
+                        />
+                    )
+                }
+                actions={
+                    <>
+                        {projectEmpty ? null : (
+                            <HowThisWorksButton guide="agents" className="max-sm:hidden" />
                         )}
-                    </div>
-                </ScreenScaffold>
-            </AppShell>
+                        <NewAgentAction newAgent={newAgent} base={base} align="end" />
+                    </>
+                }
+            >
+                {projectEmpty ? (
+                    <>
+                        <FeatureOnboarding guideKey="agents" base={base} />
+                        {archived.agents.length > 0 ? (
+                            <div className="mt-6 flex justify-center">
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setView({...view, type: "archived"})}
+                                >
+                                    {t("agents.list.viewArchived")}
+                                </Button>
+                            </div>
+                        ) : null}
+                    </>
+                ) : (
+                    body
+                )}
+            </PageLayout>
         </>
     )
 }

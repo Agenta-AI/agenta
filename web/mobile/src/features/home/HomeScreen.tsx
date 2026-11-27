@@ -22,15 +22,14 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {NewAgentAction} from "../agents/NewAgentAction"
 import {useBindProjectContext} from "../context/useBindProjectContext"
-import {useCurrentProject} from "../context/useCurrentProject"
 import {whatsNewAtom} from "../education/whatsNewAtom"
 import {AppShell} from "../nav/AppShell"
-import {NavDrawer} from "../nav/NavDrawer"
 import {
     clearOnboardingPending,
     isOnboardingPending,
     resolvePendingOnboarding,
 } from "../onboarding/onboardingPending"
+import {PageCompactBar} from "../page-layout/PageCompactBar"
 
 import {resolveHomeSurface} from "./homeSurface"
 import {HOME_PAGE_FRAME} from "./pageFrame"
@@ -53,7 +52,6 @@ import {useHomeHandoff} from "./useHomeHandoff"
 export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; projectId: string}) => {
     const t = useT(screenCatalog)
     useBindProjectContext(projectId)
-    const project = useCurrentProject(workspaceId, projectId)
     const base = `/w/${workspaceId}/p/${projectId}`
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
     const agents = useMemo<Workflow[]>(() => agentsQuery.data ?? [], [agentsQuery.data])
@@ -163,12 +161,11 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
-                        <div className="border-border flex shrink-0 items-center gap-2 border-b px-4 pb-3 pt-2 lg:hidden">
-                            <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                            <h1 className="m-0 text-sm font-semibold">
-                                {project?.project_name ?? t("home.screen.title")}
-                            </h1>
-                        </div>
+                        <PageCompactBar
+                            workspaceId={workspaceId}
+                            projectId={projectId}
+                            width="md"
+                        />
                     }
                 >
                     {surface === "home" ? homeBody : <HomeSkeleton className={frame} />}
