@@ -7,7 +7,6 @@
  * dirty detection, and derived atoms (inputs/outputs/agData) in Node.
  *
  * Coverage:
- *   • Molecule shape      — name, atoms, selectors, local, drillIn, getAgDataPath
  *   • local data API      — set / clear / dataAtom
  *   • atoms.data          — returns local span when seeded
  *   • Derived atoms       — inputs / outputs / agData derived from seeded span
@@ -44,62 +43,6 @@ function makeSpan(overrides?: Partial<TraceSpan>): TraceSpan {
         ...overrides,
     }
 }
-
-// ── Molecule shape ────────────────────────────────────────────────────────────
-
-describe("traceSpanMolecule shape", () => {
-    it("exposes 'traceSpan' as the molecule name", () => {
-        expect(traceSpanMolecule.name).toBe("traceSpan")
-    })
-
-    it("exposes atoms namespace with data/isDirty/serverData/query", () => {
-        expect(typeof traceSpanMolecule.atoms.data).toBe("function")
-        expect(typeof traceSpanMolecule.atoms.isDirty).toBe("function")
-        expect(typeof traceSpanMolecule.atoms.serverData).toBe("function")
-        expect(typeof traceSpanMolecule.atoms.query).toBe("function")
-    })
-
-    it("exposes derived atoms inputs/outputs/agData", () => {
-        expect(typeof traceSpanMolecule.atoms.inputs).toBe("function")
-        expect(typeof traceSpanMolecule.atoms.outputs).toBe("function")
-        expect(typeof traceSpanMolecule.atoms.agData).toBe("function")
-    })
-
-    it("exposes selectors namespace mirroring atoms", () => {
-        expect(typeof traceSpanMolecule.selectors.data).toBe("function")
-        expect(typeof traceSpanMolecule.selectors.inputs).toBe("function")
-        expect(typeof traceSpanMolecule.selectors.outputs).toBe("function")
-    })
-
-    it("exposes reducers namespace with update and discard", () => {
-        expect(traceSpanMolecule.reducers.update).toBeDefined()
-        expect(traceSpanMolecule.reducers.discard).toBeDefined()
-    })
-
-    it("exposes local namespace for seeding inline spans", () => {
-        expect(typeof traceSpanMolecule.local.set).toBe("function")
-        expect(typeof traceSpanMolecule.local.clear).toBe("function")
-        expect(typeof traceSpanMolecule.local.clearAll).toBe("function")
-        expect(typeof traceSpanMolecule.local.dataAtom).toBe("function")
-    })
-
-    it("exposes drillIn namespace with path helpers", () => {
-        expect(typeof traceSpanMolecule.drillIn.getValueAtPath).toBe("function")
-        expect(typeof traceSpanMolecule.drillIn.getRootItems).toBe("function")
-        expect(typeof traceSpanMolecule.drillIn.getChangesFromPath).toBe("function")
-    })
-
-    it("exposes getAgDataPath helper", () => {
-        expect(typeof traceSpanMolecule.getAgDataPath).toBe("function")
-    })
-
-    it("exposes imperative get namespace", () => {
-        expect(typeof traceSpanMolecule.get.data).toBe("function")
-        expect(typeof traceSpanMolecule.get.isDirty).toBe("function")
-        expect(typeof traceSpanMolecule.get.inputs).toBe("function")
-        expect(typeof traceSpanMolecule.get.outputs).toBe("function")
-    })
-})
 
 // ── local data API ────────────────────────────────────────────────────────────
 

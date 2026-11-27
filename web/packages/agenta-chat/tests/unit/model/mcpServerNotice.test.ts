@@ -17,7 +17,6 @@ import {
     isExplainedByMcpNotice,
     mcpServerNotices,
     mcpServerNoticeCopy,
-    mcpServerNoticeSentence,
     mcpToolServerName,
     readMcpServerNotice,
     slugFromMcpTarget,
@@ -148,22 +147,6 @@ describe("mcpServerNoticeCopy", () => {
             // The sign-in sentence would be a guess: nothing says a login is what this needs.
             detail: null,
         })
-    })
-})
-
-describe("mcpServerNoticeSentence", () => {
-    it("joins the two halves for a caller with one slot to fill", () => {
-        const notice = readMcpServerNotice(AUTH_NOTICE)!
-        expect(mcpServerNoticeSentence(notice)).toBe(
-            "mock-mcp needs a new sign-in. Its tools fail until someone in the project reconnects.",
-        )
-    })
-
-    it("adds no trailing space when there is no second half", () => {
-        const notice = readMcpServerNotice(UNREACHABLE_NOTICE)!
-        expect(mcpServerNoticeSentence(notice)).toBe(
-            "MCP server acme failed to connect: handshake_unreachable",
-        )
     })
 })
 

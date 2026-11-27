@@ -19,24 +19,14 @@ import {
 } from "../../src/trace/etl"
 
 describe("inferQueueMaxFromPlan", () => {
-    it("returns the hobby cap for the hobby slug", () => {
-        expect(inferQueueMaxFromPlan("cloud_v0_hobby")).toBe(QUEUE_MAX_HOBBY)
-    })
-
-    it("returns the pro cap for the pro slug", () => {
-        expect(inferQueueMaxFromPlan("cloud_v0_pro")).toBe(QUEUE_MAX_PRO)
-    })
-
-    it("returns the business cap for the business slug", () => {
-        expect(inferQueueMaxFromPlan("cloud_v0_business")).toBe(QUEUE_MAX_BUSINESS)
-    })
-
-    it("returns the enterprise cap for the Agenta-managed enterprise slug", () => {
-        expect(inferQueueMaxFromPlan("cloud_v0_agenta_ai")).toBe(QUEUE_MAX_ENTERPRISE)
-    })
-
-    it("returns the enterprise cap for the self-hosted enterprise slug", () => {
-        expect(inferQueueMaxFromPlan("self_hosted_enterprise")).toBe(QUEUE_MAX_ENTERPRISE)
+    it.each([
+        ["cloud_v0_hobby", QUEUE_MAX_HOBBY],
+        ["cloud_v0_pro", QUEUE_MAX_PRO],
+        ["cloud_v0_business", QUEUE_MAX_BUSINESS],
+        ["cloud_v0_agenta_ai", QUEUE_MAX_ENTERPRISE],
+        ["self_hosted_enterprise", QUEUE_MAX_ENTERPRISE],
+    ])("returns the cap of the %s slug", (slug, cap) => {
+        expect(inferQueueMaxFromPlan(slug)).toBe(cap)
     })
 
     it("returns the hobby cap for null / undefined plans (OSS / pre-billing-load)", () => {

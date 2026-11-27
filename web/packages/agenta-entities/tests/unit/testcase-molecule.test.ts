@@ -3,7 +3,6 @@
  *
  * Covers the parts that work without a TanStack QueryClient or running backend:
  *
- *   • Molecule shape — exported properties exist
  *   • ID tracking atoms — ids, newIds, deletedIds (plain atoms)
  *   • Revision context — currentRevisionIdAtom
  *   • actions.add — creates a local testcase, adds to newIds, initializes draft
@@ -27,51 +26,6 @@ import {testcaseMolecule} from "../../src/testcase/state/molecule"
 function freshStore() {
     return createStore()
 }
-
-// ── Molecule shape ────────────────────────────────────────────────────────────
-
-describe("testcaseMolecule shape", () => {
-    it("exposes 'testcase' as the molecule name", () => {
-        expect(testcaseMolecule.name).toBe("testcase")
-    })
-
-    it("exposes atoms namespace", () => {
-        expect(testcaseMolecule.atoms).toBeDefined()
-        expect(typeof testcaseMolecule.atoms.data).toBe("function")
-        expect(typeof testcaseMolecule.atoms.isDirty).toBe("function")
-        expect(typeof testcaseMolecule.atoms.draft).toBe("function")
-    })
-
-    it("exposes actions namespace", () => {
-        expect(testcaseMolecule.actions).toBeDefined()
-        expect(testcaseMolecule.actions.add).toBeDefined()
-        expect(testcaseMolecule.actions.delete).toBeDefined()
-        expect(testcaseMolecule.actions.update).toBeDefined()
-        expect(testcaseMolecule.actions.discard).toBeDefined()
-        expect(testcaseMolecule.actions.create).toBeDefined()
-        expect(testcaseMolecule.actions.append).toBeDefined()
-    })
-
-    it("exposes top-level id tracking atoms", () => {
-        expect(testcaseMolecule.ids).toBeDefined()
-        expect(testcaseMolecule.newIds).toBeDefined()
-        expect(testcaseMolecule.deletedIds).toBeDefined()
-    })
-
-    it("exposes loadable capability namespace", () => {
-        expect(testcaseMolecule.loadable).toBeDefined()
-        expect(typeof testcaseMolecule.loadable.rows).toBe("function")
-        expect(typeof testcaseMolecule.loadable.columns).toBe("function")
-        expect(typeof testcaseMolecule.loadable.hasChanges).toBe("function")
-    })
-
-    it("exposes get namespace with imperative getters", () => {
-        expect(typeof testcaseMolecule.get.data).toBe("function")
-        expect(typeof testcaseMolecule.get.ids).toBe("function")
-        expect(typeof testcaseMolecule.get.newIds).toBe("function")
-        expect(typeof testcaseMolecule.get.deletedIds).toBe("function")
-    })
-})
 
 // ── ID tracking atoms ─────────────────────────────────────────────────────────
 

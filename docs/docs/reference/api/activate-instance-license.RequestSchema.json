@@ -1,0 +1,1 @@
+{"title":"Body","body":{"content":{"application/json":{"schema":{"properties":{"key":{"type":"string","title":"Key"}},"type":"object","required":["key"],"title":"InstanceLicenseActivateRequest"}}},"required":true}}

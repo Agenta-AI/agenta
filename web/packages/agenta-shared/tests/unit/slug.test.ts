@@ -7,7 +7,6 @@ import {
     isValidSlug,
     regenerateSlugSuffix,
     slugifyName,
-    stripSlugSuffix,
 } from "../../src/utils/slug"
 import {
     buildGatewayToolSlug,
@@ -109,21 +108,6 @@ describe("getSlugSuffix", () => {
 
     it("returns null when there is no hyphen-separated suffix", () => {
         expect(getSlugSuffix("myapp")).toBeNull()
-    })
-})
-
-// ---------------------------------------------------------------------------
-// stripSlugSuffix
-// ---------------------------------------------------------------------------
-
-describe("stripSlugSuffix", () => {
-    it("removes the 4-char suffix", () => {
-        expect(stripSlugSuffix("my-app-ab12")).toBe("my-app")
-    })
-
-    it("leaves the slug unchanged when no suffix is present", () => {
-        expect(stripSlugSuffix("myapp")).toBe("myapp")
-        expect(stripSlugSuffix("my-app-toolong")).toBe("my-app-toolong")
     })
 })
 

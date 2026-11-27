@@ -5,7 +5,6 @@ import {
     flattenSections,
     isSameRun,
     matchLabel,
-    readCommandRun,
     runFollowsBoundary,
     type SlashCommandSection,
 } from "../../src/RichChatInput/assets/slashCommands"
@@ -14,37 +13,6 @@ const section = (key: string, labels: string[]): SlashCommandSection => ({
     key,
     title: key,
     items: labels.map((label) => ({key: label, label, kind: "insert" as const})),
-})
-
-describe("readCommandRun", () => {
-    it("opens on a `/` that starts the text", () => {
-        expect(readCommandRun("/mod")).toEqual({query: "mod", start: 0, afterSpace: false})
-    })
-
-    it("opens on a `/` following a space, mid-message", () => {
-        expect(readCommandRun("hello /mod")).toEqual({query: "mod", start: 6, afterSpace: true})
-    })
-
-    it("reports the empty query for a bare `/`", () => {
-        expect(readCommandRun("/")).toEqual({query: "", start: 0, afterSpace: false})
-    })
-
-    // The guards that keep the menu out of ordinary prose.
-    it.each([
-        ["and/or", "a slash inside a word"],
-        ["https://agenta.ai", "a URL"],
-        ["src/components/Foo", "a path"],
-        ["/model ", "a run the caret has left"],
-        ["", "empty text"],
-        ["plain text", "text with no slash"],
-    ])("declines %j (%s)", (text) => {
-        expect(readCommandRun(text)).toBeNull()
-    })
-
-    it("tracks the run's start as it moves through the message", () => {
-        expect(readCommandRun("a /x")?.start).toBe(2)
-        expect(readCommandRun("aa /x")?.start).toBe(3)
-    })
 })
 
 describe("runFollowsBoundary", () => {

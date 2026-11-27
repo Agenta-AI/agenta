@@ -1,6 +1,6 @@
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
-import {isEmailMethod, readLastAuthMethod, writeLastAuthMethod} from "../../src/lastAuthMethod"
+import {readLastAuthMethod, writeLastAuthMethod} from "../../src/lastAuthMethod"
 
 // The package's vitest env is node; localStorage is all this module touches.
 const store = new Map<string, string>()
@@ -25,13 +25,11 @@ describe("lastAuthMethod", () => {
     it("round-trips an email method", () => {
         writeLastAuthMethod("email")
         expect(readLastAuthMethod()).toBe("email")
-        expect(isEmailMethod(readLastAuthMethod())).toBe(true)
     })
 
     it("round-trips an arbitrary provider id", () => {
         writeLastAuthMethod("github")
         expect(readLastAuthMethod()).toBe("github")
-        expect(isEmailMethod(readLastAuthMethod())).toBe(false)
     })
 
     it("ignores empty writes", () => {

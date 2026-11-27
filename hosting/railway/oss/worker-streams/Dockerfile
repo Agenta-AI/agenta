@@ -1,6 +1,5 @@
 FROM ghcr.io/agenta-ai/agenta-api:latest
 
-ENV AGENTA_LICENSE=oss
 ENV AGENTA_API_URL=http://api.railway.internal:8000/api
 ENV AGENTA_API_INTERNAL_URL=http://api.railway.internal:8000/api
 ENV REDIS_URI=redis://redis.railway.internal:6379/0

@@ -128,4 +128,19 @@ describe("DomainDnsInstructions", () => {
         expect(log).not.toHaveBeenCalled()
         log.mockRestore()
     })
+
+    it("shows nothing when the domain has no token", async () => {
+        const domain = {
+            id: "dom-1",
+            slug: "example.com",
+            token: null,
+        } as unknown as OrganizationDomain
+
+        await act(async () => {
+            root.render(<DomainDnsInstructions domain={domain} />)
+        })
+
+        expect(button("Copy value")).toBeUndefined()
+        expect(document.body.textContent).not.toContain("_agenta-verification")
+    })
 })

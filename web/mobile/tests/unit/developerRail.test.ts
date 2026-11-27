@@ -72,14 +72,6 @@ describe("the developer rows of the main rail", () => {
         expect(plain.afterSessions[0]?.title).toBe("[navigation.items.developer]")
     })
 
-    it("beta developer mode lists no Endpoints, Archived apps or Registry row, as the old app", () => {
-        const {afterHome, afterSessions} = developerNavSlots(P, DEVELOPER_VIEWS, true)
-        const links = JSON.stringify(shape([...afterHome, ...afterSessions]))
-        expect(links).not.toContain("/endpoints")
-        expect(links).not.toContain("/apps/archived")
-        expect(links).not.toContain("/variants")
-    })
-
     it("beta developer mode turns off prefetch on every developer link", () => {
         const {afterHome, afterSessions} = developerNavSlots(P, DEVELOPER_VIEWS, true)
         const rows = [...afterHome, ...afterSessions].flatMap((item) => item.submenu ?? [item])

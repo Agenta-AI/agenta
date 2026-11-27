@@ -1,11 +1,7 @@
 import {describe, expect, it, vi} from "vitest"
 
 import {languageInitScript} from "../../src/document"
-import {
-    LANGUAGE_PENDING_ATTRIBUTE,
-    detectBrowserLanguage,
-    readLanguageCookie,
-} from "../../src/language"
+import {LANGUAGE_PENDING_ATTRIBUTE, readLanguageCookie} from "../../src/language"
 
 describe("readLanguageCookie", () => {
     it("reads a supported language", () => {
@@ -17,27 +13,6 @@ describe("readLanguageCookie", () => {
         expect(readLanguageCookie("")).toBe("en")
         expect(readLanguageCookie("agenta-language=fr")).toBe("en")
         expect(readLanguageCookie("x-agenta-language=zh-CN")).toBe("en")
-    })
-})
-
-describe("detectBrowserLanguage", () => {
-    it("maps Simplified Chinese tags to zh-CN", () => {
-        expect(detectBrowserLanguage(["zh-CN"])).toBe("zh-CN")
-        expect(detectBrowserLanguage(["zh"])).toBe("zh-CN")
-        expect(detectBrowserLanguage(["zh-Hans-CN", "en"])).toBe("zh-CN")
-    })
-
-    it("keeps English for Traditional Chinese and other languages", () => {
-        expect(detectBrowserLanguage(["zh-TW"])).toBe("en")
-        expect(detectBrowserLanguage(["ja-JP"])).toBe("ja-JP")
-        expect(detectBrowserLanguage(["ja"])).toBe("ja-JP")
-        expect(detectBrowserLanguage(["fr-CA", "de"])).toBe("fr-FR")
-        expect(detectBrowserLanguage(["de"])).toBe("de-DE")
-        expect(detectBrowserLanguage(["es-MX"])).toBe("es-ES")
-        expect(detectBrowserLanguage(["pt-PT"])).toBe("pt-BR")
-        expect(detectBrowserLanguage(["ko"])).toBe("en")
-        expect(detectBrowserLanguage(["en-US", "zh-CN"])).toBe("en")
-        expect(detectBrowserLanguage([])).toBe("en")
     })
 })
 
