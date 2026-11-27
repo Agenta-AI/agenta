@@ -1,19 +1,18 @@
 // @vitest-environment jsdom
 /**
- * The Configuration page on a phone (M07): the version status at the end of the tab row, the
- * Agent tab's rows, and a section opened from its row as its own screen.
+ * The Configuration page on a phone (M07): PageLayout with the Agent / Automations / Access
+ * switch, a section opened from its row as its own screen, and the open views kept across a
+ * section and a resize across the phone width.
  */
-import {act, useContext, type ReactNode} from "react"
+import {act, useContext, useState, type ReactNode} from "react"
 
 import {PhoneSectionsContext} from "@agenta/entity-ui/drill-in"
+import {defineView, useViewStack, useViewTitle} from "@agenta/ui/view-stack"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-const state = vi.hoisted(() => ({
-    phone: true,
-    statusProps: [] as Record<string, unknown>[],
-}))
+const state = vi.hoisted(() => ({phone: true}))
 const router = vi.hoisted(() => ({replace: vi.fn(async () => true)}))
 const Pass = ({children}: {children?: ReactNode}) => <>{children}</>
 
@@ -38,6 +37,10 @@ vi.mock("@/features/nav/NavDrawer", () => ({NavDrawer: () => null}))
 vi.mock("@/features/chat/DrillInBridgeProvider", () => ({DrillInBridgeProvider: Pass}))
 vi.mock("@/features/chat/SessionWorkspaceDrawers", () => ({SessionWorkspaceDrawers: () => null}))
 vi.mock("@/features/chat/useTriggerTestRun", () => ({useTriggerTestRun: () => undefined}))
+vi.mock("@/features/chat/useStartBlankSession", () => ({startBlankSession: vi.fn()}))
+vi.mock("@/features/builder/pageContext", () => ({usePublishPageContext: () => undefined}))
+vi.mock("@/features/agent-pages/AgentBuilderButton", () => ({AgentBuilderButton: () => null}))
+vi.mock("@/features/agent-layout/AgentChannelPresence", () => ({default: () => null}))
 vi.mock("@/features/context/useBindProjectContext", () => ({
     useBindProjectContext: () => undefined,
 }))
@@ -52,32 +55,49 @@ vi.mock("@/features/agent-pages/useConfigurationRevision", () => ({
         retry: vi.fn(),
     }),
 }))
-vi.mock("@/features/agent-pages/ConfigurationEditorProvider", () => ({
-    ConfigurationEditorProvider: Pass,
-}))
-vi.mock("@/features/agent-pages/ConfigurationAgentTab", () => ({
-    ConfigurationAgentTab: () => {
-        const phone = useContext(PhoneSectionsContext)
-        if (!phone) return <div data-testid="accordion" />
-        return phone.shownKey ? (
-            <div data-testid="open-section">{phone.shownKey}</div>
-        ) : (
-            <button type="button" onClick={() => phone.show("tools", "Integrations")}>
-                Integrations row
-            </button>
-        )
-    },
-}))
 vi.mock("@/features/agent-layout/AccessTab", () => ({AccessTab: () => null}))
+vi.mock("@/features/agent-layout/AutomationsTab", () => ({AutomationsTab: () => null}))
 vi.mock("@agenta/ui/phone", async (original) => ({
     ...(await original<typeof import("@agenta/ui/phone")>()),
     useIsPhone: () => state.phone,
 }))
-vi.mock("@/features/agent-layout/AutomationsTab", () => ({AutomationsTab: () => null}))
-vi.mock("@agenta/playground-ui/agent-page-header", () => ({
-    AgentRevisionStatus: (props: Record<string, unknown>) => {
-        state.statusProps.push(props)
-        return <span data-testid="revision-status" />
+
+/** A view with local state: it is lost if the view mounts again. */
+const NoteBody = () => {
+    const [count, setCount] = useState(0)
+    useViewTitle("Note")
+    return (
+        <button type="button" onClick={() => setCount(count + 1)}>
+            {`Bumped ${count}`}
+        </button>
+    )
+}
+const noteView = defineView<Record<string, never>>({
+    id: "test.note",
+    apply: "immediate",
+    Component: NoteBody,
+})
+
+vi.mock("@/features/chat/ConfigPane", () => ({
+    ConfigPane: ({page}: {page?: boolean}) => {
+        const phone = useContext(PhoneSectionsContext)
+        const stack = useViewStack()
+        return (
+            <div data-testid={page ? "config-page" : "config-section"}>
+                {phone && !phone.shownKey ? (
+                    <button type="button" onClick={() => phone.show("tools", "Integrations")}>
+                        Integrations row
+                    </button>
+                ) : null}
+                {phone?.shownKey ? <span data-testid="open-section">{phone.shownKey}</span> : null}
+                <button
+                    type="button"
+                    onClick={() => void stack.open(noteView, {}, {kind: "project"})}
+                >
+                    Open note
+                </button>
+            </div>
+        )
     },
 }))
 
@@ -85,10 +105,11 @@ const {AgentConfigurationScreen} = await import("@/features/agent-pages/AgentCon
 
 let host: HTMLDivElement
 let root: Root
+let store: ReturnType<typeof createStore>
 beforeEach(() => {
     ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
     state.phone = true
-    state.statusProps = []
+    store = createStore()
     host = document.createElement("div")
     document.body.append(host)
     root = createRoot(host)
@@ -101,7 +122,7 @@ afterEach(() => {
 const mount = () =>
     act(async () =>
         root.render(
-            <Provider store={createStore()}>
+            <Provider store={store}>
                 <AgentConfigurationScreen
                     workspaceId="w1"
                     projectId="p1"
@@ -114,35 +135,55 @@ const mount = () =>
 
 const button = (text: string) =>
     [...host.querySelectorAll("button")].find((node) => node.textContent === text)
+const click = (text: string) => act(async () => button(text)!.click())
 
 describe("Configuration page on a phone", () => {
-    it("puts the version status at the end of the tab row", async () => {
+    it("shows the title and the Agent / Automations / Access switch", async () => {
         await mount()
-        const status = host.querySelector('[data-testid="revision-status"]')!
-        expect(status.previousElementSibling?.getAttribute("role")).toBe("tablist")
-        expect(state.statusProps.at(-1)).toMatchObject({
-            revisionId: "rev-4",
-            historyWorkflowId: "support",
-            phone: true,
-            backTitle: "Configuration",
-        })
+        expect(host.querySelector("h1")?.textContent).toBe("Configuration")
+        const options = [...host.querySelectorAll('[role="radio"]')].map((node) => node.textContent)
+        expect(options).toEqual(["Agent", "Automations", "Access"])
+        expect(host.querySelector('[data-testid="config-page"]')).not.toBeNull()
     })
 
     it("opens a section from its row as its own screen, with a way back", async () => {
         await mount()
-        await act(async () => button("Integrations row")!.click())
+        await click("Integrations row")
         expect(host.querySelector('[data-testid="open-section"]')?.textContent).toBe("tools")
         expect(host.querySelector("h1")?.textContent).toBe("Integrations")
-        expect(host.querySelector('[role="tablist"]')).toBeNull()
-        await act(async () => button("Configuration")!.click())
+        expect(host.querySelector('[role="radiogroup"]')).toBeNull()
+        await click("Configuration")
         expect(host.querySelector('[data-testid="open-section"]')).toBeNull()
-        expect(host.querySelector('[role="tablist"]')).not.toBeNull()
+        expect(host.querySelector('[role="radiogroup"]')).not.toBeNull()
     })
 
-    it("keeps the desktop page on a wide window", async () => {
+    it("an open view covers the page: no page title and no switch while it is open", async () => {
+        await mount()
+        await click("Open note")
+        expect(button("Bumped 0")).toBeTruthy()
+        expect(host.querySelector('[role="radiogroup"]')).toBeNull()
+    })
+
+    it("keeps an open view and its state across the phone width, both ways", async () => {
         state.phone = false
         await mount()
-        expect(host.querySelector('[data-testid="accordion"]')).not.toBeNull()
-        expect(state.statusProps.at(-1)?.phone).toBe(false)
+        await click("Open note")
+        await click("Bumped 0")
+        state.phone = true
+        await mount()
+        expect(button("Bumped 1")).toBeTruthy()
+        state.phone = false
+        await mount()
+        expect(button("Bumped 1")).toBeTruthy()
+        expect(host.querySelector('[role="radiogroup"]')).not.toBeNull()
+    })
+
+    it("keeps the page on a wide window: the title row and the switch stay over a view", async () => {
+        state.phone = false
+        await mount()
+        expect(host.querySelector('[data-testid="config-page"]')).not.toBeNull()
+        await click("Open note")
+        expect(host.querySelector("h1")?.textContent).toBe("Configuration")
+        expect(host.querySelector('[role="radiogroup"]')).not.toBeNull()
     })
 })

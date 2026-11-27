@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState, type ReactNode} from "react"
+import {useEffect, useRef, useState} from "react"
 
 import {AgentOperationsSkeleton, usePhoneSectionScreen} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
@@ -14,9 +14,6 @@ import {ReportOpenViewItemContext, type OpenViewItem} from "@agenta/ui/view-stac
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
-
 import {AccessTab} from "../agent-layout/AccessTab"
 import {AgentConfigHost} from "../agent-layout/AgentConfigHost"
 import {AutomationsTab} from "../agent-layout/AutomationsTab"
@@ -26,12 +23,12 @@ import {SessionWorkspaceDrawers} from "../chat/SessionWorkspaceDrawers"
 import {startBlankSession} from "../chat/useStartBlankSession"
 import {useTriggerTestRun} from "../chat/useTriggerTestRun"
 import {useBindProjectContext} from "../context/useBindProjectContext"
-import {AppShell} from "../nav/AppShell"
 import {PageLayout} from "../page-layout/PageLayout"
 
 import {AgentBuilderButton} from "./AgentBuilderButton"
 import {CONFIGURATION_TABS, isConfigurationTab, type ConfigurationTab} from "./configurationTabs"
 import type {PageViewStackGuardApi} from "./PageViewStackGuard"
+import {ReportViewsOpen} from "./ReportViewsOpen"
 import {AgentConfigSectionsSkeleton} from "./states/AgentConfigSectionsSkeleton"
 import {useConfigurationRevision} from "./useConfigurationRevision"
 
@@ -107,79 +104,81 @@ export const AgentConfigurationScreen = ({
         )
 
     const configuration = t("agentSidebar.configuration")
-    const host = (content: ReactNode) => (
-        <ReportOpenViewItemContext.Provider value={setItem}>
-            <AgentConfigHost
-                agentId={agentId}
-                revisionId={revisionId}
-                projectId={projectId}
-                readChannels={tab === "agent"}
-                rootTitle={t(`agentLayout.panel.${tab}`)}
-                phone={phone}
-                sectionScreen={sectionScreen}
-                onWorkflowRevisionCommitted={pin}
-                guardRef={guard}
-            >
-                {() => content}
-            </AgentConfigHost>
-        </ReportOpenViewItemContext.Provider>
-    )
-    const page = (content: ReactNode) => (
-        <PageLayout
-            workspaceId={workspaceId}
-            projectId={projectId}
-            width="md"
-            title={configuration}
-            description={t("agentPages.page.configurationDescription")}
-            actions={<AgentBuilderButton />}
-            toolbar={
-                <PageToolbar
-                    actions={
-                        <Segmented
-                            aria-label={configuration}
-                            value={tab}
-                            onChange={(next) => {
-                                if (isConfigurationTab(next)) void openTab(next)
-                            }}
-                            options={CONFIGURATION_TABS.map((key) => ({
-                                value: key,
-                                label: t(`agentLayout.panel.${key}`),
-                            }))}
-                        />
-                    }
-                />
-            }
-        >
-            {/* The pane's 16 px inset sits on the page column's line. */}
-            <div className="-mx-4" aria-busy={tab !== "access" && !revisionId && !failed}>
-                {content}
-            </div>
-        </PageLayout>
-    )
-    // On a phone the views cover the screen, and an open section is its own screen (M07).
-    const phoneSection =
-        shownSection && revisionId ? (
-            <>
-                <PageTitle title={configuration} />
-                <AppShell workspaceId={workspaceId} projectId={projectId}>
-                    <ScreenScaffold
-                        fill
-                        header={
-                            <PhoneScreenHeader
-                                title={shownSection.title}
-                                backTitle={configuration}
-                                onBack={sectionScreen.close}
-                            />
-                        }
-                    >
-                        <ConfigPane entityId={revisionId} />
-                    </ScreenScaffold>
-                </AppShell>
-            </>
-        ) : null
+    // On a phone an open view or section covers the page as its own screen (M07).
+    const [viewsOpen, setViewsOpen] = useState(false)
+    const phoneSection = phone && shownSection && revisionId ? shownSection : null
+    const screen =
+        phone && (viewsOpen || phoneSection)
+            ? {
+                  header: viewsOpen ? null : (
+                      <PhoneScreenHeader
+                          title={phoneSection?.title ?? configuration}
+                          backTitle={configuration}
+                          onBack={sectionScreen.close}
+                      />
+                  ),
+              }
+            : undefined
+    // One tree on every width, so a resize or a section keeps the open views and their edits.
     return (
         <>
-            {phone ? host(phoneSection ?? page(body)) : page(host(body))}
+            <PageLayout
+                workspaceId={workspaceId}
+                projectId={projectId}
+                width="md"
+                title={configuration}
+                description={t("agentPages.page.configurationDescription")}
+                actions={<AgentBuilderButton />}
+                screen={screen}
+                toolbar={
+                    <PageToolbar
+                        actions={
+                            <Segmented
+                                aria-label={configuration}
+                                value={tab}
+                                onChange={(next) => {
+                                    if (isConfigurationTab(next)) void openTab(next)
+                                }}
+                                options={CONFIGURATION_TABS.map((key) => ({
+                                    value: key,
+                                    label: t(`agentLayout.panel.${key}`),
+                                }))}
+                            />
+                        }
+                    />
+                }
+            >
+                {/* The pane's 16 px inset sits on the page column's line. */}
+                <div
+                    className={screen ? "flex min-h-0 flex-1 flex-col" : "-mx-4"}
+                    aria-busy={tab !== "access" && !revisionId && !failed}
+                >
+                    <ReportOpenViewItemContext.Provider value={setItem}>
+                        <AgentConfigHost
+                            agentId={agentId}
+                            revisionId={revisionId}
+                            projectId={projectId}
+                            readChannels={tab === "agent"}
+                            rootTitle={t(`agentLayout.panel.${tab}`)}
+                            phone={phone}
+                            sectionScreen={sectionScreen}
+                            onWorkflowRevisionCommitted={pin}
+                            guardRef={guard}
+                        >
+                            {() => (
+                                <>
+                                    <ReportViewsOpen onChange={setViewsOpen} />
+                                    {phoneSection && revisionId ? (
+                                        <ConfigPane entityId={revisionId} />
+                                    ) : (
+                                        body
+                                    )}
+                                </>
+                            )}
+                        </AgentConfigHost>
+                    </ReportOpenViewItemContext.Provider>
+                </div>
+            </PageLayout>
             {/* The automation and catalog drawers the tabs open. */}
             <SessionWorkspaceDrawers />
         </>

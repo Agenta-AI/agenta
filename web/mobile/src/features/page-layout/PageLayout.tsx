@@ -21,6 +21,8 @@ import {
     type PageWidth,
 } from "./pageFrame"
 
+const SCREEN_FILL = "flex min-h-0 min-w-0 flex-1 flex-col"
+
 export interface PageLayoutProps {
     workspaceId: string
     projectId: string
@@ -53,14 +55,16 @@ export interface PageLayoutProps {
     scrollStyle?: CSSProperties
     /** Extra classes on the scroller, e.g. a scroll-edge fade. */
     scrollClassName?: string
+    /** A phone screen in the page: its own header (or none) and a full-bleed body. */
+    screen?: {header?: ReactNode}
     children: ReactNode
 }
 
 /**
  * The general page (DESIGN.md, "Layout and windows"): the sidebar, the content column and the
  * right pane (the shell's slot: render `<RightPane>` from `@agenta/ui/ui` anywhere), with the same
- * top on every page (LAYOUT-03). A page whose top or column is its own (a workbench page, an
- * agent's pages) does not use it: it builds on `AppShell` and `ScreenScaffold` directly.
+ * top on every page (LAYOUT-03). A page whose top or column is its own (a workbench page) does not
+ * use it: it builds on `AppShell` and `ScreenScaffold` directly.
  *
  * Only the body scrolls; the compact bar and the title block stay pinned above it.
  */
@@ -80,6 +84,7 @@ export const PageLayout = ({
     onScroll,
     scrollStyle,
     scrollClassName,
+    screen,
     children,
 }: PageLayoutProps) => {
     const expanded = useIsExpandedWindow()
@@ -131,15 +136,21 @@ export const PageLayout = ({
             />
             <AppShell workspaceId={workspaceId} projectId={projectId} scope={scope}>
                 <ScreenScaffold
-                    header={header}
+                    header={screen ? screen.header : header}
                     scrollRef={scrollRef}
                     onScroll={onScroll}
                     scrollStyle={scrollStyle}
                     scrollClassName={scrollClassName}
+                    fill={Boolean(screen)}
                 >
-                    <div className={PAGE_GUTTERS}>
+                    {/* The same elements in both modes, so the body keeps its state. */}
+                    <div className={screen ? SCREEN_FILL : PAGE_GUTTERS}>
                         <div
-                            className={`${pageColumn(width)} ${toolbar ? PAGE_BODY_UNDER_TOOLBAR : PAGE_BODY}`}
+                            className={
+                                screen
+                                    ? SCREEN_FILL
+                                    : `${pageColumn(width)} ${toolbar ? PAGE_BODY_UNDER_TOOLBAR : PAGE_BODY}`
+                            }
                         >
                             {children}
                         </div>
