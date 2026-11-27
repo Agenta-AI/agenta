@@ -1,4 +1,4 @@
-/** @agenta/auth-ui is antd-free: the shadcn kit (`@agenta/ui/ui`) and semantic tokens only. */
+/** @agenta/auth-ui is antd-free: the shadcn kit (`@agenta/ui/ui`, `@agenta/ui/composed`) and semantic tokens only. */
 import base, {restrictedImportPaths} from "../eslint.config.mjs"
 
 export default [
@@ -11,9 +11,9 @@ export default [
                     paths: [...restrictedImportPaths],
                     patterns: [
                         {
-                            regex: "^(?:antd(?:/.*)?|@ant-design/.*|@agenta/ui(?:/(?!ui$).*)?)$",
+                            regex: "^(?:antd(?:/.*)?|@ant-design/.*|@agenta/ui(?:/(?!(?:ui|composed)$).*)?)$",
                             message:
-                                "@agenta/auth-ui is antd-free: use the shadcn kit (@agenta/ui/ui) and semantic token classes only.",
+                                "@agenta/auth-ui is antd-free: use the shadcn kit (@agenta/ui/ui, @agenta/ui/composed) and semantic token classes only.",
                         },
                     ],
                 },
