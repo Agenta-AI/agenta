@@ -12,7 +12,6 @@ import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 
-import {isBetaDeveloperModeEnabled} from "../api/env"
 import type {User} from "../types/user"
 
 import {
@@ -166,19 +165,17 @@ export const readSettledAdvancedNavHidden = (user: User | null): boolean | null 
     return user ? isSimplifiedCohort(user) : null
 }
 
-const BETA_DEVELOPER_MODE_KEY = "beta-developer-mode"
-
-const storedBetaDeveloperModeFlagAtom = userScopedFlagAtom(BETA_DEVELOPER_MODE_KEY)
+const CLASSIC_APP_KEY = "classic-app"
 
 /**
- * The "Use new beta developer mode" switch in `/m`. It means something only while Developer Mode
- * is on: read {@link betaDeveloperModeActiveAtom} to act on it. Reads off while the deployment
- * does not offer beta developer mode, whatever the user stored.
+ * The "Use classic app" switch. It means something only while Developer Mode is on: Developer
+ * Mode then opens the classic app (`/w`) instead of the Developer section in `/m`. Off by
+ * default. Read {@link betaDeveloperModeActiveAtom} to act on it.
  */
-export const betaDeveloperModeFlagAtom = atom(
-    (get) => isBetaDeveloperModeEnabled() && get(storedBetaDeveloperModeFlagAtom),
-    (_get, set, next: boolean) => set(storedBetaDeveloperModeFlagAtom, next),
-)
+export const classicAppFlagAtom = userScopedFlagAtom(CLASSIC_APP_KEY)
+
+const readStoredClassicApp = (userId: string): boolean =>
+    readStoredBoolean(userSettingsKey(userId, CLASSIC_APP_KEY)) === true
 
 /**
  * What the gate cookie should say, or `undefined` to leave it alone. `null` means "publish
@@ -209,13 +206,10 @@ export const readSettledClassicModeCookie = (user: User | null): "0" | "1" | nul
     if (user?.uid && user.uid !== userId) return undefined
 
     const override = readStoredBoolean(onboardingScopedKey(userId, "nav-simplified-override"))
-    // Beta developer mode keeps Developer Mode in `/m`, chosen or by default. "0" also sends a
-    // desktop browser from a `/w` address to `/m`; no cookie would leave it in `/w`. Only where
-    // the deployment offers it: otherwise the stored switch changes nothing (v0.128.7).
-    const beta =
-        isBetaDeveloperModeEnabled() &&
-        readStoredBoolean(userSettingsKey(userId, BETA_DEVELOPER_MODE_KEY)) === true
-    if (override !== null) return override || beta ? "0" : "1"
+    // Developer Mode stays in `/m` unless the user chose the classic app. "0" also sends a
+    // desktop browser from a `/w` address to `/m`; no cookie would leave it in `/w`.
+    const inM = !readStoredClassicApp(userId)
+    if (override !== null) return override || inM ? "0" : "1"
 
     if (readStoredBoolean(onboardingScopedKey(userId, "nav-simplified")) === true) return "0"
 
@@ -223,13 +217,26 @@ export const readSettledClassicModeCookie = (user: User | null): "0" | "1" | nul
     // cookie beats no cookie: clearing here would drop a correct answer on every reload.
     if (!user) return undefined
 
-    return isSimplifiedCohort(user) || beta ? "0" : null
+    return isSimplifiedCohort(user) || inM ? "0" : null
 }
 
 /**
- * What the beta developer mode cookie should say: `"1"` only while beta developer mode is
- * active (the deployment offers it, the user turned it on, Developer Mode is on), `null` to
- * clear it in every other settled state, `undefined` to leave it alone while that is unknown.
+ * Developer Mode is on and opens in `/m` (the "Use classic app" switch is off), from storage:
+ * `null` while that is unknown. Exact where the atoms are not: see
+ * {@link readSettledAdvancedNavHidden}.
+ */
+export const readSettledDeveloperViewsActive = (user: User | null): boolean | null => {
+    if (typeof window === "undefined") return null
+    const userId = localStorage.getItem(ACTIVE_USER_ID_KEY)
+    if (!userId) return false
+    const advancedNavHidden = readSettledAdvancedNavHidden(user)
+    if (advancedNavHidden === null) return null
+    return !advancedNavHidden && !readStoredClassicApp(userId)
+}
+
+/**
+ * What the developer views cookie should say: `"1"` while Developer Mode opens in `/m`, `null`
+ * to clear it in every other settled state, `undefined` to leave it alone while that is unknown.
  * The gate reads it to pick the `/m` page for a `/w` developer link; see `BETA_DEVELOPER_MODE_COOKIE`.
  */
 export const readSettledBetaDeveloperModeCookie = (user: User | null): "1" | null | undefined => {
@@ -237,15 +244,9 @@ export const readSettledBetaDeveloperModeCookie = (user: User | null): "1" | nul
     const userId = localStorage.getItem(ACTIVE_USER_ID_KEY)
     if (!userId) return null
     if (user?.uid && user.uid !== userId) return undefined
-    if (
-        !isBetaDeveloperModeEnabled() ||
-        readStoredBoolean(userSettingsKey(userId, BETA_DEVELOPER_MODE_KEY)) !== true
-    ) {
-        return null
-    }
-    const advancedNavHidden = readSettledAdvancedNavHidden(user)
-    if (advancedNavHidden === null) return undefined
-    return advancedNavHidden ? null : "1"
+    const active = readSettledDeveloperViewsActive(user)
+    if (active === null) return undefined
+    return active ? "1" : null
 }
 
 /** The one atom both apps' Preferences pages bind their "Developer Mode" switch to. */
@@ -257,9 +258,18 @@ export const classicModeEnabledAtom = atom(
 )
 
 /**
- * Developer Mode on, and the user chose to keep it in `/m`. The gate cookie then says "0" (see
- * {@link readSettledClassicModeCookie}), so neither app sends the user to `/w`.
+ * Developer Mode is on and opens in `/m`: the Developer section shows there, and neither app
+ * sends the user to `/w`. The default for Developer Mode; the "Use classic app" switch turns it
+ * off. The gate cookie then says "0" (see {@link readSettledClassicModeCookie}).
+ *
+ * False until the signed-in user is known, so the first render matches the prerendered HTML.
+ * After that the answer comes from storage, not from the atoms: Developer Mode is on by default,
+ * so atoms that have not hydrated yet would read "on" for a user who turned it off, and a page
+ * redirect acting on that cannot be taken back. The atoms are read only to re-run this.
  */
-export const betaDeveloperModeActiveAtom = atom(
-    (get) => get(classicModeEnabledAtom) && get(betaDeveloperModeFlagAtom),
-)
+export const betaDeveloperModeActiveAtom = atom((get) => {
+    get(classicModeEnabledAtom)
+    get(classicAppFlagAtom)
+    if (!get(activeUserIdAtom)) return false
+    return readSettledDeveloperViewsActive(get(userAtom)) === true
+})

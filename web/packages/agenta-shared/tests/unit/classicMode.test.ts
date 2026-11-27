@@ -297,14 +297,20 @@ describe("the gate cookie", () => {
 
     it("publishes classic mode on only from an explicit choice", () => {
         browser("u", {"nav-simplified-override": "false"})
+        localStorage.setItem("agenta:settings:u:classic-app", "true")
         expect(readSettledClassicModeCookie(profile(OLD))).toBe("1")
     })
 
-    it("says nothing for an account that merely defaulted to classic mode", () => {
+    it("never publishes 1 for an account that merely defaulted to classic mode", () => {
         // The regression this exists for: an account older than the switch has classic mode on
         // because nobody turned it off. Publishing "1" tells both gates the user asked for the
         // desktop app, which outranks the device check and takes /m away from every phone.
+        // Developer Mode opens in /m by default, so this account publishes "0".
         browser("u")
+        expect(readSettledClassicModeCookie(profile(OLD))).toBe("0")
+
+        // With the classic app chosen, the device decides, as before.
+        localStorage.setItem("agenta:settings:u:classic-app", "true")
         expect(readSettledClassicModeCookie(profile(OLD))).toBeNull()
     })
 
@@ -323,6 +329,7 @@ describe("the gate cookie", () => {
 
     it("lets an explicit choice outrank the cohort in both directions", () => {
         browser("a", {"nav-simplified-override": "false"})
+        localStorage.setItem("agenta:settings:a:classic-app", "true")
         expect(readSettledClassicModeCookie(profile(NEW))).toBe("1")
 
         localStorage.clear()
@@ -342,23 +349,33 @@ describe("the gate cookie", () => {
         expect(readSettledClassicModeCookie(null)).toBe("0")
     })
 
-    it("publishes 0 for Developer Mode with beta developer mode on, chosen or by default", () => {
-        // Beta developer mode keeps Developer Mode in /m: a "1" would send the user to /w, and no
-        // cookie would leave a desktop browser in /w when it opens a /w address.
-        vi.stubGlobal("__env", {NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE: "true"})
+    it("publishes 0 for Developer Mode without the classic app, chosen or by default", () => {
+        // Developer Mode opens in /m: a "1" would send the user to /w, and no cookie would leave
+        // a desktop browser in /w when it opens a /w address.
         browser("u", {"nav-simplified-override": "false"})
-        localStorage.setItem("agenta:settings:u:beta-developer-mode", "true")
         expect(readSettledClassicModeCookie(profile(OLD))).toBe("0")
 
         localStorage.clear()
         browser("d")
-        localStorage.setItem("agenta:settings:d:beta-developer-mode", "true")
         expect(readSettledClassicModeCookie(profile(OLD))).toBe("0")
     })
 
-    it("ignores the stored beta switch while Developer Mode is off", () => {
-        browser("u", {"nav-simplified-override": "true"})
+    it("publishes 1 for Developer Mode by choice with the classic app on", () => {
+        browser("u", {"nav-simplified-override": "false"})
+        localStorage.setItem("agenta:settings:u:classic-app", "true")
+        expect(readSettledClassicModeCookie(profile(OLD))).toBe("1")
+    })
+
+    it("ignores the old beta developer mode switch", () => {
+        browser("u", {"nav-simplified-override": "false"})
+        localStorage.setItem("agenta:settings:u:classic-app", "true")
         localStorage.setItem("agenta:settings:u:beta-developer-mode", "true")
+        expect(readSettledClassicModeCookie(profile(OLD))).toBe("1")
+    })
+
+    it("ignores the classic app switch while Developer Mode is off", () => {
+        browser("u", {"nav-simplified-override": "true"})
+        localStorage.setItem("agenta:settings:u:classic-app", "true")
         expect(readSettledClassicModeCookie(profile(OLD))).toBe("0")
     })
 

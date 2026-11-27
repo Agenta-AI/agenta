@@ -1,4 +1,4 @@
-import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
+import {beforeEach, describe, expect, it} from "vitest"
 
 const entries: Record<string, string> = {}
 const localStorage = {
@@ -210,7 +210,13 @@ describe("readSettledBetaDeveloperModeCookie", () => {
         created_at: createdAt,
     })
     const OLD = "2026-07-01 00:00:00.000000+00:00"
-    const store = ({developerMode, beta}: {developerMode?: boolean; beta?: boolean}) => {
+    const store = ({
+        developerMode,
+        classicApp,
+    }: {
+        developerMode?: boolean
+        classicApp?: boolean
+    }) => {
         localStorage.clear()
         localStorage.setItem(ACTIVE_USER_ID_KEY, "u")
         if (developerMode !== undefined) {
@@ -219,30 +225,31 @@ describe("readSettledBetaDeveloperModeCookie", () => {
                 String(!developerMode),
             )
         }
-        if (beta !== undefined) {
-            localStorage.setItem("agenta:settings:u:beta-developer-mode", JSON.stringify(beta))
+        if (classicApp !== undefined) {
+            localStorage.setItem("agenta:settings:u:classic-app", JSON.stringify(classicApp))
         }
     }
 
     beforeEach(() => {
         localStorage.clear()
-        vi.stubGlobal("__env", {NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE: "true"})
     })
-    afterEach(() => vi.unstubAllGlobals())
 
-    it("publishes 1 only when beta, Developer Mode and the env var are all on", () => {
-        store({developerMode: true, beta: true})
+    it("publishes 1 while Developer Mode is on and the classic app is off", () => {
+        store({developerMode: true})
+        expect(readSettledBetaDeveloperModeCookie(user(OLD))).toBe("1")
+        store({developerMode: true, classicApp: false})
         expect(readSettledBetaDeveloperModeCookie(user(OLD))).toBe("1")
         // On by default for an old account.
-        store({beta: true})
+        store({})
         expect(readSettledBetaDeveloperModeCookie(user(OLD))).toBe("1")
     })
 
     it("clears it in every other settled state", () => {
         for (const state of [
-            {developerMode: true, beta: false},
-            {developerMode: true},
-            {developerMode: false, beta: true},
+            {developerMode: true, classicApp: true},
+            {classicApp: true},
+            {developerMode: false},
+            {developerMode: false, classicApp: true},
         ]) {
             store(state)
             expect(readSettledBetaDeveloperModeCookie(user(OLD))).toBeNull()
@@ -251,28 +258,8 @@ describe("readSettledBetaDeveloperModeCookie", () => {
         expect(readSettledBetaDeveloperModeCookie(null)).toBeNull()
     })
 
-    it("clears a stale cookie when the env var is off, whatever the user stored", () => {
-        vi.stubGlobal("__env", {NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE: "false"})
-        store({developerMode: true, beta: true})
-        expect(readSettledBetaDeveloperModeCookie(user(OLD))).toBeNull()
-    })
-
     it("leaves the cookie alone while the profile is unknown", () => {
-        store({beta: true})
+        store({})
         expect(readSettledBetaDeveloperModeCookie(null)).toBeUndefined()
-    })
-})
-
-describe("env var off: a stale beta cookie changes nothing (v0.128.7)", () => {
-    // The cookie sync clears it on the next page load; until then the gate may still see it.
-    // That is the one window where it can matter, so it is pinned here: the cookie routes as
-    // beta, and the only guard is the client clearing it (covered above).
-    it("documents that the gate trusts the cookie alone", () => {
-        expect(
-            gate(`${P}/prompts`, {
-                [CLASSIC_MODE_COOKIE]: "0",
-                [BETA_DEVELOPER_MODE_COOKIE]: "1",
-            }).kind,
-        ).toBe("redirect")
     })
 })
