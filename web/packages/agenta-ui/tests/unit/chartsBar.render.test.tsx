@@ -254,6 +254,36 @@ describe("BarChart", () => {
         expect(screen.getByRole("tooltip").textContent).toContain("Run: 63%")
     })
 
+    it("A value label that is wider than its bar is not drawn", () => {
+        const eight = Array.from({length: 8}, (_, index) => ({
+            category: `Metric ${index}`,
+            values: {a: 0.5, b: 0.5},
+        }))
+        const labelsWith = (series: {key: string; name: string}[]) => {
+            const {container, unmount} = render(
+                <BarChart
+                    title="Metrics"
+                    height={200}
+                    series={series}
+                    data={eight}
+                    yMax={1}
+                    valueLabel={() => "50.0%"}
+                />,
+            )
+            const count = container.querySelectorAll("text[data-value-label]").length
+            unmount()
+            return count
+        }
+        expect(labelsWith([{key: "a", name: "A"}])).toBe(8)
+        // Two runs: each bar has half the room, too little for "50.0%".
+        expect(
+            labelsWith([
+                {key: "a", name: "A"},
+                {key: "b", name: "B"},
+            ]),
+        ).toBe(0)
+    })
+
     it("Without a value label no text sits above the bars", () => {
         const {container} = render(
             <BarChart

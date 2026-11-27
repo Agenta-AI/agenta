@@ -37,7 +37,7 @@ const VALUE_LABEL_FONT_SIZE = 10
 const VALUE_LABEL_CHAR_WIDTH = (CHAR_WIDTH * VALUE_LABEL_FONT_SIZE) / CHART_FONT_SIZE
 /** Vertical x labels are cut after this many characters. */
 const VERTICAL_LABEL_MAX = 52
-/** Width of one character of a vertical label; `CHAR_WIDTH` is a safe upper bound for fitting. */
+/** Average width of one character of a vertical label, to size the room under the plot. */
 const VERTICAL_CHAR_WIDTH = 6
 
 /** Vertical bars, one group per category and one bar per series. Renders nothing without data. */

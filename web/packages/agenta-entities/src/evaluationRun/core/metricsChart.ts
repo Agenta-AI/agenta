@@ -79,6 +79,14 @@ export function buildMetricsChart(runs: readonly MetricsChartRun[]): MetricsChar
             }
         }
     }
+    // Unique names in row order, so a poll that reorders the bars does not move a "(2)".
+    const taken = new Set<string>()
+    for (const metric of byId.values()) {
+        let name = metric.name
+        for (let n = 2; taken.has(name); n++) name = `${metric.name} (${n})`
+        taken.add(name)
+        metric.name = name
+    }
     const first = runs[0]?.key
     const valueOf = (metric: ChartMetric) =>
         first === undefined ? null : (metric.values[first] ?? null)
@@ -88,12 +96,6 @@ export function buildMetricsChart(runs: readonly MetricsChartRun[]): MetricsChar
         if (va === null || vb === null) return va === null ? (vb === null ? 0 : 1) : -1
         return va - vb || a.name.localeCompare(b.name)
     })
-    const seen = new Map<string, number>()
-    for (const metric of metrics) {
-        const count = (seen.get(metric.name) ?? 0) + 1
-        seen.set(metric.name, count)
-        if (count > 1) metric.name = `${metric.name} (${count})`
-    }
     // A metric on the scale in one run and off it in another is in the chart.
     const offScale = [...offScaleIds].filter((id) => !byId.has(id)).length
     return {metrics, offScale}

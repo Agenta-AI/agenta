@@ -112,6 +112,30 @@ describe("metrics chart values", () => {
         ])
     })
 
+    it("A generated name never repeats a real name, and names follow row order, not values", () => {
+        const {metrics} = buildMetricsChart([
+            {
+                key: "run",
+                rows: [
+                    {
+                        ...row("Judge", [metric("a", "numeric", numeric(0.9, 0, 1))]),
+                        evaluatorId: "a",
+                    },
+                    {...row("Judge (2)", [metric("b", "binary", binary(1, 3))]), evaluatorId: "b"},
+                    {
+                        ...row("Judge", [metric("c", "numeric", numeric(0.1, 0, 1))]),
+                        evaluatorId: "c",
+                    },
+                ],
+            },
+        ])
+        expect(metrics.map((m) => [m.id, m.name])).toEqual([
+            ["c:attributes.ag.data.outputs.c", "Judge (3)"],
+            ["b:attributes.ag.data.outputs.b", "Judge (2)"],
+            ["a:attributes.ag.data.outputs.a", "Judge"],
+        ])
+    })
+
     it("Scores off the 0 to 1 scale are counted and left out; categorical metrics are left out", () => {
         const model = buildMetricsChart([
             {
