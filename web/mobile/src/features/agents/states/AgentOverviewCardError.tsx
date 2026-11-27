@@ -1,7 +1,7 @@
 import {useT} from "@agenta/i18n"
 import agentsOverview from "@agenta/i18n/catalogs/agents.overview"
 import {Button} from "@agenta/ui/ui"
-import {RefreshCw} from "lucide-react"
+import {ArrowClockwiseIcon} from "@phosphor-icons/react"
 
 /** A rail card whose section failed to load: one line and the way back, inside the card's own fill. */
 export const AgentOverviewCardError = ({
@@ -14,7 +14,7 @@ export const AgentOverviewCardError = ({
     const t = useT(agentsOverview)
     return (
         <div className="flex items-center gap-3 py-2">
-            <p className="m-0 min-w-0 flex-1 text-[13px] text-muted-foreground">{message}</p>
+            <p className="m-0 min-w-0 flex-1 text-label text-muted-foreground">{message}</p>
             <Button
                 type="button"
                 variant="link"
@@ -22,7 +22,7 @@ export const AgentOverviewCardError = ({
                 className="shrink-0 px-0 text-foreground"
                 onClick={onRetry}
             >
-                <RefreshCw aria-hidden />
+                <ArrowClockwiseIcon aria-hidden />
                 {t("agents.overview.retry")}
             </Button>
         </div>

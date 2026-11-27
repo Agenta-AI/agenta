@@ -4,18 +4,21 @@ import {
     agentWorkflowsListQueryStateAtom,
     invalidateWorkflowsListCache,
 } from "@agenta/entities/workflow"
+import {AgentChip} from "@agenta/entity-ui/agent"
 import {useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import {
     Button,
+    MENU_ITEM,
     Popover,
     PopoverContent,
     PopoverTrigger,
     SearchInput,
     SkeletonRows,
 } from "@agenta/ui/ui"
-import {Robot} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
+
+import {cn} from "@/lib/utils"
 
 import type {AgentRef} from "./paneAgent"
 
@@ -54,10 +57,10 @@ export const AgentPicker = ({
             <PopoverTrigger asChild>{trigger}</PopoverTrigger>
             <PopoverContent
                 align="center"
-                className="flex w-72 flex-col gap-1 p-2"
+                className="flex w-popover-md max-w-[calc(100vw-2rem)] flex-col gap-1 p-1"
                 data-testid="builder-agent-picker"
             >
-                <p className="m-0 px-1 pb-1 text-xs font-medium text-colorTextSecondary">
+                <p className="m-0 px-2 pb-1 pt-1 text-meta text-muted-foreground">
                     {t("builder.page.pickAgent")}
                 </p>
                 {none || failed ? null : (
@@ -73,7 +76,7 @@ export const AgentPicker = ({
                         <SkeletonRows count={3} />
                     ) : failed ? (
                         <div className="flex flex-col items-start gap-1 px-1 py-2">
-                            <p className="m-0 text-[13px] text-colorTextSecondary">
+                            <p className="m-0 text-body text-muted-foreground">
                                 {t("builder.page.agentsFailed")}
                             </p>
                             <Button
@@ -86,11 +89,11 @@ export const AgentPicker = ({
                             </Button>
                         </div>
                     ) : none ? (
-                        <p className="m-0 px-1 py-2 text-[13px] text-colorTextSecondary">
+                        <p className="m-0 px-1 py-2 text-body text-muted-foreground">
                             {t("builder.page.noAgents")}
                         </p>
                     ) : rows.length === 0 ? (
-                        <p className="m-0 px-1 py-2 text-[13px] text-colorTextSecondary">
+                        <p className="m-0 px-1 py-2 text-body text-muted-foreground">
                             {t("builder.page.noAgentMatches")}
                         </p>
                     ) : (
@@ -103,13 +106,12 @@ export const AgentPicker = ({
                                     setSearch("")
                                     onPick(agent)
                                 }}
-                                className="flex h-8 w-full shrink-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left text-[13px] text-colorText hover:bg-colorFillTertiary"
+                                className={cn(
+                                    MENU_ITEM,
+                                    "shrink-0 border-0 bg-transparent text-left text-foreground hover:bg-accent focus-visible:bg-accent",
+                                )}
                             >
-                                <Robot
-                                    aria-hidden
-                                    size={14}
-                                    className="shrink-0 text-colorTextSecondary"
-                                />
+                                <AgentChip workflowId={agent.id} box="size-5" glyph={14} />
                                 <span className="truncate">{agent.name}</span>
                             </button>
                         ))

@@ -1,0 +1,15 @@
+/* LandingHero — ported from the landing design board (iteration 1). */
+.sx-hero h1, .sx-hero h2, .sx-hero h3, .sx-hero p { margin:0px; text-wrap:pretty; }
+.r3 a:not(.ag-btn):not(.ag-badge) { color:inherit; }
+@media (width <= 860px){.r3 .r3-ag-hero { padding-top:80px !important; padding-bottom:88px !important; }}
+@media (width <= 860px){.r3 .r3-ag-h1 { font-size:38px !important; line-height:1.08 !important; }}
+@media (width <= 600px){.r3 .r3-ag-hero { padding-top:64px !important; padding-bottom:64px !important; }}
+@media (width <= 600px){.r3 .r3-ag-h1 { font-size:32px !important; line-height:1.1 !important; }}
+@media (width <= 1167px){.r3 .r3-ag-hero { padding-left:24px !important; padding-right:24px !important; }}
+.r3 .r3-ag-hero-chip { --hchip-bg:linear-gradient(180deg, var(--lp-surface-3) 0%, var(--lp-line-2) 100%); --hchip-shadow:inset 0 2px .4px var(--lp-surface); --hchip-text:var(--lp-text); }
+
+/* Phones: a smaller hero subtitle. */
+@media (max-width: 600px) {
+  .r3 .r3-ag-hero .r3-ag-sub { font-size:14px !important; line-height:22px !important; }
+}
+

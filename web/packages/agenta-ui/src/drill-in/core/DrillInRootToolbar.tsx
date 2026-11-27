@@ -124,9 +124,9 @@ export const DrillInRootToolbar = memo(function DrillInRootToolbar({
     }, [onCopy])
 
     return (
-        <div className="flex min-h-9 items-center justify-between gap-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-FAFAFA)] px-4 py-1.5">
+        <div className="flex min-h-9 items-center justify-between gap-2 border-0 border-b border-solid border-border-muted bg-muted px-4 py-1.5">
             <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-                <span className="min-w-0 truncate text-[13px] font-semibold text-[var(--ag-c-051729)]">
+                <span className="min-w-0 truncate text-label font-semibold text-foreground">
                     {label}
                 </span>
                 {headerSlot ? <div className="min-w-0 overflow-hidden">{headerSlot}</div> : null}

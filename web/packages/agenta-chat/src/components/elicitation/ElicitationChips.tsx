@@ -91,14 +91,14 @@ export const ElicitationChips = ({
         <div
             ref={boxRef}
             onClick={() => boxRef.current?.querySelector("input")?.focus({preventScroll: true})}
-            className="flex min-h-8 w-full cursor-text flex-wrap items-center gap-1 rounded-md border border-solid border-colorBorder bg-colorBgContainer px-2 py-1 focus-within:border-colorPrimary"
+            className="flex min-h-8 w-full cursor-text flex-wrap items-center gap-1 rounded-md border border-solid border-border bg-background px-2 py-1 focus-within:border-primary"
         >
             {chips.map((chip) => (
                 <Badge
                     key={chip}
                     variant="default"
                     className={`gap-1 pr-1 transition-colors ${
-                        dupe === chip ? "bg-colorWarningBg text-colorWarningText" : ""
+                        dupe === chip ? "bg-warning/10 text-warning" : ""
                     }`}
                 >
                     <span className="truncate">{chip}</span>
@@ -109,7 +109,7 @@ export const ElicitationChips = ({
                             event.stopPropagation()
                             onChange(chips.filter((item) => item !== chip))
                         }}
-                        className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-colorTextTertiary hover:text-colorText"
+                        className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-muted-foreground hover:text-foreground"
                     >
                         <X size={9} weight="bold" />
                     </button>
@@ -124,14 +124,14 @@ export const ElicitationChips = ({
                 onChange={(event) => setDraft(event.target.value)}
                 // A typed word left behind on blur reads as data loss, so commit it.
                 onBlur={() => commit(draft)}
-                className="min-w-[80px] flex-1 border-none bg-transparent text-[13px] text-colorText outline-none placeholder:text-colorTextTertiary"
+                className="min-w-20 flex-1 border-none bg-transparent text-label text-foreground outline-none placeholder:text-muted-foreground"
             />
             {/* The commit key sits at the field's edge, where the option rows put theirs, rather
                 than inside the placeholder where it read as part of the prompt. */}
             {touch ? null : (
                 <kbd
                     aria-hidden
-                    className="ml-auto shrink-0 pr-0.5 font-sans text-[9px] text-colorTextQuaternary"
+                    className="ml-auto shrink-0 pr-0.5 font-sans text-caption text-muted-foreground"
                 >
                     ↵
                 </kbd>

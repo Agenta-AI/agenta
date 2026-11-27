@@ -100,9 +100,7 @@ export const DrawerBreakdown = (props: DrawerBreakdownProps) => {
         <section className="rounded-xl bg-muted px-4 py-3">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">
-                        {t("observabilityUi.analytics.breakdown")}
-                    </span>
+                    <span className="text-label">{t("observabilityUi.analytics.breakdown")}</span>
                     <Segmented
                         size="sm"
                         options={dimOptions}
@@ -193,7 +191,7 @@ const RunTable = ({
 
     if (!rows.length) {
         return (
-            <div className="py-6 text-center text-sm text-muted-foreground">
+            <div className="py-6 text-center text-body text-muted-foreground">
                 {pending
                     ? t("observabilityUi.analytics.loading")
                     : t("observabilityUi.analytics.noRunsInWindow")}
@@ -205,7 +203,7 @@ const RunTable = ({
     return (
         <div className="-mx-1 overflow-x-auto">
             <div className="min-w-[480px] px-1">
-                <div className={cn(grid, "h-7 items-center text-[11px] text-muted-foreground")}>
+                <div className={cn(grid, "h-7 items-center text-caption text-muted-foreground")}>
                     <span>
                         {dim === "agent"
                             ? t("observabilityUi.analytics.colAgent")
@@ -241,13 +239,13 @@ const RunTable = ({
                             }
                             className={cn(
                                 grid,
-                                "h-10 w-full items-center border-0 border-t border-solid border-border bg-transparent px-0 text-left text-sm",
+                                "box-border h-row-single w-full items-center border-0 border-t border-solid border-border bg-transparent px-0 text-left text-label font-normal",
                                 drillable && "cursor-pointer hover:bg-accent",
                             )}
                         >
                             <span className="flex min-w-0 items-center gap-2">
                                 <span
-                                    className="size-2 shrink-0 rounded-full"
+                                    className="size-2 shrink-0 rounded-xs"
                                     style={{
                                         background:
                                             row.key === OTHER
@@ -289,7 +287,7 @@ const RunTable = ({
                 <button
                     type="button"
                     onClick={() => setShowAll(!showAll)}
-                    className="mt-2 cursor-pointer border-0 bg-transparent p-0 text-xs text-muted-foreground hover:text-foreground"
+                    className="mt-2 cursor-pointer border-0 bg-transparent p-0 text-meta text-muted-foreground hover:text-foreground"
                 >
                     {showAll
                         ? t("observabilityUi.analytics.showTop", {count: LIMIT})
@@ -314,7 +312,7 @@ const ToolTable = ({data, tools, focus, filters, unit}: DrawerBreakdownProps) =>
 
     if (!rows.length) {
         return (
-            <div className="py-6 text-center text-sm text-muted-foreground">
+            <div className="py-6 text-center text-body text-muted-foreground">
                 {tools.status.pending
                     ? t("observabilityUi.analytics.loading")
                     : t("observabilityUi.analytics.noToolCallsInWindow")}
@@ -325,11 +323,11 @@ const ToolTable = ({data, tools, focus, filters, unit}: DrawerBreakdownProps) =>
     return (
         <div className="flex flex-col">
             {narrowed ? (
-                <span className="mb-1 text-[11px] text-muted-foreground">
+                <span className="mb-1 text-caption text-muted-foreground">
                     {t("observabilityUi.analytics.toolsNotNarrowed")}
                 </span>
             ) : null}
-            <div className={cn(grid, "h-7 items-center text-[11px] text-muted-foreground")}>
+            <div className={cn(grid, "h-7 items-center text-caption text-muted-foreground")}>
                 <span>{t("observabilityUi.analytics.colTool")}</span>
                 <span className="text-right text-foreground">
                     {t("observabilityUi.analytics.colCallsSorted")}
@@ -349,12 +347,12 @@ const ToolTable = ({data, tools, focus, filters, unit}: DrawerBreakdownProps) =>
                     key={row.key}
                     className={cn(
                         grid,
-                        "h-10 items-center border-0 border-t border-solid border-border text-sm",
+                        "box-border h-row-single items-center border-0 border-t border-solid border-border text-label font-normal",
                     )}
                 >
                     <span className="flex min-w-0 items-center gap-2">
                         <span
-                            className="size-2 shrink-0 rounded-full"
+                            className="size-2 shrink-0 rounded-xs"
                             style={{
                                 background: analyticsColor(SERIES_COLORS[i % SERIES_COLORS.length]),
                             }}

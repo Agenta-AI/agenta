@@ -5,7 +5,7 @@
 import {type DriveId} from "@agenta/entities/drive"
 import {useT} from "@agenta/i18n"
 import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
-import {getShortcut, shortcutAria, shortcutText} from "@agenta/shared/utils"
+import {getShortcut, shortcutAria, shortcutFaces} from "@agenta/shared/utils"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {
     Button,
@@ -16,6 +16,7 @@ import {
     DropdownMenuTrigger,
     SimpleTooltip as Tooltip,
 } from "@agenta/ui/ui"
+import {PaneHeader} from "@agenta/ui/view-stack"
 import {
     ArrowsIn,
     ArrowsOut,
@@ -25,9 +26,9 @@ import {
     ClockCountdown,
     Copy,
     EyeSlash,
+    FunnelSimple,
     GitBranch,
     Sidebar,
-    Sliders,
     WarningCircle,
     X,
 } from "@phosphor-icons/react"
@@ -37,8 +38,8 @@ import {DriveRetryButton} from "./DriveFileRow"
 import {SelectedMark} from "./DriveMenuMark"
 
 /** The chrome's icon button: the kit's ghost icon-sm, muted until hover. */
-export const ROW_ICON_BTN = "text-colorTextTertiary hover:text-colorText"
-export const ROW_ICON_BTN_ON = "bg-accent text-colorText"
+export const ROW_ICON_BTN = "text-muted-foreground hover:text-foreground"
+export const ROW_ICON_BTN_ON = "bg-accent text-foreground"
 
 export interface DriveHeaderProps {
     selectedPath: string | null
@@ -65,7 +66,8 @@ export interface DriveHeaderProps {
     onToggleTree: () => void
     /** For hosts whose close lives in this row. */
     onClose?: () => void
-    closeVariant?: "close" | "collapse"
+    /** `panel`: the right-pane X at the row end, as the other pane contents draw it. */
+    closeVariant?: "close" | "collapse" | "panel"
     expanded?: boolean
     onToggleExpand?: () => void
     expandPlacement?: "leading" | "before-options"
@@ -123,140 +125,163 @@ export const DriveHeader = ({
                 onClick={onToggleExpand}
                 className={ROW_ICON_BTN}
             >
-                {expanded ? <ArrowsIn size={15} /> : <ArrowsOut size={15} />}
+                {expanded ? <ArrowsIn size={14} /> : <ArrowsOut size={14} />}
             </Button>
         </Tooltip>
     ) : null
+    const backShortcut = getShortcut("drive.back")
+    const forwardShortcut = getShortcut("drive.forward")
+    const panel = closeVariant === "panel"
     return (
-        // The session bar's height and border token, so its line continues across the divider.
-        <div className="flex h-[48px] shrink-0 items-center gap-1.5 border-0 border-b border-solid border-[var(--ag-surface-card-border)] px-2">
-            {onClose && closeVariant === "close" ? (
-                <Tooltip title={t("entityUi.driveExplorer.close")}>
-                    <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={t("entityUi.driveExplorer.close")}
-                        onClick={onClose}
-                        className={ROW_ICON_BTN}
-                    >
-                        <X size={15} />
-                    </Button>
-                </Tooltip>
-            ) : null}
-            {expandPlacement === "leading" ? expandButton : null}
-            <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={t("entityUi.driveExplorer.back")}
-                title={t("entityUi.driveExplorer.backShortcut", {
-                    shortcut: shortcutText(getShortcut("drive.back")!),
-                })}
-                aria-keyshortcuts={shortcutAria("drive.back")}
-                disabled={!canGoBack}
-                onClick={onBack}
-                className={ROW_ICON_BTN}
-            >
-                <CaretLeft size={15} weight="bold" />
-            </Button>
-            <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={t("entityUi.driveExplorer.forward")}
-                title={t("entityUi.driveExplorer.forwardShortcut", {
-                    shortcut: shortcutText(getShortcut("drive.forward")!),
-                })}
-                aria-keyshortcuts={shortcutAria("drive.forward")}
-                disabled={!canGoForward}
-                onClick={onForward}
-                className={ROW_ICON_BTN}
-            >
-                <CaretRight size={15} weight="bold" />
-            </Button>
-            {/* The crumb takes the row's slack and scrolls sideways when a deep path outgrows it. */}
-            <div className="ml-1 flex min-w-0 flex-1 items-center">
-                <DriveBreadcrumb
-                    variant="icons"
-                    shown={selectedPath ?? ""}
-                    rootLabel={rootLabel}
-                    isFile={!isFolder}
-                    onNavigate={onNavigate}
-                />
-            </div>
-            <DrivePartialError
-                partialErrored={partialErrored}
-                onRetry={onRetry}
-                retrying={retrying}
-            />
-            {expandPlacement === "before-options" ? expandButton : null}
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={t("entityUi.driveExplorer.viewOptions")}
-                        title={t("entityUi.driveExplorer.viewOptions")}
-                        className={ROW_ICON_BTN}
-                    >
-                        <Sliders size={15} />
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="min-w-[220px]">
-                    <DriveViewOptionItems
-                        copyText={copyText}
-                        ids={ids}
-                        showOrigin={showOrigin}
-                        showTemporary={showTemporary}
-                        onToggleTemporary={onToggleTemporary}
-                        showHidden={showHidden}
-                        onToggleHidden={onToggleHidden}
-                        inGitScope={inGitScope}
-                        showGitignored={showGitignored}
-                        onToggleGitignored={onToggleGitignored}
+        // The pane header the Configuration pane draws: Widen and Close keep their place across
+        // contents. Back's icon sits on the pane's 16 px line.
+        <PaneHeader
+            className="gap-1 pl-2.25"
+            onWiden={
+                panel && onToggleExpand
+                    ? {wide: Boolean(expanded), onToggle: onToggleExpand}
+                    : undefined
+            }
+            onClose={panel ? onClose : undefined}
+            actions={
+                <>
+                    <DrivePartialError
+                        partialErrored={partialErrored}
+                        onRetry={onRetry}
+                        retrying={retrying}
                     />
-                </DropdownMenuContent>
-            </DropdownMenu>
-            <Tooltip
-                title={
-                    treeVisible
-                        ? t("entityUi.driveExplorer.hideFileTree")
-                        : t("entityUi.driveExplorer.showFileTree")
-                }
-            >
-                <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={t("entityUi.driveExplorer.showFileTree")}
-                    aria-pressed={treeVisible}
-                    onClick={onToggleTree}
-                    className={treeVisible ? ROW_ICON_BTN_ON : ROW_ICON_BTN}
-                >
-                    {/* The app's sidebar glyph (the nav toggle's), as is — the panel it shows is
-                        the idea, not which edge the tree docks on. */}
-                    <Sidebar size={16} weight={treeVisible ? "fill" : "regular"} />
-                </Button>
-            </Tooltip>
-            {onClose && closeVariant === "collapse" ? (
-                <Tooltip
-                    title={
-                        <span className="flex items-center gap-1.5">
-                            {t("entityUi.driveExplorer.collapseFiles")}{" "}
-                            <ShortcutKeys id="panel.files" tone="inverse" />
+                    {expandPlacement === "before-options" && !panel ? expandButton : null}
+                    <Tooltip title={t("entityUi.driveExplorer.viewOptions")}>
+                        <span className="inline-flex">
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        aria-label={t("entityUi.driveExplorer.viewOptions")}
+                                        className={ROW_ICON_BTN}
+                                    >
+                                        <FunnelSimple size={14} />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="min-w-55">
+                                    <DriveViewOptionItems
+                                        copyText={copyText}
+                                        ids={ids}
+                                        showOrigin={showOrigin}
+                                        showTemporary={showTemporary}
+                                        onToggleTemporary={onToggleTemporary}
+                                        showHidden={showHidden}
+                                        onToggleHidden={onToggleHidden}
+                                        inGitScope={inGitScope}
+                                        showGitignored={showGitignored}
+                                        onToggleGitignored={onToggleGitignored}
+                                    />
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         </span>
-                    }
+                    </Tooltip>
+                    <Tooltip
+                        title={
+                            treeVisible
+                                ? t("entityUi.driveExplorer.hideFileTree")
+                                : t("entityUi.driveExplorer.showFileTree")
+                        }
+                    >
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={t("entityUi.driveExplorer.showFileTree")}
+                            aria-pressed={treeVisible}
+                            onClick={onToggleTree}
+                            className={treeVisible ? ROW_ICON_BTN_ON : ROW_ICON_BTN}
+                        >
+                            <Sidebar size={14} weight={treeVisible ? "fill" : "regular"} />
+                        </Button>
+                    </Tooltip>
+                    {onClose && closeVariant === "collapse" ? (
+                        <Tooltip
+                            title={
+                                <span className="flex items-center gap-1.5">
+                                    {t("entityUi.driveExplorer.collapseFiles")}{" "}
+                                    <ShortcutKeys id="panel.files" tone="inverse" />
+                                </span>
+                            }
+                        >
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-keyshortcuts={shortcutAria("panel.files")}
+                                aria-label={t("entityUi.driveExplorer.collapseFilesPane")}
+                                onClick={onClose}
+                                className={ROW_ICON_BTN}
+                            >
+                                <CaretDoubleRight size={14} />
+                            </Button>
+                        </Tooltip>
+                    ) : null}
+                </>
+            }
+        >
+            <div className="flex min-w-0 flex-1 items-center gap-1">
+                {onClose && closeVariant === "close" ? (
+                    <Tooltip title={t("entityUi.driveExplorer.close")}>
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={t("entityUi.driveExplorer.close")}
+                            onClick={onClose}
+                            className={ROW_ICON_BTN}
+                        >
+                            <X size={14} />
+                        </Button>
+                    </Tooltip>
+                ) : null}
+                {expandPlacement === "leading" ? expandButton : null}
+                <Tooltip
+                    title={t("entityUi.driveExplorer.back")}
+                    shortcut={backShortcut ? shortcutFaces(backShortcut) : undefined}
                 >
                     <Button
                         variant="ghost"
                         size="icon-sm"
-                        aria-keyshortcuts={shortcutAria("panel.files")}
-                        aria-label={t("entityUi.driveExplorer.collapseFilesPane")}
-                        onClick={onClose}
+                        aria-label={t("entityUi.driveExplorer.back")}
+                        aria-keyshortcuts={shortcutAria("drive.back")}
+                        disabled={!canGoBack}
+                        onClick={onBack}
                         className={ROW_ICON_BTN}
                     >
-                        <CaretDoubleRight size={15} />
+                        <CaretLeft size={14} />
                     </Button>
                 </Tooltip>
-            ) : null}
-        </div>
+                <Tooltip
+                    title={t("entityUi.driveExplorer.forward")}
+                    shortcut={forwardShortcut ? shortcutFaces(forwardShortcut) : undefined}
+                >
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={t("entityUi.driveExplorer.forward")}
+                        aria-keyshortcuts={shortcutAria("drive.forward")}
+                        disabled={!canGoForward}
+                        onClick={onForward}
+                        className={ROW_ICON_BTN}
+                    >
+                        <CaretRight size={14} />
+                    </Button>
+                </Tooltip>
+                {/* The crumb takes the row's slack and scrolls sideways when a deep path outgrows it. */}
+                <div className="ml-1 flex min-w-0 flex-1 items-center">
+                    <DriveBreadcrumb
+                        variant="icons"
+                        shown={selectedPath ?? ""}
+                        rootLabel={rootLabel}
+                        isFile={!isFolder}
+                        onNavigate={onNavigate}
+                    />
+                </div>
+            </div>
+        </PaneHeader>
     )
 }
 
@@ -344,10 +369,10 @@ const DriveViewOptionItems = ({
                 >
                     <Copy />
                     <span className="flex flex-col gap-0.5 py-0.5">
-                        <span className="text-xs font-medium">
+                        <span className="text-label">
                             {t("entityUi.driveExplorer.copyLabel", {label: id.label})}
                         </span>
-                        <span className="font-mono text-[12px] text-colorTextTertiary">
+                        <span className="font-mono text-meta text-muted-foreground">
                             {id.value}
                         </span>
                     </span>
@@ -399,7 +424,7 @@ export const DrivePartialError = ({
     return (
         <Tooltip title={t("entityUi.driveExplorer.someFilesFailed")}>
             <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
-                <WarningCircle size={14} weight="fill" className="shrink-0 text-colorWarning" />
+                <WarningCircle size={14} weight="fill" className="shrink-0 text-warning" />
                 <DriveRetryButton onRetry={onRetry} busy={retrying} />
             </span>
         </Tooltip>

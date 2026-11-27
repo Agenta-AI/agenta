@@ -20,7 +20,7 @@
     margin: auto;
     width: 3px;
     height: 28px;
-    background: var(--ag-colorBorder); /* AntD table border color */
+    background: var(--border); /* AntD table border color */
     border-radius: 2px;
 }
 

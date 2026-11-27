@@ -69,7 +69,7 @@ export const AgentFilesCard = ({appId}: {appId: string}) => {
             title={t("entityUi.agentOverview.files")}
             titleExtra={
                 total ? (
-                    <span className="shrink-0 text-xs text-colorTextTertiary">
+                    <span className="shrink-0 text-meta text-muted-foreground">
                         {files.data?.totalCapped
                             ? t("entityUi.agentOverview.filesCountCapped", {count: total})
                             : t("entityUi.agentOverview.filesCount", {count: total})}
@@ -99,7 +99,7 @@ export const AgentFilesCard = ({appId}: {appId: string}) => {
                     <SkeletonBlock active className="h-4 w-2/3" />
                 </div>
             ) : rows.length === 0 ? (
-                <p className="m-0 px-2 py-3 text-xs text-colorTextTertiary">
+                <p className="m-0 px-2 py-3 text-meta text-muted-foreground">
                     {mountId
                         ? t("entityUi.agentOverview.noFilesYet")
                         : t("entityUi.agentOverview.noDriveYet")}
@@ -123,17 +123,17 @@ export const AgentFilesCard = ({appId}: {appId: string}) => {
                                 setOpenPath(`${AGENT_FILES_DIR}/${file.path}`)
                                 setOpen(true)
                             }}
-                            className="group box-border flex w-full cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-2 py-2.5 text-left hover:bg-colorFillQuaternary"
+                            className="group box-border flex w-full cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-2 py-2.5 text-left hover:bg-accent"
                         >
                             {file.is_folder ? (
-                                <FolderIcon size={14} className="shrink-0 text-colorTextTertiary" />
+                                <FolderIcon size={14} className="shrink-0 text-muted-foreground" />
                             ) : (
-                                <FileIcon size={14} className="shrink-0 text-colorTextTertiary" />
+                                <FileIcon size={14} className="shrink-0 text-muted-foreground" />
                             )}
                             <TooltipProvider delayDuration={600}>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <span className="min-w-0 flex-1 truncate text-sm text-colorText">
+                                        <span className="min-w-0 flex-1 truncate text-label text-foreground">
                                             {name}
                                         </span>
                                     </TooltipTrigger>
@@ -141,12 +141,12 @@ export const AgentFilesCard = ({appId}: {appId: string}) => {
                                 </Tooltip>
                             </TooltipProvider>
                             {/* Fixed column: shrink-to-fit left "1.3 KB" and "293 B" without a shared edge. */}
-                            <span className="w-16 shrink-0 text-right text-xs text-colorTextTertiary">
+                            <span className="w-16 shrink-0 text-right text-meta text-muted-foreground">
                                 {detail}
                             </span>
                             {/* Hidden below `sm`: it left the filename ~11 characters. */}
                             {file.mtime ? (
-                                <span className="hidden w-14 shrink-0 text-right text-xs text-colorTextTertiary sm:block">
+                                <span className="hidden w-14 shrink-0 text-right text-meta text-muted-foreground sm:block">
                                     {timeAgo(file.mtime)}
                                 </span>
                             ) : null}

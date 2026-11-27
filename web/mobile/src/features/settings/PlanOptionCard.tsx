@@ -42,7 +42,7 @@ export const PlanOptionCard = ({
     const action = isCurrent ? (
         <span
             className={cn(
-                "flex h-[34px] items-center justify-center rounded-lg border border-dashed text-sm",
+                "flex h-control items-center justify-center rounded-md border border-dashed text-label",
                 recommended ? "border-background/25 dark:border-border" : "border-border",
                 muted,
             )}
@@ -52,7 +52,7 @@ export const PlanOptionCard = ({
     ) : plan.type === "custom" || amount == null ? (
         <Button
             variant="outline"
-            className="h-[34px] w-full"
+            className="w-full"
             disabled={busy}
             onClick={() => window.open(CONTACT_URL, "_blank")}
         >
@@ -60,12 +60,8 @@ export const PlanOptionCard = ({
         </Button>
     ) : (
         <Button
-            variant={recommended ? "default" : "outline"}
-            className={cn(
-                "h-[34px] w-full",
-                recommended &&
-                    "bg-hero-action text-hero-action-foreground hover:bg-hero-action-hover",
-            )}
+            variant={recommended ? "brand" : "outline"}
+            className="w-full"
             disabled={busy || pending || isCurrentPlanCustom}
             onClick={onSelect}
         >
@@ -80,19 +76,19 @@ export const PlanOptionCard = ({
     return (
         <section
             className={cn(
-                "box-border flex min-h-0 flex-col rounded-[14px] p-4",
+                "box-border flex min-h-0 flex-col rounded-lg p-4",
                 recommended
-                    ? "bg-foreground text-background dark:bg-accent dark:text-foreground dark:ring-1 dark:ring-hero-action/60"
+                    ? "bg-foreground text-background dark:bg-accent dark:text-foreground dark:ring-1 dark:ring-brand/60"
                     : "bg-card text-card-foreground border border-solid",
-                !recommended && (isCurrent ? "border-foreground border-[1.5px]" : "border-border"),
+                !recommended && (isCurrent ? "border-foreground border" : "border-border"),
             )}
         >
-            <div className="flex min-h-[22px] items-center justify-between gap-2">
+            <div className="flex min-h-5.5 items-center justify-between gap-2">
                 <span className="font-medium">{plan.title}</span>
                 {isCurrent ? (
                     <span
                         className={cn(
-                            "rounded-full px-2 text-[11px] font-medium leading-5",
+                            "rounded-sm px-2 text-caption leading-5",
                             recommended
                                 ? "bg-background text-foreground"
                                 : "bg-foreground text-background",
@@ -101,17 +97,17 @@ export const PlanOptionCard = ({
                         {t("billing.planOptionCard.current")}
                     </span>
                 ) : recommended ? (
-                    <span className="bg-hero-action text-hero-action-foreground rounded-full px-2 text-[11px] font-medium leading-5">
+                    <span className="bg-brand text-brand-foreground rounded-sm px-2 text-caption leading-5">
                         {t("billing.planOptionCard.recommended")}
                     </span>
                 ) : null}
             </div>
             <div className="mt-3 flex items-baseline gap-1.5 whitespace-nowrap">
-                <span className="text-[28px] font-semibold leading-[34px] tracking-[-0.02em]">
+                <span className="text-heading">
                     {amount == null ? t("billing.planOptionCard.custom") : `$${amount}`}
                 </span>
                 {amount == null ? null : (
-                    <span className={cn("text-[13px]", muted)}>
+                    <span className={cn("text-label", muted)}>
                         {amount === 0
                             ? t("billing.planOptionCard.freeForever")
                             : plan.price?.base?.starting_at
@@ -123,27 +119,21 @@ export const PlanOptionCard = ({
             {credits ? (
                 <span
                     className={cn(
-                        "mt-3 flex items-center gap-2 rounded-[10px] px-2.5 py-2 text-[13px] font-medium",
-                        recommended ? "bg-hero-action/15" : "bg-muted",
+                        "mt-3 flex items-center gap-2 rounded-md px-2.5 py-2 text-label",
+                        recommended ? "bg-brand/15" : "bg-secondary",
                     )}
                 >
-                    <Coins size={15} className={recommended ? "text-hero-action" : muted} />
+                    <Coins size={16} className={muted} />
                     {credits}
                 </span>
             ) : null}
-            <span className={cn("mb-2 mt-3.5 min-h-4 text-xs", muted)}>
+            <span className={cn("mb-2 mt-3 min-h-4 text-meta", muted)}>
                 {lead ?? (plan.description || t("billing.planOptionCard.whatYouGet"))}
             </span>
-            <ul className="m-0 mb-4 flex min-h-0 flex-1 list-none flex-col gap-2 p-0 lg:overflow-y-auto">
+            <ul className="m-0 mb-4 flex flex-1 list-none flex-col gap-2 p-0">
                 {items.map((feature) => (
-                    <li key={feature} className="flex gap-2 text-[13px] leading-[18px]">
-                        <Check
-                            size={13}
-                            className={cn(
-                                "mt-0.5 shrink-0",
-                                recommended ? "text-hero-action" : "text-success",
-                            )}
-                        />
+                    <li key={feature} className="flex gap-2 text-label">
+                        <Check size={14} className={cn("mt-0.5 shrink-0", muted)} />
                         {feature}
                     </li>
                 ))}

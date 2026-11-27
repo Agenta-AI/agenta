@@ -87,27 +87,27 @@ const PricingCard = ({
     )
 
     return (
-        <div className="flex w-full flex-col rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer md:min-w-0 md:flex-1">
-            <div className="border-0 border-b border-solid border-colorBorderSecondary p-3 font-medium text-colorText">
+        <div className="flex w-full flex-col rounded-lg border border-solid border-border-muted bg-background md:min-w-0 md:flex-1">
+            <div className="border-0 border-b border-solid border-border-muted p-3 font-medium text-foreground">
                 {plan.title}
             </div>
 
             <div className="flex flex-1 flex-col gap-1 p-3">
-                <span className="text-base font-bold text-colorText">{formatPrice(plan)}</span>
-                <span className="text-xs font-medium text-colorText">{plan.description}</span>
+                <span className="text-label font-semibold text-foreground">
+                    {formatPrice(plan)}
+                </span>
+                <span className="text-label text-foreground">{plan.description}</span>
 
                 <ul className="mt-2 list-disc pl-4">
                     {plan.features?.map((feature, index) => (
-                        <li className="text-colorTextSecondary" key={index}>
+                        <li className="text-muted-foreground" key={index}>
                             {feature}
                         </li>
                     ))}
                 </ul>
             </div>
 
-            <div className="border-0 border-t border-solid border-colorBorderSecondary p-3">
-                {action}
-            </div>
+            <div className="border-0 border-t border-solid border-border-muted p-3">{action}</div>
         </div>
     )
 }
@@ -116,7 +116,7 @@ export const PricingPlans = ({plans, loading = false, ...cardProps}: PricingPlan
     const t = useT(billingPageCatalog, commonCatalog)
     if (loading) {
         return (
-            <div className="flex h-[400px] w-full items-center justify-center">
+            <div className="flex h-100 w-full items-center justify-center">
                 <Spinner />
             </div>
         )
@@ -124,7 +124,7 @@ export const PricingPlans = ({plans, loading = false, ...cardProps}: PricingPlan
 
     return (
         <section className="mx-auto mt-4 flex flex-col gap-2">
-            <span className="font-medium text-colorText">{t("billing.page.choosePlan")}</span>
+            <span className="font-medium text-foreground">{t("billing.page.choosePlan")}</span>
             <div className="flex flex-col gap-4 md:flex-row">
                 {plans?.map((plan) => (
                     <PricingCard key={plan.title} plan={plan} {...cardProps} />

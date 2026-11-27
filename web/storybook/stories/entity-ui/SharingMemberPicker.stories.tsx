@@ -44,7 +44,6 @@ function Picker({
         <div className="w-[480px] max-w-full">
             <MemberPicker
                 mode={mode}
-                projectName="Acme support"
                 members={members}
                 search={search}
                 onSearch={setSearch}

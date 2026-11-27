@@ -84,7 +84,7 @@ describe("PreferencesPage", () => {
     it("shows Feature Flags then Debugging, in the shared order", () => {
         renderBound()
         expect(structure()).toEqual([
-            {title: "Feature Flags", rows: ["Developer Mode", "Use new beta developer mode"]},
+            {title: "Feature flags", rows: ["Developer mode", "Use new beta developer mode"]},
             {
                 title: "Debugging",
                 rows: ["Playground inspector", "Channel debug", "Agenta channel probe"],
@@ -164,7 +164,7 @@ describe("beta developer mode on the desktop", () => {
         localStorage.setItem("agenta:settings:u1:beta-developer-mode", "true")
         renderBound({developerMode: true})
         expect(betaSwitch()).toBeNull()
-        expect(host.querySelector('[role=switch][aria-label="Developer Mode"]')).not.toBeNull()
+        expect(host.querySelector('[role=switch][aria-label="Developer mode"]')).not.toBeNull()
     })
 
     it("shows only while Developer Mode is on", () => {
@@ -172,7 +172,7 @@ describe("beta developer mode on the desktop", () => {
         expect(betaSwitch()).toBeNull()
 
         const developerMode = host.querySelector<HTMLButtonElement>(
-            '[role=switch][aria-label="Developer Mode"]',
+            '[role=switch][aria-label="Developer mode"]',
         )!
         act(() => developerMode.click())
         expect(betaSwitch()).not.toBeNull()

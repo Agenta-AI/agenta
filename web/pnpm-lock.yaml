@@ -511,9 +511,6 @@ importers:
       jotai-tanstack-query:
         specifier: ^0.11.0
         version: 0.11.0(@tanstack/query-core@5.100.9)(@tanstack/react-query@5.100.9(react@19.2.6))(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))(react@19.2.6)
-      lucide-react:
-        specifier: ^0.479.0
-        version: 0.479.0(react@19.2.6)
       motion:
         specifier: ^12.0.0
         version: 12.38.0(@emotion/is-prop-valid@0.7.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -1204,9 +1201,6 @@ importers:
       '@phosphor-icons/react':
         specifier: ^2.1.10
         version: 2.1.10(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      lucide-react:
-        specifier: ^0.475.0
-        version: 0.475.0(react@19.2.6)
     devDependencies:
       '@tanstack/react-query':
         specifier: 5.100.9
@@ -1534,9 +1528,6 @@ importers:
       js-yaml:
         specifier: 4.3.2
         version: 4.3.2
-      lucide-react:
-        specifier: ^0.479.0
-        version: 0.479.0(react@19.2.6)
       motion:
         specifier: ^12.0.0
         version: 12.38.0(@emotion/is-prop-valid@0.7.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -1807,6 +1798,12 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      lucide-react:
+        specifier: ^0.479.0
+        version: 0.479.0(react@19.2.6)
+      motion:
+        specifier: ^12.0.0
+        version: 12.38.0(@emotion/is-prop-valid@0.7.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
     devDependencies:
       '@types/node':
         specifier: ^20.19.20
@@ -1917,9 +1914,6 @@ importers:
       json5:
         specifier: ^2.2.3
         version: 2.2.3
-      lucide-react:
-        specifier: ^0.479.0
-        version: 0.479.0(react@19.2.6)
       papaparse:
         specifier: ^5.5.3
         version: 5.5.3
@@ -2663,9 +2657,6 @@ importers:
       lexical:
         specifier: ^0.46.0
         version: 0.46.0(typescript@5.9.3)
-      lucide-react:
-        specifier: ^0.479.0
-        version: 0.479.0(react@19.2.6)
       marked:
         specifier: ^17.0.4
         version: 17.0.6
@@ -2766,6 +2757,9 @@ importers:
       '@agenta/entity-ui':
         specifier: workspace:*
         version: link:../packages/agenta-entity-ui
+      '@agenta/navigation':
+        specifier: workspace:*
+        version: link:../packages/agenta-navigation
       '@agenta/navigation-ui':
         specifier: workspace:*
         version: link:../packages/agenta-navigation-ui
@@ -2796,9 +2790,6 @@ importers:
       '@phosphor-icons/react':
         specifier: ^2.1.10
         version: 2.1.10(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      lucide-react:
-        specifier: ^0.479.0
-        version: 0.479.0(react@19.2.6)
       next:
         specifier: 15.5.29
         version: 15.5.29(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.60.0)(@types/node@20.19.39)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -10188,11 +10179,6 @@ packages:
 
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
-
-  lucide-react@0.475.0:
-    resolution: {integrity: sha512-NJzvVu1HwFVeZ+Gwq2q00KygM1aBhy/ZrhY9FsAgJtpB+E4R7uxRk9M2iKvHa6/vNxZydIB59htha4c2vvwvVg==}
-    peerDependencies:
-      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
   lucide-react@0.479.0:
     resolution: {integrity: sha512-aBhNnveRhorBOK7uA4gDjgaf+YlHMdMhQ/3cupk6exM10hWlEU+2QtWYOfhXhjAsmdb6LeKR+NZnow4UxRRiTQ==}
@@ -20949,10 +20935,6 @@ snapshots:
   lru-cache@5.1.1:
     dependencies:
       yallist: 3.1.1
-
-  lucide-react@0.475.0(react@19.2.6):
-    dependencies:
-      react: 19.2.6
 
   lucide-react@0.479.0(react@19.2.6):
     dependencies:

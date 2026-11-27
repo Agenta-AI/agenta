@@ -108,13 +108,13 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
         >
             <div className="flex flex-col gap-2">
                 {/* Field Tags Display */}
-                <div className="flex flex-wrap items-center gap-1.5 px-2 py-1.5 rounded-md border border-solid border-[var(--ant-color-border)] bg-[var(--ant-color-bg-container)] min-h-[32px]">
+                <div className="flex flex-wrap items-center gap-1.5 px-2 py-1.5 rounded-md border border-solid border-border bg-background min-h-8">
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <Tag
                                     tone="success"
-                                    className="font-mono text-xs m-0 leading-tight py-0.5 px-1.5"
+                                    className=" text-code-sm m-0 leading-tight py-0.5 px-1.5"
                                 >
                                     aggregate_score
                                 </Tag>
@@ -128,7 +128,7 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                     {fields.map((field) => (
                         <Badge
                             key={field}
-                            className="flex items-center font-mono text-xs m-0 leading-tight py-0.5 px-1.5"
+                            className="flex items-center text-code-sm m-0 leading-tight py-0.5 px-1.5"
                         >
                             {field}
                             {!disabled && (
@@ -144,7 +144,7 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                                             handleRemoveField(field)
                                         }
                                     }}
-                                    className="-ml-px inline-flex cursor-pointer text-colorIcon hover:text-colorText"
+                                    className="-ml-px inline-flex cursor-pointer text-muted-foreground hover:text-foreground"
                                 >
                                     <X size={10} />
                                 </span>
@@ -153,7 +153,7 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                     ))}
 
                     {fields.length === 0 && (
-                        <span className="text-[var(--ant-color-text-secondary)] text-xs">
+                        <span className="text-muted-foreground text-meta">
                             {t("entityUi.schemaControls.addFieldsToCompare")}
                         </span>
                     )}
@@ -174,7 +174,7 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                                 <TooltipProvider>
                                     <Tooltip>
                                         <TooltipTrigger asChild>
-                                            <span className="font-sans text-xs text-colorTextDescription">
+                                            <span className="font-sans text-meta text-muted-foreground">
                                                 ?
                                             </span>
                                         </TooltipTrigger>
@@ -199,7 +199,7 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
 
                 {/* Helper text + Detect from testcase button */}
                 <div className="flex items-start justify-between gap-3">
-                    <span className="text-xs pt-0.5 text-colorTextDescription">
+                    <span className="text-meta pt-0.5 text-muted-foreground">
                         {t("entityUi.schemaControls.fieldColumnHint")}
                     </span>
                     {!disabled && detectFieldsFromTestcase && (
@@ -208,7 +208,7 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                             variant="outline"
                             onClick={handleDetectFromTestcase}
                             disabled={!hasTestcaseData}
-                            className="shrink-0 text-xs"
+                            className="shrink-0 text-meta"
                         >
                             <MagnifyingGlass size={12} />
                             {t("entityUi.schemaControls.detectFromTestcase")}

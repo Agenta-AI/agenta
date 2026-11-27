@@ -166,7 +166,7 @@ export const MembersPage = ({
                                             />
                                         ) : null}
                                     </div>
-                                    <span className="truncate text-[12.5px] text-muted-foreground">
+                                    <span className="truncate text-label text-muted-foreground">
                                         {record.user?.email}
                                     </span>
                                 </div>

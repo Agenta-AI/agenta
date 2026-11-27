@@ -68,7 +68,7 @@ function CodeEditor({
                         : (nextValue) => onChange(parseCodeEditorValue(nextValue, value, viewMode))
                 }
                 editorType="border"
-                className="min-h-[60px] overflow-hidden"
+                className="min-h-15 overflow-hidden"
                 disableDebounce
                 noProvider
                 disabled={readOnly}
@@ -189,7 +189,7 @@ export function TestcaseDrillInFieldRenderer({
 
     if (isRawMode) {
         return (
-            <pre className="text-xs font-mono whitespace-pre-wrap break-words m-0 p-3 bg-gray-50 rounded-md max-h-[200px] overflow-auto">
+            <pre className="text-code-sm whitespace-pre-wrap break-words m-0 p-3 bg-muted rounded-md max-h-50 overflow-auto">
                 {displayValue}
             </pre>
         )

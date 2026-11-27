@@ -27,7 +27,7 @@ export const ConfigJsonDisclosure = ({
                 aria-expanded={open}
                 aria-controls={open ? id : undefined}
                 onClick={() => setOpen((current) => !current)}
-                className="m-0 inline-flex cursor-pointer items-center gap-1 self-start border-0 bg-transparent p-0 text-sm font-medium text-muted-foreground hover:text-foreground"
+                className="m-0 inline-flex cursor-pointer items-center gap-1 self-start border-0 bg-transparent p-0 text-label text-muted-foreground hover:text-foreground"
             >
                 {open ? <CaretDownIcon aria-hidden /> : <CaretRightIcon aria-hidden />}
                 JSON

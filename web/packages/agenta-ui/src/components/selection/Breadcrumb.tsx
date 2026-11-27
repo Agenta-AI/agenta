@@ -19,7 +19,7 @@ import React from "react"
 
 import {useT} from "@agenta/i18n"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
-import {Home} from "lucide-react"
+import {HouseIcon} from "@phosphor-icons/react"
 
 import {
     Breadcrumb as BreadcrumbRoot,
@@ -98,7 +98,7 @@ export function Breadcrumb({
                     tabIndex={0}
                     onKeyPress={(e) => e.key === "Enter" && onNavigate(0)}
                 >
-                    {showHomeIcon && <Home className="w-3 h-3 mr-1 inline" />}
+                    {showHomeIcon && <HouseIcon className="w-3 h-3 mr-1 inline" />}
                     {rootLabel}
                 </span>
             ),

@@ -8,5 +8,6 @@
     "eventAutomation": "イベント自動化",
     "onEvent": "イベント時",
     "firesOn": "{{eventKey}} で実行",
-    "firesWhenEventArrives": "イベントの到着時に実行"
+    "firesWhenEventArrives": "イベントの到着時に実行",
+    "mcpCount_other": "{{count}} 個の MCP サーバー"
 }

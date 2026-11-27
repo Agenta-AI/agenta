@@ -76,14 +76,20 @@ vi.mock("@agenta/entity-ui/gatewayTrigger", async () => ({
     buildTriggerReferences: () => ({}),
 }))
 vi.mock("@agenta/ui/app-message", () => ({message: {success: vi.fn(), error: vi.fn()}}))
-vi.mock("@agenta/ui/drawer", () => ({
-    EnhancedDrawer: ({children, footer}: {children: ReactNode; footer?: ReactNode}) =>
-        createElement("div", null, children, footer),
-}))
 vi.mock("@agenta/ui/ui", () => {
     const button = ({children, onClick}: {children: ReactNode; onClick?: () => void}) =>
         createElement("button", {type: "button", onClick}, children)
-    return {Button: button, LoadingButton: button}
+    const part = ({children}: {children?: ReactNode}) => createElement("div", null, children)
+    return {
+        Button: button,
+        LoadingButton: button,
+        Sheet: part,
+        SheetContent: part,
+        SheetHeader: part,
+        SheetTitle: part,
+        SheetFooter: part,
+        cn: (...classes: unknown[]) => classes.filter(Boolean).join(" "),
+    }
 })
 // The form and the edit side are not this file's subject.
 vi.mock("../../../packages/agenta-automation-ui/src/AutomationCreateBody", () => ({

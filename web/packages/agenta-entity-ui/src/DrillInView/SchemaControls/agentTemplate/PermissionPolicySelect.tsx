@@ -10,6 +10,7 @@ import type {ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import permissionDrawerCatalog from "@agenta/i18n/catalogs/entityUi.permissionDrawer"
 import {
+    IconTile,
     Select,
     SelectContent,
     SelectItem,
@@ -17,7 +18,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@agenta/ui/ui"
-import {CaretUpDown} from "@phosphor-icons/react"
 
 export interface PermissionPolicyOption {
     value: string
@@ -49,15 +49,12 @@ export interface PermissionPolicySelectProps {
     triggerClassName?: string
     /** Menu width override. The panel is pinned to the trigger, which wraps a compact chip's rows. */
     contentClassName?: string
-    size?: "sm" | "default"
     /** Which trigger edge the menu lines up with. A row's trailing chip opens leftward ("end"). */
     align?: "start" | "end"
-    /**
-     * The canvas trigger (F02 f6, F03 f7): no leading glyph and an up-down icon. "field" also
-     * shows the selected option's help line under its title (a 44 px field); "chip" is the 28 px
-     * per-tool control. Absent, the trigger is unchanged.
-     */
-    canvas?: "field" | "chip"
+    /** The kit compact field (32 px, up-down icon) with no leading glyph, as the account select. */
+    compact?: boolean
+    /** "filled": a muted fill and no border, for a control that repeats down a list. */
+    variant?: "default" | "filled"
 }
 
 export function PermissionPolicySelect({
@@ -71,9 +68,9 @@ export function PermissionPolicySelect({
     container,
     triggerClassName = "w-full",
     contentClassName,
-    size,
     align,
-    canvas,
+    compact,
+    variant,
 }: PermissionPolicySelectProps) {
     const t = useT(permissionDrawerCatalog)
     const selected = options.find((option) => option.value === value)
@@ -87,34 +84,15 @@ export function PermissionPolicySelect({
         >
             <SelectTrigger
                 className={triggerClassName}
-                size={size}
-                icon={
-                    canvas ? (
-                        <CaretUpDown
-                            aria-hidden
-                            size={canvas === "field" ? 14 : 12}
-                            className="ml-auto shrink-0 text-colorTextTertiary"
-                        />
-                    ) : undefined
-                }
+                size={compact ? "compact" : undefined}
+                variant={variant}
                 aria-label={ariaLabel ?? t("entityUi.permissionDrawer.permissionPolicy")}
             >
                 <SelectValue>
-                    {canvas === "field" ? (
-                        <span className="flex min-w-0 flex-col items-start text-left">
-                            <span className="max-w-full truncate leading-5">{selected?.title}</span>
-                            {selected?.help ? (
-                                <span className="max-w-full truncate text-[12px] leading-4 text-colorTextTertiary">
-                                    {selected.help}
-                                </span>
-                            ) : null}
-                        </span>
-                    ) : (
-                        <span className="flex min-w-0 items-center gap-2">
-                            {canvas ? null : selected?.icon}
-                            <span className="truncate">{selected?.title}</span>
-                        </span>
-                    )}
+                    <span className="flex min-w-0 items-center gap-2">
+                        {compact ? null : selected?.icon}
+                        <span className="truncate">{selected?.title}</span>
+                    </span>
                 </SelectValue>
             </SelectTrigger>
             <SelectContent container={container} className={contentClassName} align={align}>
@@ -125,22 +103,22 @@ export function PermissionPolicySelect({
                             value={option.value}
                             disabled={option.disabled}
                             // Neutral rows: hover and the picked row share the accent wash, and the
-                            // check alone marks the value. The check (14 px) sits on the title line;
-                            // the title is 13/400, the help 12/16 (canvas F04 f8).
-                            className="items-start px-2 py-2 data-[state=checked]:bg-transparent data-[state=checked]:font-normal data-[highlighted]:data-[state=checked]:bg-accent [&[data-highlighted]:not([data-state=checked])]:bg-accent [&>svg]:mt-[3px] [&>svg]:size-3.5 [&>svg]:text-foreground"
+                            // check alone marks the value, centred on the row like the tile.
+                            className="items-center px-2 py-1.5 data-[state=checked]:bg-transparent data-[state=checked]:font-normal data-[highlighted]:data-[state=checked]:bg-accent [&[data-highlighted]:not([data-state=checked])]:bg-accent [&>svg]:size-3.5 [&>svg]:text-foreground"
                         >
-                            <span className="flex items-start gap-2.5">
+                            <span className="flex items-center gap-3">
+                                {/* The glyph on a 32 px tile, as two-line rows draw their Mark (SPACE-04). */}
                                 {option.icon ? (
-                                    <span className="mt-[3px] flex shrink-0 text-colorTextSecondary">
+                                    <IconTile size={32} aria-hidden>
                                         {option.icon}
-                                    </span>
+                                    </IconTile>
                                 ) : null}
                                 <span className="flex min-w-0 flex-col">
-                                    <span className="whitespace-nowrap text-[13px] leading-5 max-sm:text-xs">
+                                    <span className="whitespace-nowrap text-label leading-5">
                                         {option.title}
                                     </span>
                                     {option.help ? (
-                                        <span className="text-[12px] leading-4 text-colorTextTertiary max-sm:text-[11px]">
+                                        <span className="text-meta text-muted-foreground">
                                             {option.help}
                                         </span>
                                     ) : null}

@@ -51,6 +51,7 @@ export const AutomationRunFilterMenu = ({
                 label: t("automations.editor.filterStatus"),
                 icon: <Waveform size={ICON} />,
                 value: view.status,
+                defaultValue: DEFAULT_RUN_LIST_VIEW.status,
                 options: [
                     {
                         value: "all",
@@ -80,6 +81,7 @@ export const AutomationRunFilterMenu = ({
                 label: t("automations.editor.filterType"),
                 icon: <Lightning size={ICON} />,
                 value: view.type,
+                defaultValue: DEFAULT_RUN_LIST_VIEW.type,
                 options: [
                     {
                         value: "all",
@@ -151,7 +153,6 @@ export const AutomationRunFilterMenu = ({
             // Ghost: it sits beside a heading rather than in a toolbar, and a bordered box
             // there reads as a second thing on the line with the title.
             variant="ghost"
-            active={!isDefaultRunListView(view)}
             onReset={() => onChange(DEFAULT_RUN_LIST_VIEW)}
             resetDisabled={isDefaultRunListView(view)}
         />

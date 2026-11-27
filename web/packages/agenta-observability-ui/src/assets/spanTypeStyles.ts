@@ -28,8 +28,8 @@ export const spanTypeStyles: Record<
         icon: Gear,
     },
     ["workflow"]: {
-        color: "var(--ag-colorTextSecondary)",
-        bgColor: "var(--ag-colorFillSecondary)",
+        color: "var(--muted-foreground)",
+        bgColor: "var(--secondary)",
         icon: TreeStructureIcon,
     },
     ["chain"]: {
@@ -38,8 +38,8 @@ export const spanTypeStyles: Record<
         icon: Gear,
     },
     ["task"]: {
-        bgColor: "var(--ag-zinc-2)",
-        color: "var(--ag-colorTextSecondary)",
+        bgColor: "var(--secondary)",
+        color: "var(--muted-foreground)",
         icon: TreeStructureIcon,
     },
     ["tool"]: {
@@ -79,7 +79,7 @@ export const spanTypeStyles: Record<
     },
     ["unknown"]: {
         bgColor: "var(--ag-zinc-1)",
-        color: "var(--ag-colorTextSecondary)",
+        color: "var(--muted-foreground)",
         icon: TreeStructureIcon,
     },
 }

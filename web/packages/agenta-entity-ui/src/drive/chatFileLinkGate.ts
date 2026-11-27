@@ -132,7 +132,7 @@ export const rehypeExplicitRelativeLinks = () => (tree: HastNode) => {
 }
 
 /** Harden's own class for a blocked link — the refused image wears the same one. */
-const BLOCKED_CLASS = "text-gray-500"
+const BLOCKED_CLASS = "text-muted-foreground"
 
 /**
  * Refuse an image whose target names a host the reader cannot see (#6680).

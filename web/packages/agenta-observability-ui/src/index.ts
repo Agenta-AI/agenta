@@ -33,8 +33,6 @@ export {
 // ============================================================================
 // PRIMITIVES
 // ============================================================================
-export {Chip, type ChipTone} from "./primitives/Chip"
-export {SkeletonBlock} from "./primitives/SkeletonBlock"
 export {LabelValuePill} from "./primitives/LabelValuePill"
 
 // ============================================================================

@@ -4,7 +4,9 @@ name: agenta-ee-gh
 # Requires GHCR login with a PAT that has read:packages scope :
 #   echo $GHCR_PAT | docker login ghcr.io -u <github-username> --password-stdin
 #
-# EE images are private packages hosted at ghcr.io/agenta-ai/internal-ee-agenta-*.
+# The api, services, runner and web-mobile images are the public ones
+# (ghcr.io/agenta-ai/agenta-*), the same as the OSS compose. Only the EE
+# classic web is a private package (ghcr.io/agenta-ai/internal-ee-agenta-web).
 # Set image tags via environment variables (defaults to latest):
 #   AGENTA_API_IMAGE_TAG=a1b2c3d4 docker compose --env-file ./.env.ee.gh -f docker-compose.gh.yml up
 # ================================================================== #
@@ -67,7 +69,7 @@ services:
 
     api:
         # === IMAGE ================================================ #
-        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-internal-ee-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         # A worker recycled at --max-requests finishes its open requests (an LLM gateway
         # stream can run for minutes) for --graceful-timeout seconds while the other
@@ -96,6 +98,8 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.ee.gh}
         environment:
+            # Telemetry reports how Agenta was deployed. A value from the shell or --env-file wins.
+            - AGENTA_DEPLOYMENT_METHOD=${AGENTA_DEPLOYMENT_METHOD:-compose}
             - AGENTA_SERVICES_INTERNAL_KEY=${AGENTA_SERVICES_INTERNAL_KEY:?AGENTA_SERVICES_INTERNAL_KEY is required}
             - SCRIPT_NAME=/api
             - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
@@ -143,7 +147,7 @@ services:
 
     worker-streams:
         # === IMAGE ================================================ #
-        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-internal-ee-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command:
             [
@@ -185,7 +189,7 @@ services:
 
     worker-queues:
         # === IMAGE ================================================ #
-        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-internal-ee-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command:
             [
@@ -227,7 +231,7 @@ services:
 
     cron:
         # === IMAGE ================================================ #
-        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-internal-ee-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         init: true
         command: supercronic /app/crontab
@@ -251,7 +255,7 @@ services:
 
     alembic:
         # === IMAGE ================================================ #
-        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-internal-ee-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command: sh -c "python -m ee.databases.postgres.migrations.runner"
         # === CONFIGURATION ======================================== #
@@ -272,7 +276,7 @@ services:
 
     services:
         # === IMAGE ================================================ #
-        image: ghcr.io/agenta-ai/${AGENTA_SERVICES_IMAGE_NAME:-internal-ee-agenta-services}:${AGENTA_SERVICES_IMAGE_TAG:-latest}
+        image: ghcr.io/agenta-ai/${AGENTA_SERVICES_IMAGE_NAME:-agenta-services}:${AGENTA_SERVICES_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         # --keep-alive is longer than the idle timeout of the proxy in front (Traefik keeps an
         # idle connection to the worker for 90 s). If the worker closed first, a request the
@@ -330,7 +334,7 @@ services:
 
     runner:
         # === IMAGE ================================================ #
-        image: ghcr.io/agenta-ai/${AGENTA_RUNNER_IMAGE_NAME:-internal-ee-agenta-runner}:${AGENTA_RUNNER_IMAGE_TAG:-latest}
+        image: ghcr.io/agenta-ai/${AGENTA_RUNNER_IMAGE_NAME:-agenta-runner}:${AGENTA_RUNNER_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         init: true
         extra_hosts:

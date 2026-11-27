@@ -15,10 +15,14 @@ import {
     ContextMenuSeparator,
     ContextMenuTrigger,
 } from "@agenta/ui/ui"
-import {DownloadSimple, FilePlus, FolderPlus, LinkSimple, UploadSimple} from "@phosphor-icons/react"
-
-/** A phone's menu rows are 44 px high (the tap rule); a desktop keeps the kit's 28 px rows. */
-export const PHONE_MENU_ROWS = "max-md:[&_[role^=menuitem]]:min-h-11"
+import {
+    Copy,
+    DownloadSimple,
+    FilePlus,
+    FolderPlus,
+    LinkSimple,
+    UploadSimple,
+} from "@phosphor-icons/react"
 
 // The entries are built by a plain function that menus call while rendering.
 const tNow = createT(driveExplorerCatalog, driveBrowserCatalog)
@@ -52,8 +56,6 @@ export type DriveFolderMenuEntry =
           label: string
           disabled: boolean
           onSelect?: () => void
-          /** A muted hint at the row's end (the zip badge). */
-          shortcut?: string
       }
 
 /** New folder, New file and Upload, then a separator; disabled on a read-only mount. */
@@ -94,13 +96,18 @@ export const driveFolderMenuEntries = ({
     readOnly,
 }: DriveFolderMenuProps): DriveFolderMenuEntry[] => [
     ...(readOnly ? [] : driveFolderWriteEntries(actions)),
-    {
-        key: "copy-path",
-        icon: <LinkSimple />,
-        label: tNow("entityUi.driveExplorer.copyPath"),
-        disabled: !onCopyPath,
-        onSelect: onCopyPath,
-    },
+    // The root has no path to copy: the entry is left out.
+    ...(onCopyPath
+        ? [
+              {
+                  key: "copy-path",
+                  icon: <Copy />,
+                  label: tNow("entityUi.driveExplorer.copyPath"),
+                  disabled: false,
+                  onSelect: onCopyPath,
+              },
+          ]
+        : []),
     ...(onCopyLink
         ? [
               {
@@ -120,7 +127,6 @@ export const driveFolderMenuEntries = ({
             : tNow("entityUi.driveBrowser.downloadAll"),
         disabled: !onDownloadAll || Boolean(downloadingAll),
         onSelect: onDownloadAll,
-        shortcut: ".zip",
     },
 ]
 
@@ -169,7 +175,7 @@ export const DriveFolderContextMenu = ({
                 <div {...wrapper}>{children}</div>
             </ContextMenuTrigger>
             <ContextMenuContent
-                className={`min-w-[180px] ${PHONE_MENU_ROWS}`}
+                className="min-w-45"
                 // New folder / New file open a name field; the menu must not pull focus back.
                 onCloseAutoFocus={(e) => e.preventDefault()}
             >
@@ -184,11 +190,6 @@ export const DriveFolderContextMenu = ({
                         >
                             {entry.icon}
                             {entry.label}
-                            {entry.shortcut ? (
-                                <span className="ml-auto pl-3 text-xs tracking-widest text-muted-foreground">
-                                    {entry.shortcut}
-                                </span>
-                            ) : null}
                         </ContextMenuItem>
                     ),
                 )}

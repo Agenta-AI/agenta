@@ -24,18 +24,15 @@ import agentSecretsCatalog from "@agenta/i18n/catalogs/entityUi.agentSecrets"
 import modelHarnessCatalog from "@agenta/i18n/catalogs/entityUi.modelHarness"
 import secretAttachmentCatalog from "@agenta/i18n/catalogs/entityUi.secretAttachment"
 import secretViewsCatalog from "@agenta/i18n/catalogs/entityUi.secretViews"
-import {cn} from "@agenta/ui/styles"
-import {Spinner} from "@agenta/ui/ui"
-import {LockSimple} from "@phosphor-icons/react"
+import {Plus, Vault} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {ACCOUNT_COPY} from "../../../../accounts/copy"
-import {SecretRemoveDialog} from "../../../../secret/SecretRemoveDialog"
-import {ItemRow, type ItemRowStatus} from "../ItemRow"
+import {ItemRow, ItemRowSkeleton, type ItemRowStatus} from "../ItemRow"
 import {needsSetupLabel, needsSetupReasonText} from "../needsSetupText"
 import {SectionAddButton} from "../SectionAddButton"
-import {useSectionListLayout} from "../sectionListLayout"
-import {SectionPageAction} from "../SectionPageAction"
+import {SectionEmpty} from "../SectionEmpty"
+import {RemoveFromAgentDialog} from "../views/RemoveFromAgentDialog"
 
 import type {SectionIndicatorFor, SectionResult} from "./types"
 
@@ -68,7 +65,7 @@ export const secretsSection = ({
 }: SecretsSectionParams): SectionResult =>
     Boolean(revisionId) && {
         key: "secrets",
-        icon: <LockSimple size={14} />,
+        icon: <Vault size={14} />,
         title: tNow("entityUi.secretViews.secrets"),
         summary: bindings.length
             ? tNow("entityUi.modelHarness.attachedCount", {count: bindings.length})
@@ -85,13 +82,19 @@ export const secretsSection = ({
                 onAdd={() => openAttach()}
             />
         ) : undefined,
-        pageAction: !disabled ? (
-            <SecretsPageAction
-                revisionId={revisionId ?? ""}
-                canEditSecrets={canEditSecrets}
-                onAdd={() => openAttach()}
-            />
-        ) : undefined,
+        emptyAction: !disabled
+            ? {
+                  label: tNow("entityUi.secretAttachment.attachTitle"),
+                  onClick: () => openAttach(),
+              }
+            : undefined,
+        phoneAction: !disabled
+            ? {
+                  label: tNow("entityUi.secretAttachment.attachTitle"),
+                  icon: <Plus className="size-3.5" />,
+                  onClick: () => openAttach(),
+              }
+            : undefined,
         // Closed by default (canvas S02 opens Instructions and Integrations only).
         defaultOpen: false,
         content: (
@@ -137,20 +140,6 @@ const SecretsAddButton = ({
     )
 }
 
-/** "Add" on the Configuration page: the same rule as the header "+". */
-const SecretsPageAction = ({
-    revisionId,
-    canEditSecrets,
-    onAdd,
-}: {
-    revisionId: string
-    canEditSecrets: boolean
-    onAdd: () => void
-}) => {
-    const {canChange} = useCanChange(revisionId, canEditSecrets)
-    return <SectionPageAction action="add" disabled={!canChange} onClick={onAdd} />
-}
-
 export const SecretsSectionBody = ({
     revisionId,
     bindings,
@@ -167,14 +156,14 @@ export const SecretsSectionBody = ({
     onRevisionCommitted?: (revisionId: string) => void
 }) => {
     const t = useT(agentSecretsCatalog)
-    // On the page the rows are flat in the card; a notice above them keeps off the card's edge.
-    const inset = useSectionListLayout() === "page" && bindings.length > 0
     const {namedSecrets, loading} = useVaultSecret()
     const requirements = useAtomValue(agentRequirementsAtomFamily(revisionId))
     const commit = useSetAtom(commitAgentCredentialsAtom)
     const {dirty, committed, canChange} = useCanChange(revisionId, canEditSecrets, disabled)
     // The row the dialog is for, by its variable: a commit elsewhere can reorder the list.
     const [removing, setRemoving] = useState<string | null>(null)
+    const [removePending, setRemovePending] = useState(false)
+    const [removeError, setRemoveError] = useState<string | null>(null)
 
     const namesBySlug = useMemo(
         () =>
@@ -187,7 +176,7 @@ export const SecretsSectionBody = ({
     )
 
     // The agent can change while the dialog is open (a builder edit); the dialog then says why.
-    const remove = async () => {
+    const saveWithoutRemoved = async () => {
         if (removing === null) return
         // Already gone (removed elsewhere while the dialog was open): nothing to save.
         if (!bindings.some((binding) => binding.binding.name === removing)) {
@@ -203,6 +192,25 @@ export const SecretsSectionBody = ({
         onRevisionCommitted?.(result.revisionId)
         setRemoving(null)
     }
+    // The dialog stays open with the reason when the save fails.
+    const remove = async () => {
+        if (removePending) return
+        setRemovePending(true)
+        setRemoveError(null)
+        try {
+            await saveWithoutRemoved()
+        } catch (cause) {
+            setRemoveError(
+                cause instanceof Error ? cause.message : t("entityUi.agentSecrets.unableToRemove"),
+            )
+        } finally {
+            setRemovePending(false)
+        }
+    }
+    const closeRemove = () => {
+        setRemoveError(null)
+        setRemoving(null)
+    }
 
     const notice = !canEditSecrets
         ? t("entityUi.agentSecrets.needPermission")
@@ -215,23 +223,26 @@ export const SecretsSectionBody = ({
     return (
         <div className="flex flex-col gap-2">
             {notice ? (
-                <div
-                    className={cn(
-                        "rounded-lg border border-colorBorderSecondary p-3 text-xs text-colorTextSecondary",
-                        inset && "m-3",
-                    )}
-                >
+                <div className="rounded-lg border border-border-muted p-3 text-meta text-muted-foreground">
                     {notice}
                 </div>
             ) : null}
             {loading ? (
-                <div className="flex items-center gap-2 py-3 text-xs text-colorTextSecondary">
-                    <Spinner size="small" /> {t("entityUi.agentSecrets.loadingSecrets")}
+                <div
+                    role="status"
+                    aria-busy
+                    aria-label={t("entityUi.agentSecrets.loadingSecrets")}
+                    className="flex flex-col gap-2"
+                >
+                    <ItemRowSkeleton />
                 </div>
             ) : bindings.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-colorBorderSecondary p-4 text-center text-xs text-colorTextSecondary">
+                <SectionEmpty
+                    actionDisabled={!canChange}
+                    note={t("entityUi.agentSecrets.noSecretsAttachedNote")}
+                >
                     {t("entityUi.agentSecrets.noSecretsAttached")}
-                </div>
+                </SectionEmpty>
             ) : (
                 bindings.map((binding) => {
                     const envVar = binding.binding.name
@@ -263,10 +274,8 @@ export const SecretsSectionBody = ({
                                     name: envVar,
                                     description: secretName,
                                     mono: "",
-                                    color: "",
-                                    icon: <LockSimple size={14} />,
-                                    avatarClassName:
-                                        "bg-colorFillSecondary text-colorTextSecondary",
+                                    icon: <Vault size={14} />,
+                                    avatarClassName: "bg-secondary text-muted-foreground",
                                     tags: [],
                                     typeLabel: "",
                                     subtitle: "",
@@ -280,9 +289,15 @@ export const SecretsSectionBody = ({
                     )
                 })
             )}
-            {removing !== null ? (
-                <SecretRemoveDialog onRemove={remove} onClose={() => setRemoving(null)} />
-            ) : null}
+            <RemoveFromAgentDialog
+                open={removing !== null}
+                name={removing ?? ""}
+                body={t("entityUi.agentSecrets.removeAttachmentBody")}
+                pending={removePending}
+                error={removeError}
+                onConfirm={() => void remove()}
+                onCancel={closeRemove}
+            />
         </div>
     )
 }

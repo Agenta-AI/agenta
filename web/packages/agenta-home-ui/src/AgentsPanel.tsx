@@ -95,10 +95,7 @@ export const AgentsPanel = ({
             {loading ? (
                 <div className="flex flex-col gap-2 px-4 pb-4">
                     {[0, 1, 2].map((row) => (
-                        <div
-                            key={row}
-                            className="h-12 animate-pulse rounded bg-colorFillTertiary"
-                        />
+                        <div key={row} className="h-12 animate-pulse rounded bg-secondary" />
                     ))}
                 </div>
             ) : shown.length === 0 ? (

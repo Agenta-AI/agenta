@@ -41,15 +41,14 @@ import type {QueuedMessage} from "../hooks/useAgentChatQueue"
 import {ChildUpdateNotice} from "./ChildUpdateNotice"
 
 /** The dock family's surface — same geometry as the approval and connect cards. */
-const CARD_SURFACE =
-    "rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer shadow-sm"
+const CARD_SURFACE = "rounded-lg border border-solid border-border-muted bg-background"
 
 /** Five rows at the design's 32px row height. Past that the body scrolls; the card does not grow. */
 const BODY_MAX_H = "max-h-40"
 
 /** Shared tile chrome, so the count block and the type icon read as the same object. */
 const TILE_CHROME =
-    "inline-flex h-5 shrink-0 items-center justify-center rounded border border-solid border-colorBorderSecondary"
+    "inline-flex h-5 shrink-0 items-center justify-center rounded border border-solid border-border-muted"
 const TILE = `${TILE_CHROME} w-5`
 
 /** One attachment tile: image thumbnail, else a type icon. Sized to sit inside a 32px row. */
@@ -68,7 +67,7 @@ const Attachment = ({part}: {part: FileUIPart}) => {
             role="img"
             aria-label={name}
             title={name}
-            className={`${TILE} bg-colorFillTertiary text-colorTextSecondary`}
+            className={`${TILE} bg-secondary text-muted-foreground`}
         >
             <Icon size={11} aria-hidden />
         </span>
@@ -89,7 +88,7 @@ const Attachments = ({files}: {files: FileUIPart[]}) => {
             role="img"
             aria-label={label}
             title={files.map(filePartName).join(", ")}
-            className={`${TILE} bg-colorFillTertiary text-[10px] font-medium tabular-nums text-colorTextSecondary`}
+            className={`${TILE} bg-secondary text-caption font-medium tabular-nums text-muted-foreground`}
         >
             {files.length}
         </span>
@@ -106,7 +105,7 @@ const QuoteTile = ({quotes}: {quotes: QuotedExcerpt[]}) => {
             aria-label={label}
             title={quotes.map((q) => `${q.origin}: ${truncateQuoteText(q.text, 80)}`).join("\n")}
             // Widens to fit a count.
-            className={`${TILE_CHROME} min-w-5 gap-0.5 bg-colorFillTertiary px-1 text-[10px] font-medium tabular-nums text-colorTextSecondary`}
+            className={`${TILE_CHROME} min-w-5 gap-0.5 bg-secondary px-1 text-caption font-medium tabular-nums text-muted-foreground`}
         >
             <Quotes size={11} aria-hidden />
             {quotes.length > 1 ? quotes.length : null}
@@ -149,7 +148,7 @@ const Row = ({
     return (
         <div
             className={`group flex min-h-8 flex-wrap items-center gap-1.5 rounded-lg px-2 transition-colors ${
-                editing ? "bg-colorFillTertiary" : "hover:bg-colorFillTertiary"
+                editing ? "bg-secondary" : "hover:bg-accent"
             }`}
         >
             {childUpdate ? (
@@ -165,18 +164,21 @@ const Row = ({
                 </>
             )}
             {childUpdate ? null : text ? (
-                <span title={text} className="min-w-0 flex-1 truncate text-xs text-colorText">
+                <span
+                    title={text}
+                    className="min-w-0 flex-1 truncate text-label font-normal text-foreground"
+                >
                     {text}
                 </span>
             ) : excerpt ? (
                 <span
                     title={quotes[0].text}
-                    className="min-w-0 flex-1 truncate text-xs text-colorTextSecondary"
+                    className="min-w-0 flex-1 truncate text-label font-normal text-muted-foreground"
                 >
                     {excerpt}
                 </span>
             ) : (
-                <span className="min-w-0 flex-1 truncate text-xs italic text-colorTextTertiary">
+                <span className="min-w-0 flex-1 truncate text-label font-normal italic text-muted-foreground">
                     {attachmentCount
                         ? t("chat.queuedMessagesDock.attachmentsOnly")
                         : t("chat.queuedMessagesDock.emptyMessage")}
@@ -192,9 +194,9 @@ const Row = ({
             >
                 {sendNow && message.source === "server" ? (
                     <Button
-                        size="sm"
+                        size="xs"
                         variant="ghost"
-                        className={`h-6 !text-xs text-colorTextSecondary ${touchCls}`}
+                        className={`text-muted-foreground ${touchCls}`}
                         disabled={editing || sendingThis || sendNowBlocked || !!message.saving}
                         title={
                             !sendingThis && sendNowBlocked
@@ -210,9 +212,9 @@ const Row = ({
                 ) : null}
                 {editing ? (
                     <Button
-                        size="sm"
+                        size="xs"
                         variant="ghost"
-                        className={`h-6 !text-xs text-colorTextSecondary ${touchCls}`}
+                        className={`text-muted-foreground ${touchCls}`}
                         onClick={onCancelEdit}
                     >
                         {t("chat.queuedMessagesDock.cancel")}
@@ -222,7 +224,7 @@ const Row = ({
                         size="icon-sm"
                         variant="ghost"
                         aria-label={t("chat.queuedMessagesDock.editQueued")}
-                        className={`size-6 text-colorTextTertiary hover:text-colorText ${touchCls}`}
+                        className={`size-6 text-muted-foreground hover:text-foreground ${touchCls}`}
                         // A failed edit comes back, not the text it would have replaced.
                         onClick={() =>
                             onEdit(
@@ -247,7 +249,7 @@ const Row = ({
                         variant="ghost"
                         aria-label={t("chat.queuedMessagesDock.removeQueued")}
                         disabled={!!message.saving}
-                        className={`size-6 text-colorTextTertiary hover:text-colorText ${touchCls}`}
+                        className={`size-6 text-muted-foreground hover:text-foreground ${touchCls}`}
                         onClick={() => onRemove(message.id)}
                     >
                         <Trash size={13} />
@@ -255,7 +257,7 @@ const Row = ({
                 ) : null}
             </span>
             {message.error ? (
-                <span role="alert" className="basis-full pb-1 text-xs text-colorError">
+                <span role="alert" className="basis-full pb-1 text-meta text-destructive">
                     {message.error}
                 </span>
             ) : null}
@@ -325,8 +327,8 @@ const QueuedMessagesDock = ({
             {/* px-3 so the icon starts on the same 13px line as the row text below it and the
                 composer's own text — the card reads as one left edge, not three. */}
             <div className="flex items-center gap-2 px-3 py-1.5">
-                <Stack size={14} className="shrink-0 text-colorTextTertiary" aria-hidden />
-                <span className="min-w-0 truncate text-[13px] text-colorTextSecondary">
+                <Stack size={14} className="shrink-0 text-muted-foreground" aria-hidden />
+                <span className="min-w-0 truncate text-label text-muted-foreground">
                     {t("chat.queuedMessagesDock.queuedCount", {count: queued.length})}
                     {held ? t("chat.queuedMessagesDock.waitsForAnswer") : ""}
                 </span>
@@ -337,7 +339,7 @@ const QueuedMessagesDock = ({
                     size="icon-sm"
                     variant="ghost"
                     aria-label={getCollapseLabel(collapsed)}
-                    className={`text-colorTextTertiary hover:text-colorText ${touchCls}`}
+                    className={`text-muted-foreground hover:text-foreground ${touchCls}`}
                     onClick={() => setCollapsed((c) => !c)}
                 >
                     <CaretUp
@@ -349,7 +351,7 @@ const QueuedMessagesDock = ({
                 </Button>
             </div>
             {editingMissingRow ? (
-                <div className="flex items-center gap-2 px-3 pb-2 text-xs text-colorTextSecondary">
+                <div className="flex items-center gap-2 px-3 pb-2 text-meta text-muted-foreground">
                     <span className="flex-1">{t("chat.queuedMessagesDock.noLongerQueued")}</span>
                     <Button size="sm" variant="ghost" onClick={onCancelEdit}>
                         {t("chat.queuedMessagesDock.cancelEditing")}

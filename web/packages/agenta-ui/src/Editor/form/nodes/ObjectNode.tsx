@@ -109,7 +109,7 @@ const ObjectNodeComponent: FC<ObjectNodeProps> = (props) => {
                                     aria-label={t("ui.editor.addKey")}
                                     className={clsx(
                                         styles["add-inline-btn"],
-                                        "box-border border-0 bg-transparent p-0 cursor-pointer text-colorText",
+                                        "box-border border-0 bg-transparent p-0 cursor-pointer text-foreground",
                                     )}
                                 >
                                     <Plus size={14} />
@@ -159,7 +159,7 @@ const ObjectNodeComponent: FC<ObjectNodeProps> = (props) => {
                                             <button
                                                 type="button"
                                                 aria-label={t("ui.editor.insertKeyBefore")}
-                                                className="box-border border-0 bg-transparent p-0 cursor-pointer text-colorText !mx-0"
+                                                className="box-border border-0 bg-transparent p-0 cursor-pointer text-foreground !mx-0"
                                                 onClick={() => insertKeyBefore(childKey)}
                                             >
                                                 <Plus size={14} />
@@ -173,7 +173,7 @@ const ObjectNodeComponent: FC<ObjectNodeProps> = (props) => {
                                         <button
                                             type="button"
                                             aria-label={t("ui.editor.removeKey")}
-                                            className="box-border border-0 bg-transparent p-0 cursor-pointer text-colorText"
+                                            className="box-border border-0 bg-transparent p-0 cursor-pointer text-foreground"
                                             onClick={() => removeKey(childKey as string)}
                                         >
                                             <Trash size={14} />

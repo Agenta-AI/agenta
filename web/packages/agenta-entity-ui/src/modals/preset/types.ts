@@ -2,8 +2,6 @@
  * Types for LoadEvaluatorPresetModal
  */
 
-import type {EnhancedModalProps} from "@agenta/ui/components/modal"
-
 /**
  * Evaluator preset definition
  */
@@ -16,7 +14,9 @@ export interface EvaluatorPreset {
 /**
  * Props for LoadEvaluatorPresetModal
  */
-export interface LoadEvaluatorPresetModalProps extends Omit<EnhancedModalProps, "onOk"> {
+export interface LoadEvaluatorPresetModalProps {
+    open?: boolean
+    onCancel?: () => void
     /** Available presets to choose from */
     presets: EvaluatorPreset[]
     /** Currently selected preset (for highlighting) */

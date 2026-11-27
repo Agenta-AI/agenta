@@ -5,8 +5,15 @@
     "rowActions": "行操作",
     "seePlans": "查看方案",
     "usedBy": "使用者：{{names}}",
-    "yours": "我的",
+    "yours": "个人",
     "yoursEmptyBody": "当 Agent 使用每个人自己的账号时，你在这里添加的账号会用于你的所有项目。",
     "yoursEmptyBodyCount": "当 Agent 使用每个人自己的账号时，你在这里添加的账号会用于你的全部 {{projectCount}} 个项目。",
-    "yoursEmptyTitle": "你还没有自己的账号"
+    "yoursEmptyTitle": "你还没有自己的账号",
+    "owner": "所有者",
+    "ownerAll": "全部",
+    "filterCategory": "类别",
+    "noMatchTitle": "没有匹配项",
+    "noMatchBody": "请尝试其他搜索，或重置筛选条件。",
+    "resetFilters": "重置筛选",
+    "noMatchSearchBody": "请尝试其他搜索。"
 }

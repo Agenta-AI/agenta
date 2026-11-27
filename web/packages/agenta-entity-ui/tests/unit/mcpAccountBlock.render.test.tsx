@@ -1,7 +1,7 @@
 /**
- * The Account part of an MCP server view (F03 f6, f7): the switch "Each person's own" or "One
- * shared sign-in", "Your sign-in" with the account name when the server gave one (task 39.2), and
- * the cases where the switch or the sign-in must not show.
+ * The Owner part of an MCP server view (F03 f6, f7): the switch Personal or Project, "Your sign-in"
+ * with the account name when the server gave one (task 39.2), and the cases where Personal cannot be
+ * picked or the sign-in must not show.
  */
 import {act, createElement} from "react"
 
@@ -73,6 +73,10 @@ const render = async ({
 }
 
 const text = () => document.body.textContent ?? ""
+const notes = () =>
+    [...document.querySelectorAll('[data-slot="field-help"]')].map((node) =>
+        node.getAttribute("aria-label"),
+    )
 const radio = (label: string) =>
     [...document.querySelectorAll<HTMLButtonElement>('[role="radio"]')].find((node) =>
         (node.textContent ?? "").includes(label),
@@ -94,41 +98,42 @@ afterEach(async () => {
 })
 
 describe("the account switch", () => {
-    it("offers each person's own and one shared sign-in, and writes the pick at once", async () => {
+    it("offers Personal and Project under Owner, and writes the pick at once", async () => {
         await render({source: "agent"})
-        expect(text()).toContain("Choose whose linear sign-in the agent uses")
+        expect(text()).toContain("Owner")
+        expect(notes()).toContain("Choose whose linear sign-in the agent uses")
         expect(text()).toContain("Everyone uses their own linear sign-in.")
         expect(text()).toContain("Everyone uses the sign-in of the project.")
-        expect(text()).toContain("Shared sign-in")
-        expect(text()).toContain("The project's sign-in")
-        await act(async () => radio("Each person's own")!.click())
+        expect(radio("Project")?.getAttribute("aria-checked")).toBe("true")
+        await act(async () => radio("Personal")!.click())
         expect(onChange).toHaveBeenCalledWith("user")
     })
 
-    it("is hidden with personal accounts off, for a server with no sign-in, and with no server", async () => {
+    it("shows Personal but not pickable with personal accounts off, for a server with no sign-in, and with no server", async () => {
         access.value = "off"
         await render({source: "agent"})
-        expect(radio("Each person's own")).toBeUndefined()
-        expect(text()).toContain("Shared sign-in")
+        expect(radio("Personal")?.disabled).toBe(true)
+        expect(radio("Project")?.getAttribute("aria-checked")).toBe("true")
 
         access.value = "on"
         await render({server: endpoint({auth_mode: "none"}), source: "agent"})
-        expect(radio("Each person's own")).toBeUndefined()
+        expect(radio("Personal")).toBeUndefined()
         // No sign-in, no account to name: the whole block is gone (canvas F03 f6).
         expect(host.firstChild).toBeNull()
 
-        // A saved "each person's own" on such a server still shows, so it can be changed back.
+        // A saved Personal on such a server still shows, so it can be changed back.
         await render({server: endpoint({auth_mode: "none"}), source: "user"})
-        expect(radio("Each person's own")?.getAttribute("aria-checked")).toBe("true")
+        expect(radio("Personal")?.getAttribute("aria-checked")).toBe("true")
 
         await render({server: null as unknown as MCPEndpoint, source: "agent"})
-        expect(radio("Each person's own")).toBeUndefined()
+        expect(radio("Personal")?.disabled).toBe(true)
     })
 
-    it("keeps a saved each person's own visible when personal accounts are off", async () => {
+    it("keeps a saved Personal pickable when personal accounts are off", async () => {
         access.value = "off"
         await render({source: "user"})
-        expect(radio("Each person's own")?.getAttribute("aria-checked")).toBe("true")
+        expect(radio("Personal")?.getAttribute("aria-checked")).toBe("true")
+        expect(radio("Personal")?.disabled).toBe(false)
     })
 
     it("warns about runs without a person only when the agent has them", async () => {
@@ -144,7 +149,7 @@ describe("your sign-in", () => {
     it("asks a reader who has not signed in to sign in to the server", async () => {
         await render()
         expect(text()).toContain("Your sign-in")
-        expect(text()).toContain("The linear sign-in your own runs use")
+        expect(notes()).toContain("The linear sign-in your own runs use")
         expect(text()).toContain("Not signed in yet")
         expect(text()).toContain("Sign in to linear")
     })

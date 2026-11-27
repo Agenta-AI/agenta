@@ -7,16 +7,14 @@ from uuid import uuid4
 import pytest
 from redis.asyncio import Redis
 
-from oss.src.utils.env import env
-
 from ee.src.dbs.redis.wallets.turns import RedisSessionTurnHolds, RedisTurnSlots
 
 pytestmark = pytest.mark.asyncio
 
 
 @pytest.fixture
-async def slots():
-    client = Redis.from_url(env.redis.uri_volatile, decode_responses=False)
+async def slots(volatile_redis_uri):
+    client = Redis.from_url(volatile_redis_uri, decode_responses=False)
     yield RedisTurnSlots(redis_client=client)
     await client.close()
 

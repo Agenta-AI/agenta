@@ -1,0 +1,382 @@
+import asyncio
+import json
+import warnings
+from uuid import UUID
+
+import httpx
+import pytest
+
+from oss.src.core.releases import service as releases_service
+from oss.src.core.releases.dtos import ReleaseFeed
+from oss.src.core.releases.service import (
+    FAILED_FEED_TTL_SECONDS,
+    FEED_TTL_SECONDS,
+    MAX_FEED_BYTES,
+    ReleasesService,
+)
+from oss.src.core.instances.types import InstanceMissing
+from oss.src.utils.env import ReleasesConfig, _parse_instance_kind, env
+
+INSTANCE_ID = UUID("0193b2c4-5d6e-7f80-9a1b-2c3d4e5f6a7b")
+
+FEED = {
+    "releases": [
+        {
+            "id": "v0.129.0",
+            "date": "2026-11-20",
+            "features": [],
+            "improvements": [],
+            "fixes": [],
+            "securityFix": True,
+        }
+    ],
+    "notices": [
+        {
+            "id": "trial",
+            "title": "Try Enterprise",
+            "body": "Body",
+            "link": "https://agenta.ai/pricing",
+            "severity": "info",
+        }
+    ],
+}
+
+
+class FakeCache:
+    def __init__(self, value=None):
+        self.value = value
+        self.writes = []
+
+    async def get(self, **kwargs):
+        if self.value is None:
+            return None
+        return ReleaseFeed.model_validate(self.value)
+
+    async def set(self, **kwargs):
+        self.writes.append(kwargs)
+        return True
+
+
+@pytest.fixture
+def cache(monkeypatch):
+    fake = FakeCache()
+    monkeypatch.setattr(releases_service, "get_cache", fake.get)
+    monkeypatch.setattr(releases_service, "set_cache", fake.set)
+    return fake
+
+
+@pytest.fixture
+def requests(monkeypatch):
+    """Answers the feed request with `requests.handler` and records each request."""
+
+    class Recorder(list):
+        handler = staticmethod(lambda request: httpx.Response(200, json=FEED))
+
+    recorder = Recorder()
+    real_client = httpx.AsyncClient
+
+    def handle(request):
+        recorder.append(request)
+        return recorder.handler(request)
+
+    def client(**kwargs):
+        return real_client(transport=httpx.MockTransport(handle), **kwargs)
+
+    monkeypatch.setattr(releases_service.httpx, "AsyncClient", client)
+    monkeypatch.setattr(releases_service, "get_agenta_version", lambda: "v0.128.11")
+
+    async def instance_id():
+        return INSTANCE_ID
+
+    monkeypatch.setattr(releases_service, "get_instance_id", instance_id)
+    monkeypatch.setattr(env.releases, "update_check_enabled", True)
+    # No override, not CI and a public web URL: the detected kind is "production".
+    monkeypatch.setattr(env.telemetry, "instance_kind", None)
+    monkeypatch.setattr(env.telemetry, "ci", False)
+    monkeypatch.setattr(env.agenta, "web_url", "https://agenta.example.com")
+    return recorder
+
+
+async def test_returns_the_feed_and_the_running_version(cache, requests):
+    result = await ReleasesService().fetch_instance_releases()
+
+    assert result.version == "v0.128.11"
+    assert result.releases == FEED["releases"]
+    assert result.notices == FEED["notices"]
+    assert cache.writes[0]["ttl"] == FEED_TTL_SECONDS
+    assert cache.writes[0]["namespace"] == "releases:feed"
+    assert cache.writes[0]["key"] == "https://agenta.ai/releases.json"
+
+
+async def test_request_carries_only_the_version_the_kind_and_the_instance_id(
+    cache, requests
+):
+    await ReleasesService().fetch_instance_releases()
+
+    assert len(requests) == 1
+    request = requests[0]
+    assert request.method == "GET"
+    assert str(request.url) == (
+        f"{env.releases.feed_url}?version=v0.128.11&kind=production"
+        f"&instance_id={INSTANCE_ID}"
+    )
+    assert dict(request.url.params) == {
+        "version": "v0.128.11",
+        "kind": "production",
+        "instance_id": str(INSTANCE_ID),
+    }
+    assert request.content == b""
+    sent = json.dumps(dict(request.headers)).lower()
+    assert "0.128.11" not in sent
+    assert not any(name.lower().startswith("x-") for name in request.headers)
+    assert "authorization" not in {name.lower() for name in request.headers}
+    assert "cookie" not in {name.lower() for name in request.headers}
+
+
+def test_feed_url_defaults_to_agenta_ai():
+    assert ReleasesConfig().feed_url == "https://agenta.ai/releases.json"
+
+
+@pytest.mark.parametrize("value", ["", None])
+def test_empty_feed_url_uses_the_default(monkeypatch, value):
+    if value is None:
+        monkeypatch.delenv("AGENTA_RELEASE_FEED_URL", raising=False)
+    else:
+        monkeypatch.setenv("AGENTA_RELEASE_FEED_URL", value)
+
+    assert ReleasesConfig().feed_url == "https://agenta.ai/releases.json"
+
+
+async def test_download_uses_the_configured_feed_url(cache, requests, monkeypatch):
+    preview = "https://preview.example.com/releases.json"
+    monkeypatch.setattr(env.releases, "feed_url", preview)
+
+    result = await ReleasesService().fetch_instance_releases()
+
+    assert [str(request.url) for request in requests] == [
+        f"{preview}?version=v0.128.11&kind=production&instance_id={INSTANCE_ID}"
+    ]
+    assert result.releases == FEED["releases"]
+
+
+async def test_shared_cache_is_keyed_on_the_feed_url(cache, requests, monkeypatch):
+    preview = "https://preview.example.com/releases.json"
+    monkeypatch.setattr(env.releases, "feed_url", preview)
+    keys = []
+
+    async def get(**kwargs):
+        keys.append(kwargs["key"])
+        return None
+
+    monkeypatch.setattr(releases_service, "get_cache", get)
+
+    await ReleasesService().fetch_instance_releases()
+
+    assert keys == [preview]
+    assert [write["key"] for write in cache.writes] == [preview]
+
+
+@pytest.mark.parametrize("kind", ["test", "ci", "development"])
+async def test_request_carries_the_instance_kind_override(
+    cache, requests, monkeypatch, kind
+):
+    monkeypatch.setattr(env.telemetry, "instance_kind", kind)
+
+    await ReleasesService().fetch_instance_releases()
+
+    assert requests[0].url.params["kind"] == kind
+
+
+async def test_missing_instance_id_still_checks_without_it(
+    cache, requests, monkeypatch
+):
+    async def missing():
+        raise InstanceMissing()
+
+    monkeypatch.setattr(releases_service, "get_instance_id", missing)
+
+    result = await ReleasesService().fetch_instance_releases()
+
+    assert dict(requests[0].url.params) == {
+        "version": "v0.128.11",
+        "kind": "production",
+    }
+    assert result.releases == FEED["releases"]
+
+
+async def test_slow_instance_id_still_checks_without_it(cache, requests, monkeypatch):
+    async def slow():
+        await asyncio.sleep(10)
+
+    monkeypatch.setattr(releases_service, "get_instance_id", slow)
+    monkeypatch.setattr(releases_service, "INSTANCE_ID_TIMEOUT_SECONDS", 0.05)
+
+    result = await ReleasesService().fetch_instance_releases()
+
+    assert "instance_id" not in requests[0].url.params
+    assert result.releases == FEED["releases"]
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [("test", "test"), (" TEST ", "test"), ("", None), ("staging", None)],
+)
+def test_instance_kind_override_is_parsed(monkeypatch, value, expected):
+    monkeypatch.setenv("AGENTA_TELEMETRY_INSTANCE_KIND", value)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        assert _parse_instance_kind() == expected
+
+
+@pytest.mark.parametrize("method", ["compose", "helm", None])
+async def test_returns_the_deployment_method(cache, requests, monkeypatch, method):
+    monkeypatch.setattr(env.telemetry, "deployment_method", method)
+
+    result = await ReleasesService().fetch_instance_releases()
+
+    assert result.deployment_method == method
+
+
+async def test_update_check_off_makes_no_request(cache, requests, monkeypatch):
+    monkeypatch.setattr(env.releases, "update_check_enabled", False)
+
+    async def unexpected():
+        raise AssertionError("the instance id is read only for the update check")
+
+    monkeypatch.setattr(releases_service, "get_instance_id", unexpected)
+
+    result = await ReleasesService().fetch_instance_releases()
+
+    assert requests == []
+    assert cache.writes == []
+    assert result.version == "v0.128.11"
+    assert result.releases == []
+    assert result.notices == []
+    assert result.deployment_method == env.telemetry.deployment_method
+
+
+async def test_cached_feed_makes_no_request(cache, requests):
+    cache.value = FEED
+
+    result = await ReleasesService().fetch_instance_releases()
+
+    assert requests == []
+    assert result.releases == FEED["releases"]
+
+
+@pytest.mark.parametrize(
+    "handler",
+    [
+        pytest.param(lambda request: httpx.Response(503), id="server-error"),
+        pytest.param(
+            lambda request: httpx.Response(200, content=b"<html>"), id="not-json"
+        ),
+        pytest.param(
+            lambda request: httpx.Response(200, json=["v0.129.0"]), id="not-an-object"
+        ),
+        pytest.param(
+            lambda request: httpx.Response(200, json={"releases": "v0.129.0"}),
+            id="missing-lists",
+        ),
+    ],
+)
+async def test_bad_feed_gives_an_empty_result(cache, requests, handler):
+    requests.handler = handler
+
+    result = await ReleasesService().fetch_instance_releases()
+
+    assert result.releases == []
+    assert result.notices == []
+    assert cache.writes[0]["ttl"] == FAILED_FEED_TTL_SECONDS
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        pytest.param(httpx.ConnectError("unreachable"), id="unreachable"),
+        pytest.param(httpx.ReadTimeout("slow"), id="slow"),
+    ],
+)
+async def test_unreachable_or_slow_feed_gives_an_empty_result(cache, requests, error):
+    def fail(request):
+        raise error
+
+    requests.handler = fail
+
+    result = await ReleasesService().fetch_instance_releases()
+
+    assert result.releases == []
+    assert result.notices == []
+    assert cache.writes[0]["ttl"] == FAILED_FEED_TTL_SECONDS
+
+
+async def test_request_has_a_short_timeout(cache, requests):
+    await ReleasesService().fetch_instance_releases()
+
+    timeout = requests[0].extensions["timeout"]
+    assert all(value == 5.0 for value in timeout.values())
+
+
+async def test_skips_entries_that_are_not_objects(cache, requests):
+    requests.handler = lambda request: httpx.Response(
+        200, json={"releases": [FEED["releases"][0], "bad"], "notices": [1]}
+    )
+
+    result = await ReleasesService().fetch_instance_releases()
+
+    assert result.releases == FEED["releases"]
+    assert result.notices == []
+
+
+async def test_shared_cache_off_fetches_once_per_ttl(cache, requests):
+    # FakeCache never stores, like an instance with API caching off.
+    service = ReleasesService()
+
+    await service.fetch_instance_releases()
+    result = await service.fetch_instance_releases()
+
+    assert len(requests) == 1
+    assert result.releases == FEED["releases"]
+
+
+async def test_failed_fetch_is_not_retried_on_the_next_request(cache, requests):
+    requests.handler = lambda request: httpx.Response(503)
+    service = ReleasesService()
+
+    await service.fetch_instance_releases()
+    await service.fetch_instance_releases()
+
+    assert len(requests) == 1
+
+
+async def test_concurrent_requests_share_one_fetch(cache, requests):
+    service = ReleasesService()
+
+    await asyncio.gather(*(service.fetch_instance_releases() for _ in range(5)))
+
+    assert len(requests) == 1
+
+
+async def test_too_large_feed_gives_an_empty_result(cache, requests):
+    requests.handler = lambda request: httpx.Response(
+        200, content=b" " * (MAX_FEED_BYTES + 1)
+    )
+
+    result = await ReleasesService().fetch_instance_releases()
+
+    assert result.releases == []
+    assert cache.writes[0]["ttl"] == FAILED_FEED_TTL_SECONDS
+
+
+async def test_whole_download_has_a_deadline(cache, requests, monkeypatch):
+    async def never_ends(params):
+        await asyncio.sleep(10)
+
+    monkeypatch.setattr(releases_service, "_read_feed_body", never_ends)
+    monkeypatch.setattr(releases_service, "FETCH_TIMEOUT_SECONDS", 0.05)
+
+    result = await ReleasesService().fetch_instance_releases()
+
+    assert result.releases == []
+    assert cache.writes[0]["ttl"] == FAILED_FEED_TTL_SECONDS

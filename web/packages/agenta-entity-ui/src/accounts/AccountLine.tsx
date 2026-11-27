@@ -10,7 +10,7 @@ import {Button} from "@agenta/ui/ui"
 export function AccountLine({text, children}: {text: string; children?: ReactNode}) {
     return (
         <div className="flex min-w-0 flex-wrap items-center gap-x-1.5">
-            <span className="min-w-0 text-xs text-[var(--ag-colorTextTertiary)]">{text}</span>
+            <span className="min-w-0 text-meta text-muted-foreground">{text}</span>
             {children}
         </div>
     )
@@ -21,5 +21,5 @@ export function AccountLine({text, children}: {text: string; children?: ReactNod
  * button, so it can be a menu trigger.
  */
 export function AccountLineAction(props: ComponentProps<typeof Button>) {
-    return <Button type="button" variant="link" size="xs" className="p-0 text-xs" {...props} />
+    return <Button type="button" variant="link" size="xs" className="p-0 text-meta" {...props} />
 }

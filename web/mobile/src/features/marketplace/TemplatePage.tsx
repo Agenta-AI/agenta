@@ -1,16 +1,7 @@
 import {categorySlug, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import marketplaceCatalog from "@agenta/i18n/catalogs/marketplace.page"
-import {
-    Badge,
-    Breadcrumb,
-    BreadcrumbItem,
-    BreadcrumbLink,
-    BreadcrumbList,
-    BreadcrumbPage,
-    BreadcrumbSeparator,
-    Button,
-} from "@agenta/ui/ui"
+import {BackLink, Badge, Button} from "@agenta/ui/ui"
 import {CheckIcon, LinkSimpleIcon} from "@phosphor-icons/react"
 import Link from "next/link"
 
@@ -62,26 +53,11 @@ export const TemplatePage = ({
 
     return (
         <div className="flex flex-col gap-10">
-            <div className="flex items-center justify-between gap-3">
-                <Breadcrumb>
-                    <BreadcrumbList>
-                        <BreadcrumbItem>
-                            <BreadcrumbLink asChild>
-                                <Link href={marketplaceHref}>{t("marketplace.page.title")}</Link>
-                            </BreadcrumbLink>
-                        </BreadcrumbItem>
-                        <BreadcrumbSeparator />
-                        <BreadcrumbItem>
-                            <BreadcrumbLink asChild>
-                                <Link href={categoryHref}>{categoryText(template.category)}</Link>
-                            </BreadcrumbLink>
-                        </BreadcrumbItem>
-                        <BreadcrumbSeparator />
-                        <BreadcrumbItem>
-                            <BreadcrumbPage>{template.name}</BreadcrumbPage>
-                        </BreadcrumbItem>
-                    </BreadcrumbList>
-                </Breadcrumb>
+            {/* Below lg the bar's Back names the parent, so this back link is for wide windows. */}
+            <div className="flex items-center justify-end gap-3 lg:justify-between">
+                <BackLink asChild className="max-lg:hidden">
+                    <Link href={marketplaceHref}>{t("marketplace.page.title")}</Link>
+                </BackLink>
                 {link.supported ? (
                     <Button variant="outline" size="sm" onClick={() => void link.copy()}>
                         {link.copied ? (
@@ -99,10 +75,8 @@ export const TemplatePage = ({
             <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:gap-12">
                 <div className="flex min-w-0 flex-1 flex-col">
                     <AppTileStack apps={templateProviders(template)} size="xl" />
-                    <h1 className="m-0 mt-5 text-2xl font-semibold text-foreground lg:text-[30px] lg:leading-9">
-                        {template.name}
-                    </h1>
-                    <p className="text-muted-foreground m-0 mt-2 max-w-[620px] text-[15px] leading-relaxed">
+                    <h1 className="m-0 mt-5 text-heading text-foreground">{template.name}</h1>
+                    <p className="text-muted-foreground m-0 mt-2 max-w-[620px] text-body leading-relaxed">
                         {template.description}
                     </p>
                     <div className="mt-4 flex flex-wrap gap-1.5">
@@ -116,9 +90,7 @@ export const TemplatePage = ({
                             title={t("marketplace.page.overview")}
                         >
                             {template.overview ? (
-                                <p className="m-0 text-base leading-relaxed text-foreground lg:text-lg">
-                                    {template.overview}
-                                </p>
+                                <p className="m-0 text-body text-foreground">{template.overview}</p>
                             ) : null}
                             {template.example ? <ExampleRun example={template.example} /> : null}
                             {template.instructions.trim() ? (
@@ -151,13 +123,13 @@ export const TemplatePage = ({
                                         key={step.key}
                                         className="box-border flex flex-col gap-1.5 rounded-lg border border-solid border-border bg-card p-4"
                                     >
-                                        <span className="text-muted-foreground font-mono text-xs">
+                                        <span className="text-muted-foreground text-code-sm">
                                             {String(index + 1).padStart(2, "0")}
                                         </span>
-                                        <span className="text-sm font-medium text-foreground">
+                                        <span className="text-label text-foreground">
                                             {step.title}
                                         </span>
-                                        <span className="text-muted-foreground text-xs leading-5">
+                                        <span className="text-muted-foreground text-meta">
                                             {step.text}
                                         </span>
                                     </li>
@@ -167,7 +139,7 @@ export const TemplatePage = ({
                     </div>
                 </div>
 
-                <div className="w-full lg:sticky lg:top-4 lg:w-[320px] lg:shrink-0">
+                <div className="w-full lg:sticky lg:top-4 lg:w-80 lg:shrink-0">
                     <TemplateUseCard template={template} busy={busy} onUse={onUse} />
                 </div>
             </div>

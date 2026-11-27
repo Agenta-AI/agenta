@@ -13,6 +13,10 @@ from sqlalchemy.ext.asyncio import create_async_engine
 import oss.src.dbs.redis.shared.engine as redis_engine_module
 from ee.databases.postgres.migrations.core_ee.utils import alembic_cfg
 from oss.src.utils.env import env
+from oss.tests.pytest.utils.postgres import (
+    declares_no_database,
+    skip_for_declared_absence,
+)
 
 # A skipped integration suite exits 0 and reports green, so in an environment that is
 # supposed to have the infrastructure — CI, above all — an unreachable dependency is
@@ -72,6 +76,29 @@ def _skip_when_postgres_unreachable(request):
                 env.postgres.uri_core, default_host="postgres", default_port=5432
             ),
         )
+
+
+@pytest.fixture
+def volatile_redis_uri() -> str:
+    """The volatile Redis the API reads (`REDIS_URI_VOLATILE`), for the cases that drive
+    it directly. A runner that tests a remote deployment over HTTP (the Railway job) has
+    no route to that Redis and declares it with `AGENTA_TEST_NO_DATABASE`; the cases then
+    skip with that reason. Otherwise an unreachable Redis skips or fails like Postgres."""
+    if declares_no_database():
+        skip_for_declared_absence()
+    uri = env.redis.uri_volatile
+    parsed = urlparse(uri or "")
+    try:
+        with socket.create_connection(
+            (parsed.hostname or "redis-volatile", parsed.port or 6379), timeout=0.5
+        ):
+            pass
+    except OSError:
+        _skip_or_fail(
+            dependency="Volatile Redis",
+            address=_address_of(uri, default_host="redis-volatile", default_port=6379),
+        )
+    return uri
 
 
 # --------------------------------------------------------------------------------------

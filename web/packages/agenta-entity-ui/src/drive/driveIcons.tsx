@@ -20,15 +20,15 @@ import {
     VideoCamera,
 } from "@phosphor-icons/react"
 
-/** Neutral kind tint (recolor spec): a quiet grey in light, 70% white on the dark chip. */
-const NEUTRAL_GLYPH = "text-[#616161] dark:text-[rgba(255,255,255,0.7)]"
+/** Neutral kind tint: the second text level. */
+const NEUTRAL_GLYPH = "text-muted-foreground"
 
 // One tone table for every drive glyph (this icon, the type mark, the chips).
 const TONE_TEXT: Record<DriveKindTone, string> = {
     info: NEUTRAL_GLYPH,
-    warning: "text-colorWarning",
-    success: "text-colorSuccess",
-    error: "text-colorError",
+    warning: "text-warning",
+    success: "text-success",
+    error: "text-destructive",
     neutral: NEUTRAL_GLYPH,
 }
 
@@ -64,6 +64,6 @@ export const driveFileIcon = (path: string, size = 14, colorClassName?: string) 
         case "presentation":
             return <FilePpt size={size} className={className} />
         default:
-            return <File size={size} className={colorClassName ?? "text-colorTextTertiary"} />
+            return <File size={size} className={colorClassName ?? "text-muted-foreground"} />
     }
 }

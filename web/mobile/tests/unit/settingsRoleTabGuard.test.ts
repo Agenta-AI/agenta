@@ -12,7 +12,6 @@ vi.mock("react", () => ({useMemo: (fn: () => unknown) => fn()}))
 vi.mock("next/router", () => ({useRouter: () => ({query: {}, asPath: env.path})}))
 vi.mock("@agenta/shared/api", () => ({
     isBillingEnabled: () => true,
-    isEE: () => true,
     isMcpGatewayEnabled: () => true,
     isToolsEnabled: () => true,
     isWalletsEnabled: () => false,
@@ -36,6 +35,9 @@ vi.mock("../../src/features/settings/useSettingsOrg", () => ({
         failed: false,
         retry: () => undefined,
     }),
+}))
+vi.mock("../../src/features/settings/useInstanceLicense", () => ({
+    useInstanceLicense: () => ({isInstanceAdmin: false}),
 }))
 vi.mock("../../src/features/wallet/useWalletSummary", () => ({
     useWalletSummary: () => ({data: undefined}),

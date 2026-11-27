@@ -312,7 +312,7 @@ export const useSessionActions = ({
                           },
                       ]
                     : []
-            return [
+            const head: SessionMenuEntry[] = [
                 ...open,
                 // An archived session is out of the way on purpose: renaming or pinning it would put
                 // it back in your face without unarchiving it. Unarchive first, then rename.
@@ -327,8 +327,12 @@ export const useSessionActions = ({
                           pin,
                           ...share,
                           ...copyLink,
-                          {type: "divider" as const},
                       ]),
+            ]
+            return [
+                ...head,
+                // Archive and Delete always come last, after a separator (ACT-03).
+                ...(head.length ? [{type: "divider" as const}] : []),
                 {
                     key: "archive",
                     label: target.archived

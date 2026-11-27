@@ -24,6 +24,7 @@ import {
 import {ITEM_KINDS} from "./itemKinds"
 import {ItemRow, StatusTag, type ItemRowStatus, type ItemRowStatusTone} from "./ItemRow"
 import {usePhoneSections} from "./phoneSections"
+import {SectionEmpty} from "./SectionEmpty"
 
 const tNow = createT(configItemsCatalog, itemDescriptorsCatalog)
 
@@ -98,19 +99,17 @@ function PhoneIntegrationRow({
             type="button"
             onClick={onOpen}
             disabled={disabled}
-            className="flex min-h-14 w-full cursor-pointer items-center gap-3 border-0 border-b border-solid border-[var(--ag-colorBorderSecondary)] bg-transparent py-1.5 pl-4 pr-2 text-left font-[inherit] disabled:cursor-default"
+            className="flex min-h-row-double w-full cursor-pointer items-center gap-3 border-0 border-b border-solid border-border-muted bg-transparent py-1.5 pl-4 pr-2 text-left font-[inherit] disabled:cursor-default"
         >
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-[8px] bg-[var(--ag-colorBgLayout)]">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted">
                 <ProviderLogo logo={logo} size={22} />
             </span>
             <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-[15px] leading-5 text-[var(--ag-colorText)]">
-                    {name}
-                </span>
-                <span className="truncate text-[12px] leading-4 text-colorTextSecondary">
+                <span className="truncate text-body leading-5 text-foreground">{name}</span>
+                <span className="truncate text-meta text-muted-foreground">
                     {source}
                     {status?.reason ? (
-                        <span className="text-[var(--ag-colorWarningText)]">
+                        <span className="text-warning">
                             {" · "}
                             {status.reason}
                         </span>
@@ -121,10 +120,7 @@ function PhoneIntegrationRow({
                 its room (canvas M08). */}
             {status && !status.reason ? <StatusTag status={status} /> : null}
             {disabled ? null : (
-                <CaretRight
-                    size={14}
-                    className="mr-2 shrink-0 text-[var(--ag-colorTextTertiary)]"
-                />
+                <CaretRight size={14} className="mr-2 shrink-0 text-muted-foreground" />
             )}
         </button>
     )
@@ -178,9 +174,8 @@ function IntegrationListRow({
                 name,
                 monoName: false,
                 mono: "",
-                // The logo carries the identity here, so the avatar square stays out of the way.
-                color: "transparent",
-                icon: <ProviderLogo logo={integration?.logo ?? null} size={20} />,
+                // An 18 px logo on the neutral tile, so the tile shows around it like other rows.
+                icon: <ProviderLogo logo={integration?.logo ?? null} size={18} />,
                 tags: row.legacyIndices.length > 0 ? [t("entityUi.configItems.oldFormatTag")] : [],
                 typeLabel: t("entityUi.itemDescriptors.integrationType"),
                 subtitle: t("entityUi.configItems.integrationRowSubtitle", {
@@ -208,11 +203,6 @@ export interface ToolManagementListProps {
     statusFor?: ToolStatusFor
 }
 
-/** Shared empty-state line: one quiet line, the section header's "+" is the way to add. */
-function EmptyLine({label}: {label: string}) {
-    return <span className="text-[12px] leading-4 text-colorTextTertiary">{label}</span>
-}
-
 /** The Integrations section body: one row per connected app, no sub-header. */
 export function ToolManagementList({
     tools,
@@ -228,7 +218,7 @@ export function ToolManagementList({
     const phone = usePhoneSections() !== null
     if (integrationRows.length === 0) {
         if (disabled) return null
-        return <EmptyLine label={t("entityUi.configItems.noIntegrationsYet")} />
+        return <SectionEmpty>{t("entityUi.configItems.noIntegrationsYet")}</SectionEmpty>
     }
 
     return (
@@ -237,7 +227,8 @@ export function ToolManagementList({
                 phone
                     ? // 8 px under the header (M08): -mt-1 leaves 8 of the screen's 12 px top padding.
                       "-mx-4 -mt-1 flex flex-col"
-                    : "flex flex-col gap-2"
+                    : // One-line rows sit 4 px apart (ROW-04).
+                      "flex flex-col gap-1"
             }
         >
             {integrationRows.map((row) => (
@@ -332,7 +323,7 @@ export function SubagentList({
 
     if (entries.length === 0) {
         if (disabled) return null
-        return <EmptyLine label={t("entityUi.configItems.noSubagentsYet")} />
+        return <SectionEmpty>{t("entityUi.configItems.noSubagentsYet")}</SectionEmpty>
     }
 
     return (
@@ -340,15 +331,19 @@ export function SubagentList({
             {entries.map(({item, index}, position) => (
                 <ItemRow
                     key={keys[position]}
-                    descriptor={markNonAgent(
-                        describeSubagent(
+                    // A one-line row: the name alone, no description under it.
+                    descriptor={{
+                        ...markNonAgent(
+                            describeSubagent(
+                                item,
+                                chromeBySlug?.get(toolReferenceSlug(item) ?? ""),
+                                nameBySlug?.get(toolReferenceSlug(item) ?? ""),
+                            ),
                             item,
-                            chromeBySlug?.get(toolReferenceSlug(item) ?? ""),
-                            nameBySlug?.get(toolReferenceSlug(item) ?? ""),
+                            nonAgentSlugs,
                         ),
-                        item,
-                        nonAgentSlugs,
-                    )}
+                        description: undefined,
+                    }}
                     onEdit={() => openEdit("tool", index, item)}
                     onRemove={() => {
                         removeItem("tool", index)

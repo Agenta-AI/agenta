@@ -56,13 +56,13 @@ export const TestcaseEditorDrawerContent = ({
                 // As in the old app: a text box is as tall as its text (the shared editor theme
                 // sets 150px, which this app loads unlayered), and message text uses the normal
                 // font, not the code face.
-                "[&_.editor-input]:!min-h-[34px]",
+                "[&_.editor-input]:!min-h-9",
                 "[&_.editor-input.markdown-view>.editor-code]:![font-family:inherit] [&_.editor-input.markdown-view>.editor-code]:!m-0 [&_.editor-input.markdown-view>.editor-code]:!bg-transparent [&_.editor-input.markdown-view>.editor-code]:!p-0",
             ].join(" ")}
         >
             <div className="flex-1 overflow-y-auto overflow-x-hidden">
                 {isNewRow && rootViewMode === "form" ? (
-                    <p className="m-4 mb-2 rounded-md border border-border bg-muted p-3 text-sm text-muted-foreground">
+                    <p className="m-4 mb-2 rounded-md border border-border bg-muted p-3 text-body text-muted-foreground">
                         This is a new testcase that hasn&apos;t been saved to the server yet. Fill
                         in the fields below and click &quot;Commit&quot; to save all changes.
                     </p>

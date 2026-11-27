@@ -5,6 +5,46 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 vi.mock("@agenta/ui/ui", () => ({
+    ItemViewTitle: ({
+        title,
+        description,
+        status,
+        actions,
+    }: {
+        title: string
+        description?: React.ReactNode
+        status?: React.ReactNode
+        actions?: React.ReactNode
+    }) => (
+        <div>
+            <h2>{title}</h2>
+            {status}
+            {actions}
+            {description ? <div>{description}</div> : null}
+        </div>
+    ),
+    SimpleTooltip: ({children}: {children?: React.ReactNode}) => <>{children}</>,
+    Field: ({
+        label,
+        labelEnd,
+        tooltip,
+        error,
+        children,
+    }: {
+        label?: React.ReactNode
+        labelEnd?: React.ReactNode
+        tooltip?: React.ReactNode
+        error?: React.ReactNode
+        children?: React.ReactNode
+    }) => (
+        <div>
+            {label}
+            {labelEnd}
+            {tooltip}
+            {children}
+            {error}
+        </div>
+    ),
     Alert: ({
         message,
         description,

@@ -99,5 +99,7 @@
     "whatsappNote": "A Meta cobra sua empresa diretamente pelas mensagens do WhatsApp.",
     "whatsappPricing": "Preços do WhatsApp",
     "yourAgent": "seu agente",
-    "yourApp": "Seu app"
+    "yourApp": "Seu app",
+    "getLink": "Obter link",
+    "getLinkBody": "Obtenha um link de uso único para {{handle}} e abra-o no Telegram."
 }

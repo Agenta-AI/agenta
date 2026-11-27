@@ -209,7 +209,7 @@ export const AgentConfigSummaryCard = ({
                                 {summary.skillNames.map((name) => (
                                     <span
                                         key={name}
-                                        className="rounded-full border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] px-2 py-px text-[11px]"
+                                        className="rounded-md border border-solid border-border-muted bg-secondary px-2 py-px text-caption"
                                     >
                                         {name}
                                     </span>

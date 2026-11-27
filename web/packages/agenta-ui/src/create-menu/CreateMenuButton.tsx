@@ -3,7 +3,6 @@ import {Fragment, useRef, type ReactNode} from "react"
 
 import {GitBranch, PencilSimple, Plus, UploadSimple} from "@phosphor-icons/react"
 
-import {AGENT_ICON_CHIP_CLASS, agentIconChipStyle} from "../agent-icon/AgentIcon"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -15,11 +14,11 @@ import {
 } from "../components/ui"
 import {cn} from "../utils/styles"
 
-/** Each kind's tile: olive for writing, the palette's teal for an upload, its blue for a repo. */
+/** Each kind's tile is a neutral Mark; the icon tells the kinds apart (COLOR-05). */
 const TILES = {
-    write: {color: "#6b7d3f", icon: <PencilSimple size={15} />},
-    upload: {color: "#0F766E", icon: <UploadSimple size={15} />},
-    import: {color: "#1668DC", icon: <GitBranch size={15} />},
+    write: {icon: <PencilSimple size={14} />},
+    upload: {icon: <UploadSimple size={14} />},
+    import: {icon: <GitBranch size={14} />},
 }
 
 export interface CreateMenuOption {
@@ -91,19 +90,15 @@ export function CreateMenuButton({
                         >
                             <span
                                 aria-hidden
-                                className={cn(
-                                    "flex size-7 shrink-0 items-center justify-center rounded-md",
-                                    AGENT_ICON_CHIP_CLASS,
-                                )}
-                                style={agentIconChipStyle(TILES[option.kind].color)}
+                                className="flex size-6 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground"
                             >
                                 {TILES[option.kind].icon}
                             </span>
                             <span className="flex min-w-0 flex-col py-0.5">
-                                <span className="truncate text-sm text-colorText">
+                                <span className="truncate text-label text-foreground">
                                     {option.title}
                                 </span>
-                                <span className="truncate text-xs text-colorTextTertiary">
+                                <span className="truncate text-meta text-muted-foreground">
                                     {option.hint}
                                 </span>
                             </span>

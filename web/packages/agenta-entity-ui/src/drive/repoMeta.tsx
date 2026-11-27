@@ -18,7 +18,7 @@ export function DriveRepoMetaList({info, expanded}: {info: RepoInfo; expanded?: 
 
     // Same grid + MetaRow styling as the file metadata block, so the two read as one system.
     const grid = (
-        <dl className="grid grid-cols-[4.5rem_1fr] gap-x-4 gap-y-1.5 text-xs">
+        <dl className="grid grid-cols-[4.5rem_1fr] gap-x-4 gap-y-1.5 text-meta">
             <MetaRow
                 label={t("entityUi.drivePreview.branch")}
                 value={
@@ -39,7 +39,7 @@ export function DriveRepoMetaList({info, expanded}: {info: RepoInfo; expanded?: 
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 title={info.remote.url}
-                                className="text-[var(--ag-colorInfo)] hover:underline"
+                                className="text-info hover:underline"
                             >
                                 {info.remote.label}
                             </a>

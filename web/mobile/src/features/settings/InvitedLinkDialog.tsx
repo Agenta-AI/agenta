@@ -44,7 +44,7 @@ export const InvitedLinkDialog = ({
                         {t("settings.invitedLinkDialog.description")}
                     </DialogDescription>
                 </DialogHeader>
-                <div className="flex min-w-0 flex-col gap-3 text-sm">
+                <div className="flex min-w-0 flex-col gap-3 text-body">
                     <div className="flex flex-col gap-1">
                         <span className="font-medium">
                             {t("settings.invitedLinkDialog.memberName")}

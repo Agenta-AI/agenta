@@ -6,7 +6,7 @@ import {Button} from "@agenta/ui/ui"
 export const BillingLoadError = ({message, onRetry}: {message: string; onRetry: () => void}) => {
     const t = useT(commonCatalog)
     return (
-        <div className="border-border text-muted-foreground flex flex-wrap items-center gap-3 rounded-xl border border-dashed px-4 py-3 text-[13px]">
+        <div className="border-border text-muted-foreground flex flex-wrap items-center gap-3 rounded-xl border border-dashed px-4 py-3 text-label">
             {message}
             <Button size="sm" variant="outline" onClick={onRetry}>
                 {t("common.retry")}

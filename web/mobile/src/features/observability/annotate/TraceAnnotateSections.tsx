@@ -42,7 +42,7 @@ export const TraceAnnotateSections = ({
                                 {section.name}
                             </span>
                             <span
-                                className="min-w-0 max-w-[40%] truncate text-xs text-muted-foreground"
+                                className="min-w-0 max-w-[40%] truncate text-meta text-muted-foreground"
                                 title={section.slug}
                             >
                                 {section.slug}

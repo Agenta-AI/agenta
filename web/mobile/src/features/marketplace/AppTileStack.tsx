@@ -84,7 +84,7 @@ export const AppTileStack = ({
             {more > 0 ? (
                 <span
                     role={decorative ? undefined : "listitem"}
-                    className="text-muted-foreground ml-1.5 text-xs"
+                    className="text-muted-foreground ml-1.5 text-meta tabular-nums"
                 >
                     +{more}
                 </span>

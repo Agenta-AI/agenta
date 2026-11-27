@@ -24,15 +24,15 @@ function applyTokenStyles(dom: HTMLElement, text: string): void {
 
     if (text.startsWith("{#")) {
         // Jinja comment — grey
-        dom.style.backgroundColor = "var(--ag-c-E2E8F0)"
-        dom.style.color = "var(--ag-c-6B7280)"
+        dom.style.backgroundColor = "var(--secondary)"
+        dom.style.color = "var(--muted-foreground)"
         dom.style.border = ""
         return
     }
     if (text.startsWith("{%")) {
-        // Jinja block — purple
-        dom.style.backgroundColor = "var(--ag-c-E2E8F0)"
-        dom.style.color = "var(--ag-c-A855F7)"
+        // Jinja block: a data color (template syntax is data, not UI state)
+        dom.style.backgroundColor = "var(--secondary)"
+        dom.style.color = "var(--data-4)"
         dom.style.border = ""
         return
     }
@@ -54,13 +54,13 @@ function applyTokenStyles(dom: HTMLElement, text: string): void {
     const result = validateTemplateVariable(expr)
 
     if (result.valid) {
-        dom.style.backgroundColor = "var(--ag-c-E2E8F0)"
-        dom.style.color = "var(--ag-c-1677FF)"
+        dom.style.backgroundColor = "var(--secondary)"
+        dom.style.color = "var(--data-1)"
         dom.style.border = ""
     } else {
-        dom.style.backgroundColor = "var(--ag-c-FEF2F2)" // red-50
-        dom.style.color = "var(--ag-c-B91C1C)" // red-700
-        dom.style.border = "1px dashed var(--ag-c-F87171)" // red-400
+        dom.style.backgroundColor = "color-mix(in oklab, var(--destructive) 10%, transparent)"
+        dom.style.color = "var(--destructive)"
+        dom.style.border = "1px dashed var(--destructive)"
         dom.setAttribute("data-invalid", "true")
         dom.setAttribute("data-tooltip", result.reason ?? "Invalid template placeholder.")
         if (result.suggestion) {

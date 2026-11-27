@@ -1,6 +1,6 @@
 /**
  * The drawer's footer: the revert button and the revert's progress and outcome. The confirmation
- * itself is `RevertConfirmDialog`.
+ * itself is an `AlertDialog` in `AgentVersionHistoryDrawer`.
  */
 
 import {richText, useT} from "@agenta/i18n"
@@ -42,7 +42,12 @@ export const RevertFooter = ({
     const t = useT(versionCatalog)
     if (phase === "reverting") {
         return (
-            <div className={cn("flex items-center gap-2 text-xs", textColors.secondary)}>
+            <div
+                className={cn(
+                    "flex items-center gap-2 text-label font-normal",
+                    textColors.secondary,
+                )}
+            >
                 <Spinner className="size-3.5" />
                 {t("playground.versionHistory.creating", {
                     next: (latestVersion ?? 0) + 1,
@@ -54,7 +59,7 @@ export const RevertFooter = ({
 
     if (phase === "done") {
         return (
-            <div className="flex items-center gap-2 text-xs text-[var(--ag-colorSuccess)]">
+            <div className="flex items-center gap-2 text-label font-normal text-success">
                 <CheckCircle size={14} />
                 {t("playground.versionHistory.reverted", {version: selectedVersion ?? ""})}
             </div>
@@ -64,7 +69,7 @@ export const RevertFooter = ({
     if (phase === "failed") {
         return (
             <div className="flex items-center justify-between gap-4">
-                <span className="text-[11.5px] leading-snug text-[var(--ag-colorError)]">
+                <span className="text-caption leading-snug text-destructive">
                     {richText(t("playground.versionHistory.revertFailed"), {
                         strong: (text) => <strong className="font-semibold">{text}</strong>,
                     })}

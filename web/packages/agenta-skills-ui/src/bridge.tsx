@@ -5,12 +5,16 @@ import {createT} from "@agenta/i18n"
 import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {projectIdAtom} from "@agenta/shared/state"
 import {buildSkillEmbedEntry, createSkillWorkflow, skillContentSchema} from "@agenta/skills"
-import {invalidateSkillsListCache, skillsListDataAtom} from "@agenta/skills/state"
+import {
+    invalidateSkillsListCache,
+    skillsListDataAtom,
+    skillsResolveDataAtom,
+} from "@agenta/skills/state"
 import type {SkillsBridge} from "@agenta/ui/drill-in"
 import {getDefaultStore, useAtomValue} from "jotai"
 
 import {AddSkillsBody} from "./AddSkillsBody"
-import {NewSkillBody} from "./NewSkillBody"
+import {AgentSkillCreateBody} from "./AgentSkillCreateBody"
 import {RegistrySkillBody} from "./registrySkillView"
 
 const tNow = createT(skillsGalleryCatalog)
@@ -27,6 +31,20 @@ function useHeadVersions(): Record<string, string> {
         }
         return heads
     }, [skills])
+}
+
+/** Workflow slugs of archived registry skills — the config rows mark them as archived. */
+function useArchivedSlugs(): ReadonlySet<string> {
+    const registry = useAtomValue(skillsResolveDataAtom)
+    return useMemo(
+        () =>
+            new Set(
+                registry
+                    .filter((entry) => entry.archived && entry.workflow_slug)
+                    .map((entry) => entry.workflow_slug as string),
+            ),
+        [registry],
+    )
 }
 
 /** Inline package -> registry skill + the embed entry that replaces it in place. */
@@ -72,9 +90,10 @@ export function useSkillsBridge(): SkillsBridge {
         () => ({
             enabled: true,
             AddSkillsBody,
-            NewSkillBody,
+            NewSkillBody: AgentSkillCreateBody,
             RegistrySkillBody,
             useHeadVersions,
+            useArchivedSlugs,
             publishInlineSkill,
         }),
         [],

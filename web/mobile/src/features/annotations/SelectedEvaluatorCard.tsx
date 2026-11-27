@@ -36,7 +36,7 @@ export const SelectedEvaluatorCard = ({
     return (
         <div className="flex items-start justify-between gap-3 rounded-lg bg-muted px-3 py-3">
             <div className="min-w-0 flex-1">
-                <span className="block truncate text-sm">
+                <span className="block truncate text-label">
                     {evaluator.evaluatorName} - v{evaluator.version}
                 </span>
                 {metrics.length > 0 ? (

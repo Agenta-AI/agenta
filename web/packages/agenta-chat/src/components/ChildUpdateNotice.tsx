@@ -35,16 +35,16 @@ export const ChildUpdateNotice = ({
     const label = t("chat.queuedMessagesDock.childUpdateFrom")
     const link = update && renderChildSession ? renderChildSession(update) : null
     return (
-        <span className={`flex min-w-0 items-center gap-1.5 text-xs ${className}`}>
+        <span className={`flex min-w-0 items-center gap-1.5 text-meta ${className}`}>
             {/* Labelled only beside the link; without one, the text below says the same. */}
             <ArrowBendDownRight
                 size={12}
                 {...(link ? {role: "img", "aria-label": label} : {"aria-hidden": true})}
-                className="shrink-0 text-colorTextTertiary"
+                className="shrink-0 text-muted-foreground"
             />
-            <span className="min-w-0 truncate text-colorText">{link ?? label}</span>
+            <span className="min-w-0 truncate text-foreground">{link ?? label}</span>
             {update?.status ? (
-                <span className="shrink-0 text-colorTextSecondary">
+                <span className="shrink-0 text-muted-foreground">
                     {t(CHILD_UPDATE_STATUS_KEYS[update.status])}
                 </span>
             ) : null}

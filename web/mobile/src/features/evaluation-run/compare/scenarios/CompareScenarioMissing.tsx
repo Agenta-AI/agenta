@@ -18,9 +18,9 @@ export const CompareScenarioMissing = ({
     emptyCells: number
 }) => (
     <>
-        <span className="text-sm tabular-nums text-muted-foreground">{index}</span>
+        <span className="text-body tabular-nums text-muted-foreground">{index}</span>
         {run}
-        <span className="text-xs text-muted-foreground">
+        <span className="text-meta text-muted-foreground">
             {failed ? "Could not load" : pending ? "Loading…" : "No matching scenario"}
         </span>
         {Array.from({length: emptyCells}, (_, cell) => (

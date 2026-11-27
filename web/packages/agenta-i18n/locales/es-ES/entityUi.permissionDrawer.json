@@ -9,6 +9,7 @@
     "presetWithOverrides_many": "{{label}} · {{count}} excepciones",
     "presetWithOverrides_other": "{{label}} · {{count}} excepciones",
     "defaultPermission": "Permiso predeterminado",
+    "defaultPermissionNote": "Lo que el agente puede hacer sin preguntarte",
     "searchToolCount_one": "Buscar en {{count}} herramienta",
     "searchToolCount_many": "Buscar en {{count}} herramientas",
     "searchToolCount_other": "Buscar en {{count}} herramientas",

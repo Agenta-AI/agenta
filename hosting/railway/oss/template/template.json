@@ -390,7 +390,7 @@
     },
     "alembic": {
       "image": "ghcr.io/agenta-ai/agenta-api:{app_tag}",
-      "startCommand": "sh -c 'until psql -tAc \"SELECT 1\" >/dev/null 2>&1; do sleep 2; done; for db in agenta_oss_core agenta_oss_tracing agenta_oss_supertokens; do psql -tAc \"SELECT 1 FROM pg_database WHERE datname = '\\''$db'\\''\" | grep -q 1 || psql -c \"CREATE DATABASE \\\"$db\\\"\"; done; exec /opt/venv/bin/python -m oss.databases.postgres.migrations.runner'",
+      "startCommand": "sh -c 'until psql -tAc \"SELECT 1\" >/dev/null 2>&1; do sleep 2; done; for db in agenta_oss_core agenta_oss_tracing agenta_oss_supertokens; do psql -tAc \"SELECT 1 FROM pg_database WHERE datname = '\\''$db'\\''\" | grep -q 1 || psql -c \"CREATE DATABASE \\\"$db\\\"\"; done; exec /opt/venv/bin/python -m ee.databases.postgres.migrations.runner'",
       "healthcheckPath": null,
       "restartPolicyType": "ON_FAILURE",
       "restartPolicyMaxRetries": 10,
@@ -409,8 +409,6 @@
         "POSTGRES_URI_TRACING": "postgresql+asyncpg://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_tracing",
         "POSTGRES_URI_SUPERTOKENS": "postgresql://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_supertokens",
         "AGENTA_LICENSE": "oss",
-        "ALEMBIC_CFG_PATH_CORE": "/app/oss/databases/postgres/migrations/core/alembic.ini",
-        "ALEMBIC_CFG_PATH_TRACING": "/app/oss/databases/postgres/migrations/tracing/alembic.ini",
         "PGHOST": "${{Postgres.RAILWAY_PRIVATE_DOMAIN}}",
         "PGPORT": "${{Postgres.PGPORT}}",
         "PGUSER": "${{Postgres.POSTGRES_USER}}",

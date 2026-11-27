@@ -41,6 +41,7 @@ export const agentSharingCopy = {
     },
     /** The second sentence is a draft: sharing the agent does not share its chats. */
     lineProject: (project: string) => t("entityUi.sharing.lineProject", {project}),
+    noteProject: (project: string) => t("entityUi.sharing.noteProject", {project}),
     panelOwnerYou: (name: string) => t("entityUi.sharing.panelOwnerYou", {name}),
     get change() {
         return t("entityUi.sharing.change")
@@ -66,6 +67,9 @@ export const agentSharingCopy = {
     },
     get transferButton() {
         return t("entityUi.sharing.transferButton")
+    },
+    get transferShort() {
+        return t("entityUi.sharing.transferShort")
     },
     get done() {
         return t("entityUi.sharing.done")
@@ -97,6 +101,9 @@ export const agentSharingCopy = {
     },
     transferShared: (name: string) => t("entityUi.sharing.transferShared", {name}),
     transferTo: (name: string) => t("entityUi.sharing.transferTo", {name}),
+    get transferPickerPlaceholder() {
+        return t("entityUi.sharing.transferPickerPlaceholder")
+    },
     transferInvalid: (name: string) => t("entityUi.sharing.transferInvalid", {name}),
     get back() {
         return t("entityUi.sharing.back")

@@ -28,8 +28,8 @@ import {
 } from "./TriggerManagementSection"
 
 const barClass = (sticky: boolean) =>
-    `${CONFIG_REGION_BAR} ${sticky ? "sticky top-0 z-[10]" : ""} bg-[var(--ag-surface-section-header)]`
-const titleClass = "text-[13px] font-semibold text-colorText"
+    `${CONFIG_REGION_BAR} ${sticky ? "sticky top-0 z-[10]" : ""} bg-muted`
+const titleClass = "text-subtitle text-foreground"
 
 /** A region header bar. `children` follow the {@link ConfigRowTrailing} convention. */
 export function AgentRegionHeaderBar({
@@ -51,10 +51,10 @@ export function AgentRegionHeaderBar({
 // Region BODIES are the white sheet the Configuration region's field list already paints
 // (`ag-drill-in-field-list`). Without it they'd expose the raised panel tint behind collapsed
 // section headers, so Subscriptions/Schedules would not match collapsed Tools/Skills.
-const bodyClass = "bg-[var(--ag-surface-section-content)] px-4 pb-3 pt-1"
+const bodyClass = "bg-background px-4 pb-3 pt-1"
 // Sections-holding body: no vertical padding, so an expanded section's band runs flush into the
 // region header above and the next region below instead of leaving white slivers.
-const sectionsBodyClass = "bg-[var(--ag-surface-section-content)] px-4"
+const sectionsBodyClass = "bg-background px-4"
 
 /**
  * Loading shape for the operational regions, shown while the panel's hydration/agent-ness is
@@ -106,6 +106,7 @@ export function AgentOperationsSections({
     onAddAutomation,
     showFiles = true,
     phone = false,
+    flat = false,
 }: {
     /** The open agent's revision id (the playground's variantId). */
     revisionId: string | null
@@ -139,6 +140,8 @@ export function AgentOperationsSections({
      * column, so the button sits at the bottom of the screen.
      */
     phone?: boolean
+    /** The panel's flat list of automations; see {@link TriggerManagementSection}. */
+    flat?: boolean
 }) {
     const t = useT(agentOperationsCatalog)
 
@@ -146,14 +149,7 @@ export function AgentOperationsSections({
         <>
             {/* On a phone the list is the whole screen: its white sheet runs down to the button. */}
             <section className={phone ? "flex grow flex-col" : "flex flex-col"}>
-                {/* No header bar: the tab already names the list. "Add automation" is a bordered
-                    button at the top right; the kind is chosen in its menu (F05 f1, f2). A phone
-                    has the button at the bottom instead (M10). */}
-                {phone || disabled ? null : (
-                    <div className={`${sectionsBodyClass} flex justify-end pt-3.5`}>
-                        <AddTriggerDropdown entityId={revisionId} onAdd={onAddAutomation} />
-                    </div>
-                )}
+                {/* No header bar: the tab already names the list. */}
                 <div className={phone ? `${sectionsBodyClass} grow` : sectionsBodyClass}>
                     <TriggerManagementSection
                         entityId={revisionId}
@@ -162,8 +158,17 @@ export function AgentOperationsSections({
                         onOpenRunHistory={onOpenRunHistory}
                         onOpenAutomation={onOpenAutomation}
                         phone={phone}
+                        flat={flat}
+                        onAdd={onAddAutomation}
                     />
                 </div>
+                {/* "Add automation" follows the list, as on a phone (M10). */}
+                {/* The flat list has its "Add" on the heading. */}
+                {phone || disabled || flat ? null : (
+                    <div className={`${sectionsBodyClass} flex pb-3.5`}>
+                        <AddTriggerDropdown entityId={revisionId} onAdd={onAddAutomation} />
+                    </div>
+                )}
             </section>
 
             {/* Last region: it grows so its white sheet runs to the panel's bottom edge instead of
@@ -181,7 +186,7 @@ export function AgentOperationsSections({
                     <div className={`flex grow flex-col ${bodyClass}`}>
                         {storage ?? (
                             // Static fallback for surfaces that don't slot the live Files body.
-                            <span className="text-xs text-colorTextDescription">
+                            <span className="text-meta text-muted-foreground">
                                 {t("entityUi.agentOperations.workingFilesHint")}
                             </span>
                         )}

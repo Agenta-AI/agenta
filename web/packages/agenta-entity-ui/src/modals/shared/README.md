@@ -4,74 +4,9 @@ Common utilities, types, and factories for entity modals (commit, save, delete).
 
 ## Components
 
-### `EnhancedModal`
-
-A performance-optimized Modal wrapper that provides consistent behavior across all entity modals.
-
-#### Features
-
-| Feature                   | Description                                                                        |
-| ------------------------- | ---------------------------------------------------------------------------------- |
-| **Lazy rendering**        | Content only mounts after first open, avoiding Ant Design's eager portal rendering |
-| **Auto-contained height** | Default `maxHeight: 90vh` with internal scrolling (no window scroll)               |
-| **Smart style merging**   | Custom styles for container/body/footer merged with defaults                       |
-| **Consistent defaults**   | Centered, border radius, destroy on close                                          |
-| **Cleanup on hide**       | Resets render state after `afterClose`                                             |
-
-#### Usage
-
-```tsx
-import {EnhancedModal} from "@agenta/entity-ui/modals"
-
-function MyModal({open, onClose}: {open: boolean; onClose: () => void}) {
-    return (
-        <EnhancedModal open={open} onCancel={onClose} title="My Modal" footer={<MyFooter />}>
-            <MyContent />
-        </EnhancedModal>
-    )
-}
-```
-
-#### Props
-
-```typescript
-interface EnhancedModalProps extends Omit<ModalProps, "styles"> {
-    children?: React.ReactNode
-    /** Custom styles - can be object or function */
-    styles?: EnhancedModalStyles | ((context: {props: EnhancedModalProps}) => EnhancedModalStyles)
-    /** Max height of modal. Set undefined to disable. Default: "90vh" */
-    maxHeight?: string | undefined
-    /** Enable lazy rendering. Default: true */
-    lazyRender?: boolean
-}
-```
-
-#### Custom Styles
-
-The `styles` prop supports smart merging for container, body, and footer:
-
-```tsx
-<EnhancedModal
-    open={open}
-    onCancel={onClose}
-    styles={{
-        body: {paddingTop: 16},
-        container: {maxHeight: "80vh"}, // Override default maxHeight
-    }}
->
-    <Content />
-</EnhancedModal>
-```
-
-#### Disabling Features
-
-```tsx
-// Disable auto-height
-<EnhancedModal maxHeight={undefined} />
-
-// Disable lazy rendering (useful for forms with autofocus)
-<EnhancedModal lazyRender={false} />
-```
+Entity modals build on the kit `Dialog` parts from `@agenta/ui/ui` (`Dialog`, `DialogContent`,
+`DialogHeader`, `DialogTitle`, `DialogFooter`). Radix mounts the content only while open, and
+`onCloseAutoFocus` on `DialogContent` runs once the close animation has unmounted it.
 
 ## Hook Factories
 

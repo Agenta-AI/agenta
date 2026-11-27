@@ -12,16 +12,6 @@ export interface ConnectionDrawerState {
 }
 export const connectionDrawerAtom = atom<ConnectionDrawerState | null>(null)
 
-export interface ExecutionDrawerState {
-    connectionId: string
-    connectionSlug: string
-    integrationKey: string
-    integrationName?: string
-    integrationLogo?: string
-    actionKey?: string
-}
-export const toolExecutionDrawerAtom = atom<ExecutionDrawerState | null>(null)
-
 // ---------------------------------------------------------------------------
 // Catalog browsing state (drawer-local, reset on close)
 // ---------------------------------------------------------------------------

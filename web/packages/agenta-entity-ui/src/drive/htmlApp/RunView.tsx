@@ -369,10 +369,10 @@ export function RunView({
             {backStack.length > 0 ? (
                 <Button
                     variant="ghost"
-                    size="sm"
+                    size="xs"
                     onClick={goBack}
                     aria-label={t("entityUi.driveApp.backToPreviousPage")}
-                    className="h-6 gap-0.5 px-1.5 text-xs"
+                    className="px-1.5"
                 >
                     <CaretLeft weight="bold" className="size-3" />
                     {t("entityUi.driveApp.back")}
@@ -384,7 +384,7 @@ export function RunView({
                     <button
                         type="button"
                         onClick={onAllowEditing}
-                        className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border border-solid border-colorBorder bg-colorFillTertiary px-2 text-[11px] text-colorTextSecondary hover:text-colorText"
+                        className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-md border border-solid border-border bg-secondary px-2 text-caption text-muted-foreground hover:text-foreground"
                     >
                         <LockSimple weight="bold" className="size-3" />
                         {t("entityUi.driveApp.readOnlyAllowEditing")}
@@ -397,7 +397,7 @@ export function RunView({
                     type="button"
                     onClick={reload}
                     title={changedPaths.join("\n")}
-                    className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border border-solid border-colorWarning/40 bg-colorWarningBg px-2 text-[11px] text-colorWarning"
+                    className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-md border border-solid border-warning/40 bg-warning/10 px-2 text-caption text-warning"
                 >
                     {t("entityUi.driveApp.filesChangedReload")}
                 </button>
@@ -409,7 +409,7 @@ export function RunView({
                     onClick={() => setErrorsOpen((v) => !v)}
                     aria-expanded={errorsOpen}
                     aria-label={t("entityUi.driveApp.errorsCount", {count: errors.length})}
-                    className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border border-solid border-colorError/40 bg-colorErrorBg px-2 text-[11px] text-colorError"
+                    className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-md border border-solid border-destructive/40 bg-destructive/10 px-2 text-caption text-destructive"
                 >
                     <Warning weight="fill" className="size-3" />
                     {errors.length}
@@ -431,13 +431,13 @@ export function RunView({
     )
 
     return (
-        <div className={cn("flex min-h-0 flex-1 flex-col text-xs", className)}>
+        <div className={cn("flex min-h-0 flex-1 flex-col text-meta", className)}>
             {controlsContainer ? (
                 createPortal(controls, controlsContainer)
             ) : (
                 <div
                     data-slot="run-controls"
-                    className="flex shrink-0 items-center justify-end gap-1 border-0 border-b border-solid border-colorBorderSecondary px-2 py-1"
+                    className="flex shrink-0 items-center justify-end gap-1 border-0 border-b border-solid border-border-muted px-2 py-1"
                 >
                     {controls}
                 </div>
@@ -446,7 +446,7 @@ export function RunView({
             {errorsOpen && errors.length > 0 ? (
                 <div
                     data-slot="run-errors"
-                    className="flex max-h-40 shrink-0 flex-col gap-1 overflow-auto border-0 border-b border-solid border-colorBorderSecondary bg-colorErrorBg px-2 py-1.5 text-colorError"
+                    className="flex max-h-40 shrink-0 flex-col gap-1 overflow-auto border-0 border-b border-solid border-border-muted bg-destructive/10 px-2 py-1.5 text-destructive"
                 >
                     <div className="flex items-center justify-between gap-2">
                         <span className="font-medium">
@@ -454,15 +454,15 @@ export function RunView({
                         </span>
                         <Button
                             variant="ghost"
-                            size="sm"
+                            size="xs"
                             onClick={copyErrors}
-                            className="h-6 gap-1 px-1.5 text-xs text-colorError"
+                            className="px-1.5 text-destructive"
                         >
                             <Copy className="size-3" />
                             {copied ? t("entityUi.driveApp.copied") : t("entityUi.driveApp.copy")}
                         </Button>
                     </div>
-                    <ul className="m-0 list-disc pl-4 font-mono text-[11px] leading-4">
+                    <ul className="m-0 list-disc pl-4 font-mono text-caption">
                         {errors.map((e, i) => (
                             <li key={`${i}-${e}`} className="break-words">
                                 {e}
@@ -481,7 +481,7 @@ export function RunView({
                     </div>
                 </div>
             ) : stopped ? (
-                <div data-slot="run-stopped" className="min-h-0 flex-1 p-3 text-colorTextSecondary">
+                <div data-slot="run-stopped" className="min-h-0 flex-1 p-3 text-muted-foreground">
                     {t("entityUi.driveApp.navigationStoppedBody")}
                 </div>
             ) : (
@@ -496,7 +496,7 @@ export function RunView({
                         sandbox={SANDBOX_FLAGS}
                         onLoad={onFrameLoad}
                         title={t("entityUi.driveApp.app")}
-                        className="min-h-0 w-full flex-1 border-0 bg-colorBgContainer"
+                        className="min-h-0 w-full flex-1 border-0 bg-background"
                     />
                     <PreviewCommentLayer
                         rootRef={rootRef}

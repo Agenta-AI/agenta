@@ -74,17 +74,15 @@ export const CreateEvaluationMenu = ({
                     {label}
                 </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[300px]">
+            <DropdownMenuContent align="end" className="w-75">
                 {items.map((item) => (
                     <DropdownMenuItem
                         key={item.kind}
                         className="flex-col items-start gap-0.5"
                         onSelect={() => onCreate(item.kind)}
                     >
-                        <span className="text-[13px] font-medium">{item.title}</span>
-                        <span className="text-[12px] text-muted-foreground">
-                            {item.description}
-                        </span>
+                        <span className="text-label font-medium">{item.title}</span>
+                        <span className="text-meta text-muted-foreground">{item.description}</span>
                     </DropdownMenuItem>
                 ))}
             </DropdownMenuContent>

@@ -77,7 +77,7 @@ const ToolbarButton = ({
             size="icon-xs"
             aria-label={label}
             onClick={onClick}
-            className="size-[26px] rounded-md text-muted-foreground hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground"
         >
             {children}
         </Button>
@@ -85,7 +85,7 @@ const ToolbarButton = ({
 )
 
 const TABLE_CLASS =
-    "w-full border-separate border-spacing-0 text-xs leading-5 sm:text-[13px] [&_thead]:bg-transparent [&_tbody_tr]:hover:bg-muted/40"
+    "w-full border-separate border-spacing-0 text-label leading-5 [&_thead]:bg-transparent [&_tbody_tr]:hover:bg-accent"
 
 /** A markdown table in a frame: the body scrolls; size, copy, download and expand sit in a footer. */
 export const ChatTable = ({node, children}: {node?: HastNode; children?: ReactNode}) => {
@@ -126,11 +126,11 @@ export const ChatTable = ({node, children}: {node?: HastNode; children?: ReactNo
 
     return (
         <LayoutContext.Provider value={layouts}>
-            <div className="my-3 min-w-0 overflow-hidden rounded-lg border border-border/60 bg-background">
+            <div className="my-3 min-w-0 overflow-hidden rounded-lg border border-border-muted bg-background">
                 <TableScroller>{table}</TableScroller>
                 {/* A quiet footer: the header row stays the table's own. */}
-                <div className="flex items-center justify-between gap-2 border-0 border-t border-solid border-border/60 py-0.5 pl-3.5 pr-1.5">
-                    <span className="min-w-0 truncate text-xs text-muted-foreground">
+                <div className="flex items-center justify-between gap-2 border-0 border-t border-solid border-border-muted py-0.5 pl-3.5 pr-1.5">
+                    <span className="min-w-0 truncate text-meta text-muted-foreground">
                         {summary}
                     </span>
                     <div className="flex shrink-0 items-center gap-0.5">
@@ -161,8 +161,8 @@ export const ChatTable = ({node, children}: {node?: HastNode; children?: ReactNo
             </div>
             <Dialog open={expanded} onOpenChange={setExpanded}>
                 <DialogContent className="max-w-6xl" aria-describedby={undefined}>
-                    <DialogTitle className="pr-8 text-sm">{summary}</DialogTitle>
-                    <div className="min-w-0 overflow-hidden rounded-lg border border-border/60 bg-background">
+                    <DialogTitle className="pr-8">{summary}</DialogTitle>
+                    <div className="min-w-0 overflow-hidden rounded-lg border border-border-muted bg-background">
                         <TableScroller>{table}</TableScroller>
                     </div>
                 </DialogContent>
@@ -194,8 +194,8 @@ export const ChatTableCell = ({
             className={cn(
                 "text-left",
                 header
-                    ? "h-10 whitespace-nowrap border-b border-border/60 bg-muted px-3.5 align-middle text-xs font-medium text-muted-foreground"
-                    : "border-b border-border/40 px-3.5 py-3 align-top [tr:last-child>&]:border-b-0",
+                    ? "h-9 whitespace-nowrap border-b border-border-muted bg-muted px-3.5 align-middle text-label text-muted-foreground"
+                    : "border-b border-border-muted px-3.5 py-3 align-top [tr:last-child>&]:border-b-0",
                 layout?.numeric
                     ? "whitespace-nowrap text-right tabular-nums"
                     : layout?.prose
@@ -205,7 +205,7 @@ export const ChatTableCell = ({
                 layout?.first &&
                     pinned &&
                     cn(
-                        "sticky left-0 z-[1] border-r border-border/60",
+                        "sticky left-0 z-[1] border-r border-border-muted",
                         header ? "bg-muted" : "bg-background",
                     ),
             )}

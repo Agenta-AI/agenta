@@ -15,7 +15,8 @@ import {useState} from "react"
 import {PROBE_RESPONSE_BODY_LIMIT} from "@agenta/entities/mcpEndpoint"
 import {useT} from "@agenta/i18n"
 import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
-import {Button, cn, touchTargetExpansion} from "@agenta/ui/ui"
+import {CopyButton} from "@agenta/ui/components/presentational"
+import {Button} from "@agenta/ui/ui"
 
 export interface ShowResponsePanelProps {
     /** The status line, when the answer had one. */
@@ -26,15 +27,14 @@ export interface ShowResponsePanelProps {
 export const ShowResponsePanel = ({statusLine, body}: ShowResponsePanelProps) => {
     const t = useT(mcpConnectCatalog)
     const [open, setOpen] = useState(false)
+    const text = [statusLine, body.slice(0, PROBE_RESPONSE_BODY_LIMIT)].filter(Boolean).join("\n")
 
     return (
-        <>
+        <div className="min-w-0">
             <Button
                 variant="link"
                 size="xs"
-                // 24px of chrome, 44px of hit area: the expansion is invisible, so the toggle
-                // keeps its place on the sentence's baseline.
-                className={cn("px-0 align-baseline text-xs", touchTargetExpansion(24))}
+                className="px-0 align-baseline text-meta"
                 aria-expanded={open}
                 onClick={() => setOpen((current) => !current)}
             >
@@ -43,16 +43,20 @@ export const ShowResponsePanel = ({statusLine, body}: ShowResponsePanelProps) =>
                     : t("entityUi.mcpConnect.showResponse")}
             </Button>
             {open ? (
-                <pre
-                    data-testid="mcp-probe-response"
-                    className="m-0 mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-control-sm bg-colorFillTertiary p-2 font-mono text-[11px] leading-normal text-colorTextSecondary"
-                >
-                    {[statusLine, body.slice(0, PROBE_RESPONSE_BODY_LIMIT)]
-                        .filter(Boolean)
-                        .join("\n")}
-                </pre>
+                <div className="mt-2 min-w-0 overflow-hidden rounded-control-sm border border-solid border-border">
+                    <div className="flex items-center justify-between border-0 border-b border-solid border-border bg-muted py-1 pl-2 pr-1 text-meta text-muted-foreground">
+                        {t("entityUi.mcpConnect.serverResponse")}
+                        <CopyButton text={text} icon variant="ghost" size="xs" />
+                    </div>
+                    <pre
+                        data-testid="mcp-probe-response"
+                        className="m-0 max-h-40 overflow-auto whitespace-pre-wrap break-all bg-background p-2 font-mono text-code leading-normal text-foreground"
+                    >
+                        {text}
+                    </pre>
+                </div>
             ) : null}
-        </>
+        </div>
     )
 }
 

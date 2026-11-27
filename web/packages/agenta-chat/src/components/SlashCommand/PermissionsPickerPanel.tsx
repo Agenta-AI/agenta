@@ -66,17 +66,17 @@ const PermissionsPickerPanel = ({
     return (
         <div
             ref={rootRef}
-            className="overflow-hidden rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgElevated)] shadow-overlay outline-none"
+            className="overflow-hidden rounded-lg border border-solid border-border-muted bg-popover shadow-overlay outline-none"
         >
-            <div className="flex items-center gap-2 border-0 border-b border-solid border-[var(--ag-colorBorderSecondary)] px-[13px] py-2.5">
-                <ShieldCheck size={14} className="text-[var(--ag-colorSuccess)]" />
-                <span className="text-xs font-medium text-[var(--ag-colorText)]">
+            <div className="flex items-center gap-2 border-0 border-b border-solid border-border-muted px-3 py-2.5">
+                <ShieldCheck size={14} className="text-muted-foreground" />
+                <span className="text-label text-foreground">
                     {t("chat.permissionsPickerPanel.title")}
                 </span>
-                <span className="truncate text-[11.5px] text-[var(--ag-colorTextTertiary)]">
+                <span className="truncate text-meta text-muted-foreground">
                     {t("chat.permissionsPickerPanel.subtitle")}
                 </span>
-                <span className="ml-auto shrink-0 font-mono text-[10.5px] text-[var(--ag-colorTextTertiary)]">
+                <span className="ml-auto shrink-0 font-mono text-caption text-muted-foreground">
                     /permissions
                 </span>
             </div>
@@ -84,7 +84,7 @@ const PermissionsPickerPanel = ({
             <div
                 {...containerProps}
                 aria-label={t("chat.permissionsPickerPanel.policyLabel")}
-                className="py-[5px] outline-none"
+                className="py-1 outline-none"
             >
                 {options.map((option, index) => {
                     const isApplied = option.value === applied
@@ -94,20 +94,20 @@ const PermissionsPickerPanel = ({
                             {...optionProps(index)}
                             aria-selected={isApplied}
                             onClick={() => onApply(option.value)}
-                            className="mx-[5px] flex cursor-pointer items-center rounded-md px-2.5 py-[7px] data-[active=true]:bg-[var(--ag-colorFillTertiary)]"
+                            className="mx-1 flex cursor-pointer items-center rounded-sm px-2.5 py-2 data-[active=true]:bg-accent"
                         >
                             <span className="min-w-0">
-                                <span className="block text-[12.5px] leading-snug text-[var(--ag-colorText)]">
+                                <span className="block text-label leading-snug text-foreground">
                                     {option.label}
                                 </span>
-                                <span className="block text-[11.5px] leading-snug text-[var(--ag-colorTextTertiary)]">
+                                <span className="block text-meta leading-snug text-muted-foreground">
                                     {option.help}
                                 </span>
                             </span>
                             {isApplied ? (
                                 <Check
                                     size={13}
-                                    className="ml-auto shrink-0 pl-2.5 text-[var(--ag-colorTextSecondary)]"
+                                    className="ml-auto shrink-0 pl-2.5 text-muted-foreground"
                                 />
                             ) : null}
                         </div>
@@ -115,13 +115,13 @@ const PermissionsPickerPanel = ({
                 })}
             </div>
 
-            <div className="flex items-center gap-1.5 border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] px-[13px] py-[7px] text-[10.5px] text-[var(--ag-colorTextTertiary)]">
+            <div className="flex items-center gap-1.5 border-0 border-t border-solid border-border-muted bg-secondary px-3 py-2 text-meta text-muted-foreground">
                 <span>{t("chat.permissionsPickerPanel.changesDraft")}</span>
                 {onOpenConfig ? (
                     <button
                         type="button"
                         onClick={onOpenConfig}
-                        className="cursor-pointer border-none bg-transparent p-0 text-[10.5px] text-[var(--ag-colorPrimary)]"
+                        className="cursor-pointer border-none bg-transparent p-0 text-meta text-link underline"
                     >
                         {t("chat.permissionsPickerPanel.editRules")}
                     </button>
@@ -129,9 +129,9 @@ const PermissionsPickerPanel = ({
                 <button
                     type="button"
                     onClick={onBackToCommands}
-                    className="ml-auto flex cursor-pointer items-center gap-1.5 border-none bg-transparent p-0 text-[10.5px] text-[var(--ag-colorTextTertiary)]"
+                    className="ml-auto flex cursor-pointer items-center gap-1.5 border-none bg-transparent p-0 text-meta text-muted-foreground"
                 >
-                    <span className="inline-flex h-[15px] min-w-[15px] items-center justify-center rounded-[3px] bg-[var(--ag-colorFillTertiary)] px-1 font-mono text-[9.5px] font-medium text-[var(--ag-colorTextSecondary)]">
+                    <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-sm bg-secondary px-1 font-mono text-caption font-medium text-muted-foreground">
                         ←
                     </span>
                     {t("chat.permissionsPickerPanel.backToCommands")}

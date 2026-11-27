@@ -199,7 +199,7 @@ export function LineChart({
                                 cy={y(activeValue)}
                                 r={4}
                                 fill={color}
-                                stroke="var(--ag-colorBgContainer)"
+                                stroke="var(--background)"
                                 strokeWidth={2}
                             />
                         ) : null}

@@ -106,15 +106,15 @@ const ExecutionHeader = ({entityId, className, renderTestsetActions}: ExecutionH
         <div
             className={clsx(
                 "flex justify-between items-center gap-4 flex-shrink-0 px-4 py-2",
-                "border-0 border-b border-solid border-colorBorderSecondary",
+                "border-0 border-b border-solid border-border-muted",
                 "sticky top-0 z-10",
                 isComparisonView
                     ? // control-item-bg-active is derived from colorPrimary, which is the
                       // brand yellow in dark — so the compare header rendered olive and
                       // inconsistent with the single-mode header. In dark, fall back to the
                       // same neutral surface single mode uses. Light keeps the active tint.
-                      "h-[40px] bg-[var(--ant-control-item-bg-active)] dark:bg-[var(--ag-c-FFFFFF)]"
-                    : "h-[48px] bg-[var(--ag-c-FFFFFF)]",
+                      "h-10 bg-selected dark:bg-background"
+                    : "h-12 bg-background",
                 className,
             )}
         >
@@ -139,16 +139,14 @@ const ExecutionHeader = ({entityId, className, renderTestsetActions}: ExecutionH
                                     <ArrowsInLineVertical size={size} />
                                 )
                             }
-                            className="text-[16px] leading-[18px] font-[600] text-nowrap items-center"
+                            className="text-title font-[600] text-nowrap items-center"
                         />
                     </div>
                 ) : (
                     <Typography
                         className={clsx(
                             "text-nowrap",
-                            isComparisonView
-                                ? "text-base font-medium"
-                                : "text-[16px] leading-[18px] font-[600]",
+                            isComparisonView ? "text-title" : "text-title font-[600]",
                         )}
                     >
                         {isChatMode ? "Chat" : isComparisonView ? "Generations" : "Generations"}

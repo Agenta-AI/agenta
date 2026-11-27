@@ -14,7 +14,7 @@ export const NameAvatar = ({name, className}: {name: string; className?: string}
         aria-hidden
         style={agentIconChipStyle(colorFor(name || "?"))}
         className={cn(
-            "inline-flex size-7 shrink-0 select-none items-center justify-center rounded-[6px] text-[13px] font-semibold uppercase",
+            "inline-flex size-7 shrink-0 select-none items-center justify-center rounded-md text-label font-semibold uppercase",
             AGENT_ICON_CHIP_CLASS,
             className,
         )}

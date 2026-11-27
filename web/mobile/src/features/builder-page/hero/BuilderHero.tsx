@@ -58,7 +58,7 @@ export function BuilderHero({state, className, ref}: BuilderHeroProps) {
         <div
             aria-hidden="true"
             data-hero-state={state}
-            className={cn("relative size-[220px] shrink-0", className)}
+            className={cn("relative size-55 shrink-0", className)}
         >
             <canvas
                 ref={canvasRef}

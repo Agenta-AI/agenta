@@ -313,13 +313,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
    ================================================================ */}}
 {{- define "agenta.apiImageRepository" -}}
 {{- $img := default dict (default dict .Values.api).image -}}
-{{- if $img.repository -}}
-{{- $img.repository -}}
-{{- else if eq (include "agenta.edition" .) "ee" -}}
-ghcr.io/agenta-ai/internal-ee-agenta-api
-{{- else -}}
-ghcr.io/agenta-ai/agenta-api
-{{- end -}}
+{{- default "ghcr.io/agenta-ai/agenta-api" $img.repository -}}
 {{- end }}
 
 {{- define "agenta.apiImage" -}}
@@ -327,15 +321,11 @@ ghcr.io/agenta-ai/agenta-api
 {{ include "agenta.apiImageRepository" . }}:{{ $img.tag | default .Chart.AppVersion }}
 {{- end }}
 
+{{/* The classic web (/w) only forwards to /m, so both licenses default to the public
+     build. A repository set in values keeps the license's server path (see below). */}}
 {{- define "agenta.webImageRepository" -}}
 {{- $img := default dict (default dict .Values.web).image -}}
-{{- if $img.repository -}}
-{{- $img.repository -}}
-{{- else if eq (include "agenta.edition" .) "ee" -}}
-ghcr.io/agenta-ai/internal-ee-agenta-web
-{{- else -}}
-ghcr.io/agenta-ai/agenta-web
-{{- end -}}
+{{- default "ghcr.io/agenta-ai/agenta-web" $img.repository -}}
 {{- end }}
 
 {{- define "agenta.webImage" -}}
@@ -355,13 +345,7 @@ ghcr.io/agenta-ai/agenta-web
 
 {{- define "agenta.servicesImageRepository" -}}
 {{- $img := default dict (default dict .Values.services).image -}}
-{{- if $img.repository -}}
-{{- $img.repository -}}
-{{- else if eq (include "agenta.edition" .) "ee" -}}
-ghcr.io/agenta-ai/internal-ee-agenta-services
-{{- else -}}
-ghcr.io/agenta-ai/agenta-services
-{{- end -}}
+{{- default "ghcr.io/agenta-ai/agenta-services" $img.repository -}}
 {{- end }}
 
 {{- define "agenta.servicesImage" -}}
@@ -478,7 +462,10 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
        runs the migrations before the app pods start, which is what an external database
        wants. See alembic-job.yaml. */ -}}
 {{- define "agenta.alembic.hookPhase" -}}{{ default "post" (default dict .Values.alembic).hookPhase }}{{- end }}
-{{- define "agenta.alembic.activeDeadlineSeconds" -}}{{ default 600 (default dict .Values.alembic).activeDeadlineSeconds }}{{- end }}
+{{- /* One hour. A data migration on a large instance takes minutes: adopting 41,006
+       organizations took 569 s of a 601 s run. Kubernetes stops the Job at the deadline
+       and the upgrade fails, so the default leaves room. */ -}}
+{{- define "agenta.alembic.activeDeadlineSeconds" -}}{{ default 3600 (default dict .Values.alembic).activeDeadlineSeconds }}{{- end }}
 {{- define "agenta.alembic.backoffLimit" -}}{{ default 3 (default dict .Values.alembic).backoffLimit }}{{- end }}
 {{- define "agenta.alembic.ttlSecondsAfterFinished" -}}{{ default 300 (default dict .Values.alembic).ttlSecondsAfterFinished }}{{- end }}
 
@@ -574,40 +561,21 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
 {{/* ================================================================
    Edition-specific paths and database names
    ================================================================ */}}
+{{/* The build of the classic web (/w) image: its server path and the AGENTA_LICENSE its
+     entrypoint reads (the entrypoint writes into ./<license>/public). The public web
+     image is the oss build. An ee build set through web.image.repository (for example
+     ghcr.io/agenta-ai/internal-ee-agenta-web) is the ee build. */}}
+{{- define "agenta.webBuild" -}}
+{{- $img := default dict (default dict .Values.web).image -}}
+{{- if and $img.repository (eq (include "agenta.edition" .) "ee") -}}
+ee
+{{- else -}}
+oss
+{{- end -}}
+{{- end }}
+
 {{- define "agenta.webServerPath" -}}
-{{- if eq (include "agenta.edition" .) "ee" -}}
-./ee/server.js
-{{- else -}}
-./oss/server.js
-{{- end -}}
-{{- end }}
-
-{{- define "agenta.alembicRunnerModule" -}}
-{{- if eq (include "agenta.edition" .) "ee" -}}
-ee.databases.postgres.migrations.runner
-{{- else -}}
-oss.databases.postgres.migrations.runner
-{{- end -}}
-{{- end }}
-
-{{- define "agenta.alembicCfgPathCore" -}}
-{{- $a := default dict .Values.alembic -}}
-{{- if $a.cfgPathCore -}}{{- $a.cfgPathCore -}}
-{{- else if eq (include "agenta.edition" .) "ee" -}}
-/app/ee/databases/postgres/migrations/core/alembic.ini
-{{- else -}}
-/app/oss/databases/postgres/migrations/core/alembic.ini
-{{- end -}}
-{{- end }}
-
-{{- define "agenta.alembicCfgPathTracing" -}}
-{{- $a := default dict .Values.alembic -}}
-{{- if $a.cfgPathTracing -}}{{- $a.cfgPathTracing -}}
-{{- else if eq (include "agenta.edition" .) "ee" -}}
-/app/ee/databases/postgres/migrations/tracing/alembic.ini
-{{- else -}}
-/app/oss/databases/postgres/migrations/tracing/alembic.ini
-{{- end -}}
+./{{ include "agenta.webBuild" . }}/server.js
 {{- end }}
 
 {{- define "agenta.postgresDbCore" -}}
@@ -1285,6 +1253,18 @@ failureThreshold: 3
 - name: POSTHOG_API_URL
   value: {{ $posthog.apiUrl | quote }}
 {{- end }}
+{{- $telemetry := default dict .Values.telemetry }}
+{{- $releases := default dict .Values.releases }}
+- name: AGENTA_DEPLOYMENT_METHOD
+  value: "helm"
+- name: AGENTA_TELEMETRY_ENABLED
+  value: {{ ternary "true" "false" (ne $telemetry.enabled false) | quote }}
+{{- with $telemetry.instanceKind }}
+- name: AGENTA_TELEMETRY_INSTANCE_KIND
+  value: {{ . | quote }}
+{{- end }}
+- name: AGENTA_UPDATE_CHECK_ENABLED
+  value: {{ ternary "true" "false" (ne $releases.updateCheckEnabled false) | quote }}
 - name: SENDGRID_FROM_ADDRESS
   value: {{ $sendgrid.fromEmail | default $sendgrid.fromAddress | default "" | quote }}
 - name: COMPOSIO_API_URL

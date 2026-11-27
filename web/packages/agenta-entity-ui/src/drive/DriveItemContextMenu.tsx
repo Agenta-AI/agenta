@@ -35,7 +35,6 @@ import {
 } from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
-import {PHONE_MENU_ROWS} from "./DriveFolderMenu"
 import {DriveLinkContext} from "./driveLink"
 import {useDriveFileDownload} from "./useDriveFileDownload"
 
@@ -183,30 +182,26 @@ export const DriveItemContextMenu = ({
             <ContextMenuTrigger asChild>
                 <div className={className}>{children}</div>
             </ContextMenuTrigger>
-            <ContextMenuContent
-                onClick={stop}
-                onCloseAutoFocus={(e) => e.preventDefault()}
-                className={PHONE_MENU_ROWS}
-            >
+            <ContextMenuContent onClick={stop} onCloseAutoFocus={(e) => e.preventDefault()}>
                 <ContextMenuItem onSelect={onOpen}>
-                    {isFolder ? <FolderOpen size={14} /> : <ArrowSquareOut size={14} />}
+                    {isFolder ? <FolderOpen /> : <ArrowSquareOut />}
                     {isFolder
                         ? t("entityUi.driveExplorer.openFolder")
                         : t("entityUi.driveExplorer.openFile")}
                 </ContextMenuItem>
                 <ContextMenuItem onSelect={() => onCopyPath(path)}>
-                    <Copy size={14} />
+                    <Copy />
                     {t("entityUi.driveExplorer.copyPath")}
                 </ContextMenuItem>
                 {copyLink ? (
                     <ContextMenuItem onSelect={() => copyLink({path, isFolder})}>
-                        <LinkSimple size={14} />
+                        <LinkSimple />
                         {t("entityUi.driveExplorer.copyLink")}
                     </ContextMenuItem>
                 ) : null}
                 {onDownload ? (
                     <ContextMenuItem onSelect={() => onDownload(path, isFolder)}>
-                        <DownloadSimple size={14} />
+                        <DownloadSimple />
                         {isFolder
                             ? t("entityUi.driveExplorer.downloadAsZip")
                             : t("entityUi.driveExplorer.download")}
@@ -217,20 +212,20 @@ export const DriveItemContextMenu = ({
                         <ContextMenuSeparator />
                         {/* Folder rename needs a backend move endpoint: shown disabled. */}
                         <ContextMenuItem disabled={isFolder} onSelect={() => writes.onRename(path)}>
-                            <PencilSimple size={14} />
+                            <PencilSimple />
                             {t("entityUi.driveExplorer.rename")}
                             {isFolder ? (
-                                <span className="ml-auto pl-3 text-[11px] text-colorTextQuaternary">
+                                <span className="ml-auto pl-3 text-caption text-muted-foreground">
                                     {t("entityUi.driveExplorer.filesOnly")}
                                 </span>
                             ) : null}
                         </ContextMenuItem>
                         <ContextMenuSeparator />
                         <ContextMenuItem
+                            variant="destructive"
                             onSelect={() => writes.onDelete(path, isFolder)}
-                            className="text-colorError focus:text-colorError"
                         >
-                            <Trash size={14} />
+                            <Trash />
                             {t("entityUi.driveExplorer.delete")}
                         </ContextMenuItem>
                     </>

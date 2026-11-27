@@ -101,6 +101,7 @@ describe("buildSkillDownload", () => {
             candidates: [
                 {
                     dir: "pdf-tools",
+                    key: "0:pdf-tools/SKILL.md",
                     skill: {
                         name: "pdf-tools",
                         description: "Use for PDFs: merge, split",

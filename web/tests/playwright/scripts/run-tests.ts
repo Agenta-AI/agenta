@@ -197,6 +197,8 @@ function runVitestLayer(targetLayer: TestLayer, grepPatterns: string[]): number 
     const script = LAYER_PACKAGE_SCRIPT[targetLayer]
     // Exclude this package from the recursive vitest run — its tests are playwright,
     // not vitest, and are already executed in Phase 2 of the caller.
+    // Exclude the old /w app (web/oss, web/ee) too: workflow 12 does not unit test it
+    // either, and its stale unit tests would fail every preview run.
     // Run one package at a time. Each vitest already starts one worker per CPU, so the
     // pnpm default of four packages at once starves the render tests of CPU on a small
     // CI runner, and their waits and the 5s test timeout then fail at random.
@@ -204,6 +206,8 @@ function runVitestLayer(targetLayer: TestLayer, grepPatterns: string[]): number 
         "-r",
         "--workspace-concurrency=1",
         "--filter=!agenta-web-tests",
+        "--filter=!@agenta/oss",
+        "--filter=!@agenta/ee",
         "--if-present",
         "run",
         script,

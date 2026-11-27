@@ -113,7 +113,7 @@ export const testsetAdapter = createTwoLevelAdapter<TestsetSelectionResult>({
             React.createElement(
                 "div",
                 {className: "flex flex-col gap-0.5"},
-                React.createElement("span", {className: "text-zinc-400"}, text),
+                React.createElement("span", {className: "text-muted-foreground"}, text),
                 React.createElement("span", {className: "invisible"}, "\u00A0"),
             ),
     },

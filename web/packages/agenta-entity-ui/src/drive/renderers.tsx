@@ -108,7 +108,7 @@ export function parseCsv(text: string, maxRows = 500, delimiter = ","): string[]
 /** The shared inset card every body renders inside (spec: content inset). */
 const Inset = ({children, flush}: {children: React.ReactNode; flush?: boolean}) => (
     <div
-        className={`flex min-h-0 flex-1 flex-col overflow-y-auto rounded border border-solid border-colorBorderSecondary bg-colorFillQuaternary ${
+        className={`flex min-h-0 flex-1 flex-col overflow-y-auto rounded-lg border border-solid border-border-muted bg-secondary ${
             flush ? "" : "p-3"
         }`}
     >
@@ -133,9 +133,9 @@ export const DownloadCard = ({
             <Empty className="flex-1 gap-2 p-6">
                 <EmptyHeader className="gap-1">
                     <EmptyMedia variant="icon">
-                        <FileDashed size={26} />
+                        <FileDashed />
                     </EmptyMedia>
-                    <EmptyTitle className="text-xs">
+                    <EmptyTitle className="text-label">
                         {title ?? t("entityUi.drivePreview.noPreviewForType")}
                     </EmptyTitle>
                 </EmptyHeader>
@@ -206,7 +206,7 @@ const TextBody = ({
                     onClickCapture={onClickCapture}
                     {...quotable}
                 >
-                    <DriveMarkdown content={content} className="!text-xs" />
+                    <DriveMarkdown content={content} className="!text-body" />
                 </div>
             </Inset>
         )
@@ -214,7 +214,7 @@ const TextBody = ({
         <Inset flush>
             <div className="min-h-0 flex-1 overflow-y-auto p-3">
                 <pre
-                    className="m-0 whitespace-pre-wrap break-words font-mono text-xs text-colorTextSecondary"
+                    className="m-0 whitespace-pre-wrap break-words font-mono text-code text-muted-foreground"
                     {...quotable}
                 >
                     {content}
@@ -273,7 +273,7 @@ const CodeBody = ({
     return (
         <Inset flush>
             <div
-                className="min-h-0 flex-1 overflow-auto p-2 text-xs [&_.agenta-dynamic-code-block]:whitespace-pre"
+                className="min-h-0 flex-1 overflow-auto p-2 text-code [&_.agenta-dynamic-code-block]:whitespace-pre"
                 {...quotable}
             >
                 <LazyCodeBlock language={driveCodeLanguage(path)} value={value} />
@@ -457,7 +457,7 @@ const ImageBody = ({mount, path}: {mount: Mount | null; path: string}) => {
                     }
                 />
             </div>
-            <div className="px-2 pb-1 text-center text-[12px] text-colorTextQuaternary">
+            <div className="px-2 pb-1 text-center text-meta text-muted-foreground">
                 fit-to-pane · click to zoom
             </div>
         </Inset>
@@ -599,7 +599,7 @@ const CommentableTable = ({
                     stickyFirstRow={stickyFirstRow}
                 />
             ) : (
-                <div className="p-3 text-xs text-colorTextTertiary">
+                <div className="p-3 text-meta text-muted-foreground">
                     {t("entityUi.drivePreview.sheetEmpty")}
                 </div>
             )}
@@ -661,7 +661,7 @@ export const SpreadsheetView = ({
                         className="w-full shrink-0 justify-start overflow-x-auto px-2.5"
                     >
                         {workbook.sheets.map((s, i) => (
-                            <TabsTrigger key={i} value={String(i)} className="flex-none text-xs">
+                            <TabsTrigger key={i} value={String(i)} className="flex-none text-label">
                                 {s.name}
                             </TabsTrigger>
                         ))}

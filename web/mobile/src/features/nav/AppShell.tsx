@@ -1,9 +1,11 @@
 import type {ReactNode} from "react"
 
 import type {SidebarScope} from "@agenta/navigation"
+import {RightPaneHost} from "@agenta/ui/ui"
 
 import {useAgentSidebarSync} from "../agent-sidebar/useAgentSidebarSync"
 import {useCanonicalProjectRoute} from "../context/useCanonicalProjectRoute"
+import {RegistrationOfferGate} from "../onboarding/RegistrationOfferGate"
 
 import {useTrackLastNonSettingsPath} from "./lastNonSettingsPath"
 import {MobileCommandPalette} from "./MobileCommandPalette"
@@ -37,8 +39,12 @@ export const AppShell = ({
     return (
         <div className="flex h-[calc(var(--ag-viewport-height,100dvh)-var(--ag-top-bars-h,0px))]">
             <NavRail workspaceId={workspaceId} projectId={projectId} scope={scope} />
-            <main className="min-w-0 flex-1">{children}</main>
+            <main className="min-w-0 flex-1">
+                {/* The right pane's slot (LAYOUT-04): any page or component fills it with <RightPane>. */}
+                <RightPaneHost>{children}</RightPaneHost>
+            </main>
             <MobileCommandPalette projectURL={`/w/${workspaceId}/p/${projectId}`} />
+            <RegistrationOfferGate projectId={projectId} />
         </div>
     )
 }

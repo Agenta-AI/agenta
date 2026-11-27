@@ -89,7 +89,7 @@ function metricValue(stats: MetricStats | null): ReactNode {
             {bars.map((bar) => (
                 <span
                     key={bar.category}
-                    className="rounded-control-sm border border-solid border-border px-1.5 text-xs"
+                    className="rounded-control-sm border border-solid border-border px-1.5 text-meta"
                 >
                     {bar.category} ({bar.value})
                 </span>
@@ -100,7 +100,7 @@ function metricValue(stats: MetricStats | null): ReactNode {
 
 const metricRowLabel = (metric: OverviewMetric) => (
     <span className="flex flex-col">
-        <span className="text-xs text-muted-foreground">{metric.evaluatorName ?? "--"}</span>
+        <span className="text-meta text-muted-foreground">{metric.evaluatorName ?? "--"}</span>
         <span>
             {humanizeMetricLabel(metric.label)}
             {metric.stats?.mean !== undefined ? " (mean)" : ""}

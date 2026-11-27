@@ -25,7 +25,6 @@
     "authenticated": "認証済み",
     "created": "作成日時",
     "actions": "操作",
-    "testConnection": "接続をテスト",
     "refreshConnection": "接続を更新",
     "apiKeyNeverVerified": "API キーが一度も検証されていないため、エージェントはまだこのツールを使えません。削除して、有効なキーで再接続してください。"
 }

@@ -5,25 +5,14 @@ import {cleanup, render, screen} from "@testing-library/react"
 import {afterEach, describe, expect, it} from "vitest"
 
 import {InputAffix} from "../../src/components/ui/input-composed"
-import {Popover} from "../../src/components/ui/popover"
-import {PHONE_TOUCH_TARGET_CLASS} from "../../src/components/ui/touch-target"
-import {FilterMenuTrigger} from "../../src/filter-menu/FilterMenuTrigger"
 import {ListTable} from "../../src/list-table/ListTable"
-import {ListTableLoadMore} from "../../src/list-table/ListTableLoadMore"
 import type {ListTableColumn, ListTableGroup} from "../../src/list-table/types"
 
-/**
- * Below 768 px every control has a 44 px tap area (release QA bug 3). The shared controls carry
- * the phone classes themselves, so each list, filter and search field that uses them gets them
- * without a change of its own. jsdom has no layout: these tests check that the classes are on the
- * right element; the 44 px result is measured in a browser (elementFromPoint at 390 x 844).
- */
+/** Small screens and touch never grow a shared control. */
 
 afterEach(cleanup)
 
 const classesOf = (element: Element) => new Set(element.className.split(/\s+/))
-const hasPhoneTarget = (element: Element) =>
-    PHONE_TOUCH_TARGET_CLASS.split(" ").every((token) => classesOf(element).has(token))
 
 interface Row {
     id: string
@@ -34,27 +23,8 @@ const GROUPS: ListTableGroup<Row>[] = [
     {key: "today", label: "Today", rows: [{id: "1", name: "First"}]},
 ]
 
-describe("phone tap-area classes on shared controls", () => {
-    it("gives the filter trigger a 44 px tap area, labelled or icon only", () => {
-        render(
-            <Popover>
-                <FilterMenuTrigger
-                    label={null}
-                    icon={<span />}
-                    defaultLabel="Filter"
-                    triggerAriaLabel="Filter agents"
-                />
-            </Popover>,
-        )
-        expect(hasPhoneTarget(screen.getByRole("button", {name: "Filter agents"}))).toBe(true)
-    })
-
-    it("gives Load more a 44 px tap area", () => {
-        render(<ListTableLoadMore onLoadMore={() => undefined} label="Load more" />)
-        expect(hasPhoneTarget(screen.getByRole("button", {name: "Load more"}))).toBe(true)
-    })
-
-    it("makes a compact row at least 44 px on a phone and keeps the heading target off the row", () => {
+describe("shared controls on a phone", () => {
+    it("keeps a compact row at one height on every screen", () => {
         render(
             <ListTable<Row>
                 columns={COLUMNS}
@@ -67,18 +37,9 @@ describe("phone tap-area classes on shared controls", () => {
             />,
         )
         const row = screen.getByText("First").closest("[role='button']") as HTMLElement
-        expect(classesOf(row).has("py-2")).toBe(true)
-        expect(classesOf(row).has("max-md:min-h-11")).toBe(true)
-        // The heading's tap area fills its own padding and stops where the first row starts.
-        const toggle = classesOf(screen.getByRole("button", {name: /Today/}))
-        expect(toggle.has("max-md:after:-top-3.5")).toBe(true)
-        expect(toggle.has("max-md:after:-bottom-2.5")).toBe(true)
-        expect(toggle.has("max-md:min-h-5")).toBe(true)
-        expect(
-            classesOf(screen.getByRole("button", {name: /Today/}).parentElement!).has(
-                "max-md:pb-2.5",
-            ),
-        ).toBe(true)
+        // A compact row is one size on every screen: small screens and touch never grow it.
+        expect(classesOf(row).has("min-h-row-single")).toBe(true)
+        expect([...classesOf(row)].some((c) => c.startsWith("pointer-coarse:min-h-"))).toBe(false)
     })
 
     it("keeps the default row as it was", () => {
@@ -92,13 +53,13 @@ describe("phone tap-area classes on shared controls", () => {
             />,
         )
         const row = screen.getByText("First").closest("[role='button']") as HTMLElement
-        expect(classesOf(row).has("max-md:min-h-11")).toBe(false)
+        expect(classesOf(row).has("pointer-coarse:min-h-11")).toBe(false)
     })
 
-    it("lets a search field's input reach 44 px on a phone while its frame keeps its height", () => {
+    it("keeps a search field's height on touch: no grown input inside the frame", () => {
         render(<InputAffix aria-label="Search templates" size="compact-search" />)
         const input = screen.getByRole("textbox", {name: "Search templates"})
-        expect(classesOf(input).has("max-md:h-11")).toBe(true)
-        expect(classesOf(input.parentElement as HTMLElement).has("h-[30px]")).toBe(true)
+        expect([...classesOf(input)].some((c) => c.startsWith("pointer-coarse:h-"))).toBe(false)
+        expect(classesOf(input.parentElement as HTMLElement).has("h-control-sm")).toBe(true)
     })
 })

@@ -1,8 +1,18 @@
 import {useEffect, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import viewStackCatalog from "@agenta/i18n/catalogs/ui.viewStack"
+import {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
 import {
     defineView,
-    UnsavedChangesDialog,
     useViewForm,
     useViewStack,
     useViewTitle,
@@ -93,16 +103,30 @@ type Story = StoryObj<typeof meta>
 export const View: Story = {globals: {theme: "light"}}
 
 /** The generic unsaved-changes dialog, with the description of an agent view. */
+const UnsavedDialogRender = () => {
+    const t = useT(viewStackCatalog)
+    return (
+        <AlertDialog open>
+            <AlertDialogContent data-testid="unsaved-changes-dialog">
+                <AlertDialogHeader>
+                    <AlertDialogTitle>{t("ui.viewStack.unsavedChanges")}</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Save your changes to this agent draft, or discard them?
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <Button variant="ghost">{t("ui.viewStack.keepEditing")}</Button>
+                    <Button variant="outline">{t("ui.viewStack.discard")}</Button>
+                    <Button>{t("ui.viewStack.saveChanges")}</Button>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    )
+}
+
 export const UnsavedDialog: Story = {
     globals: {theme: "light"},
-    render: () => (
-        <UnsavedChangesDialog
-            open
-            description="Save your changes to this agent draft, or discard them?"
-            canSave
-            onAnswer={() => undefined}
-        />
-    ),
+    render: () => <UnsavedDialogRender />,
 }
 
 export const UnsavedDialogDark: Story = {...UnsavedDialog, globals: {theme: "dark"}}

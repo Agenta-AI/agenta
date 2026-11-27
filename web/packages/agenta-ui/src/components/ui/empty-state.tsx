@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import {Inbox} from "lucide-react"
+import {TrayIcon} from "@phosphor-icons/react"
 
 import {Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle} from "./empty"
 import {cn} from "./utils"
@@ -40,7 +40,7 @@ export function EmptyState({
             <EmptyHeader>
                 {isPreset ? (
                     <EmptyMedia variant="icon">
-                        <Inbox />
+                        <TrayIcon />
                     </EmptyMedia>
                 ) : image != null ? (
                     <EmptyMedia>{image}</EmptyMedia>

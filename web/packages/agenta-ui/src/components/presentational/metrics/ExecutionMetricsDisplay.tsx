@@ -89,7 +89,7 @@ export interface ExecutionMetricsDisplayProps {
  * rendered nothing then drops its dot instead of leaving one with nothing to separate.
  */
 export const MetaSeparator = ({className}: {className?: string}) => (
-    <span aria-hidden className={cn("text-colorTextQuaternary", className)}>
+    <span aria-hidden className={cn("text-muted-foreground", className)}>
         ·
     </span>
 )
@@ -142,7 +142,7 @@ export const ExecutionMetricsDisplay = memo(function ExecutionMetricsDisplay({
     const formattedCost = metrics.totalCost !== undefined ? formatCurrency(metrics.totalCost) : null
 
     // Size classes
-    const tagClassName = cn("flex items-center gap-1 m-0", size === "small" && "text-xs py-0")
+    const tagClassName = cn("flex items-center gap-1 m-0", size === "small" && "text-meta py-0")
     const iconSize = size === "small" ? 10 : 12
 
     const tokenBreakdown = splitTokenUsage({
@@ -214,7 +214,7 @@ export const ExecutionMetricsDisplay = memo(function ExecutionMetricsDisplay({
         return (
             <div
                 className={cn(
-                    "flex items-center gap-1 whitespace-nowrap text-[12px] text-colorTextTertiary",
+                    "flex items-center gap-1 whitespace-nowrap text-meta text-muted-foreground",
                     className,
                 )}
             >

@@ -1,8 +1,7 @@
 {
     "maxCharacters": "最大 {{count}} 文字です。",
     "filledFromPaste": "貼り付けたスキルから入力しました",
-    "downloadZip": ".zip としてダウンロード",
-    "downloadSkillMd": "SKILL.md をダウンロード",
+    "download": "ダウンロード",
     "addAFile": "ファイルを追加",
     "untitled": "無題",
     "name": "名前",

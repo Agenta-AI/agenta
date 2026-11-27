@@ -1,6 +1,6 @@
-import {createContext, useContext, useState, type ReactNode, type Ref} from "react"
+import {createContext, useContext, useLayoutEffect, useState, type ReactNode, type Ref} from "react"
 
-import {Button, PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {ArrowSquareOut, PlayCircle} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {createPortal} from "react-dom"
@@ -26,6 +26,9 @@ export interface SettingsPageShellProps {
 /** Where a tab's primary action renders: the header's slot inside a shell, `undefined` outside one. */
 const HeaderActionsContext = createContext<HTMLElement | null | undefined>(undefined)
 
+/** Hands a tab's primary action a slot in a host's own title row (a host that draws its own frame). */
+export const SettingsHeaderActionsProvider = HeaderActionsContext.Provider
+
 /** A tab's primary action on the title row; rendered in place outside a shell. */
 export const SettingsPageActions = ({children}: {children: ReactNode}) => {
     const target = useContext(HeaderActionsContext)
@@ -33,20 +36,65 @@ export const SettingsPageActions = ({children}: {children: ReactNode}) => {
     return target ? createPortal(children, target) : null
 }
 
+/** Where a tab's toolbar renders: the page's pinned toolbar row, and how a tab claims it. */
+export interface SettingsToolbarSlot {
+    target: HTMLElement | null
+    /** Shows the row while a tab's toolbar is mounted; returns the release. */
+    register: () => () => void
+}
+
+const ToolbarSlotContext = createContext<SettingsToolbarSlot | undefined>(undefined)
+
+/** Hands a tab's toolbar the host's pinned row, under the title and outside the scroll. */
+export const SettingsToolbarSlotProvider = ToolbarSlotContext.Provider
+
+/** A tab's toolbar (`PageToolbar`): pinned in the host's row, or in place outside one. */
+export const SettingsPageToolbar = ({children}: {children: ReactNode}) => {
+    const slot = useContext(ToolbarSlotContext)
+    const register = slot?.register
+    useLayoutEffect(() => register?.(), [register])
+    if (slot === undefined) return <>{children}</>
+    return slot.target ? createPortal(children, slot.target) : null
+}
+
 /** The centered column both the title and the body sit in, so their edges line up. */
 const columnClassName = (variant: SettingsPageShellProps["variant"]) =>
     clsx(
         // `box-border` because preflight is off: `w-full` plus padding would overflow.
-        "box-border w-full px-4 sm:px-8 lg:px-14",
-        variant !== "full" && "mx-auto max-w-[1040px]",
+        "box-border w-full px-4 sm:px-6",
+        variant !== "full" && "mx-auto max-w-content-lg",
     )
 
 /** The walkthrough beside the primary action; on a phone it folds to its icon. */
-const VideoButton = ({video}: {video: {label: string; onOpen: () => void}}) => (
+export const SettingsVideoButton = ({video}: {video: {label: string; onOpen: () => void}}) => (
     <Button variant="ghost" onClick={video.onOpen} aria-label={video.label} title={video.label}>
         <PlayCircle aria-hidden />
         <span className="hidden sm:inline">{video.label}</span>
     </Button>
+)
+
+/** The tab's one sentence, with its docs link at the end. */
+export const SettingsPageDescription = ({
+    description,
+    docs,
+}: Pick<SettingsPageShellProps, "description" | "docs">) => (
+    <>
+        {description}
+        {docs ? (
+            <>
+                {" "}
+                <a
+                    href={docs.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 whitespace-nowrap text-inherit no-underline underline-offset-4 hover:text-foreground hover:underline"
+                >
+                    {docs.label}
+                    <ArrowSquareOut size={12} />
+                </a>
+            </>
+        ) : null}
+    </>
 )
 
 const SettingsPageShell = ({
@@ -65,7 +113,7 @@ const SettingsPageShell = ({
             className={clsx(
                 "flex h-full min-h-0 w-full flex-col self-stretch",
                 // Mobile has no antd base font, so the body scale is stated here.
-                "text-[14px] leading-[1.4285714285714286]",
+                "text-body leading-[1.4285714285714286]",
             )}
         >
             <header
@@ -77,34 +125,18 @@ const SettingsPageShell = ({
                 <div className="flex min-w-0 items-center justify-between gap-4">
                     {/* Below `sm` the title drops to the 16px body ramp, like every page title on a
                     phone. `m-0` kills the UA margin (preflight is off). */}
-                    <h1 className="m-0 min-w-0 truncate text-[16px] font-semibold leading-[1.5] tracking-[-0.01em] text-colorText sm:text-[24px] sm:leading-8">
-                        {title}
-                    </h1>
+                    <h1 className="m-0 min-w-0 truncate text-heading text-foreground">{title}</h1>
 
                     <div className="flex shrink-0 items-center gap-2">
-                        {video ? <VideoButton video={video} /> : null}
+                        {video ? <SettingsVideoButton video={video} /> : null}
                         <div
                             ref={setActionsSlot}
                             className="flex items-center gap-2 empty:hidden"
                         />
                     </div>
                 </div>
-                <p className="m-0 text-[14px] leading-5 text-colorTextSecondary">
-                    {description}
-                    {docs ? (
-                        <>
-                            {" "}
-                            <a
-                                href={docs.href}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={`inline-flex items-center gap-1 whitespace-nowrap text-inherit no-underline underline-offset-4 hover:text-colorText hover:underline ${PHONE_TOUCH_TARGET_CLASS}`}
-                            >
-                                {docs.label}
-                                <ArrowSquareOut size={12} />
-                            </a>
-                        </>
-                    ) : null}
+                <p className="m-0 text-body leading-5 text-muted-foreground">
+                    <SettingsPageDescription description={description} docs={docs} />
                 </p>
             </header>
 

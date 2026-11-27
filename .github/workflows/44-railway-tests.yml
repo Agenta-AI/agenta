@@ -382,7 +382,6 @@ jobs:
       matrix:
         layer: ${{ fromJson(needs.prepare.outputs.layers_json) }}
     env:
-      AGENTA_LICENSE: oss
       AGENTA_API_URL: ${{ needs.prepare.outputs.agenta_api_url }}
       AGENTA_AUTH_KEY: ${{ secrets.AGENTA_TEST_OSS_AUTH_KEY }}
       AGENTA_TEST_REQUIRE_MOUNT_STORAGE: "true"
@@ -445,7 +444,7 @@ jobs:
         if: always()
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
-          files: api/oss/tests/results/junit.xml
+          files: api/ee/tests/results/junit.xml
           check_name: Railway API Test Results
           comment_mode: off
 
@@ -455,7 +454,7 @@ jobs:
         with:
           name: railway-api-test-results-${{ matrix.layer }}
           path: |
-            api/oss/tests/results/
+            api/ee/tests/results/
             api/pytest*.log
           retention-days: 14
 
@@ -477,7 +476,6 @@ jobs:
       matrix:
         layer: ${{ fromJson(needs.prepare.outputs.layers_json) }}
     env:
-      AGENTA_LICENSE: oss
       AGENTA_API_URL: ${{ needs.prepare.outputs.agenta_api_url }}
       AGENTA_AUTH_KEY: ${{ secrets.AGENTA_TEST_OSS_AUTH_KEY }}
     steps:
@@ -526,7 +524,7 @@ jobs:
         if: always()
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
-          files: sdks/python/oss/tests/results/junit.xml
+          files: sdks/python/ee/tests/results/junit.xml
           check_name: Railway SDK Test Results
           comment_mode: off
 
@@ -536,7 +534,7 @@ jobs:
         with:
           name: railway-sdk-test-results-${{ matrix.layer }}
           path: |
-            sdks/python/oss/tests/results/
+            sdks/python/ee/tests/results/
             sdks/python/pytest*.log
           retention-days: 14
 
@@ -558,7 +556,6 @@ jobs:
       matrix:
         layer: ${{ fromJson(needs.prepare.outputs.layers_json) }}
     env:
-      AGENTA_LICENSE: oss
       AGENTA_API_URL: ${{ needs.prepare.outputs.agenta_api_url }}
       AGENTA_SERVICES_URL: ${{ needs.prepare.outputs.agenta_services_url }}
       AGENTA_AUTH_KEY: ${{ secrets.AGENTA_TEST_OSS_AUTH_KEY }}
@@ -611,7 +608,7 @@ jobs:
         if: always()
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
-          files: services/oss/tests/results/junit.xml
+          files: services/ee/tests/results/junit.xml
           check_name: Railway Services Test Results
           comment_mode: off
 
@@ -621,7 +618,7 @@ jobs:
         with:
           name: railway-services-test-results-${{ matrix.layer }}
           path: |
-            services/oss/tests/results/
+            services/ee/tests/results/
             services/pytest*.log
           retention-days: 14
 

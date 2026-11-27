@@ -57,7 +57,7 @@ export const FeedbackFieldCard = ({
     )
 
     return (
-        <fieldset className="m-0 flex min-w-0 flex-col gap-4 rounded-lg border border-solid border-border bg-colorFillQuaternary p-4">
+        <fieldset className="m-0 flex min-w-0 flex-col gap-4 rounded-lg border border-solid border-border bg-secondary p-4">
             <legend className="sr-only">Feedback {index + 1}</legend>
             <div className="flex items-start gap-2">
                 <Field
@@ -141,7 +141,7 @@ export const FeedbackFieldCard = ({
             <label className="flex cursor-pointer items-center justify-between gap-3 text-sm text-foreground">
                 <span className="flex flex-col">
                     <span className="font-medium">Optional</span>
-                    <span className="text-[13px] text-muted-foreground">
+                    <span className="text-label text-muted-foreground">
                         A reviewer may leave this feedback empty.
                     </span>
                 </span>

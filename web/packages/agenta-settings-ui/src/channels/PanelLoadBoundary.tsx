@@ -7,7 +7,7 @@ import {Button} from "@agenta/ui/ui"
 const PanelLoadFailed = ({onRetry}: {onRetry: () => void}) => {
     const t = useT(commonCatalog)
     return (
-        <div className="flex flex-col items-center gap-3 py-10 text-sm text-muted-foreground">
+        <div className="flex flex-col items-center gap-3 py-10 text-body text-muted-foreground">
             <span>{t("common.thatDidNotWork")}</span>
             <Button onClick={onRetry}>{t("common.tryAgain")}</Button>
         </div>

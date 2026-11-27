@@ -89,7 +89,7 @@ export const ArchiveEvaluatorsDialog = ({
                             </AlertDialogTitle>
                             <AlertDialogDescription>{confirmText(targets)}</AlertDialogDescription>
                         </AlertDialogHeader>
-                        <p className="m-0 text-sm text-muted-foreground">
+                        <p className="m-0 text-body text-muted-foreground">
                             Archived evaluators are hidden from your workspace and can be restored
                             later.
                         </p>

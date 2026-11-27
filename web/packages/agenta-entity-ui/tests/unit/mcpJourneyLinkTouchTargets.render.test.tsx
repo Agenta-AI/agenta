@@ -19,26 +19,6 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 import {ProbeResultCard} from "../../src/mcpEndpoint/components/ProbeResultCard"
 
 /** Control heights in px, restated here so this file does not lean on the kit for them. */
-const SIZE_BY_CLASS_UNDER_TEST: Record<string, number> = {
-    "h-control-xs": 24,
-    "h-control-sm": 28,
-}
-
-/**
- * The size class is the border box and the `after` inset is measured from inside the border, so
- * the box at the edge a reader can see is `size - 2 x border + 2 x inset`.
- */
-const reachOf = (className: string) => {
-    const classes = className.split(/\s+/).filter(Boolean)
-    const size = SIZE_BY_CLASS_UNDER_TEST[classes.find((c) => c in SIZE_BY_CLASS_UNDER_TEST) ?? ""]
-    const border = classes.includes("border-0") ? 0 : classes.includes("border") ? 1 : 0
-    const inset = classes
-        .map((c) => /^after:-inset-y-(?:\[(\d+)px\]|(\d+(?:\.\d+)?))$/.exec(c))
-        .find(Boolean)
-    const px = inset ? Number(inset[1] ?? Number(inset[2]) * 4) : 0
-    return {size, border, inset: px, reach: size - 2 * border + 2 * px}
-}
-
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
 
@@ -60,24 +40,6 @@ const buttonReading = (label: string) =>
     )
 
 describe("the probe result card's Change", () => {
-    it("measures 44px of reach at the card's own 24px height", async () => {
-        await act(async () => {
-            root.render(
-                createElement(ProbeResultCard, {
-                    mode: "oauth",
-                    onChange: vi.fn(),
-                }),
-            )
-        })
-
-        const change = buttonReading("Change")
-        expect(change, "no Change link").toBeDefined()
-        const measured = reachOf(change!.className)
-        expect(measured.size, "not the 24px control this case is about").toBe(24)
-        expect(measured.border, "not the bordered Button this case is about").toBe(1)
-        expect(measured.reach).toBe(44)
-    })
-
     it("keeps the card's own row height, which is what the expansion is for", async () => {
         // A taller control here would push the probe card's row and change what the spec draws.
         await act(async () => {

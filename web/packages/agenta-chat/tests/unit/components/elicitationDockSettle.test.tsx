@@ -178,7 +178,7 @@ describe("chrome", () => {
             (node) => node.textContent === "Request input",
         )
 
-        expect(eyebrow?.className).toContain("text-colorText")
+        expect(eyebrow?.className).toContain("text-foreground")
         expect(eyebrow?.className).not.toContain("uppercase")
     })
 
@@ -187,7 +187,7 @@ describe("chrome", () => {
         const {container} = setup()
         const filled = () =>
             [...container.querySelectorAll("[aria-hidden] > span")].map((node) =>
-                node.className.includes("bg-colorText") ? "filled" : "empty",
+                node.className.includes("bg-foreground") ? "filled" : "empty",
             )
 
         expect(filled()).toEqual(["filled", "empty"])

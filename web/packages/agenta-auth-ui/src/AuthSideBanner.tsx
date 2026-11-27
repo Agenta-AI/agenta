@@ -71,7 +71,7 @@ const AuthSideBanner = () => {
                     href={`https://github.com/${REPO}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex h-6 items-center gap-1.5 self-start rounded-full border border-solid border-border bg-background px-3 text-xs text-muted-foreground no-underline outline-none transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:ring-[3px] focus-visible:ring-[color:var(--ag-controlOutline)]"
+                    className="inline-flex h-6 items-center gap-1.5 self-start rounded-md border border-solid border-border bg-background px-3 text-meta text-muted-foreground no-underline outline-none transition-colors hover:text-foreground focus-visible:text-foreground focus-ring"
                 >
                     <GithubMark />
                     {t("auth.sideBanner.openSource")} · {stars}
@@ -82,7 +82,7 @@ const AuthSideBanner = () => {
             </div>
             <div ref={stageRef} className="relative min-h-0 flex-1" aria-hidden>
                 <div
-                    className="auth-preview-frame absolute left-0 top-0 w-[920px] origin-top-left overflow-hidden rounded-[14px]"
+                    className="auth-preview-frame absolute left-0 top-0 w-[920px] origin-top-left overflow-hidden rounded-xl"
                     style={{height, transform: `scale(${scale})`}}
                 >
                     {wide ? <ProductPreview /> : null}

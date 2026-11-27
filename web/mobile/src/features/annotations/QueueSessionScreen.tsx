@@ -68,7 +68,7 @@ export const QueueSessionScreen = ({
                                 {queueQuery.isPending ? (
                                     <SkeletonBlock className="h-5 w-48" />
                                 ) : queueQuery.data ? (
-                                    <h1 className="m-0 min-w-0 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[20px]">
+                                    <h1 className="m-0 min-w-0 truncate text-heading text-foreground">
                                         {title}
                                     </h1>
                                 ) : null}

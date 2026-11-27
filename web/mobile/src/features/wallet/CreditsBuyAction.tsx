@@ -87,7 +87,7 @@ export const CreditsBuyAction = ({
                 />
             ) : null}
             {loadFailed ? (
-                <div className="text-muted-foreground flex flex-wrap items-center gap-3 text-[13px]">
+                <div className="text-muted-foreground flex flex-wrap items-center gap-3 text-label">
                     {t("billing.topups.loadError")}
                     <Button size="sm" variant="outline" onClick={() => void offer.refetch()}>
                         {t("common.retry")}

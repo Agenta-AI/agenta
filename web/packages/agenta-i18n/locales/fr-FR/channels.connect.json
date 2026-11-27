@@ -99,5 +99,7 @@
     "whatsappNote": "Meta facture directement votre entreprise pour les messages WhatsApp.",
     "whatsappPricing": "Tarifs WhatsApp",
     "yourAgent": "votre agent",
-    "yourApp": "Votre application"
+    "yourApp": "Votre application",
+    "getLink": "Obtenir le lien",
+    "getLinkBody": "Obtenez un lien à usage unique vers {{handle}}, puis ouvrez-le dans Telegram."
 }

@@ -56,7 +56,7 @@ export const RunAnnotateBody = ({
                     awaitingRun={!hasOutput && !invocation.running}
                 />
             </div>
-            <div className="flex w-full shrink-0 flex-col overflow-hidden rounded-lg border border-solid border-border bg-background md:w-[340px] lg:w-[400px]">
+            <div className="flex w-full shrink-0 flex-col overflow-hidden rounded-lg border border-solid border-border bg-background md:w-85 lg:w-100">
                 {hasOutput ? (
                     <AnnotationFormPanel
                         key={row.scenario.id}
@@ -68,7 +68,7 @@ export const RunAnnotateBody = ({
                     />
                 ) : (
                     <>
-                        <h2 className="m-0 border-0 border-b border-solid border-border px-3 py-2.5 text-sm font-medium">
+                        <h2 className="m-0 border-0 border-b border-solid border-border px-3 py-2.5 text-label">
                             Annotations
                         </h2>
                         {canRun ? (

@@ -5,6 +5,7 @@
     "stepCounter": "ステップ {{current}} / {{total}}",
     "skip": "今はスキップ",
     "dotCredits": "クレジット",
+    "dotRegister": "登録",
     "dotTemplates": "最初のエージェント",
     "keyHint": "{{key}} を押す",
     "continue": "続ける",

@@ -5,7 +5,6 @@
 import type {ReactNode} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
-import {PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 
 import {PermissionPolicySelect, type PermissionPolicySelectProps} from "../PermissionPolicySelect"
 
@@ -38,21 +37,22 @@ export const permissionsSectionBody = ({
         {/* No rail label: the section header already reads "Policy: …", so the select
             takes the full width. */}
         {runnerPermissionSchema && policyInFocus ? (
-            <PermissionPolicySelect
-                value={currentRunnerPermission}
-                onChange={(v) =>
-                    setSection("runner", {
-                        ...runner,
-                        permissions: {...runnerPermissions, default: v},
-                    })
-                }
-                options={runnerPermissionOptions}
-                disabled={disabled}
-                // The canvas scale (F04 f8): a 28 px trigger, radius 6, 13 px text and options.
-                triggerClassName={`h-7 w-full rounded-[6px] text-[13px] ${PHONE_TOUCH_TARGET_CLASS}`}
-                contentClassName="[&_[role=option]]:text-[13px]"
-                aria-label={t("entityUi.modelHarness.policy")}
-            />
+            // In the panel card: a control spans the card from the tile edge, as item rows do.
+            <div className="in-data-section-card:px-2.25 in-data-section-card:pb-2.5 in-data-section-card:pt-1">
+                <PermissionPolicySelect
+                    value={currentRunnerPermission}
+                    onChange={(v) =>
+                        setSection("runner", {
+                            ...runner,
+                            permissions: {...runnerPermissions, default: v},
+                        })
+                    }
+                    options={runnerPermissionOptions}
+                    disabled={disabled}
+                    contentClassName="[&_[role=option]]:text-label"
+                    aria-label={t("entityUi.modelHarness.policy")}
+                />
+            </div>
         ) : null}
     </>
 )

@@ -9,9 +9,16 @@ const state = vi.hoisted(() => ({
     captureIntent: vi.fn(),
     pending: true,
     invited: false,
+    telemetry: null as {enabled: boolean; groups: {instance: string} | null} | null,
     replace: vi.fn(),
     endOnboarding: vi.fn(),
     flow: null as Record<string, (...args: never[]) => unknown> | null,
+    billing: false,
+    dismissOffer: vi.fn(),
+    license: {
+        isInstanceAdmin: true,
+        data: {license: null} as {license: unknown; registration_offer_dismissed?: boolean},
+    },
     templates: [
         {key: "lead-qualifier", name: "Lead qualifier", category: "Sales"},
     ] as readonly unknown[],
@@ -20,11 +27,28 @@ const state = vi.hoisted(() => ({
 vi.mock("@/features/analytics/client", () => ({
     capture: state.capture,
     captureIntent: state.captureIntent,
+    isCloudTelemetry: (telemetry: {enabled: boolean; groups: unknown}) =>
+        telemetry.enabled && telemetry.groups === null,
+}))
+vi.mock("@/features/analytics/useInstanceTelemetry", () => ({
+    useInstanceTelemetry: () => state.telemetry,
 }))
 vi.mock("@/features/onboarding/OnboardingFlow", () => ({
     OnboardingFlow: (props: Record<string, (...args: never[]) => unknown>) => {
         state.flow = props
         return null
+    },
+}))
+vi.mock("@/features/onboarding/RegistrationOffer", () => ({RegistrationOffer: () => null}))
+vi.mock("@/features/settings/useInstanceLicense", () => ({
+    useInstanceLicense: () => state.license,
+    // Like the real hook: the cached license says dismissed, and the instance is told.
+    useDismissRegistrationOffer: (projectId: string) => () => {
+        state.license = {
+            ...state.license,
+            data: {...state.license.data, registration_offer_dismissed: true},
+        }
+        void state.dismissOffer(projectId)
     },
 }))
 vi.mock("@/features/onboarding/onboardingPending", () => ({
@@ -75,6 +99,7 @@ vi.mock("@agenta/entities/workflow", async () => {
     }
 })
 vi.mock("@agenta/shared/api/env", () => ({
+    isBillingEnabled: () => state.billing,
     isToolsEnabled: () => false,
     isWalletsEnabled: () => false,
 }))
@@ -100,6 +125,9 @@ const draft = {
 }
 
 let root: Root | undefined
+let rendered: ComponentProps<typeof OnboardingFlowHost> | undefined
+
+const rerender = () => act(() => root!.render(<OnboardingFlowHost {...rendered!} />))
 
 const mount = () => {
     root = createRoot(document.createElement("div"))
@@ -111,8 +139,13 @@ const mount = () => {
         userEmail: "person@example.com",
         homeUrl: "/home",
     }
-    act(() => root!.render(<OnboardingFlowHost {...props} />))
+    rendered = props
+    rerender()
 }
+
+/** The registration step's props while the flow shows it in place of the next step. */
+const offer = () =>
+    (state.flow?.interstitial as unknown as {props: Record<string, unknown>} | undefined)?.props
 
 const flow = () =>
     state.flow as unknown as ComponentProps<
@@ -124,10 +157,15 @@ const surveyEvents = () => state.capture.mock.calls.filter(([event]) => event ==
 beforeEach(() => {
     state.pending = true
     state.invited = false
+    state.telemetry = {enabled: true, groups: null}
     state.replace.mockClear()
     state.endOnboarding.mockClear()
     state.capture.mockClear()
     state.captureIntent.mockClear()
+    state.billing = false
+    state.dismissOffer.mockReset().mockResolvedValue(undefined)
+    state.license = {isInstanceAdmin: true, data: {license: null}}
+    window.localStorage.clear()
 })
 
 afterEach(() => {
@@ -145,11 +183,32 @@ describe("the onboarding's PostHog events", () => {
         expect(surveyEvents()).toHaveLength(1)
         expect(surveyEvents()[0][1]).toMatchObject({
             $survey_id: "019f3812-8ce3-0000-1123-8c254a48750d",
-            "$survey_response_d6c2d8aa-d624-4736-a71b-25fe0b74d0e9": "person@example.com",
         })
 
         flow().onStepCompleted("credits", draft)
         expect(surveyEvents()).toHaveLength(1)
+    })
+
+    it("sends the self-hosted survey without the email answer", () => {
+        state.telemetry = {enabled: true, groups: {instance: "instance-1"}}
+        mount()
+        flow().onStepCompleted("source", draft)
+        expect(surveyEvents()).toHaveLength(1)
+        expect(JSON.stringify(surveyEvents())).not.toContain("person@example.com")
+        expect(surveyEvents()[0][1]).not.toHaveProperty(
+            "$survey_response_d6c2d8aa-d624-4736-a71b-25fe0b74d0e9",
+        )
+    })
+
+    it("sends a self-hosted write-in with the typed line", () => {
+        state.telemetry = {enabled: true, groups: {instance: "instance-1"}}
+        mount()
+        const typed = {...draft, answers: {...draft.answers, persona: "Other: Ada at Example Corp"}}
+        flow().onStepCompleted("source", typed)
+        expect(surveyEvents()[0][1]).toMatchObject({
+            "$survey_response_d71aec24-7e9b-4d89-9cd7-c8f366693367": "Ada at Example Corp",
+        })
+        expect(JSON.stringify(surveyEvents())).not.toContain("person@example.com")
     })
 
     it("asks an invited person the questions only, then opens the project", () => {
@@ -215,5 +274,98 @@ describe("the onboarding's PostHog events", () => {
         mount()
         flow().onSkip()
         expect(state.captureIntent).toHaveBeenCalledWith({source: "skipped"})
+    })
+})
+
+describe("the registration step after the survey", () => {
+    it("shows in place of the next step for the instance admin with no key", () => {
+        mount()
+        act(() => flow().onStepCompleted("size", draft))
+        expect(offer()).toBeUndefined()
+
+        act(() => flow().onStepCompleted("source", draft))
+        expect(offer()).toMatchObject({
+            largeCompany: true,
+            email: "person@example.com",
+            survey: {role: "Marketing", team_size: "51-200", heard_from: "GitHub"},
+        })
+        // Shown is not answered: the instance flag is set only by Skip or Continue.
+        expect(state.dismissOffer).not.toHaveBeenCalled()
+    })
+
+    it("stays away when the instance already has a key", () => {
+        state.license = {isInstanceAdmin: true, data: {license: {key_id: "k"}}}
+        mount()
+        act(() => flow().onStepCompleted("source", draft))
+        expect(offer()).toBeUndefined()
+    })
+
+    it("shows when the license answer arrives after the survey", () => {
+        state.license = {isInstanceAdmin: false, data: {license: null}}
+        mount()
+        act(() => flow().onStepCompleted("source", draft))
+        expect(offer()).toBeUndefined()
+
+        state.license = {isInstanceAdmin: true, data: {license: null}}
+        rerender()
+        expect(offer()).toBeDefined()
+    })
+
+    it("stays away when a late license answer says it was dismissed", () => {
+        state.license = {isInstanceAdmin: false, data: {license: null}}
+        mount()
+        act(() => flow().onStepCompleted("source", draft))
+        state.license = {
+            isInstanceAdmin: true,
+            data: {license: null, registration_offer_dismissed: true},
+        }
+        rerender()
+        expect(offer()).toBeUndefined()
+    })
+
+    it("does not show again once the instance has it dismissed", () => {
+        mount()
+        act(() => flow().onStepCompleted("source", draft))
+        expect(offer()).toBeDefined()
+        act(() => (offer()!.onSkip as () => void)())
+        expect(state.dismissOffer).toHaveBeenCalledWith("p")
+        // The real hook updates the cached license, which renders the host again.
+        rerender()
+        expect(offer()).toBeUndefined()
+
+        act(() => root!.unmount())
+        mount()
+        act(() => flow().onStepCompleted("source", draft))
+        expect(offer()).toBeUndefined()
+    })
+
+    // The credits dot says Register only where the offer takes that step (#8242 named it
+    // Register on every self-hosted instance, also where a paid key leaves the agent setup).
+    it.each([
+        ["self-hosted admin with no key", false, true, null, true],
+        ["self-hosted admin with a key", false, true, {key_id: "k"}, false],
+        ["self-hosted member who is not the admin", false, false, null, false],
+        ["cloud", true, true, null, false],
+    ])("marks the credits step as registration for a %s", (_, billing, admin, key, expected) => {
+        state.billing = billing
+        state.license = {isInstanceAdmin: admin, data: {license: key}}
+        mount()
+        expect(flow().registrationStep).toBe(expected)
+    })
+
+    it("stops marking the credits step as registration once the offer is dismissed", () => {
+        state.license = {
+            isInstanceAdmin: true,
+            data: {license: null, registration_offer_dismissed: true},
+        }
+        mount()
+        expect(flow().registrationStep).toBe(false)
+    })
+
+    it("stays away for a user who is not the instance admin", () => {
+        state.license = {isInstanceAdmin: false, data: {license: null}}
+        mount()
+        act(() => flow().onStepCompleted("source", draft))
+        expect(offer()).toBeUndefined()
     })
 })

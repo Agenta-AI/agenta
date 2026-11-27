@@ -9,9 +9,11 @@ from uuid import uuid4
 import pytest
 import requests
 from oss.src.utils.common import is_ee
+from oss.tests.pytest.utils.plans import plan_offers, skip_unless_plan_offers
 from oss.tests.pytest.acceptance.organization_secrets.conftest import (
     BASE_TIMEOUT,
     MOCK_LLM_URL,
+    RBAC_PLAN,
     MOCK_UPSTREAM_TOKEN,
     custom_provider,
     llm_gateway_disabled,
@@ -351,7 +353,7 @@ def test_a_pinned_organization_credential_never_substitutes(org, gateway_on):
     ).json()
     try:
         assert _relay(org, f"/gateways/llms/organization/{slug}/v1").status_code == 200
-        if is_ee():
+        if is_ee() and plan_offers(org.admin_api, plan=RBAC_PLAN, flag="rbac"):
             limited = org.call(
                 "PUT",
                 f"/secrets/{created['id']}/projects",
@@ -377,9 +379,10 @@ def test_a_pinned_organization_credential_never_substitutes(org, gateway_on):
         org.call("DELETE", f"/secrets/{own['id']}", as_="editor", project=org.marketing)
 
 
-def test_ee_limit_to_sales(org, admin_api):
+def test_ee_limit_to_sales(org, admin_api, gateway_on):
     if not is_ee():
         pytest.skip("EE limit")
+    skip_unless_plan_offers(admin_api, plan=RBAC_PLAN, flags=("rbac",))
     slug = unique("limited")
     created = org.call(
         "POST",
@@ -418,6 +421,7 @@ def test_deleting_the_only_selected_project_leaves_the_row_with_no_project(
 ):
     if not is_ee():
         pytest.skip("EE limit")
+    skip_unless_plan_offers(admin_api, plan=RBAC_PLAN, flags=("rbac",))
     project = org._project("Doomed")
     slug = unique("doomed")
     created = org.call(

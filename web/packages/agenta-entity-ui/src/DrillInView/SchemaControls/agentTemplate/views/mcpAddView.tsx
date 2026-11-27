@@ -1,5 +1,6 @@
-import {SkeletonRows} from "@agenta/ui/ui"
 import {defineView} from "@agenta/ui/view-stack"
+
+import {CatalogListSkeleton} from "../CatalogRowSkeleton"
 
 import {lazyView} from "./lazyView"
 
@@ -13,12 +14,9 @@ export type McpAddViewParams = Record<string, never>
 export const mcpAddView = defineView<McpAddViewParams>({
     id: "agent.mcp.add",
     apply: "immediate",
-    readOnlyOnPhone: true,
     actionRow: false,
     Component: lazyView(
         () => import("./McpAddViewBody"),
-        <div className="px-4 py-3">
-            <SkeletonRows rowClassName="h-[58px]" />
-        </div>,
+        <CatalogListSkeleton action="w-35" groups={[3]} />,
     ),
 })

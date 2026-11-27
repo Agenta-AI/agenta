@@ -7,9 +7,9 @@ export const LastUsedBadge = ({className}: {className?: string}) => {
     const t = useT(authSharedCatalog)
     return (
         <Badge
-            variant="outlined"
+            variant="default"
             className={cn(
-                "pointer-events-none rounded-full px-2 text-[11px] font-medium leading-4 text-muted-foreground",
+                "pointer-events-none rounded-md px-2 text-caption font-medium text-muted-foreground",
                 className,
             )}
         >
