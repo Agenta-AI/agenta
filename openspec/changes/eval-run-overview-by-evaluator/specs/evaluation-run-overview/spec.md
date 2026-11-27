@@ -49,12 +49,16 @@ The "Passed" tile SHALL show the share of test cases whose binary values are all
 - **THEN** the page shows no "Passed" tile and the other five tiles
 
 #### Scenario: One request for the values
-- **WHEN** the Overview tab of a test set run loads
+- **WHEN** the Overview tab of a finished test set run loads
 - **THEN** the page sends one `POST /evaluations/metrics/query` with `scenario_ids: true` and `windowing.limit` 5000 for that run
 
 #### Scenario: Per-test-case values not available
-- **WHEN** that request fails, returns 5000 rows, or the run is an online run
+- **WHEN** that request fails, returns 5000 rows, the run is still running, or the run is an online run
 - **THEN** the tile shows "—" as the value, no test case line, the assertions line, and no alert
+
+#### Scenario: No poll of the per-test-case rows
+- **WHEN** a test set run is running
+- **THEN** the page sends no `scenario_ids: true` request, and sends one when the run finishes
 
 ### Requirement: One table row per evaluator
 
@@ -74,7 +78,7 @@ The Overview tab SHALL show one table row per run step of type `annotation`, and
 
 ### Requirement: Metric cells by type
 
-Each metric cell SHALL be drawn by the metric's type: binary as a passed and failed bar with its count, numeric as a histogram with its mean, categorical as the share of each value, and string or json as "not summarized".
+Each metric cell SHALL be drawn by the metric's type: binary as a passed and failed bar with its count, numeric as a histogram with its mean, and categorical as the share of each value. A string or json metric SHALL NOT be shown, and an evaluator with only string or json metrics SHALL NOT have a row.
 
 #### Scenario: Binary metric
 - **WHEN** a binary metric has 63 true and 5 false values
@@ -85,8 +89,12 @@ Each metric cell SHALL be drawn by the metric's type: binary as a passed and fai
 - **THEN** the cell shows one segment per value in `data-1`, `data-2` and `data-3` and the caption "formal 60%, casual 29%, rude 10%"
 
 #### Scenario: Text metric
-- **WHEN** a metric has the type `string` or `json`
-- **THEN** the cell shows its label and "not summarized"
+- **WHEN** an evaluator reports `success` (binary) and `reason` (`string`)
+- **THEN** its row shows only `success`, and the row reads "1 metric"
+
+#### Scenario: Evaluator with only text metrics
+- **WHEN** an evaluator step reports only `string` or `json` metrics
+- **THEN** the table has no row for it
 
 ### Requirement: Score histograms from the server bins
 

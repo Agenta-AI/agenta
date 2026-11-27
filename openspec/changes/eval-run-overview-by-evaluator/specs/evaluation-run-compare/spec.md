@@ -58,7 +58,7 @@ While runs are compared, the table SHALL show one row per evaluator, with one li
 
 #### Scenario: Categorical and text metrics
 - **WHEN** a metric is categorical or text
-- **THEN** a categorical metric shows one share bar per run and no badge, and a text metric shows one line "not summarized"
+- **THEN** a categorical metric shows one share bar per run and no badge, and a text metric is not shown
 
 ### Requirement: Compare toolbar sort
 
