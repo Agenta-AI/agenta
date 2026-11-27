@@ -268,8 +268,8 @@ describe("scenarios tab", () => {
         )
     })
 
-    it("Reaching the end loads the next page", async () => {
-        await mount({ids: ["sc-1", "sc-2", "sc-3", "sc-4"], pageSize: 3})
+    it("Reaching the end of the cards loads the next page", async () => {
+        await mount({ids: ["sc-1", "sc-2", "sc-3", "sc-4"], pageSize: 3}, false)
         expect(rows()).toHaveLength(3)
         await act(async () => intersect?.())
         await settle()

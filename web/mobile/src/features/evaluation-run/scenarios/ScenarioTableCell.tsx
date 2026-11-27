@@ -50,6 +50,7 @@ export const ScenarioTableCell = ({
             <ValueCell
                 value={metricValueOf(cell)}
                 metricKind={cell?.metricKind ?? column.metricKind ?? undefined}
+                binaryWords={column.human ? "trueFalse" : "passFail"}
                 density={density}
                 lines={lines}
             />

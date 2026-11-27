@@ -1,9 +1,15 @@
 import {
     INVOCATION_METRICS,
+    isHumanOrigin,
     metricKindOfValue,
     type MetricKind,
 } from "@agenta/entities/evaluationRun"
-import {type RunColumnGroup, unwrapStatsForCompare} from "@agenta/entities/evaluationRun/etl"
+import {
+    computeColumnGroup,
+    type RunColumnGroup,
+    type RunStep,
+    unwrapStatsForCompare,
+} from "@agenta/entities/evaluationRun/etl"
 import {detectValueShape, type ValueShape} from "@agenta/shared/utils"
 
 import type {ScenarioCell, ScenarioRow} from "./scenarioColumns"
@@ -36,6 +42,8 @@ export interface ScenarioEvaluatorColumn {
     label: string
     /** From the run metric catalog, else from the first loaded value; null while none loaded. */
     metricKind: MetricKind | null
+    /** A person gives this evaluator's values: its true or false reads True or False. */
+    human: boolean
 }
 
 export interface ScenarioMetricColumn {
@@ -92,7 +100,13 @@ export function scenarioColumnModel(
     groups: readonly RunColumnGroup[],
     rows: readonly ScenarioRow[],
     labels: Record<string, string>,
+    steps: readonly RunStep[],
 ): ScenarioColumnModel {
+    const humanGroups = new Set(
+        steps
+            .filter((step) => isHumanOrigin(step.origin))
+            .map((step) => computeColumnGroup(step, "").key),
+    )
     const fields: ScenarioFieldColumn[] = []
     const evaluators: ScenarioEvaluatorGroup[] = []
     for (const {group, columns} of groups) {
@@ -114,6 +128,7 @@ export function scenarioColumnModel(
                         // The board names a metric by its output key, under the evaluator.
                         label: name,
                         metricKind: kind ?? (value === undefined ? null : metricKindOfValue(value)),
+                        human: humanGroups.has(group.key),
                     }
                 }),
             })

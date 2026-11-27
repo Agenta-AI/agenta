@@ -1,4 +1,4 @@
-import type {RunColumnGroup} from "@agenta/entities/evaluationRun/etl"
+import type {RunColumnGroup, RunStep} from "@agenta/entities/evaluationRun/etl"
 import {describe, expect, it} from "vitest"
 
 import {rowNounKey} from "@/features/evaluation-run/focus/scenarioNoun"
@@ -34,7 +34,7 @@ const GROUPS = [
     group("testset", "ts", ["website_text", "company", "country"]),
     group("application", "app", ["outputs"]),
     group("evaluator", "tone", ["success", "score", "reason"]),
-    group("evaluator", "facts", ["success"]),
+    group("evaluator", "evaluator:facts", ["success"]),
 ]
 
 const LONG = Array.from({length: 20}, (_, line) => `Line ${line} of the scraped page.`).join("\n")
@@ -70,7 +70,7 @@ function row(values: {
                 cell("evaluator", "score", values.score ?? null),
                 cell("evaluator", "reason", "The tone fits."),
             ],
-            facts: [cell("evaluator", "success", values.facts ?? null)],
+            "evaluator:facts": [cell("evaluator", "success", values.facts ?? null)],
         },
         valuesFailed: false,
         invocation: null,
@@ -87,7 +87,17 @@ const rows = [
     row({company: "Halcyon", tone: false, score: null, facts: false}),
     row({company: "Vantor", tone: true, score: 0.9, facts: true}),
 ]
-const model = scenarioColumnModel(GROUPS, rows, {})
+/** The "facts" evaluator is a person's: its step's origin is human. */
+const STEPS = [
+    {key: "ev-tone", type: "annotation", origin: "auto", references: {evaluator: {slug: "tone"}}},
+    {
+        key: "ev-facts",
+        type: "annotation",
+        origin: "human",
+        references: {evaluator: {slug: "facts"}},
+    },
+] as unknown as RunStep[]
+const model = scenarioColumnModel(GROUPS, rows, {}, STEPS)
 
 describe("scenario table columns", () => {
     it("Names the shape of each value column and the kind of each metric from the loaded rows", () => {
@@ -110,6 +120,10 @@ describe("scenario table columns", () => {
             "Tokens",
             "Errors",
         ])
+    })
+
+    it("An evaluator whose step a person fills is human; the others are not", () => {
+        expect(model.evaluators.map((group) => group.columns[0].human)).toEqual([false, true])
     })
 
     it("The default label column is the first short text column of the test case", () => {
@@ -135,14 +149,14 @@ describe("scenario table columns", () => {
 
     it("Hiding and showing keeps only the changes to the defaults", () => {
         let view = setColumnsHidden(DEFAULT_SCENARIO_VIEW, model, ["tone::reason"], false)
-        view = setColumnsHidden(view, model, ["facts::success"], true)
+        view = setColumnsHidden(view, model, ["evaluator:facts::success"], true)
         expect(view.show).toEqual(["tone::reason"])
-        expect(view.hide).toEqual(["facts::success"])
+        expect(view.hide).toEqual(["evaluator:facts::success"])
         expect(hiddenKeys(model, view).has("tone::reason")).toBe(false)
-        expect(hiddenKeys(model, view).has("facts::success")).toBe(true)
+        expect(hiddenKeys(model, view).has("evaluator:facts::success")).toBe(true)
         // Back to the default: nothing left to keep.
-        view = setColumnsHidden(view, model, ["tone::reason", "facts::success"], true)
-        view = setColumnsHidden(view, model, ["facts::success"], false)
+        view = setColumnsHidden(view, model, ["tone::reason", "evaluator:facts::success"], true)
+        view = setColumnsHidden(view, model, ["evaluator:facts::success"], false)
         expect(view.show).toEqual([])
         expect(view.hide).toEqual([])
     })
@@ -151,14 +165,14 @@ describe("scenario table columns", () => {
         const shown = setColumnsHidden(
             {...DEFAULT_SCENARIO_VIEW, widths: {"ts::company": 300}},
             model,
-            ["app::outputs", "facts::success"],
+            ["app::outputs", "evaluator:facts::success"],
             false,
         )
-        const hidden = setColumnsHidden(shown, model, ["facts::success"], true)
+        const hidden = setColumnsHidden(shown, model, ["evaluator:facts::success"], true)
         const comfortable = withDensity(hidden, model, "comfortable")
         expect(comfortable.widths).toEqual({})
         expect(comfortable.show).toEqual([])
-        expect(comfortable.hide).toEqual(["facts::success"])
+        expect(comfortable.hide).toEqual(["evaluator:facts::success"])
         expect(hiddenKeys(model, comfortable).has("app::outputs")).toBe(false)
         expect(
             hiddenKeys(model, withDensity(comfortable, model, "compact")).has("app::outputs"),

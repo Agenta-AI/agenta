@@ -125,8 +125,8 @@ export const ScenariosTab = ({
     })
 
     const model = useMemo(
-        () => scenarioColumnModel(columnGroups, rows, labels),
-        [columnGroups, rows, labels],
+        () => scenarioColumnModel(columnGroups, rows, labels, scenarios.schema.steps),
+        [columnGroups, rows, labels, scenarios.schema.steps],
     )
     const hidden = useMemo(() => hiddenKeys(model, view), [model, view])
     const labelKey = labelColumnKey(model, view)
@@ -375,6 +375,11 @@ export const ScenariosTab = ({
                     onOpen={openRow}
                     onAnnotate={onAnnotate}
                     onRetry={scenarios.retryValues}
+                    onLoadMore={
+                        scenarios.hasMore && !scenarios.isFetchingMore && !scenarios.loadMoreError
+                            ? scenarios.loadMore
+                            : undefined
+                    }
                 />
             ) : (
                 <ListTable
@@ -440,6 +445,8 @@ export const ScenariosTab = ({
                     onLoadMore={scenarios.loadMore}
                     shown={rows.length}
                     total={total}
+                    // The table loads from its own scroll; the cards load at the page's end.
+                    watchScroll={!isTable}
                 />
             ) : null}
         </div>

@@ -26,6 +26,8 @@ export interface ScenarioServerState {
     appMetrics: boolean
     /** True: the evaluator also writes a reason, a text metric. */
     reasons: boolean
+    /** True: a person fills the evaluator (its step's origin is human). */
+    humanEvaluator: boolean
     calls: {url: string; body: unknown}[]
 }
 
@@ -43,6 +45,7 @@ export function newServerState(patch: Partial<ScenarioServerState> = {}): Scenar
         failing: [],
         appMetrics: false,
         reasons: false,
+        humanEvaluator: false,
         calls: [],
         ...patch,
     }
@@ -93,7 +96,7 @@ export function answerRequest(
                                 {
                                     key: "ev",
                                     type: "annotation",
-                                    origin: "auto",
+                                    origin: state.humanEvaluator ? "human" : "auto",
                                     references: {evaluator: {id: "ev-1", slug: "exact-match"}},
                                 },
                             ],

@@ -24,6 +24,7 @@ import {
     type SortDirection,
 } from "./scenarioTableColumns"
 import {defaultColumnWidth, LEAD_WIDTH, ROW_HEIGHT, type ScenarioView} from "./scenarioViewDefaults"
+import {useTableBodyHeight} from "./useTableBodyHeight"
 
 /** The table's width change, as `VirtualTable` reports a drag. */
 export type ScenarioWidthsChange = NonNullable<VirtualTableProps<object>["onColumnSizingChange"]>
@@ -67,6 +68,7 @@ export const ScenarioTable = ({
     onOpen,
     onAnnotate,
     onRetry,
+    onLoadMore,
 }: {
     entries: ScenarioEntry[]
     label: ScenarioFieldColumn | null
@@ -87,6 +89,8 @@ export const ScenarioTable = ({
     onOpen: (entry: ScenarioEntry) => void
     onAnnotate: (row: ScenarioRow) => void
     onRetry: () => void
+    /** Loads the next page when the body scrolls near its end; absent when none is left. */
+    onLoadMore?: () => void
 }) => {
     const t = useT(scenariosCatalog)
     const {density, rowHeight, widths} = view
@@ -328,29 +332,39 @@ export const ScenarioTable = ({
         widths,
     ])
 
+    // A bounded body keeps the header in place while the rows scroll.
+    const {boxRef, height} = useTableBodyHeight(entries.length * (ROW_HEIGHT[rowHeight] + 1), [
+        density,
+        evaluators.length,
+    ])
+
     return (
-        <VirtualTable<ScenarioEntry>
-            columns={columns}
-            dataSource={entries}
-            rowKey={(entry) => entry.key}
-            rowHeight={ROW_HEIGHT[rowHeight] + 1}
-            enableColumnResizing
-            columnSizing={widths}
-            onColumnSizingChange={onWidths}
-            loading={loading}
-            emptyText={emptyText}
-            onRow={(entry) =>
-                entry.row
-                    ? {
-                          tabIndex: 0,
-                          className: "group/row cursor-pointer",
-                          onClick: () => onOpen(entry),
-                          onKeyDown: (event) => {
-                              if (event.key === "Enter") onOpen(entry)
-                          },
-                      }
-                    : {className: "group/row"}
-            }
-        />
+        <div ref={boxRef}>
+            <VirtualTable<ScenarioEntry>
+                height={height}
+                loadMore={onLoadMore}
+                columns={columns}
+                dataSource={entries}
+                rowKey={(entry) => entry.key}
+                rowHeight={ROW_HEIGHT[rowHeight] + 1}
+                enableColumnResizing
+                columnSizing={widths}
+                onColumnSizingChange={onWidths}
+                loading={loading}
+                emptyText={emptyText}
+                onRow={(entry) =>
+                    entry.row
+                        ? {
+                              tabIndex: 0,
+                              className: "group/row cursor-pointer",
+                              onClick: () => onOpen(entry),
+                              onKeyDown: (event) => {
+                                  if (event.key === "Enter") onOpen(entry)
+                              },
+                          }
+                        : {className: "group/row"}
+                }
+            />
+        </div>
     )
 }

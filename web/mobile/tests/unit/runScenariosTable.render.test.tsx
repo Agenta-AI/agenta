@@ -360,6 +360,39 @@ describe("scenarios table", () => {
         expect(host.textContent).toContain("Load more")
     })
 
+    it("A human evaluator's true or false reads True or False, not Pass or Fail", async () => {
+        await mount({ids: ["sc-1"], humanEvaluator: true})
+        expect(rows()[0].querySelector('[role="img"]')?.getAttribute("aria-label")).toBe("True")
+    })
+
+    it("With more rows than the window holds, the body scrolls under a header that stays", async () => {
+        const innerHeight = window.innerHeight
+        window.innerHeight = 400
+        try {
+            const ids = Array.from({length: 30}, (_, index) => `sc-${index + 1}`)
+            await mount({ids})
+            const body = host.querySelector<HTMLElement>(".avt-body")
+            // The window less the room for the footer; jsdom puts the table at the top.
+            expect(body?.style.height).toBe("328px")
+            expect(body?.querySelector("thead")).toBeNull()
+            expect(host.querySelector("thead")?.textContent).toContain("country")
+        } finally {
+            window.innerHeight = innerHeight
+        }
+    })
+
+    it("Scrolling the table to its end loads the next page", async () => {
+        await mount({ids: ["sc-1", "sc-2", "sc-3"], pageSize: 2})
+        expect(rows()).toHaveLength(2)
+        const body = host.querySelector<HTMLElement>(".avt-body")
+        await act(async () => {
+            body?.dispatchEvent(new Event("scroll"))
+            await vi.advanceTimersByTimeAsync(100)
+        })
+        await settle()
+        expect(rows()).toHaveLength(3)
+    })
+
     it("On a human run each row has Annotate next to its status", async () => {
         await mount({ids: ["sc-1", "sc-2"]}, {...RUN, kind: "human"})
         expect(headers().slice(0, 4)).toEqual(["#", "", "", "country"])
