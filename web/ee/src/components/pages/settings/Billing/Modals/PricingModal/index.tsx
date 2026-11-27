@@ -7,11 +7,11 @@ import {useCallback, useState} from "react"
 
 import {PricingPlans, type BillingPlanOption} from "@agenta/settings-ui"
 import {message} from "@agenta/ui/app-message"
-import {EnhancedModal, type EnhancedModalProps} from "@agenta/ui/components/modal"
 import {Button} from "@agenta/ui/ui"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
+import {EnhancedModal, type EnhancedModalProps} from "@/oss/components/LegacyKit"
 import useURL from "@/oss/hooks/useURL"
 import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 import {
