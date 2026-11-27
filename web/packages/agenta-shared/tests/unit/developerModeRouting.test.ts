@@ -187,8 +187,10 @@ describe("Developer Mode routing", () => {
         })
     })
 
-    it("leaves the cookie alone until the profile lands", () => {
+    it("publishes 0 before the profile lands, unless the classic app is on", () => {
         localStorage.setItem(ACTIVE_USER_ID_KEY, "u")
+        expect(readSettledClassicModeCookie(null)).toBe("0")
+        localStorage.setItem("agenta:settings:u:classic-app", "true")
         expect(readSettledClassicModeCookie(null)).toBeUndefined()
     })
 })

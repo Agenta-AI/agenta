@@ -341,6 +341,7 @@ describe("the gate cookie", () => {
         // Only the cohort branch needs the profile. Clearing while it is in flight would drop a
         // correct answer on every reload, and the gate would fall back to the device heuristic.
         browser("u")
+        localStorage.setItem("agenta:settings:u:classic-app", "true")
         expect(readSettledClassicModeCookie(null)).toBeUndefined()
     })
 

@@ -205,11 +205,13 @@ export const readSettledClassicModeCookie = (user: User | null): "0" | "1" | nul
     // The host must migrate and settle the profile scope before publishing a gate answer.
     if (user?.uid && user.uid !== userId) return undefined
 
+    // Developer Mode stays in `/m` unless the user chose the classic app, and simplified lives
+    // there too, so without the classic app every user is "0". It also sends a desktop browser
+    // from a `/w` address to `/m`; no cookie would leave it in `/w`.
+    if (!readStoredClassicApp(userId)) return "0"
+
     const override = readStoredBoolean(onboardingScopedKey(userId, "nav-simplified-override"))
-    // Developer Mode stays in `/m` unless the user chose the classic app. "0" also sends a
-    // desktop browser from a `/w` address to `/m`; no cookie would leave it in `/w`.
-    const inM = !readStoredClassicApp(userId)
-    if (override !== null) return override || inM ? "0" : "1"
+    if (override !== null) return override ? "0" : "1"
 
     if (readStoredBoolean(onboardingScopedKey(userId, "nav-simplified")) === true) return "0"
 
@@ -217,7 +219,7 @@ export const readSettledClassicModeCookie = (user: User | null): "0" | "1" | nul
     // cookie beats no cookie: clearing here would drop a correct answer on every reload.
     if (!user) return undefined
 
-    return isSimplifiedCohort(user) || inM ? "0" : null
+    return isSimplifiedCohort(user) ? "0" : null
 }
 
 /**
@@ -240,10 +242,6 @@ export const readSettledDeveloperViewsActive = (user: User | null): boolean | nu
  * The gate reads it to pick the `/m` page for a `/w` developer link; see `BETA_DEVELOPER_MODE_COOKIE`.
  */
 export const readSettledBetaDeveloperModeCookie = (user: User | null): "1" | null | undefined => {
-    if (typeof window === "undefined") return undefined
-    const userId = localStorage.getItem(ACTIVE_USER_ID_KEY)
-    if (!userId) return null
-    if (user?.uid && user.uid !== userId) return undefined
     const active = readSettledDeveloperViewsActive(user)
     if (active === null) return undefined
     return active ? "1" : null
