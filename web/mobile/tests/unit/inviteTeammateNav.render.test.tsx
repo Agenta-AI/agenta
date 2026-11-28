@@ -61,13 +61,13 @@ describe("Invite Teammate in the rail", () => {
 
     afterEach(() => act(() => root.unmount()))
 
-    it("beta developer mode adds Invite Teammate after Settings, opening the invite dialog", () => {
+    it("beta developer mode adds Invite Teammate above Settings, opening the invite dialog", () => {
         expect(render(true)).toEqual([
-            {key: "mobile-settings", link: `${P}/settings`},
             {
                 key: "invite-teammate-link",
                 link: `${P}/settings?tab=workspace&inviteModal=open`,
             },
+            {key: "mobile-settings", link: `${P}/settings`},
         ])
         expect(permission).toHaveBeenCalledWith("proj-1", "add_new_user_to_workspace")
     })
