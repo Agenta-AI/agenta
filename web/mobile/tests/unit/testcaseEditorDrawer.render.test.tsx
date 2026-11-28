@@ -14,7 +14,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 import type {FieldColumnActions} from "@/features/testsets/detail/fields/TestcaseFieldForm"
 import {
     TestcaseEditorDrawer,
-    withColumnChanges,
+    type DrawerColumnChange,
 } from "@/features/testsets/detail/TestcaseEditorDrawer"
 import {TestcaseEditorDrawerContent} from "@/features/testsets/detail/TestcaseEditorDrawerContent"
 
@@ -197,16 +197,7 @@ describe("Testcase drawer", () => {
         expect(store.get(testcaseMolecule.atoms.data(id))?.data).toEqual({question: "Q"})
     })
 
-    it("Cancel keeps a column change made from the drawer and undoes the row's edits", () => {
-        const id =
-            store.set(testcaseMolecule.actions.add, {data: {question: "Q", answer: "A", old: 1}})
-                ?.id ?? ""
-        const start = store.get(testcaseMolecule.atoms.data(id))
-        const changes = [
-            {kind: "rename" as const, from: "question", to: "prompt"},
-            {kind: "delete" as const, keys: ["old"]},
-            {kind: "add" as const, key: "notes"},
-        ]
+    const openDrawer = (id: string, columnChanges: DrawerColumnChange[]) =>
         act(() =>
             root.render(
                 <TestcaseEditorDrawer
@@ -219,16 +210,28 @@ describe("Testcase drawer", () => {
                     onNext={vi.fn()}
                     onClose={vi.fn()}
                     onOpenCommit={vi.fn()}
-                    columnChanges={changes}
+                    columnChanges={columnChanges}
                 />,
             ),
         )
-        // The row after the edits and the column changes.
+
+    it("Cancel keeps a column change made from the drawer and undoes the row's edits", () => {
+        const id =
+            store.set(testcaseMolecule.actions.add, {data: {question: "Q", answer: "A", old: 1}})
+                ?.id ?? ""
+        const start = store.get(testcaseMolecule.atoms.data(id))
+        openDrawer(id, [])
+        // The row after an edit and the column changes.
         act(() => {
             store.set(testcaseMolecule.actions.update, id, {
                 data: {prompt: "Q", answer: "A2", notes: "n", old: undefined, question: undefined},
             })
         })
+        openDrawer(id, [
+            {kind: "rename", from: "question", to: "prompt"},
+            {kind: "delete", keys: ["old"]},
+            {kind: "add", key: "notes"},
+        ])
 
         act(() => (seen.drawer?.onRestoreSessionStart as (data: unknown) => void)(start))
 
@@ -239,15 +242,21 @@ describe("Testcase drawer", () => {
         })
     })
 
-    it("a column change the snapshot already holds leaves it as it is", () => {
-        // Taken after `a` was renamed to `b` and a new `a` was added.
-        const later = {a: "", b: "old a"}
-        expect(
-            withColumnChanges(later, [
-                {kind: "rename", from: "a", to: "b"},
-                {kind: "add", key: "a"},
-            ]),
-        ).toEqual(later)
+    it("Cancel on a row first shown after the column changes replays none of them", () => {
+        // `answer` was deleted, then `answer_v2` renamed to `answer`, then this row was shown.
+        const id = store.set(testcaseMolecule.actions.add, {data: {answer: "kept"}})?.id ?? ""
+        const start = store.get(testcaseMolecule.atoms.data(id))
+        openDrawer(id, [
+            {kind: "delete", keys: ["answer"]},
+            {kind: "rename", from: "answer_v2", to: "answer"},
+        ])
+        act(() => {
+            store.set(testcaseMolecule.actions.update, id, {data: {answer: "edited"}})
+        })
+
+        act(() => (seen.drawer?.onRestoreSessionStart as (data: unknown) => void)(start))
+
+        expect(store.get(testcaseMolecule.atoms.data(id))?.data).toEqual({answer: "kept"})
     })
 
     it("Cancel on a row just added removes the row from the grid", () => {
@@ -530,6 +539,12 @@ describe("Testcase drawer", () => {
             type(editor(), "50")
             expect(dataOf(id)).toEqual({payload: "50"})
             expect(editor().value).toBe("50")
+
+            // A JSON string that holds JSON stays the typed string.
+            const quoted = JSON.stringify('{"b":2}')
+            type(editor(), quoted)
+            expect(dataOf(id)).toEqual({payload: quoted})
+            expect(editor().value).toBe(quoted)
         })
 
         it("JSON written as text that an outside update makes an object stores objects", () => {

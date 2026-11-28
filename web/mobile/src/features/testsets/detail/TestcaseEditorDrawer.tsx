@@ -1,4 +1,4 @@
-import {useCallback} from "react"
+import {useCallback, useRef} from "react"
 
 import {testcaseMolecule, type Testcase} from "@agenta/entities/testcase"
 import {TestcaseDrawer, type TestcaseDrawerContentRenderProps} from "@agenta/entity-ui/testcase"
@@ -16,10 +16,9 @@ export type DrawerColumnChange =
     | {kind: "delete"; keys: string[]}
 
 /**
- * The row as it was when the drawer opened, with the column changes made since then: Cancel
- * undoes the row's edits, not a column change that reached every row. A change the snapshot
- * already holds (it was taken after the change) leaves it as it is. A new column is empty, as
- * the commit sends it.
+ * The row as it was when the drawer first showed it, with the column changes made since then:
+ * Cancel undoes the row's edits, not a column change that reached every row. A new column is
+ * empty, as the commit sends it.
  */
 export const withColumnChanges = (
     data: Record<string, unknown>,
@@ -33,9 +32,6 @@ export const withColumnChanges = (
             return Object.fromEntries(
                 Object.entries(current).filter(([key]) => !change.keys.includes(key)),
             )
-        }
-        if (!Object.hasOwn(current, change.from) || Object.hasOwn(current, change.to)) {
-            return current
         }
         return Object.fromEntries(
             Object.entries(current).map(([key, value]) => [
@@ -93,6 +89,13 @@ export const TestcaseEditorDrawer = ({
     const update = useSetAtom(testcaseMolecule.actions.update)
     const remove = useSetAtom(testcaseMolecule.actions.delete)
 
+    // How many column changes there were when the drawer first showed each row, which is when
+    // the drawer takes the row's Cancel snapshot.
+    const changesSeen = useRef(new Map<string, number>())
+    if (!testcaseId) changesSeen.current.clear()
+    else if (!changesSeen.current.has(testcaseId)) {
+        changesSeen.current.set(testcaseId, columnChanges.length)
+    }
     // Cancel puts the row back as it was when the drawer opened, fields added since included,
     // with the column changes made since then.
     // A row added with "Add row" had no state before the drawer, so Cancel removes it.
@@ -101,7 +104,10 @@ export const TestcaseEditorDrawer = ({
             if (!id) return
             if (discardOnCancel) remove(id)
             else {
-                const restored = withColumnChanges(start.data ?? {}, columnChanges)
+                // Only the changes made after the drawer first showed this row: the snapshot
+                // already holds the earlier ones.
+                const since = columnChanges.slice(changesSeen.current.get(id) ?? 0)
+                const restored = withColumnChanges(start.data ?? {}, since)
                 update(id, replaceDataUpdate(testcase?.data ?? {}, restored))
             }
         },

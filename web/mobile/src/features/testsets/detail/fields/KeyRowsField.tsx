@@ -1,6 +1,5 @@
-import {useEffect, useRef, useState} from "react"
+import {useEffect, useState} from "react"
 
-import {codeParseError, textMatchesValue, type CodeParseError} from "@agenta/entity-ui/testcase"
 import {useT} from "@agenta/i18n"
 import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
 import editorCatalog from "@agenta/i18n/catalogs/testsets.testcaseEditor"
@@ -9,6 +8,7 @@ import {Button} from "@agenta/ui/ui"
 import {CaretDown} from "@phosphor-icons/react"
 
 import {CodeErrorLine} from "./CodeErrorLine"
+import {useCodeDraft} from "./CodeField"
 import {NumberInput, TrueFalseSwitch} from "./ScalarFields"
 
 type Record_ = Record<string, unknown>
@@ -21,10 +21,13 @@ const setAt = (value: Record_, path: string[], next: unknown): Record_ => {
 const INPUT =
     "-ml-2 block h-6.5 w-[calc(100%+8px)] rounded-md border border-transparent bg-transparent px-1.75 text-body text-foreground tabular-nums outline-none hover:border-border focus:border-border-strong focus:bg-background"
 
+/** A list on one line, for the input. */
+const oneLine = (value: unknown) => JSON.stringify(value)
+
 /**
- * A list inside an object edits as JSON text with the code field's rules: the text reaches the
- * value when it parses, text that does not parse shows the error line, and the list keeps its
- * last valid value.
+ * A list inside an object edits as JSON text with the code field's draft rules: the text
+ * reaches the value when it parses, text that does not parse shows the error line, and the
+ * list keeps its last valid value.
  */
 const ListLeaf = ({
     label,
@@ -35,16 +38,12 @@ const ListLeaf = ({
     value: unknown
     onChange?: (next: unknown) => void
 }) => {
-    const [text, setText] = useState(() => JSON.stringify(value))
-    const [error, setError] = useState<CodeParseError | null>(null)
-    const typed = useRef(text)
-    // Replace the typed text only when the list changes from outside.
-    useEffect(() => {
-        if (textMatchesValue(typed.current, "json", value)) return
-        typed.current = JSON.stringify(value)
-        setText(typed.current)
-        setError(null)
-    }, [value])
+    const {text, error, onTextChange} = useCodeDraft(
+        value,
+        "json",
+        onChange ? (next) => onChange(next) : undefined,
+        oneLine,
+    )
     return (
         <span className="flex min-w-0 flex-col">
             <input
@@ -53,14 +52,7 @@ const ListLeaf = ({
                 value={text}
                 readOnly={!onChange}
                 className={`${INPUT} font-mono text-meta ${error ? "!border-destructive" : ""}`}
-                onChange={(event) => {
-                    const next = event.target.value
-                    typed.current = next
-                    setText(next)
-                    const problem = codeParseError(next, "json")
-                    setError(problem)
-                    if (!problem) onChange?.(JSON.parse(next))
-                }}
+                onChange={(event) => onTextChange(event.target.value)}
             />
             {error ? <CodeErrorLine error={error} format="json" /> : null}
         </span>

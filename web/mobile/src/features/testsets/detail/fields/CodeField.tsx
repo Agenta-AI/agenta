@@ -15,10 +15,48 @@ import {cn} from "@agenta/ui/ui"
 import {CodeErrorLine} from "./CodeErrorLine"
 
 /**
- * A field as JSON or YAML, with the root editor's rules: the typed text stays, it reaches the
- * draft when it parses, and the text is replaced only when the value changes from outside.
- * Text that does not parse shows the error line, and the field keeps its last valid value.
- * `onChange` gets the parsed value and the typed text.
+ * The draft of a code text, with the root editor's rules: the typed text stays, it reaches the
+ * value when it parses, and the text is replaced only when the value changes from outside.
+ * Text that does not parse gives the error, and the value keeps its last valid state. Every
+ * valid edit goes out, also one that only moves keys or spaces, so a value stored as text keeps
+ * exactly the typed text. `toText` writes the value as text (one line for an input).
+ */
+export function useCodeDraft(
+    value: unknown,
+    format: CodeFormat,
+    onChange: ((next: unknown, text: string) => void) | undefined,
+    toText: (value: unknown, format: CodeFormat) => string = toCodeString,
+) {
+    const display = useMemo(() => toText(value, format), [toText, value, format])
+    const [text, setText] = useState(display)
+    const [error, setError] = useState<CodeParseError | null>(null)
+    const typed = useRef(display)
+
+    useEffect(() => {
+        if (textMatchesValue(typed.current, format, value)) return
+        typed.current = display
+        setText(display)
+        setError(null)
+    }, [display, format, value])
+
+    const onTextChange = useCallback(
+        (next: string) => {
+            // The editor repeats the text it was given: not an edit.
+            if (!onChange || next === typed.current) return
+            typed.current = next
+            setText(next)
+            const problem = codeParseError(next, format)
+            setError(problem)
+            if (!problem) onChange(parseCodeString<unknown>(next, format, value), next)
+        },
+        [format, onChange, value],
+    )
+    return {text, error, onTextChange}
+}
+
+/**
+ * A field as JSON or YAML, with the draft rules of `useCodeDraft`. Text that does not parse
+ * shows the error line. `onChange` gets the parsed value and the typed text.
  */
 export const CodeField = ({
     id,
@@ -31,33 +69,7 @@ export const CodeField = ({
     format: CodeFormat
     onChange?: (next: unknown, text: string) => void
 }) => {
-    const display = useMemo(() => toCodeString(value, format), [value, format])
-    const [text, setText] = useState(display)
-    const [error, setError] = useState<CodeParseError | null>(null)
-    const typed = useRef(display)
-
-    useEffect(() => {
-        if (textMatchesValue(typed.current, format, value)) return
-        typed.current = display
-        setText(display)
-        setError(null)
-    }, [display, format, value])
-
-    const handleChange = useCallback(
-        (next: string) => {
-            // The editor repeats the text it was given: not an edit.
-            if (!onChange || next === typed.current) return
-            typed.current = next
-            setText(next)
-            const problem = codeParseError(next, format)
-            setError(problem)
-            if (problem) return
-            // Every valid edit goes out, also one that only moves keys or spaces, so a value
-            // stored as text keeps exactly the typed text.
-            onChange(parseCodeString<unknown>(next, format, value), next)
-        },
-        [format, onChange, value],
-    )
+    const {text, error, onTextChange} = useCodeDraft(value, format, onChange)
 
     const editorId = `testcase-field-${format}-${id}`
     return (
@@ -66,7 +78,7 @@ export const CodeField = ({
                 <SharedEditor
                     key={`${editorId}-shared`}
                     initialValue={text}
-                    handleChange={onChange ? handleChange : undefined}
+                    handleChange={onChange ? onTextChange : undefined}
                     editorType="border"
                     className={cn("min-h-15 overflow-hidden", error && "!border-destructive")}
                     disableDebounce

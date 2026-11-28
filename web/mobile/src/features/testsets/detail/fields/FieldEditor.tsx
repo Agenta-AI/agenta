@@ -16,6 +16,8 @@ import {NumberInput, TrueFalseSwitch} from "./ScalarFields"
 import {TextAreaField} from "./TextAreaField"
 
 /** A scalar as the text its input shows; null and a missing value show nothing. */
+const NOT_JSON = Symbol("not JSON")
+
 const fieldText = (value: unknown) =>
     value === null || value === undefined
         ? ""
@@ -59,15 +61,14 @@ export const FieldEditor = ({
     // stored value is still a string (an outside update to an object makes edits store objects).
     const asText = pick.parsedFromText && typeof value === "string"
     // Parsed once per stored text: a render for another field is then not an outside change,
-    // and a typed draft stays. Text the shape rule does not read as JSON (a typed `5`) is read
-    // as JSON, as the editor reads it.
-    const parsed = useMemo(
-        () =>
-            asText
-                ? (parseStructuredJson(value) ?? parseCodeString<unknown>(value, "json", value))
-                : value,
-        [asText, value],
-    )
+    // and a typed draft stays. Valid JSON is read as the editor reads it (a typed `5` is 5, a
+    // typed JSON string stays a string); the shape rule's reading (code fences, loose JSON)
+    // serves only text that is not valid JSON.
+    const parsed = useMemo(() => {
+        if (!asText) return value
+        const strict = parseCodeString<unknown>(value as string, "json", NOT_JSON)
+        return strict !== NOT_JSON ? strict : (parseStructuredJson(value as string) ?? value)
+    }, [asText, value])
 
     switch (kind) {
         case "boolean":
