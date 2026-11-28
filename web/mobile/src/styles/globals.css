@@ -585,6 +585,14 @@
 }
 
 @layer base {
+    /* ICON-01: regular Phosphor paths plus a 1.6-unit outline = a 17.6-unit line, 27% lighter
+       than bold. See iconStrokeWidth in @agenta/ui/design/icons. */
+    svg[data-icon-stroke] > :not(title) {
+        stroke: currentColor;
+        stroke-width: 1.6px;
+        stroke-linejoin: round;
+    }
+
     * {
         @apply border-border outline-ring/50;
     }
