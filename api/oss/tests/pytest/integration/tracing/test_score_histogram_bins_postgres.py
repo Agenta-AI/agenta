@@ -90,6 +90,15 @@ CASES = [
     ("no range, values 0..7", [0, 3.5, 7], _score(), 10, 0, 7, None),
     ("declared 1..5, maximum in last bin", [2, 5], _score(1, 5), 10, 1, 5, 10),
     (
+        "declared 0.1..0.3, values on both bounds",
+        [0.1, 0.3],
+        _score(0.1, 0.3),
+        10,
+        0.1,
+        0.3,
+        10,
+    ),
+    (
         "declared 0..1, one value above",
         [0.3, 0.9, 1.2],
         _score(0, 1),

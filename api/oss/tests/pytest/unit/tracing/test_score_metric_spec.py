@@ -4,6 +4,7 @@ No live DB: the DAO stops at `build_specs_values`, which is captured.
 """
 
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from uuid import uuid4
 
 from oss.src.apis.fastapi.tracing.utils import parse_specs_from_body_request
@@ -90,6 +91,25 @@ def test_specs_values_carry_score_rule_and_declared_bounds():
         None,
         None,
     )
+
+
+def test_specs_values_bind_float_bounds_as_their_decimal_text():
+    specs_values = build_specs_values(
+        metric_specs=[
+            ScoreMetricSpec(
+                type=MetricType.NUMERIC_CONTINUOUS,
+                path="ag.data.outputs.score",
+                declared_min=0.1,
+                declared_max=0.3,
+            ),
+        ]
+    )
+
+    columns = [c.name for c in specs_values.c]
+    (score,) = (dict(zip(columns, row)) for row in specs_values._data[0])
+    # Decimal(0.3) would be 0.2999..., so a score of exactly 0.3 would not fit.
+    assert score["declared_min"] == Decimal("0.1")
+    assert score["declared_max"] == Decimal("0.3")
 
 
 def test_public_analytics_request_takes_no_score_fields():

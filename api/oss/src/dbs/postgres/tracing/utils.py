@@ -1,6 +1,7 @@
 from typing import Any, Dict, Tuple, Optional, Union, List, cast as type_cast
 from json import dumps
 from datetime import datetime, timedelta, time, timezone
+from decimal import Decimal
 from uuid import UUID
 from math import ceil, floor
 
@@ -1076,6 +1077,12 @@ def build_type_flags(
     }
 
 
+def _exact_bound(value: Optional[float]) -> Optional[Decimal]:
+    # asyncpg binds a float NUMERIC as Decimal(float), so 0.3 becomes 0.29999...
+    # and a score of exactly 0.3 would not fit a declared maximum of 0.3.
+    return None if value is None else Decimal(repr(value))
+
+
 def build_specs_values(
     *,
     metric_specs: List[MetricSpec],
@@ -1093,8 +1100,8 @@ def build_specs_values(
             s.vmax,
             (s.edge if s.edge is not None else True),
             isinstance(s, ScoreMetricSpec),
-            s.declared_min if isinstance(s, ScoreMetricSpec) else None,
-            s.declared_max if isinstance(s, ScoreMetricSpec) else None,
+            _exact_bound(s.declared_min) if isinstance(s, ScoreMetricSpec) else None,
+            _exact_bound(s.declared_max) if isinstance(s, ScoreMetricSpec) else None,
         )
         for idx, s in enumerate(metric_specs)
     ]
