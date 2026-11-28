@@ -3,9 +3,10 @@ import {useCallback, useRef} from "react"
 import {testcaseMolecule, type Testcase} from "@agenta/entities/testcase"
 import {applyColumnOps, type PendingColumnOps} from "@agenta/entities/testset"
 import {TestcaseDrawer, type TestcaseDrawerContentRenderProps} from "@agenta/entity-ui/testcase"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import type {FieldColumnActions} from "./fields/FieldMenu"
+import {sectionColumnKeys} from "./fields/pickFieldEditor"
 import {replaceDataUpdate} from "./testcaseDataUpdate"
 import {TestcaseEditorDrawerContent} from "./TestcaseEditorDrawerContent"
 import {TestcaseQueueButton} from "./TestcaseQueuePicker"
@@ -43,6 +44,7 @@ export const TestcaseEditorDrawer = ({
     columnActions,
     onAddColumn,
     columnChanges = [],
+    rowIds = [],
 }: {
     testcaseId: string | null
     testcaseNumber: number | undefined
@@ -60,6 +62,8 @@ export const TestcaseEditorDrawer = ({
     onAddColumn?: () => void
     /** The column changes made from the field menu since the drawer opened, one per entry. */
     columnChanges?: readonly PendingColumnOps[]
+    /** The loaded rows of the test set: a column is a grid field or a section in all of them. */
+    rowIds?: readonly string[]
 }) => {
     const id = testcaseId ?? ""
     const isNewRow = id.startsWith("new-")
@@ -71,6 +75,17 @@ export const TestcaseEditorDrawer = ({
 
     // How many column changes there were when the drawer first showed each row, which is when
     // the drawer takes the row's Cancel snapshot.
+    // Grid or section per column, from the loaded rows when the drawer opens.
+    const store = useStore()
+    const sectionKeys = useRef<ReadonlySet<string> | null>(null)
+    if (!testcaseId) sectionKeys.current = null
+    else if (!sectionKeys.current) {
+        sectionKeys.current = sectionColumnKeys(
+            [...new Set([...rowIds, testcaseId])].map(
+                (rowId) => store.get(testcaseMolecule.atoms.data(rowId))?.data,
+            ),
+        )
+    }
     const changesSeen = useRef(new Map<string, number>())
     if (!testcaseId) changesSeen.current.clear()
     else if (!changesSeen.current.has(testcaseId)) {
@@ -104,6 +119,7 @@ export const TestcaseEditorDrawer = ({
                     viewOnly={viewOnly}
                     columnActions={viewOnly ? undefined : columnActions}
                     onAddColumn={viewOnly ? undefined : onAddColumn}
+                    sectionKeys={sectionKeys.current ?? undefined}
                     {...props}
                 />
             ) : null,

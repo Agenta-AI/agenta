@@ -6,6 +6,7 @@ import {
     GRID_TEXT_MAX_CHARS,
     isIdKey,
     pickFieldEditor,
+    sectionColumnKeys,
 } from "@/features/testsets/detail/fields/pickFieldEditor"
 
 const kindOf = (value: unknown) => {
@@ -23,14 +24,23 @@ describe("pickFieldEditor", () => {
         expect(kindOf(null)).toMatchObject({grid: true, kind: "text"})
     })
 
-    it("keeps a grid text to one line of at most 140 characters", () => {
+    it("keeps a grid text to at most 3 lines and 140 characters", () => {
         expect(kindOf("a".repeat(GRID_TEXT_MAX_CHARS)).grid).toBe(true)
         expect(kindOf("a".repeat(GRID_TEXT_MAX_CHARS + 1))).toMatchObject({
             grid: false,
             kind: "textArea",
         })
-        // Three lines are text-short for the taxonomy, but a section here.
-        expect(kindOf("one\ntwo\nthree")).toMatchObject({grid: false, kind: "textArea"})
+        expect(kindOf("one\ntwo\nthree")).toMatchObject({grid: true, kind: "text"})
+        expect(kindOf("one\ntwo\nthree\nfour")).toMatchObject({grid: false, kind: "textArea"})
+    })
+
+    it("puts a column in sections when any loaded row holds a value that is not a grid value", () => {
+        const keys = sectionColumnKeys([
+            {brief: "great thanks", title: "Short", count: 2},
+            {brief: "a".repeat(GRID_TEXT_MAX_CHARS + 1), title: "Also short", count: 3},
+            undefined,
+        ])
+        expect([...keys]).toEqual(["brief"])
     })
 
     it("draws every other shape as a section with its editor", () => {
@@ -149,7 +159,8 @@ describe("fitsEditor", () => {
         expect(fitsEditor("boolean", "true")).toBe(false)
         expect(fitsEditor("number", "12")).toBe(false)
         expect(fitsEditor("text", null)).toBe(true)
-        expect(fitsEditor("text", "one\ntwo")).toBe(false)
+        expect(fitsEditor("text", "one\ntwo")).toBe(true)
+        expect(fitsEditor("text", 3)).toBe(false)
         expect(fitsEditor("textArea", "one\ntwo")).toBe(true)
         expect(fitsEditor("code", {a: 1})).toBe(true)
     })

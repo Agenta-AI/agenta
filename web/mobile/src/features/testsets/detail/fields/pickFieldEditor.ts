@@ -1,8 +1,9 @@
 import type {ViewType} from "@agenta/entity-ui/view-types"
 import {detectValueShape, isPlainObject, type ValueShape} from "@agenta/shared/utils"
 
-/** A grid text field is one line of at most this many characters. */
+/** A grid text field has at most this many characters and lines; it wraps, it is never cut. */
 export const GRID_TEXT_MAX_CHARS = 140
+export const GRID_TEXT_MAX_LINES = 3
 
 /**
  * A column that holds an identifier, drawn in mono: the key is the suffix itself or ends in it
@@ -72,7 +73,7 @@ const chatEditorKeeps = (value: unknown) =>
 const isGridText = (shape: ValueShape, value: unknown) =>
     shape === "text-short" &&
     typeof value === "string" &&
-    !value.includes("\n") &&
+    value.split("\n").length <= GRID_TEXT_MAX_LINES &&
     value.length <= GRID_TEXT_MAX_CHARS
 
 /**
@@ -151,7 +152,6 @@ export function fitsEditor(kind: FieldEditorKind, value: unknown): boolean {
         case "number":
             return typeof value === "number"
         case "text":
-            return value == null || (typeof value === "string" && !value.includes("\n"))
         case "textArea":
         case "markdown":
             return value == null || typeof value === "string"
@@ -164,4 +164,19 @@ export function fitsEditor(kind: FieldEditorKind, value: unknown): boolean {
         case "code":
             return true
     }
+}
+
+/**
+ * The columns drawn as sections in every test case: a column with any value, in the loaded rows,
+ * that is not a grid value. Decided when the drawer opens, so a column looks the same on every
+ * test case and does not move while the user types.
+ */
+export function sectionColumnKeys(rows: readonly (Record<string, unknown> | null | undefined)[]) {
+    const keys = new Set<string>()
+    for (const data of rows) {
+        for (const [key, value] of Object.entries(data ?? {})) {
+            if (!keys.has(key) && !pickFieldEditor(value).grid) keys.add(key)
+        }
+    }
+    return keys
 }

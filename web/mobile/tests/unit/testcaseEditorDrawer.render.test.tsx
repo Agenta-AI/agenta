@@ -339,7 +339,9 @@ describe("Testcase drawer", () => {
             store.set(testcaseMolecule.actions.add, {data})?.id ?? ""
         const dataOf = (id: string) => store.get(testcaseMolecule.atoms.data(id))?.data
         const input = (label: string) =>
-            host.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)
+            host.querySelector<HTMLInputElement>(
+                `input[aria-label="${label}"], textarea[aria-label="${label}"]`,
+            )
         const section = (name: string) =>
             host.querySelector<HTMLElement>(`section[aria-label="${name}"]`)
         const type = (element: HTMLInputElement | HTMLTextAreaElement, text: string) =>
@@ -353,7 +355,7 @@ describe("Testcase drawer", () => {
             const id = addRow({
                 ticket_id: "T-20418",
                 language: "en",
-                question: "Line one\nline two\nline three",
+                question: "Line one\nline two\nline three\nline four",
                 tier: "gold",
                 max_items: 5,
                 context: {source: "email", score: 0.9},
@@ -730,15 +732,18 @@ describe("Testcase drawer", () => {
         })
 
         it("Show as changes the editor of that field only", () => {
-            const id = addRow({brief: "First line\nsecond line", other: "x\ny"})
+            const id = addRow({
+                brief: "First line\nsecond line\nthird\nfourth",
+                other: "x\ny\nz\nw",
+            })
             content({testcaseId: id, view: "form"})
             openMenu("brief")
             act(() => menuItem("JSON")?.click())
 
             expect(section("brief")?.querySelector("textarea")?.value).toBe(
-                '"First line\\nsecond line"',
+                '"First line\\nsecond line\\nthird\\nfourth"',
             )
-            expect(section("other")?.querySelector("textarea")?.value).toBe("x\ny")
+            expect(section("other")?.querySelector("textarea")?.value).toBe("x\ny\nz\nw")
         })
 
         it("a reader sees the same layout with no inputs and no column actions", () => {

@@ -269,6 +269,7 @@ export const TestsetDetailScreen = ({
     )
     const openAddColumn = useCallback(() => setFieldColumnStep({kind: "add"}), [])
 
+    const rowIds = useMemo(() => rows.map((row) => row.id), [rows])
     const navigation = useTestcaseDrawerNavigation({
         rows,
         getRowId: rowId,
@@ -455,6 +456,7 @@ export const TestsetDetailScreen = ({
                     columnActions={fieldColumnActions}
                     onAddColumn={editor.columnEditBlocked ? undefined : openAddColumn}
                     columnChanges={drawerColumnChanges}
+                    rowIds={rowIds}
                 />
             ) : null}
             <ColumnDialog

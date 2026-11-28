@@ -67,12 +67,15 @@ export const TestcaseFieldForm = ({
     columnActions,
     onAddField,
     collapseSignal,
+    sectionKeys,
 }: {
     value: Record<string, unknown>
     onFieldChange?: (key: string, next: unknown) => void
     columnActions?: (key: string) => FieldColumnActions | null
     onAddField?: () => void
     collapseSignal: number
+    /** Columns drawn as sections in every test case (`sectionColumnKeys`). */
+    sectionKeys?: ReadonlySet<string>
 }) => {
     const t = useT(editorCatalog)
     const typeHint = useTypeHint()
@@ -92,6 +95,7 @@ export const TestcaseFieldForm = ({
         // A value that no longer fits its editor gets a new one, in its first view.
         if (!pick || !view || !fitsEditor(editorKind(pick, view), value[key])) {
             pick = pickFieldEditor(value[key])
+            if (sectionKeys?.has(key)) pick = {...pick, grid: false}
             picks.current.set(key, pick)
             view = chosen && pick.views.includes(chosen) ? chosen : pick.defaultView
             if (!fitsEditor(editorKind(pick, view), value[key])) view = pick.defaultView

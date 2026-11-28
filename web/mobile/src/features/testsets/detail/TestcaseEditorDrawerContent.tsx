@@ -31,6 +31,7 @@ export const TestcaseEditorDrawerContent = ({
     collapseSignal,
     columnActions,
     onAddColumn,
+    sectionKeys,
 }: {
     testcaseId: string
     isNewRow: boolean
@@ -42,6 +43,8 @@ export const TestcaseEditorDrawerContent = ({
     /** Rename and delete of the column of a field; none for a reader. */
     columnActions?: (key: string) => FieldColumnActions | null
     onAddColumn?: () => void
+    /** Columns drawn as sections in every test case. */
+    sectionKeys?: ReadonlySet<string>
 }) => {
     const testcase = useAtomValue(testcaseMolecule.atoms.data(testcaseId))
     const update = useSetAtom(testcaseMolecule.actions.update)
@@ -92,6 +95,7 @@ export const TestcaseEditorDrawerContent = ({
                             columnActions={columnActions}
                             onAddField={onAddColumn}
                             collapseSignal={collapseSignal}
+                            sectionKeys={sectionKeys}
                         />
                     </ValueViewProvider>
                 ) : (

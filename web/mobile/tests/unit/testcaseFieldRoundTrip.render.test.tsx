@@ -405,6 +405,47 @@ describe("Testcase editor round trip", () => {
         })
     })
 
+    const openDrawer = (testcaseId: string, rowIds: string[]) =>
+        act(async () =>
+            root.render(
+                <TestcaseEditorDrawer
+                    testcaseId={testcaseId}
+                    testcaseNumber={1}
+                    viewOnly={false}
+                    hasPrevious={false}
+                    hasNext={false}
+                    onPrevious={vi.fn()}
+                    onNext={vi.fn()}
+                    onClose={vi.fn()}
+                    onOpenCommit={vi.fn()}
+                    rowIds={rowIds}
+                />,
+            ),
+        )
+
+    it("a column with one long value is a section on a test case whose own value is short", async () => {
+        const short = storedRow({brief: "great thanks", title: "Short"})
+        const long = storedRow({brief: "a long brief ".repeat(20), title: "Also short"})
+        await openDrawer(short.id, [short.id, long.id])
+        await flush()
+
+        expect(document.querySelector('section[aria-label="brief"]')).not.toBeNull()
+        expect(document.querySelector('section[aria-label="title"]')).toBeNull()
+        expect(short.writes).toEqual([])
+    })
+
+    it("a value of 2 lines wraps in the grid and is not cut", async () => {
+        const row = storedRow({title: "line one\nline two"})
+        await openDrawer(row.id, [row.id])
+        await flush()
+
+        const field = document.querySelector<HTMLTextAreaElement>('textarea[aria-label="title"]')
+        expect(field?.closest("section")).toBeNull()
+        expect(field?.value).toBe("line one\nline two")
+        expect(field?.className).not.toContain("truncate")
+        expect(row.writes).toEqual([])
+    })
+
     it("Cancel in the drawer puts back a text and a true or false value as they were", async () => {
         const row = storedRow(SAMPLE_ROW)
         const onClose = vi.fn()
@@ -425,7 +466,9 @@ describe("Testcase editor round trip", () => {
         )
         await flush()
         const field = (name: string) =>
-            document.querySelector<HTMLInputElement>(`input[aria-label="${name}"]`)
+            document.querySelector<HTMLInputElement>(
+                `input[aria-label="${name}"], textarea[aria-label="${name}"]`,
+            )
         const input = field("ticket_id") as HTMLInputElement
         act(() => {
             const proto = Object.getPrototypeOf(input) as object

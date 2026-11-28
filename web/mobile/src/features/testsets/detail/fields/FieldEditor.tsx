@@ -84,14 +84,17 @@ export const FieldEditor = ({
                 <ValueField value={value} label={name} />
             )
         case "text":
+            // A grid text wraps (at most 3 lines when the drawer opens) and is never cut.
             return (
-                <input
+                <textarea
                     aria-label={name}
+                    rows={1}
                     value={text}
+                    readOnly={!onChange}
                     placeholder={
                         value === null || value === "" ? t("chat.valueView.emptyText") : undefined
                     }
-                    className={`-ml-2 block h-7 w-[calc(100%+8px)] truncate ${mono ? "font-mono" : ""} rounded-md border border-transparent bg-transparent px-1.75 text-body text-foreground outline-none placeholder:text-muted-foreground hover:border-border focus:border-border-strong focus:bg-background`}
+                    className={`-ml-2 block min-h-7 w-[calc(100%+8px)] resize-none py-1 [field-sizing:content] ${mono ? "font-mono" : ""} rounded-md border border-transparent bg-transparent px-1.75 text-body text-foreground outline-none placeholder:text-muted-foreground hover:border-border focus:border-border-strong focus:bg-background`}
                     onChange={(event) => onChange?.(event.target.value)}
                 />
             )
