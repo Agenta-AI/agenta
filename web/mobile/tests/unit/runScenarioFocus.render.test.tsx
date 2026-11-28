@@ -6,6 +6,7 @@ import {setUserAtoms} from "@agenta/entities/shared"
 import {
     closeTraceDrawerAtom,
     isDrawerOpenAtom,
+    openTraceDrawerAtom,
     traceDrawerQueryAtom,
     traceDrawerTraceIdAtom,
 } from "@agenta/observability/traceDrawer"
@@ -821,6 +822,16 @@ describe("scenario focus drawer", () => {
         await openTab("Results")
         expect(text()).toContain("No evaluator gave a result for this test case")
         expect(text()).not.toContain("This run has no evaluators")
+    })
+
+    it("A link with a test case and its trace shows the trace first, then the drawer", async () => {
+        store.set(openTraceDrawerAtom, {traceId: "sc-1-app-trace"})
+        await mount("sc-1")
+        expect(store.get(isDrawerOpenAtom)).toBe(true)
+        expect(dialog()).toBeNull()
+        await act(async () => store.set(closeTraceDrawerAtom))
+        await settle()
+        expect(text()).toContain("Test case #1")
     })
 
     it("A human row says who gave the value and when", async () => {

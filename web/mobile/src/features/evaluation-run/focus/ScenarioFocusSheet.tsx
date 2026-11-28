@@ -5,6 +5,7 @@ import {evaluationRunQueryAtomFamily, type RunHeader} from "@agenta/entities/eva
 import type {RunColumnGroup} from "@agenta/entities/evaluationRun/etl"
 import {useT} from "@agenta/i18n"
 import focusCatalog from "@agenta/i18n/catalogs/evaluations.scenarioFocus"
+import {isDrawerOpenAtom} from "@agenta/observability/traceDrawer"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
 import {Sheet, SheetContent, SheetDescription, SheetTitle} from "@agenta/ui/ui"
@@ -141,6 +142,15 @@ export const ScenarioFocusSheet = ({
         loadMore()
     }, [scenarioId, current, hasMore, isPending, isFetchingMore, loadMoreError, loadMore])
 
+    // Two modal sheets stack in the order they open. A link or a reload with both a test case and a
+    // trace opens the trace first, so this drawer waits until the trace closes; it would cover the
+    // trace otherwise. Opened from this drawer, the trace comes later and sits on top.
+    const traceOpen = useAtomValue(isDrawerOpenAtom)
+    const [traceClosedOnce, setTraceClosedOnce] = useState(!traceOpen)
+    useEffect(() => {
+        if (!traceOpen) setTraceClosedOnce(true)
+    }, [traceOpen])
+
     const [fullScreen, setFullScreen] = useState(false)
     const [tab, setTab] = useState<ScenarioFocusTab>("io")
     const [mode, setMode] = useState<ValueViewMode>("formatted")
@@ -165,7 +175,10 @@ export const ScenarioFocusSheet = ({
     const notFound = !current && !hasMore && !isPending && !isFetchingMore && !scenarios.isError
 
     return (
-        <Sheet open={Boolean(scenarioId)} onOpenChange={(open) => !open && setScenarioId(null)}>
+        <Sheet
+            open={Boolean(scenarioId) && traceClosedOnce}
+            onOpenChange={(open) => !open && setScenarioId(null)}
+        >
             <SheetContent
                 side="responsive"
                 aria-label={noun}
