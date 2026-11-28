@@ -1,0 +1,206 @@
+---
+slug: "company-brain-for-claude"
+title: "Company Brain for Claude & Claude Code: Beyond Static Claude Projects (2026 Guide)"
+description: "Why static Claude Projects, local CLAUDE.md files, and raw MCPs break down at team scale, and the 6 best ways to build a shared Company Brain for Claude and Claude Code in 2026."
+category: "Article"
+date: 2026-10-27
+readingTime: "15 min read"
+heroImage: "/blog/company-brain-for-claude/hero.webp"
+ogImage: "/blog/company-brain-for-claude/hero.webp"
+author: "mahmoud-mabrouk"
+featured: false
+tags: ["AI Agents", "Company Brain", "Claude Code", "Open Source"]
+---
+
+Most engineering and product teams that standardize on Claude hit the same context wall within a few months. One developer has a finely tuned `CLAUDE.md` file in their local git worktree, a product manager has uploaded twelve PDFs into a `Claude Project` on `claude.ai`, and a founder has connected ten different Model Context Protocol (MCP) servers to Claude Desktop. Everyone is using Claude, yet no two sessions share the same source of truth.
+
+When a pricing tier changes, an architecture rule is updated, or an engineer discovers why a staging build fails, that lesson stays trapped inside one person's chat history or local checkout. Worse, when developers wire dozens of raw MCP servers directly into `Claude Code` to compensate for missing company context, tool definitions flood the 200K context window and burn through 5-hour session limits before real work even starts.
+
+Giving Claude and `Claude Code` a real **Company Brain** solves both problems. Instead of duplicating static files across projects or burning tokens on raw tool schemas, a Company Brain maintains a single, living layer of organizational knowledge, reusable skills, and governed integrations that every teammate and every agent session can read and update.
+
+Below, we break down why native Claude memory fragments across teams, how to connect a shared Company Brain to `Claude Code`, and the **6 best platforms and open-source tools** to run a Company Brain for Claude in 2026.
+
+## TL;DR: The 6 Best Company Brain Solutions for Claude & Claude Code
+
+1. **[Agenta](https://agenta.ai)** (Open Source, MIT License): Best all-in-one AI coworker and Company Brain platform for running **[Claude Code](https://github.com/anthropics/claude-code)** (alongside **[Codex](https://github.com/openai/codex)** and **[Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)**) inside cloud sandboxes with a shared **AI Drive**, reusable skills, `claude setup-token` Pro/Max subscription support, and omnichannel access across web, Slack, Telegram, and embedded widgets. Free self-hosted or usage-based Cloud with unlimited seats.
+2. **[Anthropic Claude Team & Enterprise](https://www.anthropic.com/pricing)** (Proprietary SaaS): Best native baseline for small teams working entirely inside `claude.ai` that only need shared `Claude Projects`, slash-command skills, and managed remote MCP connectors ($25 to $30/seat/month on Team; $150/seat/month for Premium seats with `Claude Code`).
+3. **[Slite (`Slite Agent` & `Slite MCP`)](https://slite.com/learn/claude-code-company-brain)** (Proprietary SaaS): Best context-retrieval MCP layer to stop `Claude Code` from burning session limits on noisy multi-tool queries ($10 to $20/user/month billed annually).
+4. **[Vortic](https://www.getvortic.com/)** (Proprietary SaaS): Best automated session-learning memory that imports past `Claude Code`, `Codex`, and `Cursor` transcripts, strips secrets locally, and extracts shared engineering rules over MCP.
+5. **[GBrain (`garrytan/gbrain`)](https://github.com/garrytan/gbrain)** (Open Source, MIT License): Best DIY PostgreSQL + `pgvector` + Markdown knowledge brain for technical builders running local `Claude Code` and `Codex` CLI workflows.
+6. **[Luna Labs (`Company Brain for Claude`)](https://luna-labs.io/en/works-with/claude)** (Proprietary SaaS): Best verified-knowledge connector for `claude.ai` and `Claude Desktop` in regulated European organizations that require document owners, verification dates, and EU data residency.
+
+## Why Native Claude Projects, `CLAUDE.md`, and Raw MCPs Break Down at Team Scale
+
+Teams often assume Claude already has shared organizational memory because Anthropic ships three features with similar names: conversation memory, `Claude Projects`, and `CLAUDE.md` files in `Claude Code`. In practice, all three are scoped to a single person, a single project workspace, or a single local git checkout.
+
+![Fragmented Native Claude Context vs Unified Company Brain for Claude and Claude Code](/blog/company-brain-for-claude/claude-memory-silos-vs-shared-brain.webp)
+
+### 1. Static `Claude Projects` Drift Apart Across Workstreams
+
+A `Claude Project` lets you upload reference documents and set custom instructions inside a 200K token context window. That works well for one bounded engagement, until the same company knowledge needs to exist across ten projects at once:
+
+- **No project sharing on Pro or Max plans:** Individual Claude Pro ($20/month) and Claude Max ($100 or $200/month) subscriptions include `Claude Code` and unlimited individual Projects, but project sharing and collaboration require moving the organization onto Claude Team ($25 to $30/seat/month, minimum 5 seats) or Enterprise.
+- **Silent document drift:** When your pricing sheet, security rubric, ICP positioning, or API conventions live as uploaded files inside twelve separate `Claude Projects`, updating a policy in one project leaves the other eleven answering with outdated rules.
+- **No write-back from execution:** A static `Claude Project` cannot autonomously update a shared file when an agent finishes a research task, resolves an incident, or ships a pull request.
+
+### 2. Local `CLAUDE.md` Files Isolate Non-Technical Teammates and Worktrees
+
+In `Claude Code`, memory is plain text: the CLI reads `CLAUDE.md` and modular `.claude/rules/*.md` files from the developer's local checkout at the start of every session, alongside a local auto-memory directory. While `CLAUDE.md` is effective for repository-specific build commands and linting rules, it has three structural limits as a Company Brain:
+
+- **Per-worktree fragmentation:** Local auto-memory in `Claude Code` is scoped to the local project path or git worktree. When an engineer works across multiple worktrees or machines, session learnings fragment unless manually committed and merged.
+- **Every added line taxes every session:** Because `CLAUDE.md` is injected into context on every turn, stuffing cross-functional company context into repo Markdown files bloats token usage once files grow past 150 to 200 lines.
+- **Invisible outside the terminal:** Product managers, support leads, operations, and executives in Slack or on the web cannot query or collaborate with a `Claude Code` session running on a developer's laptop.
+
+### 3. Wiring 10+ Raw MCPs Directly into `Claude Code` Burns Session Limits
+
+To give `Claude Code` live company context, many developers connect individual MCP servers for Jira, Linear, Slack, Google Drive, Notion, HubSpot, and GitHub directly to their local CLI. That creates a severe context bottleneck:
+
+- **Tool-schema bloat:** Loading dozens of raw MCP tool definitions consumes a large slice of the context window before you type your first prompt.
+- **Chained-call timeouts and rate caps:** Asking a cross-tool question forces `Claude Code` to fire dozens of sequential MCP calls to stitch fragments together, rapidly exhausting Claude Pro and Max 5-hour usage windows and hitting desktop tool-call caps.
+- **Entity confusion:** Raw MCP search lacks organizational identity resolution. Asking about an engineer named "Jason" across raw connectors frequently pulls ten unrelated CRM leads named Jason instead of the internal team member's architecture docs.
+
+## Comparison Matrix: 6 Ways to Give Claude & Claude Code a Company Brain (2026)
+
+| Platform / Tool                                                                | License & Architecture                     | How It Connects to Claude & Claude Code                                                                                                                                                                                                                                        | Shared File & Memory Model                                                                                            | Omnichannel Access (Beyond CLI)                                     | Pricing Model (2026)                                                                         |
+| :----------------------------------------------------------------------------- | :----------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------ | :------------------------------------------------------------------------------------------- |
+| **[Agenta](https://agenta.ai)**                                                | **MIT Open Source** (Self-hosted or Cloud) | Runs **[Claude Code](https://github.com/anthropics/claude-code)** (plus **[Codex](https://github.com/openai/codex)** & **[Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)**) in Daytona sandboxes; supports `claude setup-token` (Pro/Max) & API keys | **AI Drive** (persistent shared agent files + temporary session files), plain-language instructions & reusable skills | Web UI, Slack, Telegram, WhatsApp, Embedded Widget, Cron & Webhooks | **Free self-hosted**; Cloud **$0 Hobby / $29 Starter / $299 Business** (**Unlimited seats**) |
+| **[Claude Team & Enterprise](https://www.anthropic.com/pricing)**              | Proprietary SaaS                           | Native `claude.ai`, Claude Desktop, and `Claude Code` (on Premium seats)                                                                                                                                                                                                       | Shared `Claude Projects` (200K context), org-wide Skills & remote MCP Connectors                                      | Web, Desktop, iOS/Android, Slack integration                        | **$25-$30/seat/mo** (Team Standard); **$150/seat/mo** (Premium with `Claude Code`)           |
+| **[Slite (`Slite Agent`)](https://slite.com/learn/claude-code-company-brain)** | Proprietary SaaS                           | Single `Slite MCP` server + `Ask Slite` skill for `Claude Code`, `Codex`, and `Cursor`                                                                                                                                                                                         | Verified wiki knowledge base + cross-tool context synthesis (Slack, Linear, CRM)                                      | Slite Web App, Slack, Chrome extension, MCP clients                 | **$10/user/mo** (Basic) / **$20/user/mo** (Pro, billed annually)                             |
+| **[Vortic](https://www.getvortic.com/)**                                       | Proprietary SaaS                           | Single HTTP MCP endpoint (`claude mcp add`) + local session importer (`companybrain-import.mjs`)                                                                                                                                                                               | Automated Librarian & Reflector loop extracting typed rules, lessons, and skills from past sessions                   | Web dashboard + MCP for `Claude Code`, `Codex`, and `Cursor`        | Usage/team workspace tiers (free GitHub sign-in & repo indexing to start)                    |
+| **[GBrain](https://github.com/garrytan/gbrain)**                               | **MIT Open Source** (Self-hosted)          | Local or remote MCP server for `Claude Code` and `Codex`                                                                                                                                                                                                                       | PostgreSQL + `pgvector` + compiled Markdown pages (truth zone + chronological log)                                    | CLI, MCP clients (`Claude Code`, `Codex`), custom bot bridges       | **Free open source** (BYO Postgres/Supabase & embedding/LLM keys)                            |
+| **[Luna Labs](https://luna-labs.io/en/works-with/claude)**                     | Proprietary SaaS (EU hosted)               | Native Claude Connector (`Organisation settings -> Connectors`) & MCP for `Claude Code`                                                                                                                                                                                        | SharePoint, Google Drive & interview-agent knowledge verified by accountable owners                                   | `claude.ai`, Claude Desktop, `Claude Code`, ChatGPT, Copilot        | Pilot / custom organization pricing                                                          |
+
+## 1. Agenta: Best Open-Source AI Coworker Platform for Running Claude Code with a Shared Company Brain
+
+**[Agenta](https://agenta.ai)** is an open-source (MIT-licensed) platform for building and running AI coworkers that share a persistent Company Brain across your entire team. Instead of running `Claude Code` exclusively inside isolated developer laptops, Agenta runs the **[Claude Code](https://github.com/anthropics/claude-code)** harness (alongside **[Codex](https://github.com/openai/codex)** and **[Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)**) inside isolated Daytona cloud sandboxes backed by a shared workspace.
+
+![Agenta AI Coworker and Company Brain Workspace](/blog/company-brain-for-claude/agenta.webp)
+
+### How Agenta Turns Claude Code into a Multiplayer Company Brain
+
+In Agenta, every agent has its own sandboxed computer, a shared **AI Drive**, plain-language instructions, and reusable skills. When you select the **[Claude Code](https://github.com/anthropics/claude-code)** harness for an agent, it gets the full agentic file-editing, bash execution, and reasoning loop that developers love in the terminal, while making that coworker accessible to the rest of the company:
+
+- **Bring your own Claude Pro or Max subscription (`claude setup-token`) or API keys:** You do not have to pay $150/seat/month for enterprise coding seats just to share a `Claude Code` agent. In Agenta, you can run `claude setup-token` in your terminal, paste the resulting `sk-ant-oat...` token into `Settings > AI providers`, and link your existing **Claude Pro or Max plan** to the project on either Agenta Cloud or self-hosted deployments. Every member of the project can then run `Claude Code` agents on that connection, and on Agenta Cloud the sandbox only receives a placeholder so the raw token is never exposed inside the container. Teams can also connect standard `ANTHROPIC_API_KEY` credentials, AWS Bedrock, or Google Vertex AI.
+- **Two-tier AI Drive (Persistent Shared Agent Files vs. Temporary Session Files):** Agenta separates scratch work from permanent organizational knowledge in the **Files** tab. Temporary session files live only for the current conversation, while **persistent shared agent files** survive across every session and are immediately readable and writable by every teammate who uses the agent. When an agent updates a competitor report, a runbook, or an architectural decision record in its persistent shared files, the entire team's next session starts with that updated truth.
+- **Plain-language instructions and reusable skills:** Instead of syncing local dotfiles across developer laptops, teams manage agent instructions and multi-step skills (with bundled reference docs and helper scripts) directly in the Agenta UI. When an agent learns a durable team preference during a chat, it updates its own instructions or persistent shared files so nobody has to repeat the correction tomorrow.
+- **Centralized MCP gateway and granular tool permissions:** Connect 1,000+ integrations (GitHub, Slack, Linear, Notion, Google Workspace, HubSpot, PostgreSQL) and custom MCP servers once at the project level, with per-tool **`Allow`**, **`Ask`** (human-in-the-loop approval card before execution), or **`Deny`** policies.
+- **Every channel + scheduled & event-driven autonomy:** The same `Claude Code` coworker works in the Agenta web UI, in **Slack**, **Telegram**, and **WhatsApp**, on **cron schedules** and **webhook event subscriptions**, or inside your own internal portal via an embeddable widget (`Publish > Embed`).
+
+![How Agenta Runs Claude Code with a Shared Company Brain](/blog/company-brain-for-claude/agenta-claude-code-architecture.webp)
+
+### Step-by-Step: Connecting Your Claude Subscription and Shared Brain in Agenta
+
+1. **Generate a setup token from your Claude subscription:** On a machine with `Claude Code` installed (`npm install -g @anthropic-ai/claude-code`), run `claude setup-token`, sign in with your Claude Pro or Max account in the browser, and copy the `sk-ant-oat...` token printed in the terminal.
+2. **Add the connection to your Agenta project:** Open `Settings > AI providers` in Agenta (Cloud or self-hosted), choose **Claude subscription (Pro / Max)**, paste the token, and give it a clear label such as `Team Claude Max`.
+3. **Select the Claude Code harness on your agent:** Open your agent's **Configuration** tab, set **Harness** to **[Claude Code](https://github.com/anthropics/claude-code)** (or compare it side by side with **[Codex](https://github.com/openai/codex)** and **[Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)**), choose your Claude model (such as Claude Opus or Claude Sonnet), and select your saved subscription under **Credential**.
+4. **Load your Company Brain into AI Drive and Skills:** Upload your core product context, architecture standards, and SOPs into the agent's **persistent shared agent files** in the **Files** tab, attach reusable skills, and publish the coworker to Slack, Telegram, or an embedded widget.
+
+### Pricing
+
+- **Self-Hosted Open Source (MIT License):** Free forever with no seat limits or feature gates.
+- **Agenta Cloud:** Usage-based pricing with **unlimited users**, projects, agents, automations, schedules, and triggers on every plan: **Hobby ($0/month + $5 one-time credits)**, **Starter ($29/month)**, **Business ($299/month)**, and **Enterprise (Custom)**.
+
+## 2. Anthropic Claude Team & Enterprise (`Claude Projects` + `Skills` + `Connectors`): Best Native Baseline for Small Teams on `claude.ai`
+
+Before adding external infrastructure, it helps to understand what **[Anthropic's native workspace stack](https://www.anthropic.com/pricing)** provides out of the box when you upgrade from individual Pro/Max plans to **Claude Team** or **Claude Enterprise**.
+
+![Anthropic Claude Plans and Native Workspace Features](/blog/company-brain-for-claude/claude-projects.webp)
+
+### How Native Claude Projects, Skills, and Connectors Work Together
+
+Anthropic gives organizations four native building blocks that can act as a lightweight Company Brain when combined carefully:
+
+- **Shared `Claude Projects` (the "nouns"):** Workspaces with a 200K context window where teams upload reference documents and standing instructions for a specific client, product line, or department. On Team and Enterprise plans, projects can be shared across colleagues with role-based permissions.
+- **Claude `Skills` and Plug-ins (the "verbs"):** Written procedures for repeatable tasks (such as drafting a press release, reviewing a security questionnaire, or running a code audit) triggered on demand via slash commands. On Team and Enterprise, administrators can deploy skills organization-wide.
+- **Remote MCP `Connectors`:** Pre-built and custom MCP integrations (Google Drive, Slack, Microsoft 365, SharePoint, Linear, Jira) that allow Claude to fetch live documents during a conversation.
+
+### Where It Shines (and Where Teams Outgrow It)
+
+For a 5-to-20-person company that lives entirely inside `claude.ai` and Claude Desktop, combining shared Projects for project-specific files with organization-wide Skills and Connectors covers everyday drafting and Q&A.
+
+Teams typically outgrow native `Claude Projects` when:
+
+1. **Shared context must span across Projects without copy-pasting:** Uploading the same core company handbook or pricing deck across a dozen Projects still creates version drift unless paired with a dedicated Company Brain connector or shared file drive.
+2. **You need background execution, cron schedules, or webhook triggers:** Native `Claude Projects` are interactive chat workspaces rather than autonomous cloud sandboxes that wake up on a schedule, run bash/git workflows, and write updated reports back to a shared drive.
+3. **Per-seat pricing scales steeply for `Claude Code` users:** While Standard Claude Team seats cost $25/seat/month billed annually ($30 monthly, minimum 5 seats), Team Premium seats that include `Claude Code` cost **$150/seat/month**.
+
+## 3. Slite (`Slite Agent` & `Slite MCP`): Best Context-Retrieval MCP Brain to Save Claude Code Session Limits
+
+**[Slite](https://slite.com/learn/claude-code-company-brain)** tackles a specific pain point that heavy `Claude Code` and `Codex` users hit every week: connecting raw MCP servers directly to a coding agent for context retrieval is slow, inaccurate, and burns through 5-hour session limits.
+
+![Slite Company Brain for Claude Code](/blog/company-brain-for-claude/slite.webp)
+
+### Why a Context Agent Beats 15 Raw MCP Servers in Claude Code
+
+When you ask `Claude Code` a cross-functional question through raw MCP connectors (such as _"Why did we delay the billing migration and what did customers report in Slack?"_), the coding agent has to load every tool schema, guess which system holds the answer, fire dozens of API calls, and stitch raw fragments together inside your context window.
+
+Slite replaces that sprawl with a two-step pattern:
+
+1. **Connect your sources to `Slite Agent`:** Slite indexes your internal wiki docs alongside Slack, Linear, Jira, CRM records, and call transcripts, resolving entities and distinguishing current verified docs from deprecated drafts.
+2. **Expose a single `Slite MCP` + `Ask Slite` skill to `Claude Code`:** Instead of loading 15 MCP servers into `Claude Code`, you register only the Slite MCP server and add a lightweight `Ask Slite` skill to your agent's instructions. Whenever `Claude Code` or `Codex` needs company context before planning, triaging, or editing code, it makes **one synthesized query** to `ask-slite` and gets back a cited, permission-scoped briefing in seconds.
+
+### Pricing
+
+- **Standard / Basic:** $10/user/month billed annually.
+- **Pro (includes `Slite Agent`, MCP access, and cross-tool sources):** $20/user/month billed annually.
+- **Enterprise:** Custom pricing with SSO and advanced governance.
+
+## 4. Vortic: Best Automated Session-Learning Memory for `Claude Code`, `Codex`, and `Cursor` Teams
+
+While wiki-based brains focus on top-down documentation, **[Vortic](https://www.getvortic.com/)** (`Company Brain: memory for AI coding teams`) focuses on bottom-up engineering memory: making sure a mistake one developer's coding agent makes on Tuesday automatically becomes a rule every teammate's agent follows on Thursday.
+
+![Vortic Company Brain for AI Coding Teams](/blog/company-brain-for-claude/vortic.webp)
+
+### How Vortic Learns from Past `Claude Code` Sessions
+
+In most engineering teams, when `Claude Code` fails twice on a staging build because `DATABASE_URL` needs to be exported from the staging vault, the developer corrects the agent in chat and closes the terminal. The next day, another teammate's agent hits the exact same error.
+
+Vortic closes that loop in four layers:
+
+1. **Secret-stripped session import:** Developers run a local Node importer (`node companybrain-import.mjs`) that scans past `Claude Code`, `Codex`, and `Cursor` sessions on their machine, strips common secret formats locally before anything leaves the laptop, and previews the list before uploading.
+2. **The Librarian (typed rules and lessons with citations):** Vortic's Librarian analyzes indexed GitHub repositories and imported coding sessions to write versioned rules, lessons, processes, and skills. Every record cites the exact session, file, or Linear ticket it came from.
+3. **The Reflector (eval-gated skill updates):** When agents repeatedly stumble on the same workflow, the Reflector proposes updates to team skills and rules, applying changes only when they beat the previous version on replay evaluations or receive human approval.
+4. **Single HTTP MCP endpoint + 20-server MCP gateway:** Every developer connects `Claude Code` via `claude mcp add`, giving every new session immediate access to team lessons plus up to 20 managed MCP servers behind one endpoint.
+
+## 5. GBrain (`garrytan/gbrain`): Best DIY Open-Source Postgres + Markdown Brain for Local `Claude Code` Builders
+
+For technical founders and staff engineers who want an inspectable, self-hosted knowledge graph wired directly into their local `Claude Code` and `Codex` CLI sessions, **[GBrain](https://github.com/garrytan/gbrain)** is a popular MIT-licensed open-source project (`10.2k+` GitHub stars).
+
+![GBrain Open Source Agent Brain on GitHub](/blog/company-brain-for-claude/gbrain.webp)
+
+### How GBrain Works with Claude Code over MCP
+
+GBrain treats your Company Brain as a collection of structured Markdown pages backed by **PostgreSQL** and **`pgvector`**, exposed to `Claude Code` as a local or remote MCP server:
+
+- **Two-part Markdown page structure:** Every entity page (representing a customer, repository, product feature, person, or architecture decision) is split into a **compiled truth zone** at the top (which gets overwritten when facts change) and an **append-only chronological timeline** at the bottom (which preserves historical context and links).
+- **Hybrid vector + keyword search with `RRF`:** GBrain chunks pages, generates vector embeddings, and combines semantic search with PostgreSQL full-text keyword search using Reciprocal Rank Fusion (`RRF`), ensuring `Claude Code` finds exact error codes and customer names alongside conceptual summaries.
+- **Drop-in skill packs:** Includes Markdown skill definitions for ingestion, entity enrichment, daily briefings, and cross-reference syncing so `Claude Code` knows how to query and maintain the brain without custom glue code.
+
+### Trade-offs to Consider
+
+GBrain is built for terminal-first engineers who are comfortable provisioning PostgreSQL (or Supabase), running Bun migrations, and managing their own OpenAI/Anthropic API keys. It does not ship with a turnkey cloud sandbox for non-technical teammates or a visual no-code workspace out of the box.
+
+## 6. Luna Labs (`Company Brain for Claude`): Best Verified-Knowledge Connector for Regulated EU Teams
+
+**[Luna Labs](https://luna-labs.io/en/works-with/claude)** builds a dedicated **Company Brain connector** listed directly in Claude's connector directory (`Organisation settings -> Connectors`) for organizations where every policy, price list, and engineering standard must carry an explicit human owner and verification date.
+
+![Luna Labs Verified Company Brain for Claude](/blog/company-brain-for-claude/luna-labs.webp)
+
+### How Luna Labs Solves Stale `Claude Projects`
+
+Luna Labs is designed specifically to sit alongside `Claude Projects`, `Claude Desktop`, and `Claude Code`:
+
+- **Projects for the specific engagement; Company Brain for the company:** Teams keep using `Claude Projects` for client-specific or sprint-specific working files, while the Luna Labs connector supplies company-wide truth (pricing tables, legal rules, security standards, brand voice) across every chat and every project automatically.
+- **Interview agent + accountable human verification:** Luna Labs connects to SharePoint and Google Drive, flags contradictory document versions, uses an interview agent to capture unwritten tribal knowledge from domain experts, and requires an accountable owner to approve what applies. Every answer inside Claude cites the source document, owner, and verification date.
+- **EU data residency and cross-tool portability:** All indexed knowledge is stored within the EU, respects source-system document permissions, and can be queried from `claude.ai`, `Claude Desktop`, `Claude Code` (over MCP), ChatGPT, and Microsoft Copilot.
+
+## How to Choose the Right Company Brain Architecture for Claude
+
+If your team relies on Claude and `Claude Code`, choose your architecture based on who needs access to the brain and whether your agents need to execute real work in the background:
+
+1. **You want an open-source platform where technical and non-technical teammates share `Claude Code` coworkers, persistent files, skills, and your existing Claude Pro/Max subscription across web, Slack, Telegram, and embedded widgets:** Choose **[Agenta](https://agenta.ai)**. You get full **[Claude Code](https://github.com/anthropics/claude-code)**, **[Codex](https://github.com/openai/codex)**, and **[Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)** cloud sandboxes, a shared two-tier **AI Drive**, `claude setup-token` subscription support, and usage-based Cloud or free self-hosted deployment with zero per-seat tax.
+2. **Your team works inside local `Claude Code` terminals and hits 5-hour session limits from too many raw MCP calls:** Pair `Claude Code` with **[Slite (`Slite MCP`)](https://slite.com/learn/claude-code-company-brain)** for single-call cross-tool retrieval, or **[Vortic](https://www.getvortic.com/)** to automatically extract shared engineering rules from past coding sessions.
+3. **You are a solo technical founder or staff engineer who wants a hackable Postgres + `pgvector` + Markdown brain for local CLI agents:** Deploy **[GBrain](https://github.com/garrytan/gbrain)**.
+4. **You are a European enterprise standardized on SharePoint, Google Drive, and Claude Team/Enterprise that needs owner-verified answers with EU residency:** Connect **[Luna Labs](https://luna-labs.io/en/works-with/claude)**.
+
+Ready to turn `Claude Code` from a single-player terminal tool into a shared AI coworker with a persistent Company Brain? **[Try Agenta Cloud for free or self-host the open-source platform on GitHub](https://agenta.ai)**.
