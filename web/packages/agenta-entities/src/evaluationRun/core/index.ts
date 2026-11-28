@@ -55,6 +55,7 @@ export {
 export {
     buildHumanRunConfig,
     evaluatorOutputKeys,
+    humanAnnotationMappings,
     humanAnnotationStep,
     type BuildHumanRunConfigInput,
     type HumanRunApp,

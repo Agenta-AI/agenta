@@ -137,18 +137,24 @@ const buildMappings = ({
     })
 
     for (const evaluator of evaluators) {
-        for (const outputKey of evaluator.outputKeys) {
-            mappings.push({
-                column: {kind: "evaluator", name: `${evaluator.slug}.${outputKey}`},
-                step: {
-                    key: `${invocationKey}.${evaluator.slug}`,
-                    path: `data.outputs.${outputKey}`,
-                },
-            })
-        }
+        mappings.push(...humanAnnotationMappings(evaluator, invocationKey))
     }
 
     return mappings
+}
+
+/**
+ * The columns of one human evaluator: one mapping per output key, under its annotation step
+ * (`humanAnnotationStep`). The run's tables show only the values a mapping names.
+ */
+export function humanAnnotationMappings(
+    evaluator: Pick<HumanRunEvaluator, "slug" | "outputKeys">,
+    invocationKey: string,
+): HumanRunMapping[] {
+    return evaluator.outputKeys.map((outputKey) => ({
+        column: {kind: "evaluator", name: `${evaluator.slug}.${outputKey}`},
+        step: {key: `${invocationKey}.${evaluator.slug}`, path: `data.outputs.${outputKey}`},
+    }))
 }
 
 /**

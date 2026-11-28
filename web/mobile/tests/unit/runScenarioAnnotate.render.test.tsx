@@ -25,7 +25,11 @@ vi.mock("@agenta/shared/api", async (original) => ({
     getAgentaApiUrl: () => "https://agenta.test/api",
 }))
 
-const evaluationsClient = vi.hoisted(() => ({addSteps: vi.fn(), openRun: vi.fn()}))
+const evaluationsClient = vi.hoisted(() => ({
+    addSteps: vi.fn(),
+    editRun: vi.fn(),
+    openRun: vi.fn(),
+}))
 vi.mock("@agenta/sdk/resources", async (original) => ({
     ...(await original<typeof import("@agenta/sdk/resources")>()),
     getEvaluationsClient: () => evaluationsClient,
@@ -368,7 +372,12 @@ beforeEach(() => {
         currentUserAtom: atom({id: "u-me", username: "Sam"}),
     })
     Object.values(http).forEach((fn) => fn.mockReset())
-    evaluationsClient.addSteps.mockReset().mockResolvedValue({run: {id: "run"}})
+    evaluationsClient.addSteps
+        .mockReset()
+        .mockResolvedValue({
+            run: {id: "run", name: "Capitals check", data: {steps: [], mappings: []}},
+        })
+    evaluationsClient.editRun.mockReset().mockResolvedValue({run: {id: "run"}})
     evaluationsClient.openRun.mockReset().mockResolvedValue({run: {id: "run"}})
     submission.submit.mockReset()
     session.onSaved.mockReset()
@@ -471,6 +480,7 @@ describe("Annotate panel in the test case drawer", () => {
             id: "rev-tone",
             workflow_id: "wf-tone",
             workflow_variant_id: "var-tone",
+            data: {schemas: {outputs: {type: "object", properties: {tone: {type: "string"}}}}},
         })
         await press("Annotate")
         await press("Add evaluator")
@@ -485,7 +495,7 @@ describe("Annotate panel in the test case drawer", () => {
         const order: string[] = []
         evaluationsClient.addSteps.mockImplementation(async () => {
             order.push("steps")
-            return {run: {id: "run"}}
+            return {run: {id: "run", name: "Capitals check", data: {steps: [], mappings: []}}}
         })
         await press("Agree")
         const base = http.post.getMockImplementation()
@@ -506,6 +516,24 @@ describe("Annotate panel in the test case drawer", () => {
                         inputs: [{key: "ts"}, {key: "app"}],
                     },
                 ],
+            },
+            {queryParams: {project_id: "pr"}},
+        )
+        // The route adds steps only: the evaluator's columns follow in a run edit.
+        expect(evaluationsClient.editRun).toHaveBeenCalledWith(
+            {
+                run_id: expect.any(String),
+                run: expect.objectContaining({
+                    data: {
+                        steps: [],
+                        mappings: [
+                            {
+                                column: {kind: "evaluator", name: "tone-review.tone"},
+                                step: {key: "app.tone-review", path: "data.outputs.tone"},
+                            },
+                        ],
+                    },
+                }),
             },
             {queryParams: {project_id: "pr"}},
         )

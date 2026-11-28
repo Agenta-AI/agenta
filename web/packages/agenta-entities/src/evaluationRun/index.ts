@@ -97,6 +97,7 @@ export {
     type RunStatusTone,
     buildHumanRunConfig,
     evaluatorOutputKeys,
+    humanAnnotationMappings,
     humanAnnotationStep,
     type BuildHumanRunConfigInput,
     type HumanRunApp,

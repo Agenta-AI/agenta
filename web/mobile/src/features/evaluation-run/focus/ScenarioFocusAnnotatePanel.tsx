@@ -4,6 +4,8 @@ import {annotationFormController, annotationSessionController} from "@agenta/ann
 import {
     addRunSteps,
     evaluationRunQueryKey,
+    evaluatorOutputKeys,
+    humanAnnotationMappings,
     humanAnnotationStep,
     type RunHeader,
 } from "@agenta/entities/evaluationRun"
@@ -111,24 +113,31 @@ export const ScenarioFocusAnnotatePanel = ({
             (ref) => ref.slug && !inRun.has(ref.slug),
         )
         if (picked.length === 0) return
-        if (!run.inputKey || !run.invocationKey) throw new Error("The run has no app step")
-        const steps = picked.map((ref) => {
+        const {inputKey, invocationKey} = run
+        if (!inputKey || !invocationKey) throw new Error("The run has no app step")
+        const evaluators = picked.map((ref) => {
             const revision = ref.workflowId
                 ? store.get(workflowLatestRevisionQueryAtomFamily(ref.workflowId)).data
                 : null
             if (!revision?.id || !ref.slug) throw new Error(`No revision of ${ref.slug}`)
-            return humanAnnotationStep(
-                {
-                    revisionId: revision.id,
-                    workflowId: ref.workflowId,
-                    variantId: revision.workflow_variant_id ?? null,
-                    slug: ref.slug,
-                },
-                run.inputKey as string,
-                run.invocationKey as string,
-            )
+            return {
+                revisionId: revision.id,
+                workflowId: ref.workflowId,
+                variantId: revision.workflow_variant_id ?? null,
+                slug: ref.slug,
+                outputKeys: evaluatorOutputKeys(revision.data as Record<string, unknown> | null),
+            }
         })
-        await addRunSteps({projectId, runId, steps})
+        await addRunSteps({
+            projectId,
+            runId,
+            steps: evaluators.map((evaluator) =>
+                humanAnnotationStep(evaluator, inputKey, invocationKey),
+            ),
+            mappings: evaluators.flatMap((evaluator) =>
+                humanAnnotationMappings(evaluator, invocationKey),
+            ),
+        })
         await queryClient.refetchQueries({queryKey: evaluationRunQueryKey(runId)})
         setFormEvaluators({added: [], hidden: formEvaluators?.hidden ?? []})
     }
