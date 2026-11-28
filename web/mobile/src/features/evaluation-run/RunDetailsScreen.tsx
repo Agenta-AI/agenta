@@ -34,7 +34,7 @@ export const RunDetailsScreen = ({
     useBindProjectContext(projectId)
     const header = useAtomValue(runHeaderAtomFamily(runId))
     // The scenario table keeps the developer width; the other tabs sit in the list column (LAYOUT-02).
-    const {view} = useRunDetailsView(header)
+    const {view} = useRunDetailsView()
     const column = view === "scenarios" ? "" : pageColumn("lg")
 
     return (

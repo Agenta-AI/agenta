@@ -140,7 +140,8 @@ export const useStartEvaluation = ({
                     spec: runs[0],
                     testcaseIds,
                 })
-                void router.push(`${resultsUrl(runId)}?view=focus`)
+                // With no tab in the address, the run page opens the run's queue.
+                void router.push(resultsUrl(runId))
                 return {status: "started", kind: "human"}
             } catch (error) {
                 console.error("Could not start the evaluation", error)

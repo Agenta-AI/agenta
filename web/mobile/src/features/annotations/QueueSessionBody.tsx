@@ -17,6 +17,8 @@ import {QueueSessionSkeleton} from "./states/QueueSessionSkeleton"
 export const QueueSessionBody = ({
     queueId,
     base,
+    listHref,
+    backLabel,
     view,
     canEdit,
     onViewChange,
@@ -24,6 +26,10 @@ export const QueueSessionBody = ({
     queueId: string
     /** `/w/:workspace/p/:project` */
     base: string
+    /** The queue list, or the run list when the user has no queue list. */
+    listHref: string
+    /** "Back to queues", or "Back" when `listHref` is the run list. */
+    backLabel: string
     view: SessionView
     canEdit: boolean
     onViewChange: (view: SessionView) => void
@@ -48,16 +54,10 @@ export const QueueSessionBody = ({
             />
         )
     }
-    if (!queue) return <QueueNotFound listHref={`${base}/annotations`} />
+    if (!queue) return <QueueNotFound listHref={listHref} backLabel={backLabel} />
 
     if (view === "configuration") {
-        return (
-            <QueueConfigurationTab
-                queueId={queueId}
-                canEdit={canEdit}
-                listHref={`${base}/annotations`}
-            />
-        )
+        return <QueueConfigurationTab queueId={queueId} canEdit={canEdit} listHref={listHref} />
     }
     if (scenariosQuery.isError) {
         return (

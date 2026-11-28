@@ -21,6 +21,7 @@ const fixture = vi.hoisted(() => ({
     }>,
     invalidateDetail: vi.fn(),
     invalidateProgress: vi.fn(),
+    queueListOn: true,
 }))
 
 vi.mock("@agenta/annotation", async (importOriginal) => {
@@ -63,10 +64,16 @@ vi.mock("@/features/annotations/ScenarioListTab", () => ({
     ScenarioListTab: () => <div>scenario list</div>,
 }))
 vi.mock("@/features/annotations/QueueConfigurationTab", () => ({
-    QueueConfigurationTab: () => <div>configuration</div>,
+    QueueConfigurationTab: ({listHref}: {listHref: string}) => (
+        <div data-list-href={listHref}>configuration</div>
+    ),
 }))
 vi.mock("@/features/annotations/useAddToTestsetToast", () => ({
     useAddToTestsetToast: () => undefined,
+}))
+vi.mock("@/features/developer/developerViewAccess", () => ({
+    useDeveloperViewEnabled: (viewId: string) =>
+        viewId === "annotation-queues" ? fixture.queueListOn : true,
 }))
 vi.mock("@/features/context/useProjectPermission", () => ({useProjectPermission: () => true}))
 vi.mock("@/features/context/useBindProjectContext", () => ({
@@ -99,7 +106,7 @@ const setQueue = (queue: {isPending: boolean; isError: boolean; data: unknown}) 
 let host: HTMLDivElement
 let root: Root
 
-const QUEUE = {id: "queue-1", name: "Support replies", data: {kind: "traces"}}
+const QUEUE = {id: "queue-1", name: "Support replies", data: {kind: "traces"}, run_id: "run-1"}
 
 const render = async () => {
     await act(async () =>
@@ -122,6 +129,7 @@ beforeEach(() => {
     vi.clearAllMocks()
     resetSession()
     fixture.query = {workspace_id: "ws-1", project_id: "proj-1", queue_id: "queue-1"}
+    fixture.queueListOn = true
     setQueue({isPending: false, isError: false, data: QUEUE})
     host = document.createElement("div")
     document.body.append(host)
@@ -268,5 +276,48 @@ describe("the queue session screen", () => {
         await render()
         expect(host.querySelector("[aria-label='Loading the annotation queue']")).not.toBeNull()
         expect(host.textContent).not.toContain("This queue is empty")
+    })
+
+    describe("Back arrow", () => {
+        // The arrow is the first link of the header; its label says where it goes.
+        const backLink = () => host.querySelector("a[aria-label]")
+        const backHref = () => backLink()?.getAttribute("href")
+
+        it("Goes to the queue list when the user has it", async () => {
+            await render()
+            expect(backHref()).toBe("/w/ws-1/p/proj-1/annotations")
+            expect(backLink()?.getAttribute("aria-label")).toBe("Back to queues")
+        })
+
+        it("Goes to the queue's run when the queue list is off", async () => {
+            fixture.queueListOn = false
+            await render()
+            // With a view, a human run still in review opens its page, not this queue again.
+            expect(backHref()).toBe("/w/ws-1/p/proj-1/evaluations/results/run-1?view=overview")
+            expect(backLink()?.getAttribute("aria-label")).toBe("Back")
+        })
+
+        it("A delete goes to the run list when the queue list is off, since the run goes too", async () => {
+            fixture.queueListOn = false
+            patchSession({activeView: "configuration"})
+            await render()
+            expect(backHref()).toBe("/w/ws-1/p/proj-1/evaluations/results/run-1?view=overview")
+            expect(host.querySelector("[data-list-href]")?.getAttribute("data-list-href")).toBe(
+                "/w/ws-1/p/proj-1/evaluations",
+            )
+        })
+
+        it("Goes to the run list when the queue list is off and there is no queue", async () => {
+            fixture.queueListOn = false
+            setQueue({isPending: false, isError: false, data: null})
+            await render()
+            expect(backHref()).toBe("/w/ws-1/p/proj-1/evaluations")
+            expect(backLink()?.getAttribute("aria-label")).toBe("Back")
+            // Queue not found leaves the same way, with the same label.
+            const notFoundLink = Array.from(host.querySelectorAll("a")).find(
+                (a) => a.textContent === "Back",
+            )
+            expect(notFoundLink?.getAttribute("href")).toBe("/w/ws-1/p/proj-1/evaluations")
+        })
     })
 })

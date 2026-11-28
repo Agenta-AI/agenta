@@ -1,25 +1,28 @@
-import type {ComponentType} from "react"
+import {useEffect, type ComponentType} from "react"
 
 import {
     evaluationRunQueryAtomFamily,
+    isTerminalRunStatus,
     runHeaderAtomFamily,
     runReferencesAtomFamily,
     type RunHeader,
 } from "@agenta/entities/evaluationRun"
+import {runDefaultQueueIdQueryAtomFamily} from "@agenta/entities/simpleQueue"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {Tabs, TabsList, TabsTrigger} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
+import {useRouter} from "next/router"
 
 import {PageNotFound} from "@/components/PageNotFound"
 
+import {queueAnnotateHref} from "../annotations/queueHref"
 import {useRevisionParam} from "../revisions/useRevisionParam"
 
 import {CompareOverviewSkeleton} from "./compare/states/CompareOverviewSkeleton"
 import {useCompareRunIds} from "./compare/useCompareRunIds"
 import {useFocusedRunId} from "./compare/useFocusedRunId"
 import {ConfigurationSkeleton} from "./configuration/states/ConfigurationSkeleton"
-import {RunAnnotateSkeleton} from "./focus/states/RunAnnotateSkeleton"
 import {useFocusScenarioParam} from "./focus/useFocusScenarioParam"
 import {OverviewTab} from "./overview/OverviewTab"
 import {ScenariosSkeleton} from "./scenarios/states/ScenariosSkeleton"
@@ -62,12 +65,6 @@ const ScenariosTab = dynamic<TabBodyProps>(
     {ssr: false, loading: () => <ScenariosSkeleton />},
 )
 
-// The Annotate tab brings the annotation controllers: it loads when the tab opens.
-const RunAnnotateTab = dynamic<TabBodyProps>(
-    () => import("./focus/RunAnnotateTab").then((module) => module.RunAnnotateTab),
-    {ssr: false, loading: () => <RunAnnotateSkeleton />},
-)
-
 // The scenario drawer loads only once a scenario is focused.
 const ScenarioFocusSheet = dynamic<{
     runId: string
@@ -99,16 +96,30 @@ const TAB_BODIES: Partial<Record<RunDetailsView, TabBody>> & {overview: TabBody}
     overview: OverviewTab,
     scenarios: ScenariosTab,
     configuration: ConfigurationTab,
-    focus: RunAnnotateTab,
 }
 
 /** The run page under its title: the tabs and the open tab, or the run's load state. */
 export const RunDetailsBody = ({projectId, runId}: {projectId: string; runId: string}) => {
+    const router = useRouter()
     const runQuery = useAtomValue(evaluationRunQueryAtomFamily(runId))
     const header = useAtomValue(runHeaderAtomFamily(runId))
     const references = useAtomValue(runReferencesAtomFamily(runId))
-    const {tabs, view, setView} = useRunDetailsView(header)
+    const {tabs, view, setView} = useRunDetailsView()
     const [focusedScenarioId] = useFocusScenarioParam(runId)
+    // A human run still being annotated, opened with no tab asked for, opens its queue instead.
+    const opensQueue =
+        header?.kind === "human" &&
+        !isTerminalRunStatus(header.status) &&
+        router.query.view === undefined &&
+        !focusedScenarioId
+    const queueQuery = useAtomValue(runDefaultQueueIdQueryAtomFamily(opensQueue ? runId : ""))
+    const queueId = opensQueue ? (queueQuery.data ?? null) : null
+    const workspaceId = router.query.workspace_id
+    useEffect(() => {
+        if (!queueId || typeof workspaceId !== "string") return
+        // Replace, so Back goes to the page before the run.
+        void router.replace(queueAnnotateHref(`/w/${workspaceId}/p/${projectId}`, queueId))
+    }, [queueId, workspaceId, projectId, router])
     const [openRevisionId] = useRevisionParam()
     const [compareIds] = useCompareRunIds(runId)
     // A compared run's row opens the drawer on that run, so Previous and Next stay in it.
@@ -126,7 +137,9 @@ export const RunDetailsBody = ({projectId, runId}: {projectId: string; runId: st
             />
         )
     }
-    if (!header) return <RunDetailsSkeleton />
+    if (!header || (opensQueue && (queueQuery.isPending || queueId))) {
+        return <RunDetailsSkeleton />
+    }
 
     const shown = TAB_BODIES[view] ? view : "overview"
     const Body =
@@ -154,7 +167,7 @@ export const RunDetailsBody = ({projectId, runId}: {projectId: string; runId: st
                     key={focusRunId}
                     runId={focusRunId}
                     header={focusHeader}
-                    poll={focusRunId === runId && shown !== "scenarios" && shown !== "focus"}
+                    poll={focusRunId === runId && shown !== "scenarios"}
                     compareSlot={
                         compareIds.length > 0
                             ? focusRunId === runId

@@ -1,5 +1,6 @@
 {
     "listTitle": "Annotation queues",
+    "backToQueues": "Back to queues",
     "queueName": "Queue name",
     "emptyTitle": "This queue is empty",
     "testcaseUnavailable": "Test case data not available",

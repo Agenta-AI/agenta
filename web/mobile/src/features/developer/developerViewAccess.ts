@@ -36,9 +36,13 @@ export const enabledDeveloperViewsAtom = atom((get): readonly DeveloperView[] | 
 export const useEnabledDeveloperViews = (): readonly DeveloperView[] =>
     useAtomValue(enabledDeveloperViewsAtom) ?? NO_VIEWS
 
-/** Whether this user may open the view, or `null` until the signed-in user is known. */
-export const useDeveloperViewEnabled = (viewId: string): boolean | null => {
+/**
+ * Whether this user may open the view (any of the views, for a list), or `null` until the
+ * signed-in user is known.
+ */
+export const useDeveloperViewEnabled = (viewId: string | readonly string[]): boolean | null => {
     const enabled = useAtomValue(enabledDeveloperViewsAtom)
     if (!enabled) return null
-    return enabled.some((view) => view.id === viewId)
+    const ids: readonly string[] = typeof viewId === "string" ? [viewId] : viewId
+    return enabled.some((view) => ids.includes(view.id))
 }

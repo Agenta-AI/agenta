@@ -138,6 +138,19 @@ describe("developer views", () => {
             render(<DeveloperViewGate viewId="nope">{view}</DeveloperViewGate>)
             expect(host.querySelector("[data-testid=not-found]")).not.toBeNull()
         })
+
+        it("with two view ids, renders the view when either one is on", () => {
+            const ids = ["lab-one", "lab-two"] as const
+            vi.stubEnv(DEVELOPER_VIEWS_ENV, "lab-two")
+            render(<DeveloperViewGate viewId={ids}>{view}</DeveloperViewGate>)
+            expect(host.querySelector("[data-testid=view]")).not.toBeNull()
+            vi.stubEnv(DEVELOPER_VIEWS_ENV, "lab-gate")
+            store = createStore()
+            store.set(activeUserIdAtom, "u1")
+            render(<DeveloperViewGate viewId={ids}>{view}</DeveloperViewGate>)
+            expect(host.querySelector("[data-testid=view]")).toBeNull()
+            expect(host.querySelector("[data-testid=not-found]")).not.toBeNull()
+        })
     })
 
     describe("playground view", () => {

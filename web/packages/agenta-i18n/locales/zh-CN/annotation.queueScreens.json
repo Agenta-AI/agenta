@@ -1,5 +1,6 @@
 {
     "listTitle": "标注队列",
+    "backToQueues": "返回队列",
     "queueName": "队列名称",
     "emptyTitle": "此队列为空",
     "testcaseUnavailable": "测试用例数据不可用",

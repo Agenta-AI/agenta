@@ -8,8 +8,9 @@ import {PageNotFound} from "@/components/PageNotFound"
 import {useDeveloperViewEnabled} from "./developerViewAccess"
 
 /**
- * Wraps a developer view's route page: the view when this user may open it, the app's
- * "not found" page when not, and nothing while the signed-in user is still unknown.
+ * Wraps a developer view's route page: the view when this user may open it (any of the views,
+ * for a list), the app's "not found" page when not, and nothing while the signed-in user is
+ * still unknown.
  * `betaOnly` routes exist only in beta developer mode.
  */
 export const DeveloperViewGate = ({
@@ -17,7 +18,7 @@ export const DeveloperViewGate = ({
     betaOnly = false,
     children,
 }: {
-    viewId: string
+    viewId: string | readonly string[]
     betaOnly?: boolean
     children: ReactNode
 }) => {

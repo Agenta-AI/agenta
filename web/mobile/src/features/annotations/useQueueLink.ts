@@ -2,6 +2,8 @@ import {useCallback} from "react"
 
 import {useRouter} from "next/router"
 
+import {queueHref} from "./queueHref"
+
 /**
  * The toast link to one queue. The Next router adds the /m base path; a raw location match would
  * not. Without a workspace and project in the route there is no link.
@@ -17,7 +19,7 @@ export const useQueueLink = () => {
 
     return useCallback(
         (queueId: string, linkText: string) => ({
-            onNavigate: base ? () => void router.push(`${base}/annotations/${queueId}`) : undefined,
+            onNavigate: base ? () => void router.push(queueHref(base, queueId)) : undefined,
             linkText,
         }),
         [base, router],

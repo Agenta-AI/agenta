@@ -144,7 +144,7 @@ export const ScenarioFocusSheet = ({
     header: RunHeader
     /** While runs are compared: the run's slot, so the drawer names the run in its color. */
     compareSlot?: number | null
-    /** False while the Scenarios or Annotate tab is open: it already reads the live rows again. */
+    /** False while the Scenarios tab is open: it already reads the live rows again. */
     poll: boolean
 }) => {
     const [scenarioId, setScenarioId] = useFocusScenarioParam(runId)

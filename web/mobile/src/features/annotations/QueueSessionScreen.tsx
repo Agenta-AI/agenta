@@ -2,6 +2,7 @@ import {annotationSessionController} from "@agenta/annotation"
 import {simpleQueueMolecule} from "@agenta/entities/simpleQueue"
 import {useT} from "@agenta/i18n"
 import queueScreensCatalog from "@agenta/i18n/catalogs/annotation.queueScreens"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Button, SkeletonBlock} from "@agenta/ui/ui"
 import {ArrowLeft} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -14,6 +15,7 @@ import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMember
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useProjectPermission} from "../context/useProjectPermission"
+import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
 import {AppShell} from "../nav/AppShell"
 
 import {QueueSessionBody} from "./QueueSessionBody"
@@ -37,7 +39,7 @@ export const QueueSessionScreen = ({
     projectId: string
     queueId: string
 }) => {
-    const t = useT(queueScreensCatalog)
+    const t = useT(queueScreensCatalog, commonCatalog)
     useBindProjectContext(projectId)
     // The panel's last author and the All annotations authors name people from the member list.
     useBindWorkspaceMembers()
@@ -48,6 +50,16 @@ export const QueueSessionScreen = ({
     const queueName = useAtomValue(annotationSessionController.selectors.queueName())
     const modalOpen = useAtomValue(annotationSessionController.selectors.isAddToTestsetModalOpen())
     useAddToTestsetToast(base)
+    // The queue page also opens on the evaluations view alone; the queue list then is not
+    // there, so the run list takes its place, and Back goes to the queue's run. The run opens on
+    // Overview: with no view, a human run still in review would open this queue again. A delete
+    // goes to the list, since deleting a run's default queue deletes the run.
+    const queueListOn = useDeveloperViewEnabled("annotation-queues") === true
+    const listHref = queueListOn ? `${base}/annotations` : `${base}/evaluations`
+    const runId = queueQuery.data?.run_id
+    const backHref =
+        !queueListOn && runId ? `${base}/evaluations/results/${runId}?view=overview` : listHref
+    const backLabel = queueListOn ? t("annotation.queueScreens.backToQueues") : t("common.back")
 
     const title = queueName || "Untitled Queue"
     return (
@@ -60,11 +72,7 @@ export const QueueSessionScreen = ({
                         <div className="box-border flex shrink-0 flex-col gap-3 border-0 border-b border-solid border-border px-4 pb-2 pt-3 sm:flex-row sm:items-center">
                             <div className="flex min-w-0 flex-1 items-center gap-2">
                                 <Button size="icon-sm" variant="ghost" asChild>
-                                    <Link
-                                        href={`${base}/annotations`}
-                                        prefetch={false}
-                                        aria-label="Back to queues"
-                                    >
+                                    <Link href={backHref} prefetch={false} aria-label={backLabel}>
                                         <ArrowLeft aria-hidden size={16} />
                                     </Link>
                                 </Button>
@@ -85,6 +93,8 @@ export const QueueSessionScreen = ({
                     <QueueSessionBody
                         queueId={queueId}
                         base={base}
+                        listHref={listHref}
+                        backLabel={backLabel}
                         view={view}
                         canEdit={canEdit}
                         onViewChange={setView}
