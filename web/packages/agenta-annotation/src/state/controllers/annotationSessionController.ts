@@ -508,14 +508,15 @@ const evaluatorIdsAtom = atom<string[]>((get) => {
 })
 
 /**
- * Evaluator revision IDs — derived from the run's human annotation steps.
+ * Evaluator revision IDs of every annotation step of the run, human or not: the evaluators the
+ * queue is configured with (its Configuration tab lists them). The form reads
+ * `evaluatorStepRefs`, which keeps the human steps only.
  * Uses `step.references.evaluator_revision.id` (specific revision ID).
- * Kept for revision-level resolution when needed.
  */
 const evaluatorRevisionIdsAtom = atom<string[]>((get) => {
     const runId = get(activeRunIdAtom)
     if (!runId) return []
-    return get(evaluationRunMolecule.selectors.humanAnnotationSteps(runId)).flatMap(
+    return get(evaluationRunMolecule.selectors.annotationSteps(runId)).flatMap(
         (step) => step.references?.evaluator_revision?.id || [],
     )
 })

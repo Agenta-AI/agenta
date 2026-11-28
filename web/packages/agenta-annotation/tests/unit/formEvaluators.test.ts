@@ -91,6 +91,13 @@ describe("the run's form evaluators", () => {
         expect(slugs()).toEqual(["tone", "clarity"])
     })
 
+    it("lists every configured evaluator of the queue, human or not, outside the form", () => {
+        expect(store.get(annotationSessionController.selectors.evaluatorRevisionIds())).toEqual([
+            "rev-tone",
+            "rev-judge",
+        ])
+    })
+
     it("does not list an added evaluator twice when the run has it or it is added twice", () => {
         const clarity = {workflowId: "wf-clarity", revisionId: "rev-clarity", slug: "clarity"}
         store.set(annotationSessionController.actions.setFormEvaluators, {
