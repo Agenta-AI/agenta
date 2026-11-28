@@ -863,12 +863,32 @@ const baselineAtomFamily = atomFamily(
     (a, b) => a === b,
 )
 
+/**
+ * Edits of the evaluators the form shows (the resolved `evaluatorStepRefs`). Edits of an
+ * evaluator the host hid, or added and then removed, stay in the draft, so showing it again
+ * brings them back, but they are not drawn, counted or saved.
+ */
+const visibleEditsAtomFamily = atomFamily(
+    (scenarioId: string) =>
+        atom((get) => {
+            const edits = get(editsAtomFamily(scenarioId))
+            const {evaluators} = get(baselineAtomFamily(scenarioId))
+            const shown = new Set(evaluators.map((evaluator) => evaluator.slug))
+            const slugs = Object.keys(edits)
+            if (slugs.every((slug) => shown.has(slug))) return edits
+            return Object.fromEntries(
+                Object.entries(edits).filter(([slug]) => shown.has(slug)),
+            ) as AnnotationMetrics
+        }),
+    (a, b) => a === b,
+)
+
 /** Effective metrics = baseline merged with edits */
 const effectiveMetricsAtomFamily = atomFamily(
     (scenarioId: string) =>
         atom((get) => {
             const {baseline} = get(baselineAtomFamily(scenarioId))
-            const edits = get(editsAtomFamily(scenarioId))
+            const edits = get(visibleEditsAtomFamily(scenarioId))
 
             if (Object.keys(edits).length === 0) {
                 return baseline
@@ -888,34 +908,36 @@ const effectiveMetricsAtomFamily = atomFamily(
     (a, b) => a === b,
 )
 
-/** Whether there are unsaved changes */
-const hasPendingChangesAtomFamily = atomFamily(
+/** The number of edited fields whose value differs from the saved one (two empties are equal). */
+const pendingChangeCountAtomFamily = atomFamily(
     (scenarioId: string) =>
         atom((get) => {
-            const edits = get(editsAtomFamily(scenarioId))
-            if (Object.keys(edits).length === 0) return false
+            const edits = get(visibleEditsAtomFamily(scenarioId))
+            if (Object.keys(edits).length === 0) return 0
 
             const {baseline} = get(baselineAtomFamily(scenarioId))
-
+            let count = 0
             for (const [slug, fields] of Object.entries(edits)) {
                 const baselineSlug = baseline[slug] ?? {}
                 for (const [key, field] of Object.entries(fields)) {
-                    const baselineField = baselineSlug[key]
                     const currentValue = field.value
-                    const baselineValue = baselineField?.value
-
-                    if (!deepEqual(currentValue, baselineValue)) {
-                        const isCurrentEmpty = isEmptyValue(currentValue)
-                        const isBaselineEmpty = isEmptyValue(baselineValue)
-
-                        if (!isCurrentEmpty || !isBaselineEmpty) {
-                            return true
-                        }
+                    const baselineValue = baselineSlug[key]?.value
+                    if (
+                        !deepEqual(currentValue, baselineValue) &&
+                        (!isEmptyValue(currentValue) || !isEmptyValue(baselineValue))
+                    ) {
+                        count += 1
                     }
                 }
             }
-            return false
+            return count
         }),
+    (a, b) => a === b,
+)
+
+/** Whether there are unsaved changes */
+const hasPendingChangesAtomFamily = atomFamily(
+    (scenarioId: string) => atom((get) => get(pendingChangeCountAtomFamily(scenarioId)) > 0),
     (a, b) => a === b,
 )
 
@@ -1740,13 +1762,15 @@ export const annotationFormController = {
         effectiveMetrics: (scenarioId: string) => effectiveMetricsAtomFamily(scenarioId),
         /** Whether there are unsaved changes */
         hasPendingChanges: (scenarioId: string) => hasPendingChangesAtomFamily(scenarioId),
+        /** Edited fields that differ from the saved values (the Save button's count) */
+        pendingChangeCount: (scenarioId: string) => pendingChangeCountAtomFamily(scenarioId),
         /** Whether the form has at least one non-empty metric value */
         hasFilledMetrics: (scenarioId: string) => hasFilledMetricsAtomFamily(scenarioId),
         /** Whether a submission is in progress */
         isSubmitting: (scenarioId: string) => isSubmittingAtomFamily(scenarioId),
         /** Current submission error message, or null if no error */
         submitError: (scenarioId: string) => submitErrorAtomFamily(scenarioId),
-        /** Evaluator IDs for the session */
+        /** Evaluator IDs of the session's human annotation steps */
         evaluatorIds: () => annotationSessionController.selectors.evaluatorIds(),
         /** Evaluator resolution state (pending/error) — session-scoped */
         evaluatorResolution: () => evaluatorResolutionAtom,
@@ -1783,6 +1807,8 @@ export const annotationFormController = {
             getStore().get(effectiveMetricsAtomFamily(scenarioId)),
         hasPendingChanges: (scenarioId: string) =>
             getStore().get(hasPendingChangesAtomFamily(scenarioId)),
+        pendingChangeCount: (scenarioId: string) =>
+            getStore().get(pendingChangeCountAtomFamily(scenarioId)),
         hasFilledMetrics: (scenarioId: string) =>
             getStore().get(hasFilledMetricsAtomFamily(scenarioId)),
         isSubmitting: (scenarioId: string) => getStore().get(isSubmittingAtomFamily(scenarioId)),

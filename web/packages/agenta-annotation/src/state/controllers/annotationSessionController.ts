@@ -99,6 +99,7 @@ import type {
     ScenarioEvaluatorKey,
     ScenarioMetricForEvaluator,
     EvaluatorStepRef,
+    FormEvaluators,
 } from "../types"
 
 // ============================================================================
@@ -494,25 +495,30 @@ const queueDescriptionAtom = atom<string | null>((get) => {
 })
 
 /**
- * Evaluator workflow IDs — derived from evaluation run annotation steps.
+ * Evaluator workflow IDs — derived from the run's human annotation steps.
  * Uses `step.references.evaluator.id` (workflow/artifact ID).
  * Same resolution path as the working queues table (EvaluatorNamesCell).
  */
 const evaluatorIdsAtom = atom<string[]>((get) => {
     const runId = get(activeRunIdAtom)
     if (!runId) return []
-    return get(evaluationRunMolecule.selectors.evaluatorIds(runId))
+    return get(evaluationRunMolecule.selectors.humanAnnotationSteps(runId)).flatMap(
+        (step) => step.references?.evaluator?.id || [],
+    )
 })
 
 /**
- * Evaluator revision IDs — derived from evaluation run annotation steps.
+ * Evaluator revision IDs of every annotation step of the run, human or not: the evaluators the
+ * queue is configured with (its Configuration tab lists them). The form reads
+ * `evaluatorStepRefs`, which keeps the human steps only.
  * Uses `step.references.evaluator_revision.id` (specific revision ID).
- * Kept for revision-level resolution when needed.
  */
 const evaluatorRevisionIdsAtom = atom<string[]>((get) => {
     const runId = get(activeRunIdAtom)
     if (!runId) return []
-    return get(evaluationRunMolecule.selectors.evaluatorRevisionIds(runId))
+    return get(evaluationRunMolecule.selectors.annotationSteps(runId)).flatMap(
+        (step) => step.references?.evaluator_revision?.id || [],
+    )
 })
 
 function deriveEvaluatorSlugFromStepKey(stepKey: string | null | undefined): string | null {
@@ -522,17 +528,36 @@ function deriveEvaluatorSlugFromStepKey(stepKey: string | null | undefined): str
 }
 
 /**
- * Ordered evaluator references from annotation steps.
- * Each entry preserves the queue's pinned evaluator revision while keeping the
- * artifact/variant IDs needed for later annotation submits.
+ * The evaluators a host adds to or hides from the run's form (`setFormEvaluators`). Run scope
+ * only; `openRun` and `closeSession` clear it.
+ */
+const formEvaluatorsAtom = atom<FormEvaluators | null>(null)
+
+/** Slugs the host hides from the form; their refs leave `evaluatorStepRefs`. */
+const hiddenFormSlugsAtom = atom<ReadonlySet<string>>(
+    (get) => new Set(get(formEvaluatorsAtom)?.hidden ?? []),
+)
+
+const setFormEvaluatorsAtom = atom(null, (get, set, next: FormEvaluators | null) => {
+    if (!get(runScopeIdAtom)) return
+    set(formEvaluatorsAtom, next)
+})
+
+/**
+ * Ordered evaluator references from the run's human annotation steps (an automatic judge is not
+ * a form field). Each entry preserves the queue's pinned evaluator revision while keeping the
+ * artifact/variant IDs needed for later annotation submits. In a run session, the hidden slugs
+ * go and the added evaluators follow.
  */
 const evaluatorStepRefsAtom = atom<EvaluatorStepRef[]>((get) => {
     const runId = get(activeRunIdAtom)
     if (!runId) return []
 
-    const annotationSteps = get(evaluationRunMolecule.selectors.annotationSteps(runId))
+    const humanSteps = get(evaluationRunMolecule.selectors.humanAnnotationSteps(runId))
+    const formEvaluators = get(formEvaluatorsAtom)
+    const hidden = get(hiddenFormSlugsAtom)
 
-    return annotationSteps
+    const refs = humanSteps
         .map((step) => ({
             workflowId: step.references?.evaluator?.id ?? null,
             variantId: step.references?.evaluator_variant?.id ?? null,
@@ -546,6 +571,17 @@ const evaluatorStepRefsAtom = atom<EvaluatorStepRef[]>((get) => {
             stepKey: step.key ?? null,
         }))
         .filter((ref) => Boolean(ref.workflowId || ref.revisionId || ref.slug))
+    if (!formEvaluators) return refs
+    const kept = refs.filter((ref) => !ref.slug || !hidden.has(ref.slug))
+    // An added evaluator already in the form (or added twice) would draw two sections on one slug.
+    const slugs = new Set(kept.flatMap((ref) => ref.slug || []))
+    const added = formEvaluators.added.filter((ref) => {
+        if (!ref.slug) return true
+        if (slugs.has(ref.slug)) return false
+        slugs.add(ref.slug)
+        return true
+    })
+    return [...kept, ...added]
 })
 
 /** Evaluator metadata for queue-scoped testcase sync. */
@@ -2396,6 +2432,7 @@ const closeSessionAtom = atom(null, (get, set) => {
     // clear automatically when activeQueueIdAtom becomes null.
     set(activeQueueIdAtom, null)
     set(runScopeIdAtom, null)
+    set(formEvaluatorsAtom, null)
     set(activeQueueTypeAtom, null)
     set(focusedScenarioIdAtom, null)
     set(completedScenarioIdsAtom, new Set())
@@ -3513,12 +3550,16 @@ export const annotationSessionController = {
         isAddToTestsetExporting: () => isAddToTestsetExportingAtom,
         /** Whether the current session has exportable data */
         canAddToTestset: () => canAddToTestsetAtom,
-        /** Evaluator workflow IDs from evaluation run annotation steps */
+        /** Evaluator workflow IDs of the active run's human annotation steps */
         evaluatorIds: () => evaluatorIdsAtom,
-        /** Evaluator revision IDs from evaluation run annotation steps */
+        /** Evaluator revision IDs of the active run's human annotation steps */
         evaluatorRevisionIds: () => evaluatorRevisionIdsAtom,
-        /** Ordered evaluator refs from evaluation run annotation steps */
+        /** Ordered evaluator refs of the human annotation steps, without the hidden slugs, then the added evaluators (`setFormEvaluators`) */
         evaluatorStepRefs: () => evaluatorStepRefsAtom,
+        /** Evaluators the host added to or hid from a run's form; null when none */
+        formEvaluators: () => formEvaluatorsAtom,
+        /** Slugs hidden from a run's form: their edits are kept in the draft, not shown, not saved */
+        hiddenFormSlugs: () => hiddenFormSlugsAtom,
         /** Annotation column definitions derived from run mappings + steps */
         annotationColumnDefs: () => annotationColumnDefsAtom,
         /** Trace input keys discovered from the first scenario's trace data */
@@ -3569,6 +3610,8 @@ export const annotationSessionController = {
         openQueue: openQueueAtom,
         /** Open an evaluation run for annotation, without a queue */
         openRun: openRunAtom,
+        /** Add evaluators to or hide them from a run's form (run scope only); null resets */
+        setFormEvaluators: setFormEvaluatorsAtom,
         /** Navigate to next scenario */
         navigateNext: navigateNextAtom,
         /** Navigate to previous scenario */
@@ -3677,6 +3720,8 @@ export const annotationSessionController = {
     set: {
         openQueue: (payload: OpenQueuePayload) => getStore().set(openQueueAtom, payload),
         openRun: (payload: OpenRunPayload) => getStore().set(openRunAtom, payload),
+        setFormEvaluators: (next: FormEvaluators | null) =>
+            getStore().set(setFormEvaluatorsAtom, next),
         navigateNext: () => getStore().set(navigateNextAtom),
         navigatePrev: () => getStore().set(navigatePrevAtom),
         navigateToIndex: (index: number) => getStore().set(navigateToIndexAtom, index),

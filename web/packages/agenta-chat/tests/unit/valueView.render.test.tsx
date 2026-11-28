@@ -756,3 +756,50 @@ describe("EvaluatorResultRow for every view", () => {
         expect(screen.getByText("price")).toBeTruthy()
     })
 })
+
+describe("System message", () => {
+    const chat = [
+        {role: "system", content: "You are a support agent.\nAnswer in two sentences."},
+        {role: "user", content: "Can I return the poles?"},
+        {role: "assistant", content: "Yes."},
+    ]
+
+    it("folds a system message to System prompt and its size, and opens it on click", async () => {
+        const {container} = render(<ValueField value={chat} />)
+        const line = screen.getByRole("button", {name: /System prompt/})
+        expect(line.textContent).toBe("System prompt · 2 lines, 49 characters")
+        expect(line.getAttribute("aria-expanded")).toBe("false")
+        expect(container.textContent).not.toContain("You are a support agent.")
+
+        fireEvent.click(line)
+        expect(line.getAttribute("aria-expanded")).toBe("true")
+        await waitFor(() => expect(container.textContent).toContain("You are a support agent."))
+    })
+
+    it("opens the system message in the full view", async () => {
+        const {container} = render(<ValueFullView value={chat} />)
+        const line = screen.getByRole("button", {name: /System prompt/})
+        expect(line.getAttribute("aria-expanded")).toBe("true")
+        await waitFor(() => expect(container.textContent).toContain("You are a support agent."))
+    })
+
+    it("folds a system message written as text parts", () => {
+        render(
+            <ValueField
+                value={[
+                    {role: "system", content: [{type: "text", text: "Be brief."}]},
+                    ...chat.slice(1),
+                ]}
+            />,
+        )
+        expect(screen.getByRole("button", {name: /System prompt/}).textContent).toBe(
+            "System prompt · 1 line, 9 characters",
+        )
+    })
+
+    it("draws a chat with no system message as before", () => {
+        render(<ValueField value={chat.slice(1)} />)
+        expect(screen.queryByRole("button", {name: /System prompt/})).toBeNull()
+        expect(screen.getByText("Can I return the poles?")).toBeTruthy()
+    })
+})

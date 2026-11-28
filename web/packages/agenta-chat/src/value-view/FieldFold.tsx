@@ -1,6 +1,6 @@
 import {useId, useState, type ReactNode} from "react"
 
-import {useT} from "@agenta/i18n"
+import {useT, type CatalogKey, type TranslationValues} from "@agenta/i18n"
 import valueViewCatalog from "@agenta/i18n/catalogs/chat.valueView"
 import {lineCount, TEXT_LONG_CHARS} from "@agenta/shared/utils"
 import {Button} from "@agenta/ui/ui"
@@ -23,6 +23,20 @@ export interface FieldFoldProps {
     unfolded?: boolean
     /** Each change closes the fold again; the children stay mounted (an editor keeps its text). */
     collapseSignal?: number
+}
+
+type ValueViewT = (key: CatalogKey<typeof valueViewCatalog>, values?: TranslationValues) => string
+
+/** The size of a text as a fold writes it: "177 lines, 9,850 characters". */
+export const formatTextSize = (t: ValueViewT, text: string) => {
+    const lines = lineCount(text)
+    return t("chat.valueView.size", {
+        lines: t("chat.valueView.lines", {count: lines, n: lines.toLocaleString()}),
+        characters: t("chat.valueView.characters", {
+            count: text.length,
+            n: text.length.toLocaleString(),
+        }),
+    })
 }
 
 /** True when a text is long enough to fold: over 8 lines, or over 1,500 characters. */
@@ -51,13 +65,7 @@ export const FieldFold = ({
     if (unfolded || !needsFold(text)) return <>{children}</>
 
     const lines = lineCount(text)
-    const size = t("chat.valueView.size", {
-        lines: t("chat.valueView.lines", {count: lines, n: lines.toLocaleString()}),
-        characters: t("chat.valueView.characters", {
-            count: text.length,
-            n: text.length.toLocaleString(),
-        }),
-    })
+    const size = formatTextSize(t, text)
     return (
         <div className="flex min-w-0 flex-col gap-1.5">
             <div

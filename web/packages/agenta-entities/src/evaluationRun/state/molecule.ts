@@ -35,7 +35,7 @@ import type {
     EvaluationRunDataStep,
     EvaluationResult,
 } from "../core"
-import {findScenarioTraceResult} from "../core"
+import {findScenarioTraceResult, isHumanOrigin} from "../core"
 
 // ============================================================================
 // HELPERS
@@ -180,6 +180,16 @@ const annotationStepsAtomFamily = atomFamily((runId: string) =>
         const steps = get(stepsAtomFamily(runId))
         return steps.filter((step) => step.type === "annotation")
     }),
+)
+
+/**
+ * The annotation steps a person fills: origin `human`. The annotation form lists these. Not
+ * `annotationSteps`, which `scenarioTraceRef` needs whole to skip every evaluator's results.
+ */
+const humanAnnotationStepsAtomFamily = atomFamily((runId: string) =>
+    atom<EvaluationRunDataStep[]>((get) =>
+        get(annotationStepsAtomFamily(runId)).filter((step) => isHumanOrigin(step.origin)),
+    ),
 )
 
 /**
@@ -538,6 +548,8 @@ export const evaluationRunMolecule = {
         steps: stepsAtomFamily,
         /** Annotation steps only (evaluators) */
         annotationSteps: annotationStepsAtomFamily,
+        /** Annotation steps with origin `human`: the evaluators of the annotation form */
+        humanAnnotationSteps: humanAnnotationStepsAtomFamily,
         /** Evaluator workflow IDs from annotation step references */
         evaluatorIds: evaluatorIdsAtomFamily,
         /** Evaluator revision IDs from annotation step references */
@@ -582,6 +594,8 @@ export const evaluationRunMolecule = {
             getStore(options).get(stepsAtomFamily(runId)),
         annotationSteps: (runId: string, options?: StoreOptions) =>
             getStore(options).get(annotationStepsAtomFamily(runId)),
+        humanAnnotationSteps: (runId: string, options?: StoreOptions) =>
+            getStore(options).get(humanAnnotationStepsAtomFamily(runId)),
         evaluatorIds: (runId: string, options?: StoreOptions) =>
             getStore(options).get(evaluatorIdsAtomFamily(runId)),
         evaluatorRevisionIds: (runId: string, options?: StoreOptions) =>
