@@ -1,4 +1,8 @@
-import {unwrapStatsForCompare, type RunColumnGroup} from "@agenta/entities/evaluationRun/etl"
+import {
+    unwrapCategoricalStats,
+    unwrapStatsForCompare,
+    type RunColumnGroup,
+} from "@agenta/entities/evaluationRun/etl"
 
 import type {ScenarioRow} from "../scenarios/scenarioColumns"
 
@@ -12,6 +16,13 @@ export interface ScenarioPayload {
 
 /** A value with no answer yet is written as null, so its key still shows. */
 const plain = (value: unknown) => (value === undefined ? null : value)
+
+/** An evaluator value: a category as its label (its labels when there are several), else the stats' value. */
+const metricValue = (value: unknown) => {
+    const labels = unwrapCategoricalStats(value)
+    if (labels === null) return unwrapStatsForCompare(value)
+    return labels.length === 1 ? labels[0] : labels
+}
 
 /**
  * The values of one scenario by kind: the test case inputs, the app outputs, and each
@@ -37,7 +48,7 @@ export function scenarioPayload(
                 const values = Object.fromEntries(
                     (row.cells[group.key] ?? []).map((cell) => [
                         cell.name,
-                        plain(unwrapStatsForCompare(cell.value)),
+                        plain(metricValue(cell.value)),
                     ]),
                 )
                 return [labels[group.key] ?? group.label, error ? {error} : values]

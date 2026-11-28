@@ -31,6 +31,8 @@
     "failedFirst": "Fallidos primero",
     "noEvaluators": "Esta ejecución no tiene evaluadores",
     "noResults": "Ningún evaluador dio un resultado para este caso de prueba",
+    "copyInputs": "Copiar entradas",
+    "copyOutput": "Copiar salida",
     "openStepTrace": "Abrir la traza de {{name}}",
     "metrics": "Métricas",
     "references": "Referencias",

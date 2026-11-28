@@ -27,6 +27,8 @@
     "failedFirst": "失败的在前",
     "noEvaluators": "本次运行没有评估器",
     "noResults": "没有评估器为此测试用例给出结果",
+    "copyInputs": "复制输入",
+    "copyOutput": "复制输出",
     "openStepTrace": "打开 {{name}} 的追踪",
     "metrics": "指标",
     "references": "引用",

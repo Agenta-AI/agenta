@@ -29,6 +29,8 @@
     "failedFirst": "Fehlgeschlagene zuerst",
     "noEvaluators": "Dieser Lauf hat keine Evaluatoren",
     "noResults": "Kein Evaluator hat für diesen Testfall ein Ergebnis geliefert",
+    "copyInputs": "Eingaben kopieren",
+    "copyOutput": "Ausgabe kopieren",
     "openStepTrace": "Trace von {{name}} öffnen",
     "metrics": "Metriken",
     "references": "Referenzen",

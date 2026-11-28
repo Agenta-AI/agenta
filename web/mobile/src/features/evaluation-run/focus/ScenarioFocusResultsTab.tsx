@@ -11,6 +11,7 @@ import {
     type RunColumnGroup,
     type RunStep,
 } from "@agenta/entities/evaluationRun/etl"
+import {UserAuthorLabel} from "@agenta/entities/shared"
 import {useT} from "@agenta/i18n"
 import focusCatalog from "@agenta/i18n/catalogs/evaluations.scenarioFocus"
 import traceSpanCatalog from "@agenta/i18n/catalogs/observabilityUi.traceSpan"
@@ -198,6 +199,12 @@ export const ScenarioFocusResultsTab = ({
                         items={human.map((result) => ({
                             ...itemOf(result),
                             badge: <Badge>{t("observabilityUi.traceSpan.evaluatorHuman")}</Badge>,
+                            byline: result.step?.author ? (
+                                <UserAuthorLabel
+                                    userId={result.step.author.userId}
+                                    at={result.step.author.at}
+                                />
+                            ) : undefined,
                             binaryWords: "trueFalse" as const,
                         }))}
                     />

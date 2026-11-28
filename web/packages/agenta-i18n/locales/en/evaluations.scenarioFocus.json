@@ -29,6 +29,8 @@
     "failedFirst": "Failed first",
     "noEvaluators": "This run has no evaluators",
     "noResults": "No evaluator gave a result for this test case",
+    "copyInputs": "Copy inputs",
+    "copyOutput": "Copy output",
     "openStepTrace": "Open {{name}} trace",
     "metrics": "Metrics",
     "references": "References",

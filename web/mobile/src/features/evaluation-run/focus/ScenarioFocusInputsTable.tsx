@@ -20,6 +20,7 @@ export const ScenarioFocusInputsTable = ({cells}: {cells: ScenarioCell[]}) => {
                 </h3>
                 <CopyValueButton
                     value={Object.fromEntries(fields.map(({name, value}) => [name, value]))}
+                    label={t("evaluations.scenarioFocus.copyInputs")}
                 />
             </div>
             <ValueFieldTable fields={fields} />

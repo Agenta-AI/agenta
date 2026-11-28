@@ -125,7 +125,12 @@ export const ScenarioFocusOutput = ({
                             step={step}
                         />
                     ) : null}
-                    {failed || empty ? null : <CopyValueButton value={value} />}
+                    {failed || empty ? null : (
+                        <CopyValueButton
+                            value={value}
+                            label={t("evaluations.scenarioFocus.copyOutput")}
+                        />
+                    )}
                 </div>
             </div>
             {body}

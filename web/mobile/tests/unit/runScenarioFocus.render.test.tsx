@@ -2,6 +2,7 @@
 import {act, createElement, type ReactNode} from "react"
 
 import type {RunHeader} from "@agenta/entities/evaluationRun"
+import {setUserAtoms} from "@agenta/entities/shared"
 import {
     closeTraceDrawerAtom,
     isDrawerOpenAtom,
@@ -10,7 +11,7 @@ import {
 } from "@agenta/observability/traceDrawer"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
-import {getDefaultStore, Provider} from "jotai"
+import {atom, getDefaultStore, Provider} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -269,6 +270,38 @@ const withOrigins =
         }
         return answer
     }
+
+/** The evaluator's result written by a person two minutes ago. */
+const withAuthor: typeof answerRequest = (runId, serverState, url, body) => {
+    const answer = withStepTraces(runId, serverState, url, body)
+    if (url.endsWith("/evaluations/results/query")) {
+        for (const result of (answer.data?.results ?? []) as Record<string, unknown>[]) {
+            if (result.step_key !== "ev") continue
+            result.created_by_id = "u-dana"
+            result.created_at = new Date(Date.now() - 2 * 60_000).toISOString()
+        }
+    }
+    return answer
+}
+
+/** The evaluator's value is a category, as its stats hold it. */
+const withCategory: typeof answerRequest = (runId, serverState, url, body) => {
+    const answer = answerRequest(runId, serverState, url, body)
+    if (url.endsWith("/evaluations/metrics/query")) {
+        for (const metric of (answer.data?.metrics ?? []) as {
+            data: Record<string, Record<string, unknown>>
+        }[]) {
+            for (const key of Object.keys(metric.data.ev ?? {})) {
+                metric.data.ev[key] = {
+                    type: "categorical/single",
+                    count: 1,
+                    freq: [{value: "refund", count: 1}],
+                }
+            }
+        }
+    }
+    return answer
+}
 
 const dialog = () => document.body.querySelector('[role="dialog"]')
 const text = () => dialog()?.textContent ?? ""
@@ -788,6 +821,40 @@ describe("scenario focus drawer", () => {
         await openTab("Results")
         expect(text()).toContain("No evaluator gave a result for this test case")
         expect(text()).not.toContain("This run has no evaluators")
+    })
+
+    it("A human row says who gave the value and when", async () => {
+        setUserAtoms({
+            membersAtom: atom([{user: {id: "u-dana", username: "Dana"}}]),
+            currentUserAtom: atom({id: "u-me", username: "Sam"}),
+        })
+        await mount("sc-1", {}, "auto", withOrigins({ev: "human"}, withAuthor))
+        await openTab("Results")
+        expect(section("Human annotations").textContent).toContain("By Dana, 2m ago")
+    })
+
+    it("The copy buttons name what they copy", async () => {
+        await mount("sc-1", {}, "auto", withAppTrace())
+        expect(section("Inputs").querySelector('[aria-label="Copy inputs"]')).not.toBeNull()
+        expect(section("Output").querySelector('[aria-label="Copy output"]')).not.toBeNull()
+    })
+
+    it("Raw shows a category by its label", async () => {
+        await mount("sc-1", {}, "auto", withCategory)
+        await openTab("Results")
+        await press("Raw")
+        expect(JSON.parse(section("Test case as JSON").textContent ?? "{}")).toEqual({
+            evaluators: {"Exact Match": {success: "refund"}},
+        })
+    })
+
+    it("A text output shows its tool calls above the text", async () => {
+        traceApi.outputs = () => "All tests pass."
+        await mount("sc-1", {}, "auto", withAppTrace())
+        await settle()
+        const output = section("Output")
+        expect(output.textContent).toMatch(/Worked for .*\s*·\s*2 tool calls/)
+        expect(output.textContent).toContain("All tests pass.")
     })
 
     it("Next on the last loaded row loads the next page", async () => {
